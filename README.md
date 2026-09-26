@@ -90,6 +90,12 @@ header of the exported file.
   - overload protection check Ib ≤ In ≤ Iz (IEC 60364-4-43)
   - fault levels from R+jX impedance: at the breaker's busbar (checked
     against Icu) and at the cable end
+- Whole-system single line diagram (utility → transformer → boards → loads)
+  with zoom/pan, load-type icons, and click-to-select boards and feeders
+- System summary (connected/demand load, kVA, power factor, transformer
+  loading) and a bus voltage / board loading table
+- Board properties panel (General / Electrical / Protection) with editable
+  equipment data and board loading against its rating
 - Editing feeders and boards from the UI, multi-level board hierarchy,
   cable-size suggestion that respects the breaker rating and the voltage-drop
   budget left after upstream drops

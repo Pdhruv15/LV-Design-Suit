@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Board, Feeder, Project } from '../types';
+import { BOARD_KINDS, type Board, type BoardKind, type Feeder, type Project } from '../types';
 import { CABLE_TABLE } from '../calc/cableTable';
 
 export default function BoardForm({
@@ -16,6 +16,8 @@ export default function BoardForm({
   const [boardId, setBoardId] = useState('');
   const [boardName, setBoardName] = useState('');
   const [upstreamId, setUpstreamId] = useState(parentBoardId);
+  const [kind, setKind] = useState<BoardKind>('DB');
+  const [ratedCurrentA, setRatedCurrentA] = useState(250);
   const [incomerId, setIncomerId] = useState('');
   const [lengthM, setLengthM] = useState(30);
   const [cableCsaMm2, setCableCsaMm2] = useState(95);
@@ -26,7 +28,7 @@ export default function BoardForm({
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!boardId.trim() || !boardName.trim() || !incomerId.trim()) return;
-    const board: Board = { id: boardId, name: boardName, upstreamId };
+    const board: Board = { id: boardId, name: boardName, upstreamId, kind, ratedCurrentA };
     const incomer: Feeder = {
       id: incomerId, boardId: upstreamId, name: `Incomer to ${boardName}`,
       loadKw: 0, demandFactor: 1, powerFactor: 0.85, lengthM, cableCsaMm2, cores,
@@ -43,6 +45,14 @@ export default function BoardForm({
         <div className="grid2">
           <label>Board ID<input value={boardId} required onChange={(e) => setBoardId(e.target.value)} placeholder="e.g. SMDB-2" /></label>
           <label>Board name<input value={boardName} required onChange={(e) => setBoardName(e.target.value)} placeholder="e.g. Second floor SMDB" /></label>
+          <label>Board type
+            <select value={kind} onChange={(e) => setKind(e.target.value as BoardKind)}>
+              {BOARD_KINDS.filter((k) => k.value !== 'MDB').map((k) => (
+                <option key={k.value} value={k.value}>{k.label}</option>
+              ))}
+            </select>
+          </label>
+          <label>Rated current (A)<input type="number" value={ratedCurrentA} onChange={(e) => setRatedCurrentA(+e.target.value)} /></label>
           <label>Fed from
             <select value={upstreamId} onChange={(e) => setUpstreamId(e.target.value)}>
               {project.boards.map((b) => (

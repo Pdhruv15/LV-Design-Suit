@@ -77,3 +77,54 @@ table.compare th{text-align:center}
 table.compare td:first-child,table.compare th:first-child{text-align:left}
 .engine-notes{margin:12px 0 0;padding-left:18px;line-height:1.6}
 code{background:var(--p2);padding:1px 5px;border-radius:4px}
+/* ---- System diagram ---- */
+.sysdiag{position:relative;height:clamp(360px,52vh,620px);border:1px solid var(--line);border-radius:8px;background:
+  radial-gradient(circle,var(--line) 1px,transparent 1px) 0 0/22px 22px,var(--bg);overflow:hidden;margin-top:8px}
+.sysdiag svg{width:100%;height:100%;display:block;cursor:grab;touch-action:none;user-select:none}
+.sysdiag svg:active{cursor:grabbing}
+.sysdiag-tools{position:absolute;top:8px;right:8px;display:flex;gap:4px;z-index:1}
+.sysdiag-tools .chip{padding:3px 9px;min-width:30px}
+.sysdiag .bus{stroke:var(--bus);stroke-width:4;stroke-linecap:round}
+.sysdiag .bus.sel{stroke:var(--acc)}
+.sysdiag .ln.mv{stroke:var(--acc);opacity:.7}
+.sysdiag .ln.warn{stroke:var(--warn)}
+.sysdiag .ln.bad{stroke:var(--bad)}
+.sysdiag .load{fill:var(--panel);stroke-width:1.6;stroke:var(--mut)}
+.sysdiag .load.warn{stroke:var(--warn)}
+.sysdiag .load.bad{stroke:var(--bad)}
+.sysdiag .icon{color:var(--acc)}
+.sysdiag .icon.warn{color:var(--warn)}
+.sysdiag .icon.bad{color:var(--bad)}
+.sysdiag .fd,.sysdiag .bd{cursor:pointer;outline:none}
+.sysdiag .fd:hover .load,.sysdiag .bd:hover .box{stroke:var(--acc)}
+.sysdiag .fd:focus-visible .load,.sysdiag .bd:focus-visible .box{stroke:var(--acc);stroke-width:2}
+.sysdiag .sel-ring{fill:none;stroke:var(--acc);stroke-width:1.5;stroke-dasharray:4 3}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{padding:5px 12px;color:var(--mut)}
+.seg button.on{background:var(--p2);color:var(--acc)}
+.stage-head > div:last-child{display:flex;gap:6px;flex-wrap:wrap}
+/* ---- Summary cards ---- */
+.cards{display:grid;grid-template-columns:minmax(300px,1fr) minmax(380px,1.4fr);gap:12px;padding:12px 14px 0}
+.card{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:10px 12px;min-width:0;overflow-x:auto}
+.card h4{margin:0 0 8px;font-size:12px;font-weight:600}
+.summary{display:flex;align-items:center;gap:14px}
+.summary .kv{flex:1}
+.summary svg text{fill:var(--tx)}
+.summary svg .m{fill:var(--mut);font-size:11px}
+table.compact{min-width:0}
+table.compact th,table.compact td{padding:5px 8px}
+.note{margin:8px 0 0;font-size:11px}
+.section-title{margin:14px 14px 0;font-size:13px;font-weight:600}
+@media (max-width:1200px){.cards{grid-template-columns:minmax(0,1fr)}}
+/* ---- Board panel ---- */
+.ptabs{padding:0;margin:4px 0 10px}
+.form-kv{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center;margin-bottom:10px}
+.form-kv label{display:contents;color:var(--mut)}
+.form-kv input,.form-kv select{background:var(--p2);border:1px solid var(--line);border-radius:5px;padding:5px 7px;color:var(--tx);font:inherit;min-width:0;width:100%}
+.bar{position:relative;height:8px;border-radius:4px;background:var(--line);margin:10px 44px 6px 0}
+.bar span{position:absolute;inset:0 auto 0 0;border-radius:4px;background:var(--ok)}
+.bar span.warn{background:var(--warn)}
+.bar span.bad{background:var(--bad)}
+.bar b{position:absolute;right:-44px;top:-5px;font-weight:600}
+.pn .linkish{margin:0}
+.mid > *{flex-shrink:0}

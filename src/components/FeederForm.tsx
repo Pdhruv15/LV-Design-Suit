@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Feeder, Project } from '../types';
+import { LOAD_TYPES, type Feeder, type LoadType, type Project } from '../types';
 import { CABLE_TABLE } from '../calc/cableTable';
 import { designCurrentA, selectCable, upstreamVoltageDropPct } from '../calc/electrical';
 
@@ -58,6 +58,13 @@ export default function FeederForm({
         <div className="grid2">
           <label>Circuit ID<input value={f.id} disabled={!isNew} required onChange={(e) => set('id', e.target.value)} placeholder="e.g. DB-KITCHEN" /></label>
           <label>Name<input value={f.name} required onChange={(e) => set('name', e.target.value)} placeholder="e.g. Kitchen distribution board" /></label>
+          <label>Load type
+            <select value={f.loadType ?? (f.generation ? 'pv' : 'general')} onChange={(e) => set('loadType', e.target.value as LoadType)}>
+              {LOAD_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+          </label>
           <label>Connected load (kW)<input type="number" step="0.1" value={f.loadKw} onChange={(e) => set('loadKw', +e.target.value)} /></label>
           <label>Demand factor<input type="number" step="0.01" min="0" max="1" value={f.demandFactor} onChange={(e) => set('demandFactor', +e.target.value)} /></label>
           <label>Power factor<input type="number" step="0.01" min="0" max="1" value={f.powerFactor} onChange={(e) => set('powerFactor', +e.target.value)} /></label>

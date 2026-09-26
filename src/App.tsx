@@ -10,6 +10,9 @@ import BoardForm from './components/BoardForm';
 import BoqTable from './components/BoqTable';
 import { exportDss } from './engines/opendss/exportDss';
 import EngineCompare from './components/EngineCompare';
+import SystemDiagram from './components/SystemDiagram';
+import SystemSummaryCards from './components/SystemSummaryCards';
+import BoardPanel from './components/BoardPanel';
 
 // window.lvds is only present when running inside Electron. Fall back to
 // in-memory-only mode so the same UI still runs in a plain browser tab
@@ -17,6 +20,7 @@ import EngineCompare from './components/EngineCompare';
 const hasBridge = typeof window !== 'undefined' && !!window.lvds;
 
 type MainView = 'design' | 'boq' | 'engines';
+type DiagramMode = 'system' | 'board';
 
 export default function App() {
   const [project, setProject] = useState<Project>(sampleProject);
@@ -29,6 +33,8 @@ export default function App() {
   const [view, setView] = useState<MainView>('design');
   const [showFeederForm, setShowFeederForm] = useState<'new' | 'edit' | null>(null);
   const [showBoardForm, setShowBoardForm] = useState(false);
+  const [diagramMode, setDiagramMode] = useState<DiagramMode>('system');
+  const [panel, setPanel] = useState<'feeder' | 'board'>('board');
 
   const allResults = useMemo(() => evaluateProject(project), [project]);
   const board = project.boards.find((b) => b.id === activeBoardId) ?? project.boards[0];
@@ -47,6 +53,23 @@ export default function App() {
       setSelected(boardResults[0]?.feeder.id ?? null);
     }
   }, [board?.id]);
+
+  function selectFeeder(id: string) {
+    const f = project.feeders.find((x) => x.id === id);
+    if (!f) return;
+    setSelected(id);
+    setActiveBoardId(f.boardId);
+    setPanel('feeder');
+  }
+
+  function selectBoard(id: string) {
+    setActiveBoardId(id);
+    setPanel('board');
+  }
+
+  function updateBoard(b: Board) {
+    setProject((prev) => ({ ...prev, boards: prev.boards.map((x) => (x.id === b.id ? b : x)) }));
+  }
 
   function refreshList() {
     if (!hasBridge) return;
@@ -128,6 +151,7 @@ export default function App() {
   function addBoard(b: Board, incomer: Feeder) {
     setProject((prev) => ({ ...prev, boards: [...prev.boards, b], feeders: [...prev.feeders, incomer] }));
     setActiveBoardId(b.id);
+    setPanel('board');
     setShowBoardForm(false);
   }
 
@@ -163,7 +187,7 @@ export default function App() {
 
           <h4>Boards</h4>
           {project.boards.map((b) => (
-            <button key={b.id} className={view === 'design' && board?.id === b.id ? 'on' : ''} onClick={() => { setView('design'); setActiveBoardId(b.id); }}>
+            <button key={b.id} className={view === 'design' && board?.id === b.id ? 'on' : ''} style={{ paddingLeft: 10 + (b.upstreamId ? 12 : 0) }} onClick={() => { setView('design'); selectBoard(b.id); }}>
               {b.id}
             </button>
           ))}
@@ -180,19 +204,44 @@ export default function App() {
             <main className="mid">
               <section className="stage">
                 <div className="stage-head">
-                  <h3>Single line diagram – {board.id}</h3>
+                  <div className="seg" role="tablist" aria-label="Diagram">
+                    <button role="tab" aria-selected={diagramMode === 'system'} className={diagramMode === 'system' ? 'on' : ''} onClick={() => setDiagramMode('system')}>
+                      System diagram
+                    </button>
+                    <button role="tab" aria-selected={diagramMode === 'board'} className={diagramMode === 'board' ? 'on' : ''} onClick={() => setDiagramMode('board')}>
+                      Board: {board.id}
+                    </button>
+                  </div>
                   <div>
-                    <button className="chip" onClick={() => setShowFeederForm('new')}>+ Add feeder</button>
-                    {selectedFeeder && <button className="chip" onClick={() => setShowFeederForm('edit')}>Edit selected</button>}
+                    <button className="chip" onClick={() => setShowFeederForm('new')}>+ Add feeder to {board.id}</button>
+                    <button className="chip" onClick={() => setShowBoardForm(true)}>+ Add board</button>
+                    {selectedFeeder && panel === 'feeder' && <button className="chip" onClick={() => setShowFeederForm('edit')}>Edit {selectedFeeder.id}</button>}
                   </div>
                 </div>
-                <SingleLineDiagram board={board} results={boardResults} selected={selected} onSelect={setSelected} />
+                {diagramMode === 'system' ? (
+                  <SystemDiagram
+                    project={project}
+                    results={allResults}
+                    selectedFeederId={panel === 'feeder' ? selected : null}
+                    selectedBoardId={panel === 'board' ? board.id : null}
+                    onSelectFeeder={selectFeeder}
+                    onSelectBoard={selectBoard}
+                  />
+                ) : (
+                  <SingleLineDiagram board={board} results={boardResults} selected={selected} onSelect={selectFeeder} />
+                )}
               </section>
-              <ResultsTable results={boardResults} vdLimitPct={project.vdLimitPct} selected={selected} onSelect={setSelected} />
+              <SystemSummaryCards project={project} selectedBoardId={panel === 'board' ? board.id : null} onSelectBoard={selectBoard} />
+              <h3 className="section-title">Feeders on {board.id}</h3>
+              <ResultsTable results={boardResults} vdLimitPct={project.vdLimitPct} selected={selected} onSelect={selectFeeder} />
             </main>
 
             <aside className="side">
-              <SidePanel results={boardResults} selected={selected} />
+              {panel === 'board' ? (
+                <BoardPanel project={project} board={board} results={allResults} onChange={updateBoard} onSelectFeeder={selectFeeder} />
+              ) : (
+                <SidePanel results={boardResults} selected={selected} />
+              )}
             </aside>
           </>
         ) : view === 'engines' ? (
