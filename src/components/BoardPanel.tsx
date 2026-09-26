@@ -4,7 +4,8 @@ import type { FeederResult } from '../calc/electrical';
 import { DEFAULT_TRANSFORMER_XR } from '../calc/electrical';
 import { boardSummary } from '../calc/summary';
 
-type Tab = 'general' | 'electrical' | 'protection';
+export type BoardTab = 'general' | 'electrical' | 'protection';
+type Tab = BoardTab;
 
 const statusLabel = { ok: 'Within limits', warn: 'Near rating (> 80 %)', bad: 'Overloaded' } as const;
 
@@ -16,15 +17,22 @@ export default function BoardPanel({
   board,
   results,
   onChange,
-  onSelectFeeder
+  onSelectFeeder,
+  tab: tabProp,
+  onTab
 }: {
   project: Project;
   board: Board;
   results: FeederResult[];
   onChange: (b: Board) => void;
   onSelectFeeder: (id: string) => void;
+  /** Optional controlled tab (the ribbon's Transformer button opens Electrical). */
+  tab?: Tab;
+  onTab?: (t: Tab) => void;
 }) {
-  const [tab, setTab] = useState<Tab>('general');
+  const [localTab, setLocalTab] = useState<Tab>('general');
+  const tab = tabProp ?? localTab;
+  const setTab = onTab ?? setLocalTab;
   const s = useMemo(() => boardSummary(project, board), [project, board]);
   const incomerResult = s.incomer ? results.find((r) => r.feeder.id === s.incomer!.id) : undefined;
   const isMain = !board.upstreamId;

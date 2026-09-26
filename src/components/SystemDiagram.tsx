@@ -26,7 +26,8 @@ export default function SystemDiagram({
   selectedFeederId,
   selectedBoardId,
   onSelectFeeder,
-  onSelectBoard
+  onSelectBoard,
+  tool = 'select'
 }: {
   project: Project;
   results: FeederResult[];
@@ -34,6 +35,8 @@ export default function SystemDiagram({
   selectedBoardId: string | null;
   onSelectFeeder: (id: string) => void;
   onSelectBoard: (id: string) => void;
+  /** 'pan': dragging and clicking never select anything. */
+  tool?: 'select' | 'pan';
 }) {
   const layout = useMemo(() => layoutSystem(project), [project]);
   const byFeeder = useMemo(() => new Map(results.map((r) => [r.feeder.id, r])), [results]);
@@ -97,13 +100,13 @@ export default function SystemDiagram({
     setTimeout(() => (drag.current = null), 0);
   }
   const click = (fn: () => void) => () => {
-    if (!drag.current?.moved) fn();
+    if (!drag.current?.moved && tool !== 'pan') fn();
   };
 
   const main = layout.roots[0];
 
   return (
-    <div className="sysdiag">
+    <div className={`sysdiag ${tool === 'pan' ? 'pan' : ''}`}>
       <div className="sysdiag-tools" role="toolbar" aria-label="Diagram zoom">
         <button className="chip" onClick={() => zoom(1 / 1.25)} aria-label="Zoom in">+</button>
         <button className="chip" onClick={() => zoom(1.25)} aria-label="Zoom out">−</button>

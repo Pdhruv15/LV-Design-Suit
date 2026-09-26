@@ -13,6 +13,7 @@ export default function FeederForm({
   project,
   boardId,
   initial,
+  preset,
   onSave,
   onDelete,
   onClose
@@ -20,11 +21,13 @@ export default function FeederForm({
   project: Project;
   boardId: string;
   initial?: Feeder;
+  /** Defaults for a new feeder, e.g. { loadType: 'motor' } from the ribbon. */
+  preset?: Partial<Feeder>;
   onSave: (f: Feeder) => void;
   onDelete?: () => void;
   onClose: () => void;
 }) {
-  const [f, setF] = useState<Feeder>(initial ?? emptyFeeder(boardId));
+  const [f, setF] = useState<Feeder>(initial ?? { ...emptyFeeder(boardId), ...preset });
   const [suggestion, setSuggestion] = useState<string>('');
   const isNew = !initial;
 

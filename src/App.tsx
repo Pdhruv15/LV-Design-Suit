@@ -24,27 +24,10 @@ import { CableScheduleView, DbScheduleView, EquipmentScheduleView, ReportView } 
 // during development (`vite` alone, without `electron .`).
 const hasBridge = typeof window !== 'undefined' && !!window.lvds;
 
-type MainView =
-  | 'design'
-  | 'earthing' | 'selection' | 'coordination' | 'sizing' | 'pfc' | 'engines'
-  | 'db-schedule' | 'cable-schedule' | 'equipment' | 'boq' | 'report';
-
-const STUDIES: [MainView, string][] = [
-  ['engines', 'Load flow (engines)'],
-  ['earthing', 'Earthing'],
-  ['coordination', 'Protection coordination'],
-  ['selection', 'Breaker & cable selection'],
-  ['sizing', 'Transformer & generator'],
-  ['pfc', 'Power factor correction']
-];
-
-const DOCUMENTS: [MainView, string][] = [
-  ['db-schedule', 'DB schedule'],
-  ['cable-schedule', 'Cable schedule'],
-  ['equipment', 'Equipment schedule'],
-  ['boq', 'Cost estimate (BOQ)'],
-  ['report', 'Calculation report (PDF)']
-];
+import { DOCUMENTS, STUDIES, type MainView } from './views';
+import Ribbon, { tabForView, type DiagramTool, type RibbonTab } from './components/Ribbon';
+import ProjectSettings from './components/ProjectSettings';
+import type { BoardTab } from './components/BoardPanel';
 type DiagramMode = 'system' | 'board';
 
 export default function App() {
@@ -55,7 +38,17 @@ export default function App() {
   const [activeBoardId, setActiveBoardId] = useState<string>(project.boards[0]?.id ?? '');
   const [selected, setSelected] = useState<string | null>(null);
   const [status, setStatus] = useState<string>('');
-  const [view, setView] = useState<MainView>('design');
+  const [view, setViewState] = useState<MainView>('design');
+  const [ribbonTab, setRibbonTab] = useState<RibbonTab>('design');
+  const [tool, setTool] = useState<DiagramTool>('select');
+  const [feederPreset, setFeederPreset] = useState<Partial<Feeder>>({});
+  const [boardTab, setBoardTab] = useState<BoardTab>('general');
+  const [showSettings, setShowSettings] = useState(false);
+  // Navigating (left menu or ribbon) keeps the ribbon on the matching tab.
+  const setView = (v: MainView) => {
+    setViewState(v);
+    setRibbonTab(tabForView(v));
+  };
   const [showFeederForm, setShowFeederForm] = useState<'new' | 'edit' | null>(null);
   const [showBoardForm, setShowBoardForm] = useState(false);
   const [diagramMode, setDiagramMode] = useState<DiagramMode>('system');
@@ -167,6 +160,24 @@ export default function App() {
     setShowFeederForm(null);
   }
 
+  function openAddFeeder(preset: Partial<Feeder>) {
+    setView('design');
+    setFeederPreset(preset);
+    setShowFeederForm('new');
+  }
+
+  function openTransformer() {
+    const main = project.boards.find((b) => !b.upstreamId);
+    if (!main) return;
+    setView('design');
+    selectBoard(main.id);
+    setBoardTab('electrical');
+  }
+
+  function confirmDeleteSelected() {
+    if (selectedFeeder && window.confirm(`Delete feeder ${selectedFeeder.id}?`)) deleteFeeder(selectedFeeder.id);
+  }
+
   function deleteFeeder(id: string) {
     setProject((prev) => ({ ...prev, feeders: prev.feeders.filter((x) => x.id !== id) }));
     setSelected(null);
@@ -195,6 +206,27 @@ export default function App() {
         <button className="chip" onClick={startNewProject}>New project</button>
         <button className="chip" onClick={saveProject}>Save</button>
       </div>
+
+      <Ribbon
+        tab={ribbonTab}
+        onTab={setRibbonTab}
+        a={{
+          view,
+          onView: setView,
+          tool,
+          onTool: setTool,
+          boardId: board?.id ?? '',
+          selectedFeederId: panel === 'feeder' ? selected : null,
+          onAddFeeder: openAddFeeder,
+          onAddBoard: () => setShowBoardForm(true),
+          onTransformer: openTransformer,
+          onBoardProperties: () => { setView('design'); if (board) selectBoard(board.id); setBoardTab('general'); },
+          onEditSelected: () => { setView('design'); setShowFeederForm('edit'); },
+          onDeleteSelected: confirmDeleteSelected,
+          onExportDss: exportOpenDss,
+          onSettings: () => setShowSettings(true)
+        }}
+      />
 
       <div className="app">
         <nav className="nav" aria-label="Navigation">
@@ -248,7 +280,7 @@ export default function App() {
                     </button>
                   </div>
                   <div>
-                    <button className="chip" onClick={() => setShowFeederForm('new')}>+ Add feeder to {board.id}</button>
+                    <button className="chip" onClick={() => openAddFeeder({})}>+ Add feeder to {board.id}</button>
                     <button className="chip" onClick={() => setShowBoardForm(true)}>+ Add board</button>
                     {selectedFeeder && panel === 'feeder' && <button className="chip" onClick={() => setShowFeederForm('edit')}>Edit {selectedFeeder.id}</button>}
                   </div>
@@ -261,6 +293,7 @@ export default function App() {
                     selectedBoardId={panel === 'board' ? board.id : null}
                     onSelectFeeder={selectFeeder}
                     onSelectBoard={selectBoard}
+                    tool={tool}
                   />
                 ) : (
                   <SingleLineDiagram board={board} results={boardResults} selected={selected} onSelect={selectFeeder} />
@@ -273,7 +306,7 @@ export default function App() {
 
             <aside className="side">
               {panel === 'board' ? (
-                <BoardPanel project={project} board={board} results={allResults} onChange={updateBoard} onSelectFeeder={selectFeeder} />
+                <BoardPanel project={project} board={board} results={allResults} onChange={updateBoard} onSelectFeeder={selectFeeder} tab={boardTab} onTab={setBoardTab} />
               ) : (
                 <SidePanel results={boardResults} selected={selected} />
               )}
@@ -319,10 +352,14 @@ export default function App() {
           project={project}
           boardId={board.id}
           initial={showFeederForm === 'edit' ? selectedFeeder : undefined}
+          preset={showFeederForm === 'new' ? feederPreset : undefined}
           onSave={saveFeeder}
           onDelete={showFeederForm === 'edit' && selectedFeeder ? () => deleteFeeder(selectedFeeder.id) : undefined}
           onClose={() => setShowFeederForm(null)}
         />
+      )}
+      {showSettings && (
+        <ProjectSettings project={project} onSave={(p) => { setProject(p); setShowSettings(false); }} onClose={() => setShowSettings(false)} />
       )}
       {showBoardForm && board && (
         <BoardForm project={project} parentBoardId={board.id} onSave={addBoard} onClose={() => setShowBoardForm(false)} />
