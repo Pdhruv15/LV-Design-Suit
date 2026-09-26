@@ -85,6 +85,17 @@ describe('transformer and fault level', () => {
   });
 });
 
+describe('single-phase end fault', () => {
+  it('flows through phase + neutral (2 × cable Z)', () => {
+    // 2.5 mm², 25 m: cable R = 8.892 × 0.025 = 0.2223 Ω, X = 0.0025 Ω per conductor.
+    const f = feeder({ loadKw: 3, cores: 2, cableCsaMm2: 2.5, lengthM: 25, breakerRatingA: 20, breakerIcuKa: 10 });
+    const zt = transformerImpedance(1000, 5, 415);
+    const z = { r: zt.r + 2 * 0.2223, x: zt.x + 2 * 0.0025 };
+    const expected = 415 / SQRT3 / zMagnitude(z) / 1000; // ≈ 0.53 kA
+    expect(evaluateFeeder(project([f]), f).endFaultKA).toBeCloseTo(expected, 3);
+  });
+});
+
 describe('voltage drop', () => {
   it('3-phase: √3 · I · L · (R cosφ + X sinφ)', () => {
     // 100 A at unity pf over 100 m of 50 mm²: R = 0.387 × 1.2 = 0.4644 Ω/km
@@ -93,11 +104,14 @@ describe('voltage drop', () => {
     expect(voltageDropPct(f, project([f]))).toBeCloseTo(1.938, 3);
   });
 
-  it('single-phase (2-core) uses a 2× loop multiplier', () => {
-    const three = feeder({ loadKw: kwFor(40, 1), powerFactor: 1, cores: 4 });
-    const single = { ...three, cores: 2 as const };
-    const p = project([three]);
-    expect(voltageDropPct(single, p) / voltageDropPct(three, p)).toBeCloseTo(2 / SQRT3, 9);
+  it('single-phase (2-core): current on U0, 2·I·Z loop drop against U0', () => {
+    // 3 kW at unity pf on 239.6 V → 12.52 A; over 25 m of 2.5 mm²
+    // (R = 7.41 × 1.2 = 8.892 Ω/km): 2 × 12.52 × 0.025 × 8.892 = 5.567 V
+    // → 2.323 % of 239.6 V.
+    const f = feeder({ loadKw: 3, powerFactor: 1, cores: 2, cableCsaMm2: 2.5, lengthM: 25 });
+    const p = project([f]);
+    expect(designCurrentA(f, p)).toBeCloseTo(3000 / (415 / SQRT3), 9);
+    expect(voltageDropPct(f, p)).toBeCloseTo(2.323, 3);
   });
 
   it('adds the incomer drop to feeders on a sub-board', () => {

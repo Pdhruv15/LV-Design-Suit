@@ -69,3 +69,11 @@ tr.sel{background:var(--p2)}
 .modal-actions{display:flex;align-items:center;gap:8px;padding-top:4px}
 .boq-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;flex-wrap:wrap}
 @media (max-width:1000px){.app{grid-template-columns:minmax(0,1fr)}.nav{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line)}.nav h4{display:none}.side{border-left:0}.grid2{grid-template-columns:1fr}}
+.engine-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.engine-controls select{margin-left:4px;background:var(--p2);color:var(--tx);border:1px solid var(--line);border-radius:5px;padding:4px 6px;font:inherit}
+.chip:disabled{opacity:.5;cursor:not-allowed}
+.linkish{color:var(--acc);margin-left:10px;text-decoration:underline}
+table.compare th{text-align:center}
+table.compare td:first-child,table.compare th:first-child{text-align:left}
+.engine-notes{margin:12px 0 0;padding-left:18px;line-height:1.6}
+code{background:var(--p2);padding:1px 5px;border-radius:4px}

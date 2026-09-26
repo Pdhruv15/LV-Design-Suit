@@ -17,5 +17,3 @@ export const builtinEngine: CalcEngine = {
     messages: []
   })
 };
-
-export const ENGINES: CalcEngine[] = [builtinEngine];

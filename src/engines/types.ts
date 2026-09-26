@@ -25,3 +25,9 @@ export interface CalcEngine {
   isAvailable(): Promise<boolean>;
   run(project: Project): Promise<StudyResults>;
 }
+
+/** What the Python helper reports about the installed engines. */
+export interface EngineProbe {
+  python: string;
+  engines: Record<string, { available: boolean; version?: string; error?: string }>;
+}

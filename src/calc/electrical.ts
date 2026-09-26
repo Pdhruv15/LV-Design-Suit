@@ -35,12 +35,15 @@ export function boardDemandKw(project: Project, boardId: string): number {
     .reduce((sum, f) => sum + (f.feedsBoardId ? boardDemandKw(project, f.feedsBoardId) : f.loadKw * f.demandFactor), 0);
 }
 
-/** Design current (A) for a feeder, assuming a balanced 3-phase load. An
- * incomer feeder (feedsBoardId set) derives its current from the downstream
- * board's total demand rather than its own loadKw/demandFactor fields. */
+/** Design current (A) for a feeder: balanced 3-phase for 3/4-core
+ * circuits, phase-to-neutral for 2-core (single-phase) circuits. An incomer
+ * feeder (feedsBoardId set) derives its current from the downstream board's
+ * total demand rather than its own loadKw/demandFactor fields. */
 export function designCurrentA(feeder: Feeder, project: Project): number {
   const demandKw = feeder.feedsBoardId ? boardDemandKw(project, feeder.feedsBoardId) : feeder.loadKw * feeder.demandFactor;
-  return (demandKw * 1000) / (SQRT3 * project.voltageV * feeder.powerFactor);
+  return feeder.cores >= 3
+    ? (demandKw * 1000) / (SQRT3 * project.voltageV * feeder.powerFactor)
+    : (demandKw * 1000) / ((project.voltageV / SQRT3) * feeder.powerFactor);
 }
 
 /** Cable current rating after ambient temperature derating. Grouping and
@@ -50,13 +53,18 @@ export function deratedAmpacityA(csaMm2: number, ambientC: number): number {
   return getCable(csaMm2).ampacityA * ambientCorrectionFactor(ambientC);
 }
 
+/** Voltage drop as a percentage of nominal: 3-phase circuits use
+ * √3·I·Z against the line-to-line voltage; single-phase circuits use the
+ * phase + neutral loop (2·I·Z) against the phase-to-neutral voltage. */
 function vdPctFor(ib: number, csaMm2: number, lengthM: number, cores: 2 | 3 | 4, cosPhi: number, voltageV: number): number {
   const rOhmPerKm = rOperatingOhmPerKm(csaMm2);
   const xOhmPerKm = getCable(csaMm2).xOhmPerKm;
   const sinPhi = Math.sqrt(Math.max(0, 1 - cosPhi * cosPhi));
-  const multiplier = cores >= 3 ? SQRT3 : 2; // 3-phase vs single-phase circuit
+  const threePhase = cores >= 3;
+  const multiplier = threePhase ? SQRT3 : 2;
+  const baseV = threePhase ? voltageV : voltageV / SQRT3;
   const vdVolts = (multiplier * ib * lengthM * (rOhmPerKm * cosPhi + xOhmPerKm * sinPhi)) / 1000;
-  return (vdVolts / voltageV) * 100;
+  return (vdVolts / baseV) * 100;
 }
 
 /** Voltage drop in percent over this feeder's own cable run only. */
@@ -168,7 +176,8 @@ export interface FeederResult {
    * busbar) — the fault the breaker must be able to interrupt. */
   breakerFaultKA: number;
   /** Prospective fault at the far end of the cable (lower value; relevant
-   * for minimum-fault / disconnection-time checks). */
+   * for minimum-fault / disconnection-time checks). 3-phase fault for
+   * 3/4-core circuits, line-to-neutral for 2-core circuits. */
   endFaultKA: number;
   /** Breaker breaking capacity Icu ≥ fault at its terminals. */
   icuStatus: 'ok' | 'bad';
@@ -186,7 +195,11 @@ export function evaluateFeeder(project: Project, feeder: Feeder): FeederResult {
 
   const zBoard = impedanceToBoard(project, feeder.boardId);
   const breakerFaultKA = faultCurrentKA(zBoard, project.voltageV);
-  const endFaultKA = faultCurrentKA(addZ(zBoard, cableImpedance(feeder.cableCsaMm2, feeder.lengthM)), project.voltageV);
+  // Single-phase circuits: the fault at the far end is line-to-neutral, so
+  // it flows through the phase and neutral conductors (2 × cable Z).
+  const zCable = cableImpedance(feeder.cableCsaMm2, feeder.lengthM);
+  const loop = feeder.cores >= 3 ? 1 : 2;
+  const endFaultKA = faultCurrentKA(addZ(zBoard, { r: zCable.r * loop, x: zCable.x * loop }), project.voltageV);
 
   const vdStatus: Status = vdTotalPct > project.vdLimitPct ? 'bad' : vdTotalPct > project.vdLimitPct * 0.85 ? 'warn' : 'ok';
   const ampacityStatus = ampacity >= ib ? 'ok' : 'bad';

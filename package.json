@@ -46,6 +46,15 @@
     },
     "linux": {
       "target": "AppImage"
-    }
+    },
+    "extraResources": [
+      {
+        "from": "engines/python",
+        "to": "python",
+        "filter": [
+          "*.py"
+        ]
+      }
+    ]
   }
 }

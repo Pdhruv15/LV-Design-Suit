@@ -9,13 +9,14 @@ import FeederForm from './components/FeederForm';
 import BoardForm from './components/BoardForm';
 import BoqTable from './components/BoqTable';
 import { exportDss } from './engines/opendss/exportDss';
+import EngineCompare from './components/EngineCompare';
 
 // window.lvds is only present when running inside Electron. Fall back to
 // in-memory-only mode so the same UI still runs in a plain browser tab
 // during development (`vite` alone, without `electron .`).
 const hasBridge = typeof window !== 'undefined' && !!window.lvds;
 
-type MainView = 'design' | 'boq';
+type MainView = 'design' | 'boq' | 'engines';
 
 export default function App() {
   const [project, setProject] = useState<Project>(sampleProject);
@@ -170,6 +171,7 @@ export default function App() {
 
           <h4>Reports</h4>
           <button className={view === 'boq' ? 'on' : ''} onClick={() => setView('boq')}>Cost estimate (BOQ)</button>
+          <button className={view === 'engines' ? 'on' : ''} onClick={() => setView('engines')}>Engine comparison</button>
           <button onClick={exportOpenDss} title="Export the network as an OpenDSS script to cross-check load flow and fault levels">Export OpenDSS (.dss)</button>
         </nav>
 
@@ -193,6 +195,13 @@ export default function App() {
               <SidePanel results={boardResults} selected={selected} />
             </aside>
           </>
+        ) : view === 'engines' ? (
+          <main className="mid" style={{ gridColumn: '2 / span 2' }}>
+            <section className="stage">
+              <h3>Engine comparison — whole project</h3>
+            </section>
+            <EngineCompare project={project} />
+          </main>
         ) : (
           <main className="mid" style={{ gridColumn: '2 / span 2' }}>
             <section className="stage">

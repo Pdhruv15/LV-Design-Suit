@@ -55,15 +55,29 @@ against hand-worked values and cover the OpenDSS exporter.
 
 ## Calculation engines
 
-The built-in TypeScript engine (`src/calc/`) drives the live UI. External
-engines plug in behind the `CalcEngine` interface in `src/engines/types.ts`.
+The built-in TypeScript engine (`src/calc/`) drives the live UI. Two external
+engines can be run on demand from **Reports → Engine comparison**, which
+shows their results next to the built-in engine's for every feeder:
 
-**OpenDSS cross-check:** *Reports → Export OpenDSS (.dss)* writes the network
-(transformer, busbars, feeder cables, loads, PV) as a self-contained OpenDSS
-script that runs a load flow and a fault study. Open it in
-[OpenDSS](https://sourceforge.net/projects/electricdss/) to compare its
-results with the app's. The modelling assumptions are listed in the header
-of the exported file.
+| Engine | What it adds |
+|---|---|
+| **OpenDSS** (via OpenDSSDirect.py) | Full load flow, including unbalance from single-phase loads; fault study |
+| **pandapower** | Newton-Raphson load flow; IEC 60909 maximum short circuit (cmax = 1.10, transformer KT correction) |
+
+Both run in a small Python helper (`engines/python/lvds_engine.py`) that the
+Electron main process starts on demand. Setup:
+
+```bash
+pip install opendssdirect.py pandapower
+```
+
+The app uses `python` on Windows and `python3` elsewhere; pick a different
+interpreter with **Choose Python…** on the comparison screen.
+
+**OpenDSS script export:** *Reports → Export OpenDSS (.dss)* writes the
+network as a self-contained OpenDSS script (load flow + fault study) that
+you can open in OpenDSS itself. The modelling assumptions are listed in the
+header of the exported file.
 
 ## What's real vs. what's next
 
@@ -79,12 +93,11 @@ of the exported file.
 - Editing feeders and boards from the UI, multi-level board hierarchy,
   cable-size suggestion that respects the breaker rating and the voltage-drop
   budget left after upstream drops
-- BOQ CSV export and OpenDSS script export
+- BOQ CSV export, OpenDSS script export, and side-by-side comparison with
+  OpenDSS and pandapower
 - Project save/load as JSON, Drive-sync friendly
 
 **Not built yet — natural next steps:**
-- Running OpenDSS or pandapower directly from the app and comparing results
-  side by side
 - Earth-fault loop impedance (Zs) and disconnection-time check
 - Grouping/installation-method correction factors for cable sizing
   (only ambient temperature is modelled right now)

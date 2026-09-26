@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
+const { spawn } = require('node:child_process');
 
 const isDev = !app.isPackaged;
 
@@ -129,6 +130,64 @@ ipcMain.handle('files:saveText', async (_evt, { defaultName, content, filterName
   if (result.canceled || !result.filePath) return null;
   fs.writeFileSync(result.filePath, content, 'utf-8');
   return result.filePath;
+});
+
+// ---- IPC: external calculation engines (Python helper) ----
+// engines/python/lvds_engine.py runs OpenDSS (OpenDSSDirect.py) and
+// pandapower. It reads one JSON request on stdin and answers on stdout.
+const engineScript = isDev
+  ? path.join(__dirname, '..', 'engines', 'python', 'lvds_engine.py')
+  : path.join(process.resourcesPath, 'python', 'lvds_engine.py');
+
+function pythonPath() {
+  return readSettings().pythonPath || (process.platform === 'win32' ? 'python' : 'python3');
+}
+
+function runEngine(request, timeoutMs = 120000) {
+  return new Promise((resolve) => {
+    let stdout = '';
+    let stderr = '';
+    let child;
+    try {
+      child = spawn(pythonPath(), [engineScript], { windowsHide: true });
+    } catch (e) {
+      resolve({ error: `Could not start Python (${pythonPath()}): ${e.message}` });
+      return;
+    }
+    const timer = setTimeout(() => {
+      child.kill();
+      resolve({ error: `Engine timed out after ${timeoutMs / 1000} s` });
+    }, timeoutMs);
+    child.stdout.on('data', (d) => (stdout += d));
+    child.stderr.on('data', (d) => (stderr += d));
+    child.on('error', (e) => {
+      clearTimeout(timer);
+      resolve({ error: `Could not start Python (${pythonPath()}): ${e.message}` });
+    });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      try {
+        resolve(JSON.parse(stdout));
+      } catch {
+        resolve({ error: `Engine exited with code ${code}. ${stderr.trim().split(/\r?\n/).slice(-3).join(' ')}` });
+      }
+    });
+    child.stdin.end(JSON.stringify(request));
+  });
+}
+
+ipcMain.handle('engines:probe', () => runEngine({ engine: 'probe' }, 30000));
+ipcMain.handle('engines:run', (_evt, request) => runEngine(request));
+
+ipcMain.handle('settings:choosePython', async () => {
+  const result = await dialog.showOpenDialog(win, {
+    title: 'Choose the Python executable that has OpenDSSDirect.py / pandapower installed',
+    properties: ['openFile']
+  });
+  if (result.canceled || result.filePaths.length === 0) return readSettings();
+  const settings = { ...readSettings(), pythonPath: result.filePaths[0] };
+  writeSettings(settings);
+  return settings;
 });
 
 function slugify(s) {
