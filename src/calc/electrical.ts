@@ -1,5 +1,6 @@
 import { CABLE_TABLE, ambientCorrectionFactor, getCable } from './cableTable';
 import type { Board, Feeder, Project } from '../types';
+import { boardPhaseKw } from './loadSchedule';
 
 const SQRT3 = Math.sqrt(3);
 
@@ -37,13 +38,19 @@ export function boardDemandKw(project: Project, boardId: string): number {
 
 /** Design current (A) for a feeder: balanced 3-phase for 3/4-core
  * circuits, phase-to-neutral for 2-core (single-phase) circuits. An incomer
- * feeder (feedsBoardId set) derives its current from the downstream board's
- * total demand rather than its own loadKw/demandFactor fields. */
+ * feeder (feedsBoardId set) carries the downstream board's most loaded
+ * phase: I = max(P_phase) ÷ (U0 · cos φ), which equals the balanced 3-phase
+ * formula when the board's phases are balanced. */
 export function designCurrentA(feeder: Feeder, project: Project): number {
-  const demandKw = feeder.feedsBoardId ? boardDemandKw(project, feeder.feedsBoardId) : feeder.loadKw * feeder.demandFactor;
+  const u0 = project.voltageV / SQRT3;
+  if (feeder.feedsBoardId) {
+    const p = boardPhaseKw(project, feeder.feedsBoardId);
+    return (Math.max(p.R, p.Y, p.B) * 1000) / (u0 * feeder.powerFactor);
+  }
+  const demandKw = feeder.loadKw * feeder.demandFactor;
   return feeder.cores >= 3
     ? (demandKw * 1000) / (SQRT3 * project.voltageV * feeder.powerFactor)
-    : (demandKw * 1000) / ((project.voltageV / SQRT3) * feeder.powerFactor);
+    : (demandKw * 1000) / (u0 * feeder.powerFactor);
 }
 
 /** Cable current rating after ambient temperature derating. Grouping and

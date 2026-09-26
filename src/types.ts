@@ -34,6 +34,38 @@ export const BOARD_KINDS: { value: BoardKind; label: string }[] = [
   { value: 'EMDB', label: 'Emergency distribution board' }
 ];
 
+/** Point types from the DEWA load distribution schedule, in form order. */
+export type PointType =
+  | 'ltg' | 'cfan' | 'exfan' | 'shaver' | 's13' | 'wh' | 'hd' | 'cooker' | 's15' | 'wac' | 'sac' | 'pump' | 'spare1' | 'spare2';
+
+export const POINT_TYPES: { value: PointType; label: string; title: string }[] = [
+  { value: 'ltg', label: 'LTG', title: 'Lighting point' },
+  { value: 'cfan', label: 'C.FAN', title: 'Ceiling fan' },
+  { value: 'exfan', label: 'EX.FAN', title: 'Exhaust fan' },
+  { value: 'shaver', label: 'SH.S/O', title: 'Shaver socket-outlet' },
+  { value: 's13', label: '13A S/O', title: '13 A socket-outlet' },
+  { value: 'wh', label: 'W/H', title: 'Water heater' },
+  { value: 'hd', label: 'H/D', title: 'Hand dryer' },
+  { value: 'cooker', label: 'COOKER', title: 'Cooker' },
+  { value: 's15', label: '15A S/O', title: '15 A socket-outlet' },
+  { value: 'wac', label: "'W' A/C", title: 'Window type A/C' },
+  { value: 'sac', label: "'S' A/C", title: 'Split type A/C' },
+  { value: 'pump', label: 'WAT.PUMP', title: 'Water pump' },
+  { value: 'spare1', label: 'OTHER 1', title: 'Other load (spare column)' },
+  { value: 'spare2', label: 'OTHER 2', title: 'Other load (spare column)' }
+];
+
+/** Placeholder watts per point — edit them in the schedule's WATT/UNIT row
+ * to match the authority's (e.g. DEWA) values before relying on them. */
+export const DEFAULT_POINT_WATTS: Record<PointType, number> = {
+  ltg: 100, cfan: 80, exfan: 40, shaver: 20, s13: 250, wh: 3000, hd: 1800, cooker: 6000,
+  s15: 1000, wac: 2000, sac: 2500, pump: 750, spare1: 0, spare2: 0
+};
+
+/** Supply phase of a final circuit; 'RYB' is a 3-phase circuit using all
+ * three phases of its way. */
+export type Phase = 'R' | 'Y' | 'B' | 'RYB';
+
 export interface Feeder {
   id: string;
   boardId: string;
@@ -52,6 +84,13 @@ export interface Feeder {
   breakerImMultiple?: number; // MCCB/ACB instantaneous setting as a multiple of In (default 10)
   cpcMm2?: number; // protective (earth) conductor size; default per IEC 60364-5-54 Table 54.2
   essential?: boolean; // supplied by the standby generator (fire pump defaults to essential)
+  // DB load schedule fields (final circuits entered from the load schedule)
+  phase?: Phase; // R / Y / B single-phase circuit, or RYB 3-phase
+  way?: number; // DB way number: circuit reference = phase + way, e.g. R3
+  room?: string;
+  points?: Partial<Record<PointType, number>>; // number of points of each type
+  remarks?: string;
+  manualSize?: boolean; // MCB / wire / ECC set by hand — don't auto-size on load changes
   feedsBoardId?: string; // if set, this feeder is the incomer to a downstream board —
   // its loadKw/demandFactor are ignored and its current is derived from that
   // board's total demand instead
@@ -72,6 +111,12 @@ export interface Board {
   location?: string;
   manufacturer?: string;
   model?: string;
+  // DB load schedule settings
+  pointWatts?: Partial<Record<PointType, number>>; // WATT/UNIT row overrides for this DB
+  spareNames?: { spare1?: string; spare2?: string }; // headings of the two spare columns
+  elcbGroupSize?: 0 | 3 | 6; // circuits per ELCB: 3 = one per way, 6 = one per two ways, 0 = none
+  elcbRatingA?: number; // override; default from the group's load
+  elcbSensitivityMa?: number; // default 30 mA
 }
 
 export interface Project {

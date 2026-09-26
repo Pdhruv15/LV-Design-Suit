@@ -1,0 +1,193 @@
+import { useMemo } from 'react';
+import { Plus, Scale, Trash2, Zap } from 'lucide-react';
+import { POINT_TYPES, type Board, type Phase, type PointType, type Project } from '../../types';
+import { CABLE_TABLE } from '../../calc/cableTable';
+import { defaultCpcMm2 } from '../../calc/earthing';
+import { STANDARD_BREAKER_A } from '../../calc/sizing';
+import { pointLabel, pointWattsFor, isScheduleCircuit } from '../../calc/loadSchedule';
+import { buildLoadScheduleHtml, loadScheduleCsv, loadScheduleRows } from '../../docs/loadScheduleDoc';
+import { addCircuit, balancePhases, deleteCircuit, refreshBoard, updateCircuit, type CircuitPatch } from '../../model/schedule';
+import { saveCsv, savePdf, safeFileName } from '../../util/files';
+import { Page, STATUS_LABEL } from '../ui';
+
+const MCB_OPTIONS = STANDARD_BREAKER_A.filter((a) => a <= 125);
+const num = (v: string) => (v === '' ? 0 : Math.max(0, Math.round(+v) || 0));
+
+/** DEWA-style load distribution schedule for a 3-phase DB, editable in
+ * place. It edits the same project data as the SLD, so changes show on
+ * the diagram and in every study immediately (and vice versa). */
+export default function LoadScheduleView({
+  project,
+  boardId,
+  onBoard,
+  onChange,
+  onStatus
+}: {
+  project: Project;
+  boardId: string;
+  onBoard: (id: string) => void;
+  onChange: (p: Project) => void;
+  onStatus: (m: string) => void;
+}) {
+  const board = project.boards.find((b) => b.id === boardId) ?? project.boards[0];
+  const data = useMemo(() => loadScheduleRows(project, board.id), [project, board.id]);
+  const watts = pointWattsFor(board);
+  const otherFeeders = project.feeders.filter((f) => f.boardId === board.id && !isScheduleCircuit(f));
+
+  const setBoard = (patch: Partial<Board>, resize = false) => {
+    const p = { ...project, boards: project.boards.map((b) => (b.id === board.id ? { ...b, ...patch } : b)) };
+    onChange(resize ? refreshBoard(p, board.id) : p);
+  };
+  const patch = (id: string, pt: CircuitPatch) => onChange(updateCircuit(project, id, pt));
+  const add = (phase?: Phase) => {
+    try {
+      onChange(addCircuit(project, board.id, phase).project);
+    } catch (e) {
+      onStatus(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  return (
+    <Page
+      title="Load distribution schedule"
+      intro="Enter circuits here or on the SLD — both edit the same data. Circuit references are phase + way (R1, Y1, B1, R2…; RYB = 3-phase). Load per circuit = points × WATT/UNIT. MCB and wire sizes are suggested from the load, voltage drop and earth-fault checks; choosing a size by hand keeps it."
+      actions={
+        <>
+          <select className="chip" value={board.id} onChange={(e) => onBoard(e.target.value)} aria-label="DB">
+            {project.boards.map((b) => <option key={b.id} value={b.id}>{b.id} — {b.name}</option>)}
+          </select>
+          <button className="chip" onClick={async () => { const c = loadScheduleCsv(project, board.id); const m = await saveCsv(`${project.name} ${board.id} load schedule`, c.headers, c.rows); if (m) onStatus(m); }}>Export CSV</button>
+          <button className="chip primary" onClick={async () => { const m = await savePdf(`${safeFileName(board.id)}-load-schedule.pdf`, buildLoadScheduleHtml(project, board.id)); if (m) onStatus(m); }}>Export PDF</button>
+        </>
+      }
+    >
+      <div className="ls-head">
+        <span><span className="m">Project</span> <b>{project.name}</b></span>
+        <span><span className="m">DB No.</span> <b>{board.id}</b></span>
+        <span><span className="m">Fed from</span> <b>{board.upstreamId ?? 'Transformer'}</b></span>
+        <label><span className="m">Location</span> <input value={board.location ?? ''} onChange={(e) => setBoard({ location: e.target.value || undefined })} /></label>
+        <span><span className="m">Incomer</span> <b>{data.incomer ? `${data.incomer.breakerRatingA} A TP&N` : board.ratedCurrentA ? `${board.ratedCurrentA} A` : '—'}</b></span>
+        <label><span className="m">ELCB per</span>
+          <select value={board.elcbGroupSize ?? 6} onChange={(e) => setBoard({ elcbGroupSize: +e.target.value as 0 | 3 | 6 })}>
+            <option value={6}>6 circuits (2 ways)</option>
+            <option value={3}>3 circuits (1 way)</option>
+            <option value={0}>No ELCB</option>
+          </select>
+        </label>
+        <label><span className="m">Sensitivity</span>
+          <select value={board.elcbSensitivityMa ?? 30} onChange={(e) => setBoard({ elcbSensitivityMa: +e.target.value })}>
+            {[30, 100, 300].map((m) => <option key={m} value={m}>{m} mA</option>)}
+          </select>
+        </label>
+      </div>
+
+      <div className="ls-actions">
+        <button className="chip" onClick={() => add()}><Plus size={14} /> Add circuit</button>
+        <button className="chip" onClick={() => add('RYB')}><Zap size={14} /> Add 3-phase circuit</button>
+        <button className="chip" disabled={data.rows.length < 2} onClick={() => onChange(balancePhases(project, board.id))} title="Spread single-phase circuits over R/Y/B and renumber"><Scale size={14} /> Balance phases</button>
+        <span className="sp" />
+        <span>
+          Phase load (W): <b className="ph-r">R {(data.phaseW.R * 1000).toFixed(0)}</b> · <b className="ph-y">Y {(data.phaseW.Y * 1000).toFixed(0)}</b> ·{' '}
+          <b className="ph-b">B {(data.phaseW.B * 1000).toFixed(0)}</b> · imbalance{' '}
+          <b className={data.imbalance > 20 ? 'warn' : 'ok'}>{data.imbalance.toFixed(0)}%</b>
+        </span>
+      </div>
+
+      <div className="ls-wrap">
+        <table className="ls">
+          <thead>
+            <tr>
+              <th rowSpan={2}>ELCB</th><th rowSpan={2}>Sl.</th><th rowSpan={2}>Cir No.</th><th rowSpan={2}>MCB (A)</th>
+              <th rowSpan={2}>CCT wire mm²</th><th rowSpan={2}>ECC mm²</th><th rowSpan={2}>Room / area</th>
+              <th colSpan={POINT_TYPES.length}>Connected loads / points</th>
+              <th colSpan={3} className="shade">Load per circuit (W)</th>
+              <th rowSpan={2}>Length (m)</th><th rowSpan={2}>Check</th><th rowSpan={2}>Remarks</th><th rowSpan={2}></th>
+            </tr>
+            <tr>
+              {POINT_TYPES.map((t) => (
+                <th key={t.value} title={t.title} className="pt">
+                  {t.value.startsWith('spare') ? (
+                    <input className="hdr-in" value={pointLabel(board, t.value)} onChange={(e) => setBoard({ spareNames: { ...board.spareNames, [t.value]: e.target.value } })} aria-label={`${t.title} heading`} />
+                  ) : t.label}
+                </th>
+              ))}
+              <th className="shade">R</th><th className="shade">Y</th><th className="shade">B</th>
+            </tr>
+            <tr className="watt-row">
+              <td colSpan={7}><b>WATT / UNIT</b></td>
+              {POINT_TYPES.map((t) => (
+                <td key={t.value}>
+                  <input type="number" min="0" value={watts[t.value]} aria-label={`${t.title} watts per point`}
+                    onChange={(e) => setBoard({ pointWatts: { ...board.pointWatts, [t.value]: num(e.target.value) } }, true)} />
+                </td>
+              ))}
+              <td colSpan={3} className="shade" /><td colSpan={4} />
+            </tr>
+          </thead>
+          <tbody>
+            {data.rows.length === 0 && (
+              <tr><td colSpan={7 + POINT_TYPES.length + 7} className="m">No circuits yet — use Add circuit to start this DB's schedule.</td></tr>
+            )}
+            {data.rows.map((r, i) => {
+              const f = r.f;
+              const first = r.group && data.rows.findIndex((x) => x.group === r.group) === i;
+              return (
+                <tr key={f.id} className={r.group && r.group.index % 2 === 0 ? 'alt' : ''}>
+                  {first ? (
+                    <td rowSpan={data.rows.filter((x) => x.group === r.group).length} className="elcb">ELCB-{r.group!.index}<br />{r.group!.label}</td>
+                  ) : !r.group ? <td /> : null}
+                  <td>{r.sl}</td>
+                  <td><b className={`ph-${f.phase === 'RYB' ? 'ryb' : f.phase!.toLowerCase()}`}>{r.ref}</b></td>
+                  <td>
+                    <select value={f.breakerRatingA} onChange={(e) => patch(f.id, { breakerRatingA: +e.target.value })}>
+                      {[...new Set([...MCB_OPTIONS, f.breakerRatingA])].sort((a, b) => a - b).map((a) => <option key={a} value={a}>{a}</option>)}
+                    </select>
+                  </td>
+                  <td>
+                    <select value={f.cableCsaMm2} onChange={(e) => patch(f.id, { cableCsaMm2: +e.target.value })}>
+                      {CABLE_TABLE.map((c) => <option key={c.csaMm2} value={c.csaMm2}>{c.csaMm2}</option>)}
+                    </select>
+                  </td>
+                  <td>
+                    <select value={f.cpcMm2 ?? ''} onChange={(e) => patch(f.id, { cpcMm2: e.target.value === '' ? undefined : +e.target.value })} title="Protective (earth) conductor">
+                      <option value="">{defaultCpcMm2(f.cableCsaMm2)}</option>
+                      {CABLE_TABLE.filter((c) => c.csaMm2 <= f.cableCsaMm2).map((c) => <option key={c.csaMm2} value={c.csaMm2}>{c.csaMm2}*</option>)}
+                    </select>
+                  </td>
+                  <td><input className="room" value={f.room ?? ''} placeholder="Room" onChange={(e) => patch(f.id, { room: e.target.value })} /></td>
+                  {POINT_TYPES.map((t) => (
+                    <td key={t.value}>
+                      <input type="number" min="0" className="pt-in" value={f.points?.[t.value as PointType] || ''} aria-label={`${r.ref} ${t.title}`}
+                        onChange={(e) => patch(f.id, { points: { ...f.points, [t.value]: num(e.target.value) } })} />
+                    </td>
+                  ))}
+                  <td className="shade">{r.ph.R}</td><td className="shade">{r.ph.Y}</td><td className="shade">{r.ph.B}</td>
+                  <td><input type="number" min="1" className="pt-in" value={f.lengthM} onChange={(e) => patch(f.id, { lengthM: Math.max(1, +e.target.value || 1) })} aria-label={`${r.ref} length`} /></td>
+                  <td className={r.status}>{STATUS_LABEL[r.status]}</td>
+                  <td><input className="room" value={f.remarks ?? ''} onChange={(e) => patch(f.id, { remarks: e.target.value || undefined })} aria-label={`${r.ref} remarks`} /></td>
+                  <td>
+                    <button className="icon-btn" title={`Delete ${r.ref}`} onClick={() => window.confirm(`Delete circuit ${r.ref}?`) && onChange(deleteCircuit(project, f.id))}>
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+            <tr className="total">
+              <td colSpan={7 + POINT_TYPES.length} style={{ textAlign: 'right' }}>TOTAL (W)</td>
+              <td className="shade">{(data.phaseW.R * 1000).toFixed(0)}</td>
+              <td className="shade">{(data.phaseW.Y * 1000).toFixed(0)}</td>
+              <td className="shade">{(data.phaseW.B * 1000).toFixed(0)}</td>
+              <td colSpan={4} />
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p className="m note">
+        ECC: the plain number is the IEC 60364-5-54 default; a starred size was chosen by hand ({data.rows.filter((r) => r.f.cpcMm2 !== undefined).length} set).
+        {' '}Length isn't on the DEWA form but is needed for voltage drop and earth-fault checks (default 20 m).
+        {otherFeeders.length > 0 && ` Also on this board (not schedule circuits): ${otherFeeders.map((f) => f.id).join(', ')}.`}
+      </p>
+    </Page>
+  );
+}

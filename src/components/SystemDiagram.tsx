@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Project } from '../types';
 import type { FeederResult, Status } from '../calc/electrical';
 import { boardSummary, loadTypeOf } from '../calc/summary';
+import { boardPhaseKw } from '../calc/loadSchedule';
 import { LEVEL_H, layoutSystem } from '../diagram/layout';
 import LoadIcon from './LoadIcon';
 import type { Annotations, ResultLayers } from '../diagram/annotations';
@@ -39,7 +40,8 @@ export default function SystemDiagram({
   annotations,
   layers,
   onEditFeeder,
-  onEditBoard
+  onEditBoard,
+  onOpenSchedule
 }: {
   project: Project;
   results: FeederResult[];
@@ -53,6 +55,8 @@ export default function SystemDiagram({
   layers?: ResultLayers;
   onEditFeeder?: (id: string) => void;
   onEditBoard?: (id: string) => void;
+  /** Opens a DB's load schedule (double-click on a collapsed circuit block). */
+  onOpenSchedule?: (boardId: string) => void;
 }) {
   const feederTags = (id: string): Tag[] => {
     const a = annotations?.feeders[id];
@@ -238,6 +242,30 @@ export default function SystemDiagram({
                   <text key={t.text} x={n.x + 7} y={y + 72 + i * 13} className={`res ${t.cls}`}>{t.text}</text>
                 ))}
               {sel && <rect x={n.x - 60} y={y + 8} width="120" height={n.childBoardId ? 50 : 160} rx="8" className="sel-ring" />}
+            </g>
+          );
+        })}
+
+        {/* DBs with many final circuits: one block per DB */}
+        {layout.blocks.map((blk) => {
+          const y = blk.busY;
+          const kw = blk.circuits.reduce((s, f) => s + f.loadKw * f.demandFactor, 0);
+          const ph = boardPhaseKw({ ...project, feeders: blk.circuits }, blk.boardId);
+          const statuses = blk.circuits.map((f) => byFeeder.get(f.id)?.status);
+          const status = worst(statuses);
+          const failing = statuses.filter((s) => s !== 'ok').length;
+          return (
+            <g key={`blk-${blk.boardId}`} className="fd blk" onClick={click(() => onSelectBoard(blk.boardId))} onDoubleClick={edit(onOpenSchedule, blk.boardId)} tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && onOpenSchedule?.(blk.boardId)}>
+              <title>{`${blk.circuits.length} final circuits — double-click to open the load schedule`}</title>
+              <line x1={blk.x} y1={y} x2={blk.x} y2={y + 30} className="ln" />
+              <rect x={blk.x - 54} y={y + 36} width="108" height="92" rx="7" className="box stack" />
+              <rect x={blk.x - 58} y={y + 32} width="108" height="92" rx="7" className={`box ${status !== 'ok' ? status : ''}`} />
+              <text className="b" x={blk.x - 4} y={y + 54} textAnchor="middle">{blk.circuits.length} circuits</text>
+              <text x={blk.x - 4} y={y + 70} textAnchor="middle">{kw.toFixed(1)} kW</text>
+              <text className="m" x={blk.x - 4} y={y + 86} textAnchor="middle">R {ph.R.toFixed(1)} · Y {ph.Y.toFixed(1)}</text>
+              <text className="m" x={blk.x - 4} y={y + 99} textAnchor="middle">B {ph.B.toFixed(1)} kW</text>
+              <text x={blk.x - 4} y={y + 115} textAnchor="middle" className={`res ${failing ? status : 'm'}`}>{failing ? `${failing} to check` : 'open schedule ›'}</text>
             </g>
           );
         })}

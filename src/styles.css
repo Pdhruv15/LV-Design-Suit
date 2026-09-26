@@ -182,3 +182,33 @@ tr.total td{background:var(--p2);font-weight:600}
 .sysdiag .tx{cursor:pointer}
 .sysdiag .tx:hover .tr{stroke-width:2.4}
 .modal-sub{margin:6px 0 0;font-size:13px}
+/* ---- Load schedule ---- */
+.sysdiag .box.stack{opacity:.55}
+.sysdiag .box.warn{stroke:var(--warn)}
+.sysdiag .box.bad{stroke:var(--bad)}
+.sysdiag .blk:hover .box{stroke:var(--acc)}
+.ls-head{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;padding:8px 10px;margin-bottom:8px;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+.ls-head label{display:inline-flex;gap:6px;align-items:center}
+.ls-head input,.ls-head select{background:var(--p2);color:var(--tx);border:1px solid var(--line);border-radius:5px;padding:3px 6px;font:inherit}
+.ls-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
+.ls-actions .chip{display:inline-flex;align-items:center;gap:5px}
+.ls-wrap{overflow:auto;max-height:62vh;border:1px solid var(--line);border-radius:8px}
+table.ls{min-width:1500px;font-size:12px}
+table.ls th,table.ls td{padding:3px 4px;text-align:center;border:1px solid var(--line)}
+table.ls thead th{position:sticky;top:0;background:var(--panel);z-index:1}
+table.ls thead tr:nth-child(2) th{top:26px}
+table.ls th.pt{font-size:10.5px;min-width:54px}
+table.ls .shade{background:color-mix(in srgb,var(--p2) 70%,var(--line))}
+table.ls input,table.ls select{background:transparent;color:var(--tx);border:1px solid transparent;border-radius:4px;padding:2px 3px;font:inherit;width:100%}
+table.ls input:hover,table.ls select:hover,table.ls input:focus,table.ls select:focus{border-color:var(--line);background:var(--p2)}
+table.ls .pt-in{width:50px;text-align:center}
+table.ls .room{min-width:110px;text-align:left}
+table.ls .hdr-in{font-weight:600;font-size:10.5px;text-align:center;width:54px}
+table.ls tr.watt-row td{background:var(--p2);font-size:11px}
+table.ls tr.alt td:not(.shade){background:color-mix(in srgb,var(--panel) 60%,transparent)}
+table.ls td.elcb{font-size:10.5px;background:var(--p2);min-width:78px}
+table.ls tbody tr{cursor:default}
+.icon-btn{color:var(--mut);padding:2px 4px;border-radius:4px}
+.icon-btn:hover{color:var(--bad);background:var(--p2)}
+.ph-r{color:#ff6b6b}.ph-y{color:#f5c04a}.ph-b{color:#4aa8ff}.ph-ryb{color:#b784ff}
+table.ls tr.watt-row input{width:50px;text-align:center;padding:2px 1px}

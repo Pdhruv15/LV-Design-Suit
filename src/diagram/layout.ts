@@ -1,10 +1,14 @@
 import type { Board, Feeder, Project } from '../types';
+import { isScheduleCircuit } from '../calc/loadSchedule';
 
 /** Horizontal slot per load, vertical distance between board levels. */
 export const LEAF_W = 132;
 export const LEVEL_H = 270;
 export const ROOT_BUS_Y = 210;
 const MARGIN_X = 36;
+/** Boards with more schedule (final) circuits than this show them as one
+ * block on the system diagram; the board view and schedule list them all. */
+export const COLLAPSE_CIRCUITS = 8;
 
 export interface BoardNode {
   board: Board;
@@ -22,9 +26,18 @@ export interface FeederNode {
   childBoardId?: string; // set for incomers to a sub-board
 }
 
+/** A DB's final circuits drawn as a single block. */
+export interface CircuitBlock {
+  boardId: string;
+  x: number;
+  busY: number;
+  circuits: Feeder[];
+}
+
 export interface SystemLayout {
   boards: BoardNode[];
   feeders: FeederNode[];
+  blocks: CircuitBlock[];
   roots: BoardNode[];
   utilityX: number;
   width: number;
@@ -37,7 +50,10 @@ export interface SystemLayout {
  * board are laid out as extra roots so nothing silently disappears. */
 export function layoutSystem(project: Project): SystemLayout {
   const byId = new Map(project.boards.map((b) => [b.id, b]));
-  const children = (boardId: string) => project.feeders.filter((f) => f.boardId === boardId);
+  const scheduled = (boardId: string) => project.feeders.filter((f) => f.boardId === boardId && isScheduleCircuit(f));
+  const collapsed = new Set(project.boards.filter((b) => scheduled(b.id).length > COLLAPSE_CIRCUITS).map((b) => b.id));
+  const children = (boardId: string) =>
+    project.feeders.filter((f) => f.boardId === boardId && !(collapsed.has(boardId) && isScheduleCircuit(f)));
   const subBoard = (f: Feeder) => (f.feedsBoardId ? byId.get(f.feedsBoardId) : undefined);
 
   const unitsCache = new Map<string, number>();
@@ -48,7 +64,7 @@ export function layoutSystem(project: Project): SystemLayout {
     const n = children(boardId).reduce((sum, f) => {
       const child = subBoard(f);
       return sum + (child ? units(child.id, path) : 1);
-    }, 0);
+    }, collapsed.has(boardId) ? 1 : 0);
     path.delete(boardId);
     const u = Math.max(1, n);
     unitsCache.set(boardId, u);
@@ -57,6 +73,7 @@ export function layoutSystem(project: Project): SystemLayout {
 
   const boards: BoardNode[] = [];
   const feeders: FeederNode[] = [];
+  const blocks: CircuitBlock[] = [];
   const placed = new Set<string>();
 
   const place = (board: Board, left: number, depth: number): BoardNode => {
@@ -78,6 +95,12 @@ export function layoutSystem(project: Project): SystemLayout {
         xs.push(x);
         cursor += LEAF_W;
       }
+    }
+    if (collapsed.has(board.id)) {
+      const x = cursor + LEAF_W / 2;
+      blocks.push({ boardId: board.id, x, busY, circuits: scheduled(board.id) });
+      xs.push(x);
+      cursor += LEAF_W;
     }
     const x = xs.length ? (Math.min(...xs) + Math.max(...xs)) / 2 : left + LEAF_W / 2;
     const half = LEAF_W * 0.38;
@@ -113,6 +136,7 @@ export function layoutSystem(project: Project): SystemLayout {
   return {
     boards,
     feeders,
+    blocks,
     roots,
     utilityX,
     width: Math.max(left + MARGIN_X, 480),

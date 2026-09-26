@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Activity, BatteryCharging, Cable, Calculator, Car, CircuitBoard, Cog, Ellipsis, FileDown, FileSpreadsheet, FileText,
   Gauge, Hand, LayoutGrid, ListTree, Minus, MousePointer2, Pencil, Receipt, Scale, Server, Settings2, ShieldCheck, Sun,
-  Trash2, Waves, Zap, type LucideIcon
+  Table2, Trash2, Waves, Zap, type LucideIcon
 } from 'lucide-react';
 import type { Feeder } from '../types';
 import type { MainView } from '../views';
@@ -50,7 +50,7 @@ const TABS: { id: RibbonTab; label: string; icon: Icon }[] = [
 /** The ribbon tab that owns a screen, so the ribbon follows navigation
  * done from the left menu. */
 export function tabForView(v: MainView): RibbonTab {
-  if (v === 'design') return 'design';
+  if (v === 'design' || v === 'load-schedule') return 'design';
   if (v === 'engines') return 'simulate';
   if (['earthing', 'coordination', 'selection', 'sizing', 'pfc'].includes(v)) return 'calculate';
   if (v === 'boq') return 'cost';
@@ -81,7 +81,8 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       [
         { label: 'Transformer', icon: Waves, title: 'Transformer data (main board → Electrical)', onClick: a.onTransformer },
         { label: 'Bus', icon: Minus, title: 'Add a board (busbar) fed from an existing board', onClick: a.onAddBoard },
-        { label: 'Switchgear', icon: Server, title: `Board properties of ${a.boardId}`, onClick: a.onBoardProperties }
+        { label: 'Switchgear', icon: Server, title: `Board properties of ${a.boardId}`, onClick: a.onBoardProperties },
+        { label: 'Schedule', icon: Table2, title: `Load distribution schedule of ${a.boardId}`, onClick: go('load-schedule'), active: a.view === 'load-schedule' }
       ],
       [
         { label: 'Cable', icon: Cable, title: `Add a feeder cable ${addTo}`, onClick: () => a.onAddFeeder({}) },
@@ -114,6 +115,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
     ],
     reports: [
       [
+        view('load-schedule', 'Load schedule', Table2, 'DEWA load distribution schedule per DB'),
         view('db-schedule', 'DB schedule', LayoutGrid, 'Panel schedule per board'),
         view('cable-schedule', 'Cable schedule', Cable, 'Every cable in the installation'),
         view('equipment', 'Equipment', FileSpreadsheet, 'Transformers and boards')

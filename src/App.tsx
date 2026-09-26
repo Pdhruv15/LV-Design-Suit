@@ -18,6 +18,7 @@ import SelectionStudy from './components/studies/SelectionStudy';
 import CoordinationStudy from './components/studies/CoordinationStudy';
 import { PfcStudy, TransformerGeneratorStudy } from './components/studies/SizingStudy';
 import { CableScheduleView, DbScheduleView, EquipmentScheduleView, ReportView } from './components/docs/Documents';
+import LoadScheduleView from './components/docs/LoadScheduleView';
 
 // window.lvds is only present when running inside Electron. Fall back to
 // in-memory-only mode so the same UI still runs in a plain browser tab
@@ -299,6 +300,7 @@ export default function App() {
         <nav className="nav" aria-label="Navigation">
           <h4>Design</h4>
           <button className={view === 'design' ? 'on' : ''} onClick={() => setView('design')}>Single line diagram</button>
+          <button className={view === 'load-schedule' ? 'on' : ''} onClick={() => setView('load-schedule')}>Load schedule (DB)</button>
 
           <h4>Boards</h4>
           {project.boards.map((b) => (
@@ -376,6 +378,7 @@ export default function App() {
                     layers={layers}
                     onEditFeeder={editFeeder}
                     onEditBoard={(id) => { selectBoard(id); setEditBoardId(id); }}
+                    onOpenSchedule={(id) => { setActiveBoardId(id); setView('load-schedule'); }}
                   />
                 ) : (
                   <SingleLineDiagram board={board} voltageV={project.voltageV} results={boardResults} selected={selected} onSelect={selectFeeder} />
@@ -402,6 +405,9 @@ export default function App() {
           </>
         ) : (
           <main className="mid" style={{ gridColumn: '2 / span 2' }}>
+            {view === 'load-schedule' && board && (
+              <LoadScheduleView project={project} boardId={board.id} onBoard={(id) => setActiveBoardId(id)} onChange={setProject} onStatus={setStatus} />
+            )}
             {view === 'engines' && (
               <>
                 <section className="stage"><h3>Load flow — engine comparison</h3></section>

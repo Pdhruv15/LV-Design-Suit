@@ -44,7 +44,7 @@ describe('diagram annotations', () => {
 describe('delete board', () => {
   it('removes the board, its feeders and its incomer', () => {
     const p = deleteBoard(sampleProject, 'MCC-1');
-    expect(p.boards.map((b) => b.id)).toEqual(['MDB-1', 'SMDB-GF', 'SMDB-FF']);
+    expect(p.boards.map((b) => b.id)).toEqual(['MDB-1', 'SMDB-GF', 'SMDB-FF', 'DB-GF1']);
     expect(p.feeders.some((f) => f.boardId === 'MCC-1' || f.feedsBoardId === 'MCC-1')).toBe(false);
     expect(p.feeders).toHaveLength(sampleProject.feeders.length - 3); // INC-MCC, MCC-WP, MCC-FP
   });
@@ -59,7 +59,7 @@ describe('delete board', () => {
         { ...sampleProject.feeders[5], id: 'X-1', boardId: 'DB-X' }
       ]
     };
-    expect([...boardAndDescendants(nested, 'SMDB-GF')].sort()).toEqual(['DB-X', 'SMDB-GF']);
+    expect([...boardAndDescendants(nested, 'SMDB-GF')].sort()).toEqual(['DB-GF1', 'DB-X', 'SMDB-GF']);
     const p = deleteBoard(nested, 'SMDB-GF');
     expect(p.boards.map((b) => b.id)).not.toContain('DB-X');
     expect(p.feeders.map((f) => f.id)).not.toContain('X-1');

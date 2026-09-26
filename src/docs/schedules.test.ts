@@ -22,13 +22,13 @@ describe('schedules', () => {
     const s = cableSchedule(sampleProject);
     expect(s.rows).toHaveLength(sampleProject.feeders.length);
     const inc = s.rows.find((r) => r[0] === 'C-INC-GF')!;
-    expect(inc[4]).toBe('4C × 240 mm²');
-    expect(inc[5]).toBe(120); // 240 / 2
+    expect(inc[4]).toBe('4C × 300 mm²');
+    expect(inc[5]).toBe(150); // 300 / 2
   });
 
   it('equipment schedule includes the transformer and every board', () => {
     const s = equipmentSchedule(sampleProject);
-    expect(s.rows.map((r) => r[0])).toEqual(['TX-MDB-1', 'MDB-1', 'SMDB-GF', 'SMDB-FF', 'MCC-1']);
+    expect(s.rows.map((r) => r[0])).toEqual(['TX-MDB-1', 'MDB-1', 'SMDB-GF', 'DB-GF1', 'SMDB-FF', 'MCC-1']);
   });
 });
 
@@ -48,5 +48,23 @@ describe('calculation report', () => {
     for (const h of ['Design basis', 'System summary', 'Feeder calculations', 'Earthing', 'Protection coordination', 'Cable schedule', 'Assumptions']) {
       expect(html).toContain(h);
     }
+  });
+});
+
+describe('DEWA load distribution schedule', () => {
+  it('lists every circuit of the villa DB with R/Y/B watts and ELCB groups', async () => {
+    const { loadScheduleRows, buildLoadScheduleHtml, loadScheduleCsv } = await import('./loadScheduleDoc');
+    const d = loadScheduleRows(sampleProject, 'DB-GF1');
+    expect(d.rows).toHaveLength(21);
+    expect(d.rows.map((r) => r.ref).slice(0, 4)).toEqual(['R1', 'Y1', 'B1', 'R2']);
+    expect(d.groups.map((g) => g.ways)).toEqual([[1, 2], [3, 4], [5, 6], [7, 8]]);
+    expect(d.imbalance).toBeLessThan(5);
+    for (const r of d.rows) expect([r.ph.R, r.ph.Y, r.ph.B].filter((x) => x !== '')).toHaveLength(1);
+    const html = buildLoadScheduleHtml(sampleProject, 'DB-GF1');
+    expect(html).toContain('LOAD DISTRIBUTION SCHEDULE');
+    expect(html).toContain('WATT / UNIT');
+    expect(html).toContain('ELCB-1');
+    const csv = loadScheduleCsv(sampleProject, 'DB-GF1');
+    expect(csv.rows).toHaveLength(21 + 2); // watt/unit row + circuits + total
   });
 });

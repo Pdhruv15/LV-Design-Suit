@@ -1,5 +1,6 @@
 import type { Board } from '../types';
 import type { FeederResult } from '../calc/electrical';
+import { circuitRef } from '../calc/loadSchedule';
 
 const SPACING = 138; // horizontal slot per feeder
 const MARGIN = 70;
@@ -91,10 +92,10 @@ export default function SingleLineDiagram({
             <rect x={x - 59} y="232" width="118" height="64" rx="6" className="box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
             <circle cx={x + 48} cy="244" r="4" fill={col} />
             <text className="b" x={x - 51} y="251">
-              {f.id}
+              {circuitRef(f) ?? f.id}
             </text>
             <text className="m" x={x - 51} y="267">
-              {f.name.length > 19 ? f.name.slice(0, 18) + '…' : f.name}
+              {(() => { const n = f.room || f.name || '—'; return n.length > 19 ? n.slice(0, 18) + '…' : n; })()}
             </text>
             <text x={x - 51} y="287">
               {r.ib.toFixed(0)} A{f.feedsBoardId ? ` · → ${f.feedsBoardId}` : ` · ${(f.loadKw * f.demandFactor).toFixed(0)} kW${f.generation ? ' gen' : ''}`}
