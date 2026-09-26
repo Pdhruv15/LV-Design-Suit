@@ -24,6 +24,7 @@ export interface Board {
   upstreamId?: string; // parent board id, or undefined for the main board
   sourceKva?: number; // only set on the main board (transformer rating)
   sourceImpedancePct?: number; // transformer impedance %, only on main board
+  sourceXr?: number; // transformer X/R ratio, only on main board (default 5)
 }
 
 export interface Project {

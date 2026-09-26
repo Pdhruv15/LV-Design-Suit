@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import type { Feeder, Project } from '../types';
 import { CABLE_TABLE } from '../calc/cableTable';
-import { selectCable } from '../calc/electrical';
+import { designCurrentA, selectCable, upstreamVoltageDropPct } from '../calc/electrical';
 
-const SQRT3 = Math.sqrt(3);
 const emptyFeeder = (boardId: string): Feeder => ({
   id: '', boardId, name: '', loadKw: 10, demandFactor: 0.8, powerFactor: 0.85,
   lengthM: 20, cableCsaMm2: 16, cores: 4, breakerRatingA: 63, breakerIcuKa: 25
@@ -33,14 +32,16 @@ export default function FeederForm({
   }
 
   function suggestCable() {
-    const demandKw = f.loadKw * f.demandFactor;
-    const ib = (demandKw * 1000) / (SQRT3 * project.voltageV * f.powerFactor);
-    const size = selectCable(ib, f.lengthM, project.voltageV, f.cores, f.powerFactor, project.ambientC, project.vdLimitPct);
+    const ib = designCurrentA(f, project);
+    const upstream = upstreamVoltageDropPct(project, f.boardId);
+    const budget = project.vdLimitPct - upstream;
+    const size = selectCable(ib, f.lengthM, project.voltageV, f.cores, f.powerFactor, project.ambientC, budget, f.breakerRatingA);
+    const budgetNote = upstream > 0 ? ` (${upstream.toFixed(2)}% already used upstream, ${budget.toFixed(2)}% left)` : '';
     if (size) {
       set('cableCsaMm2', size);
-      setSuggestion(`Ib ≈ ${ib.toFixed(0)} A → ${size} mm² satisfies ampacity and the ${project.vdLimitPct}% voltage-drop limit at ${f.lengthM} m.`);
+      setSuggestion(`Ib ≈ ${ib.toFixed(0)} A, In = ${f.breakerRatingA} A → ${size} mm² gives Iz ≥ In and meets the ${project.vdLimitPct}% total voltage-drop limit at ${f.lengthM} m${budgetNote}.`);
     } else {
-      setSuggestion(`Ib ≈ ${ib.toFixed(0)} A — no cable up to 300 mm² meets the voltage-drop limit at this length. Consider shortening the run or raising the limit.`);
+      setSuggestion(`Ib ≈ ${ib.toFixed(0)} A, In = ${f.breakerRatingA} A — no cable up to 300 mm² gives Iz ≥ In within the voltage-drop budget${budgetNote}. Consider a shorter run, a smaller breaker, or a higher limit.`);
     }
   }
 

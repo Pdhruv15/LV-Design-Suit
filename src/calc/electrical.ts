@@ -1,13 +1,28 @@
 import { CABLE_TABLE, ambientCorrectionFactor, getCable } from './cableTable';
-import type { Feeder, Project } from '../types';
+import type { Board, Feeder, Project } from '../types';
 
 const SQRT3 = Math.sqrt(3);
+
+/** Transformer X/R ratio used when the board doesn't specify one. Typical
+ * for 500–2000 kVA distribution transformers; it only affects how the
+ * transformer's %Z is split between R and X, not its magnitude. */
+export const DEFAULT_TRANSFORMER_XR = 5;
+
+/** Complex impedance in ohms. Series impedances are added as R+jX phasors
+ * (not as scalar magnitudes), which matters once cable R dominates. */
+export interface Impedance {
+  r: number;
+  x: number;
+}
+
+const addZ = (a: Impedance, b: Impedance): Impedance => ({ r: a.r + b.r, x: a.x + b.x });
+export const zMagnitude = (z: Impedance): number => Math.hypot(z.r, z.x);
 
 /** AC resistance at operating temperature, approximated with a flat 1.2x
  * factor over the 20°C IEC 60228 value to account for the rise to ~90°C
  * conductor temperature. Skin/proximity effect is ignored (negligible below
  * ~120 mm² and a reasonable simplification above it for this tool). */
-function rOperatingOhmPerKm(csaMm2: number): number {
+export function rOperatingOhmPerKm(csaMm2: number): number {
   return getCable(csaMm2).rOhmPerKm20C * 1.2;
 }
 
@@ -35,22 +50,41 @@ export function deratedAmpacityA(csaMm2: number, ambientC: number): number {
   return getCable(csaMm2).ampacityA * ambientCorrectionFactor(ambientC);
 }
 
-/** Voltage drop in percent for a feeder over its full cable run. */
-export function voltageDropPct(feeder: Feeder, project: Project): number {
-  const ib = designCurrentA(feeder, project);
-  const cable = getCable(feeder.cableCsaMm2);
-  const rMOhmPerM = rOperatingOhmPerKm(feeder.cableCsaMm2);
-  const xMOhmPerM = cable.xOhmPerKm;
-  const cosPhi = feeder.powerFactor;
+function vdPctFor(ib: number, csaMm2: number, lengthM: number, cores: 2 | 3 | 4, cosPhi: number, voltageV: number): number {
+  const rOhmPerKm = rOperatingOhmPerKm(csaMm2);
+  const xOhmPerKm = getCable(csaMm2).xOhmPerKm;
   const sinPhi = Math.sqrt(Math.max(0, 1 - cosPhi * cosPhi));
-  const multiplier = feeder.cores >= 3 ? SQRT3 : 2; // 3-phase vs single-phase circuit
-  const vdVolts = (multiplier * ib * feeder.lengthM * (rMOhmPerM * cosPhi + xMOhmPerM * sinPhi)) / 1000;
-  return (vdVolts / project.voltageV) * 100;
+  const multiplier = cores >= 3 ? SQRT3 : 2; // 3-phase vs single-phase circuit
+  const vdVolts = (multiplier * ib * lengthM * (rOhmPerKm * cosPhi + xOhmPerKm * sinPhi)) / 1000;
+  return (vdVolts / voltageV) * 100;
 }
 
-/** Picks the smallest standard cable size that satisfies both ampacity
- * (after ambient derating) and the project's voltage-drop limit. Returns
- * null if nothing in the table satisfies the voltage-drop limit. */
+/** Voltage drop in percent over this feeder's own cable run only. */
+export function voltageDropPct(feeder: Feeder, project: Project): number {
+  return vdPctFor(designCurrentA(feeder, project), feeder.cableCsaMm2, feeder.lengthM, feeder.cores, feeder.powerFactor, project.voltageV);
+}
+
+function findIncomer(project: Project, board: Board): Feeder | undefined {
+  return project.feeders.find((f) => f.boardId === board.upstreamId && f.feedsBoardId === board.id);
+}
+
+/** Voltage drop (%) from the source to a board's busbar: the sum of the
+ * drops on every incomer feeder in the chain above it. Zero for the main
+ * board. DEWA/IEC limits apply to the total source-to-load drop, so this
+ * is added to each feeder's own drop before comparing with the limit. */
+export function upstreamVoltageDropPct(project: Project, boardId: string, seen = new Set<string>()): number {
+  const board = project.boards.find((b) => b.id === boardId);
+  if (!board?.upstreamId || seen.has(boardId)) return 0;
+  seen.add(boardId);
+  const incomer = findIncomer(project, board);
+  const own = incomer ? voltageDropPct(incomer, project) : 0;
+  return own + upstreamVoltageDropPct(project, board.upstreamId, seen);
+}
+
+/** Picks the smallest standard cable size whose derated ampacity covers both
+ * the design current and the breaker rating (so the breaker protects the
+ * cable), and whose voltage drop fits the budget left for this feeder.
+ * Returns null if nothing in the table satisfies both. */
 export function selectCable(
   ib: number,
   lengthM: number,
@@ -58,97 +92,115 @@ export function selectCable(
   cores: 2 | 3 | 4,
   cosPhi: number,
   ambientC: number,
-  vdLimitPct: number
+  vdBudgetPct: number,
+  breakerRatingA = 0
 ): number | null {
-  const sinPhi = Math.sqrt(Math.max(0, 1 - cosPhi * cosPhi));
-  const multiplier = cores >= 3 ? SQRT3 : 2;
+  const requiredIz = Math.max(ib, breakerRatingA);
   for (const c of CABLE_TABLE) {
     const iz = c.ampacityA * ambientCorrectionFactor(ambientC);
-    if (iz < ib) continue;
-    const rMOhmPerM = rOperatingOhmPerKm(c.csaMm2);
-    const vdVolts = (multiplier * ib * lengthM * (rMOhmPerM * cosPhi + c.xOhmPerKm * sinPhi)) / 1000;
-    const vdPct = (vdVolts / systemVoltageV) * 100;
-    if (vdPct <= vdLimitPct) return c.csaMm2;
+    if (iz < requiredIz) continue;
+    if (vdPctFor(ib, c.csaMm2, lengthM, cores, cosPhi, systemVoltageV) <= vdBudgetPct) return c.csaMm2;
   }
   return null;
 }
 
-/** Transformer source impedance referred to the LV side, in ohms. */
-export function transformerImpedanceOhm(sourceKva: number, impedancePct: number, voltageV: number): number {
-  return (voltageV * voltageV * (impedancePct / 100)) / (sourceKva * 1000);
+/** Transformer source impedance referred to the LV side, split into R and X
+ * using the given X/R ratio. |Z| = U² · uk% / S. */
+export function transformerImpedance(sourceKva: number, impedancePct: number, voltageV: number, xr = DEFAULT_TRANSFORMER_XR): Impedance {
+  const z = (voltageV * voltageV * (impedancePct / 100)) / (sourceKva * 1000);
+  const r = z / Math.sqrt(1 + xr * xr);
+  return { r, x: r * xr };
 }
 
-/** Cable impedance magnitude in ohms for a given length. */
-export function cableImpedanceOhm(csaMm2: number, lengthM: number): number {
-  const c = getCable(csaMm2);
-  const r = rOperatingOhmPerKm(csaMm2) * (lengthM / 1000);
-  const x = c.xOhmPerKm * (lengthM / 1000);
-  return Math.sqrt(r * r + x * x);
+/** Cable phase impedance for a given length, at operating temperature. */
+export function cableImpedance(csaMm2: number, lengthM: number): Impedance {
+  return {
+    r: rOperatingOhmPerKm(csaMm2) * (lengthM / 1000),
+    x: getCable(csaMm2).xOhmPerKm * (lengthM / 1000)
+  };
 }
 
-/** Total impedance (ohms) from the source (transformer) up to and including
- * a given board's busbar, walking up the board hierarchy: main board ->
- * transformer impedance only; any downstream board -> its parent's
- * cumulative impedance plus the incomer feeder that supplies it. */
-export function cumulativeImpedanceToBoardOhm(project: Project, boardId: string): number {
+/** Impedance from the source (transformer) up to and including a board's
+ * busbar, walking up the board hierarchy: main board -> transformer only;
+ * any downstream board -> its parent's impedance plus its incomer cable. */
+export function impedanceToBoard(project: Project, boardId: string, seen = new Set<string>()): Impedance {
   const board = project.boards.find((b) => b.id === boardId);
-  if (!board) return 0.01;
+  const fallback = { r: 0, x: 0.01 };
+  if (!board || seen.has(boardId)) return fallback;
+  seen.add(boardId);
 
   if (!board.upstreamId) {
     return board.sourceKva && board.sourceImpedancePct
-      ? transformerImpedanceOhm(board.sourceKva, board.sourceImpedancePct, project.voltageV)
-      : 0.01;
+      ? transformerImpedance(board.sourceKva, board.sourceImpedancePct, project.voltageV, board.sourceXr)
+      : fallback;
   }
 
-  const upstreamZ = cumulativeImpedanceToBoardOhm(project, board.upstreamId);
-  const incomer = project.feeders.find((f) => f.boardId === board.upstreamId && f.feedsBoardId === boardId);
-  const incomerZ = incomer ? cableImpedanceOhm(incomer.cableCsaMm2, incomer.lengthM) : 0;
-  return upstreamZ + incomerZ;
+  const incomer = findIncomer(project, board);
+  const incomerZ = incomer ? cableImpedance(incomer.cableCsaMm2, incomer.lengthM) : { r: 0, x: 0 };
+  return addZ(impedanceToBoard(project, board.upstreamId, seen), incomerZ);
 }
 
-/** Prospective 3-phase fault current (kA rms) at the far end of a feeder,
- * given the total impedance from source to that point. This is a magnitude
- * estimate (impedances summed as scalars, not full complex R+jX phasor
- * addition) — adequate for a first-pass discrimination check, not a
- * substitute for a full fault study on a complex network. */
-export function faultCurrentKA(totalImpedanceOhm: number, systemVoltageV: number): number {
-  if (totalImpedanceOhm <= 0) return Infinity;
-  return systemVoltageV / (SQRT3 * totalImpedanceOhm) / 1000;
+/** Prospective symmetrical 3-phase fault current (kA rms) for a given
+ * source-to-fault impedance. Voltage factor c = 1 and an infinite upstream
+ * (MV) network are assumed — a first-pass estimate, not a full IEC 60909
+ * study. */
+export function faultCurrentKA(z: Impedance, systemVoltageV: number): number {
+  const zm = zMagnitude(z);
+  if (zm <= 0) return Infinity;
+  return systemVoltageV / (SQRT3 * zm) / 1000;
 }
+
+export type Status = 'ok' | 'warn' | 'bad';
 
 export interface FeederResult {
   feeder: Feeder;
-  ib: number;
-  ampacity: number;
-  loadingPct: number;
-  vdPct: number;
-  vdStatus: 'ok' | 'warn' | 'bad';
-  ampacityStatus: 'ok' | 'bad';
-  faultKA: number;
-  discriminationOk: boolean;
-  status: 'ok' | 'warn' | 'bad';
+  ib: number; // design current
+  ampacity: number; // Iz, derated cable rating
+  loadingPct: number; // Ib as % of breaker In
+  vdPct: number; // this feeder's own cable run
+  vdUpstreamPct: number; // source to this feeder's supply board
+  vdTotalPct: number; // source to end of this feeder — compared with the limit
+  vdStatus: Status;
+  ampacityStatus: 'ok' | 'bad'; // Iz ≥ Ib
+  /** Overload protection per IEC 60364-4-43: Ib ≤ In ≤ Iz. */
+  protectionStatus: 'ok' | 'bad';
+  /** Prospective fault at the breaker's own terminals (the supply board's
+   * busbar) — the fault the breaker must be able to interrupt. */
+  breakerFaultKA: number;
+  /** Prospective fault at the far end of the cable (lower value; relevant
+   * for minimum-fault / disconnection-time checks). */
+  endFaultKA: number;
+  /** Breaker breaking capacity Icu ≥ fault at its terminals. */
+  icuStatus: 'ok' | 'bad';
+  status: Status;
 }
 
 export function evaluateFeeder(project: Project, feeder: Feeder): FeederResult {
   const ib = designCurrentA(feeder, project);
   const ampacity = deratedAmpacityA(feeder.cableCsaMm2, project.ambientC);
   const loadingPct = (ib / feeder.breakerRatingA) * 100;
+
   const vdPct = voltageDropPct(feeder, project);
+  const vdUpstreamPct = upstreamVoltageDropPct(project, feeder.boardId);
+  const vdTotalPct = vdUpstreamPct + vdPct;
 
-  const zToBoard = cumulativeImpedanceToBoardOhm(project, feeder.boardId);
-  const zCable = cableImpedanceOhm(feeder.cableCsaMm2, feeder.lengthM);
-  const faultKA = faultCurrentKA(zToBoard + zCable, project.voltageV);
-  const discriminationOk = feeder.breakerIcuKa >= faultKA;
+  const zBoard = impedanceToBoard(project, feeder.boardId);
+  const breakerFaultKA = faultCurrentKA(zBoard, project.voltageV);
+  const endFaultKA = faultCurrentKA(addZ(zBoard, cableImpedance(feeder.cableCsaMm2, feeder.lengthM)), project.voltageV);
 
-  const vdStatus: FeederResult['vdStatus'] =
-    vdPct > project.vdLimitPct ? 'bad' : vdPct > project.vdLimitPct * 0.85 ? 'warn' : 'ok';
-  const ampacityStatus: FeederResult['ampacityStatus'] = ampacity >= ib ? 'ok' : 'bad';
-  const loadingStatus: 'ok' | 'warn' | 'bad' = loadingPct > 100 ? 'bad' : loadingPct > 85 ? 'warn' : 'ok';
+  const vdStatus: Status = vdTotalPct > project.vdLimitPct ? 'bad' : vdTotalPct > project.vdLimitPct * 0.85 ? 'warn' : 'ok';
+  const ampacityStatus = ampacity >= ib ? 'ok' : 'bad';
+  const protectionStatus = ib <= feeder.breakerRatingA && feeder.breakerRatingA <= ampacity ? 'ok' : 'bad';
+  const icuStatus = feeder.breakerIcuKa >= breakerFaultKA ? 'ok' : 'bad';
+  const loadingStatus: Status = loadingPct > 100 ? 'bad' : loadingPct > 85 ? 'warn' : 'ok';
 
-  const statuses = [vdStatus, ampacityStatus, loadingStatus, discriminationOk ? 'ok' : 'warn'] as const;
-  const status: FeederResult['status'] = statuses.includes('bad') ? 'bad' : statuses.includes('warn') ? 'warn' : 'ok';
+  const statuses: Status[] = [vdStatus, ampacityStatus, protectionStatus, icuStatus, loadingStatus];
+  const status: Status = statuses.includes('bad') ? 'bad' : statuses.includes('warn') ? 'warn' : 'ok';
 
-  return { feeder, ib, ampacity, loadingPct, vdPct, vdStatus, ampacityStatus, faultKA, discriminationOk, status };
+  return {
+    feeder, ib, ampacity, loadingPct, vdPct, vdUpstreamPct, vdTotalPct, vdStatus,
+    ampacityStatus, protectionStatus, breakerFaultKA, endFaultKA, icuStatus, status
+  };
 }
 
 export function evaluateProject(project: Project): FeederResult[] {

@@ -72,7 +72,7 @@ export default function SingleLineDiagram({
               {f.cableCsaMm2}mm² · {f.lengthM}m
             </text>
             <text className="m" x={x + 8} y="213">
-              Vd {r.vdPct.toFixed(1)}%
+              Vd {r.vdTotalPct.toFixed(1)}% total
             </text>
             <rect x={x - 59} y="232" width="118" height="64" rx="6" className="box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
             <circle cx={x + 48} cy="244" r="4" fill={col} />

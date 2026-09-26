@@ -10,5 +10,8 @@ contextBridge.exposeInMainWorld('lvds', {
     load: (file) => ipcRenderer.invoke('projects:load', file),
     save: (file, data) => ipcRenderer.invoke('projects:save', { file, data }),
     delete: (file) => ipcRenderer.invoke('projects:delete', file)
+  },
+  files: {
+    saveText: (opts) => ipcRenderer.invoke('files:saveText', opts)
   }
 });

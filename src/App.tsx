@@ -8,6 +8,7 @@ import SidePanel from './components/SidePanel';
 import FeederForm from './components/FeederForm';
 import BoardForm from './components/BoardForm';
 import BoqTable from './components/BoqTable';
+import { exportDss } from './engines/opendss/exportDss';
 
 // window.lvds is only present when running inside Electron. Fall back to
 // in-memory-only mode so the same UI still runs in a plain browser tab
@@ -78,6 +79,24 @@ export default function App() {
     const s = await window.lvds.settings.chooseProjectsFolder();
     setProjectsFolder(s.projectsFolder);
     refreshList();
+  }
+
+  async function exportOpenDss() {
+    const { script, warnings } = exportDss(project);
+    const defaultName = `${project.name.replace(/[^a-z0-9]+/gi, '-')}.dss`;
+    const warnNote = warnings.length ? ` — ${warnings.length} warning(s): ${warnings.join(' ')}` : '';
+    if (!hasBridge) {
+      const url = URL.createObjectURL(new Blob([script], { type: 'text/plain;charset=utf-8' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = defaultName;
+      a.click();
+      URL.revokeObjectURL(url);
+      setStatus(`Downloaded ${defaultName}${warnNote}`);
+      return;
+    }
+    const saved = await window.lvds.files.saveText({ defaultName, content: script, filterName: 'OpenDSS script', extensions: ['dss'] });
+    if (saved) setStatus(`Exported ${saved.split(/[\\/]/).pop()}${warnNote}`);
   }
 
   function startNewProject() {
@@ -151,6 +170,7 @@ export default function App() {
 
           <h4>Reports</h4>
           <button className={view === 'boq' ? 'on' : ''} onClick={() => setView('boq')}>Cost estimate (BOQ)</button>
+          <button onClick={exportOpenDss} title="Export the network as an OpenDSS script to cross-check load flow and fault levels">Export OpenDSS (.dss)</button>
         </nav>
 
         {view === 'design' && board ? (

@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import type { FeederResult } from '../calc/electrical';
 
-type TabKey = 'vd' | 'load' | 'sc' | 'disc';
+type TabKey = 'vd' | 'load' | 'sc' | 'prot';
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'vd', label: 'Voltage drop' },
   { key: 'load', label: 'Load schedule' },
   { key: 'sc', label: 'Short circuit' },
-  { key: 'disc', label: 'Discrimination' }
+  { key: 'prot', label: 'Protection' }
 ];
 
 export default function ResultsTable({
@@ -24,11 +24,17 @@ export default function ResultsTable({
   const [tab, setTab] = useState<TabKey>('vd');
 
   const headers: Record<TabKey, string[]> = {
-    vd: ['Circuit', 'Breaker', 'Cable', 'Length', 'Ib (A)', 'Vd (%)', 'Limit', 'Status'],
+    vd: ['Circuit', 'Cable', 'Length', 'Ib (A)', 'Vd feeder (%)', 'Vd upstream (%)', 'Vd total (%)', 'Limit', 'Status'],
     load: ['Board', 'Connected (kW)', 'Demand factor', 'Max demand (kW)', 'Current (A)', 'Breaker loading', 'Status'],
-    sc: ['Board', 'Ik″ 3-ph (kA)', 'Breaker Icu (kA)', 'Margin (kA)', 'Status'],
-    disc: ['Circuit', 'Fault level (kA)', 'Breaker Icu (kA)', 'Result', 'Status']
+    sc: ['Circuit', 'Ik″ at breaker (kA)', 'Breaker Icu (kA)', 'Margin (kA)', 'Ik″ at cable end (kA)', 'Status'],
+    prot: ['Circuit', 'Ib (A)', 'Breaker In (A)', 'Cable Iz (A)', 'Ib ≤ In ≤ Iz', 'Status']
   };
+
+  function protectionNote(r: FeederResult): string {
+    if (r.ib > r.feeder.breakerRatingA) return 'Breaker undersized (Ib > In)';
+    if (r.feeder.breakerRatingA > r.ampacity) return 'Cable not protected (In > Iz)';
+    return 'Holds';
+  }
 
   function statusCell(s: 'ok' | 'warn' | 'bad') {
     const label = s === 'ok' ? 'Pass' : s === 'warn' ? 'Warning' : 'Fail';
@@ -42,11 +48,12 @@ export default function ResultsTable({
         return (
           <>
             <td>{f.id}</td>
-            <td>{f.breakerRatingA} A</td>
             <td>{f.cableCsaMm2} mm²</td>
             <td>{f.lengthM} m</td>
             <td>{r.ib.toFixed(0)}</td>
-            <td>{r.vdPct.toFixed(1)}</td>
+            <td>{r.vdPct.toFixed(2)}</td>
+            <td>{r.vdUpstreamPct.toFixed(2)}</td>
+            <td>{r.vdTotalPct.toFixed(2)}</td>
             <td>{vdLimitPct.toFixed(1)}</td>
             {statusCell(r.vdStatus)}
           </>
@@ -67,20 +74,22 @@ export default function ResultsTable({
         return (
           <>
             <td>{f.id}</td>
-            <td>{r.faultKA.toFixed(1)}</td>
+            <td>{r.breakerFaultKA.toFixed(1)}</td>
             <td>{f.breakerIcuKa}</td>
-            <td>{(f.breakerIcuKa - r.faultKA).toFixed(1)}</td>
-            {statusCell(r.ampacityStatus)}
+            <td>{(f.breakerIcuKa - r.breakerFaultKA).toFixed(1)}</td>
+            <td>{r.endFaultKA.toFixed(1)}</td>
+            {statusCell(r.icuStatus)}
           </>
         );
-      case 'disc':
+      case 'prot':
         return (
           <>
             <td>{f.id}</td>
-            <td>{r.faultKA.toFixed(1)}</td>
-            <td>{f.breakerIcuKa}</td>
-            <td>{r.discriminationOk ? 'Holds' : 'Below fault level'}</td>
-            {statusCell(r.discriminationOk ? 'ok' : 'warn')}
+            <td>{r.ib.toFixed(0)}</td>
+            <td>{f.breakerRatingA}</td>
+            <td>{r.ampacity.toFixed(0)}</td>
+            <td>{protectionNote(r)}</td>
+            {statusCell(r.protectionStatus)}
           </>
         );
     }

@@ -119,6 +119,18 @@ ipcMain.handle('projects:delete', (_evt, file) => {
   return true;
 });
 
+// ---- IPC: export a generated text file (e.g. OpenDSS script) ----
+ipcMain.handle('files:saveText', async (_evt, { defaultName, content, filterName, extensions }) => {
+  const result = await dialog.showSaveDialog(win, {
+    title: 'Export',
+    defaultPath: path.join(ensureProjectsFolder(), defaultName),
+    filters: [{ name: filterName, extensions }]
+  });
+  if (result.canceled || !result.filePath) return null;
+  fs.writeFileSync(result.filePath, content, 'utf-8');
+  return result.filePath;
+});
+
 function slugify(s) {
   return String(s).toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }

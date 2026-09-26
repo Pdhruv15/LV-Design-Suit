@@ -33,11 +33,13 @@ export default function SidePanel({ results, selected }: { results: FeederResult
             <dt>Design current</dt>
             <dd>{r.ib.toFixed(0)} A ({r.loadingPct.toFixed(0)}%)</dd>
             <dt>Voltage drop</dt>
-            <dd className={r.vdStatus}>{r.vdPct.toFixed(1)}%</dd>
-            <dt>Fault level</dt>
-            <dd>{r.faultKA.toFixed(1)} kA</dd>
-            <dt>Discrimination</dt>
-            <dd className={r.discriminationOk ? 'ok' : 'warn'}>{r.discriminationOk ? 'Holds' : 'Below fault level'}</dd>
+            <dd className={r.vdStatus}>{r.vdPct.toFixed(2)}% feeder · {r.vdTotalPct.toFixed(2)}% total</dd>
+            <dt>Cable rating Iz</dt>
+            <dd className={r.protectionStatus}>{r.ampacity.toFixed(0)} A {r.protectionStatus === 'ok' ? '(Ib ≤ In ≤ Iz)' : '(Ib ≤ In ≤ Iz fails)'}</dd>
+            <dt>Fault at breaker</dt>
+            <dd className={r.icuStatus}>{r.breakerFaultKA.toFixed(1)} kA vs Icu {r.feeder.breakerIcuKa} kA</dd>
+            <dt>Fault at cable end</dt>
+            <dd>{r.endFaultKA.toFixed(1)} kA</dd>
           </dl>
         </div>
       )}

@@ -44,22 +44,48 @@ npm run dist
 Produces a `.dmg` (mac), `.exe` installer (Windows), or `.AppImage` (Linux)
 in `release/`, depending on the platform you build on.
 
+## Tests
+
+```bash
+npm test
+```
+
+Unit tests (Vitest) in `src/**/*.test.ts` check the calculation engine
+against hand-worked values and cover the OpenDSS exporter.
+
+## Calculation engines
+
+The built-in TypeScript engine (`src/calc/`) drives the live UI. External
+engines plug in behind the `CalcEngine` interface in `src/engines/types.ts`.
+
+**OpenDSS cross-check:** *Reports → Export OpenDSS (.dss)* writes the network
+(transformer, busbars, feeder cables, loads, PV) as a self-contained OpenDSS
+script that runs a load flow and a fault study. Open it in
+[OpenDSS](https://sourceforge.net/projects/electricdss/) to compare its
+results with the app's. The modelling assumptions are listed in the header
+of the exported file.
+
 ## What's real vs. what's next
 
 **Working now:**
-- Real data model (`src/types.ts`) — boards, feeders, cable, breaker fields
-- Real calculation engine (`src/calc/electrical.ts`, `cableTable.ts`) —
-  design current, ambient-derated ampacity, voltage drop, transformer +
-  cable fault impedance, discrimination check
-- Single-line diagram, tables, and properties panel all driven by that
-  engine — nothing in the UI is hardcoded/fake anymore
-- Project save/load as JSON via native file dialogs, Drive-sync friendly
+- Data model (`src/types.ts`) — boards, feeders, cable, breaker fields
+- Calculation engine (`src/calc/electrical.ts`, `cableTable.ts`):
+  - design current and ambient-derated ampacity
+  - voltage drop per feeder **and cumulative from the source**, which is the
+    value checked against the limit
+  - overload protection check Ib ≤ In ≤ Iz (IEC 60364-4-43)
+  - fault levels from R+jX impedance: at the breaker's busbar (checked
+    against Icu) and at the cable end
+- Editing feeders and boards from the UI, multi-level board hierarchy,
+  cable-size suggestion that respects the breaker rating and the voltage-drop
+  budget left after upstream drops
+- BOQ CSV export and OpenDSS script export
+- Project save/load as JSON, Drive-sync friendly
 
 **Not built yet — natural next steps:**
-- Editing feeders/boards from the UI (currently edit `sampleProject.ts` or
-  the saved JSON directly to change the network)
-- Adding/removing boards (multi-level MDB → SMDB → DB hierarchies)
+- Running OpenDSS or pandapower directly from the app and comparing results
+  side by side
+- Earth-fault loop impedance (Zs) and disconnection-time check
 - Grouping/installation-method correction factors for cable sizing
   (only ambient temperature is modelled right now)
-- BOQ / report export
-- Revit/BIM export, matching your DEWA panel schedule format
+- PDF calculation report; DEWA panel schedule export
