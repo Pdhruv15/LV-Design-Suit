@@ -13,6 +13,9 @@ export interface Feeder {
   breakerRatingA: number;
   breakerIcuKa: number; // breaking capacity
   generation?: boolean; // true for PV / generator feeders
+  feedsBoardId?: string; // if set, this feeder is the incomer to a downstream board —
+  // its loadKw/demandFactor are ignored and its current is derived from that
+  // board's total demand instead
 }
 
 export interface Board {

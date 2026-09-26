@@ -1,5 +1,5 @@
 import { CABLE_TABLE, ambientCorrectionFactor, getCable } from './cableTable';
-import type { Board, Feeder, Project } from '../types';
+import type { Feeder, Project } from '../types';
 
 const SQRT3 = Math.sqrt(3);
 
@@ -11,10 +11,21 @@ function rOperatingOhmPerKm(csaMm2: number): number {
   return getCable(csaMm2).rOhmPerKm20C * 1.2;
 }
 
-/** Design current (A) for a feeder, assuming a balanced 3-phase load. */
-export function designCurrentA(feeder: Feeder, systemVoltageV: number): number {
-  const demandKw = feeder.loadKw * feeder.demandFactor;
-  return (demandKw * 1000) / (SQRT3 * systemVoltageV * feeder.powerFactor);
+/** Total demand (kW) flowing through a board: the sum of its own end-load
+ * feeders' demand, plus (recursively) the demand of every downstream board
+ * fed through an incomer feeder on this board. */
+export function boardDemandKw(project: Project, boardId: string): number {
+  return project.feeders
+    .filter((f) => f.boardId === boardId)
+    .reduce((sum, f) => sum + (f.feedsBoardId ? boardDemandKw(project, f.feedsBoardId) : f.loadKw * f.demandFactor), 0);
+}
+
+/** Design current (A) for a feeder, assuming a balanced 3-phase load. An
+ * incomer feeder (feedsBoardId set) derives its current from the downstream
+ * board's total demand rather than its own loadKw/demandFactor fields. */
+export function designCurrentA(feeder: Feeder, project: Project): number {
+  const demandKw = feeder.feedsBoardId ? boardDemandKw(project, feeder.feedsBoardId) : feeder.loadKw * feeder.demandFactor;
+  return (demandKw * 1000) / (SQRT3 * project.voltageV * feeder.powerFactor);
 }
 
 /** Cable current rating after ambient temperature derating. Grouping and
@@ -25,16 +36,16 @@ export function deratedAmpacityA(csaMm2: number, ambientC: number): number {
 }
 
 /** Voltage drop in percent for a feeder over its full cable run. */
-export function voltageDropPct(feeder: Feeder, systemVoltageV: number): number {
-  const ib = designCurrentA(feeder, systemVoltageV);
+export function voltageDropPct(feeder: Feeder, project: Project): number {
+  const ib = designCurrentA(feeder, project);
   const cable = getCable(feeder.cableCsaMm2);
-  const rMOhmPerM = (rOperatingOhmPerKm(feeder.cableCsaMm2) * 1000) / 1000; // ohm/km -> mohm/m numerically equal, kept explicit for clarity
-  const xMOhmPerM = cable.xOhmPerKm; // ohm/km numerically equals mohm/m
+  const rMOhmPerM = rOperatingOhmPerKm(feeder.cableCsaMm2);
+  const xMOhmPerM = cable.xOhmPerKm;
   const cosPhi = feeder.powerFactor;
   const sinPhi = Math.sqrt(Math.max(0, 1 - cosPhi * cosPhi));
   const multiplier = feeder.cores >= 3 ? SQRT3 : 2; // 3-phase vs single-phase circuit
   const vdVolts = (multiplier * ib * feeder.lengthM * (rMOhmPerM * cosPhi + xMOhmPerM * sinPhi)) / 1000;
-  return (vdVolts / systemVoltageV) * 100;
+  return (vdVolts / project.voltageV) * 100;
 }
 
 /** Picks the smallest standard cable size that satisfies both ampacity
@@ -75,6 +86,26 @@ export function cableImpedanceOhm(csaMm2: number, lengthM: number): number {
   return Math.sqrt(r * r + x * x);
 }
 
+/** Total impedance (ohms) from the source (transformer) up to and including
+ * a given board's busbar, walking up the board hierarchy: main board ->
+ * transformer impedance only; any downstream board -> its parent's
+ * cumulative impedance plus the incomer feeder that supplies it. */
+export function cumulativeImpedanceToBoardOhm(project: Project, boardId: string): number {
+  const board = project.boards.find((b) => b.id === boardId);
+  if (!board) return 0.01;
+
+  if (!board.upstreamId) {
+    return board.sourceKva && board.sourceImpedancePct
+      ? transformerImpedanceOhm(board.sourceKva, board.sourceImpedancePct, project.voltageV)
+      : 0.01;
+  }
+
+  const upstreamZ = cumulativeImpedanceToBoardOhm(project, board.upstreamId);
+  const incomer = project.feeders.find((f) => f.boardId === board.upstreamId && f.feedsBoardId === boardId);
+  const incomerZ = incomer ? cableImpedanceOhm(incomer.cableCsaMm2, incomer.lengthM) : 0;
+  return upstreamZ + incomerZ;
+}
+
 /** Prospective 3-phase fault current (kA rms) at the far end of a feeder,
  * given the total impedance from source to that point. This is a magnitude
  * estimate (impedances summed as scalars, not full complex R+jX phasor
@@ -99,20 +130,14 @@ export interface FeederResult {
 }
 
 export function evaluateFeeder(project: Project, feeder: Feeder): FeederResult {
-  const board = project.boards.find((b) => b.id === feeder.boardId);
-  const mainBoard = project.boards.find((b) => !b.upstreamId) ?? project.boards[0];
-
-  const ib = designCurrentA(feeder, project.voltageV);
+  const ib = designCurrentA(feeder, project);
   const ampacity = deratedAmpacityA(feeder.cableCsaMm2, project.ambientC);
   const loadingPct = (ib / feeder.breakerRatingA) * 100;
-  const vdPct = voltageDropPct(feeder, project.voltageV);
+  const vdPct = voltageDropPct(feeder, project);
 
-  const zSource =
-    mainBoard.sourceKva && mainBoard.sourceImpedancePct
-      ? transformerImpedanceOhm(mainBoard.sourceKva, mainBoard.sourceImpedancePct, project.voltageV)
-      : 0.01;
+  const zToBoard = cumulativeImpedanceToBoardOhm(project, feeder.boardId);
   const zCable = cableImpedanceOhm(feeder.cableCsaMm2, feeder.lengthM);
-  const faultKA = faultCurrentKA(zSource + zCable, project.voltageV);
+  const faultKA = faultCurrentKA(zToBoard + zCable, project.voltageV);
   const discriminationOk = feeder.breakerIcuKa >= faultKA;
 
   const vdStatus: FeederResult['vdStatus'] =
