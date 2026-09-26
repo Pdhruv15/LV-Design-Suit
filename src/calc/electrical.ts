@@ -1,4 +1,4 @@
-import { CABLE_TABLE, ambientCorrectionFactor, getCable } from './cableTable';
+import { ambientCorrectionFactor, cables, getCable } from './cableTable';
 import type { Board, Feeder, Project } from '../types';
 import { boardPhaseKw } from './loadSchedule';
 
@@ -111,7 +111,7 @@ export function selectCable(
   breakerRatingA = 0
 ): number | null {
   const requiredIz = Math.max(ib, breakerRatingA);
-  for (const c of CABLE_TABLE) {
+  for (const c of cables()) {
     const iz = c.ampacityA * ambientCorrectionFactor(ambientC);
     if (iz < requiredIz) continue;
     if (vdPctFor(ib, c.csaMm2, lengthM, cores, cosPhi, systemVoltageV) <= vdBudgetPct) return c.csaMm2;

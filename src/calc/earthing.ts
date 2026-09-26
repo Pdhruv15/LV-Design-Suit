@@ -1,4 +1,4 @@
-import { CABLE_TABLE, getCable } from './cableTable';
+import { cables, getCable } from './cableTable';
 import { DEFAULT_TRANSFORMER_XR, rOperatingOhmPerKm, transformerImpedance, zMagnitude, type Impedance, type Status } from './electrical';
 import type { BreakerType, Feeder, Project } from '../types';
 
@@ -18,7 +18,7 @@ export const K_CPC_XLPE_CU = 143;
 export function defaultCpcMm2(phaseMm2: number): number {
   if (phaseMm2 <= 16) return phaseMm2;
   if (phaseMm2 <= 35) return 16;
-  return CABLE_TABLE.find((c) => c.csaMm2 >= phaseMm2 / 2)?.csaMm2 ?? phaseMm2;
+  return cables().find((c) => c.csaMm2 >= phaseMm2 / 2)?.csaMm2 ?? phaseMm2;
 }
 
 export const cpcOf = (f: Feeder) => f.cpcMm2 ?? defaultCpcMm2(f.cableCsaMm2);

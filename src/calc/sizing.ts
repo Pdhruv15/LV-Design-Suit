@@ -7,6 +7,21 @@ const SQRT3 = Math.sqrt(3);
 
 export const STANDARD_BREAKER_A = [6, 10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3200, 4000];
 export const STANDARD_ICU_KA = [6, 10, 15, 25, 36, 50, 65, 70, 85, 100];
+
+let breakerList = STANDARD_BREAKER_A;
+let icuList = STANDARD_ICU_KA;
+
+/** Breaker ratings the sizing may choose from (Breakers.xlsx, else standard). */
+export const breakerRatings = () => breakerList;
+/** Icu steps the sizing may choose from (Breakers.xlsx Icu column, else standard). */
+export const icuSteps = () => icuList;
+
+/** Sets the ratings / Icu steps from the database (null or empty = standard). */
+export function setBreakerLists(ratings: number[] | null, icu: number[] | null): void {
+  const clean = (l: number[] | null, fallback: number[]) => (l && l.length ? [...new Set(l)].sort((a, b) => a - b) : fallback);
+  breakerList = clean(ratings, STANDARD_BREAKER_A);
+  icuList = clean(icu, STANDARD_ICU_KA);
+}
 export const STANDARD_TRANSFORMER_KVA = [100, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150];
 export const STANDARD_GENERATOR_KVA = [20, 30, 45, 60, 80, 100, 125, 150, 200, 250, 300, 350, 400, 500, 630, 750, 800, 1000, 1250, 1500, 2000, 2500];
 
@@ -152,10 +167,10 @@ export type SelectionMode = 'fix' | 'optimise';
 export function recommend(project: Project, f: Feeder, mode: SelectionMode = 'fix'): Recommendation {
   const ib = designCurrentA(f, project);
   // In ≥ Ib / 0.85 keeps breaker loading below the 85 % warning threshold.
-  const minIn = nextStandard(STANDARD_BREAKER_A, ib / 0.85);
+  const minIn = nextStandard(breakerRatings(), ib / 0.85);
   const breakerRatingA = mode === 'fix' && minIn !== undefined && f.breakerRatingA >= minIn ? f.breakerRatingA : minIn;
   const faultKA = faultCurrentKA(impedanceToBoard(project, f.boardId), project.voltageV);
-  const minIcu = nextStandard(STANDARD_ICU_KA, faultKA);
+  const minIcu = nextStandard(icuSteps(), faultKA);
   const breakerIcuKa = mode === 'fix' && f.breakerIcuKa >= faultKA ? f.breakerIcuKa : minIcu;
   const current = breakerTypeOf(f);
   const isMcb = current === 'B' || current === 'C' || current === 'D';

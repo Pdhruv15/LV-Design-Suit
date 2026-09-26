@@ -1,8 +1,9 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
 const { spawn } = require('node:child_process');
+const database = require('./database.cjs');
 
 const isDev = !app.isPackaged;
 
@@ -141,6 +142,32 @@ ipcMain.handle('files:saveText', async (_evt, { defaultName, content, filterName
   if (result.canceled || !result.filePath) return null;
   fs.writeFileSync(result.filePath, content, 'utf-8');
   return result.filePath;
+});
+
+// ---- IPC: LV Database (Excel workbooks in the projects folder) ----
+let stopWatching = () => {};
+let watchedFolder = null;
+
+async function initDatabase(seeds) {
+  const projectsFolder = ensureProjectsFolder();
+  const { created } = await database.ensureDatabase(projectsFolder, seeds);
+  if (watchedFolder !== projectsFolder) {
+    stopWatching();
+    watchedFolder = projectsFolder;
+    stopWatching = database.watchDatabase(projectsFolder, async () => {
+      if (win && !win.isDestroyed()) win.webContents.send('database:changed', await database.readDatabase(projectsFolder));
+    });
+  }
+  return { ...(await database.readDatabase(projectsFolder)), created };
+}
+
+ipcMain.handle('database:init', (_evt, seeds) => initDatabase(seeds));
+ipcMain.handle('database:read', () => database.readDatabase(ensureProjectsFolder()));
+ipcMain.handle('database:open', (_evt, file) => {
+  const folder = database.folderFor(ensureProjectsFolder());
+  // Only files the spec knows about, or the folder itself.
+  const book = database.spec.books.find((b) => b.file === file);
+  return shell.openPath(book ? path.join(folder, book.file) : folder);
 });
 
 // ---- IPC: render an HTML report to PDF ----

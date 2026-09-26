@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Activity, BatteryCharging, Cable, Calculator, Car, CircuitBoard, Cog, Ellipsis, FileDown, FileSpreadsheet, FileText,
   Gauge, Hand, LayoutGrid, ListTree, Minus, MousePointer2, Pencil, Receipt, Scale, Server, Settings2, ShieldCheck, Sun,
-  Table2, Trash2, Waves, Zap, type LucideIcon
+  Database, Table2, Trash2, Waves, Zap, type LucideIcon
 } from 'lucide-react';
 import type { Feeder } from '../types';
 import type { MainView } from '../views';
@@ -54,6 +54,7 @@ export function tabForView(v: MainView): RibbonTab {
   if (v === 'engines') return 'simulate';
   if (['earthing', 'coordination', 'selection', 'sizing', 'pfc'].includes(v)) return 'calculate';
   if (v === 'boq') return 'cost';
+  if (v === 'database') return 'standards';
   return 'reports';
 }
 
@@ -123,7 +124,12 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       [view('report', 'Calc report', FileText, 'Calculation report (PDF)')]
     ],
     cost: [[view('boq', 'Cost estimate', Receipt, 'Bill of quantities with cost')]],
-    standards: [[{ label: 'Project settings', icon: Scale, title: 'Voltage, ambient, voltage-drop limit and sizing targets', onClick: a.onSettings }]]
+    standards: [
+      [
+        { label: 'Project settings', icon: Scale, title: 'Voltage, ambient, voltage-drop limit and sizing targets', onClick: a.onSettings },
+        view('database', 'Database', Database, 'Your equipment, cable, breaker and parameter data (Excel, synced by Drive)')
+      ]
+    ]
   };
 
   return (

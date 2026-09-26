@@ -1,7 +1,18 @@
 import { useState } from 'react';
 import { BREAKER_TYPES, LOAD_TYPES, type BreakerType, type Feeder, type LoadType, type Project } from '../types';
 import { breakerTypeOf, defaultCpcMm2 } from '../calc/earthing';
-import { CABLE_TABLE } from '../calc/cableTable';
+import type { LibraryLoad } from '../database/database';
+
+/** Diagram icon for a library item, from its category or schedule column. */
+function libraryLoadType(item: LibraryLoad): LoadType | undefined {
+  const c = (item.category ?? '').toLowerCase();
+  if (c === 'lighting' || item.column === 'ltg') return 'lighting';
+  if (c === 'socket' || item.column === 's13' || item.column === 's15') return 'sockets';
+  if (c === 'a/c' || c === 'fan' || item.column === 'sac' || item.column === 'wac') return 'hvac';
+  if (c === 'motor' || c === 'pump' || item.column === 'pump') return 'motor';
+  return item.category ? 'general' : undefined;
+}
+import { cables } from '../calc/cableTable';
 import { designCurrentA, selectCable, upstreamVoltageDropPct } from '../calc/electrical';
 
 const emptyFeeder = (boardId: string): Feeder => ({
@@ -14,6 +25,7 @@ export default function FeederForm({
   boardId,
   initial,
   preset,
+  library = [],
   onSave,
   onDelete,
   onClose
@@ -23,12 +35,31 @@ export default function FeederForm({
   initial?: Feeder;
   /** Defaults for a new feeder, e.g. { loadType: 'motor' } from the ribbon. */
   preset?: Partial<Feeder>;
+  /** Equipment from Loads.xlsx, offered as 'From library'. */
+  library?: LibraryLoad[];
   onSave: (f: Feeder) => void;
   onDelete?: () => void;
   onClose: () => void;
 }) {
   const [f, setF] = useState<Feeder>(initial ?? { ...emptyFeeder(boardId), ...preset });
   const [suggestion, setSuggestion] = useState<string>('');
+
+  /** Fills the form from a library item (power, PF, DF, phases, load type). */
+  function fromLibrary(name: string) {
+    const item = library.find((l) => l.name === name);
+    if (!item) return;
+    setF((prev) => ({
+      ...prev,
+      name: prev.name || item.name,
+      loadKw: item.watts / 1000,
+      powerFactor: item.pf ?? prev.powerFactor,
+      demandFactor: item.demandFactor ?? prev.demandFactor,
+      cores: item.phases === 3 ? 4 : item.phases === 1 ? 2 : prev.cores,
+      loadType: libraryLoadType(item) ?? prev.loadType,
+      remarks: [item.manufacturer, item.model].filter(Boolean).join(' ') || prev.remarks
+    }));
+    setSuggestion(`Filled from library: ${item.name} — ${item.watts} W${item.pf ? `, PF ${item.pf}` : ''}${item.phases ? `, ${item.phases}-phase` : ''}. Check the cable and breaker with "Suggest cable size".`);
+  }
   const isNew = !initial;
 
   function set<K extends keyof Feeder>(key: K, val: Feeder[K]) {
@@ -59,6 +90,15 @@ export default function FeederForm({
     <div className="modal-backdrop" onClick={onClose}>
       <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
         <h3>{isNew ? 'Add feeder' : `Edit feeder: ${initial!.id}`}</h3>
+        {library.length > 0 && !f.feedsBoardId && (
+          <label className="row">
+            From library
+            <select value="" onChange={(e) => fromLibrary(e.target.value)} style={{ flex: 1 }}>
+              <option value="">Choose equipment from Loads.xlsx…</option>
+              {library.map((l) => <option key={l.name} value={l.name}>{l.name} — {l.watts} W{l.phases ? `, ${l.phases}-ph` : ''}</option>)}
+            </select>
+          </label>
+        )}
         <div className="grid2">
           <label>Circuit ID<input value={f.id} disabled={!isNew} required onChange={(e) => set('id', e.target.value)} placeholder="e.g. DB-KITCHEN" /></label>
           <label>Name<input value={f.name} required onChange={(e) => set('name', e.target.value)} placeholder="e.g. Kitchen distribution board" /></label>
@@ -82,7 +122,7 @@ export default function FeederForm({
           </label>
           <label>Cable size (mm²)
             <select value={f.cableCsaMm2} onChange={(e) => set('cableCsaMm2', +e.target.value)}>
-              {CABLE_TABLE.map((c) => (
+              {cables().map((c) => (
                 <option key={c.csaMm2} value={c.csaMm2}>{c.csaMm2} mm²</option>
               ))}
             </select>
@@ -102,7 +142,7 @@ export default function FeederForm({
           <label>Protective conductor (mm²)
             <select value={f.cpcMm2 ?? ''} onChange={(e) => set('cpcMm2', e.target.value === '' ? undefined : +e.target.value)}>
               <option value="">Auto — {defaultCpcMm2(f.cableCsaMm2)} mm² (IEC 60364-5-54)</option>
-              {CABLE_TABLE.filter((c) => c.csaMm2 <= f.cableCsaMm2).map((c) => (
+              {cables().filter((c) => c.csaMm2 <= f.cableCsaMm2).map((c) => (
                 <option key={c.csaMm2} value={c.csaMm2}>{c.csaMm2} mm²</option>
               ))}
             </select>

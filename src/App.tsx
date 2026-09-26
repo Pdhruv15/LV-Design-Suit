@@ -20,11 +20,16 @@ import { PfcStudy, TransformerGeneratorStudy } from './components/studies/Sizing
 import { CableScheduleView, DbScheduleView, EquipmentScheduleView, ReportView } from './components/docs/Documents';
 import LoadScheduleView from './components/docs/LoadScheduleView';
 import { refreshBoard } from './model/schedule';
+import DatabaseView from './components/docs/DatabaseView';
+import { applyDatabase, applyParameters, databaseSeeds, EMPTY_DATABASE, parseDatabase, syncLibrary, type Database, type RawDatabase } from './database/database';
 
 // window.lvds is only present when running inside Electron. Fall back to
 // in-memory-only mode so the same UI still runs in a plain browser tab
 // during development (`vite` alone, without `electron .`).
 const hasBridge = typeof window !== 'undefined' && !!window.lvds;
+// The database needs the desktop app's main process to be up to date too
+// (an older running instance has the bridge but no database handlers).
+const hasDatabase = hasBridge && !!window.lvds.database;
 
 import { DOCUMENTS, STUDIES, type MainView } from './views';
 import Ribbon, { tabForView, type DiagramTool, type RibbonTab } from './components/Ribbon';
@@ -58,6 +63,35 @@ export default function App() {
   const [engineRun, setEngineRun] = useState<{ project: Project; results: StudyResults } | null>(null);
   const [simRunning, setSimRunning] = useState(false);
   const [simError, setSimError] = useState('');
+  const [db, setDb] = useState<Database>(EMPTY_DATABASE);
+
+  // LV Database: Excel workbooks in the projects folder. Every save in Excel
+  // arrives here; the data is applied to the calculations, library-linked
+  // WATT/UNIT values are synced, and the project is re-evaluated.
+  function receiveDatabase(raw: RawDatabase & { created?: string[] }) {
+    const parsed = parseDatabase(raw);
+    applyDatabase(parsed);
+    setDb(parsed);
+    setProject((p) => {
+      const s = syncLibrary(p, parsed);
+      const next = s.changedBoards.reduce((q, id) => refreshBoard(q, id), s.project);
+      return { ...next }; // new object so every calculation re-runs with the new data
+    });
+    const created = raw.created?.length ? `Created ${raw.created.join(', ')} in the database folder. ` : '';
+    const issues = parsed.issues.length ? `${parsed.issues.length} database problem(s) — see Database. ` : '';
+    setStatus(`${created}${issues}Database synced ${new Date(raw.readAt).toLocaleTimeString()}`);
+  }
+
+  function initDatabase() {
+    if (!hasDatabase) return;
+    window.lvds.database.init(databaseSeeds()).then(receiveDatabase).catch((e) => setStatus(`Database: ${e.message}`));
+  }
+
+  useEffect(() => {
+    if (!hasDatabase) return;
+    initDatabase();
+    return window.lvds.database.onChange(receiveDatabase);
+  }, []);
   // Navigating (left menu or ribbon) keeps the ribbon on the matching tab.
   const setView = (v: MainView) => {
     setViewState(v);
@@ -167,6 +201,7 @@ export default function App() {
     const s = await window.lvds.settings.chooseProjectsFolder();
     setProjectsFolder(s.projectsFolder);
     refreshList();
+    initDatabase(); // the database folder lives inside the projects folder
   }
 
   async function exportOpenDss() {
@@ -188,7 +223,7 @@ export default function App() {
   }
 
   function startNewProject() {
-    const p = newProject('Untitled project');
+    const p = applyParameters(newProject('Untitled project'), db); // your Parameters.xlsx defaults
     setProject(p);
     setCurrentFile(undefined);
     setActiveBoardId(p.boards[0].id);
@@ -322,6 +357,11 @@ export default function App() {
           ))}
           <button onClick={exportOpenDss} title="Export the network as an OpenDSS script to cross-check load flow and fault levels">Export OpenDSS (.dss)</button>
 
+          <h4>Database</h4>
+          <button className={view === 'database' ? 'on' : ''} onClick={() => setView('database')}>
+            Equipment &amp; data {db.issues.length > 0 && <span className="warn">({db.issues.length} ⚠)</span>}
+          </button>
+
           <h4>Projects folder</h4>
           <button onClick={chooseFolder} title={projectsFolder}>
             {hasBridge ? projectsFolder.split(/[\\/]/).pop() || 'Choose folder…' : 'Browser preview mode'}
@@ -407,7 +447,18 @@ export default function App() {
         ) : (
           <main className="mid" style={{ gridColumn: '2 / span 2' }}>
             {view === 'load-schedule' && board && (
-              <LoadScheduleView project={project} boardId={board.id} onBoard={(id) => setActiveBoardId(id)} onChange={setProject} onStatus={setStatus} />
+              <LoadScheduleView project={project} boardId={board.id} db={db} onBoard={(id) => setActiveBoardId(id)} onChange={setProject} onStatus={setStatus} />
+            )}
+            {view === 'database' && (
+              <DatabaseView
+                db={db}
+                available={hasDatabase}
+                onRefresh={() => window.lvds.database.read().then(receiveDatabase)}
+                onApplyParameters={() => {
+                  setProject((p) => p.boards.reduce((q, b) => refreshBoard(q, b.id), applyParameters(p, db)));
+                  setStatus('Applied Parameters.xlsx to this project');
+                }}
+              />
             )}
             {view === 'engines' && (
               <>
@@ -448,6 +499,7 @@ export default function App() {
           boardId={board.id}
           initial={showFeederForm === 'edit' ? selectedFeeder : undefined}
           preset={showFeederForm === 'new' ? feederPreset : undefined}
+          library={db.loads}
           onSave={saveFeeder}
           onDelete={showFeederForm === 'edit' && selectedFeeder ? () => deleteFeeder(selectedFeeder.id) : undefined}
           onClose={() => setShowFeederForm(null)}

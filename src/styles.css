@@ -218,3 +218,10 @@ table.ls .cat{display:inline-block;margin-left:4px;font-size:9.5px;font-weight:7
 table.ls .cat-lighting{background:color-mix(in srgb,var(--warn) 25%,transparent);color:var(--warn)}
 table.ls .cat-power{background:color-mix(in srgb,var(--acc) 25%,transparent);color:var(--acc)}
 table.ls td.elcb.warn{outline:1px solid var(--warn);outline-offset:-2px}
+/* ---- Database ---- */
+.db-issues{border:1px solid var(--warn);border-radius:8px;padding:8px 12px;margin-bottom:10px}
+.db-issues ul{margin:6px 0 0;padding-left:18px;line-height:1.6}
+.db-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:10px 0}
+.db-bar .chip,.stage-head .chip{display:inline-flex;align-items:center;gap:5px}
+table.ls select.lib-pick{width:50px;font-size:9.5px;padding:0;margin-top:2px;color:var(--mut)}
+table.ls select.lib-pick.linked{color:var(--acc);border-color:color-mix(in srgb,var(--acc) 50%,transparent)}

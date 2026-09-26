@@ -1,17 +1,17 @@
 import { useMemo } from 'react';
 import { Plus, Scale, Trash2, Zap } from 'lucide-react';
 import { POINT_TYPES, type Board, type Phase, type PointType, type Project } from '../../types';
-import { CABLE_TABLE } from '../../calc/cableTable';
+import { cables } from '../../calc/cableTable';
 import { defaultCpcMm2 } from '../../calc/earthing';
-import { STANDARD_BREAKER_A } from '../../calc/sizing';
+import { breakerRatings } from '../../calc/sizing';
 import { missingWatts, pointLabel, pointWattsFor, isScheduleCircuit } from '../../calc/loadSchedule';
 import { settingsOf } from '../../types';
+import { loadsForColumn, type Database } from '../../database/database';
 import { buildLoadScheduleHtml, loadScheduleCsv, loadScheduleRows } from '../../docs/loadScheduleDoc';
 import { addCircuit, balancePhases, deleteCircuit, refreshBoard, updateCircuit, type CircuitPatch } from '../../model/schedule';
 import { saveCsv, savePdf, safeFileName } from '../../util/files';
 import { Page, STATUS_LABEL } from '../ui';
 
-const MCB_OPTIONS = STANDARD_BREAKER_A.filter((a) => a <= 125);
 const num = (v: string) => (v === '' ? 0 : Math.max(0, Math.round(+v) || 0));
 
 /** DEWA-style load distribution schedule for a 3-phase DB, editable in
@@ -20,12 +20,14 @@ const num = (v: string) => (v === '' ? 0 : Math.max(0, Math.round(+v) || 0));
 export default function LoadScheduleView({
   project,
   boardId,
+  db,
   onBoard,
   onChange,
   onStatus
 }: {
   project: Project;
   boardId: string;
+  db: Database;
   onBoard: (id: string) => void;
   onChange: (p: Project) => void;
   onStatus: (m: string) => void;
@@ -125,9 +127,22 @@ export default function LoadScheduleView({
             <tr className="watt-row">
               <td colSpan={7}><b>WATT / UNIT</b></td>
               {POINT_TYPES.map((t) => (
-                <td key={t.value} className={missing.includes(t.value) ? 'missing' : ''}>
+                <td key={t.value} className={missing.includes(t.value) ? 'missing' : ''} title={board.pointItems?.[t.value] ? `From library: ${board.pointItems[t.value]}` : undefined}>
+                  {/* Typing a value unlinks the column from the library. */}
                   <input type="number" min="0" value={watts[t.value] || ''} placeholder="W" aria-label={`${t.title} watts per point`}
-                    onChange={(e) => setBoard({ pointWatts: { ...board.pointWatts, [t.value]: num(e.target.value) } }, true)} />
+                    onChange={(e) => setBoard({ pointWatts: { ...board.pointWatts, [t.value]: num(e.target.value) }, pointItems: { ...board.pointItems, [t.value]: undefined } }, true)} />
+                  {db.loads.length > 0 && (
+                    <select className={`lib-pick ${board.pointItems?.[t.value] ? 'linked' : ''}`} value={board.pointItems?.[t.value] ?? ''} aria-label={`${t.title} from library`}
+                      onChange={(e) => {
+                        const item = db.loads.find((l) => l.name === e.target.value);
+                        setBoard(item
+                          ? { pointWatts: { ...board.pointWatts, [t.value]: item.watts }, pointItems: { ...board.pointItems, [t.value]: item.name } }
+                          : { pointItems: { ...board.pointItems, [t.value]: undefined } }, true);
+                      }}>
+                      <option value="">{board.pointItems?.[t.value] ? 'unlink' : 'library…'}</option>
+                      {loadsForColumn(db, t.value).map((l) => <option key={l.name} value={l.name}>{l.name} ({l.watts} W)</option>)}
+                    </select>
+                  )}
                 </td>
               ))}
               <td colSpan={3} className="shade" /><td colSpan={4} />
@@ -155,18 +170,18 @@ export default function LoadScheduleView({
                   </td>
                   <td>
                     <select value={f.breakerRatingA} onChange={(e) => patch(f.id, { breakerRatingA: +e.target.value })}>
-                      {[...new Set([...MCB_OPTIONS, f.breakerRatingA])].sort((a, b) => a - b).map((a) => <option key={a} value={a}>{a}</option>)}
+                      {[...new Set([...breakerRatings().filter((a) => a <= 125), f.breakerRatingA])].sort((a, b) => a - b).map((a) => <option key={a} value={a}>{a}</option>)}
                     </select>
                   </td>
                   <td>
                     <select value={f.cableCsaMm2} onChange={(e) => patch(f.id, { cableCsaMm2: +e.target.value })}>
-                      {CABLE_TABLE.map((c) => <option key={c.csaMm2} value={c.csaMm2}>{c.csaMm2}</option>)}
+                      {cables().map((c) => <option key={c.csaMm2} value={c.csaMm2}>{c.csaMm2}</option>)}
                     </select>
                   </td>
                   <td>
                     <select value={f.cpcMm2 ?? ''} onChange={(e) => patch(f.id, { cpcMm2: e.target.value === '' ? undefined : +e.target.value })} title="Protective (earth) conductor">
                       <option value="">{defaultCpcMm2(f.cableCsaMm2)}</option>
-                      {CABLE_TABLE.filter((c) => c.csaMm2 <= f.cableCsaMm2).map((c) => <option key={c.csaMm2} value={c.csaMm2}>{c.csaMm2}*</option>)}
+                      {cables().filter((c) => c.csaMm2 <= f.cableCsaMm2).map((c) => <option key={c.csaMm2} value={c.csaMm2}>{c.csaMm2}*</option>)}
                     </select>
                   </td>
                   <td><input className="room" value={f.room ?? ''} placeholder="Room" onChange={(e) => patch(f.id, { room: e.target.value })} /></td>

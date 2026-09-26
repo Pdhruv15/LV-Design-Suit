@@ -77,7 +77,7 @@ export interface Feeder {
   demandFactor: number; // 0-1
   powerFactor: number; // 0-1
   lengthM: number;
-  cableCsaMm2: number; // conductor cross section, must exist in CABLE_TABLE
+  cableCsaMm2: number; // conductor cross section, must exist in the cable data
   cores: 2 | 3 | 4;
   breakerRatingA: number;
   breakerIcuKa: number; // breaking capacity
@@ -116,6 +116,7 @@ export interface Board {
   model?: string;
   // DB load schedule settings
   pointWatts?: Partial<Record<PointType, number>>; // WATT/UNIT row overrides for this DB
+  pointItems?: Partial<Record<PointType, string>>; // library item chosen per column (kept in sync with Loads.xlsx)
   spareNames?: { spare1?: string; spare2?: string }; // headings of the two spare columns
   elcbGroupSize?: 0 | 3 | 6; // circuits per ELCB: 3 = one per way, 6 = one per two ways, 0 = none
   elcbRatingA?: number; // override; default from the group's load

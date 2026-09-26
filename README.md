@@ -53,6 +53,25 @@ npm test
 Unit tests (Vitest) in `src/**/*.test.ts` check the calculation engine
 against hand-worked values and cover the OpenDSS exporter.
 
+## Database (Excel, synced by Google Drive)
+
+Reusable data lives in Excel workbooks in the `LV Database` folder inside
+your projects folder, so Google Drive syncs it across PCs and to anyone
+sharing the folder:
+
+| Workbook | Contents | Starts with |
+|---|---|---|
+| `Loads.xlsx` | Your equipment: name, category, schedule column, power (W), PF, phases, demand factor, starting, manufacturer/model | Empty — user input only |
+| `Cables.xlsx` | Size, R at 20 °C, X, current rating, rate per m — used by every calculation | The app's reference values, to replace with manufacturer data |
+| `Breakers.xlsx` | Ratings the sizing may choose, Icu, price | Standard ratings |
+| `Parameters.xlsx` | Design defaults for new projects (VD limit, ambient, min wires, ELCB mA, ...) | Parameter names, blank values |
+
+The app creates any missing workbook (never overwrites one) and watches the
+folder: save a workbook in Excel and the app updates within a second or two.
+Library items can be picked for a load schedule's WATT/UNIT column or in the
+feeder form; columns linked to a library item follow it when it changes.
+Problems (bad rows, missing columns) are listed on the Database screen.
+
 ## Calculation engines
 
 The built-in TypeScript engine (`src/calc/`) drives the live UI. Two external

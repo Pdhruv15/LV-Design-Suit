@@ -9,9 +9,11 @@ export interface CableSpec {
   rOhmPerKm20C: number; // DC resistance at 20°C, ohm/km (IEC 60228)
   xOhmPerKm: number; // reactance, ohm/km (typical, multicore)
   ampacityA: number; // current rating in free air, 30°C ambient, XLPE 90°C
+  ratePerM?: number; // supply + install rate for the BOQ (from Cables.xlsx)
 }
 
-export const CABLE_TABLE: CableSpec[] = [
+/** Built-in reference data; replaced by Cables.xlsx when that has rows. */
+export const REFERENCE_CABLE_TABLE: CableSpec[] = [
   { csaMm2: 1.5, rOhmPerKm20C: 12.1, xOhmPerKm: 0.1, ampacityA: 26 },
   { csaMm2: 2.5, rOhmPerKm20C: 7.41, xOhmPerKm: 0.1, ampacityA: 36 },
   { csaMm2: 4, rOhmPerKm20C: 4.61, xOhmPerKm: 0.09, ampacityA: 47 },
@@ -52,8 +54,23 @@ export function ambientCorrectionFactor(ambientC: number): number {
   return 1;
 }
 
+let active: CableSpec[] = REFERENCE_CABLE_TABLE;
+
+/** Cable data in use: the database's Cables.xlsx when it has valid rows,
+ * otherwise the built-in reference table. Sorted by size. */
+export function cables(): CableSpec[] {
+  return active;
+}
+
+/** Sets the cable data (null = back to the built-in reference). */
+export function setCables(rows: CableSpec[] | null): void {
+  active = rows && rows.length ? [...rows].sort((a, b) => a.csaMm2 - b.csaMm2) : REFERENCE_CABLE_TABLE;
+}
+
 export function getCable(csaMm2: number): CableSpec {
-  const c = CABLE_TABLE.find((c) => c.csaMm2 === csaMm2);
+  // A project may use a size the database doesn't list; fall back to the
+  // reference data for it rather than failing the whole calculation.
+  const c = active.find((c) => c.csaMm2 === csaMm2) ?? REFERENCE_CABLE_TABLE.find((c) => c.csaMm2 === csaMm2);
   if (!c) throw new Error(`No cable data for ${csaMm2} mm²`);
   return c;
 }

@@ -1,0 +1,81 @@
+{
+  "folderName": "LV Database",
+  "books": [
+    {
+      "id": "loads",
+      "file": "Loads.xlsx",
+      "sheet": "Loads",
+      "about": [
+        "Your equipment library: one row per item you use repeatedly (light fittings, A/C units, pumps, heaters...).",
+        "Name and Power (W) are required. 'Schedule column' links the item to a column of the DEWA load schedule (e.g. LTG, 'S' A/C).",
+        "Phases: 1 or 3. Power factor and demand factor are optional (blank = the app's default).",
+        "Save the file and the app updates within a second or two. Projects that use an item pick up its new values automatically."
+      ],
+      "columns": [
+        { "key": "name", "header": "Name", "width": 30, "required": true },
+        { "key": "category", "header": "Category", "width": 16, "list": ["Lighting", "Fan", "Socket", "A/C", "Motor", "Pump", "Water heater", "Cooker", "Other"] },
+        { "key": "column", "header": "Schedule column", "width": 16, "list": ["LTG", "C.FAN", "EX.FAN", "SH.S/O", "13A S/O", "W/H", "H/D", "COOKER", "15A S/O", "'W' A/C", "'S' A/C", "WAT.PUMP", "OTHER"] },
+        { "key": "watts", "header": "Power (W)", "width": 12, "required": true, "number": true },
+        { "key": "pf", "header": "Power factor", "width": 13, "number": true },
+        { "key": "phases", "header": "Phases", "width": 9, "list": ["1", "3"] },
+        { "key": "demandFactor", "header": "Demand factor", "width": 14, "number": true },
+        { "key": "starting", "header": "Starting", "width": 14, "list": ["DOL", "Star-delta", "Soft starter", "VFD", "-"] },
+        { "key": "manufacturer", "header": "Manufacturer", "width": 18 },
+        { "key": "model", "header": "Model", "width": 18 },
+        { "key": "notes", "header": "Notes", "width": 30 }
+      ]
+    },
+    {
+      "id": "cables",
+      "file": "Cables.xlsx",
+      "sheet": "Cables",
+      "about": [
+        "Cable data used by every calculation: one row per conductor size.",
+        "Pre-filled with the app's reference values (Cu/XLPE multicore, free air, 30 °C) - replace them with your manufacturer's datasheet.",
+        "R at 20 °C in ohm/km (IEC 60228), reactance X in ohm/km, current rating in A before ambient derating. Rate per m is used for the BOQ.",
+        "If this sheet is empty or unreadable the app falls back to its reference values and says so on the Database screen."
+      ],
+      "columns": [
+        { "key": "csaMm2", "header": "Size (mm²)", "width": 12, "required": true, "number": true },
+        { "key": "rOhmPerKm20C", "header": "R at 20 °C (ohm/km)", "width": 20, "required": true, "number": true },
+        { "key": "xOhmPerKm", "header": "X (ohm/km)", "width": 12, "required": true, "number": true },
+        { "key": "ampacityA", "header": "Current rating (A)", "width": 18, "required": true, "number": true },
+        { "key": "ratePerM", "header": "Rate per m", "width": 12, "number": true },
+        { "key": "notes", "header": "Notes", "width": 30 }
+      ]
+    },
+    {
+      "id": "breakers",
+      "file": "Breakers.xlsx",
+      "sheet": "Breakers",
+      "about": [
+        "Breaker ratings the app may choose from when sizing, and their prices for the BOQ.",
+        "One row per rating (A). Icu (kA) is the breaking capacity offered at that rating (optional; blank = the standard Icu steps).",
+        "Pre-filled with standard ratings - delete rows you don't stock and add your prices."
+      ],
+      "columns": [
+        { "key": "ratingA", "header": "Rating (A)", "width": 11, "required": true, "number": true },
+        { "key": "type", "header": "Type", "width": 12, "list": ["MCB", "MCCB", "ACB"] },
+        { "key": "icuKa", "header": "Icu (kA)", "width": 10, "number": true },
+        { "key": "price", "header": "Price", "width": 10, "number": true },
+        { "key": "manufacturer", "header": "Manufacturer", "width": 18 },
+        { "key": "notes", "header": "Notes", "width": 30 }
+      ]
+    },
+    {
+      "id": "parameters",
+      "file": "Parameters.xlsx",
+      "sheet": "Parameters",
+      "about": [
+        "Your standard design parameters, applied to every new project (and to an open project with 'Apply parameters').",
+        "Leave a value blank to keep the app's built-in default. Only the Value column is read."
+      ],
+      "columns": [
+        { "key": "parameter", "header": "Parameter", "width": 34, "required": true },
+        { "key": "value", "header": "Value", "width": 10, "number": true },
+        { "key": "unit", "header": "Unit", "width": 10 },
+        { "key": "key", "header": "Key (don't edit)", "width": 26 }
+      ]
+    }
+  ]
+}

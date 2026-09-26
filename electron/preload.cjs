@@ -12,6 +12,16 @@ contextBridge.exposeInMainWorld('lvds', {
     save: (file, data) => ipcRenderer.invoke('projects:save', { file, data }),
     delete: (file) => ipcRenderer.invoke('projects:delete', file)
   },
+  database: {
+    init: (seeds) => ipcRenderer.invoke('database:init', seeds),
+    read: () => ipcRenderer.invoke('database:read'),
+    open: (file) => ipcRenderer.invoke('database:open', file),
+    onChange: (cb) => {
+      const listener = (_evt, data) => cb(data);
+      ipcRenderer.on('database:changed', listener);
+      return () => ipcRenderer.removeListener('database:changed', listener);
+    }
+  },
   engines: {
     probe: () => ipcRenderer.invoke('engines:probe'),
     run: (request) => ipcRenderer.invoke('engines:run', request)

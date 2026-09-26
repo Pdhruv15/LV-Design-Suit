@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { BOARD_KINDS, type Board, type BoardKind, type Feeder, type Project } from '../types';
-import { CABLE_TABLE } from '../calc/cableTable';
+import { cables } from '../calc/cableTable';
 
 export default function BoardForm({
   project,
@@ -71,7 +71,7 @@ export default function BoardForm({
           </label>
           <label>Cable size (mm²)
             <select value={cableCsaMm2} onChange={(e) => setCableCsaMm2(+e.target.value)}>
-              {CABLE_TABLE.map((c) => (
+              {cables().map((c) => (
                 <option key={c.csaMm2} value={c.csaMm2}>{c.csaMm2} mm²</option>
               ))}
             </select>

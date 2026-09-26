@@ -2,7 +2,7 @@
 export type MainView =
   | 'design' | 'load-schedule'
   | 'earthing' | 'selection' | 'coordination' | 'sizing' | 'pfc' | 'engines'
-  | 'db-schedule' | 'cable-schedule' | 'equipment' | 'boq' | 'report';
+  | 'db-schedule' | 'cable-schedule' | 'equipment' | 'boq' | 'report' | 'database';
 
 export const STUDIES: [MainView, string][] = [
   ['engines', 'Load flow (engines)'],

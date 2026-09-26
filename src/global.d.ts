@@ -14,6 +14,13 @@ declare global {
         save: (file: string | undefined, data: import('./types').Project) => Promise<{ file: string }>;
         delete: (file: string) => Promise<boolean>;
       };
+      database: {
+        init: (seeds: Record<string, unknown[][]>) => Promise<import('./database/database').RawDatabase & { created: string[] }>;
+        read: () => Promise<import('./database/database').RawDatabase>;
+        /** Opens a workbook in Excel (or the folder when file is omitted). */
+        open: (file?: string) => Promise<string>;
+        onChange: (cb: (data: import('./database/database').RawDatabase) => void) => () => void;
+      };
       engines: {
         probe: () => Promise<import('./engines/types').EngineProbe | { error: string }>;
         run: (request: { engine: string; project: import('./types').Project; dss?: string }) => Promise<import('./engines/types').StudyResults | { error: string }>;
