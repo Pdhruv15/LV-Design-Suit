@@ -19,6 +19,7 @@ import CoordinationStudy from './components/studies/CoordinationStudy';
 import { PfcStudy, TransformerGeneratorStudy } from './components/studies/SizingStudy';
 import { CableScheduleView, DbScheduleView, EquipmentScheduleView, ReportView } from './components/docs/Documents';
 import LoadScheduleView from './components/docs/LoadScheduleView';
+import { refreshBoard } from './model/schedule';
 
 // window.lvds is only present when running inside Electron. Fall back to
 // in-memory-only mode so the same UI still runs in a plain browser tab
@@ -469,7 +470,12 @@ export default function App() {
         );
       })()}
       {showSettings && (
-        <ProjectSettings project={project} onSave={(p) => { setProject(p); setShowSettings(false); }} onClose={() => setShowSettings(false)} />
+        <ProjectSettings
+          project={project}
+          // Minimum wire sizes may have changed: re-size every auto-sized schedule circuit.
+          onSave={(p) => { setProject(p.boards.reduce((q, b) => refreshBoard(q, b.id), p)); setShowSettings(false); }}
+          onClose={() => setShowSettings(false)}
+        />
       )}
       {showBoardForm && board && (
         <BoardForm project={project} parentBoardId={board.id} onSave={addBoard} onClose={() => setShowBoardForm(false)} />

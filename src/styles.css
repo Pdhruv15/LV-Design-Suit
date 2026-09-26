@@ -212,3 +212,9 @@ table.ls tbody tr{cursor:default}
 .icon-btn:hover{color:var(--bad);background:var(--p2)}
 .ph-r{color:#ff6b6b}.ph-y{color:#f5c04a}.ph-b{color:#4aa8ff}.ph-ryb{color:#b784ff}
 table.ls tr.watt-row input{width:50px;text-align:center;padding:2px 1px}
+.ls-missing{margin:0 0 8px;padding:6px 10px;border:1px solid var(--warn);border-radius:6px}
+table.ls td.missing{outline:1px solid var(--warn);outline-offset:-2px}
+table.ls .cat{display:inline-block;margin-left:4px;font-size:9.5px;font-weight:700;border-radius:3px;padding:0 3px;vertical-align:1px}
+table.ls .cat-lighting{background:color-mix(in srgb,var(--warn) 25%,transparent);color:var(--warn)}
+table.ls .cat-power{background:color-mix(in srgb,var(--acc) 25%,transparent);color:var(--acc)}
+table.ls td.elcb.warn{outline:1px solid var(--warn);outline-offset:-2px}

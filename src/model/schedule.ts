@@ -1,4 +1,4 @@
-import { circuitRef, circuitWatts, dominantLoadType, nextFreeSlot, scheduleCircuits, SINGLE_PHASES } from '../calc/loadSchedule';
+import { circuitCategory, circuitRef, circuitWatts, dominantLoadType, minWireMm2, nextFreeSlot, scheduleCircuits, SINGLE_PHASES } from '../calc/loadSchedule';
 import { applyRecommendation, recommend } from '../calc/sizing';
 import type { Feeder, Phase, Project } from '../types';
 
@@ -8,13 +8,17 @@ const circuitId = (boardId: string, phase: Phase, way: number) => `${boardId}-${
 const replaceFeeder = (p: Project, id: string, f: Feeder): Project => ({ ...p, feeders: p.feeders.map((x) => (x.id === id ? f : x)) });
 
 /** Re-derive a circuit's load from its points and, unless the user fixed
- * the sizes by hand, size its MCB, breaking capacity and wire. */
+ * the sizes by hand, size its MCB, breaking capacity and wire — never below
+ * the minimum wire for its type (lighting / power, project settings). A
+ * larger wire always still passes ampacity and voltage drop. */
 function refresh(project: Project, f: Feeder): Feeder {
   const board = project.boards.find((b) => b.id === f.boardId);
   const next: Feeder = { ...f, loadKw: circuitWatts(f, board) / 1000, loadType: dominantLoadType(f, board) };
   if (next.manualSize) return next;
   const tmp = replaceFeeder(project, f.id, next);
-  return applyRecommendation(next, recommend(tmp, next, 'optimise'));
+  const sized = applyRecommendation(next, recommend(tmp, next, 'optimise'));
+  const min = minWireMm2(project, sized);
+  return sized.cableCsaMm2 < min ? { ...sized, cableCsaMm2: min, cpcMm2: undefined } : sized;
 }
 
 export function addCircuit(project: Project, boardId: string, phase?: Phase): { project: Project; id: string } {
@@ -60,28 +64,45 @@ export function refreshBoard(project: Project, boardId: string): Project {
   return p;
 }
 
-/** Spreads the single-phase circuits over R/Y/B to minimise the most loaded
- * phase (largest circuit first onto the lightest phase), then renumbers
- * ways so references stay compact: 3-phase circuits take the first ways,
- * single-phase circuits fill R/Y/B of the following ways. Circuit ids are
- * renamed to match their new references. */
+/** Spreads the circuits over R/Y/B and renumbers the ways:
+ *  - lighting circuits take the first ways, power circuits follow, and each
+ *    section starts on an ELCB boundary (3 or 6 circuits), so no ELCB mixes
+ *    lighting (100 mA) and power (30 mA) — spare slots are left if needed;
+ *  - within a section, largest circuit first onto the lightest phase (phase
+ *    totals carry over between sections, so the whole DB balances);
+ *  - 3-phase circuits are power and take whole ways at the start of the
+ *    power section.
+ * Circuit ids are renamed to match their new references. */
 export function balancePhases(project: Project, boardId: string): Project {
+  const board = project.boards.find((b) => b.id === boardId);
+  const waysPerGroup = Math.max(1, (board?.elcbGroupSize ?? 6) / 3);
   const circuits = scheduleCircuits(project, boardId);
-  const three = circuits.filter((f) => f.phase === 'RYB');
-  const single = circuits.filter((f) => f.phase !== 'RYB').sort((a, b) => b.loadKw * b.demandFactor - a.loadKw * a.demandFactor);
-
+  const kw = (f: Feeder) => f.loadKw * f.demandFactor;
   const load = { R: 0, Y: 0, B: 0 };
-  const byPhase: Record<'R' | 'Y' | 'B', Feeder[]> = { R: [], Y: [], B: [] };
-  for (const f of single) {
-    // Lightest phase; ties go to the phase with fewer circuits so ways fill evenly.
-    const p = [...SINGLE_PHASES].sort((a, b) => load[a] - load[b] || byPhase[a].length - byPhase[b].length)[0];
-    load[p] += f.loadKw * f.demandFactor;
-    byPhase[p].push(f);
-  }
-
   const renamed = new Map<string, Feeder>();
-  three.forEach((f, i) => renamed.set(f.id, { ...f, phase: 'RYB', way: i + 1 }));
-  for (const p of SINGLE_PHASES) byPhase[p].forEach((f, i) => renamed.set(f.id, { ...f, phase: p, way: three.length + i + 1 }));
+  let startWay = 1;
+
+  for (const cat of ['lighting', 'power'] as const) {
+    const inCat = circuits.filter((f) => circuitCategory(f) === cat);
+    if (!inCat.length) continue;
+    const three = inCat.filter((f) => f.phase === 'RYB');
+    const single = inCat.filter((f) => f.phase !== 'RYB').sort((a, b) => kw(b) - kw(a));
+    three.forEach((f, i) => {
+      renamed.set(f.id, { ...f, phase: 'RYB', way: startWay + i });
+      SINGLE_PHASES.forEach((p) => (load[p] += kw(f) / 3));
+    });
+    const byPhase: Record<'R' | 'Y' | 'B', Feeder[]> = { R: [], Y: [], B: [] };
+    for (const f of single) {
+      // Lightest phase; ties go to the phase with fewer circuits so ways fill evenly.
+      const p = [...SINGLE_PHASES].sort((a, b) => load[a] - load[b] || byPhase[a].length - byPhase[b].length)[0];
+      load[p] += kw(f);
+      byPhase[p].push(f);
+    }
+    const first = startWay + three.length;
+    for (const p of SINGLE_PHASES) byPhase[p].forEach((f, i) => renamed.set(f.id, { ...f, phase: p, way: first + i }));
+    const used = three.length + Math.max(...SINGLE_PHASES.map((p) => byPhase[p].length));
+    startWay += Math.ceil(used / waysPerGroup) * waysPerGroup; // next section starts on an ELCB boundary
+  }
 
   const feeders = project.feeders.map((f) => {
     const r = renamed.get(f.id);

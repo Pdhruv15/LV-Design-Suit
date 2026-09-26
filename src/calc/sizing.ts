@@ -1,7 +1,7 @@
 import { designCurrentA, evaluateFeeder, faultCurrentKA, impedanceToBoard, selectCable, upstreamVoltageDropPct } from './electrical';
 import { boardTotals, loadTypeOf, systemSummary } from './summary';
 import { breakerTypeOf } from './earthing';
-import { STUDY_DEFAULTS, type BreakerType, type Feeder, type Project } from '../types';
+import { settingsOf, type BreakerType, type Feeder, type Project } from '../types';
 
 const SQRT3 = Math.sqrt(3);
 
@@ -10,7 +10,7 @@ export const STANDARD_ICU_KA = [6, 10, 15, 25, 36, 50, 65, 70, 85, 100];
 export const STANDARD_TRANSFORMER_KVA = [100, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150];
 export const STANDARD_GENERATOR_KVA = [20, 30, 45, 60, 80, 100, 125, 150, 200, 250, 300, 350, 400, 500, 630, 750, 800, 1000, 1250, 1500, 2000, 2500];
 
-export const settingsOf = (p: Project) => ({ ...STUDY_DEFAULTS, ...p.studySettings });
+export { settingsOf };
 const nextStandard = (list: number[], v: number) => list.find((x) => x >= v - 1e-9);
 
 // ---------------------------------------------------------------- transformer

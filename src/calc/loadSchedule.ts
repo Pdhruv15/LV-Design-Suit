@@ -1,4 +1,4 @@
-import { DEFAULT_POINT_WATTS, POINT_TYPES, type Board, type Feeder, type LoadType, type Phase, type PointType, type Project } from '../types';
+import { DEFAULT_POINT_WATTS, LIGHTING_POINTS, POINT_TYPES, settingsOf, type Board, type Feeder, type LoadType, type Phase, type PointType, type Project } from '../types';
 
 export const SINGLE_PHASES: ('R' | 'Y' | 'B')[] = ['R', 'Y', 'B'];
 const PHASE_ORDER: Record<Phase, number> = { R: 0, Y: 1, B: 2, RYB: 3 };
@@ -30,6 +30,32 @@ export function pointLabel(board: Board | undefined, t: PointType): string {
 export function circuitWatts(f: Feeder, board: Board | undefined): number {
   const w = pointWattsFor(board);
   return Object.entries(f.points ?? {}).reduce((sum, [t, n]) => sum + (n ?? 0) * w[t as PointType], 0);
+}
+
+export type CircuitCategory = 'lighting' | 'power';
+
+/** A lighting circuit has only lighting points (LTG, C.FAN, EX.FAN);
+ * anything else — or a circuit with no points yet — counts as power, the
+ * stricter case (larger minimum wire, 30 mA ELCB). */
+export function circuitCategory(f: Feeder): CircuitCategory {
+  const used = Object.entries(f.points ?? {}).filter(([, n]) => (n ?? 0) > 0).map(([t]) => t as PointType);
+  return used.length > 0 && used.every((t) => LIGHTING_POINTS.includes(t)) ? 'lighting' : 'power';
+}
+
+/** Minimum circuit wire for the circuit's type (project settings). */
+export function minWireMm2(project: Project, f: Feeder): number {
+  const s = settingsOf(project);
+  return circuitCategory(f) === 'lighting' ? s.minWireLightingMm2 : s.minWirePowerMm2;
+}
+
+/** Point types used on a board's circuits whose WATT/UNIT is still 0. */
+export function missingWatts(project: Project, board: Board): PointType[] {
+  const w = pointWattsFor(board);
+  const used = new Set<PointType>();
+  for (const f of scheduleCircuits(project, board.id)) {
+    for (const [t, n] of Object.entries(f.points ?? {})) if ((n ?? 0) > 0) used.add(t as PointType);
+  }
+  return POINT_TYPES.map((p) => p.value).filter((t) => used.has(t) && !w[t]);
 }
 
 /** Icon for the diagram: the point type contributing the most watts. */
@@ -113,6 +139,7 @@ export interface ElcbGroup {
   index: number; // 1-based
   ways: number[];
   circuits: Feeder[];
+  category: CircuitCategory | 'mixed';
   phaseKw: PhaseKw;
   maxPhaseA: number;
   ratingA: number;
@@ -122,7 +149,8 @@ export interface ElcbGroup {
 
 /** ELCB (RCCB) groups: by default one 4-pole ELCB per 6 circuits (two
  * ways); 3 gives one per way; 0 means no ELCBs. Rated for the group's most
- * loaded phase unless the board overrides it. */
+ * loaded phase, and 100 mA for an all-lighting group / 30 mA otherwise
+ * (project settings), unless the board overrides either. */
 export function elcbGroups(project: Project, board: Board): ElcbGroup[] {
   const size = board.elcbGroupSize ?? 6;
   if (!size) return [];
@@ -146,12 +174,16 @@ export function elcbGroups(project: Project, board: Board): ElcbGroup[] {
       const pf = cs.length ? cs.reduce((s, f) => s + f.powerFactor, 0) / cs.length : 0.9;
       const maxPhaseA = (Math.max(phaseKw.R, phaseKw.Y, phaseKw.B) * 1000) / (u0 * pf);
       const ratingA = board.elcbRatingA ?? STANDARD_ELCB_A.find((r) => r >= maxPhaseA) ?? STANDARD_ELCB_A[STANDARD_ELCB_A.length - 1];
-      const sensitivityMa = board.elcbSensitivityMa ?? 30;
+      const cats = new Set(cs.map(circuitCategory));
+      const category: ElcbGroup['category'] = cats.size === 1 ? [...cats][0] : 'mixed';
+      const s = settingsOf(project);
+      const sensitivityMa = board.elcbSensitivityMa ?? (category === 'lighting' ? s.elcbLightingMa : s.elcbPowerMa);
       const first = (index - 1) * waysPerGroup + 1;
       return {
         index,
         ways: Array.from({ length: waysPerGroup }, (_, i) => first + i),
         circuits: cs,
+        category,
         phaseKw,
         maxPhaseA,
         ratingA,

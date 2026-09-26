@@ -56,9 +56,12 @@ describe('DEWA load distribution schedule', () => {
     const { loadScheduleRows, buildLoadScheduleHtml, loadScheduleCsv } = await import('./loadScheduleDoc');
     const d = loadScheduleRows(sampleProject, 'DB-GF1');
     expect(d.rows).toHaveLength(21);
-    expect(d.rows.map((r) => r.ref).slice(0, 4)).toEqual(['R1', 'Y1', 'B1', 'R2']);
+    // Lighting fills ways 1-2 (R2 left spare); power starts on the next ELCB section.
+    expect(d.rows.map((r) => r.ref).slice(0, 5)).toEqual(['R1', 'Y1', 'B1', 'Y2', 'B2']);
     expect(d.groups.map((g) => g.ways)).toEqual([[1, 2], [3, 4], [5, 6], [7, 8]]);
-    expect(d.imbalance).toBeLessThan(5);
+    expect(d.groups.map((g) => `${g.category} ${g.sensitivityMa}`)).toEqual(['lighting 100', 'power 30', 'power 30', 'power 30']);
+    for (const r of d.rows) expect(r.f.cableCsaMm2).toBeGreaterThanOrEqual(r.category === 'lighting' ? 2.5 : 4);
+    expect(d.imbalance).toBeLessThan(10);
     for (const r of d.rows) expect([r.ph.R, r.ph.Y, r.ph.B].filter((x) => x !== '')).toHaveLength(1);
     const html = buildLoadScheduleHtml(sampleProject, 'DB-GF1');
     expect(html).toContain('LOAD DISTRIBUTION SCHEDULE');

@@ -55,12 +55,15 @@ export const POINT_TYPES: { value: PointType; label: string; title: string }[] =
   { value: 'spare2', label: 'OTHER 2', title: 'Other load (spare column)' }
 ];
 
-/** Placeholder watts per point — edit them in the schedule's WATT/UNIT row
- * to match the authority's (e.g. DEWA) values before relying on them. */
+/** Watts per point are user input (the schedule's WATT/UNIT row, per DB);
+ * nothing is assumed, so a new DB starts at 0 W for every point type. */
 export const DEFAULT_POINT_WATTS: Record<PointType, number> = {
-  ltg: 100, cfan: 80, exfan: 40, shaver: 20, s13: 250, wh: 3000, hd: 1800, cooker: 6000,
-  s15: 1000, wac: 2000, sac: 2500, pump: 750, spare1: 0, spare2: 0
+  ltg: 0, cfan: 0, exfan: 0, shaver: 0, s13: 0, wh: 0, hd: 0, cooker: 0,
+  s15: 0, wac: 0, sac: 0, pump: 0, spare1: 0, spare2: 0
 };
+
+/** Point types that make a circuit a lighting circuit (if it has only these). */
+export const LIGHTING_POINTS: PointType[] = ['ltg', 'cfan', 'exfan'];
 
 /** Supply phase of a final circuit; 'RYB' is a 3-phase circuit using all
  * three phases of its way. */
@@ -116,7 +119,7 @@ export interface Board {
   spareNames?: { spare1?: string; spare2?: string }; // headings of the two spare columns
   elcbGroupSize?: 0 | 3 | 6; // circuits per ELCB: 3 = one per way, 6 = one per two ways, 0 = none
   elcbRatingA?: number; // override; default from the group's load
-  elcbSensitivityMa?: number; // default 30 mA
+  elcbSensitivityMa?: number; // override; default by circuit type (lighting 100 mA, power 30 mA)
 }
 
 export interface Project {
@@ -137,14 +140,25 @@ export interface StudySettings {
   futureGrowthPct?: number; // spare capacity added before sizing the transformer
   transformerMaxLoadingPct?: number; // design loading limit for the transformer
   generatorMaxLoadingPct?: number; // design loading limit for the generator
+  // DB load schedule defaults, by circuit type
+  minWireLightingMm2?: number;
+  minWirePowerMm2?: number;
+  elcbLightingMa?: number;
+  elcbPowerMa?: number;
 }
 
 export const STUDY_DEFAULTS: Required<StudySettings> = {
   pfTarget: 0.95,
   futureGrowthPct: 20,
   transformerMaxLoadingPct: 80,
-  generatorMaxLoadingPct: 80
+  generatorMaxLoadingPct: 80,
+  minWireLightingMm2: 2.5,
+  minWirePowerMm2: 4,
+  elcbLightingMa: 100,
+  elcbPowerMa: 30
 };
+
+export const settingsOf = (p: Project): Required<StudySettings> => ({ ...STUDY_DEFAULTS, ...p.studySettings });
 
 export function newProject(name: string): Project {
   return {

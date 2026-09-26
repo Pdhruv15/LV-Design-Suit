@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { STUDY_DEFAULTS, type Project, type StudySettings } from '../types';
 
+const WIRES = [1.5, 2.5, 4, 6, 10];
+const ELCB_MA = [10, 30, 100, 300];
+
 /** Project-wide design basis: system voltage, frequency, ambient, voltage
  * drop limit, and the sizing targets used by the studies. */
 export default function ProjectSettings({ project, onSave, onClose }: { project: Project; onSave: (p: Project) => void; onClose: () => void }) {
@@ -40,6 +43,27 @@ export default function ProjectSettings({ project, onSave, onClose }: { project:
           <label>Future load growth (%)<input type="number" min="0" max="100" value={study.futureGrowthPct} onChange={(e) => setStudy('futureGrowthPct', num(e.target.value, study.futureGrowthPct))} /></label>
           <label>Transformer max loading (%)<input type="number" min="10" max="100" value={study.transformerMaxLoadingPct} onChange={(e) => setStudy('transformerMaxLoadingPct', num(e.target.value, study.transformerMaxLoadingPct))} /></label>
           <label>Generator max loading (%)<input type="number" min="10" max="100" value={study.generatorMaxLoadingPct} onChange={(e) => setStudy('generatorMaxLoadingPct', num(e.target.value, study.generatorMaxLoadingPct))} /></label>
+          <h4 className="modal-sub" style={{ gridColumn: '1 / -1' }}>DB load schedule defaults</h4>
+          <label>Lighting circuits — min wire (mm²)
+            <select value={study.minWireLightingMm2} onChange={(e) => setStudy('minWireLightingMm2', +e.target.value)}>
+              {WIRES.map((w) => <option key={w} value={w}>{w}</option>)}
+            </select>
+          </label>
+          <label>Lighting circuits — ELCB (mA)
+            <select value={study.elcbLightingMa} onChange={(e) => setStudy('elcbLightingMa', +e.target.value)}>
+              {ELCB_MA.map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </label>
+          <label>Power circuits — min wire (mm²)
+            <select value={study.minWirePowerMm2} onChange={(e) => setStudy('minWirePowerMm2', +e.target.value)}>
+              {WIRES.map((w) => <option key={w} value={w}>{w}</option>)}
+            </select>
+          </label>
+          <label>Power circuits — ELCB (mA)
+            <select value={study.elcbPowerMa} onChange={(e) => setStudy('elcbPowerMa', +e.target.value)}>
+              {ELCB_MA.map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </label>
         </div>
         <p className="m">
           Calculations follow IEC 60364 (cable sizing, protection, earthing) and IEC 60909 (fault levels). Set the voltage

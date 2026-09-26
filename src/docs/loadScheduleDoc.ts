@@ -1,6 +1,6 @@
-import { evaluateFeeder } from '../calc/electrical';
+import { evaluateFeeder, type Status } from '../calc/electrical';
 import { breakerTypeOf, cpcOf } from '../calc/earthing';
-import { boardPhaseKw, circuitRef, circuitWatts, elcbGroups, imbalancePct, pointLabel, pointWattsFor, scheduleCircuits } from '../calc/loadSchedule';
+import { boardPhaseKw, circuitCategory, circuitRef, circuitWatts, elcbGroups, imbalancePct, minWireMm2, pointLabel, pointWattsFor, scheduleCircuits } from '../calc/loadSchedule';
 import { POINT_TYPES, type Project } from '../types';
 
 const esc = (v: unknown) =>
@@ -19,7 +19,12 @@ export function loadScheduleRows(project: Project, boardId: string) {
     const ph = { R: '', Y: '', B: '' } as Record<'R' | 'Y' | 'B', string | number>;
     if (f.phase === 'RYB') (['R', 'Y', 'B'] as const).forEach((p) => (ph[p] = Math.round(w / 3)));
     else if (f.phase) ph[f.phase] = Math.round(w);
-    return { f, sl: i + 1, ref: circuitRef(f)!, watts: w, ph, group: groupOf.get(f.id), status: evaluateFeeder(project, f).status };
+    const calc = evaluateFeeder(project, f).status;
+    const minWire = minWireMm2(project, f);
+    // A hand-set wire below the type's minimum is flagged for checking.
+    const belowMin = f.cableCsaMm2 < minWire;
+    const status: Status = calc === 'bad' ? 'bad' : belowMin ? 'warn' : calc;
+    return { f, sl: i + 1, ref: circuitRef(f)!, watts: w, ph, group: groupOf.get(f.id), category: circuitCategory(f), minWire, belowMin, status };
   });
   const phaseW = boardPhaseKw(project, boardId);
   return { board, incomer, groups, rows, phaseW, imbalance: imbalancePct(phaseW) };
