@@ -378,7 +378,7 @@ export default function App() {
                     onEditBoard={(id) => { selectBoard(id); setEditBoardId(id); }}
                   />
                 ) : (
-                  <SingleLineDiagram board={board} results={boardResults} selected={selected} onSelect={selectFeeder} />
+                  <SingleLineDiagram board={board} voltageV={project.voltageV} results={boardResults} selected={selected} onSelect={selectFeeder} />
                 )}
               </section>
               <SystemSummaryCards
