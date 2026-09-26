@@ -4,6 +4,12 @@ import type { FeederResult, Status } from '../calc/electrical';
 import { boardSummary, loadTypeOf } from '../calc/summary';
 import { LEVEL_H, layoutSystem } from '../diagram/layout';
 import LoadIcon from './LoadIcon';
+import type { Annotations, ResultLayers } from '../diagram/annotations';
+
+interface Tag {
+  text: string;
+  cls: string;
+}
 
 interface ViewBox {
   x: number;
@@ -19,7 +25,9 @@ const trunc = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…
 
 /** Whole-network single line diagram: utility → transformer → main board →
  * sub-boards → loads. Wheel to zoom, drag to pan; click a board or a load to
- * select it. */
+ * select it, double-click to edit it. Optional result labels (current,
+ * voltage, voltage drop, fault level, power factor, loading) are printed
+ * next to each board and feeder. */
 export default function SystemDiagram({
   project,
   results,
@@ -27,7 +35,11 @@ export default function SystemDiagram({
   selectedBoardId,
   onSelectFeeder,
   onSelectBoard,
-  tool = 'select'
+  tool = 'select',
+  annotations,
+  layers,
+  onEditFeeder,
+  onEditBoard
 }: {
   project: Project;
   results: FeederResult[];
@@ -37,7 +49,36 @@ export default function SystemDiagram({
   onSelectBoard: (id: string) => void;
   /** 'pan': dragging and clicking never select anything. */
   tool?: 'select' | 'pan';
+  annotations?: Annotations;
+  layers?: ResultLayers;
+  onEditFeeder?: (id: string) => void;
+  onEditBoard?: (id: string) => void;
 }) {
+  const feederTags = (id: string): Tag[] => {
+    const a = annotations?.feeders[id];
+    if (!a || !layers) return [];
+    const t: (Tag | false)[] = [
+      layers.current && a.currentA !== undefined && { text: `${a.currentA.toFixed(0)} A`, cls: 'r-cur' },
+      layers.vd && a.vdTotalPct !== undefined && { text: `ΔV ${a.vdTotalPct.toFixed(2)}%`, cls: a.vdStatus ?? '' },
+      layers.fault && a.faultKA !== undefined && { text: `Ik ${a.faultKA.toFixed(1)} kA`, cls: 'r-fault' },
+      layers.pf && a.pf !== undefined && { text: `PF ${a.pf.toFixed(2)}`, cls: 'r-pf' },
+      layers.loading && a.loadingPct !== undefined && { text: `${a.loadingPct.toFixed(0)}% of In`, cls: a.loadingStatus ?? '' }
+    ];
+    return t.filter((x): x is Tag => !!x);
+  };
+  const boardTags = (id: string): Tag[] => {
+    const a = annotations?.boards[id];
+    if (!a || !layers) return [];
+    const t: (Tag | false)[] = [
+      layers.voltage && a.voltageV !== undefined && { text: `${a.voltageV.toFixed(0)} V · ${a.voltagePct!.toFixed(1)}%`, cls: a.voltageStatus ?? '' },
+      layers.fault && a.faultKA !== undefined && { text: `Ik″ ${a.faultKA.toFixed(1)} kA`, cls: 'r-fault' },
+      layers.pf && a.pf !== undefined && { text: `PF ${a.pf.toFixed(2)}`, cls: 'r-pf' }
+    ];
+    return t.filter((x): x is Tag => !!x);
+  };
+  const edit = (fn?: (id: string) => void, id?: string) => () => {
+    if (tool !== 'pan' && fn && id) fn(id);
+  };
   const layout = useMemo(() => layoutSystem(project), [project]);
   const byFeeder = useMemo(() => new Map(results.map((r) => [r.feeder.id, r])), [results]);
   const summaries = useMemo(() => new Map(project.boards.map((b) => [b.id, boardSummary(project, b)])), [project]);
@@ -136,7 +177,8 @@ export default function SystemDiagram({
           </g>
         )}
         {layout.roots.map((r) => (
-          <g key={`tx-${r.board.id}`}>
+          <g key={`tx-${r.board.id}`} className="tx" onDoubleClick={edit(onEditBoard, r.board.id)}>
+            <title>Double-click to edit the transformer</title>
             <line x1={r.x} y1="50" x2={r.x} y2="70" className="ln mv" />
             <circle cx={r.x} cy="84" r="14" className="tr" />
             <circle cx={r.x} cy="100" r="14" className="tr" />
@@ -158,7 +200,15 @@ export default function SystemDiagram({
           const y = n.busY;
           const endY = n.childBoardId ? y + LEVEL_H - 58 : y + 76;
           return (
-            <g key={f.id} className={`fd ${sel ? 'sel' : ''}`} onClick={click(() => onSelectFeeder(f.id))} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onSelectFeeder(f.id)}>
+            <g
+              key={f.id}
+              className={`fd ${sel ? 'sel' : ''}`}
+              onClick={click(() => onSelectFeeder(f.id))}
+              onDoubleClick={edit(onEditFeeder, f.id)}
+              tabIndex={0}
+              onKeyDown={(e) => (e.key === 'Enter' ? onSelectFeeder(f.id) : e.key === 'F2' && edit(onEditFeeder, f.id)())}
+            >
+              <title>{`${f.id} — double-click to edit`}</title>
               <line x1={n.x} y1={y} x2={n.x} y2={y + 18} className="ln" />
               <rect x={n.x - 6} y={y + 18} width="12" height="16" className="sym" />
               <line x1={n.x - 5} y1={y + 32} x2={n.x + 5} y2={y + 20} className="ln" />
@@ -174,11 +224,19 @@ export default function SystemDiagram({
                   <text className="b" x={n.x} y={y + 132} textAnchor="middle">{trunc(f.id, 16)}</text>
                   <text className="m" x={n.x} y={y + 146} textAnchor="middle">{trunc(f.name, 19)}</text>
                   <text x={n.x} y={y + 160} textAnchor="middle">
-                    {(f.loadKw * f.demandFactor).toFixed(0)} kW{f.generation ? ' gen' : ''} · {r ? r.ib.toFixed(0) : '–'} A
+                    {(f.loadKw * f.demandFactor).toFixed(0)} kW{f.generation ? ' gen' : ''}
+                    {!layers?.current && ` · ${r ? r.ib.toFixed(0) : '–'} A`}
                   </text>
+                  {feederTags(f.id).map((t, i) => (
+                    <text key={t.text} x={n.x} y={y + 177 + i * 13} textAnchor="middle" className={`res ${t.cls}`}>{t.text}</text>
+                  ))}
                   <circle cx={n.x + 22} cy={y + 78} r="4" style={{ fill: `var(--${status})` }} />
                 </>
               )}
+              {n.childBoardId &&
+                feederTags(f.id).map((t, i) => (
+                  <text key={t.text} x={n.x + 7} y={y + 72 + i * 13} className={`res ${t.cls}`}>{t.text}</text>
+                ))}
               {sel && <rect x={n.x - 60} y={y + 8} width="120" height={n.childBoardId ? 50 : 160} rx="8" className="sel-ring" />}
             </g>
           );
@@ -191,7 +249,15 @@ export default function SystemDiagram({
           const status = worst([s.loadingStatus, ...project.feeders.filter((f) => f.boardId === b.id).map((f) => byFeeder.get(f.id)?.status)]);
           const sel = b.id === selectedBoardId;
           return (
-            <g key={b.id} className={`bd ${sel ? 'sel' : ''}`} onClick={click(() => onSelectBoard(b.id))} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onSelectBoard(b.id)}>
+            <g
+              key={b.id}
+              className={`bd ${sel ? 'sel' : ''}`}
+              onClick={click(() => onSelectBoard(b.id))}
+              onDoubleClick={edit(onEditBoard, b.id)}
+              tabIndex={0}
+              onKeyDown={(e) => (e.key === 'Enter' ? onSelectBoard(b.id) : e.key === 'F2' && edit(onEditBoard, b.id)())}
+            >
+              <title>{`${b.id} — double-click to edit`}</title>
               <line x1={n.busX1} y1={n.busY} x2={n.busX2} y2={n.busY} className={`bus ${sel ? 'sel' : ''}`} />
               <line x1={n.x} y1={n.busY - 22} x2={n.x} y2={n.busY} className="ln" />
               <rect x={n.x - 62} y={n.busY - 58} width="124" height="36" rx="6" className="box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
@@ -201,9 +267,12 @@ export default function SystemDiagram({
                 {b.ratedCurrentA ? ` · ${b.ratedCurrentA} A` : ''}
               </text>
               <circle cx={n.x + 52} cy={n.busY - 46} r="4" style={{ fill: `var(--${status})` }} />
-              {s.loadingPct !== undefined && (
-                <text className="m" x={n.x + 66} y={n.busY - 28}>{s.loadingPct.toFixed(0)}%</text>
-              )}
+              {[
+                ...boardTags(b.id),
+                ...(s.loadingPct !== undefined ? [{ text: `${s.loadingPct.toFixed(0)}% loaded`, cls: layers?.loading ? s.loadingStatus ?? 'm' : 'm' }] : [])
+              ].map((t, i) => (
+                <text key={t.text} x={n.x + 68} y={n.busY - 47 + i * 13} className={`res ${t.cls}`}>{t.text}</text>
+              ))}
             </g>
           );
         })}

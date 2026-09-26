@@ -28,6 +28,12 @@ import { DOCUMENTS, STUDIES, type MainView } from './views';
 import Ribbon, { tabForView, type DiagramTool, type RibbonTab } from './components/Ribbon';
 import ProjectSettings from './components/ProjectSettings';
 import type { BoardTab } from './components/BoardPanel';
+import BoardEditForm from './components/BoardEditForm';
+import DiagramResultsBar, { type ResultSource } from './components/DiagramResultsBar';
+import { buildAnnotations, DEFAULT_LAYERS, type ResultLayers } from './diagram/annotations';
+import { EXTERNAL_ENGINES } from './engines';
+import type { StudyResults } from './engines/types';
+import { deleteBoard } from './model/edit';
 type DiagramMode = 'system' | 'board';
 
 export default function App() {
@@ -44,6 +50,12 @@ export default function App() {
   const [feederPreset, setFeederPreset] = useState<Partial<Feeder>>({});
   const [boardTab, setBoardTab] = useState<BoardTab>('general');
   const [showSettings, setShowSettings] = useState(false);
+  const [editBoardId, setEditBoardId] = useState<string | null>(null);
+  const [layers, setLayers] = useState<ResultLayers>(DEFAULT_LAYERS);
+  const [resultSource, setResultSource] = useState<ResultSource>('builtin');
+  const [engineRun, setEngineRun] = useState<{ project: Project; results: StudyResults } | null>(null);
+  const [simRunning, setSimRunning] = useState(false);
+  const [simError, setSimError] = useState('');
   // Navigating (left menu or ribbon) keeps the ribbon on the matching tab.
   const setView = (v: MainView) => {
     setViewState(v);
@@ -58,6 +70,38 @@ export default function App() {
   const board = project.boards.find((b) => b.id === activeBoardId) ?? project.boards[0];
   const boardResults = useMemo(() => allResults.filter((r) => r.feeder.boardId === board?.id), [allResults, board]);
   const selectedFeeder = project.feeders.find((f) => f.id === selected);
+
+  // Engine results are used only while they match the current project and
+  // the chosen source; any edit falls back to the instant built-in values.
+  const engineFresh = !!engineRun && engineRun.project === project && engineRun.results.engineId === resultSource;
+  const annotations = useMemo(
+    () => buildAnnotations(project, allResults, engineFresh ? engineRun!.results : undefined),
+    [project, allResults, engineFresh, engineRun]
+  );
+  const resultsNote = (() => {
+    const name = EXTERNAL_ENGINES.find((e) => e.id === resultSource)?.name;
+    if (resultSource === 'builtin') return { text: 'Built-in estimate — bus voltages from the main busbar' };
+    if (simRunning) return { text: `Running ${name}…` };
+    if (simError) return { text: simError, cls: 'bad' };
+    if (engineFresh) return { text: `${name} results (transformer drop included)`, cls: 'ok' };
+    if (engineRun?.results.engineId === resultSource) return { text: 'Project changed — showing built-in values; run again', cls: 'warn' };
+    return { text: 'Showing built-in values until you run the simulation', cls: 'warn' };
+  })();
+
+  async function runSimulation() {
+    const engine = EXTERNAL_ENGINES.find((e) => e.id === resultSource);
+    if (!engine) return;
+    setSimRunning(true);
+    setSimError('');
+    try {
+      const snapshot = project;
+      setEngineRun({ project: snapshot, results: await engine.run(snapshot) });
+    } catch (e) {
+      setSimError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSimRunning(false);
+    }
+  }
 
   useEffect(() => {
     if (!hasBridge) return;
@@ -178,6 +222,29 @@ export default function App() {
     if (selectedFeeder && window.confirm(`Delete feeder ${selectedFeeder.id}?`)) deleteFeeder(selectedFeeder.id);
   }
 
+  function editFeeder(id: string) {
+    selectFeeder(id);
+    setShowFeederForm('edit');
+  }
+
+  function saveBoardEdit(b: Board) {
+    updateBoard(b);
+    setEditBoardId(null);
+  }
+
+  function removeBoard(id: string) {
+    try {
+      const next = deleteBoard(project, id);
+      setProject(next);
+      setEditBoardId(null);
+      const main = next.boards.find((b) => !b.upstreamId) ?? next.boards[0];
+      if (main) selectBoard(main.id);
+      setStatus(`Deleted ${id}`);
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   function deleteFeeder(id: string) {
     setProject((prev) => ({ ...prev, feeders: prev.feeders.filter((x) => x.id !== id) }));
     setSelected(null);
@@ -285,6 +352,17 @@ export default function App() {
                     {selectedFeeder && panel === 'feeder' && <button className="chip" onClick={() => setShowFeederForm('edit')}>Edit {selectedFeeder.id}</button>}
                   </div>
                 </div>
+                {diagramMode === 'system' && (
+                  <DiagramResultsBar
+                    layers={layers}
+                    onLayers={setLayers}
+                    source={resultSource}
+                    onSource={(s) => { setResultSource(s); setSimError(''); }}
+                    onRun={runSimulation}
+                    running={simRunning}
+                    note={resultsNote}
+                  />
+                )}
                 {diagramMode === 'system' ? (
                   <SystemDiagram
                     project={project}
@@ -294,12 +372,22 @@ export default function App() {
                     onSelectFeeder={selectFeeder}
                     onSelectBoard={selectBoard}
                     tool={tool}
+                    annotations={annotations}
+                    layers={layers}
+                    onEditFeeder={editFeeder}
+                    onEditBoard={(id) => { selectBoard(id); setEditBoardId(id); }}
                   />
                 ) : (
                   <SingleLineDiagram board={board} results={boardResults} selected={selected} onSelect={selectFeeder} />
                 )}
               </section>
-              <SystemSummaryCards project={project} selectedBoardId={panel === 'board' ? board.id : null} onSelectBoard={selectBoard} />
+              <SystemSummaryCards
+                project={project}
+                selectedBoardId={panel === 'board' ? board.id : null}
+                onSelectBoard={selectBoard}
+                annotations={engineFresh ? annotations : undefined}
+                sourceLabel={engineFresh ? `${EXTERNAL_ENGINES.find((e) => e.id === resultSource)?.name} load flow: voltages include the transformer's own drop; fault levels from the engine's fault study.` : undefined}
+              />
               <h3 className="section-title">Feeders on {board.id}</h3>
               <ResultsTable results={boardResults} vdLimitPct={project.vdLimitPct} selected={selected} onSelect={selectFeeder} />
             </main>
@@ -358,6 +446,22 @@ export default function App() {
           onClose={() => setShowFeederForm(null)}
         />
       )}
+      {editBoardId && project.boards.some((b) => b.id === editBoardId) && (() => {
+        const b = project.boards.find((x) => x.id === editBoardId)!;
+        const incomer = project.feeders.find((f) => f.feedsBoardId === b.id && f.boardId === b.upstreamId);
+        const deletable = !!b.upstreamId || project.boards.filter((x) => !x.upstreamId).length > 1;
+        return (
+          <BoardEditForm
+            key={b.id}
+            project={project}
+            board={b}
+            onSave={saveBoardEdit}
+            onDelete={deletable ? () => removeBoard(b.id) : undefined}
+            onEditIncomer={incomer ? () => { setEditBoardId(null); editFeeder(incomer.id); } : undefined}
+            onClose={() => setEditBoardId(null)}
+          />
+        );
+      })()}
       {showSettings && (
         <ProjectSettings project={project} onSave={(p) => { setProject(p); setShowSettings(false); }} onClose={() => setShowSettings(false)} />
       )}

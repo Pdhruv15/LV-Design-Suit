@@ -10,9 +10,16 @@ export interface EngineFeederResult {
   endFaultKA?: number; // 3-phase fault at the far end of the cable
 }
 
+/** Per-board values from a full load flow / fault study. */
+export interface EngineBoardResult {
+  voltagePct?: number; // busbar voltage, % of nominal
+  faultKA?: number; // 3-phase fault at the busbar
+}
+
 export interface StudyResults {
   engineId: string;
   feeders: Record<string, EngineFeederResult>;
+  boards?: Record<string, EngineBoardResult>;
   messages: string[]; // warnings/notes from the engine
 }
 

@@ -165,3 +165,20 @@ tr.total td{background:var(--p2);font-weight:600}
 .ribbon-menu{position:absolute;top:100%;z-index:60;display:flex;flex-direction:column;min-width:200px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px;box-shadow:0 8px 24px rgba(0,0,0,.4)}
 .ribbon-menu button{flex-direction:row;justify-content:flex-start;min-width:0;padding:8px 10px;font-size:13px}
 .sysdiag.pan svg,.sysdiag.pan .fd,.sysdiag.pan .bd{cursor:grab}
+/* ---- Diagram results ---- */
+.results-bar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px}
+.results-bar .toggle{border:1px solid var(--line);border-radius:14px;padding:3px 10px;color:var(--mut);font-size:12px}
+.results-bar .toggle.on{border-color:var(--acc);color:var(--acc);background:color-mix(in srgb,var(--acc) 12%,transparent)}
+.results-bar select{background:var(--p2);color:var(--tx);border:1px solid var(--line);border-radius:5px;padding:4px 6px;font:inherit}
+.results-note{font-size:12px;flex-basis:100%;text-align:right}
+.sysdiag text.res{font-size:10.5px;font-weight:600;paint-order:stroke;stroke:var(--bg);stroke-width:3px;stroke-linejoin:round}
+.sysdiag text.res.r-cur{fill:#7fd1ff}
+.sysdiag text.res.r-fault{fill:#ff9f43}
+.sysdiag text.res.r-pf{fill:#b784ff}
+.sysdiag text.res.ok{fill:var(--ok)}
+.sysdiag text.res.warn{fill:var(--warn)}
+.sysdiag text.res.bad{fill:var(--bad)}
+.sysdiag text.res.m{fill:var(--mut);font-weight:400}
+.sysdiag .tx{cursor:pointer}
+.sysdiag .tx:hover .tr{stroke-width:2.4}
+.modal-sub{margin:6px 0 0;font-size:13px}

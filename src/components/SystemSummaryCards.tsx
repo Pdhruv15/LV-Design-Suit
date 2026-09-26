@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { Project } from '../types';
 import { boardSummary, boardsInSupplyOrder, systemSummary } from '../calc/summary';
+import type { Annotations } from '../diagram/annotations';
 
 const fmt = (n: number, d = 0) => n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 
@@ -9,9 +10,14 @@ const fmt = (n: number, d = 0) => n.toLocaleString('en-US', { minimumFractionDig
 export default function SystemSummaryCards({
   project,
   selectedBoardId,
-  onSelectBoard
+  onSelectBoard,
+  annotations,
+  sourceLabel
 }: {
   project: Project;
+  /** When set, bus voltages and fault levels come from these (e.g. an engine run). */
+  annotations?: Annotations;
+  sourceLabel?: string;
   selectedBoardId: string | null;
   onSelectBoard: (id: string) => void;
 }) {
@@ -78,23 +84,27 @@ export default function SystemSummaryCards({
             </tr>
           </thead>
           <tbody>
-            {boards.map((s) => (
+            {boards.map((s) => {
+              const a = annotations?.boards[s.board.id];
+              const voltagePct = a?.voltagePct ?? s.voltagePct;
+              return (
               <tr key={s.board.id} className={selectedBoardId === s.board.id ? 'sel' : ''} onClick={() => onSelectBoard(s.board.id)}>
                 <td style={{ paddingLeft: 10 + s.depth * 14 }}>{s.board.id}</td>
-                <td>{s.voltageV.toFixed(0)}</td>
-                <td>{s.voltagePct.toFixed(1)}%</td>
-                <td>{s.faultKA.toFixed(1)}</td>
+                <td>{((project.voltageV * voltagePct) / 100).toFixed(0)}</td>
+                <td className={a?.voltageStatus ?? ''}>{voltagePct.toFixed(1)}%</td>
+                <td>{(a?.faultKA ?? s.faultKA).toFixed(1)}</td>
                 <td>{s.currentA.toFixed(0)}</td>
                 <td className={s.loadingStatus ?? ''}>
                   {s.loadingPct === undefined ? 'no rating' : `${s.loadingPct.toFixed(0)}%`}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
         <p className="m note">
-          Built-in estimate: voltage measured from the main busbar (transformer regulation not included). Use Engine
-          comparison for a full load flow.
+          {sourceLabel ??
+            'Built-in estimate: voltage measured from the main busbar (transformer regulation not included). Choose a load-flow engine above the diagram and run the simulation for full results.'}
         </p>
       </section>
     </div>

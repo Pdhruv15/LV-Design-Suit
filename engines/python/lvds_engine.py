@@ -108,6 +108,15 @@ def run_opendss(project, script):
         vd = (bus_vpu(main_bus, single) - bus_vpu(end_bus, single)) * 100
         results[f["id"]] = {"ib": max(mags), "vdTotalPct": vd, "_end": end_bus}
 
+    # Busbar voltage of every board, as % of nominal (includes the
+    # transformer's own voltage drop, unlike the built-in estimate).
+    boards = {}
+    for b in project["boards"]:
+        try:
+            boards[b["id"]] = {"voltagePct": bus_vpu(f"bb_{dss_name(b['id'])}", False) * 100}
+        except Exception:  # noqa: BLE001 — board not energised / not in the model
+            messages.append(f"No load-flow voltage for board {b['id']}.")
+
     # Fault study: disable loads/generation (IEC 60909 neglects them) and
     # read each bus's positive-sequence short-circuit impedance.
     cmd("BatchEdit Load..* enabled=no")
@@ -123,9 +132,11 @@ def run_opendss(project, script):
         res = results[f["id"]]
         res["breakerFaultKA"] = ik3_ka(f"bb_{dss_name(f['boardId'])}")
         res["endFaultKA"] = ik3_ka(res.pop("_end"))
+    for bid, entry in boards.items():
+        entry["faultKA"] = ik3_ka(f"bb_{dss_name(bid)}")
 
     messages.append(f"OpenDSS {dss.Basic.Version().split(' revision')[0]} - load flow + fault study (c = 1, loads excluded from faults).")
-    return {"engineId": "opendss", "feeders": results, "messages": messages}
+    return {"engineId": "opendss", "feeders": results, "boards": boards, "messages": messages}
 
 
 # --------------------------------------------------------------------------
@@ -183,6 +194,8 @@ def run_pandapower(project):
 
     pp.runpp(net)
 
+    boards = {bid: {"voltagePct": float(net.res_bus.at[b, "vm_pu"]) * 100.0} for bid, b in bus.items()
+              if not math.isnan(net.res_bus.at[b, "vm_pu"])}
     results = {}
     for f in project["feeders"]:
         if f["id"] not in line_of:
@@ -207,9 +220,11 @@ def run_pandapower(project):
             if f["id"] not in single_phase:  # a 3-phase fault at a single-phase end is meaningless
                 results[f["id"]]["endFaultKA"] = float(net.res_bus_sc.at[end_bus_of[f["id"]], "ikss_ka"])
 
+    for bid, entry in boards.items():
+        entry["faultKA"] = float(net.res_bus_sc.at[bus[bid], "ikss_ka"])
     messages.append(f"pandapower {pp.__version__} - Newton-Raphson load flow; IEC 60909 max short circuit "
                     "(cmax = 1.10, transformer correction KT applied, PV excluded).")
-    return {"engineId": "pandapower", "feeders": results, "messages": messages}
+    return {"engineId": "pandapower", "feeders": results, "boards": boards, "messages": messages}
 
 
 def main():

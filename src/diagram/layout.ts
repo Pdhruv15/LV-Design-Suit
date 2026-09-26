@@ -116,6 +116,6 @@ export function layoutSystem(project: Project): SystemLayout {
     roots,
     utilityX,
     width: Math.max(left + MARGIN_X, 480),
-    height: ROOT_BUS_Y + maxDepth * LEVEL_H + 190
+    height: ROOT_BUS_Y + maxDepth * LEVEL_H + 250 // room for load labels and result tags
   };
 }
