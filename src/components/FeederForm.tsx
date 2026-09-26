@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { LOAD_TYPES, type Feeder, type LoadType, type Project } from '../types';
+import { BREAKER_TYPES, LOAD_TYPES, type BreakerType, type Feeder, type LoadType, type Project } from '../types';
+import { breakerTypeOf, defaultCpcMm2 } from '../calc/earthing';
 import { CABLE_TABLE } from '../calc/cableTable';
 import { designCurrentA, selectCable, upstreamVoltageDropPct } from '../calc/electrical';
 
@@ -85,8 +86,27 @@ export default function FeederForm({
           </label>
           <label>Breaker rating (A)<input type="number" step="1" value={f.breakerRatingA} onChange={(e) => set('breakerRatingA', +e.target.value)} /></label>
           <label>Breaker Icu (kA)<input type="number" step="0.5" value={f.breakerIcuKa} onChange={(e) => set('breakerIcuKa', +e.target.value)} /></label>
+          <label>Breaker type
+            <select value={breakerTypeOf(f)} onChange={(e) => set('breakerType', e.target.value as BreakerType)}>
+              {BREAKER_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+          </label>
+          {(breakerTypeOf(f) === 'MCCB' || breakerTypeOf(f) === 'ACB') && (
+            <label>Instantaneous Im (× In)<input type="number" step="0.5" min="1" value={f.breakerImMultiple ?? 10} onChange={(e) => set('breakerImMultiple', +e.target.value)} /></label>
+          )}
+          <label>Protective conductor (mm²)
+            <select value={f.cpcMm2 ?? ''} onChange={(e) => set('cpcMm2', e.target.value === '' ? undefined : +e.target.value)}>
+              <option value="">Auto — {defaultCpcMm2(f.cableCsaMm2)} mm² (IEC 60364-5-54)</option>
+              {CABLE_TABLE.filter((c) => c.csaMm2 <= f.cableCsaMm2).map((c) => (
+                <option key={c.csaMm2} value={c.csaMm2}>{c.csaMm2} mm²</option>
+              ))}
+            </select>
+          </label>
         </div>
         <label className="row"><input type="checkbox" checked={!!f.generation} onChange={(e) => set('generation', e.target.checked)} /> Generation source (PV / generator)</label>
+        <label className="row"><input type="checkbox" checked={f.essential ?? f.loadType === 'fire-pump'} onChange={(e) => set('essential', e.target.checked)} /> Essential load (supplied by the standby generator)</label>
 
         <div className="suggest-row">
           <button type="button" className="chip" onClick={suggestCable}>Suggest cable size</button>

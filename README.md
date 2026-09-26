@@ -96,6 +96,12 @@ header of the exported file.
   loading) and a bus voltage / board loading table
 - Board properties panel (General / Electrical / Protection) with editable
   equipment data and board loading against its rating
+- Studies: earthing (Zs, disconnection time, CPC adiabatic check), breaker
+  and cable selection (fix-only or optimise, apply per row or all),
+  protection coordination (time-current curves, current-based selectivity),
+  transformer and generator sizing, power factor correction
+- Documents: DB schedule, cable schedule, equipment schedule (CSV for
+  Excel), and a PDF calculation report
 - Editing feeders and boards from the UI, multi-level board hierarchy,
   cable-size suggestion that respects the breaker rating and the voltage-drop
   budget left after upstream drops
@@ -104,7 +110,7 @@ header of the exported file.
 - Project save/load as JSON, Drive-sync friendly
 
 **Not built yet — natural next steps:**
-- Earth-fault loop impedance (Zs) and disconnection-time check
 - Grouping/installation-method correction factors for cable sizing
   (only ambient temperature is modelled right now)
-- PDF calculation report; DEWA panel schedule export
+- Manufacturer breaker curves / selectivity tables (curves are generic now)
+- Exact DEWA panel-schedule template (current DB schedule is a generic layout)

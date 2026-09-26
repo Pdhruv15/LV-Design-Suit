@@ -13,13 +13,38 @@ import EngineCompare from './components/EngineCompare';
 import SystemDiagram from './components/SystemDiagram';
 import SystemSummaryCards from './components/SystemSummaryCards';
 import BoardPanel from './components/BoardPanel';
+import EarthingStudy from './components/studies/EarthingStudy';
+import SelectionStudy from './components/studies/SelectionStudy';
+import CoordinationStudy from './components/studies/CoordinationStudy';
+import { PfcStudy, TransformerGeneratorStudy } from './components/studies/SizingStudy';
+import { CableScheduleView, DbScheduleView, EquipmentScheduleView, ReportView } from './components/docs/Documents';
 
 // window.lvds is only present when running inside Electron. Fall back to
 // in-memory-only mode so the same UI still runs in a plain browser tab
 // during development (`vite` alone, without `electron .`).
 const hasBridge = typeof window !== 'undefined' && !!window.lvds;
 
-type MainView = 'design' | 'boq' | 'engines';
+type MainView =
+  | 'design'
+  | 'earthing' | 'selection' | 'coordination' | 'sizing' | 'pfc' | 'engines'
+  | 'db-schedule' | 'cable-schedule' | 'equipment' | 'boq' | 'report';
+
+const STUDIES: [MainView, string][] = [
+  ['engines', 'Load flow (engines)'],
+  ['earthing', 'Earthing'],
+  ['coordination', 'Protection coordination'],
+  ['selection', 'Breaker & cable selection'],
+  ['sizing', 'Transformer & generator'],
+  ['pfc', 'Power factor correction']
+];
+
+const DOCUMENTS: [MainView, string][] = [
+  ['db-schedule', 'DB schedule'],
+  ['cable-schedule', 'Cable schedule'],
+  ['equipment', 'Equipment schedule'],
+  ['boq', 'Cost estimate (BOQ)'],
+  ['report', 'Calculation report (PDF)']
+];
 type DiagramMode = 'system' | 'board';
 
 export default function App() {
@@ -173,6 +198,28 @@ export default function App() {
 
       <div className="app">
         <nav className="nav" aria-label="Navigation">
+          <h4>Design</h4>
+          <button className={view === 'design' ? 'on' : ''} onClick={() => setView('design')}>Single line diagram</button>
+
+          <h4>Boards</h4>
+          {project.boards.map((b) => (
+            <button key={b.id} className={view === 'design' && panel === 'board' && board?.id === b.id ? 'on' : ''} style={{ paddingLeft: 10 + (b.upstreamId ? 12 : 0) }} onClick={() => { setView('design'); selectBoard(b.id); }}>
+              {b.id}
+            </button>
+          ))}
+          <button onClick={() => setShowBoardForm(true)}>+ Add board</button>
+
+          <h4>Studies</h4>
+          {STUDIES.map(([v, label]) => (
+            <button key={v} className={view === v ? 'on' : ''} onClick={() => setView(v)}>{label}</button>
+          ))}
+
+          <h4>Documents</h4>
+          {DOCUMENTS.map(([v, label]) => (
+            <button key={v} className={view === v ? 'on' : ''} onClick={() => setView(v)}>{label}</button>
+          ))}
+          <button onClick={exportOpenDss} title="Export the network as an OpenDSS script to cross-check load flow and fault levels">Export OpenDSS (.dss)</button>
+
           <h4>Projects folder</h4>
           <button onClick={chooseFolder} title={projectsFolder}>
             {hasBridge ? projectsFolder.split(/[\\/]/).pop() || 'Choose folder…' : 'Browser preview mode'}
@@ -185,18 +232,6 @@ export default function App() {
             </button>
           ))}
 
-          <h4>Boards</h4>
-          {project.boards.map((b) => (
-            <button key={b.id} className={view === 'design' && board?.id === b.id ? 'on' : ''} style={{ paddingLeft: 10 + (b.upstreamId ? 12 : 0) }} onClick={() => { setView('design'); selectBoard(b.id); }}>
-              {b.id}
-            </button>
-          ))}
-          <button onClick={() => setShowBoardForm(true)}>+ Add board</button>
-
-          <h4>Reports</h4>
-          <button className={view === 'boq' ? 'on' : ''} onClick={() => setView('boq')}>Cost estimate (BOQ)</button>
-          <button className={view === 'engines' ? 'on' : ''} onClick={() => setView('engines')}>Engine comparison</button>
-          <button onClick={exportOpenDss} title="Export the network as an OpenDSS script to cross-check load flow and fault levels">Export OpenDSS (.dss)</button>
         </nav>
 
         {view === 'design' && board ? (
@@ -244,19 +279,29 @@ export default function App() {
               )}
             </aside>
           </>
-        ) : view === 'engines' ? (
-          <main className="mid" style={{ gridColumn: '2 / span 2' }}>
-            <section className="stage">
-              <h3>Engine comparison — whole project</h3>
-            </section>
-            <EngineCompare project={project} />
-          </main>
         ) : (
           <main className="mid" style={{ gridColumn: '2 / span 2' }}>
-            <section className="stage">
-              <h3>Cost estimate — whole project</h3>
-            </section>
-            <BoqTable results={allResults} projectName={project.name} />
+            {view === 'engines' && (
+              <>
+                <section className="stage"><h3>Load flow — engine comparison</h3></section>
+                <EngineCompare project={project} />
+              </>
+            )}
+            {view === 'earthing' && <EarthingStudy project={project} onSelectFeeder={(id) => { setView('design'); selectFeeder(id); }} />}
+            {view === 'selection' && <SelectionStudy project={project} onChange={setProject} />}
+            {view === 'coordination' && <CoordinationStudy project={project} />}
+            {view === 'sizing' && <TransformerGeneratorStudy project={project} onChange={setProject} />}
+            {view === 'pfc' && <PfcStudy project={project} onChange={setProject} />}
+            {view === 'db-schedule' && <DbScheduleView project={project} onStatus={setStatus} />}
+            {view === 'cable-schedule' && <CableScheduleView project={project} onStatus={setStatus} />}
+            {view === 'equipment' && <EquipmentScheduleView project={project} onStatus={setStatus} />}
+            {view === 'report' && <ReportView project={project} onStatus={setStatus} />}
+            {view === 'boq' && (
+              <>
+                <section className="stage"><h3>Cost estimate — whole project</h3></section>
+                <BoqTable results={allResults} projectName={project.name} />
+              </>
+            )}
           </main>
         )}
       </div>

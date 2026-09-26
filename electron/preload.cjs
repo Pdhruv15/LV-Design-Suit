@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('lvds', {
     run: (request) => ipcRenderer.invoke('engines:run', request)
   },
   files: {
-    saveText: (opts) => ipcRenderer.invoke('files:saveText', opts)
+    saveText: (opts) => ipcRenderer.invoke('files:saveText', opts),
+    savePdf: (opts) => ipcRenderer.invoke('files:savePdf', opts)
   }
 });

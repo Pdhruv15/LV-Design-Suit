@@ -21,6 +21,8 @@ declare global {
       files: {
         /** Shows a save dialog and writes the text; resolves to the saved path, or null if cancelled. */
         saveText: (opts: { defaultName: string; content: string; filterName: string; extensions: string[] }) => Promise<string | null>;
+        /** Shows a save dialog and renders the HTML to an A4 landscape PDF; resolves to the saved path, or null if cancelled. */
+        savePdf: (opts: { defaultName: string; html: string }) => Promise<string | null>;
       };
     };
   }
