@@ -47,6 +47,17 @@ function createWindow() {
   });
 
   if (isDev) {
+    // If the Vite dev server isn't running the window would stay blank, so
+    // explain what's wrong and retry until the server comes up.
+    win.webContents.on('did-fail-load', (_e, _code, _desc, url) => {
+      if (!url.startsWith('http://localhost:5173')) return;
+      const html = `<body style="background:#0a1120;color:#dbe4f5;font:15px system-ui;padding:40px">
+        <h2>Waiting for the dev server…</h2>
+        <p>The app screens come from the Vite dev server at http://localhost:5173, which isn't running.</p>
+        <p>Start the app with <code>npm run dev</code> from the project folder. This window retries every 3 seconds.</p></body>`;
+      win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+      setTimeout(() => !win.isDestroyed() && win.loadURL('http://localhost:5173'), 3000);
+    });
     win.loadURL('http://localhost:5173');
     win.webContents.openDevTools({ mode: 'detach' });
   } else {
