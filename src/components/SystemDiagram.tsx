@@ -9,6 +9,9 @@ import type { Annotations, ResultLayers } from '../diagram/annotations';
 import { canDrop, canMove, type DropTarget, type MoveItem, type PaletteItem } from '../model/sldEdit';
 import { cables } from '../calc/cableTable';
 import { upsLoadingPct } from '../calc/sizing';
+import { upstreamVoltageDropPct } from '../calc/electrical';
+import { MOTOR_START_DIP_LIMIT_PCT, type GeneratorRun } from '../calc/scenario';
+import { boardRatio, COLOR_BY, feederRatio, heatColor, type ColorBy } from '../diagram/heatmap';
 import type { Feeder } from '../types';
 import { getDragItem, setDragItem } from '../diagram/dragItem';
 
@@ -49,7 +52,9 @@ export default function SystemDiagram({
   onOpenSchedule,
   onDropItem,
   onMoveItem,
-  onPatchFeeder
+  onPatchFeeder,
+  colorBy = 'none',
+  scenario
 }: {
   project: Project;
   results: FeederResult[];
@@ -72,6 +77,11 @@ export default function SystemDiagram({
   onMoveItem?: (item: MoveItem, target: DropTarget) => void;
   /** Quick edit of a feeder's cable from its label. */
   onPatchFeeder?: (feederId: string, patch: Partial<Feeder>) => void;
+  /** Colour cables and busbars by a result. */
+  colorBy?: ColorBy;
+  /** Generator mode: the network as it runs on the standby generators.
+   * Everything else is drawn dimmed; results must be for this network. */
+  scenario?: { project: Project; energized: Set<string>; generators: GeneratorRun[] };
 }) {
   const feederTags = (id: string): Tag[] => {
     const a = annotations?.feeders[id];
@@ -100,7 +110,28 @@ export default function SystemDiagram({
   };
   const layout = useMemo(() => layoutSystem(project), [project]);
   const byFeeder = useMemo(() => new Map(results.map((r) => [r.feeder.id, r])), [results]);
-  const summaries = useMemo(() => new Map(project.boards.map((b) => [b.id, boardSummary(project, b)])), [project]);
+  // Board loading and voltage come from the network that is running: the
+  // generator scenario in generator mode.
+  const running = scenario?.project ?? project;
+  const summaries = useMemo(
+    () => new Map(project.boards.map((b) => {
+      const live = scenario ? scenario.project.boards.find((x) => x.id === b.id) : undefined;
+      return [b.id, live ? boardSummary(scenario!.project, live) : boardSummary(project, b)];
+    })),
+    [project, scenario]
+  );
+  const off = (boardId: string) => !!scenario && !scenario.energized.has(boardId);
+  const feederHeat = (id: string) => {
+    const r = byFeeder.get(id);
+    const ratio = r && colorBy !== 'none' ? feederRatio(r, colorBy, project.vdLimitPct) : undefined;
+    return ratio === undefined ? undefined : heatColor(ratio);
+  };
+  const boardHeat = (id: string) => {
+    const s = summaries.get(id);
+    if (!s || colorBy === 'none' || off(id)) return undefined;
+    const ratio = boardRatio(s, upstreamVoltageDropPct(running, id), colorBy, project.vdLimitPct);
+    return ratio === undefined ? undefined : heatColor(ratio);
+  };
 
   const full: ViewBox = { x: 0, y: 0, w: layout.width, h: layout.height };
   const [vb, setVb] = useState<ViewBox>(full);
@@ -250,6 +281,8 @@ export default function SystemDiagram({
       </div>
       <svg
         ref={svgRef}
+        data-w={layout.width}
+        data-h={layout.height}
         viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
         role="img"
         aria-label={`Single line diagram of ${project.name}`}
@@ -310,7 +343,7 @@ export default function SystemDiagram({
           return (
             <g
               key={f.id}
-              className={`fd ${sel ? 'sel' : ''}${dropCls(`fd:${f.id}`)}`}
+              className={`fd ${sel ? 'sel' : ''}${dropCls(`fd:${f.id}`)}${off(f.boardId) ? ' off' : ''}`}
               {...dnd({ type: 'feeder', feederId: f.id }, `fd:${f.id}`)}
               data-drop={`fd:${f.id}`}
               onPointerDown={startPick(n.childBoardId ? { kind: 'board', id: n.childBoardId } : { kind: 'feeder', id: f.id }, n.childBoardId ?? f.name ?? f.id)}
@@ -323,7 +356,8 @@ export default function SystemDiagram({
               <line x1={n.x} y1={y} x2={n.x} y2={y + 18} className="ln" />
               <rect x={n.x - 6} y={y + 18} width="12" height="16" className="sym" />
               <line x1={n.x - 5} y1={y + 32} x2={n.x + 5} y2={y + 20} className="ln" />
-              <line x1={n.x} y1={y + 34} x2={n.x} y2={endY} className={`ln ${status !== 'ok' ? status : ''}`} />
+              <line x1={n.x} y1={y + 34} x2={n.x} y2={endY} className={`ln ${status !== 'ok' ? status : ''}`}
+                style={feederHeat(f.id) ? { stroke: feederHeat(f.id), strokeWidth: 3.5 } : undefined} />
               <text className="b" x={n.x + 10} y={y + 30}>{f.breakerRatingA} A</text>
               <text
                 className={`m${onPatchFeeder ? ' cable-lbl' : ''}`}
@@ -386,7 +420,7 @@ export default function SystemDiagram({
           return (
             <g
               key={b.id}
-              className={`bd ${sel ? 'sel' : ''}${dropCls(`bus:${b.id}`)}`}
+              className={`bd ${sel ? 'sel' : ''}${dropCls(`bus:${b.id}`)}${off(b.id) ? ' off' : ''}`}
               {...dnd({ type: 'bus', boardId: b.id }, `bus:${b.id}`)}
               data-drop={`bus:${b.id}`}
               onPointerDown={startPick({ kind: 'board', id: b.id }, b.id)}
@@ -396,7 +430,8 @@ export default function SystemDiagram({
               onKeyDown={(e) => (e.key === 'Enter' ? onSelectBoard(b.id) : e.key === 'F2' && edit(onEditBoard, b.id)())}
             >
               <title>{`${b.id} — double-click to edit`}</title>
-              {!n.terminal && <line x1={n.busX1} y1={n.busY} x2={n.busX2} y2={n.busY} className={`bus ${sel ? 'sel' : ''}`} />}
+              {!n.terminal && <line x1={n.busX1} y1={n.busY} x2={n.busX2} y2={n.busY} className={`bus ${sel ? 'sel' : ''}`}
+                style={boardHeat(b.id) ? { stroke: boardHeat(b.id) } : undefined} />}
               {/* Wide invisible band along the busbar, so drops don't need pixel precision. */}
               {onDropItem && <line x1={n.busX1 - 20} y1={n.busY} x2={n.busX2 + 20} y2={n.busY} className="bus-hit" />}
               <line x1={n.x} y1={n.busY - 22} x2={n.x} y2={n.busY} className="ln" />
@@ -409,6 +444,23 @@ export default function SystemDiagram({
                   <circle cx={n.x + 45} cy={n.busY - 80} r="11" className="sym" />
                   <text x={n.x + 45} y={n.busY - 76} textAnchor="middle" className="b" style={{ fontSize: 11 }}>G</text>
                   <text x={n.x + 60} y={n.busY - 77} className="m">{b.standby.kva} kVA</text>
+                  {(() => {
+                    const g = scenario?.generators.find((x) => x.boardId === b.id);
+                    if (!g) return null;
+                    const cls = g.loadingPct > 100 ? 'bad' : g.loadingPct > 80 ? 'warn' : 'ok';
+                    const m = g.largestMotor;
+                    return (
+                      <>
+                        <circle cx={n.x + 45} cy={n.busY - 80} r="14" className="gen-live" />
+                        <text x={n.x + 60} y={n.busY - 90} className={`res ${cls}`}>ON · {g.loadingPct.toFixed(0)}% loaded</text>
+                        {m && (
+                          <text x={n.x + 60} y={n.busY - 64} className={`res ${m.dipPct > MOTOR_START_DIP_LIMIT_PCT ? 'bad' : 'ok'}`}>
+                            {m.feeder.name || m.feeder.id} start: dip {m.dipPct.toFixed(0)}%
+                          </text>
+                        )}
+                      </>
+                    );
+                  })()}
                 </g>
               )}
               {b.kind === 'UPS' && (
@@ -448,6 +500,21 @@ export default function SystemDiagram({
           );
         })}
       </svg>
+      {colorBy !== 'none' && (
+        <div className="heat-legend">
+          <b>{COLOR_BY.find((c) => c.value === colorBy)?.label}</b>
+          <div className="heat-bar" />
+          <div className="heat-ticks"><span>0</span><span>50%</span><span>85%</span><span>≥100% of limit</span></div>
+          <span className="m">{COLOR_BY.find((c) => c.value === colorBy)?.legend}</span>
+        </div>
+      )}
+      {scenario && (
+        <div className="mode-banner">
+          {scenario.generators.length
+            ? `On generator: ${scenario.generators.map((g) => `${g.boardId} ${g.kva} kVA`).join(', ')} — mains lost, ATS changed over; dimmed boards are off`
+            : 'No standby generator in this project — drop “Generator + ATS” on a board'}
+        </div>
+      )}
       {moving && <div className="move-ghost" style={{ left: moving.x + 14, top: moving.y + 10 }}>Move {moving.label}{hover ? '' : ' — drop on a busbar or feeder'}</div>}
       {cableEdit && (
         <form

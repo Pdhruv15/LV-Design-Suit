@@ -1,5 +1,7 @@
 import { LAYER_LABELS, type ResultLayers } from '../diagram/annotations';
 import { EXTERNAL_ENGINES } from '../engines';
+import { COLOR_BY, type ColorBy } from '../diagram/heatmap';
+import type { SupplyMode } from '../calc/scenario';
 
 export type ResultSource = 'builtin' | string; // or an external engine id
 
@@ -12,7 +14,12 @@ export default function DiagramResultsBar({
   onSource,
   onRun,
   running,
-  note
+  note,
+  colorBy,
+  onColorBy,
+  supply,
+  onSupply,
+  hasGenerator
 }: {
   layers: ResultLayers;
   onLayers: (l: ResultLayers) => void;
@@ -21,6 +28,11 @@ export default function DiagramResultsBar({
   onRun: () => void;
   running: boolean;
   note?: { text: string; cls?: string };
+  colorBy: ColorBy;
+  onColorBy: (c: ColorBy) => void;
+  supply: SupplyMode;
+  onSupply: (m: SupplyMode) => void;
+  hasGenerator: boolean;
 }) {
   return (
     <div className="results-bar" role="group" aria-label="Diagram results">
@@ -30,10 +42,22 @@ export default function DiagramResultsBar({
           {label}
         </button>
       ))}
+      <label className="m">
+        Colour by{' '}
+        <select value={colorBy} onChange={(e) => onColorBy(e.target.value as ColorBy)}>
+          {COLOR_BY.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+        </select>
+      </label>
+      <div className="seg supply-seg" role="radiogroup" aria-label="Supply">
+        <button role="radio" aria-checked={supply === 'normal'} className={supply === 'normal' ? 'on' : ''} onClick={() => onSupply('normal')}>Normal supply</button>
+        <button role="radio" aria-checked={supply === 'generator'} className={supply === 'generator' ? 'on' : ''} disabled={!hasGenerator}
+          title={hasGenerator ? 'Mains lost: the network on the standby generators' : 'Add a generator first: drop “Generator + ATS” on a board'}
+          onClick={() => onSupply('generator')}>On generator</button>
+      </div>
       <span className="sp" />
       <label className="m">
         Results from{' '}
-        <select value={source} onChange={(e) => onSource(e.target.value)}>
+        <select value={supply === 'generator' ? 'builtin' : source} disabled={supply === 'generator'} onChange={(e) => onSource(e.target.value)}>
           <option value="builtin">Built-in (instant)</option>
           {EXTERNAL_ENGINES.map((e) => (
             <option key={e.id} value={e.id}>{e.name} load flow</option>
