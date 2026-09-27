@@ -288,3 +288,20 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 .rev-fields{display:flex;flex-wrap:wrap;gap:4px 16px;margin:3px 0 0 70px;color:var(--mut);font-size:12.5px}
 .rev-fields s{color:var(--bad);opacity:.8}
 .md-rev{margin-left:10px;color:var(--acc);font-weight:600}
+/* ---- SLD editor: equipment library and drop targets ---- */
+.sld-edit{display:flex;gap:10px;align-items:stretch;min-width:0}
+.sld-edit .sysdiag{flex:1;min-width:0}
+.palette{width:156px;flex:none;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px;max-height:70vh;overflow:auto}
+.palette.closed{width:auto;padding:6px;background:none;border:0}
+.palette-head{display:flex;align-items:center;justify-content:space-between}
+.palette-tip{font-size:11px;margin:4px 0 6px;line-height:1.3}
+.palette-group h5{margin:8px 0 4px;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut)}
+.palette-items{display:grid;gap:3px}
+.palette-item{display:flex;align-items:center;gap:7px;padding:5px 7px;border:1px solid var(--line);border-radius:6px;background:var(--p2);cursor:grab;font-size:12.5px;user-select:none}
+.palette-item:hover{border-color:var(--acc);color:var(--acc)}
+.palette-item:active{cursor:grabbing}
+.sysdiag .bus-hit{stroke:transparent;stroke-width:28;pointer-events:stroke}
+.sysdiag .bd.drop-ok .bus,.sysdiag .bd.drop-ok .box{stroke:var(--acc);stroke-width:5}
+.sysdiag .bd.drop-ok .box{stroke-width:2.5}
+.sysdiag .fd.drop-ok .ln,.sysdiag .fd.drop-ok .sym,.sysdiag .fd.drop-ok .load{stroke:var(--acc);stroke-width:2.5}
+.sysdiag.drop-ok svg{outline:2px dashed var(--acc);outline-offset:-4px}

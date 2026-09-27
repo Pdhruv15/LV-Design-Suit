@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Activity, BatteryCharging, Cable, Calculator, Car, CircuitBoard, Cog, Ellipsis, FileDown, FileSpreadsheet, FileText,
   Gauge, Hand, LayoutGrid, ListTree, Minus, MousePointer2, Pencil, Receipt, Scale, Server, Settings2, ShieldCheck, Sun,
-  Database, History, Table2, Trash2, TrendingDown, Waves, Zap, type LucideIcon
+  Database, History, Redo2, Table2, Trash2, TrendingDown, Undo2, Waves, Zap, type LucideIcon
 } from 'lucide-react';
 import type { Feeder } from '../types';
 import type { MainView } from '../views';
@@ -36,6 +36,10 @@ export interface RibbonActions {
   onDeleteSelected: () => void;
   onExportDss: () => void;
   onSettings: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
 const TABS: { id: RibbonTab; label: string; icon: Icon }[] = [
@@ -75,6 +79,10 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
 
   const groups: Record<RibbonTab, Tool[][]> = {
     design: [
+      [
+        { label: 'Undo', icon: Undo2, title: 'Undo (⌘Z / Ctrl+Z)', onClick: a.onUndo, disabled: !a.canUndo },
+        { label: 'Redo', icon: Redo2, title: 'Redo (⇧⌘Z / Ctrl+Y)', onClick: a.onRedo, disabled: !a.canRedo }
+      ],
       [
         { label: 'Select', icon: MousePointer2, title: 'Click boards and loads to select them', onClick: () => { a.onView('design'); a.onTool('select'); }, active: a.view === 'design' && a.tool === 'select' },
         { label: 'Pan', icon: Hand, title: 'Drag to move around the diagram without selecting', onClick: () => { a.onView('design'); a.onTool('pan'); }, active: a.view === 'design' && a.tool === 'pan' }

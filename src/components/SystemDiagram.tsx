@@ -6,6 +6,8 @@ import { boardPhaseKw } from '../calc/loadSchedule';
 import { LEVEL_H, layoutSystem } from '../diagram/layout';
 import LoadIcon from './LoadIcon';
 import type { Annotations, ResultLayers } from '../diagram/annotations';
+import { canDrop, type DropTarget, type PaletteItem } from '../model/sldEdit';
+import { getDragItem, setDragItem } from '../diagram/dragItem';
 
 interface Tag {
   text: string;
@@ -41,7 +43,8 @@ export default function SystemDiagram({
   layers,
   onEditFeeder,
   onEditBoard,
-  onOpenSchedule
+  onOpenSchedule,
+  onDropItem
 }: {
   project: Project;
   results: FeederResult[];
@@ -57,6 +60,9 @@ export default function SystemDiagram({
   onEditBoard?: (id: string) => void;
   /** Opens a DB's load schedule (double-click on the DB's circuit summary). */
   onOpenSchedule?: (boardId: string) => void;
+  /** Drag and drop from the equipment library; the diagram only reports
+   * where an item was dropped. */
+  onDropItem?: (item: PaletteItem, target: DropTarget) => void;
 }) {
   const feederTags = (id: string): Tag[] => {
     const a = annotations?.feeders[id];
@@ -144,6 +150,37 @@ export default function SystemDiagram({
     // Keep the flag until the click event has fired, so a drag isn't a click.
     setTimeout(() => (drag.current = null), 0);
   }
+  // Drag and drop: a busbar, a feeder or the empty canvas highlights while
+  // an item that can go there is dragged over it.
+  const [hover, setHover] = useState<string | null>(null);
+  const dnd = (target: DropTarget, key: string) =>
+    onDropItem
+      ? {
+          onDragOver: (e: React.DragEvent) => {
+            const item = getDragItem();
+            if (!item) return;
+            e.stopPropagation(); // the nearest target decides; never fall through to the canvas
+            if (!canDrop(project, item, target)) {
+              if (hover) setHover(null);
+              return;
+            }
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+            if (hover !== key) setHover(key);
+          },
+          onDrop: (e: React.DragEvent) => {
+            const item = getDragItem();
+            if (!item) return;
+            e.preventDefault();
+            e.stopPropagation();
+            setHover(null);
+            setDragItem(null);
+            onDropItem(item, target);
+          }
+        }
+      : {};
+  const dropCls = (key: string) => (hover === key ? ' drop-ok' : '');
+
   const click = (fn: () => void) => () => {
     if (!drag.current?.moved && tool !== 'pan') fn();
   };
@@ -151,7 +188,7 @@ export default function SystemDiagram({
   const main = layout.roots[0];
 
   return (
-    <div className={`sysdiag ${tool === 'pan' ? 'pan' : ''}`}>
+    <div className={`sysdiag ${tool === 'pan' ? 'pan' : ''}${dropCls('canvas')}`}>
       <div className="sysdiag-tools" role="toolbar" aria-label="Diagram zoom">
         <button className="chip" onClick={() => zoom(1 / 1.25)} aria-label="Zoom in">+</button>
         <button className="chip" onClick={() => zoom(1.25)} aria-label="Zoom out">−</button>
@@ -166,9 +203,11 @@ export default function SystemDiagram({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerLeave={onPointerUp}
+        {...dnd({ type: 'canvas' }, 'canvas')}
+        onDragLeave={(e) => { if (!svgRef.current?.contains(e.relatedTarget as Node)) setHover(null); }}
       >
         {/* Utility and transformers */}
-        {main && (
+        {main && layout.roots.some((r) => r.board.sourceKva) && (
           <g>
             <circle cx={layout.utilityX} cy="22" r="11" className="sym" />
             <path d={`M${layout.utilityX - 5} 22 q2.5 -6 5 0 t5 0`} className="ln" />
@@ -180,7 +219,18 @@ export default function SystemDiagram({
             <line x1={layout.utilityX} y1="33" x2={layout.utilityX} y2="50" className="ln mv" />
           </g>
         )}
-        {layout.roots.map((r) => (
+        {layout.roots.map((r) => !r.board.sourceKva && r.board.supply ? (
+          <g key={`sup-${r.board.id}`} className="tx" onDoubleClick={edit(onEditBoard, r.board.id)}>
+            <title>Supply from the authority — double-click to edit</title>
+            <rect x={r.x - 16} y={52} width={32} height={26} rx={3} className="sym" />
+            <text className="b" x={r.x} y={69} textAnchor="middle" style={{ fontSize: 10 }}>kWh</text>
+            <text className="b" x={r.x + 24} y="62">{r.board.supply.fedFrom ?? 'DEWA'} supply</text>
+            <text className="m" x={r.x + 24} y="76">{r.board.supply.ratingA ? `${r.board.supply.ratingA} A ${r.board.supply.device ?? ''}` : 'meter cabinet'}{r.board.supply.meter ? ` · ${r.board.supply.meter} meter` : ''}</text>
+            <line x1={r.x} y1="34" x2={r.x} y2="52" className="ln" />
+            <line x1={r.x} y1="78" x2={r.x} y2={r.busY - 58} className="ln" />
+            <text className="m" x={r.x - 8} y={r.busY - 72} textAnchor="end">{project.voltageV} V</text>
+          </g>
+        ) : (
           <g key={`tx-${r.board.id}`} className="tx" onDoubleClick={edit(onEditBoard, r.board.id)}>
             <title>Double-click to edit the transformer</title>
             <line x1={r.x} y1="50" x2={r.x} y2="70" className="ln mv" />
@@ -206,7 +256,8 @@ export default function SystemDiagram({
           return (
             <g
               key={f.id}
-              className={`fd ${sel ? 'sel' : ''}`}
+              className={`fd ${sel ? 'sel' : ''}${dropCls(`fd:${f.id}`)}`}
+              {...dnd({ type: 'feeder', feederId: f.id }, `fd:${f.id}`)}
               onClick={click(() => onSelectFeeder(f.id))}
               onDoubleClick={edit(onEditFeeder, f.id)}
               tabIndex={0}
@@ -265,7 +316,8 @@ export default function SystemDiagram({
           return (
             <g
               key={b.id}
-              className={`bd ${sel ? 'sel' : ''}`}
+              className={`bd ${sel ? 'sel' : ''}${dropCls(`bus:${b.id}`)}`}
+              {...dnd({ type: 'bus', boardId: b.id }, `bus:${b.id}`)}
               onClick={click(() => onSelectBoard(b.id))}
               onDoubleClick={edit(onEditBoard, b.id)}
               tabIndex={0}
@@ -273,6 +325,8 @@ export default function SystemDiagram({
             >
               <title>{`${b.id} — double-click to edit`}</title>
               {!n.terminal && <line x1={n.busX1} y1={n.busY} x2={n.busX2} y2={n.busY} className={`bus ${sel ? 'sel' : ''}`} />}
+              {/* Wide invisible band along the busbar, so drops don't need pixel precision. */}
+              {onDropItem && <line x1={n.busX1 - 20} y1={n.busY} x2={n.busX2 + 20} y2={n.busY} className="bus-hit" />}
               <line x1={n.x} y1={n.busY - 22} x2={n.x} y2={n.busY} className="ln" />
               <rect x={n.x - 62} y={n.busY - 58} width="124" height="36" rx="6" className="box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
               <text className="b" x={n.x - 54} y={n.busY - 42}>{trunc(b.id, 14)}</text>
