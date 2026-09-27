@@ -55,7 +55,9 @@ async function createWorkbook(file, book, seedRows) {
   about.addRow(['Keep the header row as it is; the app finds columns by their header text. Extra columns are ignored.']);
 
   // Write to a temp name then rename, so a watcher never reads a half-written file.
-  const tmp = `${file}.tmp-${process.pid}.xlsx`;
+  // The name must be unique per call: init can run twice at once (React
+  // StrictMode in dev), and a shared name lets one call rename the other's file.
+  const tmp = `${file}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.xlsx`;
   await wb.xlsx.writeFile(tmp);
   fs.renameSync(tmp, file);
 }
