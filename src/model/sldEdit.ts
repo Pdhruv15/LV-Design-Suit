@@ -249,3 +249,72 @@ export function dropHint(item: PaletteItem): string {
       return `Drop the ${item.kind === 'cable' ? 'cable' : 'device'} on a feeder`;
   }
 }
+
+// ---- Moving what's already on the diagram ----
+
+/** Something picked up on the diagram: a feeder (load) or a board (moved
+ * with its incomer). */
+export type MoveItem = { kind: 'feeder'; id: string } | { kind: 'board'; id: string };
+
+const descendants = (project: Project, boardId: string): Set<string> => {
+  const out = new Set([boardId]);
+  for (let added = true; added; ) {
+    added = false;
+    for (const b of project.boards) if (b.upstreamId && out.has(b.upstreamId) && !out.has(b.id)) { out.add(b.id); added = true; }
+  }
+  return out;
+};
+
+/** The feeder that moves: a load itself, or a board's incomer. */
+function movingFeeder(project: Project, m: MoveItem): Feeder | undefined {
+  if (m.kind === 'feeder') return project.feeders.find((f) => f.id === m.id);
+  const b = project.boards.find((x) => x.id === m.id);
+  return b?.upstreamId ? project.feeders.find((f) => f.feedsBoardId === b.id && f.boardId === b.upstreamId) : undefined;
+}
+
+export function canMove(project: Project, m: MoveItem, target: DropTarget): boolean {
+  const f = movingFeeder(project, m);
+  if (!f || target.type === 'canvas') return false;
+  const toBoard = target.type === 'bus' ? target.boardId : project.feeders.find((x) => x.id === target.feederId)?.boardId;
+  if (!toBoard) return false;
+  if (target.type === 'feeder' && target.feederId === f.id) return false;
+  if (target.type === 'bus' && toBoard === f.boardId && m.kind === 'feeder') {
+    // Dropping on its own busbar: only as a "move to the end".
+    return project.feeders.filter((x) => x.boardId === toBoard).slice(-1)[0]?.id !== f.id;
+  }
+  const board = f.feedsBoardId;
+  if (board && descendants(project, board).has(toBoard)) return false; // not under itself
+  return true;
+}
+
+/** Moves a feeder (or a board's incomer) to another busbar, or before
+ * another feeder. Feeders on a new busbar are re-checked and upsized if the
+ * new position needs it (longer upstream run, higher fault level). */
+export function applyMove(project: Project, m: MoveItem, target: DropTarget): DropResult {
+  const f = movingFeeder(project, m);
+  if (!f || !canMove(project, m, target)) {
+    return { project, message: m.kind === 'board' && !f ? 'A main board has no incomer to move' : 'It can’t go there' };
+  }
+  const before = target.type === 'feeder' ? project.feeders.find((x) => x.id === target.feederId)! : undefined;
+  const toBoard = before ? before.boardId : (target as { boardId: string }).boardId;
+  const moved: Feeder = { ...f, boardId: toBoard };
+  const rest = project.feeders.filter((x) => x.id !== f.id);
+  const at = before ? rest.findIndex((x) => x.id === before.id) : rest.length;
+  let feeders = [...rest.slice(0, at), moved, ...rest.slice(at)];
+  let boards = project.boards;
+  if (f.feedsBoardId) boards = boards.map((b) => (b.id === f.feedsBoardId ? { ...b, upstreamId: toBoard } : b));
+  let p: Project = { ...project, feeders, boards };
+  const changedBus = toBoard !== f.boardId;
+  if (changedBus && !f.feedsBoardId) {
+    const r = applyRecommendation(moved, recommend(p, moved, 'fix'));
+    feeders = feeders.map((x) => (x.id === moved.id ? r : x));
+    p = { ...p, feeders };
+  }
+  const what = f.feedsBoardId ? f.feedsBoardId : f.name || f.id;
+  const where = before ? `before ${before.name || before.id}` : `to the end of ${toBoard}`;
+  return {
+    project: p,
+    select: f.feedsBoardId ? { type: 'board', id: f.feedsBoardId } : { type: 'feeder', id: f.id },
+    message: changedBus ? `Moved ${what} from ${f.boardId} to ${toBoard}${before ? `, ${where}` : ''}` : `Moved ${what} ${where}`
+  };
+}

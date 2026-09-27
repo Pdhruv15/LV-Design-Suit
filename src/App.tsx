@@ -44,7 +44,7 @@ import { EXTERNAL_ENGINES } from './engines';
 import type { StudyResults } from './engines/types';
 import { deleteBoard } from './model/edit';
 import { useHistory } from './model/history';
-import { applyDrop, type DropTarget, type PaletteItem } from './model/sldEdit';
+import { applyDrop, applyMove, type DropResult, type DropTarget, type MoveItem, type PaletteItem } from './model/sldEdit';
 import EquipmentPalette from './components/EquipmentPalette';
 type DiagramMode = 'system' | 'board';
 
@@ -298,7 +298,15 @@ export default function App() {
 
   /** An item from the equipment library dropped on the SLD. */
   function dropItem(item: PaletteItem, target: DropTarget) {
-    const r = applyDrop(project, item, target);
+    showResult(applyDrop(project, item, target));
+  }
+
+  /** Something already on the SLD dragged to another busbar or feeder. */
+  function moveItem(item: MoveItem, target: DropTarget) {
+    showResult(applyMove(project, item, target));
+  }
+
+  function showResult(r: DropResult) {
     if (r.project !== project) setProject(r.project, { step: true });
     if (r.select?.type === 'board') selectBoard(r.select.id);
     if (r.select?.type === 'feeder') {
@@ -480,6 +488,12 @@ export default function App() {
                     onEditBoard={(id) => { selectBoard(id); setEditBoardId(id); }}
                     onOpenSchedule={(id) => { setActiveBoardId(id); setView('load-schedule'); }}
                     onDropItem={dropItem}
+                    onMoveItem={moveItem}
+                    onPatchFeeder={(id, patch) => {
+                      setProject((p) => ({ ...p, feeders: p.feeders.map((f) => (f.id === id ? { ...f, ...patch, cpcMm2: patch.cableCsaMm2 && patch.cableCsaMm2 !== f.cableCsaMm2 ? undefined : f.cpcMm2 } : f)) }), { step: true });
+                      selectFeeder(id);
+                      setStatus(`${id}: cable ${patch.cores}C × ${patch.cableCsaMm2} mm², ${patch.lengthM} m`);
+                    }}
                   />
                   </div>
                 ) : (

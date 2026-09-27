@@ -3,7 +3,7 @@ import { sampleProject } from '../data/sampleProject';
 import { evaluateFeeder } from '../calc/electrical';
 import { layoutSystem } from '../diagram/layout';
 import { newProject, type Project } from '../types';
-import { applyDrop, canDrop, dropHint, type PaletteItem } from './sldEdit';
+import { applyDrop, applyMove, canDrop, canMove, dropHint, type PaletteItem } from './sldEdit';
 
 const bus = (boardId: string) => ({ type: 'bus' as const, boardId });
 const canvas = { type: 'canvas' as const };
@@ -87,5 +87,43 @@ describe('drag and drop SLD', () => {
       expect(r.project).toBe(sampleProject);
       expect(r.message).toBe(dropHint(item));
     }
+  });
+});
+
+describe('moving on the diagram', () => {
+  const fd = (feederId: string) => ({ type: 'feeder' as const, feederId });
+  const order = (p: Project, board: string) => p.feeders.filter((f) => f.boardId === board).map((f) => f.id);
+
+  it('moves a load to another busbar, re-checking its sizes', () => {
+    const r = applyMove(sampleProject, { kind: 'feeder', id: 'GF-HVAC' }, bus('SMDB-FF'));
+    const f = r.project.feeders.find((x) => x.id === 'GF-HVAC')!;
+    expect(f.boardId).toBe('SMDB-FF');
+    expect(order(r.project, 'SMDB-FF').slice(-1)).toEqual(['GF-HVAC']);
+    expect(r.message).toBe('Moved HVAC from SMDB-GF to SMDB-FF');
+    expect(evaluateFeeder(r.project, f).ampacityStatus).toBe('ok');
+  });
+
+  it('reorders along a busbar by dropping before another feeder', () => {
+    const r = applyMove(sampleProject, { kind: 'feeder', id: 'GF-HVAC' }, fd('GF-LTG'));
+    expect(order(r.project, 'SMDB-GF')).toEqual(['GF-HVAC', 'GF-LTG', 'GF-SKT', 'INC-DBGF1']);
+    expect(r.message).toBe('Moved HVAC before Lighting');
+  });
+
+  it('moves a board with its incomer and everything below it', () => {
+    const r = applyMove(sampleProject, { kind: 'board', id: 'DB-GF1' }, bus('SMDB-FF'));
+    expect(r.project.boards.find((b) => b.id === 'DB-GF1')!.upstreamId).toBe('SMDB-FF');
+    expect(r.project.feeders.find((f) => f.id === 'INC-DBGF1')!.boardId).toBe('SMDB-FF');
+    expect(r.project.feeders.filter((f) => f.boardId === 'DB-GF1')).toHaveLength(21);
+    expect(layoutSystem(r.project).boards.find((b) => b.board.id === 'DB-GF1')!.depth).toBe(2);
+  });
+
+  it('never moves a board under itself, and main boards have nothing to move', () => {
+    expect(canMove(sampleProject, { kind: 'board', id: 'SMDB-GF' }, bus('DB-GF1'))).toBe(false);
+    expect(canMove(sampleProject, { kind: 'board', id: 'SMDB-GF' }, bus('SMDB-GF'))).toBe(false);
+    expect(canMove(sampleProject, { kind: 'board', id: 'MDB-1' }, bus('SMDB-GF'))).toBe(false);
+    expect(canMove(sampleProject, { kind: 'feeder', id: 'GF-HVAC' }, fd('GF-HVAC'))).toBe(false);
+    expect(canMove(sampleProject, { kind: 'feeder', id: 'GF-HVAC' }, canvas)).toBe(false);
+    const r = applyMove(sampleProject, { kind: 'board', id: 'SMDB-GF' }, bus('DB-GF1'));
+    expect(r.project).toBe(sampleProject);
   });
 });
