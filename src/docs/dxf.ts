@@ -1,0 +1,96 @@
+/** Minimal DXF (AutoCAD R12, ASCII) writer: lines, polylines, circles and
+ * text on named layers. R12 opens in every CAD program (AutoCAD, BricsCAD,
+ * DraftSight, LibreCAD, QCAD). Coordinates are in drawing units, y up. */
+
+export type DxfPrimitive =
+  | { type: 'line'; layer: string; x1: number; y1: number; x2: number; y2: number }
+  | { type: 'polyline'; layer: string; points: [number, number][]; closed?: boolean }
+  | { type: 'circle'; layer: string; x: number; y: number; r: number }
+  | { type: 'text'; layer: string; x: number; y: number; height: number; text: string; align?: 'left' | 'center' | 'right'; rotation?: number };
+
+/** Layer → AutoCAD colour index. */
+export const DXF_LAYERS: Record<string, number> = {
+  BUSBAR: 1, // red
+  CABLE: 7, // white / black
+  SYMBOL: 3, // green
+  TEXT: 7,
+  RESULT: 4, // cyan
+  FRAME: 7,
+  TITLE: 7
+};
+
+const n = (v: number) => (Math.abs(v) < 1e-9 ? '0' : v.toFixed(4).replace(/\.?0+$/, ''));
+/** DXF text can't hold newlines; R12 is not Unicode, so keep printable ASCII
+ * and spell out the few symbols the diagram uses. */
+export const dxfText = (s: string) =>
+  s.replace(/²/g, '2').replace(/[×]/g, 'x').replace(/[·•]/g, '-').replace(/[–—]/g, '-').replace(/[″]/g, '"').replace(/Δ/g, 'd')
+    .replace(/[≥]/g, '>=').replace(/[≤]/g, '<=').replace(/[\r\n]+/g, ' ').replace(/[^\x20-\x7e]/g, '');
+
+export function toDxf(items: DxfPrimitive[]): string {
+  const out: string[] = [];
+  const g = (code: number, value: string | number) => out.push(String(code), typeof value === 'number' ? n(value) : value);
+  const layers = [...new Set([...Object.keys(DXF_LAYERS), ...items.map((i) => i.layer)])];
+  const xs = items.flatMap((i) => (i.type === 'polyline' ? i.points.map((p) => p[0]) : i.type === 'line' ? [i.x1, i.x2] : [i.x]));
+  const ys = items.flatMap((i) => (i.type === 'polyline' ? i.points.map((p) => p[1]) : i.type === 'line' ? [i.y1, i.y2] : [i.y]));
+
+  g(0, 'SECTION'); g(2, 'HEADER');
+  g(9, '$ACADVER'); g(1, 'AC1009');
+  g(9, '$EXTMIN'); g(10, xs.length ? Math.min(...xs) : 0); g(20, ys.length ? Math.min(...ys) : 0); g(30, 0);
+  g(9, '$EXTMAX'); g(10, xs.length ? Math.max(...xs) : 0); g(20, ys.length ? Math.max(...ys) : 0); g(30, 0);
+  g(0, 'ENDSEC');
+
+  g(0, 'SECTION'); g(2, 'TABLES');
+  g(0, 'TABLE'); g(2, 'LTYPE'); g(70, 1);
+  g(0, 'LTYPE'); g(2, 'CONTINUOUS'); g(70, 0); g(3, 'Solid line'); g(72, 65); g(73, 0); g(40, 0);
+  g(0, 'ENDTAB');
+  g(0, 'TABLE'); g(2, 'LAYER'); g(70, layers.length);
+  for (const l of layers) { g(0, 'LAYER'); g(2, l); g(70, 0); g(62, DXF_LAYERS[l] ?? 7); g(6, 'CONTINUOUS'); }
+  g(0, 'ENDTAB');
+  g(0, 'ENDSEC');
+
+  g(0, 'SECTION'); g(2, 'ENTITIES');
+  for (const i of items) {
+    if (i.type === 'line') {
+      g(0, 'LINE'); g(8, i.layer); g(10, i.x1); g(20, i.y1); g(30, 0); g(11, i.x2); g(21, i.y2); g(31, 0);
+    } else if (i.type === 'circle') {
+      g(0, 'CIRCLE'); g(8, i.layer); g(10, i.x); g(20, i.y); g(30, 0); g(40, i.r);
+    } else if (i.type === 'polyline') {
+      if (i.points.length < 2) continue;
+      g(0, 'POLYLINE'); g(8, i.layer); g(66, 1); g(10, 0); g(20, 0); g(30, 0); g(70, i.closed ? 1 : 0);
+      for (const [x, y] of i.points) { g(0, 'VERTEX'); g(8, i.layer); g(10, x); g(20, y); g(30, 0); }
+      g(0, 'SEQEND'); g(8, i.layer);
+    } else {
+      const text = dxfText(i.text);
+      if (!text.trim()) continue;
+      g(0, 'TEXT'); g(8, i.layer); g(10, i.x); g(20, i.y); g(30, 0); g(40, i.height); g(1, text);
+      if (i.rotation) g(50, i.rotation);
+      const h = i.align === 'center' ? 1 : i.align === 'right' ? 2 : 0;
+      if (h) { g(72, h); g(11, i.x); g(21, i.y); g(31, 0); }
+    }
+  }
+  g(0, 'ENDSEC');
+  g(0, 'EOF');
+  return out.join('\r\n') + '\r\n';
+}
+
+/** Title block as DXF lines and text, bottom-right corner at (x, y), in
+ * drawing units; rows of [label, value] cells. */
+export function titleBlockDxf(x: number, y: number, width: number, rows: [string, string][][]): DxfPrimitive[] {
+  const rowH = width / 12;
+  const out: DxfPrimitive[] = [];
+  const left = x - width;
+  const top = y + rowH * rows.length;
+  out.push({ type: 'polyline', layer: 'TITLE', closed: true, points: [[left, y], [x, y], [x, top], [left, top]] });
+  rows.forEach((cells, i) => {
+    const y0 = top - rowH * (i + 1);
+    if (i > 0) out.push({ type: 'line', layer: 'TITLE', x1: left, y1: y0 + rowH, x2: x, y2: y0 + rowH });
+    const cw = width / cells.length;
+    cells.forEach(([k, v], j) => {
+      const cx = left + cw * j;
+      if (j > 0) out.push({ type: 'line', layer: 'TITLE', x1: cx, y1: y0, x2: cx, y2: y0 + rowH });
+      out.push({ type: 'text', layer: 'TITLE', x: cx + rowH * 0.12, y: y0 + rowH * 0.66, height: rowH * 0.18, text: k.toUpperCase() });
+      out.push({ type: 'text', layer: 'TITLE', x: cx + rowH * 0.12, y: y0 + rowH * 0.18, height: rowH * 0.3, text: v });
+    });
+  });
+  return out;
+}

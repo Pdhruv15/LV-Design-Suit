@@ -206,10 +206,22 @@ export interface Project {
   pointTemplate?: string; // load schedule point columns (POINT_TEMPLATES id)
   info?: ProjectInfo; // header data of the authority submission forms
   revisions?: Revision[]; // issued revisions, oldest first (A, B, C…)
+  drawing?: DrawingInfo; // SLD drawing title block
   studySettings?: StudySettings;
   boards: Board[];
   feeders: Feeder[];
   updatedAt: string;
+}
+
+/** Title block of the SLD drawing. */
+export interface DrawingInfo {
+  company?: string;
+  title?: string; // default "SINGLE LINE DIAGRAM"
+  number?: string; // drawing no.
+  drawnBy?: string;
+  checkedBy?: string;
+  approvedBy?: string;
+  sheet?: 'A3' | 'A2' | 'A1';
 }
 
 /** An issued revision: a frozen copy of the design (without the revision

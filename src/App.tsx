@@ -44,8 +44,11 @@ import { EXTERNAL_ENGINES } from './engines';
 import type { StudyResults } from './engines/types';
 import { deleteBoard } from './model/edit';
 import { useHistory } from './model/history';
+import { generatorScenario, type SupplyMode } from './calc/scenario';
+import type { ColorBy } from './diagram/heatmap';
 import { applyDrop, applyMove, libraryEntries, type DropResult, type DropTarget, type MoveItem, type PaletteItem } from './model/sldEdit';
 import EquipmentPalette from './components/EquipmentPalette';
+import SldExportDialog from './components/SldExportDialog';
 type DiagramMode = 'system' | 'board';
 
 export default function App() {
@@ -72,6 +75,9 @@ export default function App() {
   const [simRunning, setSimRunning] = useState(false);
   const [simError, setSimError] = useState('');
   const [db, setDb] = useState<Database>(EMPTY_DATABASE);
+  const [colorBy, setColorBy] = useState<ColorBy>('none');
+  const [supply, setSupply] = useState<SupplyMode>('normal');
+  const [showExport, setShowExport] = useState(false);
 
   // LV Database: Excel workbooks in the projects folder. Every save in Excel
   // arrives here; the data is applied to the calculations, library-linked
@@ -122,7 +128,16 @@ export default function App() {
     () => buildAnnotations(project, allResults, engineFresh ? engineRun!.results : undefined),
     [project, allResults, engineFresh, engineRun]
   );
+  // Generator mode: the SLD shows the network as it runs on the standby
+  // generators (built-in engine only).
+  const hasGenerator = project.boards.some((b) => b.standby);
+  const onGenerator = supply === 'generator' && hasGenerator;
+  const genScenario = useMemo(() => (onGenerator ? generatorScenario(project) : undefined), [project, onGenerator]);
+  const genResults = useMemo(() => (genScenario ? evaluateProject(genScenario.project) : undefined), [genScenario]);
+  const genAnnotations = useMemo(() => (genScenario && genResults ? buildAnnotations(genScenario.project, genResults) : undefined), [genScenario, genResults]);
+
   const resultsNote = (() => {
+    if (onGenerator) return { text: 'Generator supply — built-in results; fault levels from the generators’ X″d (15 %)', cls: 'warn' };
     const name = EXTERNAL_ENGINES.find((e) => e.id === resultSource)?.name;
     if (resultSource === 'builtin') return { text: 'Built-in estimate — bus voltages from the main busbar' };
     if (simRunning) return { text: `Running ${name}…` };
@@ -457,6 +472,7 @@ export default function App() {
                   <div>
                     <button className="chip" onClick={() => openAddFeeder({})}>+ Add feeder to {board.id}</button>
                     <button className="chip" onClick={() => setShowBoardForm(true)}>+ Add board</button>
+                    {diagramMode === 'system' && <button className="chip" onClick={() => setShowExport(true)} title="PDF sheet with title block, DXF for CAD, or SVG">Export drawing…</button>}
                     {selectedFeeder && panel === 'feeder' && <button className="chip" onClick={() => setShowFeederForm('edit')}>Edit {selectedFeeder.id}</button>}
                   </div>
                 </div>
@@ -469,6 +485,11 @@ export default function App() {
                     onRun={runSimulation}
                     running={simRunning}
                     note={resultsNote}
+                    colorBy={colorBy}
+                    onColorBy={setColorBy}
+                    supply={onGenerator ? 'generator' : 'normal'}
+                    onSupply={setSupply}
+                    hasGenerator={hasGenerator}
                   />
                 )}
                 {diagramMode === 'system' ? (
@@ -476,17 +497,19 @@ export default function App() {
                   <EquipmentPalette onHint={setStatus} library={libraryEntries(db.loads)} />
                   <SystemDiagram
                     project={project}
-                    results={allResults}
+                    results={genResults ?? allResults}
                     selectedFeederId={panel === 'feeder' ? selected : null}
                     selectedBoardId={panel === 'board' ? board.id : null}
                     onSelectFeeder={selectFeeder}
                     onSelectBoard={selectBoard}
                     tool={tool}
-                    annotations={annotations}
+                    annotations={genAnnotations ?? annotations}
                     layers={layers}
                     onEditFeeder={editFeeder}
                     onEditBoard={(id) => { selectBoard(id); setEditBoardId(id); }}
                     onOpenSchedule={(id) => { setActiveBoardId(id); setView('load-schedule'); }}
+                    colorBy={colorBy}
+                    scenario={genScenario}
                     onDropItem={dropItem}
                     onMoveItem={moveItem}
                     onPatchFeeder={(id, patch) => {
@@ -598,6 +621,14 @@ export default function App() {
           />
         );
       })()}
+      {showExport && (
+        <SldExportDialog
+          project={project}
+          onSave={(d) => setProject((p) => ({ ...p, drawing: d }))}
+          onStatus={setStatus}
+          onClose={() => setShowExport(false)}
+        />
+      )}
       {showSettings && (
         <ProjectSettings
           project={project}
