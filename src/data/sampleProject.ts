@@ -11,6 +11,8 @@ export const sampleProject: Project = {
   frequencyHz: 50,
   ambientC: 45,
   vdLimitPct: 4,
+  pointTemplate: 'dewa-villa',
+  info: { owner: 'Mr. Ahmed Al Mansoori', consultant: 'ABC Engineering Consultants', area: 'VILLA, UAE', plotNo: '123-456', mdDemandFactor: 0.8 },
   boards: [
     {"id":"MDB-1","name":"Main Distribution Board","kind":"MDB","sourceKva":1000,"sourceImpedancePct":5,"ratedCurrentA":1600,"busbarMaterial":"copper","ipRating":"IP42","location":"Main building – ground floor","manufacturer":"Schneider Electric","model":"PrismaSeT P"},
     {"id":"SMDB-GF","name":"Ground floor SMDB","kind":"SMDB","upstreamId":"MDB-1","ratedCurrentA":630,"busbarMaterial":"copper","ipRating":"IP42","location":"Ground floor electrical room"},

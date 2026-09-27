@@ -1,4 +1,4 @@
-import { DEFAULT_POINT_WATTS, LIGHTING_POINTS, POINT_TYPES, settingsOf, type Board, type Feeder, type LoadType, type Phase, type PointType, type Project } from '../types';
+import { DEFAULT_POINT_WATTS, LIGHTING_POINTS, POINT_TYPES, pointTemplateOf, settingsOf, type Board, type Feeder, type LoadType, type Phase, type PointType, type Project } from '../types';
 
 export const SINGLE_PHASES: ('R' | 'Y' | 'B')[] = ['R', 'Y', 'B'];
 const PHASE_ORDER: Record<Phase, number> = { R: 0, Y: 1, B: 2, RYB: 3 };
@@ -20,10 +20,30 @@ export function pointWattsFor(board: Board | undefined): Record<PointType, numbe
   return { ...DEFAULT_POINT_WATTS, ...board?.pointWatts };
 }
 
-export function pointLabel(board: Board | undefined, t: PointType): string {
+/** Column heading: the DB's own name for a spare column, else the form
+ * template's heading, else the standard label. */
+export function pointLabel(board: Board | undefined, t: PointType, project?: Pick<Project, 'pointTemplate'>): string {
   if (t === 'spare1' && board?.spareNames?.spare1) return board.spareNames.spare1;
   if (t === 'spare2' && board?.spareNames?.spare2) return board.spareNames.spare2;
-  return POINT_TYPES.find((p) => p.value === t)!.label;
+  return (project && pointTemplateOf(project).labels?.[t]) ?? POINT_TYPES.find((p) => p.value === t)!.label;
+}
+
+export interface PointColumn {
+  value: PointType;
+  label: string;
+  title: string;
+}
+
+/** Point columns of a DB's schedule: the project's form template, then any
+ * other point type already used on the DB (so no entered point is hidden). */
+export function pointColumns(project: Project, board: Board): PointColumn[] {
+  const template = pointTemplateOf(project).columns;
+  const used = new Set<PointType>();
+  for (const f of scheduleCircuits(project, board.id)) {
+    for (const [t, n] of Object.entries(f.points ?? {})) if ((n ?? 0) > 0) used.add(t as PointType);
+  }
+  const extra = POINT_TYPES.map((p) => p.value).filter((t) => used.has(t) && !template.includes(t));
+  return [...template, ...extra].map((t) => ({ value: t, label: pointLabel(board, t, project), title: POINT_TYPES.find((p) => p.value === t)!.title }));
 }
 
 /** Connected load of a circuit in watts: Σ points × watts per point. */
@@ -72,8 +92,8 @@ export function dominantLoadType(f: Feeder, board: Board | undefined): LoadType 
   }
   switch (best) {
     case 'ltg': return 'lighting';
-    case 's13': case 's15': case 'shaver': return 'sockets';
-    case 'wac': case 'sac': case 'cfan': case 'exfan': return 'hvac';
+    case 's13': case 's13t': case 's15': case 'shaver': case 'spur': return 'sockets';
+    case 'wac': case 'sac': case 'cfan': case 'exfan': case 'fcu': return 'hvac';
     case 'pump': return 'motor';
     default: return 'general';
   }

@@ -16,6 +16,7 @@ import BoardPanel from './components/BoardPanel';
 import EarthingStudy from './components/studies/EarthingStudy';
 import SelectionStudy from './components/studies/SelectionStudy';
 import VoltageDropStudy from './components/studies/VoltageDropStudy';
+import RevisionsView from './components/docs/RevisionsView';
 import CoordinationStudy from './components/studies/CoordinationStudy';
 import { PfcStudy, TransformerGeneratorStudy } from './components/studies/SizingStudy';
 import { CableScheduleView, DbScheduleView, EquipmentScheduleView, ReportView } from './components/docs/Documents';
@@ -448,7 +449,7 @@ export default function App() {
         ) : (
           <main className="mid" style={{ gridColumn: '2 / span 2' }}>
             {view === 'load-schedule' && board && (
-              <LoadScheduleView project={project} boardId={board.id} db={db} onBoard={(id) => setActiveBoardId(id)} onChange={setProject} onStatus={setStatus} />
+              <LoadScheduleView project={project} boardId={board.id} db={db} onBoard={(id) => setActiveBoardId(id)} onChange={setProject} onStatus={setStatus} onSettings={() => setShowSettings(true)} />
             )}
             {view === 'database' && (
               <DatabaseView
@@ -477,6 +478,7 @@ export default function App() {
             {view === 'cable-schedule' && <CableScheduleView project={project} onStatus={setStatus} />}
             {view === 'equipment' && <EquipmentScheduleView project={project} onStatus={setStatus} />}
             {view === 'report' && <ReportView project={project} onStatus={setStatus} />}
+            {view === 'revisions' && <RevisionsView project={project} onChange={setProject} onStatus={setStatus} />}
             {view === 'boq' && (
               <>
                 <section className="stage"><h3>Cost estimate — whole project</h3></section>

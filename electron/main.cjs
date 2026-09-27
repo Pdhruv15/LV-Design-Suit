@@ -144,6 +144,18 @@ ipcMain.handle('files:saveText', async (_evt, { defaultName, content, filterName
   return result.filePath;
 });
 
+// ---- IPC: export a generated binary file (e.g. an .xlsx workbook) ----
+ipcMain.handle('files:saveBinary', async (_evt, { defaultName, bytes, filterName, extensions }) => {
+  const result = await dialog.showSaveDialog(win, {
+    title: 'Export',
+    defaultPath: path.join(ensureProjectsFolder(), defaultName),
+    filters: [{ name: filterName, extensions }]
+  });
+  if (result.canceled || !result.filePath) return null;
+  fs.writeFileSync(result.filePath, Buffer.from(bytes));
+  return result.filePath;
+});
+
 // ---- IPC: LV Database (Excel workbooks in the projects folder) ----
 let stopWatching = () => {};
 let watchedFolder = null;

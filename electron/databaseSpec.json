@@ -14,7 +14,7 @@
       "columns": [
         { "key": "name", "header": "Name", "width": 30, "required": true },
         { "key": "category", "header": "Category", "width": 16, "list": ["Lighting", "Fan", "Socket", "A/C", "Motor", "Pump", "Water heater", "Cooker", "Other"] },
-        { "key": "column", "header": "Schedule column", "width": 16, "list": ["LTG", "C.FAN", "EX.FAN", "SH.S/O", "13A S/O", "W/H", "H/D", "COOKER", "15A S/O", "'W' A/C", "'S' A/C", "WAT.PUMP", "OTHER"] },
+        { "key": "column", "header": "Schedule column", "width": 16, "list": ["LTG", "C.FAN", "EX.FAN", "SH.S/O", "13A S/O", "W/H", "H/D", "COOKER", "15A S/O", "'W' A/C", "'S' A/C", "WAT.PUMP", "13A T.S/O", "FCU", "SPUR O/L", "ISOL", "OTHER"] },
         { "key": "watts", "header": "Power (W)", "width": 12, "required": true, "number": true },
         { "key": "pf", "header": "Power factor", "width": 13, "number": true },
         { "key": "phases", "header": "Phases", "width": 9, "list": ["1", "3"] },

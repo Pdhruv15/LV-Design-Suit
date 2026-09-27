@@ -1,7 +1,7 @@
 import { evaluateFeeder, type Status } from '../calc/electrical';
 import { breakerTypeOf, cpcOf } from '../calc/earthing';
-import { boardPhaseKw, circuitCategory, circuitRef, circuitWatts, elcbGroups, imbalancePct, minWireMm2, pointLabel, pointWattsFor, scheduleCircuits } from '../calc/loadSchedule';
-import { POINT_TYPES, type Project } from '../types';
+import { boardPhaseKw, circuitCategory, circuitRef, circuitWatts, elcbGroups, imbalancePct, minWireMm2, pointColumns, pointWattsFor, scheduleCircuits } from '../calc/loadSchedule';
+import type { Project } from '../types';
 
 const esc = (v: unknown) =>
   String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -35,7 +35,8 @@ export function loadScheduleRows(project: Project, boardId: string) {
 export function buildLoadScheduleHtml(project: Project, boardId: string): string {
   const { board, incomer, rows, phaseW, imbalance } = loadScheduleRows(project, boardId);
   const watts = pointWattsFor(board);
-  const pointCols = POINT_TYPES.map((t) => t.value);
+  const columns = pointColumns(project, board);
+  const pointCols = columns.map((t) => t.value);
   const incomerText = incomer ? `${incomer.breakerRatingA} A ${breakerTypeOf(incomer)} TP&amp;N` : board.ratedCurrentA ? `${board.ratedCurrentA} A` : '';
   const kw = (v: number) => (v * 1000).toFixed(0);
 
@@ -90,7 +91,7 @@ export function buildLoadScheduleHtml(project: Project, boardId: string): string
         <th colspan="3" class="shade">LOAD PER CIRCUIT - WATT</th><th rowspan="2">REMARKS</th>
       </tr>
       <tr>
-        ${pointCols.map((t) => `<th class="rot">${esc(pointLabel(board, t))}</th>`).join('')}
+        ${columns.map((t) => `<th class="rot">${esc(t.label)}</th>`).join('')}
         <th class="shade">R</th><th class="shade">Y</th><th class="shade">B</th>
       </tr>
       <tr><td colspan="8" class="l"><b>WATT / UNIT</b></td>${pointCols.map((t) => `<td>${watts[t] || ''}</td>`).join('')}<td class="shade" colspan="3"></td><td></td></tr>
@@ -113,8 +114,9 @@ export function buildLoadScheduleHtml(project: Project, boardId: string): string
 export function loadScheduleCsv(project: Project, boardId: string): { headers: string[]; rows: (string | number)[][] } {
   const { board, rows, phaseW } = loadScheduleRows(project, boardId);
   const watts = pointWattsFor(board);
-  const pointCols = POINT_TYPES.map((t) => t.value);
-  const headers = ['ELCB', 'Sl. No.', 'Cir No.', 'MCB (A)', 'CCT wire (mm²)', 'ECC wire (mm²)', 'Room / area', ...pointCols.map((t) => pointLabel(board, t)), 'R (W)', 'Y (W)', 'B (W)', 'Remarks'];
+  const columns = pointColumns(project, board);
+  const pointCols = columns.map((t) => t.value);
+  const headers = ['ELCB', 'Sl. No.', 'Cir No.', 'MCB (A)', 'CCT wire (mm²)', 'ECC wire (mm²)', 'Room / area', ...columns.map((t) => t.label), 'R (W)', 'Y (W)', 'B (W)', 'Remarks'];
   const out: (string | number)[][] = [['', '', '', '', '', '', 'WATT / UNIT', ...pointCols.map((t) => watts[t]), '', '', '', '']];
   for (const r of rows) {
     out.push([
