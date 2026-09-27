@@ -1,6 +1,6 @@
 export type FeederStatus = 'ok' | 'warn' | 'bad';
 
-export type LoadType = 'general' | 'lighting' | 'sockets' | 'hvac' | 'motor' | 'fire-pump' | 'ev' | 'it' | 'pv';
+export type LoadType = 'general' | 'lighting' | 'sockets' | 'hvac' | 'motor' | 'fire-pump' | 'ev' | 'it' | 'pv' | 'capacitor';
 
 export const LOAD_TYPES: { value: LoadType; label: string }[] = [
   { value: 'general', label: 'General' },
@@ -11,7 +11,8 @@ export const LOAD_TYPES: { value: LoadType; label: string }[] = [
   { value: 'fire-pump', label: 'Fire pump' },
   { value: 'ev', label: 'EV charging' },
   { value: 'it', label: 'IT / data' },
-  { value: 'pv', label: 'Solar PV' }
+  { value: 'pv', label: 'Solar PV' },
+  { value: 'capacitor', label: 'Capacitor bank' }
 ];
 
 export type BreakerType = 'B' | 'C' | 'D' | 'MCCB' | 'ACB';
@@ -24,7 +25,7 @@ export const BREAKER_TYPES: { value: BreakerType; label: string }[] = [
   { value: 'ACB', label: 'ACB (adjustable Im)' }
 ];
 
-export type BoardKind = 'MC' | 'MDB' | 'SMDB' | 'DB' | 'MCC' | 'EMDB';
+export type BoardKind = 'MC' | 'MDB' | 'SMDB' | 'DB' | 'MCC' | 'EMDB' | 'UPS';
 
 export const BOARD_KINDS: { value: BoardKind; label: string }[] = [
   { value: 'MC', label: 'Meter cabinet (authority supply)' },
@@ -32,7 +33,8 @@ export const BOARD_KINDS: { value: BoardKind; label: string }[] = [
   { value: 'SMDB', label: 'Sub-main distribution board' },
   { value: 'DB', label: 'Distribution board' },
   { value: 'MCC', label: 'Motor control centre' },
-  { value: 'EMDB', label: 'Emergency distribution board' }
+  { value: 'EMDB', label: 'Emergency distribution board' },
+  { value: 'UPS', label: 'UPS output board' }
 ];
 
 /** Point types from the DEWA load distribution schedule, in form order. */
@@ -144,6 +146,7 @@ export interface Feeder {
   points?: Partial<Record<PointType, number>>; // number of points of each type
   remarks?: string;
   manualSize?: boolean; // MCB / wire / ECC set by hand — don't auto-size on load changes
+  kvar?: number; // capacitor bank rating (loadType 'capacitor'); its current comes from this, not loadKw
   // Connected load & maximum demand form (authority submission)
   device?: SwitchDevice; // ACB / MCCB / ISOL column; default from the breaker type
   cableType?: string; // e.g. "XLPE/PVC/SWA" (default)
@@ -168,6 +171,11 @@ export interface Board {
   location?: string;
   manufacturer?: string;
   model?: string;
+  /** Standby generator feeding this board through an ATS: everything on
+   * and below the board is then essential load for generator sizing. */
+  standby?: { kva: number };
+  /** UPS rating for a UPS output board (kind 'UPS'). */
+  upsKva?: number;
   /** Incoming supply of a board fed by the authority (meter cabinet / MDB
    * with no upstream board): the INCOMER row of the connected load form. */
   supply?: {

@@ -47,6 +47,8 @@ export function designCurrentA(feeder: Feeder, project: Project): number {
     const p = boardPhaseKw(project, feeder.feedsBoardId);
     return (Math.max(p.R, p.Y, p.B) * 1000) / (u0 * feeder.powerFactor);
   }
+  // Capacitor bank: I = Q ÷ (√3 · U), from its kvar rating.
+  if (feeder.kvar) return (feeder.kvar * 1000) / (SQRT3 * project.voltageV);
   const demandKw = feeder.loadKw * feeder.demandFactor;
   return feeder.cores >= 3
     ? (demandKw * 1000) / (SQRT3 * project.voltageV * feeder.powerFactor)

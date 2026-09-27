@@ -288,3 +288,29 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 .rev-fields{display:flex;flex-wrap:wrap;gap:4px 16px;margin:3px 0 0 70px;color:var(--mut);font-size:12.5px}
 .rev-fields s{color:var(--bad);opacity:.8}
 .md-rev{margin-left:10px;color:var(--acc);font-weight:600}
+/* ---- SLD editor: equipment library and drop targets ---- */
+.sld-edit{display:flex;gap:10px;align-items:stretch;min-width:0}
+.sld-edit .sysdiag{flex:1;min-width:0}
+.palette{width:156px;flex:none;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px;max-height:70vh;overflow:auto}
+.palette.closed{width:auto;padding:6px;background:none;border:0}
+.palette-head{display:flex;align-items:center;justify-content:space-between}
+.palette-tip{font-size:11px;margin:4px 0 6px;line-height:1.3}
+.palette-group h5{margin:8px 0 4px;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut)}
+.palette-items{display:grid;gap:3px}
+.palette-item{display:flex;align-items:center;gap:7px;padding:5px 7px;border:1px solid var(--line);border-radius:6px;background:var(--p2);cursor:grab;font-size:12.5px;user-select:none}
+.palette-item:hover{border-color:var(--acc);color:var(--acc)}
+.palette-item:active{cursor:grabbing}
+.sysdiag .bus-hit{stroke:transparent;stroke-width:28;pointer-events:stroke}
+.sysdiag .bd.drop-ok .bus,.sysdiag .bd.drop-ok .box{stroke:var(--acc);stroke-width:5}
+.sysdiag .bd.drop-ok .box{stroke-width:2.5}
+.sysdiag .fd.drop-ok .ln,.sysdiag .fd.drop-ok .sym,.sysdiag .fd.drop-ok .load{stroke:var(--acc);stroke-width:2.5}
+.sysdiag.drop-ok svg{outline:2px dashed var(--acc);outline-offset:-4px}
+.sysdiag .cable-lbl{cursor:pointer}
+.sysdiag .cable-lbl:hover{fill:var(--acc);text-decoration:underline dotted}
+.move-ghost{position:absolute;z-index:5;pointer-events:none;background:var(--acc);color:#04101f;font-size:12px;font-weight:600;padding:3px 8px;border-radius:5px;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.35)}
+.cable-edit{position:absolute;z-index:6;display:grid;grid-template-columns:auto auto;gap:6px 10px;align-items:center;background:var(--panel);border:1px solid var(--acc);border-radius:8px;padding:10px 12px;box-shadow:0 8px 24px rgba(0,0,0,.45);font-size:12.5px}
+.cable-edit b{grid-column:1/-1}
+.cable-edit label{display:contents}
+.cable-edit select,.cable-edit input{background:var(--p2);color:var(--tx);border:1px solid var(--line);border-radius:5px;padding:4px 6px;font:inherit;width:110px}
+.cable-edit input[aria-invalid="true"]{border-color:var(--bad)}
+.cable-edit-actions{grid-column:1/-1;display:flex;gap:6px;justify-content:flex-end}

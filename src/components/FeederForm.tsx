@@ -109,7 +109,11 @@ export default function FeederForm({
               ))}
             </select>
           </label>
-          <label>Connected load (kW)<input type="number" step="0.1" value={f.loadKw} onChange={(e) => set('loadKw', +e.target.value)} /></label>
+          {f.loadType === 'capacitor' ? (
+            <label>Capacitor bank (kvar)<input inputMode="decimal" value={f.kvar ?? ''} onChange={(e) => set('kvar', e.target.value === '' || Number.isNaN(+e.target.value) ? undefined : +e.target.value)} /></label>
+          ) : (
+            <label>Connected load (kW)<input type="number" step="0.1" value={f.loadKw} onChange={(e) => set('loadKw', +e.target.value)} /></label>
+          )}
           <label>Demand factor<input type="number" step="0.01" min="0" max="1" value={f.demandFactor} onChange={(e) => set('demandFactor', +e.target.value)} /></label>
           <label>Power factor<input type="number" step="0.01" min="0" max="1" value={f.powerFactor} onChange={(e) => set('powerFactor', +e.target.value)} /></label>
           <label>Cable length (m)<input type="number" step="1" value={f.lengthM} onChange={(e) => set('lengthM', +e.target.value)} /></label>

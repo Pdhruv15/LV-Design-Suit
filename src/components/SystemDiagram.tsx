@@ -6,6 +6,11 @@ import { boardPhaseKw } from '../calc/loadSchedule';
 import { LEVEL_H, layoutSystem } from '../diagram/layout';
 import LoadIcon from './LoadIcon';
 import type { Annotations, ResultLayers } from '../diagram/annotations';
+import { canDrop, canMove, type DropTarget, type MoveItem, type PaletteItem } from '../model/sldEdit';
+import { cables } from '../calc/cableTable';
+import { upsLoadingPct } from '../calc/sizing';
+import type { Feeder } from '../types';
+import { getDragItem, setDragItem } from '../diagram/dragItem';
 
 interface Tag {
   text: string;
@@ -41,7 +46,10 @@ export default function SystemDiagram({
   layers,
   onEditFeeder,
   onEditBoard,
-  onOpenSchedule
+  onOpenSchedule,
+  onDropItem,
+  onMoveItem,
+  onPatchFeeder
 }: {
   project: Project;
   results: FeederResult[];
@@ -57,6 +65,13 @@ export default function SystemDiagram({
   onEditBoard?: (id: string) => void;
   /** Opens a DB's load schedule (double-click on the DB's circuit summary). */
   onOpenSchedule?: (boardId: string) => void;
+  /** Drag and drop from the equipment library; the diagram only reports
+   * where an item was dropped. */
+  onDropItem?: (item: PaletteItem, target: DropTarget) => void;
+  /** A load or board picked up on the diagram and dropped on a target. */
+  onMoveItem?: (item: MoveItem, target: DropTarget) => void;
+  /** Quick edit of a feeder's cable from its label. */
+  onPatchFeeder?: (feederId: string, patch: Partial<Feeder>) => void;
 }) {
   const feederTags = (id: string): Tag[] => {
     const a = annotations?.feeders[id];
@@ -124,10 +139,47 @@ export default function SystemDiagram({
     return () => el.removeEventListener('wheel', onWheel);
   }, [layout.width]);
 
+  // Moving what's on the diagram: press on a load, board or incomer and drag
+  // it to a busbar (reconnect) or onto another feeder (place before it).
+  // Dragging the empty background still pans.
+  const pick = useRef<{ item: MoveItem; label: string; px: number; py: number } | null>(null);
+  const [moving, setMoving] = useState<{ label: string; x: number; y: number } | null>(null);
+  const [cableEdit, setCableEdit] = useState<{ id: string; x: number; y: number; size: string; cores: string; length: string } | null>(null);
+  const lengthOk = (v: string) => /^\d*\.?\d+$/.test(v.trim().replace(',', '.')) && Number(v.trim().replace(',', '.')) > 0;
+  const saveCable = () => {
+    if (!cableEdit || !onPatchFeeder || !lengthOk(cableEdit.length)) return;
+    onPatchFeeder(cableEdit.id, { cableCsaMm2: Number(cableEdit.size), cores: Number(cableEdit.cores) as 2 | 3 | 4, lengthM: Number(cableEdit.length.trim().replace(',', '.')) });
+    setCableEdit(null);
+  };
+  const startPick = (item: MoveItem, label: string) => (e: React.PointerEvent) => {
+    if (!onMoveItem || tool === 'pan' || e.button !== 0) return;
+    pick.current = { item, label, px: e.clientX, py: e.clientY };
+  };
+  const targetAt = (x: number, y: number): { target: DropTarget; key: string } | undefined => {
+    const el = document.elementFromPoint(x, y)?.closest('[data-drop]');
+    const key = el?.getAttribute('data-drop');
+    if (!key) return undefined;
+    const id = key.slice(key.indexOf(':') + 1);
+    return { key, target: key.startsWith('bus:') ? { type: 'bus', boardId: id } : { type: 'feeder', feederId: id } };
+  };
+
   function onPointerDown(e: React.PointerEvent) {
     drag.current = { px: e.clientX, py: e.clientY, vb, moved: false };
   }
   function onPointerMove(e: React.PointerEvent) {
+    const pk = pick.current;
+    const svg = svgRef.current;
+    if (pk && svg) {
+      if (!moving && Math.hypot(e.clientX - pk.px, e.clientY - pk.py) < 6) return;
+      if (!moving) svg.setPointerCapture(e.pointerId);
+      if (drag.current) drag.current.moved = true; // not a click
+      const t = targetAt(e.clientX, e.clientY);
+      const ok = t && canMove(project, pk.item, t.target) ? t.key : null;
+      if (ok !== hover) setHover(ok);
+      const r = svg.parentElement!.getBoundingClientRect();
+      setMoving({ label: pk.label, x: e.clientX - r.left, y: e.clientY - r.top });
+      return;
+    }
     const d = drag.current;
     const el = svgRef.current;
     if (!d || !el) return;
@@ -140,10 +192,49 @@ export default function SystemDiagram({
     const scale = Math.max(d.vb.w / r.width, d.vb.h / r.height);
     setVb({ ...d.vb, x: d.vb.x - dx * scale, y: d.vb.y - dy * scale });
   }
-  function onPointerUp() {
+  function onPointerUp(e: React.PointerEvent) {
+    const pk = pick.current;
+    pick.current = null;
+    if (pk && moving) {
+      const t = targetAt(e.clientX, e.clientY);
+      setMoving(null);
+      setHover(null);
+      if (t && canMove(project, pk.item, t.target)) onMoveItem?.(pk.item, t.target);
+    }
     // Keep the flag until the click event has fired, so a drag isn't a click.
     setTimeout(() => (drag.current = null), 0);
   }
+  // Drag and drop: a busbar, a feeder or the empty canvas highlights while
+  // an item that can go there is dragged over it.
+  const [hover, setHover] = useState<string | null>(null);
+  const dnd = (target: DropTarget, key: string) =>
+    onDropItem
+      ? {
+          onDragOver: (e: React.DragEvent) => {
+            const item = getDragItem();
+            if (!item) return;
+            e.stopPropagation(); // the nearest target decides; never fall through to the canvas
+            if (!canDrop(project, item, target)) {
+              if (hover) setHover(null);
+              return;
+            }
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+            if (hover !== key) setHover(key);
+          },
+          onDrop: (e: React.DragEvent) => {
+            const item = getDragItem();
+            if (!item) return;
+            e.preventDefault();
+            e.stopPropagation();
+            setHover(null);
+            setDragItem(null);
+            onDropItem(item, target);
+          }
+        }
+      : {};
+  const dropCls = (key: string) => (hover === key ? ' drop-ok' : '');
+
   const click = (fn: () => void) => () => {
     if (!drag.current?.moved && tool !== 'pan') fn();
   };
@@ -151,7 +242,7 @@ export default function SystemDiagram({
   const main = layout.roots[0];
 
   return (
-    <div className={`sysdiag ${tool === 'pan' ? 'pan' : ''}`}>
+    <div className={`sysdiag ${tool === 'pan' ? 'pan' : ''}${dropCls('canvas')}`}>
       <div className="sysdiag-tools" role="toolbar" aria-label="Diagram zoom">
         <button className="chip" onClick={() => zoom(1 / 1.25)} aria-label="Zoom in">+</button>
         <button className="chip" onClick={() => zoom(1.25)} aria-label="Zoom out">−</button>
@@ -166,9 +257,11 @@ export default function SystemDiagram({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerLeave={onPointerUp}
+        {...dnd({ type: 'canvas' }, 'canvas')}
+        onDragLeave={(e) => { if (!svgRef.current?.contains(e.relatedTarget as Node)) setHover(null); }}
       >
         {/* Utility and transformers */}
-        {main && (
+        {main && layout.roots.some((r) => r.board.sourceKva) && (
           <g>
             <circle cx={layout.utilityX} cy="22" r="11" className="sym" />
             <path d={`M${layout.utilityX - 5} 22 q2.5 -6 5 0 t5 0`} className="ln" />
@@ -180,7 +273,18 @@ export default function SystemDiagram({
             <line x1={layout.utilityX} y1="33" x2={layout.utilityX} y2="50" className="ln mv" />
           </g>
         )}
-        {layout.roots.map((r) => (
+        {layout.roots.map((r) => !r.board.sourceKva && r.board.supply ? (
+          <g key={`sup-${r.board.id}`} className="tx" onDoubleClick={edit(onEditBoard, r.board.id)}>
+            <title>Supply from the authority — double-click to edit</title>
+            <rect x={r.x - 16} y={52} width={32} height={26} rx={3} className="sym" />
+            <text className="b" x={r.x} y={69} textAnchor="middle" style={{ fontSize: 10 }}>kWh</text>
+            <text className="b" x={r.x + 24} y="62">{r.board.supply.fedFrom ?? 'DEWA'} supply</text>
+            <text className="m" x={r.x + 24} y="76">{r.board.supply.ratingA ? `${r.board.supply.ratingA} A ${r.board.supply.device ?? ''}` : 'meter cabinet'}{r.board.supply.meter ? ` · ${r.board.supply.meter} meter` : ''}</text>
+            <line x1={r.x} y1="34" x2={r.x} y2="52" className="ln" />
+            <line x1={r.x} y1="78" x2={r.x} y2={r.busY - 58} className="ln" />
+            <text className="m" x={r.x - 8} y={r.busY - 72} textAnchor="end">{project.voltageV} V</text>
+          </g>
+        ) : (
           <g key={`tx-${r.board.id}`} className="tx" onDoubleClick={edit(onEditBoard, r.board.id)}>
             <title>Double-click to edit the transformer</title>
             <line x1={r.x} y1="50" x2={r.x} y2="70" className="ln mv" />
@@ -206,7 +310,10 @@ export default function SystemDiagram({
           return (
             <g
               key={f.id}
-              className={`fd ${sel ? 'sel' : ''}`}
+              className={`fd ${sel ? 'sel' : ''}${dropCls(`fd:${f.id}`)}`}
+              {...dnd({ type: 'feeder', feederId: f.id }, `fd:${f.id}`)}
+              data-drop={`fd:${f.id}`}
+              onPointerDown={startPick(n.childBoardId ? { kind: 'board', id: n.childBoardId } : { kind: 'feeder', id: f.id }, n.childBoardId ?? f.name ?? f.id)}
               onClick={click(() => onSelectFeeder(f.id))}
               onDoubleClick={edit(onEditFeeder, f.id)}
               tabIndex={0}
@@ -218,7 +325,21 @@ export default function SystemDiagram({
               <line x1={n.x - 5} y1={y + 32} x2={n.x + 5} y2={y + 20} className="ln" />
               <line x1={n.x} y1={y + 34} x2={n.x} y2={endY} className={`ln ${status !== 'ok' ? status : ''}`} />
               <text className="b" x={n.x + 10} y={y + 30}>{f.breakerRatingA} A</text>
-              <text className="m" x={n.x + 7} y={y + 52}>{f.cableCsaMm2}mm² · {f.lengthM}m</text>
+              <text
+                className={`m${onPatchFeeder ? ' cable-lbl' : ''}`}
+                x={n.x + 7}
+                y={y + 52}
+                onPointerDown={(e) => onPatchFeeder && e.stopPropagation()}
+                onClick={(e) => {
+                  if (!onPatchFeeder || tool === 'pan') return;
+                  e.stopPropagation();
+                  const r = svgRef.current!.parentElement!.getBoundingClientRect();
+                  setCableEdit({ id: f.id, x: e.clientX - r.left, y: e.clientY - r.top, size: String(f.cableCsaMm2), cores: String(f.cores), length: String(f.lengthM) });
+                }}
+              >
+                {onPatchFeeder && <title>Click to change the cable</title>}
+                {f.cores}C × {f.cableCsaMm2}mm² · {f.lengthM}m
+              </text>
               {!n.childBoardId && (
                 <>
                   <circle cx={n.x} cy={y + 94} r="18" className={`load ${status}`} />
@@ -228,7 +349,7 @@ export default function SystemDiagram({
                   <text className="b" x={n.x} y={y + 132} textAnchor="middle">{trunc(f.id, 16)}</text>
                   <text className="m" x={n.x} y={y + 146} textAnchor="middle">{trunc(f.name, 19)}</text>
                   <text x={n.x} y={y + 160} textAnchor="middle">
-                    {(f.loadKw * f.demandFactor).toFixed(0)} kW{f.generation ? ' gen' : ''}
+                    {f.kvar ? `${f.kvar} kvar` : `${(f.loadKw * f.demandFactor).toFixed(0)} kW${f.generation ? ' gen' : ''}`}
                     {!layers?.current && ` · ${r ? r.ib.toFixed(0) : '–'} A`}
                   </text>
                   {feederTags(f.id).map((t, i) => (
@@ -265,7 +386,10 @@ export default function SystemDiagram({
           return (
             <g
               key={b.id}
-              className={`bd ${sel ? 'sel' : ''}`}
+              className={`bd ${sel ? 'sel' : ''}${dropCls(`bus:${b.id}`)}`}
+              {...dnd({ type: 'bus', boardId: b.id }, `bus:${b.id}`)}
+              data-drop={`bus:${b.id}`}
+              onPointerDown={startPick({ kind: 'board', id: b.id }, b.id)}
               onClick={click(() => onSelectBoard(b.id))}
               onDoubleClick={edit(onEditBoard, b.id)}
               tabIndex={0}
@@ -273,7 +397,27 @@ export default function SystemDiagram({
             >
               <title>{`${b.id} — double-click to edit`}</title>
               {!n.terminal && <line x1={n.busX1} y1={n.busY} x2={n.busX2} y2={n.busY} className={`bus ${sel ? 'sel' : ''}`} />}
+              {/* Wide invisible band along the busbar, so drops don't need pixel precision. */}
+              {onDropItem && <line x1={n.busX1 - 20} y1={n.busY} x2={n.busX2 + 20} y2={n.busY} className="bus-hit" />}
               <line x1={n.x} y1={n.busY - 22} x2={n.x} y2={n.busY} className="ln" />
+              {b.standby && (
+                <g className="standby">
+                  <title>{`Standby generator ${b.standby.kva} kVA through an ATS — everything on ${b.id} is essential load`}</title>
+                  <rect x={n.x - 11} y={n.busY - 88} width="22" height="15" rx="2" className="sym" />
+                  <text x={n.x} y={n.busY - 77} textAnchor="middle" className="b" style={{ fontSize: 8 }}>ATS</text>
+                  <line x1={n.x + 11} y1={n.busY - 80} x2={n.x + 34} y2={n.busY - 80} className="ln" />
+                  <circle cx={n.x + 45} cy={n.busY - 80} r="11" className="sym" />
+                  <text x={n.x + 45} y={n.busY - 76} textAnchor="middle" className="b" style={{ fontSize: 11 }}>G</text>
+                  <text x={n.x + 60} y={n.busY - 77} className="m">{b.standby.kva} kVA</text>
+                </g>
+              )}
+              {b.kind === 'UPS' && (
+                <g>
+                  <title>{`UPS ${b.upsKva ?? '—'} kVA`}</title>
+                  <rect x={n.x - 15} y={n.busY - 118} width="30" height="17" rx="2" className="sym" />
+                  <text x={n.x} y={n.busY - 106} textAnchor="middle" className="b" style={{ fontSize: 9 }}>UPS</text>
+                </g>
+              )}
               <rect x={n.x - 62} y={n.busY - 58} width="124" height="36" rx="6" className="box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
               <text className="b" x={n.x - 54} y={n.busY - 42}>{trunc(b.id, 14)}</text>
               <text className="m" x={n.x - 54} y={n.busY - 28}>
@@ -291,6 +435,10 @@ export default function SystemDiagram({
               )}
               {[
                 ...(n.terminal ? [] : circuitTags),
+                ...(b.kind === 'UPS' ? (() => {
+                  const pct = upsLoadingPct(project, b);
+                  return [{ text: `UPS ${b.upsKva ?? '—'} kVA${pct !== undefined ? ` · ${pct.toFixed(0)}%` : ''}`, cls: pct === undefined ? 'm' : pct > 100 ? 'bad' : pct > 80 ? 'warn' : 'ok' }];
+                })() : []),
                 ...boardTags(b.id),
                 ...(s.loadingPct !== undefined ? [{ text: `${s.loadingPct.toFixed(0)}% loaded`, cls: layers?.loading ? s.loadingStatus ?? 'm' : 'm' }] : [])
               ].map((t, i) => (
@@ -300,6 +448,35 @@ export default function SystemDiagram({
           );
         })}
       </svg>
+      {moving && <div className="move-ghost" style={{ left: moving.x + 14, top: moving.y + 10 }}>Move {moving.label}{hover ? '' : ' — drop on a busbar or feeder'}</div>}
+      {cableEdit && (
+        <form
+          className="cable-edit"
+          style={{ left: cableEdit.x, top: cableEdit.y + 8 }}
+          onSubmit={(e) => { e.preventDefault(); saveCable(); }}
+          onKeyDown={(e) => e.key === 'Escape' && setCableEdit(null)}
+        >
+          <b>{cableEdit.id} cable</b>
+          <label>Size
+            <select value={cableEdit.size} onChange={(e) => setCableEdit({ ...cableEdit, size: e.target.value })}>
+              {cables().map((c) => <option key={c.csaMm2} value={c.csaMm2}>{c.csaMm2} mm²</option>)}
+            </select>
+          </label>
+          <label>Cores
+            <select value={cableEdit.cores} onChange={(e) => setCableEdit({ ...cableEdit, cores: e.target.value })}>
+              {['2', '3', '4'].map((c) => <option key={c} value={c}>{c}C</option>)}
+            </select>
+          </label>
+          <label>Length (m)
+            <input autoFocus inputMode="decimal" value={cableEdit.length} aria-invalid={!lengthOk(cableEdit.length)}
+              onChange={(e) => setCableEdit({ ...cableEdit, length: e.target.value })} onFocus={(e) => e.target.select()} />
+          </label>
+          <div className="cable-edit-actions">
+            <button type="button" className="chip" onClick={() => setCableEdit(null)}>Cancel</button>
+            <button type="submit" className="chip primary" disabled={!lengthOk(cableEdit.length)}>Apply</button>
+          </div>
+        </form>
+      )}
     </div>
   );
 }

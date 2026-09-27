@@ -43,10 +43,16 @@ import { buildAnnotations, DEFAULT_LAYERS, type ResultLayers } from './diagram/a
 import { EXTERNAL_ENGINES } from './engines';
 import type { StudyResults } from './engines/types';
 import { deleteBoard } from './model/edit';
+import { useHistory } from './model/history';
+import { applyDrop, applyMove, libraryEntries, type DropResult, type DropTarget, type MoveItem, type PaletteItem } from './model/sldEdit';
+import EquipmentPalette from './components/EquipmentPalette';
 type DiagramMode = 'system' | 'board';
 
 export default function App() {
-  const [project, setProject] = useState<Project>(sampleProject);
+  // The project, with undo / redo. Opening or starting a project clears the history.
+  const history = useHistory<Project>(sampleProject);
+  const project = history.value;
+  const setProject = history.set;
   const [currentFile, setCurrentFile] = useState<string | undefined>(undefined);
   const [projectsFolder, setProjectsFolder] = useState<string>('');
   const [projectList, setProjectList] = useState<{ file: string; name: string; updatedAt: number }[]>([]);
@@ -191,7 +197,7 @@ export default function App() {
   async function openProject(file: string) {
     if (!hasBridge) return;
     const p = await window.lvds.projects.load(file);
-    setProject(p);
+    history.load(p);
     setCurrentFile(file);
     setActiveBoardId(p.boards[0]?.id ?? '');
     setSelected(null);
@@ -226,7 +232,7 @@ export default function App() {
 
   function startNewProject() {
     const p = applyParameters(newProject('Untitled project'), db); // your Parameters.xlsx defaults
-    setProject(p);
+    history.load(p);
     setCurrentFile(undefined);
     setActiveBoardId(p.boards[0].id);
     setSelected(null);
@@ -290,6 +296,59 @@ export default function App() {
     setShowFeederForm(null);
   }
 
+  /** An item from the equipment library dropped on the SLD. */
+  function dropItem(item: PaletteItem, target: DropTarget) {
+    showResult(applyDrop(project, item, target, db.loads));
+  }
+
+  /** Something already on the SLD dragged to another busbar or feeder. */
+  function moveItem(item: MoveItem, target: DropTarget) {
+    showResult(applyMove(project, item, target));
+  }
+
+  function showResult(r: DropResult) {
+    if (r.project !== project) setProject(r.project, { step: true });
+    if (r.select?.type === 'board') selectBoard(r.select.id);
+    if (r.select?.type === 'feeder') {
+      setSelected(r.select.id);
+      const f = r.project.feeders.find((x) => x.id === r.select!.id);
+      if (f) setActiveBoardId(f.boardId);
+      setPanel('feeder');
+    }
+    setStatus(r.message);
+  }
+
+  /** Delete key on the diagram: the selected feeder, or the selected board
+   * with everything below it. */
+  function deleteSelection() {
+    if (panel === 'feeder' && selectedFeeder) return confirmDeleteSelected();
+    if (panel === 'board' && board && window.confirm(`Delete ${board.id} and everything fed from it?`)) removeBoard(board.id);
+  }
+
+  // ⌘Z / Ctrl+Z undo, ⇧⌘Z / Ctrl+Y redo, Delete on the diagram. Typing in a
+  // field or a sheet keeps its own undo and delete.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      const typing = !!t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable || !!t.closest('.jss_container, .ls-sheet'));
+      if (typing) return;
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) history.redo();
+        else history.undo();
+      } else if (mod && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        history.redo();
+      } else if ((e.key === 'Delete' || e.key === 'Backspace') && view === 'design' && !!t?.closest('.sysdiag')) {
+        e.preventDefault();
+        deleteSelection();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
   function addBoard(b: Board, incomer: Feeder) {
     setProject((prev) => ({ ...prev, boards: [...prev.boards, b], feeders: [...prev.feeders, incomer] }));
     setActiveBoardId(b.id);
@@ -330,7 +389,11 @@ export default function App() {
           onEditSelected: () => { setView('design'); setShowFeederForm('edit'); },
           onDeleteSelected: confirmDeleteSelected,
           onExportDss: exportOpenDss,
-          onSettings: () => setShowSettings(true)
+          onSettings: () => setShowSettings(true),
+          onUndo: history.undo,
+          onRedo: history.redo,
+          canUndo: history.canUndo,
+          canRedo: history.canRedo
         }}
       />
 
@@ -409,6 +472,8 @@ export default function App() {
                   />
                 )}
                 {diagramMode === 'system' ? (
+                  <div className="sld-edit">
+                  <EquipmentPalette onHint={setStatus} library={libraryEntries(db.loads)} />
                   <SystemDiagram
                     project={project}
                     results={allResults}
@@ -422,7 +487,15 @@ export default function App() {
                     onEditFeeder={editFeeder}
                     onEditBoard={(id) => { selectBoard(id); setEditBoardId(id); }}
                     onOpenSchedule={(id) => { setActiveBoardId(id); setView('load-schedule'); }}
+                    onDropItem={dropItem}
+                    onMoveItem={moveItem}
+                    onPatchFeeder={(id, patch) => {
+                      setProject((p) => ({ ...p, feeders: p.feeders.map((f) => (f.id === id ? { ...f, ...patch, cpcMm2: patch.cableCsaMm2 && patch.cableCsaMm2 !== f.cableCsaMm2 ? undefined : f.cpcMm2 } : f)) }), { step: true });
+                      selectFeeder(id);
+                      setStatus(`${id}: cable ${patch.cores}C × ${patch.cableCsaMm2} mm², ${patch.lengthM} m`);
+                    }}
                   />
+                  </div>
                 ) : (
                   <SingleLineDiagram board={board} voltageV={project.voltageV} results={boardResults} selected={selected} onSelect={selectFeeder} />
                 )}

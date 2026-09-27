@@ -44,6 +44,17 @@ export default function BoardFields({ board, onChange, section }: { board: Board
         </select>
       </label>
       <label>Rated current (A){num('ratedCurrentA', 1, 'e.g. 400')}</label>
+      {board.kind === 'UPS' && (
+        <label>UPS rating (kVA)
+          <input inputMode="decimal" value={board.upsKva ?? ''} placeholder="e.g. 20"
+            onChange={(e) => set('upsKva', e.target.value === '' || Number.isNaN(+e.target.value) ? undefined : +e.target.value)} />
+        </label>
+      )}
+      <label>Standby generator (kVA, via ATS)
+        <input inputMode="decimal" value={board.standby?.kva ?? ''} placeholder="none"
+          title="Leave blank for no generator. Everything on and below this board then counts as essential load."
+          onChange={(e) => set('standby', e.target.value === '' || Number.isNaN(+e.target.value) ? undefined : { kva: +e.target.value })} />
+      </label>
       <label>
         Busbar material
         <select value={board.busbarMaterial ?? ''} onChange={(e) => set('busbarMaterial', (e.target.value || undefined) as Board['busbarMaterial'])}>
