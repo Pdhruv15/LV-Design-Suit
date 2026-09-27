@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Activity, BatteryCharging, Cable, Calculator, Car, CircuitBoard, Cog, Ellipsis, FileDown, FileSpreadsheet, FileText,
   Gauge, Hand, LayoutGrid, ListTree, Minus, MousePointer2, Pencil, Receipt, Scale, Server, Settings2, ShieldCheck, Sun,
-  Database, Table2, Trash2, Waves, Zap, type LucideIcon
+  Database, Table2, Trash2, TrendingDown, Waves, Zap, type LucideIcon
 } from 'lucide-react';
 import type { Feeder } from '../types';
 import type { MainView } from '../views';
@@ -52,7 +52,7 @@ const TABS: { id: RibbonTab; label: string; icon: Icon }[] = [
 export function tabForView(v: MainView): RibbonTab {
   if (v === 'design' || v === 'load-schedule') return 'design';
   if (v === 'engines') return 'simulate';
-  if (['earthing', 'coordination', 'selection', 'sizing', 'pfc'].includes(v)) return 'calculate';
+  if (['voltage-drop', 'earthing', 'coordination', 'selection', 'sizing', 'pfc'].includes(v)) return 'calculate';
   if (v === 'boq') return 'cost';
   if (v === 'database') return 'standards';
   return 'reports';
@@ -101,6 +101,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
     ],
     calculate: [
       [
+        view('voltage-drop', 'Voltage drop', TrendingDown, 'Voltage drop calculation: panels and equipment cables, with report'),
         view('earthing', 'Earthing', Gauge, 'Fault loop impedance and disconnection time'),
         view('coordination', 'Protection', ShieldCheck, 'Protection coordination and selectivity'),
         view('selection', 'Selection', ListTree, 'Breaker and cable selection')

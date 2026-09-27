@@ -1,10 +1,11 @@
 /** Main screens of the app, shared by the left menu and the ribbon. */
 export type MainView =
   | 'design' | 'load-schedule'
-  | 'earthing' | 'selection' | 'coordination' | 'sizing' | 'pfc' | 'engines'
+  | 'voltage-drop' | 'earthing' | 'selection' | 'coordination' | 'sizing' | 'pfc' | 'engines'
   | 'db-schedule' | 'cable-schedule' | 'equipment' | 'boq' | 'report' | 'database';
 
 export const STUDIES: [MainView, string][] = [
+  ['voltage-drop', 'Voltage drop'],
   ['engines', 'Load flow (engines)'],
   ['earthing', 'Earthing'],
   ['coordination', 'Protection coordination'],

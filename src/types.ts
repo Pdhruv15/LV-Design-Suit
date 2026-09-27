@@ -129,6 +129,7 @@ export interface Project {
   frequencyHz: number;
   ambientC: number;
   vdLimitPct: number; // allowable voltage drop, e.g. 4.0 per DEWA/IEC
+  vdSelection?: string[]; // feeder ids chosen for the voltage drop calculation
   studySettings?: StudySettings;
   boards: Board[];
   feeders: Feeder[];
