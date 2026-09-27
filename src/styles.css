@@ -323,3 +323,5 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 .heat-bar{height:9px;border-radius:5px;background:linear-gradient(90deg,hsl(130 80% 52%) 0%,hsl(130 80% 52%) 50%,hsl(45 80% 52%) 85%,hsl(0 80% 58%) 100%)}
 .heat-ticks{display:flex;justify-content:space-between;color:var(--mut);font-size:10.5px}
 .mode-banner{position:absolute;left:50%;top:8px;transform:translateX(-50%);z-index:3;background:color-mix(in srgb,var(--ok) 18%,var(--panel));border:1px solid var(--ok);color:var(--tx);border-radius:14px;padding:4px 12px;font-size:12px;white-space:nowrap;max-width:90%;overflow:hidden;text-overflow:ellipsis}
+.paste-preview{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;margin:10px 0 0}
+.paste-preview s{color:var(--mut)}

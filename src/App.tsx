@@ -49,6 +49,8 @@ import type { ColorBy } from './diagram/heatmap';
 import { applyDrop, applyMove, libraryEntries, type DropResult, type DropTarget, type MoveItem, type PaletteItem } from './model/sldEdit';
 import EquipmentPalette from './components/EquipmentPalette';
 import SldExportDialog from './components/SldExportDialog';
+import PasteBoardDialog from './components/PasteBoardDialog';
+import { pasteBoard } from './model/copyBoard';
 type DiagramMode = 'system' | 'board';
 
 export default function App() {
@@ -78,6 +80,9 @@ export default function App() {
   const [colorBy, setColorBy] = useState<ColorBy>('none');
   const [supply, setSupply] = useState<SupplyMode>('normal');
   const [showExport, setShowExport] = useState(false);
+  // Copy / paste of a board with everything below it.
+  const [copiedBoard, setCopiedBoard] = useState<string | null>(null);
+  const [pasteTarget, setPasteTarget] = useState<string | null>(null);
 
   // LV Database: Excel workbooks in the projects folder. Every save in Excel
   // arrives here; the data is applied to the calculations, library-linked
@@ -355,6 +360,12 @@ export default function App() {
       } else if (mod && e.key.toLowerCase() === 'y') {
         e.preventDefault();
         history.redo();
+      } else if (mod && e.key.toLowerCase() === 'c' && view === 'design' && panel === 'board' && board && !!t?.closest('.sysdiag')) {
+        e.preventDefault();
+        copyBoard(board.id);
+      } else if (mod && e.key.toLowerCase() === 'v' && view === 'design' && panel === 'board' && board && copiedBoard && !!t?.closest('.sysdiag')) {
+        e.preventDefault();
+        setPasteTarget(board.id);
       } else if ((e.key === 'Delete' || e.key === 'Backspace') && view === 'design' && !!t?.closest('.sysdiag')) {
         e.preventDefault();
         deleteSelection();
@@ -363,6 +374,11 @@ export default function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
+
+  function copyBoard(id: string) {
+    setCopiedBoard(id);
+    setStatus(`Copied ${id} with everything below it — select the board to paste it on and press Paste (⌘V / Ctrl+V)`);
+  }
 
   function addBoard(b: Board, incomer: Feeder) {
     setProject((prev) => ({ ...prev, boards: [...prev.boards, b], feeders: [...prev.feeders, incomer] }));
@@ -472,6 +488,10 @@ export default function App() {
                   <div>
                     <button className="chip" onClick={() => openAddFeeder({})}>+ Add feeder to {board.id}</button>
                     <button className="chip" onClick={() => setShowBoardForm(true)}>+ Add board</button>
+                    {panel === 'board' && board && <button className="chip" onClick={() => copyBoard(board.id)} title="Copy this board with its sub-boards, feeders and load schedule circuits (⌘C)">Copy {board.id}</button>}
+                    {panel === 'board' && board && copiedBoard && project.boards.some((b) => b.id === copiedBoard) && (
+                      <button className="chip" onClick={() => setPasteTarget(board.id)} title={`Paste ${copiedBoard} on ${board.id}'s busbar (⌘V)`}>Paste {copiedBoard} here</button>
+                    )}
                     {diagramMode === 'system' && <button className="chip" onClick={() => setShowExport(true)} title="PDF sheet with title block, DXF for CAD, or SVG">Export drawing…</button>}
                     {selectedFeeder && panel === 'feeder' && <button className="chip" onClick={() => setShowFeederForm('edit')}>Edit {selectedFeeder.id}</button>}
                   </div>
@@ -621,6 +641,21 @@ export default function App() {
           />
         );
       })()}
+      {pasteTarget && copiedBoard && project.boards.some((b) => b.id === copiedBoard) && (
+        <PasteBoardDialog
+          project={project}
+          sourceId={copiedBoard}
+          targetId={pasteTarget}
+          onClose={() => setPasteTarget(null)}
+          onPaste={(r) => {
+            const res = pasteBoard(project, copiedBoard, pasteTarget, r);
+            setProject(res.project, { step: true });
+            selectBoard(res.rootId);
+            setStatus(res.message);
+            setPasteTarget(null);
+          }}
+        />
+      )}
       {showExport && (
         <SldExportDialog
           project={project}

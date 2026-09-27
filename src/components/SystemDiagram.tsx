@@ -180,6 +180,8 @@ export default function SystemDiagram({
   const lengthOk = (v: string) => /^\d*\.?\d+$/.test(v.trim().replace(',', '.')) && Number(v.trim().replace(',', '.')) > 0;
   const saveCable = () => {
     if (!cableEdit || !onPatchFeeder || !lengthOk(cableEdit.length)) return;
+    // Only sizes from the cable table and 2/3/4 cores: anything else would break every calculation.
+    if (!cables().some((c) => c.csaMm2 === Number(cableEdit.size)) || !['2', '3', '4'].includes(cableEdit.cores)) return;
     onPatchFeeder(cableEdit.id, { cableCsaMm2: Number(cableEdit.size), cores: Number(cableEdit.cores) as 2 | 3 | 4, lengthM: Number(cableEdit.length.trim().replace(',', '.')), parallel: Number(cableEdit.runs) > 1 ? Number(cableEdit.runs) : undefined });
     setCableEdit(null);
   };
