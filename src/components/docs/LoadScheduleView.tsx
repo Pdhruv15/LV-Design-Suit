@@ -9,7 +9,8 @@ import { settingsOf } from '../../types';
 import { loadsForColumn, type Database } from '../../database/database';
 import { buildLoadScheduleHtml, loadScheduleCsv, loadScheduleRows } from '../../docs/loadScheduleDoc';
 import { addCircuit, balancePhases, deleteCircuit, refreshBoard, updateCircuit, type CircuitPatch } from '../../model/schedule';
-import { saveCsv, savePdf, safeFileName } from '../../util/files';
+import { saveBinary, saveCsv, savePdf, safeFileName } from '../../util/files';
+import { buildFormWorkbook, workbookBytes, type WorkbookScope } from '../../docs/formWorkbook';
 import { Page, STATUS_LABEL } from '../ui';
 import LoadScheduleSheet from './LoadScheduleSheet';
 import MdSheetView from './MdSheetView';
@@ -53,6 +54,19 @@ export default function LoadScheduleView({
   const mdAvailable = hasMdSheet(project, board.id);
   const [pick, setPick] = useState<{ board: string; form: 'db' | 'md' } | null>(null);
   const form: 'db' | 'md' = pick?.board === board.id ? pick.form : data.rows.length || !mdAvailable ? 'db' : 'md';
+  const [exporting, setExporting] = useState(false);
+  async function exportExcel(scope: WorkbookScope, name: string) {
+    setExporting(true);
+    try {
+      const bytes = await workbookBytes(buildFormWorkbook(project, scope));
+      const m = await saveBinary(`${safeFileName(name)}.xlsx`, bytes, 'Excel workbook', 'xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      if (m) onStatus(m);
+    } catch (e) {
+      onStatus(`Excel export failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setExporting(false);
+    }
+  }
   const switchMode = (m: 'sheet' | 'classic') => {
     setMode(m);
     try { localStorage.setItem('ls-mode', m); } catch { /* preference only */ }
@@ -82,6 +96,14 @@ export default function LoadScheduleView({
           <select className="chip" value={board.id} onChange={(e) => onBoard(e.target.value)} aria-label="DB">
             {project.boards.map((b) => <option key={b.id} value={b.id}>{b.id} — {b.name}</option>)}
           </select>
+          <button className="chip" disabled={exporting} title="This form as an Excel workbook, laid out like the authority form"
+            onClick={() => exportExcel({ boardIds: [board.id], forms: [form] }, `${project.name} ${board.id} ${form === 'md' ? 'connected load MD' : 'load schedule'}`)}>
+            Export Excel
+          </button>
+          <button className="chip" disabled={exporting} title="Every form of the project in one workbook: load summary, MDB / SMDB / MCC forms, then every DB schedule"
+            onClick={() => exportExcel({}, `${project.name} submission forms`)}>
+            {exporting ? 'Exporting…' : 'Submission pack (Excel)'}
+          </button>
           {form === 'db' && <>
           <button className="chip" onClick={async () => { const c = loadScheduleCsv(project, board.id); const m = await saveCsv(`${project.name} ${board.id} load schedule`, c.headers, c.rows); if (m) onStatus(m); }}>Export CSV</button>
           <button className="chip primary" onClick={async () => { const m = await savePdf(`${safeFileName(board.id)}-load-schedule.pdf`, buildLoadScheduleHtml(project, board.id)); if (m) onStatus(m); }}>Export PDF</button>
