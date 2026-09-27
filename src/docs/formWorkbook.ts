@@ -4,6 +4,15 @@ import { scheduleCircuits } from '../calc/loadSchedule';
 import type { Project } from '../types';
 import { buildDbSheet } from './dbSheet';
 import { buildMdSheet, hasMdSheet } from './mdSheet';
+import { revisionStamp } from '../model/revisions';
+
+/** Page header and footer printed on every sheet: revision top right. */
+function stamp(ws: ExcelJS.Worksheet, project: Project) {
+  ws.headerFooter = {
+    oddHeader: `&R&"Arial"&9${revisionStamp(project)}`,
+    oddFooter: `&L&"Arial"&8${project.name.replace(/&/g, '&&')}&R&"Arial"&8Page &P of &N`
+  };
+}
 
 /** The authority submission forms as a real Excel workbook, laid out like
  * the DEWA villa sample: the connected load & MD form (load summary, MDB,
@@ -150,6 +159,7 @@ export function addMdSheet(wb: ExcelJS.Workbook, project: Project, boardId: stri
   ws.getRow(r).height = 22;
   frame(ws, 1, 1, r, n);
   ws.pageSetup.printArea = `A1:${ws.getColumn(n).letter}${r}`;
+  stamp(ws, project);
   return ws;
 }
 
@@ -251,6 +261,7 @@ export function addDbSheet(wb: ExcelJS.Workbook, project: Project, boardId: stri
   ws.getRow(r).height = 30;
   frame(ws, 1, 1, r, n);
   ws.pageSetup.printArea = `A1:${ws.getColumn(n).letter}${r}`;
+  stamp(ws, project);
   return ws;
 }
 

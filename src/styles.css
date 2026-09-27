@@ -271,3 +271,20 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 .md-demand{display:flex;gap:22px;flex-wrap:wrap;align-items:center}
 .md-demand .chip{margin-left:auto}
 .md-blank{color:var(--mut)}
+/* ---- Revisions ---- */
+.rev-issue{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:12px}
+.rev-issue input{background:var(--p2);color:var(--tx);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font:inherit;min-width:320px}
+.rev-issue input.rev-by{min-width:110px;width:110px}
+.rev-table td.rev-actions{white-space:nowrap}
+.rev-table td.rev-actions .chip{margin-right:6px}
+.rev-diff{margin-top:16px}
+.rev-diff-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.rev-kw{margin-bottom:12px;max-width:640px}
+.rev-group h4{margin:12px 0 4px;color:var(--bus)}
+.rev-group ul{margin:0;padding-left:0;list-style:none}
+.rev-group li{padding:5px 0;border-bottom:1px solid var(--line)}
+.rev-kind{display:inline-block;min-width:66px;font-size:11px;font-weight:700;text-transform:uppercase}
+.rev-kind.added{color:var(--ok)}.rev-kind.removed{color:var(--bad)}.rev-kind.changed{color:var(--warn)}
+.rev-fields{display:flex;flex-wrap:wrap;gap:4px 16px;margin:3px 0 0 70px;color:var(--mut);font-size:12.5px}
+.rev-fields s{color:var(--bad);opacity:.8}
+.md-rev{margin-left:10px;color:var(--acc);font-weight:600}

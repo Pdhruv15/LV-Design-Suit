@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { Project } from '../../types';
 import { applyMdEdits, buildMdSheet } from '../../docs/mdSheet';
+import { revisionStamp } from '../../model/revisions';
 import FormSheet from './FormSheet';
 
 /** "Details of connected load, maximum demand & kWh metering" for one
@@ -21,7 +22,7 @@ export default function MdSheetView({ project, boardId, onChange, onStatus, onSe
       <div className="md-head">
         <div><span>PROJECT:</span> <b>{f.project}</b></div>
         <div className="md-title">{f.title}</div>
-        <div><span>AREA:</span> {blank(f.area)}</div>
+        <div><span>AREA:</span> {blank(f.area)} <span className="md-rev">{revisionStamp(project)}</span></div>
         <div><span>PLANNED COMPLETION DATE:</span> {blank(f.completion)}</div>
         <div><span>OWNER:</span> {blank(f.owner)}</div>
         <div><span>PLOT NO:</span> {blank(f.plotNo)}</div>

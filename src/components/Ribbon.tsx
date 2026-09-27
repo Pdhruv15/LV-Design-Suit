@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Activity, BatteryCharging, Cable, Calculator, Car, CircuitBoard, Cog, Ellipsis, FileDown, FileSpreadsheet, FileText,
   Gauge, Hand, LayoutGrid, ListTree, Minus, MousePointer2, Pencil, Receipt, Scale, Server, Settings2, ShieldCheck, Sun,
-  Database, Table2, Trash2, TrendingDown, Waves, Zap, type LucideIcon
+  Database, History, Table2, Trash2, TrendingDown, Waves, Zap, type LucideIcon
 } from 'lucide-react';
 import type { Feeder } from '../types';
 import type { MainView } from '../views';
@@ -122,7 +122,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         view('cable-schedule', 'Cable schedule', Cable, 'Every cable in the installation'),
         view('equipment', 'Equipment', FileSpreadsheet, 'Transformers and boards')
       ],
-      [view('report', 'Calc report', FileText, 'Calculation report (PDF)')]
+      [view('report', 'Calc report', FileText, 'Calculation report (PDF)'), view('revisions', 'Revisions', History, 'Issue Rev A, B, C… and see what changed')]
     ],
     cost: [[view('boq', 'Cost estimate', Receipt, 'Bill of quantities with cost')]],
     standards: [

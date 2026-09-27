@@ -52,5 +52,6 @@ describe('submission workbook (Excel)', () => {
     expect(ws.getCell('A7').isMerged).toBe(true);
     expect(t).toContain('Living lighting');
     expect(ws.pageSetup.orientation).toBe('portrait');
+    expect(ws.headerFooter.oddHeader).toContain('REV —');
   });
 });

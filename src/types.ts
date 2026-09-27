@@ -197,10 +197,21 @@ export interface Project {
   vdSelection?: string[]; // feeder ids chosen for the voltage drop calculation
   pointTemplate?: string; // load schedule point columns (POINT_TEMPLATES id)
   info?: ProjectInfo; // header data of the authority submission forms
+  revisions?: Revision[]; // issued revisions, oldest first (A, B, C…)
   studySettings?: StudySettings;
   boards: Board[];
   feeders: Feeder[];
   updatedAt: string;
+}
+
+/** An issued revision: a frozen copy of the design (without the revision
+ * history), with when, what and who. */
+export interface Revision {
+  id: string; // "A", "B", …
+  date: string; // YYYY-MM-DD
+  description: string;
+  by?: string;
+  snapshot: Omit<Project, 'revisions'>;
 }
 
 /** Header / footer fields of the DEWA submission forms. All optional. */
