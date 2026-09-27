@@ -1,4 +1,4 @@
-import { DEFAULT_TRANSFORMER_XR, boardDemandKw, rOperatingOhmPerKm } from '../../calc/electrical';
+import { DEFAULT_TRANSFORMER_XR, boardDemandKw, rOperatingOhmPerKm, runsOf } from '../../calc/electrical';
 import { getCable } from '../../calc/cableTable';
 import type { Feeder, Project } from '../../types';
 
@@ -23,7 +23,7 @@ const fmt = (n: number, digits = 6) => Number(n.toFixed(digits)).toString();
 const busbar = (boardId: string) => `bb_${dssName(boardId)}`;
 const loadBus = (feederId: string) => `ld_${dssName(feederId)}`;
 const isSinglePhase = (f: Feeder) => f.cores === 2;
-const lineCodeName = (csa: number, singlePhase: boolean) => `cu${String(csa).replace('.', 'p')}_${singlePhase ? '1ph' : '3ph'}`;
+const lineCodeName = (csa: number, singlePhase: boolean, runs = 1) => `cu${String(csa).replace('.', 'p')}_${singlePhase ? '1ph' : '3ph'}${runs > 1 ? `_x${runs}` : ''}`;
 
 /** Converts a project into a self-contained OpenDSS script (.dss) that
  * builds the same network — transformer, board busbars, feeder cables,
@@ -82,11 +82,12 @@ export function exportDss(project: Project): DssExport {
   const codes = new Map<string, string>();
   for (const f of project.feeders) {
     const single = isSinglePhase(f);
-    const name = lineCodeName(f.cableCsaMm2, single);
+    const runs = runsOf(f);
+    const name = lineCodeName(f.cableCsaMm2, single, runs);
     if (codes.has(name)) continue;
     const k = single ? 2 : 1; // single-phase: go + return conductor
-    const r = rOperatingOhmPerKm(f.cableCsaMm2) * k;
-    const x = getCable(f.cableCsaMm2).xOhmPerKm * k;
+    const r = (rOperatingOhmPerKm(f.cableCsaMm2) * k) / runs; // parallel runs
+    const x = (getCable(f.cableCsaMm2).xOhmPerKm * k) / runs;
     codes.set(
       name,
       `New LineCode.${name} nphases=${single ? 1 : 3} r1=${fmt(r)} x1=${fmt(x)} r0=${fmt(r)} x0=${fmt(x)} c1=0 c0=0 units=km`
@@ -111,7 +112,7 @@ export function exportDss(project: Project): DssExport {
     out.push(`! ${f.id} — ${f.name}`);
     out.push(
       `New Line.${name} phases=${phases} bus1=${busbar(f.boardId)}${nodes} bus2=${toBus}${nodes} ` +
-        `linecode=${lineCodeName(f.cableCsaMm2, single)} length=${fmt(f.lengthM, 3)} units=m`
+        `linecode=${lineCodeName(f.cableCsaMm2, single, runsOf(f))} length=${fmt(f.lengthM, 3)} units=m`
     );
 
     if (f.feedsBoardId) {

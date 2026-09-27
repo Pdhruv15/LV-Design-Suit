@@ -130,6 +130,7 @@ export interface Feeder {
   powerFactor: number; // 0-1
   lengthM: number;
   cableCsaMm2: number; // conductor cross section, must exist in the cable data
+  parallel?: number; // cable runs in parallel (default 1), e.g. 2 × 4C × 240 mm²
   cores: 2 | 3 | 4;
   breakerRatingA: number;
   breakerIcuKa: number; // breaking capacity

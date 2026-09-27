@@ -9,7 +9,7 @@ import type { Annotations, ResultLayers } from '../diagram/annotations';
 import { canDrop, canMove, type DropTarget, type MoveItem, type PaletteItem } from '../model/sldEdit';
 import { cables } from '../calc/cableTable';
 import { upsLoadingPct } from '../calc/sizing';
-import { upstreamVoltageDropPct } from '../calc/electrical';
+import { runsOf, upstreamVoltageDropPct } from '../calc/electrical';
 import { MOTOR_START_DIP_LIMIT_PCT, type GeneratorRun } from '../calc/scenario';
 import { boardRatio, COLOR_BY, feederRatio, heatColor, type ColorBy } from '../diagram/heatmap';
 import type { Feeder } from '../types';
@@ -175,11 +175,11 @@ export default function SystemDiagram({
   // Dragging the empty background still pans.
   const pick = useRef<{ item: MoveItem; label: string; px: number; py: number } | null>(null);
   const [moving, setMoving] = useState<{ label: string; x: number; y: number } | null>(null);
-  const [cableEdit, setCableEdit] = useState<{ id: string; x: number; y: number; size: string; cores: string; length: string } | null>(null);
+  const [cableEdit, setCableEdit] = useState<{ id: string; x: number; y: number; size: string; cores: string; length: string; runs: string } | null>(null);
   const lengthOk = (v: string) => /^\d*\.?\d+$/.test(v.trim().replace(',', '.')) && Number(v.trim().replace(',', '.')) > 0;
   const saveCable = () => {
     if (!cableEdit || !onPatchFeeder || !lengthOk(cableEdit.length)) return;
-    onPatchFeeder(cableEdit.id, { cableCsaMm2: Number(cableEdit.size), cores: Number(cableEdit.cores) as 2 | 3 | 4, lengthM: Number(cableEdit.length.trim().replace(',', '.')) });
+    onPatchFeeder(cableEdit.id, { cableCsaMm2: Number(cableEdit.size), cores: Number(cableEdit.cores) as 2 | 3 | 4, lengthM: Number(cableEdit.length.trim().replace(',', '.')), parallel: Number(cableEdit.runs) > 1 ? Number(cableEdit.runs) : undefined });
     setCableEdit(null);
   };
   const startPick = (item: MoveItem, label: string) => (e: React.PointerEvent) => {
@@ -368,11 +368,11 @@ export default function SystemDiagram({
                   if (!onPatchFeeder || tool === 'pan') return;
                   e.stopPropagation();
                   const r = svgRef.current!.parentElement!.getBoundingClientRect();
-                  setCableEdit({ id: f.id, x: e.clientX - r.left, y: e.clientY - r.top, size: String(f.cableCsaMm2), cores: String(f.cores), length: String(f.lengthM) });
+                  setCableEdit({ id: f.id, x: e.clientX - r.left, y: e.clientY - r.top, size: String(f.cableCsaMm2), cores: String(f.cores), length: String(f.lengthM), runs: String(runsOf(f)) });
                 }}
               >
                 {onPatchFeeder && <title>Click to change the cable</title>}
-                {f.cores}C × {f.cableCsaMm2}mm² · {f.lengthM}m
+                {runsOf(f) > 1 ? `${runsOf(f)}×` : ''}{f.cores}C × {f.cableCsaMm2}mm² · {f.lengthM}m
               </text>
               {!n.childBoardId && (
                 <>
@@ -527,6 +527,11 @@ export default function SystemDiagram({
           <label>Size
             <select value={cableEdit.size} onChange={(e) => setCableEdit({ ...cableEdit, size: e.target.value })}>
               {cables().map((c) => <option key={c.csaMm2} value={c.csaMm2}>{c.csaMm2} mm²</option>)}
+            </select>
+          </label>
+          <label>Runs in parallel
+            <select value={cableEdit.runs} onChange={(e) => setCableEdit({ ...cableEdit, runs: e.target.value })}>
+              {['1', '2', '3', '4', '5', '6'].map((c) => <option key={c} value={c}>{c === '1' ? 'single' : `${c} ×`}</option>)}
             </select>
           </label>
           <label>Cores

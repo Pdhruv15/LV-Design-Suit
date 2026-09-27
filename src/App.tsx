@@ -515,7 +515,7 @@ export default function App() {
                     onPatchFeeder={(id, patch) => {
                       setProject((p) => ({ ...p, feeders: p.feeders.map((f) => (f.id === id ? { ...f, ...patch, cpcMm2: patch.cableCsaMm2 && patch.cableCsaMm2 !== f.cableCsaMm2 ? undefined : f.cpcMm2 } : f)) }), { step: true });
                       selectFeeder(id);
-                      setStatus(`${id}: cable ${patch.cores}C × ${patch.cableCsaMm2} mm², ${patch.lengthM} m`);
+                      setStatus(`${id}: cable ${patch.parallel ? `${patch.parallel} × ` : ''}${patch.cores}C × ${patch.cableCsaMm2} mm², ${patch.lengthM} m`);
                     }}
                   />
                   </div>

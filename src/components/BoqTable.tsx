@@ -1,8 +1,8 @@
-import type { FeederResult } from '../calc/electrical';
+import { runsOf, type FeederResult } from '../calc/electrical';
 import { cableRatePerM, breakerRateAed, CURRENCY } from '../data/rates';
 
 interface Row {
-  id: string; name: string; cableCsaMm2: number; lengthM: number;
+  id: string; name: string; cableCsaMm2: number; runs: number; lengthM: number;
   cableRate: number; cableCost: number; breakerRatingA: number; breakerCost: number; total: number;
 }
 
@@ -10,10 +10,10 @@ function buildRows(results: FeederResult[]): Row[] {
   return results.map((r) => {
     const f = r.feeder;
     const cableRate = cableRatePerM(f.cableCsaMm2);
-    const cableCost = cableRate * f.lengthM;
+    const cableCost = cableRate * f.lengthM * runsOf(f); // every run in parallel
     const breakerCost = breakerRateAed(f.breakerRatingA);
     return {
-      id: f.id, name: f.name, cableCsaMm2: f.cableCsaMm2, lengthM: f.lengthM,
+      id: f.id, name: f.name, cableCsaMm2: f.cableCsaMm2, runs: runsOf(f), lengthM: f.lengthM,
       cableRate, cableCost, breakerRatingA: f.breakerRatingA, breakerCost, total: cableCost + breakerCost
     };
   });
@@ -21,7 +21,7 @@ function buildRows(results: FeederResult[]): Row[] {
 
 function toCsv(rows: Row[]): string {
   const header = ['Circuit', 'Description', 'Cable (mm²)', 'Length (m)', `Cable rate (${CURRENCY}/m)`, `Cable cost (${CURRENCY})`, 'Breaker (A)', `Breaker cost (${CURRENCY})`, `Total (${CURRENCY})`];
-  const lines = rows.map((r) => [r.id, r.name, r.cableCsaMm2, r.lengthM, r.cableRate, r.cableCost.toFixed(0), r.breakerRatingA, r.breakerCost.toFixed(0), r.total.toFixed(0)].join(','));
+  const lines = rows.map((r) => [r.id, r.name, r.runs > 1 ? `${r.runs} x ${r.cableCsaMm2}` : r.cableCsaMm2, r.lengthM, r.cableRate, r.cableCost.toFixed(0), r.breakerRatingA, r.breakerCost.toFixed(0), r.total.toFixed(0)].join(','));
   const grand = rows.reduce((s, r) => s + r.total, 0);
   lines.push(['', '', '', '', '', '', '', 'Grand total', grand.toFixed(0)].join(','));
   return [header.join(','), ...lines].join('\n');
@@ -58,7 +58,7 @@ export default function BoqTable({ results, projectName }: { results: FeederResu
         <tbody>
           {rows.map((r) => (
             <tr key={r.id}>
-              <td>{r.id}</td><td>{r.name}</td><td>{r.cableCsaMm2} mm²</td><td>{r.lengthM} m</td>
+              <td>{r.id}</td><td>{r.name}</td><td>{r.runs > 1 ? `${r.runs} × ` : ''}{r.cableCsaMm2} mm²</td><td>{r.lengthM} m</td>
               <td>{r.cableRate}/m</td><td>{r.cableCost.toFixed(0)}</td>
               <td>{r.breakerRatingA} A</td><td>{r.breakerCost.toFixed(0)}</td>
               <td><b>{r.total.toFixed(0)}</b></td>

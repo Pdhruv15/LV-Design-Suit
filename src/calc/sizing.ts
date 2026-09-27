@@ -1,4 +1,4 @@
-import { designCurrentA, evaluateFeeder, faultCurrentKA, impedanceToBoard, selectCable, upstreamVoltageDropPct } from './electrical';
+import { deratedAmpacityA, designCurrentA, evaluateFeeder, faultCurrentKA, impedanceToBoard, runsOf, selectCableRuns, upstreamVoltageDropPct, voltageDropPct } from './electrical';
 import { boardTotals, loadTypeOf, systemSummary } from './summary';
 import { breakerTypeOf } from './earthing';
 import { settingsOf, type Board, type BreakerType, type Feeder, type Project } from '../types';
@@ -198,6 +198,8 @@ export interface Recommendation {
   breakerType: BreakerType;
   breakerIcuKa?: number;
   cableCsaMm2?: number;
+  /** Cable runs in parallel for cableCsaMm2. */
+  parallel?: number;
   changed: boolean;
   note?: string;
 }
@@ -228,24 +230,32 @@ export function recommend(project: Project, f: Feeder, mode: SelectionMode = 'fi
   const budget = f.feedsBoardId
     ? INCOMER_VD_BUDGET_PCT
     : project.vdLimitPct * 0.85 - upstreamVoltageDropPct(project, f.boardId);
+  // One run up to 300 mm², then 2–4 runs in parallel.
   const minCable = breakerRatingA
-    ? selectCable(ib, f.lengthM, project.voltageV, f.cores, f.powerFactor, project.ambientC, budget, breakerRatingA) ?? undefined
+    ? selectCableRuns(ib, f.lengthM, project.voltageV, f.cores, f.powerFactor, project.ambientC, budget, breakerRatingA) ?? undefined
     : undefined;
-  // A larger cable than the minimum always still satisfies ampacity and
-  // voltage drop, so 'fix' mode never downsizes one.
-  const cableCsaMm2 = mode === 'fix' && minCable !== undefined && f.cableCsaMm2 >= minCable ? f.cableCsaMm2 : minCable;
+  // 'fix' keeps the cable the feeder has when it already meets both the
+  // breaker (Iz ≥ In) and the voltage drop budget.
+  const keep = mode === 'fix' && !!breakerRatingA &&
+    deratedAmpacityA(f.cableCsaMm2, project.ambientC, runsOf(f)) >= Math.max(ib, breakerRatingA) &&
+    voltageDropPct(f, project) <= budget + 1e-9;
+  const cableCsaMm2 = keep ? f.cableCsaMm2 : minCable?.csaMm2;
+  const parallel = keep ? runsOf(f) : minCable?.runs;
 
   const note = !breakerRatingA
     ? 'Current above the largest standard breaker'
     : !cableCsaMm2
-      ? 'No cable up to 300 mm² fits — shorten the run or use parallel cables'
-      : undefined;
+      ? 'No cable fits, even 4 runs of 300 mm² — shorten the run or split the load'
+      : parallel && parallel > 1 && parallel !== runsOf(f)
+        ? `${parallel} cables in parallel`
+        : undefined;
   const changed =
     (breakerRatingA !== undefined && breakerRatingA !== f.breakerRatingA) ||
     (breakerIcuKa !== undefined && breakerIcuKa !== f.breakerIcuKa) ||
     (cableCsaMm2 !== undefined && cableCsaMm2 !== f.cableCsaMm2) ||
+    (parallel !== undefined && parallel !== runsOf(f)) ||
     breakerType !== current;
-  return { feeder: f, ib, breakerRatingA, breakerType, breakerIcuKa, cableCsaMm2, changed, note };
+  return { feeder: f, ib, breakerRatingA, breakerType, breakerIcuKa, cableCsaMm2, parallel, changed, note };
 }
 
 export function applyRecommendation(f: Feeder, r: Recommendation): Feeder {
@@ -254,6 +264,7 @@ export function applyRecommendation(f: Feeder, r: Recommendation): Feeder {
     breakerRatingA: r.breakerRatingA ?? f.breakerRatingA,
     breakerIcuKa: r.breakerIcuKa ?? f.breakerIcuKa,
     cableCsaMm2: r.cableCsaMm2 ?? f.cableCsaMm2,
+    parallel: r.parallel !== undefined ? (r.parallel > 1 ? r.parallel : undefined) : f.parallel,
     breakerType: r.breakerType,
     cpcMm2: r.cableCsaMm2 && r.cableCsaMm2 !== f.cableCsaMm2 ? undefined : f.cpcMm2 // re-derive CPC for a new cable size
   };

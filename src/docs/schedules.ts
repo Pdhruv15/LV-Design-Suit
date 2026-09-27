@@ -1,4 +1,4 @@
-import { evaluateFeeder, faultCurrentKA, impedanceToBoard } from '../calc/electrical';
+import { evaluateFeeder, faultCurrentKA, impedanceToBoard, cableSizeText, runsOf } from '../calc/electrical';
 import { breakerTypeOf, cpcOf } from '../calc/earthing';
 import { boardSummary, boardsInSupplyOrder, loadTypeOf } from '../calc/summary';
 import { BOARD_KINDS, LOAD_TYPES, type Feeder, type Project } from '../types';
@@ -13,7 +13,7 @@ export interface Schedule {
 const n = (v: number, d = 0) => Number(v.toFixed(d));
 const poles = (f: Feeder) => (f.cores === 2 ? 'SP+N' : f.cores === 3 ? 'TP' : 'TP+N');
 const loadLabel = (f: Feeder) => LOAD_TYPES.find((t) => t.value === loadTypeOf(f))?.label ?? '';
-const cableText = (f: Feeder) => `${f.cores}C × ${f.cableCsaMm2} mm² + ${cpcOf(f)} mm² CPC`;
+const cableText = (f: Feeder) => `${cableSizeText(f)} + ${runsOf(f) > 1 ? `${runsOf(f)} × ` : ''}${cpcOf(f)} mm² CPC`;
 
 /** DB (panel) schedule: one block per board with its circuits and a total. */
 export function dbSchedule(project: Project, boardIds?: string[]): Schedule {
@@ -58,7 +58,7 @@ export function cableSchedule(project: Project): Schedule {
       .map((f) => {
         const r = evaluateFeeder(project, f);
         return [
-          `C-${f.id}`, f.boardId, f.feedsBoardId ?? f.name, 'Cu/XLPE/SWA/PVC', `${f.cores}C × ${f.cableCsaMm2} mm²`,
+          `C-${f.id}`, f.boardId, f.feedsBoardId ?? f.name, 'Cu/XLPE/SWA/PVC', cableSizeText(f),
           cpcOf(f), f.lengthM, n(r.ib), f.breakerRatingA, n(r.ampacity), n(r.vdPct, 2), n(r.vdTotalPct, 2),
           r.status === 'ok' ? 'Pass' : r.status === 'warn' ? 'Check' : 'Fail'
         ];

@@ -180,13 +180,15 @@ def run_pandapower(project):
         line_of[f["id"]] = pp.create_line_from_parameters(
             net, from_bus=bus[f["boardId"]], to_bus=end, length_km=f["lengthM"] / 1000.0,
             r_ohm_per_km=r20 * R_OPERATING_FACTOR, x_ohm_per_km=x, c_nf_per_km=0.0,
-            max_i_ka=amps / 1000.0, name=f["id"])
+            max_i_ka=amps / 1000.0, parallel=max(1, int(f.get("parallel") or 1)), name=f["id"])
         if f["cores"] == 2:
             single_phase.append(f["id"])
         if f.get("feedsBoardId"):
             continue
         p = f["loadKw"] * f["demandFactor"] / 1000.0
         q = p * math.tan(math.acos(max(min(f["powerFactor"], 1.0), 1e-6)))
+        if f.get("kvar"):  # capacitor bank: reactive power only, leading
+            p, q = 0.0, -f["kvar"] / 1000.0
         if f.get("generation"):
             pp.create_sgen(net, end, p_mw=p, q_mvar=q, name=f["id"])
         else:
