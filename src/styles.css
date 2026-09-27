@@ -183,10 +183,8 @@ tr.total td{background:var(--p2);font-weight:600}
 .sysdiag .tx:hover .tr{stroke-width:2.4}
 .modal-sub{margin:6px 0 0;font-size:13px}
 /* ---- Load schedule ---- */
-.sysdiag .box.stack{opacity:.55}
-.sysdiag .box.warn{stroke:var(--warn)}
-.sysdiag .box.bad{stroke:var(--bad)}
-.sysdiag .blk:hover .box{stroke:var(--acc)}
+.sysdiag .sched{cursor:pointer}
+.sysdiag .sched:hover text{fill:var(--acc)}
 .ls-head{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;padding:8px 10px;margin-bottom:8px;background:var(--panel);border:1px solid var(--line);border-radius:8px}
 .ls-head label{display:inline-flex;gap:6px;align-items:center}
 .ls-head input,.ls-head select{background:var(--p2);color:var(--tx);border:1px solid var(--line);border-radius:5px;padding:3px 6px;font:inherit}

@@ -55,7 +55,7 @@ export default function SystemDiagram({
   layers?: ResultLayers;
   onEditFeeder?: (id: string) => void;
   onEditBoard?: (id: string) => void;
-  /** Opens a DB's load schedule (double-click on a collapsed circuit block). */
+  /** Opens a DB's load schedule (double-click on the DB's circuit summary). */
   onOpenSchedule?: (boardId: string) => void;
 }) {
   const feederTags = (id: string): Tag[] => {
@@ -246,36 +246,22 @@ export default function SystemDiagram({
           );
         })}
 
-        {/* DBs with many final circuits: one block per DB */}
-        {layout.blocks.map((blk) => {
-          const y = blk.busY;
-          const kw = blk.circuits.reduce((s, f) => s + f.loadKw * f.demandFactor, 0);
-          const ph = boardPhaseKw({ ...project, feeders: blk.circuits }, blk.boardId);
-          const statuses = blk.circuits.map((f) => byFeeder.get(f.id)?.status);
-          const status = worst(statuses);
-          const failing = statuses.filter((s) => s !== 'ok').length;
-          return (
-            <g key={`blk-${blk.boardId}`} className="fd blk" onClick={click(() => onSelectBoard(blk.boardId))} onDoubleClick={edit(onOpenSchedule, blk.boardId)} tabIndex={0}
-              onKeyDown={(e) => e.key === 'Enter' && onOpenSchedule?.(blk.boardId)}>
-              <title>{`${blk.circuits.length} final circuits — double-click to open the load schedule`}</title>
-              <line x1={blk.x} y1={y} x2={blk.x} y2={y + 30} className="ln" />
-              <rect x={blk.x - 54} y={y + 36} width="108" height="92" rx="7" className="box stack" />
-              <rect x={blk.x - 58} y={y + 32} width="108" height="92" rx="7" className={`box ${status !== 'ok' ? status : ''}`} />
-              <text className="b" x={blk.x - 4} y={y + 54} textAnchor="middle">{blk.circuits.length} circuits</text>
-              <text x={blk.x - 4} y={y + 70} textAnchor="middle">{kw.toFixed(1)} kW</text>
-              <text className="m" x={blk.x - 4} y={y + 86} textAnchor="middle">R {ph.R.toFixed(1)} · Y {ph.Y.toFixed(1)}</text>
-              <text className="m" x={blk.x - 4} y={y + 99} textAnchor="middle">B {ph.B.toFixed(1)} kW</text>
-              <text x={blk.x - 4} y={y + 115} textAnchor="middle" className={`res ${failing ? status : 'm'}`}>{failing ? `${failing} to check` : 'open schedule ›'}</text>
-            </g>
-          );
-        })}
-
         {/* Boards: box on the incoming line, then the busbar */}
         {layout.boards.map((n) => {
           const b = n.board;
           const s = summaries.get(b.id)!;
           const status = worst([s.loadingStatus, ...project.feeders.filter((f) => f.boardId === b.id).map((f) => byFeeder.get(f.id)?.status)]);
           const sel = b.id === selectedBoardId;
+          const kw = n.circuits.reduce((sum, f) => sum + f.loadKw * f.demandFactor, 0);
+          const ph = boardPhaseKw({ ...project, feeders: n.circuits }, b.id);
+          const failing = n.circuits.filter((f) => byFeeder.get(f.id)?.status !== 'ok').length;
+          const circuitTags: Tag[] = n.circuits.length
+            ? [
+                { text: `${n.circuits.length} circuits · ${kw.toFixed(1)} kW`, cls: 'b' },
+                { text: `R ${ph.R.toFixed(1)} · Y ${ph.Y.toFixed(1)} · B ${ph.B.toFixed(1)} kW`, cls: 'm' },
+                ...(failing ? [{ text: `${failing} circuit${failing > 1 ? 's' : ''} to check`, cls: status }] : [])
+              ]
+            : [];
           return (
             <g
               key={b.id}
@@ -286,7 +272,7 @@ export default function SystemDiagram({
               onKeyDown={(e) => (e.key === 'Enter' ? onSelectBoard(b.id) : e.key === 'F2' && edit(onEditBoard, b.id)())}
             >
               <title>{`${b.id} — double-click to edit`}</title>
-              <line x1={n.busX1} y1={n.busY} x2={n.busX2} y2={n.busY} className={`bus ${sel ? 'sel' : ''}`} />
+              {!n.terminal && <line x1={n.busX1} y1={n.busY} x2={n.busX2} y2={n.busY} className={`bus ${sel ? 'sel' : ''}`} />}
               <line x1={n.x} y1={n.busY - 22} x2={n.x} y2={n.busY} className="ln" />
               <rect x={n.x - 62} y={n.busY - 58} width="124" height="36" rx="6" className="box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
               <text className="b" x={n.x - 54} y={n.busY - 42}>{trunc(b.id, 14)}</text>
@@ -295,7 +281,16 @@ export default function SystemDiagram({
                 {b.ratedCurrentA ? ` · ${b.ratedCurrentA} A` : ''}
               </text>
               <circle cx={n.x + 52} cy={n.busY - 46} r="4" style={{ fill: `var(--${status})` }} />
+              {n.terminal && circuitTags.length > 0 && (
+                <g className="sched" onDoubleClick={(e) => { e.stopPropagation(); edit(onOpenSchedule, b.id)(); }}>
+                  <title>Final circuits are on the load schedule — double-click to open it</title>
+                  {circuitTags.map((t, i) => (
+                    <text key={t.text} x={n.x} y={n.busY - 4 + i * 13} textAnchor="middle" className={`res ${t.cls}`}>{t.text}</text>
+                  ))}
+                </g>
+              )}
               {[
+                ...(n.terminal ? [] : circuitTags),
                 ...boardTags(b.id),
                 ...(s.loadingPct !== undefined ? [{ text: `${s.loadingPct.toFixed(0)}% loaded`, cls: layers?.loading ? s.loadingStatus ?? 'm' : 'm' }] : [])
               ].map((t, i) => (
