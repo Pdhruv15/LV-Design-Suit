@@ -223,3 +223,28 @@ table.ls td.elcb.warn{outline:1px solid var(--warn);outline-offset:-2px}
 .db-bar .chip,.stage-head .chip{display:inline-flex;align-items:center;gap:5px}
 table.ls select.lib-pick{width:50px;font-size:9.5px;padding:0;margin-top:2px;color:var(--mut)}
 table.ls select.lib-pick.linked{color:var(--acc);border-color:color-mix(in srgb,var(--acc) 50%,transparent)}
+/* ---- Voltage drop calculation ---- */
+.vd-layout{display:grid;grid-template-columns:250px minmax(0,1fr);gap:14px;align-items:start}
+.vd-pick{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;position:sticky;top:0;max-height:75vh;overflow:auto}
+.vd-pick-head{display:flex;justify-content:space-between;align-items:center;padding-bottom:6px;border-bottom:1px solid var(--line);margin-bottom:6px}
+.vd-pick button.link{background:none;border:0;padding:0;color:var(--acc);cursor:pointer;font:inherit}
+.vd-panel{padding:4px 0 6px}
+.vd-panel-row,.vd-cable-row{display:flex;align-items:center;gap:6px;padding:2px 0;cursor:pointer}
+.vd-cable-row{padding-left:20px;font-size:12.5px}
+.vd-cable-row .m,.vd-panel-row .m{margin-left:auto;font-size:11px}
+.vd-main{min-width:0;overflow-x:auto}
+.vd-summary{margin:2px 0 8px}
+.vd-summary .counts{display:inline-flex;gap:8px}
+.vd-empty{padding:24px 4px}
+.vd-table{white-space:nowrap}
+.vd-table tr.vd-group td{background:var(--p2);color:var(--bus);font-weight:600}
+.vd-table td.vd-remarks{white-space:normal;min-width:120px}
+/* Cells edited in place (double-click) */
+td.ec.editable{cursor:cell;box-shadow:inset 0 -1px 0 color-mix(in srgb,var(--acc) 45%,transparent)}
+td.ec.editable:hover{background:color-mix(in srgb,var(--acc) 10%,transparent)}
+td.ec.locked{color:var(--mut)}
+td.ec.editing{padding:2px 4px;position:relative}
+td.ec input,td.ec select{width:100%;min-width:70px;background:var(--bg);color:var(--tx);border:1px solid var(--acc);border-radius:4px;padding:4px 6px;font:inherit}
+td.ec input[aria-invalid="true"]{border-color:var(--bad)}
+td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad);color:#fff;font-size:11px;padding:1px 6px;border-radius:4px;white-space:nowrap}
+@media (max-width:900px){.vd-layout{grid-template-columns:1fr}.vd-pick{position:static;max-height:none}}

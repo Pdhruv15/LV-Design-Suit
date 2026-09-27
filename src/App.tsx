@@ -15,6 +15,7 @@ import SystemSummaryCards from './components/SystemSummaryCards';
 import BoardPanel from './components/BoardPanel';
 import EarthingStudy from './components/studies/EarthingStudy';
 import SelectionStudy from './components/studies/SelectionStudy';
+import VoltageDropStudy from './components/studies/VoltageDropStudy';
 import CoordinationStudy from './components/studies/CoordinationStudy';
 import { PfcStudy, TransformerGeneratorStudy } from './components/studies/SizingStudy';
 import { CableScheduleView, DbScheduleView, EquipmentScheduleView, ReportView } from './components/docs/Documents';
@@ -466,6 +467,7 @@ export default function App() {
                 <EngineCompare project={project} />
               </>
             )}
+            {view === 'voltage-drop' && <VoltageDropStudy project={project} onChange={setProject} onStatus={setStatus} />}
             {view === 'earthing' && <EarthingStudy project={project} onSelectFeeder={(id) => { setView('design'); selectFeeder(id); }} />}
             {view === 'selection' && <SelectionStudy project={project} onChange={setProject} />}
             {view === 'coordination' && <CoordinationStudy project={project} />}
