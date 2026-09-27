@@ -259,3 +259,15 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 .ls-sheet .jss_worksheet .highlight-selected,.ls-sheet .jss_worksheet td.highlight{background-color:rgba(74,168,255,.14)}
 .ls-sheet-foot{margin:6px 2px 0;font-size:12px;color:var(--mut)}
 .jcontextmenu{color:#111}
+/* ---- Connected load & MD form ---- */
+.form-tabs{margin:4px 0 10px}
+.form-tabs button:disabled{opacity:.45;cursor:not-allowed}
+.md-form{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.md-head{display:grid;grid-template-columns:1.2fr 1.6fr 1fr;gap:4px 16px;margin-bottom:8px;font-size:12.5px}
+.md-head span{color:var(--mut)}
+.md-title{font-weight:700;text-align:center;font-size:13.5px;grid-row:span 1}
+.md-foot{margin-top:8px;font-size:12.5px;display:grid;gap:6px}
+.md-connected{color:var(--mut)}
+.md-demand{display:flex;gap:22px;flex-wrap:wrap;align-items:center}
+.md-demand .chip{margin-left:auto}
+.md-blank{color:var(--mut)}

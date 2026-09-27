@@ -5,6 +5,9 @@ import { breakerRatings } from '../calc/sizing';
 import { addCircuit, refreshBoard, updateCircuit, type CircuitPatch } from '../model/schedule';
 import type { Board, Feeder, Phase, PointType, Project } from '../types';
 import { loadScheduleRows } from './loadScheduleDoc';
+import { cellName, colName, parseCount, parsePositive, STYLE, statusColor, type SheetEdit, type SheetModel } from './sheet';
+
+export { colName, type SheetEdit };
 
 /** The DEWA "Load distribution schedule" of one DB as a spreadsheet: rows,
  * columns, merged cells and which cells the user may type in. Pure data,
@@ -33,16 +36,10 @@ export type SheetRow =
   | { type: 'circuit'; feeder: Feeder }
   | { type: 'slot'; phase: Phase; way: number };
 
-export interface DbSheet {
+export interface DbSheet extends SheetModel {
   board: Board;
-  cols: SheetCol[];
+  sheetCols: SheetCol[];
   rows: SheetRow[];
-  data: (string | number)[][];
-  /** Top-left cell name → [columns, rows] spanned. */
-  merges: Record<string, [number, number]>;
-  /** Header groups above the column titles. */
-  groups: { title: string; colspan: number }[];
-  /** TOTAL (kW) line, one cell per column. */
   totals: string[];
   /** e.g. "40A TP ISOLATOR". */
   incomerText: string;
@@ -50,16 +47,6 @@ export interface DbSheet {
   cableText: string;
   /** Row index → status class for circuit rows ('ok' | 'warn' | 'bad'). */
   status: Record<number, string>;
-  /** Stable description of rows, columns and merges: when it changes the
-   * grid is rebuilt, otherwise only its values are refreshed. */
-  shape: string;
-}
-
-/** Spreadsheet column name for a 0-based index: 0 → A, 26 → AA. */
-export function colName(i: number): string {
-  let s = '';
-  for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
-  return s;
 }
 
 const fmtKw = (w: number) => (w / 1000).toFixed(2);
@@ -191,13 +178,41 @@ export function buildDbSheet(project: Project, boardId: string): DbSheet {
     rows.map((r) => (r.type === 'circuit' ? `c:${r.feeder.id}` : r.type === 'slot' ? `s:${r.phase}${r.way}` : 'w')),
     merges
   ]);
-  return { board, cols, rows, data, merges, groups, totals, incomerText, cableText, status, shape };
+  const sheet: DbSheet = {
+    board, sheetCols: cols, rows, data, merges, groups, totals, incomerText, cableText, status, shape, styles: {},
+    freezeColumns: at('room') + 1,
+    cols: cols.map((c) => ({
+      title: c.title, width: c.width, input: c.input || c.key === 'incomer' || c.key === 'elcb', source: c.source,
+      align: c.key === 'room' || c.key === 'remarks' ? 'left' : 'center', wrap: c.key === 'room' || c.key === 'remarks'
+    })),
+    editable: (y, x) => isEditable(sheet, y, x)
+  };
+  sheet.styles = cellStyles(sheet);
+  return sheet;
+}
+
+/** Input cells white, calculated cells grey, the WATT / UNIT row tinted,
+ * and the check column coloured by result. */
+function cellStyles(sheet: DbSheet): Record<string, string> {
+  const out: Record<string, string> = {};
+  sheet.rows.forEach((row, y) => {
+    sheet.sheetCols.forEach((c, x) => {
+      const name = cellName(x, y);
+      if (row.type === 'watts') out[name] = STYLE.highlight;
+      else if (c.key === 'ref' && row.type === 'slot') out[name] = STYLE.muted;
+      else if (!isEditable(sheet, y, x)) out[name] = STYLE.calc;
+      else out[name] = STYLE.input;
+      if (c.key === 'check' && row.type === 'circuit') out[name] = `${STYLE.calc};font-weight:600;color:${statusColor(sheet.status[y])}`;
+      if (c.key === 'incomer' || c.key === 'elcb') out[name] = `${STYLE.calc};${STYLE.vertical}`;
+    });
+  });
+  return out;
 }
 
 /** Whether the user may type in a cell. */
 export function isEditable(sheet: DbSheet, y: number, x: number): boolean {
   const row = sheet.rows[y];
-  const col = sheet.cols[x];
+  const col = sheet.sheetCols[x];
   if (!row || !col) return false;
   if (row.type === 'watts') return col.key.startsWith('pt:');
   if (!col.input) return false;
@@ -205,24 +220,6 @@ export function isEditable(sheet: DbSheet, y: number, x: number): boolean {
   // not sizes: those come from the load.
   if (row.type === 'slot') return col.key === 'room' || col.key === 'remarks' || col.key.startsWith('pt:');
   return true;
-}
-
-export interface SheetEdit {
-  y: number;
-  x: number;
-  value: string | number | boolean;
-}
-
-/** Whole, non-negative number of points; blank is 0. */
-function parseCount(v: string): number | null {
-  const t = v.trim();
-  if (t === '') return 0;
-  return /^\d+$/.test(t) ? Number(t) : null;
-}
-
-function parsePositive(v: string): number | null {
-  const t = v.trim().replace(',', '.');
-  return /^\d*\.?\d+$/.test(t) && Number(t) > 0 ? Number(t) : null;
 }
 
 /** Applies typed or pasted values to the project. Values that don't fit a
@@ -238,7 +235,7 @@ export function applySheetEdits(project: Project, sheet: DbSheet, edits: SheetEd
   for (const e of edits) {
     if (!isEditable(sheet, e.y, e.x)) continue;
     const row = sheet.rows[e.y];
-    const key = sheet.cols[e.x].key;
+    const key = sheet.sheetCols[e.x].key;
     const v = String(e.value ?? '');
     if (row.type === 'watts') {
       const n = parseCount(v);

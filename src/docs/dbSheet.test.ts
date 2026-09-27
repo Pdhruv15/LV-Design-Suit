@@ -4,7 +4,7 @@ import { boardPhaseKw, scheduleCircuits } from '../calc/loadSchedule';
 import type { Project } from '../types';
 import { applySheetEdits, buildDbSheet, colName, isEditable, type DbSheet } from './dbSheet';
 
-const col = (s: DbSheet, key: string) => s.cols.findIndex((c) => c.key === key);
+const col = (s: DbSheet, key: string) => s.sheetCols.findIndex((c) => c.key === key);
 const rowOf = (s: DbSheet, ref: string) => s.data.findIndex((r) => r[col(s, 'ref')] === ref);
 
 describe('DB load schedule sheet', () => {
@@ -15,7 +15,7 @@ describe('DB load schedule sheet', () => {
   });
 
   it('follows the villa form: its point columns in order, then any other type in use', () => {
-    const titles = sheet.cols.filter((c) => c.key.startsWith('pt:')).map((c) => c.title);
+    const titles = sheet.sheetCols.filter((c) => c.key.startsWith('pt:')).map((c) => c.title);
     expect(titles.slice(0, 13)).toEqual(['LTG', 'EX.FAN', 'SH.S/O', '13A S.S/O', '13A T.S/O', 'W/H', 'FCU', 'SPUR O/L', 'ISOL', 'COOKER', 'S A/C', 'WAT.PUMP', 'OTH']);
     expect(titles).toContain('C.FAN'); // used on the guest bedroom, not in the villa form
   });

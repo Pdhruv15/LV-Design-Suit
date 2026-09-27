@@ -24,9 +24,10 @@ export const BREAKER_TYPES: { value: BreakerType; label: string }[] = [
   { value: 'ACB', label: 'ACB (adjustable Im)' }
 ];
 
-export type BoardKind = 'MDB' | 'SMDB' | 'DB' | 'MCC' | 'EMDB';
+export type BoardKind = 'MC' | 'MDB' | 'SMDB' | 'DB' | 'MCC' | 'EMDB';
 
 export const BOARD_KINDS: { value: BoardKind; label: string }[] = [
+  { value: 'MC', label: 'Meter cabinet (authority supply)' },
   { value: 'MDB', label: 'Main distribution board' },
   { value: 'SMDB', label: 'Sub-main distribution board' },
   { value: 'DB', label: 'Distribution board' },
@@ -102,6 +103,18 @@ export const DEFAULT_POINT_WATTS: Record<PointType, number> = {
 /** Point types that make a circuit a lighting circuit (if it has only these). */
 export const LIGHTING_POINTS: PointType[] = ['ltg', 'cfan', 'exfan'];
 
+/** Switching device column of the connected load / MD form. */
+export type SwitchDevice = 'ACB' | 'MCCB' | 'ISOL';
+export const SWITCH_DEVICES: SwitchDevice[] = ['ACB', 'MCCB', 'ISOL'];
+
+/** kWh meter types of the form: (1) 1-phase up to 60 A, (2) 3-phase up to
+ * 125 A, (3) LV / HV CT metering. */
+export type MeterType = '1-PH' | '3-PH' | 'CT';
+export const METER_TYPES: MeterType[] = ['1-PH', '3-PH', 'CT'];
+
+export const DEFAULT_CABLE_TYPE = 'XLPE/PVC/SWA';
+export const CABLE_TYPES = ['XLPE/PVC/SWA', 'XLPE/SWA/PVC', 'XLPE/PVC', 'PVC/PVC', 'XLPE/LSF/SWA'];
+
 /** Supply phase of a final circuit; 'RYB' is a 3-phase circuit using all
  * three phases of its way. */
 export type Phase = 'R' | 'Y' | 'B' | 'RYB';
@@ -131,6 +144,10 @@ export interface Feeder {
   points?: Partial<Record<PointType, number>>; // number of points of each type
   remarks?: string;
   manualSize?: boolean; // MCB / wire / ECC set by hand — don't auto-size on load changes
+  // Connected load & maximum demand form (authority submission)
+  device?: SwitchDevice; // ACB / MCCB / ISOL column; default from the breaker type
+  cableType?: string; // e.g. "XLPE/PVC/SWA" (default)
+  kwhMeter?: MeterType; // proposed kWh meter on this outgoing feeder
   feedsBoardId?: string; // if set, this feeder is the incomer to a downstream board —
   // its loadKw/demandFactor are ignored and its current is derived from that
   // board's total demand instead
@@ -151,6 +168,17 @@ export interface Board {
   location?: string;
   manufacturer?: string;
   model?: string;
+  /** Incoming supply of a board fed by the authority (meter cabinet / MDB
+   * with no upstream board): the INCOMER row of the connected load form. */
+  supply?: {
+    fedFrom?: string; // e.g. "DEWA"
+    device?: SwitchDevice;
+    ratingA?: number;
+    faultKa?: number;
+    cable?: string; // e.g. "BY DEWA"
+    ecc?: string; // e.g. "2X1CX35"
+    meter?: MeterType;
+  };
   // DB load schedule settings
   pointWatts?: Partial<Record<PointType, number>>; // WATT/UNIT row overrides for this DB
   pointItems?: Partial<Record<PointType, string>>; // library item chosen per column (kept in sync with Loads.xlsx)
