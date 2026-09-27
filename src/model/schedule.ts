@@ -21,8 +21,10 @@ function refresh(project: Project, f: Feeder): Feeder {
   return sized.cableCsaMm2 < min ? { ...sized, cableCsaMm2: min, cpcMm2: undefined } : sized;
 }
 
-export function addCircuit(project: Project, boardId: string, phase?: Phase): { project: Project; id: string } {
-  const slot = nextFreeSlot(project, boardId, phase);
+/** Adds a circuit in the next free slot, or in the given slot (phase and
+ * way) when the user types into an empty row of the schedule. */
+export function addCircuit(project: Project, boardId: string, phase?: Phase, way?: number): { project: Project; id: string } {
+  const slot = phase && way ? { phase, way } : nextFreeSlot(project, boardId, phase);
   const id = circuitId(boardId, slot.phase, slot.way);
   const f: Feeder = {
     id, boardId, name: '', room: '', points: {},

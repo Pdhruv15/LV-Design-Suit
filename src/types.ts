@@ -36,7 +36,8 @@ export const BOARD_KINDS: { value: BoardKind; label: string }[] = [
 
 /** Point types from the DEWA load distribution schedule, in form order. */
 export type PointType =
-  | 'ltg' | 'cfan' | 'exfan' | 'shaver' | 's13' | 'wh' | 'hd' | 'cooker' | 's15' | 'wac' | 'sac' | 'pump' | 'spare1' | 'spare2';
+  | 'ltg' | 'cfan' | 'exfan' | 'shaver' | 's13' | 'wh' | 'hd' | 'cooker' | 's15' | 'wac' | 'sac' | 'pump' | 'spare1' | 'spare2'
+  | 's13t' | 'fcu' | 'spur' | 'isol';
 
 export const POINT_TYPES: { value: PointType; label: string; title: string }[] = [
   { value: 'ltg', label: 'LTG', title: 'Lighting point' },
@@ -52,14 +53,50 @@ export const POINT_TYPES: { value: PointType; label: string; title: string }[] =
   { value: 'sac', label: "'S' A/C", title: 'Split type A/C' },
   { value: 'pump', label: 'WAT.PUMP', title: 'Water pump' },
   { value: 'spare1', label: 'OTHER 1', title: 'Other load (spare column)' },
-  { value: 'spare2', label: 'OTHER 2', title: 'Other load (spare column)' }
+  { value: 'spare2', label: 'OTHER 2', title: 'Other load (spare column)' },
+  { value: 's13t', label: '13A T.S/O', title: '13 A twin socket-outlet' },
+  { value: 'fcu', label: 'FCU', title: 'Fan coil unit' },
+  { value: 'spur', label: 'SPUR O/L', title: 'Fused spur outlet' },
+  { value: 'isol', label: 'ISOL', title: 'Isolator (equipment connection)' }
 ];
+
+/** Point columns of a load schedule form, in order, with the form's own
+ * headings. Point types used on a DB but not in its template are still
+ * shown (after these), so nothing entered is ever hidden. */
+export interface PointTemplate {
+  id: string;
+  name: string;
+  columns: PointType[];
+  labels?: Partial<Record<PointType, string>>;
+}
+
+export const POINT_TEMPLATES: PointTemplate[] = [
+  {
+    id: 'dewa-villa',
+    name: 'DEWA villa (LTG, EX.FAN … FCU, SPUR, ISOL, OTH)',
+    columns: ['ltg', 'exfan', 'shaver', 's13', 's13t', 'wh', 'fcu', 'spur', 'isol', 'cooker', 'sac', 'pump', 'spare1'],
+    labels: { s13: '13A S.S/O', sac: 'S A/C', spare1: 'OTH' }
+  },
+  {
+    id: 'dewa-standard',
+    name: 'DEWA standard (LTG, C.FAN … W A/C, S A/C, OTHER 1–2)',
+    columns: ['ltg', 'cfan', 'exfan', 'shaver', 's13', 'wh', 'hd', 'cooker', 's15', 'wac', 'sac', 'pump', 'spare1', 'spare2']
+  }
+];
+
+/** Template for projects that don't name one (older projects). */
+export const DEFAULT_POINT_TEMPLATE = 'dewa-standard';
+/** Template for new projects: the DEWA villa submission form. */
+export const NEW_PROJECT_POINT_TEMPLATE = 'dewa-villa';
+
+export const pointTemplateOf = (p: Pick<Project, 'pointTemplate'>): PointTemplate =>
+  POINT_TEMPLATES.find((t) => t.id === p.pointTemplate) ?? POINT_TEMPLATES.find((t) => t.id === DEFAULT_POINT_TEMPLATE)!;
 
 /** Watts per point are user input (the schedule's WATT/UNIT row, per DB);
  * nothing is assumed, so a new DB starts at 0 W for every point type. */
 export const DEFAULT_POINT_WATTS: Record<PointType, number> = {
   ltg: 0, cfan: 0, exfan: 0, shaver: 0, s13: 0, wh: 0, hd: 0, cooker: 0,
-  s15: 0, wac: 0, sac: 0, pump: 0, spare1: 0, spare2: 0
+  s15: 0, wac: 0, sac: 0, pump: 0, spare1: 0, spare2: 0, s13t: 0, fcu: 0, spur: 0, isol: 0
 };
 
 /** Point types that make a circuit a lighting circuit (if it has only these). */
@@ -130,10 +167,27 @@ export interface Project {
   ambientC: number;
   vdLimitPct: number; // allowable voltage drop, e.g. 4.0 per DEWA/IEC
   vdSelection?: string[]; // feeder ids chosen for the voltage drop calculation
+  pointTemplate?: string; // load schedule point columns (POINT_TEMPLATES id)
+  info?: ProjectInfo; // header data of the authority submission forms
   studySettings?: StudySettings;
   boards: Board[];
   feeders: Feeder[];
   updatedAt: string;
+}
+
+/** Header / footer fields of the DEWA submission forms. All optional. */
+export interface ProjectInfo {
+  owner?: string;
+  consultant?: string;
+  contractor?: string; // consultant / contractor line of the form footer
+  tel?: string;
+  fax?: string;
+  plotNo?: string;
+  area?: string; // e.g. "VILLA, UAE"
+  plannedCompletion?: string;
+  builtUpAreaM2?: number;
+  /** Demand factor for maximum demand on the connected load / MD forms. */
+  mdDemandFactor?: number;
 }
 
 /** Design targets for the sizing studies. All optional; see STUDY_DEFAULTS. */
@@ -169,6 +223,8 @@ export function newProject(name: string): Project {
     frequencyHz: 50,
     ambientC: 45,
     vdLimitPct: 4,
+    pointTemplate: NEW_PROJECT_POINT_TEMPLATE,
+    info: { mdDemandFactor: 0.8 },
     boards: [{ id: 'MDB-1', name: 'Main Distribution Board', kind: 'MDB', sourceKva: 1000, sourceImpedancePct: 5, ratedCurrentA: 1600 }],
     feeders: [],
     updatedAt: new Date().toISOString()
