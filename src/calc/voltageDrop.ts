@@ -2,6 +2,7 @@ import { getCable } from './cableTable';
 import { boardDemandKw, designCurrentA, rOperatingOhmPerKm, runsOf, upstreamVoltageDropPct, type Status } from './electrical';
 import { isScheduleCircuit, scheduleCircuits } from './loadSchedule';
 import { boardsInSupplyOrder, loadTypeOf } from './summary';
+import { isMotor, starterInfo, starterOf } from './motor';
 import { LOAD_TYPES, type Board, type Feeder, type Project } from '../types';
 
 const SQRT3 = Math.sqrt(3);
@@ -70,7 +71,7 @@ export function vdRow(project: Project, f: Feeder): VdRow {
     from,
     toBoard,
     toName: toBoard ? toBoard.id : f.name || f.id,
-    toType: toBoard ? toBoard.kind ?? 'DB' : typeLabel(f),
+    toType: toBoard ? toBoard.kind ?? 'DB' : isMotor(f) ? `${typeLabel(f)} (${starterInfo(starterOf(f)).short})` : typeLabel(f),
     loadKw: f.feedsBoardId ? boardDemandKw(project, f.feedsBoardId) : f.loadKw * f.demandFactor,
     scheduleCircuits: f.feedsBoardId ? scheduleCircuits(project, f.feedsBoardId).length : 0,
     pf,

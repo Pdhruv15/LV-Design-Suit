@@ -33,7 +33,7 @@ describe('voltage drop calculation', () => {
     expect(r.vdV).toBeCloseTo((r.mvPerAm * r.ib * 20) / 1000, 9);
     expect(r.vdPct).toBeCloseTo((r.vdV / 415) * 100, 9);
     expect(r.toName).toBe('Water pump');
-    expect(r.toType).toBe('Motor');
+    expect(r.toType).toBe('Motor (DOL)');
   });
 
   it("takes a DB incomer's load from the DB's load schedule", () => {

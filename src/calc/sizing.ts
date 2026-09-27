@@ -1,6 +1,7 @@
 import { deratedAmpacityA, designCurrentA, evaluateFeeder, faultCurrentKA, impedanceToBoard, runsOf, selectCableRuns, upstreamVoltageDropPct, voltageDropPct } from './electrical';
 import { boardTotals, loadTypeOf, systemSummary } from './summary';
 import { breakerTypeOf } from './earthing';
+import { isMotor, motorStartDipPct, runningKva, startingKva } from './motor';
 import { settingsOf, type Board, type BreakerType, type Feeder, type Project } from '../types';
 
 const SQRT3 = Math.sqrt(3);
@@ -105,7 +106,8 @@ export interface GeneratorSizing {
   demandKva: number;
   designKva: number;
   recommendedKva?: number;
-  largestMotor?: { feeder: Feeder; runningKva: number; dolStartingKva: number };
+  /** The motor with the largest starting kVA (with its starter). */
+  largestMotor?: { feeder: Feeder; runningKva: number; startingKva: number; dipPct?: number };
 }
 
 /** Standby generator sized on the running demand of the essential loads.
@@ -124,16 +126,17 @@ export function sizeGenerator(project: Project): GeneratorSizing {
   }
   const demandKva = Math.hypot(p, q);
   const designKva = demandKva / (s.generatorMaxLoadingPct / 100);
+  const recommendedKva = essential.length ? nextStandard(STANDARD_GENERATOR_KVA, designKva) : undefined;
   const motors = essential
-    .filter((f) => ['motor', 'fire-pump'].includes(loadTypeOf(f)))
-    .map((f) => ({ feeder: f, runningKva: f.loadKw / f.powerFactor, dolStartingKva: (6 * f.loadKw) / f.powerFactor }))
-    .sort((a, b) => b.runningKva - a.runningKva);
+    .filter(isMotor)
+    .map((f) => ({ feeder: f, runningKva: runningKva(f), startingKva: startingKva(f), dipPct: recommendedKva ? motorStartDipPct(startingKva(f), recommendedKva) : undefined }))
+    .sort((a, b) => b.startingKva - a.startingKva);
   return {
     essential,
     demandKw: p,
     demandKva,
     designKva,
-    recommendedKva: essential.length ? nextStandard(STANDARD_GENERATOR_KVA, designKva) : undefined,
+    recommendedKva,
     largestMotor: motors[0]
   };
 }

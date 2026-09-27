@@ -1,5 +1,7 @@
-import { loadTypeOf } from './summary';
 import { boardDemandKva, standbyBoards } from './sizing';
+import { isMotor, motorStartDipPct, startingKva } from './motor';
+
+export { GENERATOR_XD_TRANSIENT_PCT, MOTOR_START_DIP_LIMIT_PCT, motorStartDipPct } from './motor';
 import type { Board, Feeder, Project } from '../types';
 
 /** Operating scenarios for the SLD: the normal supply, or the standby
@@ -9,11 +11,7 @@ export type SupplyMode = 'normal' | 'generator';
 /** Generator subtransient reactance X″d (%), for fault levels on
  * generator supply; typical for LV diesel sets. */
 export const GENERATOR_XD_SUBTRANSIENT_PCT = 15;
-/** Transient reactance X′d (%), for the motor starting voltage dip. */
-export const GENERATOR_XD_TRANSIENT_PCT = 25;
 const GENERATOR_XR = 10;
-/** Voltage dip limit when the largest motor starts on the generator. */
-export const MOTOR_START_DIP_LIMIT_PCT = 15;
 
 export interface GeneratorRun {
   boardId: string; // the board the generator feeds through its ATS
@@ -32,13 +30,6 @@ export interface GeneratorScenario {
   generators: GeneratorRun[];
 }
 
-/** DOL starting kVA of a motor: ~6 × its running kVA. */
-const startingKva = (f: Feeder) => (6 * f.loadKw) / Math.max(f.powerFactor, 0.1);
-
-/** Voltage dip when a motor starts on a generator, from its transient
- * reactance: ΔU ≈ S_start / (S_start + S_gen / X′d). */
-export const motorStartDipPct = (startKva: number, genKva: number) =>
-  (startKva / (startKva + genKva / (GENERATOR_XD_TRANSIENT_PCT / 100))) * 100;
 
 export function generatorScenario(project: Project): GeneratorScenario {
   const backed = standbyBoards(project);
@@ -66,7 +57,7 @@ export function generatorScenario(project: Project): GeneratorScenario {
     const demandKva = boardDemandKva(scenario, s.id);
     const zone = below(s.id);
     const motor = feeders
-      .filter((f) => zone.has(f.boardId) && !f.feedsBoardId && ['motor', 'fire-pump'].includes(loadTypeOf(f)))
+      .filter((f) => zone.has(f.boardId) && isMotor(f))
       .sort((a, b) => startingKva(b) - startingKva(a))[0];
     return {
       boardId: s.id,

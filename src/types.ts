@@ -105,6 +105,9 @@ export const DEFAULT_POINT_WATTS: Record<PointType, number> = {
 /** Point types that make a circuit a lighting circuit (if it has only these). */
 export const LIGHTING_POINTS: PointType[] = ['ltg', 'cfan', 'exfan'];
 
+/** Motor starter: direct on line, star-delta, soft starter, VFD. */
+export type StarterType = 'DOL' | 'SD' | 'SS' | 'VFD';
+
 /** Switching device column of the connected load / MD form. */
 export type SwitchDevice = 'ACB' | 'MCCB' | 'ISOL';
 export const SWITCH_DEVICES: SwitchDevice[] = ['ACB', 'MCCB', 'ISOL'];
@@ -147,6 +150,7 @@ export interface Feeder {
   points?: Partial<Record<PointType, number>>; // number of points of each type
   remarks?: string;
   manualSize?: boolean; // MCB / wire / ECC set by hand — don't auto-size on load changes
+  starter?: StarterType; // motors: default direct on line
   kvar?: number; // capacitor bank rating (loadType 'capacitor'); its current comes from this, not loadKw
   // Connected load & maximum demand form (authority submission)
   device?: SwitchDevice; // ACB / MCCB / ISOL column; default from the breaker type

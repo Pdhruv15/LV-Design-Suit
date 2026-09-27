@@ -1,7 +1,8 @@
 import { selectCable } from '../calc/electrical';
 import { applyRecommendation, generatorForBoard, recommend, sizePfc, upsForBoard } from '../calc/sizing';
 import type { LibraryLoad } from '../database/database';
-import { BOARD_KINDS, type Board, type BoardKind, type Feeder, type LoadType, type Project } from '../types';
+import { BOARD_KINDS, type Board, type BoardKind, type Feeder, type LoadType, type Project, type StarterType } from '../types';
+import { isMotor, STARTERS } from '../calc/motor';
 
 /** Building the SLD by drag and drop: what each library item does when it
  * is dropped on a busbar, on a feeder, or on the empty canvas. Every drop
@@ -39,6 +40,7 @@ export type PaletteItem =
   | { kind: 'generator' }
   | { kind: 'capacitor' }
   | { kind: 'library'; name: string }
+  | { kind: 'starter'; starter: StarterType }
   | { kind: 'load'; preset: string }
   | { kind: 'device'; device: ProtectionDevice }
   | { kind: 'cable' };
@@ -79,6 +81,10 @@ export const PALETTE: { group: string; entries: PaletteEntry[] }[] = [
     }))
   },
   {
+    group: 'Motor starters',
+    entries: STARTERS.map((s) => ({ item: { kind: 'starter', starter: s.value } as PaletteItem, label: s.label, title: `${s.title} — drop on a motor or pump` }))
+  },
+  {
     group: 'Cable',
     entries: [{ item: { kind: 'cable' }, label: 'Cable', title: 'Drop on a feeder to edit its cable (size, cores, length)' }]
   },
@@ -117,7 +123,7 @@ export function libraryLoadType(l: LibraryLoad): LoadType {
 }
 
 export const itemKey = (i: PaletteItem) =>
-  i.kind === 'board' ? `board:${i.board}` : i.kind === 'load' ? `load:${i.preset}` : i.kind === 'device' ? `device:${i.device}` : i.kind === 'library' ? `library:${i.name}` : i.kind;
+  i.kind === 'board' ? `board:${i.board}` : i.kind === 'load' ? `load:${i.preset}` : i.kind === 'device' ? `device:${i.device}` : i.kind === 'library' ? `library:${i.name}` : i.kind === 'starter' ? `starter:${i.starter}` : i.kind;
 
 /** Typical rating (A) of a new board by type; its incomer breaker and cable
  * are sized for it until real loads are added. */
@@ -145,6 +151,10 @@ export function canDrop(project: Project, item: PaletteItem, target: DropTarget)
     case 'device':
     case 'cable':
       return target.type === 'feeder';
+    case 'starter': {
+      const f = target.type === 'feeder' ? project.feeders.find((x) => x.id === target.feederId) : undefined;
+      return !!f && isMotor(f);
+    }
   }
 }
 
@@ -308,6 +318,17 @@ export function applyDrop(project: Project, item: PaletteItem, target: DropTarge
     };
   }
 
+  if (item.kind === 'starter' && target.type === 'feeder') {
+    const f = project.feeders.find((x) => x.id === target.feederId)!;
+    const s = STARTERS.find((x) => x.value === item.starter)!;
+    const next = { ...f, starter: item.starter };
+    return {
+      project: { ...project, feeders: project.feeders.map((x) => (x.id === f.id ? next : x)) },
+      select: { type: 'feeder', id: f.id },
+      message: `${f.name || f.id}: ${s.label.toLowerCase()} — starting ≈ ${s.multiple} × running current`
+    };
+  }
+
   if (item.kind === 'cable' && target.type === 'feeder') {
     const f = project.feeders.find((x) => x.id === target.feederId)!;
     return { project, select: { type: 'feeder', id: f.id }, message: `${f.id}: ${f.cores}C × ${f.cableCsaMm2} mm², ${f.lengthM} m — change size, cores and length in the properties` };
@@ -335,6 +356,8 @@ export function dropHint(item: PaletteItem): string {
     case 'device':
     case 'cable':
       return `Drop the ${item.kind === 'cable' ? 'cable' : 'device'} on a feeder`;
+    case 'starter':
+      return 'Drop the starter on a motor or pump';
   }
 }
 
