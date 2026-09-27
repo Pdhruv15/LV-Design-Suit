@@ -13,10 +13,10 @@ function feeder(id: string, boardId: string, feedsBoardId?: string): Feeder {
 const base = { name: 'T', voltageV: 415, frequencyHz: 50, ambientC: 45, vdLimitPct: 4, updatedAt: '' };
 
 describe('system layout', () => {
-  it('places every board and feeder exactly once', () => {
+  it('places every board and feeder exactly once; final circuits go to their DB', () => {
     const l = layoutSystem(sampleProject);
     expect(l.boards.map((b) => b.board.id).sort()).toEqual(sampleProject.boards.map((b) => b.id).sort());
-    const drawn = [...l.feeders.map((f) => f.feeder.id), ...l.blocks.flatMap((b) => b.circuits.map((c) => c.id))];
+    const drawn = [...l.feeders.map((f) => f.feeder.id), ...l.boards.flatMap((b) => b.circuits.map((c) => c.id))];
     expect(drawn.sort()).toEqual(sampleProject.feeders.map((f) => f.id).sort());
   });
 
@@ -43,22 +43,41 @@ describe('system layout', () => {
     expect(new Set(loads).size).toBe(loads.length);
   });
 
-  it('collapses a DB with many schedule circuits into one block', () => {
-    const circuits: Feeder[] = Array.from({ length: 12 }, (_, i) => ({
+  it('stops the SLD at the DB: final circuits are not drawn', () => {
+    const circuits: Feeder[] = Array.from({ length: 4 }, (_, i) => ({
       ...feeder(`C${i}`, 'SUB'), phase: (['R', 'Y', 'B'] as const)[i % 3], way: Math.floor(i / 3) + 1, cores: 2 as const
     }));
     const p: Project = {
       ...base,
       boards: [{ id: 'MDB', name: 'M' }, { id: 'SUB', name: 'S', upstreamId: 'MDB' }],
-      feeders: [feeder('INC', 'MDB', 'SUB'), feeder('OTHER', 'SUB'), ...circuits]
+      feeders: [feeder('INC', 'MDB', 'SUB'), feeder('PUMP', 'MDB'), ...circuits]
     };
     const l = layoutSystem(p);
-    expect(l.blocks).toHaveLength(1);
-    expect(l.blocks[0].circuits).toHaveLength(12);
-    expect(l.feeders.map((f) => f.feeder.id).sort()).toEqual(['INC', 'OTHER']);
+    expect(l.feeders.map((f) => f.feeder.id).sort()).toEqual(['INC', 'PUMP']);
     const sub = l.boards.find((b) => b.board.id === 'SUB')!;
-    expect(l.blocks[0].x - l.feeders.find((f) => f.feeder.id === 'OTHER')!.x).toBe(LEAF_W); // block takes the next slot
-    expect(sub.x).toBe((l.blocks[0].x + l.feeders.find((f) => f.feeder.id === 'OTHER')!.x) / 2);
+    const mdb = l.boards.find((b) => b.board.id === 'MDB')!;
+    expect(sub.circuits.map((c) => c.id)).toEqual(['C0', 'C1', 'C2', 'C3']);
+    expect(sub.terminal).toBe(true);
+    expect(mdb.terminal).toBe(false);
+    // The DB takes a single slot, next to the MDB's other load.
+    expect(l.feeders.find((f) => f.feeder.id === 'PUMP')!.x - sub.x).toBe(LEAF_W);
+  });
+
+  it('keeps a DB\'s own non-schedule feeders on the SLD', () => {
+    const p: Project = {
+      ...base,
+      boards: [{ id: 'MDB', name: 'M' }, { id: 'SUB', name: 'S', upstreamId: 'MDB' }],
+      feeders: [
+        feeder('INC', 'MDB', 'SUB'),
+        feeder('MOTOR', 'SUB'),
+        { ...feeder('C0', 'SUB'), phase: 'R', way: 1, cores: 2 }
+      ]
+    };
+    const l = layoutSystem(p);
+    expect(l.feeders.map((f) => f.feeder.id).sort()).toEqual(['INC', 'MOTOR']);
+    const sub = l.boards.find((b) => b.board.id === 'SUB')!;
+    expect(sub.terminal).toBe(false);
+    expect(sub.circuits.map((c) => c.id)).toEqual(['C0']);
   });
 
   it('survives a cycle in the board hierarchy', () => {
