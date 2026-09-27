@@ -1,7 +1,7 @@
 import { designCurrentA, evaluateFeeder, faultCurrentKA, impedanceToBoard, selectCable, upstreamVoltageDropPct } from './electrical';
 import { boardTotals, loadTypeOf, systemSummary } from './summary';
 import { breakerTypeOf } from './earthing';
-import { settingsOf, type BreakerType, type Feeder, type Project } from '../types';
+import { settingsOf, type Board, type BreakerType, type Feeder, type Project } from '../types';
 
 const SQRT3 = Math.sqrt(3);
 
@@ -57,6 +57,48 @@ export function sizeTransformer(project: Project): TransformerSizing {
 
 export const isEssential = (f: Feeder) => !f.feedsBoardId && !f.generation && (f.essential ?? loadTypeOf(f) === 'fire-pump');
 
+/** Boards backed by a standby generator (through an ATS), and every board
+ * below them. */
+export function standbyBoards(project: Project): Set<string> {
+  const out = new Set(project.boards.filter((b) => b.standby).map((b) => b.id));
+  for (let added = true; added; ) {
+    added = false;
+    for (const b of project.boards) if (b.upstreamId && out.has(b.upstreamId) && !out.has(b.id)) { out.add(b.id); added = true; }
+  }
+  return out;
+}
+
+/** Loads the generator must carry: those marked essential (fire pumps by
+ * default) and everything on a generator-backed board. */
+export function essentialFeeders(project: Project): Feeder[] {
+  const backed = standbyBoards(project);
+  return project.feeders.filter((f) => !f.feedsBoardId && !f.generation && !f.kvar && (isEssential(f) || backed.has(f.boardId)));
+}
+
+export const STANDARD_UPS_KVA = [1, 2, 3, 6, 10, 15, 20, 30, 40, 60, 80, 100, 120, 160, 200, 250, 300, 400, 500, 600, 800];
+
+/** Demand kVA of everything supplied through a board. */
+export function boardDemandKva(project: Project, boardId: string): number {
+  const t = boardTotals(project, boardId);
+  return Math.hypot(t.demandKw, Math.max(0, t.demandKvar));
+}
+
+/** Standard generator for a board's load at the design loading limit. */
+export function generatorForBoard(project: Project, boardId: string): number {
+  const kva = boardDemandKva(project, boardId) / (settingsOf(project).generatorMaxLoadingPct / 100);
+  return nextStandard(STANDARD_GENERATOR_KVA, kva) ?? STANDARD_GENERATOR_KVA[STANDARD_GENERATOR_KVA.length - 1];
+}
+
+/** Standard UPS for a board's load at 80 % loading. */
+export function upsForBoard(project: Project, boardId: string): number {
+  return nextStandard(STANDARD_UPS_KVA, boardDemandKva(project, boardId) / 0.8) ?? STANDARD_UPS_KVA[STANDARD_UPS_KVA.length - 1];
+}
+
+/** UPS loading, % of its kVA. */
+export function upsLoadingPct(project: Project, board: Board): number | undefined {
+  return board.upsKva ? (boardDemandKva(project, board.id) / board.upsKva) * 100 : undefined;
+}
+
 export interface GeneratorSizing {
   essential: Feeder[];
   demandKw: number;
@@ -72,7 +114,7 @@ export interface GeneratorSizing {
  * check needs the manufacturer's curves and is not automated. */
 export function sizeGenerator(project: Project): GeneratorSizing {
   const s = settingsOf(project);
-  const essential = project.feeders.filter(isEssential);
+  const essential = essentialFeeders(project);
   let p = 0;
   let q = 0;
   for (const f of essential) {
@@ -167,7 +209,9 @@ export type SelectionMode = 'fix' | 'optimise';
 export function recommend(project: Project, f: Feeder, mode: SelectionMode = 'fix'): Recommendation {
   const ib = designCurrentA(f, project);
   // In ≥ Ib / 0.85 keeps breaker loading below the 85 % warning threshold.
-  const minIn = nextStandard(breakerRatings(), ib / 0.85);
+  // Capacitor banks: In ≥ 1.43 × rated current (IEC 60831 — 1.3 for
+  // harmonics × 1.1 capacitance tolerance); otherwise keep loading < 85 %.
+  const minIn = nextStandard(breakerRatings(), f.kvar ? ib * 1.43 : ib / 0.85);
   const breakerRatingA = mode === 'fix' && minIn !== undefined && f.breakerRatingA >= minIn ? f.breakerRatingA : minIn;
   const faultKA = faultCurrentKA(impedanceToBoard(project, f.boardId), project.voltageV);
   const minIcu = nextStandard(icuSteps(), faultKA);

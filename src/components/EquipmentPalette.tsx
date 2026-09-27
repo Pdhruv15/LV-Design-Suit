@@ -1,20 +1,20 @@
 import { useState } from 'react';
 import {
-  Cable, Car, Cog, Cpu, Fan, Flame, Gauge, Lightbulb, PanelLeftClose, PanelLeftOpen, Server, ShieldCheck, Snowflake, Sun, Waves, Zap, type LucideIcon
+  BatteryCharging, BatteryFull, Cable, Car, Cog, Cpu, Database, Fan, Flame, Gauge, Lightbulb, PanelLeftClose, PanelLeftOpen, Power, Server, ShieldCheck, Snowflake, Sun, Waves, Zap, type LucideIcon
 } from 'lucide-react';
-import { dropHint, itemKey, PALETTE, type PaletteItem } from '../model/sldEdit';
+import { dropHint, itemKey, PALETTE, type PaletteEntry, type PaletteItem } from '../model/sldEdit';
 import { getDragItem, setDragItem } from '../diagram/dragItem';
 
 const ICON: Record<string, LucideIcon> = {
-  transformer: Waves, 'board:MC': Gauge, cable: Cable,
+  transformer: Waves, 'board:MC': Gauge, cable: Cable, generator: Power, capacitor: BatteryCharging, 'board:UPS': BatteryFull,
   'load:motor': Cog, 'load:ahu': Fan, 'load:chiller': Snowflake, 'load:fire-pump': Flame, 'load:ev': Car,
   'load:pv': Sun, 'load:lighting': Lightbulb, 'load:it': Cpu, 'load:general': Zap
 };
-const iconOf = (i: PaletteItem): LucideIcon => ICON[itemKey(i)] ?? (i.kind === 'board' ? Server : i.kind === 'device' ? ShieldCheck : Zap);
+const iconOf = (i: PaletteItem): LucideIcon => ICON[itemKey(i)] ?? (i.kind === 'board' ? Server : i.kind === 'device' ? ShieldCheck : i.kind === 'library' ? Database : Zap);
 
 /** Equipment library for building the SLD: drag an item onto a busbar, a
  * feeder or the empty canvas. Where it's dropped decides how it connects. */
-export default function EquipmentPalette({ onHint }: { onHint: (m: string) => void }) {
+export default function EquipmentPalette({ onHint, library = [] }: { onHint: (m: string) => void; /** The user's own equipment (Loads.xlsx). */ library?: PaletteEntry[] }) {
   const [open, setOpen] = useState(() => {
     try { return localStorage.getItem('palette') !== 'closed'; } catch { return true; }
   });
@@ -37,7 +37,7 @@ export default function EquipmentPalette({ onHint }: { onHint: (m: string) => vo
         <button className="icon-btn" onClick={toggle} title="Hide the library"><PanelLeftClose size={15} /></button>
       </div>
       <p className="m palette-tip">Drag onto a busbar, a feeder or the empty canvas.</p>
-      {PALETTE.map(({ group, entries }) => (
+      {[...PALETTE, ...(library.length ? [{ group: 'My equipment', entries: library }] : [])].map(({ group, entries }) => (
         <div key={group} className="palette-group">
           <h5>{group}</h5>
           <div className="palette-items">

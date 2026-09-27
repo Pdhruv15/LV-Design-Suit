@@ -127,3 +127,54 @@ describe('moving on the diagram', () => {
     expect(r.project).toBe(sampleProject);
   });
 });
+
+describe('generator, UPS, capacitor bank and database equipment', () => {
+  it('a generator on a board makes everything below it essential, sized for that load', async () => {
+    const { sizeGenerator, boardDemandKva } = await import('../calc/sizing');
+    const r = applyDrop(sampleProject, { kind: 'generator' }, bus('SMDB-FF'));
+    const b = r.project.boards.find((x) => x.id === 'SMDB-FF')!;
+    expect(b.standby!.kva).toBeGreaterThanOrEqual(boardDemandKva(sampleProject, 'SMDB-FF') / 0.8);
+    const gen = sizeGenerator(r.project);
+    expect(gen.essential.map((f) => f.id).sort()).toEqual(['FF-IT', 'FF-LAB', 'FF-LTG', 'FF-OFF', 'MCC-FP']);
+    expect(applyDrop(r.project, { kind: 'generator' }, bus('SMDB-FF')).message).toMatch(/already has a \d+ kVA standby generator/);
+  });
+
+  it('a UPS board is created with its incomer and a UPS rating', () => {
+    const r = applyDrop(sampleProject, { kind: 'board', board: 'UPS' }, bus('SMDB-FF'));
+    expect(r.project.boards.find((b) => b.id === 'UPS-1')).toMatchObject({ kind: 'UPS', upstreamId: 'SMDB-FF', upsKva: 10 });
+  });
+
+  it('a capacitor bank is sized to the PF target, its breaker at 1.43 × its current, and it improves the PF', async () => {
+    const { sizePfc } = await import('../calc/sizing');
+    const { boardSummary } = await import('../calc/summary');
+    const before = sizePfc(sampleProject, 'MDB-1');
+    expect(before.bankKvar).toBeGreaterThan(0);
+    const r = applyDrop(sampleProject, { kind: 'capacitor' }, bus('MDB-1'));
+    const f = r.project.feeders.find((x) => x.id === r.select!.id)!;
+    expect([f.kvar, f.loadType, f.loadKw]).toEqual([before.bankKvar, 'capacitor', 0]);
+    const ic = (before.bankKvar * 1000) / (Math.sqrt(3) * 415);
+    expect(evaluateFeeder(r.project, f).ib).toBeCloseTo(ic, 6);
+    expect(f.breakerRatingA).toBeGreaterThanOrEqual(ic * 1.43);
+    const mdb = (p: typeof sampleProject) => boardSummary(p, p.boards.find((b) => b.id === 'MDB-1')!);
+    expect(mdb(r.project).powerFactor).toBeGreaterThanOrEqual(0.95);
+    expect(mdb(r.project).demandKw).toBeCloseTo(mdb(sampleProject).demandKw, 9);
+    expect(sizePfc(r.project, 'MDB-1').bankKvar).toBe(0); // nothing more needed
+  });
+
+  it("drops the user's own equipment from the database with its kW, PF and phases", async () => {
+    const { libraryEntries, libraryLoadType } = await import('./sldEdit');
+    const lib = [
+      { name: 'AHU-01 Carrier 39HQ', watts: 7500, pf: 0.86, phases: 3 as const, manufacturer: 'Carrier', category: 'HVAC' },
+      { name: 'Booster pump', watts: 2200, pf: 0.82, phases: 1 as const },
+      { name: 'LED downlight', watts: 12, column: 'ltg' as const }
+    ];
+    expect(libraryEntries(lib).map((e) => e.label)).toEqual(['AHU-01 Carrier 39HQ', 'Booster pump']);
+    expect([libraryLoadType(lib[0]), libraryLoadType(lib[1])]).toEqual(['hvac', 'motor']);
+    const r = applyDrop(sampleProject, { kind: 'library', name: 'Booster pump' }, bus('MCC-1'), lib);
+    const f = r.project.feeders.find((x) => x.id === r.select!.id)!;
+    expect(f).toMatchObject({ name: 'Booster pump', loadKw: 2.2, powerFactor: 0.82, cores: 2, loadType: 'motor' });
+    const ahu = applyDrop(sampleProject, { kind: 'library', name: 'AHU-01 Carrier 39HQ' }, bus('MCC-1'), lib);
+    expect(ahu.project.feeders.find((x) => x.id === ahu.select!.id)!.remarks).toBe('Carrier');
+    expect(applyDrop(sampleProject, { kind: 'library', name: 'Gone' }, bus('MCC-1'), lib).project).toBe(sampleProject);
+  });
+});

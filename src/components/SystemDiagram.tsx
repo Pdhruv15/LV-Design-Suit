@@ -8,6 +8,7 @@ import LoadIcon from './LoadIcon';
 import type { Annotations, ResultLayers } from '../diagram/annotations';
 import { canDrop, canMove, type DropTarget, type MoveItem, type PaletteItem } from '../model/sldEdit';
 import { cables } from '../calc/cableTable';
+import { upsLoadingPct } from '../calc/sizing';
 import type { Feeder } from '../types';
 import { getDragItem, setDragItem } from '../diagram/dragItem';
 
@@ -348,7 +349,7 @@ export default function SystemDiagram({
                   <text className="b" x={n.x} y={y + 132} textAnchor="middle">{trunc(f.id, 16)}</text>
                   <text className="m" x={n.x} y={y + 146} textAnchor="middle">{trunc(f.name, 19)}</text>
                   <text x={n.x} y={y + 160} textAnchor="middle">
-                    {(f.loadKw * f.demandFactor).toFixed(0)} kW{f.generation ? ' gen' : ''}
+                    {f.kvar ? `${f.kvar} kvar` : `${(f.loadKw * f.demandFactor).toFixed(0)} kW${f.generation ? ' gen' : ''}`}
                     {!layers?.current && ` · ${r ? r.ib.toFixed(0) : '–'} A`}
                   </text>
                   {feederTags(f.id).map((t, i) => (
@@ -399,6 +400,24 @@ export default function SystemDiagram({
               {/* Wide invisible band along the busbar, so drops don't need pixel precision. */}
               {onDropItem && <line x1={n.busX1 - 20} y1={n.busY} x2={n.busX2 + 20} y2={n.busY} className="bus-hit" />}
               <line x1={n.x} y1={n.busY - 22} x2={n.x} y2={n.busY} className="ln" />
+              {b.standby && (
+                <g className="standby">
+                  <title>{`Standby generator ${b.standby.kva} kVA through an ATS — everything on ${b.id} is essential load`}</title>
+                  <rect x={n.x - 11} y={n.busY - 88} width="22" height="15" rx="2" className="sym" />
+                  <text x={n.x} y={n.busY - 77} textAnchor="middle" className="b" style={{ fontSize: 8 }}>ATS</text>
+                  <line x1={n.x + 11} y1={n.busY - 80} x2={n.x + 34} y2={n.busY - 80} className="ln" />
+                  <circle cx={n.x + 45} cy={n.busY - 80} r="11" className="sym" />
+                  <text x={n.x + 45} y={n.busY - 76} textAnchor="middle" className="b" style={{ fontSize: 11 }}>G</text>
+                  <text x={n.x + 60} y={n.busY - 77} className="m">{b.standby.kva} kVA</text>
+                </g>
+              )}
+              {b.kind === 'UPS' && (
+                <g>
+                  <title>{`UPS ${b.upsKva ?? '—'} kVA`}</title>
+                  <rect x={n.x - 15} y={n.busY - 118} width="30" height="17" rx="2" className="sym" />
+                  <text x={n.x} y={n.busY - 106} textAnchor="middle" className="b" style={{ fontSize: 9 }}>UPS</text>
+                </g>
+              )}
               <rect x={n.x - 62} y={n.busY - 58} width="124" height="36" rx="6" className="box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
               <text className="b" x={n.x - 54} y={n.busY - 42}>{trunc(b.id, 14)}</text>
               <text className="m" x={n.x - 54} y={n.busY - 28}>
@@ -416,6 +435,10 @@ export default function SystemDiagram({
               )}
               {[
                 ...(n.terminal ? [] : circuitTags),
+                ...(b.kind === 'UPS' ? (() => {
+                  const pct = upsLoadingPct(project, b);
+                  return [{ text: `UPS ${b.upsKva ?? '—'} kVA${pct !== undefined ? ` · ${pct.toFixed(0)}%` : ''}`, cls: pct === undefined ? 'm' : pct > 100 ? 'bad' : pct > 80 ? 'warn' : 'ok' }];
+                })() : []),
                 ...boardTags(b.id),
                 ...(s.loadingPct !== undefined ? [{ text: `${s.loadingPct.toFixed(0)}% loaded`, cls: layers?.loading ? s.loadingStatus ?? 'm' : 'm' }] : [])
               ].map((t, i) => (

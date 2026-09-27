@@ -49,6 +49,15 @@ export default function LoadIcon({ type }: { type: LoadType }) {
           <line x1="0" y1="4" x2="0" y2="8" />
         </g>
       );
+    case 'capacitor':
+      return (
+        <g {...s}>
+          <line x1="0" y1="-9" x2="0" y2="-3" />
+          <line x1="-7" y1="-3" x2="7" y2="-3" />
+          <line x1="-7" y1="2" x2="7" y2="2" />
+          <line x1="0" y1="2" x2="0" y2="8" />
+        </g>
+      );
     case 'pv':
       return (
         <g {...s}>

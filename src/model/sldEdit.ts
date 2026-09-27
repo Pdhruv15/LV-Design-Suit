@@ -1,5 +1,6 @@
 import { selectCable } from '../calc/electrical';
-import { applyRecommendation, recommend } from '../calc/sizing';
+import { applyRecommendation, generatorForBoard, recommend, sizePfc, upsForBoard } from '../calc/sizing';
+import type { LibraryLoad } from '../database/database';
 import { BOARD_KINDS, type Board, type BoardKind, type Feeder, type LoadType, type Project } from '../types';
 
 /** Building the SLD by drag and drop: what each library item does when it
@@ -35,6 +36,9 @@ export type ProtectionDevice = 'ACB' | 'MCCB' | 'MCB' | 'ISOL';
 export type PaletteItem =
   | { kind: 'board'; board: BoardKind }
   | { kind: 'transformer' }
+  | { kind: 'generator' }
+  | { kind: 'capacitor' }
+  | { kind: 'library'; name: string }
   | { kind: 'load'; preset: string }
   | { kind: 'device'; device: ProtectionDevice }
   | { kind: 'cable' };
@@ -52,12 +56,13 @@ export const PALETTE: { group: string; entries: PaletteEntry[] }[] = [
     group: 'Supply',
     entries: [
       { item: { kind: 'transformer' }, label: 'Transformer', title: 'Drop on the empty canvas for a new supply with its MDB, or on a main board to give it a transformer' },
-      { item: { kind: 'board', board: 'MC' }, label: 'Meter cabinet', title: 'Authority supply (e.g. DEWA meter cabinet) — drop on the empty canvas' }
+      { item: { kind: 'board', board: 'MC' }, label: 'Meter cabinet', title: 'Authority supply (e.g. DEWA meter cabinet) — drop on the empty canvas' },
+      { item: { kind: 'generator' }, label: 'Generator + ATS', title: 'Drop on a board (e.g. an EMDB): a standby generator through an ATS, sized for that board; everything below it becomes essential load' }
     ]
   },
   {
     group: 'Boards',
-    entries: (['MDB', 'SMDB', 'MCC', 'EMDB', 'DB'] as BoardKind[]).map((k) => ({
+    entries: (['MDB', 'SMDB', 'MCC', 'EMDB', 'DB', 'UPS'] as BoardKind[]).map((k) => ({
       item: { kind: 'board', board: k } as PaletteItem,
       label: k,
       title: k === 'MDB'
@@ -79,16 +84,44 @@ export const PALETTE: { group: string; entries: PaletteEntry[] }[] = [
   },
   {
     group: 'Loads',
-    entries: LOAD_PRESETS.map((p) => ({ item: { kind: 'load', preset: p.id } as PaletteItem, label: p.label, title: `Drop on a busbar: breaker, cable and ${p.label.toLowerCase()} (${p.loadKw} kW) are added and sized` }))
+    entries: [
+      ...LOAD_PRESETS.map((p) => ({ item: { kind: 'load', preset: p.id } as PaletteItem, label: p.label, title: `Drop on a busbar: breaker, cable and ${p.label.toLowerCase()} (${p.loadKw} kW) are added and sized` })),
+      { item: { kind: 'capacitor' } as PaletteItem, label: 'Capacitor bank', title: 'Drop on a board: a capacitor bank sized to bring it to the power factor target (Project settings)' }
+    ]
   }
 ];
 
+/** Library group for the user's own equipment (Loads.xlsx). Items that
+ * belong to a load schedule point column (lights, sockets…) stay out. */
+export function libraryEntries(library: LibraryLoad[]): PaletteEntry[] {
+  return library
+    .filter((l) => !l.column && l.watts > 0)
+    .map((l) => ({
+      item: { kind: 'library', name: l.name } as PaletteItem,
+      label: l.name,
+      title: `${l.name}: ${(l.watts / 1000).toFixed(l.watts < 10000 ? 2 : 1)} kW${l.pf ? `, PF ${l.pf}` : ''}${l.phases === 1 ? ', 1-phase' : ''} — drop on a busbar`
+    }));
+}
+
+/** Diagram icon for a library item, from its category or name. */
+export function libraryLoadType(l: LibraryLoad): LoadType {
+  const t = `${l.category ?? ''} ${l.name}`.toLowerCase();
+  if (/fire/.test(t)) return 'fire-pump';
+  if (/motor|pump|fan\b|compressor|lift|elevator/.test(t)) return 'motor';
+  if (/ahu|fcu|chiller|a\/c|hvac|split|package|vrf|cooling/.test(t)) return 'hvac';
+  if (/light|ltg|lamp/.test(t)) return 'lighting';
+  if (/\bev\b|charger/.test(t)) return 'ev';
+  if (/ups|server|it\b|data/.test(t)) return 'it';
+  if (/socket|s\/o/.test(t)) return 'sockets';
+  return 'general';
+}
+
 export const itemKey = (i: PaletteItem) =>
-  i.kind === 'board' ? `board:${i.board}` : i.kind === 'load' ? `load:${i.preset}` : i.kind === 'device' ? `device:${i.device}` : i.kind;
+  i.kind === 'board' ? `board:${i.board}` : i.kind === 'load' ? `load:${i.preset}` : i.kind === 'device' ? `device:${i.device}` : i.kind === 'library' ? `library:${i.name}` : i.kind;
 
 /** Typical rating (A) of a new board by type; its incomer breaker and cable
  * are sized for it until real loads are added. */
-const BOARD_RATING: Record<BoardKind, number> = { MC: 400, MDB: 1600, SMDB: 250, MCC: 400, EMDB: 250, DB: 63 };
+const BOARD_RATING: Record<BoardKind, number> = { MC: 400, MDB: 1600, SMDB: 250, MCC: 400, EMDB: 250, DB: 63, UPS: 32 };
 
 const isRoot = (p: Project, boardId: string) => !p.boards.find((b) => b.id === boardId)?.upstreamId;
 
@@ -105,6 +138,9 @@ export function canDrop(project: Project, item: PaletteItem, target: DropTarget)
     case 'transformer':
       return target.type === 'canvas' || (target.type === 'bus' && isRoot(project, target.boardId));
     case 'load':
+    case 'library':
+    case 'generator':
+    case 'capacitor':
       return target.type === 'bus';
     case 'device':
     case 'cable':
@@ -161,7 +197,7 @@ function newBoard(project: Project, kind: BoardKind, upstreamId?: string): Board
 
 /** Applies a drop. Returns the project unchanged (with a message) when the
  * item can't go there. */
-export function applyDrop(project: Project, item: PaletteItem, target: DropTarget): DropResult {
+export function applyDrop(project: Project, item: PaletteItem, target: DropTarget, library: LibraryLoad[] = []): DropResult {
   if (!canDrop(project, item, target)) return { project, message: dropHint(item) };
 
   if (item.kind === 'board') {
@@ -172,6 +208,7 @@ export function applyDrop(project: Project, item: PaletteItem, target: DropTarge
       return { project: { ...project, boards: [...project.boards, withSupply] }, select: { type: 'board', id: board.id }, message: `Added ${board.id} (new supply) — set its data in the properties panel` };
     }
     const incomer = boardIncomer(project, parent, board);
+    if (item.board === 'UPS') board.upsKva = 10;
     const next = { ...project, boards: [...project.boards, board], feeders: [...project.feeders, incomer] };
     const tail = item.board === 'DB' ? ' — double-click it to open its load schedule' : '';
     return { project: next, select: { type: 'board', id: board.id }, message: `Added ${board.id} on ${parent} with a ${incomer.breakerRatingA} A breaker and ${incomer.cores}C × ${incomer.cableCsaMm2} mm² cable${tail}` };
@@ -189,6 +226,52 @@ export function applyDrop(project: Project, item: PaletteItem, target: DropTarge
     }
     const board = { ...newBoard(project, 'MDB'), sourceKva: 1000, sourceImpedancePct: 6 };
     return { project: { ...project, boards: [...project.boards, board] }, select: { type: 'board', id: board.id }, message: `Added a 1000 kVA transformer with ${board.id}` };
+  }
+
+  if (item.kind === 'generator' && target.type === 'bus') {
+    const b = project.boards.find((x) => x.id === target.boardId)!;
+    if (b.standby) return { project, select: { type: 'board', id: b.id }, message: `${b.id} already has a ${b.standby.kva} kVA standby generator — change it in the board's properties` };
+    const kva = generatorForBoard(project, b.id);
+    return {
+      project: { ...project, boards: project.boards.map((x) => (x.id === b.id ? { ...x, standby: { kva } } : x)) },
+      select: { type: 'board', id: b.id },
+      message: `Added a ${kva} kVA standby generator with ATS to ${b.id}; its loads now count as essential in Transformer & generator sizing`
+    };
+  }
+
+  if (item.kind === 'capacitor' && target.type === 'bus') {
+    const need = sizePfc(project, target.boardId).bankKvar;
+    const kvar = need || 25;
+    const id = uniqueId(allIds(project), `${target.boardId}-CAP`);
+    const f = sized(project, {
+      id, boardId: target.boardId, name: `Capacitor bank ${id.slice(id.lastIndexOf('-') + 1)}`,
+      loadKw: 0, demandFactor: 1, powerFactor: 1, kvar, lengthM: 10, cableCsaMm2: 4, cores: 4, breakerRatingA: 16, breakerIcuKa: 25, loadType: 'capacitor'
+    });
+    return {
+      project: { ...project, feeders: [...project.feeders, f] },
+      select: { type: 'feeder', id: f.id },
+      message: need
+        ? `Added a ${kvar} kvar capacitor bank on ${target.boardId} (sized for the power factor target): ${f.breakerRatingA} A, ${f.cores}C × ${f.cableCsaMm2} mm²`
+        : `Added a ${kvar} kvar capacitor bank on ${target.boardId} — the board is already at the power factor target; set the kvar in the properties`
+    };
+  }
+
+  if (item.kind === 'library' && target.type === 'bus') {
+    const l = library.find((x) => x.name === item.name);
+    if (!l) return { project, message: `${item.name} is no longer in the equipment database` };
+    const id = uniqueId(allIds(project), `${target.boardId}-EQ`);
+    const f: Feeder = sized(project, {
+      id, boardId: target.boardId, name: l.name,
+      loadKw: l.watts / 1000, demandFactor: l.demandFactor ?? 1, powerFactor: l.pf ?? 0.9,
+      lengthM: 30, cableCsaMm2: 4, cores: l.phases === 1 ? 2 : 4, breakerRatingA: 16, breakerIcuKa: 25,
+      loadType: libraryLoadType(l), remarks: [l.manufacturer, l.model].filter(Boolean).join(' ') || undefined
+    });
+    if (!f.remarks) delete f.remarks;
+    return {
+      project: { ...project, feeders: [...project.feeders, f] },
+      select: { type: 'feeder', id: f.id },
+      message: `Added ${l.name} (${f.loadKw} kW) on ${target.boardId}: ${f.breakerRatingA} A and ${f.cores}C × ${f.cableCsaMm2} mm²`
+    };
   }
 
   if (item.kind === 'load' && target.type === 'bus') {
@@ -243,7 +326,12 @@ export function dropHint(item: PaletteItem): string {
     case 'transformer':
       return 'Drop a transformer on the empty canvas, or on a main board';
     case 'load':
+    case 'library':
       return 'Drop a load on a busbar';
+    case 'generator':
+      return 'Drop the generator on the board it backs up (e.g. an EMDB)';
+    case 'capacitor':
+      return 'Drop the capacitor bank on a board';
     case 'device':
     case 'cable':
       return `Drop the ${item.kind === 'cable' ? 'cable' : 'device'} on a feeder`;

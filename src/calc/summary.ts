@@ -37,6 +37,7 @@ export function boardTotals(project: Project, boardId: string, seen = new Set<st
       if (f.feedsBoardId) return add(acc, boardTotals(project, f.feedsBoardId, seen));
       const kw = f.loadKw * f.demandFactor;
       if (f.generation) return add(acc, { ...ZERO, generationKw: kw });
+      if (f.kvar) return add(acc, { ...ZERO, demandKvar: -f.kvar }); // capacitor bank
       const pf = Math.min(Math.max(f.powerFactor, 0.01), 1);
       return add(acc, {
         connectedKw: f.loadKw,

@@ -44,7 +44,7 @@ import { EXTERNAL_ENGINES } from './engines';
 import type { StudyResults } from './engines/types';
 import { deleteBoard } from './model/edit';
 import { useHistory } from './model/history';
-import { applyDrop, applyMove, type DropResult, type DropTarget, type MoveItem, type PaletteItem } from './model/sldEdit';
+import { applyDrop, applyMove, libraryEntries, type DropResult, type DropTarget, type MoveItem, type PaletteItem } from './model/sldEdit';
 import EquipmentPalette from './components/EquipmentPalette';
 type DiagramMode = 'system' | 'board';
 
@@ -298,7 +298,7 @@ export default function App() {
 
   /** An item from the equipment library dropped on the SLD. */
   function dropItem(item: PaletteItem, target: DropTarget) {
-    showResult(applyDrop(project, item, target));
+    showResult(applyDrop(project, item, target, db.loads));
   }
 
   /** Something already on the SLD dragged to another busbar or feeder. */
@@ -473,7 +473,7 @@ export default function App() {
                 )}
                 {diagramMode === 'system' ? (
                   <div className="sld-edit">
-                  <EquipmentPalette onHint={setStatus} />
+                  <EquipmentPalette onHint={setStatus} library={libraryEntries(db.loads)} />
                   <SystemDiagram
                     project={project}
                     results={allResults}
