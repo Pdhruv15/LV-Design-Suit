@@ -19,7 +19,8 @@ export default function DiagramResultsBar({
   onColorBy,
   supply,
   onSupply,
-  hasGenerator
+  hasGenerator,
+  outages = []
 }: {
   layers: ResultLayers;
   onLayers: (l: ResultLayers) => void;
@@ -33,6 +34,8 @@ export default function DiagramResultsBar({
   supply: SupplyMode;
   onSupply: (m: SupplyMode) => void;
   hasGenerator: boolean;
+  /** Main boards whose transformer can fail with a tie to another. */
+  outages?: string[];
 }) {
   return (
     <div className="results-bar" role="group" aria-label="Diagram results">
@@ -48,12 +51,15 @@ export default function DiagramResultsBar({
           {COLOR_BY.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
         </select>
       </label>
-      <div className="seg supply-seg" role="radiogroup" aria-label="Supply">
-        <button role="radio" aria-checked={supply === 'normal'} className={supply === 'normal' ? 'on' : ''} onClick={() => onSupply('normal')}>Normal supply</button>
-        <button role="radio" aria-checked={supply === 'generator'} className={supply === 'generator' ? 'on' : ''} disabled={!hasGenerator}
-          title={hasGenerator ? 'Mains lost: the network on the standby generators' : 'Add a generator first: drop “Generator + ATS” on a board'}
-          onClick={() => onSupply('generator')}>On generator</button>
-      </div>
+      <label className={`m supply-pick${supply !== 'normal' ? ' active' : ''}`}>
+        Supply{' '}
+        <select value={supply} onChange={(e) => onSupply(e.target.value as SupplyMode)}
+          title="Operating scenario: normal, mains lost (standby generators), or one transformer out with the bus tie closed">
+          <option value="normal">Normal supply</option>
+          <option value="generator" disabled={!hasGenerator}>On generator (mains lost){hasGenerator ? '' : ' — add a generator'}</option>
+          {outages.map((id) => <option key={id} value={`outage:${id}`}>Transformer of {id} failed</option>)}
+        </select>
+      </label>
       <span className="sp" />
       <label className="m">
         Results from{' '}

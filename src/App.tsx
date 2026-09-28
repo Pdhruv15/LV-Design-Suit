@@ -44,7 +44,8 @@ import { EXTERNAL_ENGINES } from './engines';
 import type { StudyResults } from './engines/types';
 import { deleteBoard } from './model/edit';
 import { useHistory } from './model/history';
-import { generatorScenario, type SupplyMode } from './calc/scenario';
+import { generatorScenario, transformerOutage, type SupplyMode } from './calc/scenario';
+import { removeTie } from './model/sldEdit';
 import type { ColorBy } from './diagram/heatmap';
 import { applyDrop, applyMove, libraryEntries, type DropResult, type DropTarget, type MoveItem, type PaletteItem } from './model/sldEdit';
 import EquipmentPalette from './components/EquipmentPalette';
@@ -139,7 +140,14 @@ export default function App() {
   // generators (built-in engine only).
   const hasGenerator = project.boards.some((b) => b.standby);
   const onGenerator = supply === 'generator' && hasGenerator;
-  const genScenario = useMemo(() => (onGenerator ? generatorScenario(project) : undefined), [project, onGenerator]);
+  // Transformer outage: a main board with a bus tie to another.
+  const tiedRoots = [...new Set((project.ties ?? []).flatMap((t) => [t.a, t.b]))]
+    .filter((id) => project.boards.some((b) => b.id === id && !b.upstreamId && b.sourceKva));
+  const outageId = supply.startsWith('outage:') && tiedRoots.includes(supply.slice(7)) ? supply.slice(7) : undefined;
+  const genScenario = useMemo(
+    () => (onGenerator ? generatorScenario(project) : outageId ? transformerOutage(project, outageId) : undefined),
+    [project, onGenerator, outageId]
+  );
   const genResults = useMemo(() => (genScenario ? evaluateProject(genScenario.project) : undefined), [genScenario]);
   const genAnnotations = useMemo(() => (genScenario && genResults ? buildAnnotations(genScenario.project, genResults) : undefined), [genScenario, genResults]);
 
@@ -156,6 +164,7 @@ export default function App() {
 
   const resultsNote = (() => {
     if (onGenerator) return { text: 'Generator supply — built-in results; fault levels from the generators’ X″d (15 %)', cls: 'warn' };
+    if (outageId) return { text: `Transformer of ${outageId} out — built-in results with the bus tie closed`, cls: 'warn' };
     const name = EXTERNAL_ENGINES.find((e) => e.id === resultSource)?.name;
     if (resultSource === 'builtin') return { text: 'Built-in estimate — bus voltages from the main busbar' };
     if (simRunning) return { text: `Running ${name}…` };
@@ -520,9 +529,10 @@ export default function App() {
                     note={resultsNote}
                     colorBy={colorBy}
                     onColorBy={setColorBy}
-                    supply={onGenerator ? 'generator' : 'normal'}
+                    supply={onGenerator ? 'generator' : outageId ? `outage:${outageId}` : 'normal'}
                     onSupply={setSupply}
                     hasGenerator={hasGenerator}
+                    outages={tiedRoots}
                   />
                 )}
                 {diagramMode === 'system' ? (
@@ -544,6 +554,11 @@ export default function App() {
                     colorBy={colorBy}
                     scenario={genScenario}
                     chain={chain}
+                    onRemoveTie={(id) => {
+                      if (!window.confirm(`Remove bus coupler ${id}?`)) return;
+                      setProject(removeTie(project, id), { step: true });
+                      setStatus(`Removed bus coupler ${id}`);
+                    }}
                     onDropItem={dropItem}
                     onMoveItem={moveItem}
                     onPatchFeeder={(id, patch) => {

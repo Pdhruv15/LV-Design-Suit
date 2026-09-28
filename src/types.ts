@@ -212,10 +212,20 @@ export interface Project {
   info?: ProjectInfo; // header data of the authority submission forms
   revisions?: Revision[]; // issued revisions, oldest first (A, B, C…)
   drawing?: DrawingInfo; // SLD drawing title block
+  ties?: BusTie[]; // normally-open bus couplers between main boards
   studySettings?: StudySettings;
   boards: Board[];
   feeders: Feeder[];
   updatedAt: string;
+}
+
+/** Normally-open bus coupler (tie breaker) between two main boards: closed
+ * when one of their transformers is out, so the other carries both. */
+export interface BusTie {
+  id: string;
+  a: string; // board ids
+  b: string;
+  ratingA: number;
 }
 
 /** Title block of the SLD drawing. */

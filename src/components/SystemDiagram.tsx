@@ -11,7 +11,7 @@ import { cables } from '../calc/cableTable';
 import { upsLoadingPct } from '../calc/sizing';
 import { isMotor, starterInfo, starterOf } from '../calc/motor';
 import { runsOf, upstreamVoltageDropPct } from '../calc/electrical';
-import { MOTOR_START_DIP_LIMIT_PCT, type GeneratorRun } from '../calc/scenario';
+import { MOTOR_START_DIP_LIMIT_PCT, type GeneratorRun, type OutageScenario } from '../calc/scenario';
 import { boardRatio, COLOR_BY, earthRatio, feederRatio, heatColor, type ColorBy } from '../diagram/heatmap';
 import { evaluateEarthingAll } from '../calc/earthing';
 import type { Feeder } from '../types';
@@ -57,7 +57,8 @@ export default function SystemDiagram({
   onPatchFeeder,
   colorBy = 'none',
   scenario,
-  chain
+  chain,
+  onRemoveTie
 }: {
   project: Project;
   results: FeederResult[];
@@ -84,7 +85,9 @@ export default function SystemDiagram({
   colorBy?: ColorBy;
   /** Generator mode: the network as it runs on the standby generators.
    * Everything else is drawn dimmed; results must be for this network. */
-  scenario?: { project: Project; energized: Set<string>; generators: GeneratorRun[] };
+  scenario?: { project: Project; energized: Set<string>; generators: GeneratorRun[]; outage?: OutageScenario['outage'] };
+  /** Click on a bus tie. */
+  onRemoveTie?: (id: string) => void;
   /** Breakers in the selected feeder's discrimination chain, by status. */
   chain?: Map<string, Status>;
 }) {
@@ -344,8 +347,46 @@ export default function SystemDiagram({
             </text>
             <line x1={r.x} y1="114" x2={r.x} y2={r.busY - 58} className="ln" />
             <text className="m" x={r.x - 8} y={r.busY - 72} textAnchor="end">{project.voltageV} V</text>
+            {scenario?.outage?.failedId === r.board.id && (
+              <g className="failed-tx">
+                <line x1={r.x - 20} y1="68" x2={r.x + 20} y2="116" />
+                <line x1={r.x + 20} y1="68" x2={r.x - 20} y2="116" />
+                <text x={r.x + 24} y="114" className="res bad">FAILED</text>
+              </g>
+            )}
+            {(() => {
+              const t = scenario?.outage?.transformers.find((x) => x.boardId === r.board.id);
+              if (!t) return null;
+              return <text x={r.x + 24} y="114" className={`res ${t.loadingPct > 100 ? 'bad' : t.loadingPct > 80 ? 'warn' : 'ok'}`}>{t.loadingPct.toFixed(0)}% loaded ({t.demandKva.toFixed(0)} kVA)</text>;
+            })()}
           </g>
         ))}
+
+        {/* Bus couplers between main boards: normally open, closed when a transformer is out */}
+        {(project.ties ?? []).map((t) => {
+          const a = layout.roots.find((r) => r.board.id === t.a);
+          const b = layout.roots.find((r) => r.board.id === t.b);
+          if (!a || !b) return null;
+          const [left, right] = a.x < b.x ? [a, b] : [b, a];
+          const y = left.busY;
+          const x1 = left.busX2;
+          const x2 = right.busX1;
+          const mx = (x1 + x2) / 2;
+          const run = scenario?.outage?.tie?.id === t.id ? scenario.outage.tie : undefined;
+          return (
+            <g key={t.id} className={`tie${run ? ' closed' : ''}`} onClick={click(() => onRemoveTie?.(t.id))}>
+              <title>{`${t.id}: bus coupler ${t.ratingA} A, ${run ? 'closed' : 'normally open'} — click to remove`}</title>
+              <line x1={x1} y1={y} x2={mx - 9} y2={y} className="tie-ln" />
+              <line x1={mx + 9} y1={y} x2={x2} y2={y} className="tie-ln" />
+              <rect x={mx - 9} y={y - 9} width="18" height="18" rx="2" className="sym" />
+              {run ? <line x1={mx - 9} y1={y} x2={mx + 9} y2={y} className="ln" /> : <line x1={mx - 6} y1={y + 6} x2={mx + 6} y2={y - 6} className="ln" />}
+              <text x={mx} y={y - 16} textAnchor="middle" className="b">{t.id} · {t.ratingA} A</text>
+              <text x={mx} y={y + 24} textAnchor="middle" className={run ? `res ${run.loadingPct > 100 ? 'bad' : run.loadingPct > 85 ? 'warn' : 'ok'}` : 'm'}>
+                {run ? `CLOSED · ${run.currentA.toFixed(0)} A (${run.loadingPct.toFixed(0)}%)` : 'N/O'}
+              </text>
+            </g>
+          );
+        })}
 
         {/* Feeders: breaker, cable, then a load or a drop to a sub-board */}
         {layout.feeders.map((n) => {
@@ -528,7 +569,14 @@ export default function SystemDiagram({
           <span className="m">{COLOR_BY.find((c) => c.value === colorBy)?.legend}</span>
         </div>
       )}
-      {scenario && (
+      {scenario?.outage && (
+        <div className={`mode-banner${scenario.outage.tie ? '' : ' bad'}`}>
+          {scenario.outage.tie
+            ? `Transformer of ${scenario.outage.failedId} failed — ${scenario.outage.tie.id} closed; ${scenario.outage.tie.fromId}'s transformer carries both`
+            : `Transformer of ${scenario.outage.failedId} failed — no bus tie: ${scenario.outage.failedId} and everything below it is off`}
+        </div>
+      )}
+      {scenario && !scenario.outage && (
         <div className="mode-banner">
           {scenario.generators.length
             ? `On generator: ${scenario.generators.map((g) => `${g.boardId} ${g.kva} kVA`).join(', ')} — mains lost, ATS changed over; dimmed boards are off`
