@@ -54,7 +54,7 @@ const TABS: { id: RibbonTab; label: string; icon: Icon }[] = [
 /** The ribbon tab that owns a screen, so the ribbon follows navigation
  * done from the left menu. */
 export function tabForView(v: MainView): RibbonTab {
-  if (v === 'design' || v === 'load-schedule') return 'design';
+  if (v === 'design' || v === 'load-schedule' || v === 'space-planning') return 'design';
   if (v === 'engines') return 'simulate';
   if (['voltage-drop', 'earthing', 'coordination', 'selection', 'sizing', 'pfc'].includes(v)) return 'calculate';
   if (v === 'boq') return 'cost';
@@ -91,7 +91,8 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'Transformer', icon: Waves, title: 'Transformer data (main board → Electrical)', onClick: a.onTransformer },
         { label: 'Bus', icon: Minus, title: 'Add a board (busbar) fed from an existing board', onClick: a.onAddBoard },
         { label: 'Switchgear', icon: Server, title: `Board properties of ${a.boardId}`, onClick: a.onBoardProperties },
-        { label: 'Schedule', icon: Table2, title: `Load distribution schedule of ${a.boardId}`, onClick: go('load-schedule'), active: a.view === 'load-schedule' }
+        { label: 'Schedule', icon: Table2, title: `Load distribution schedule of ${a.boardId}`, onClick: go('load-schedule'), active: a.view === 'load-schedule' },
+        { label: 'Space plan', icon: LayoutGrid, title: 'Space planning: areas → panels → transformers → RMUs', onClick: go('space-planning'), active: a.view === 'space-planning' }
       ],
       [
         { label: 'Cable', icon: Cable, title: `Add a feeder cable ${addTo}`, onClick: () => a.onAddFeeder({}) },

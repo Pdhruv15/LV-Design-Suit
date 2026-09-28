@@ -17,6 +17,7 @@ import EarthingStudy from './components/studies/EarthingStudy';
 import SelectionStudy from './components/studies/SelectionStudy';
 import VoltageDropStudy from './components/studies/VoltageDropStudy';
 import RevisionsView from './components/docs/RevisionsView';
+import SpacePlanView from './components/docs/SpacePlanView';
 import CoordinationStudy from './components/studies/CoordinationStudy';
 import { PfcStudy, TransformerGeneratorStudy } from './components/studies/SizingStudy';
 import { CableScheduleView, DbScheduleView, EquipmentScheduleView, ReportView } from './components/docs/Documents';
@@ -453,6 +454,7 @@ export default function App() {
       <div className="app">
         <nav className="nav" aria-label="Navigation">
           <h4>Design</h4>
+          <button className={view === 'space-planning' ? 'on' : ''} onClick={() => setView('space-planning')}>Space planning</button>
           <button className={view === 'design' ? 'on' : ''} onClick={() => setView('design')}>Single line diagram</button>
           <button className={view === 'load-schedule' ? 'on' : ''} onClick={() => setView('load-schedule')}>Load schedule (DB)</button>
 
@@ -626,6 +628,19 @@ export default function App() {
             {view === 'cable-schedule' && <CableScheduleView project={project} onStatus={setStatus} />}
             {view === 'equipment' && <EquipmentScheduleView project={project} onStatus={setStatus} />}
             {view === 'report' && <ReportView project={project} onStatus={setStatus} />}
+            {view === 'space-planning' && (
+              <SpacePlanView
+                project={project}
+                onChange={(p, step) => setProject(p, step ? { step: true } : undefined)}
+                onStatus={setStatus}
+                onCreated={() => {
+                  const first = project.boards[0]?.id;
+                  setView('design');
+                  setDiagramMode('system');
+                  if (first) setActiveBoardId(first);
+                }}
+              />
+            )}
             {view === 'revisions' && <RevisionsView project={project} onChange={setProject} onStatus={setStatus} />}
             {view === 'boq' && (
               <>

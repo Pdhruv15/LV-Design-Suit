@@ -343,3 +343,22 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 .sysdiag .failed-tx line{stroke:var(--bad);stroke-width:3.5}
 .mode-banner.bad{background:color-mix(in srgb,var(--bad) 18%,var(--panel));border-color:var(--bad)}
 .supply-pick.active select{border-color:var(--warn);color:var(--warn)}
+/* ---- Space planning ---- */
+.plan-settings{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:end;margin-bottom:10px}
+.plan-settings label{display:grid;gap:3px;font-size:12px;color:var(--mut)}
+.plan-settings input,.plan-settings select,.plan-table input,.plan-table select,.plan-uses input{background:var(--p2);color:var(--tx);border:1px solid var(--line);border-radius:5px;padding:4px 6px;font:inherit;width:120px}
+.plan-uses{margin-bottom:10px}
+.plan-uses input{width:80px}
+.plan-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin:6px 0 12px}
+.plan-cards>div{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:grid;gap:2px}
+.plan-cards span{font-size:11.5px;color:var(--mut)}
+.plan-cards b{font-size:15px}
+.plan-cards small{font-size:11px;color:var(--mut)}
+.plan-cards small.warn{color:var(--warn)}.plan-cards small.ok{color:var(--ok)}
+.plan-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:14px;margin-top:6px}
+.plan-table input{width:110px}
+.section-title .chip{margin-left:6px;font-size:12px;padding:2px 8px}
+.plan-tree{font:12.5px/1.6 ui-monospace,Menlo,monospace;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px;white-space:pre-wrap}
+.plan-tx .ok{color:var(--ok)}.plan-tx .warn{color:var(--warn)}.plan-tx .bad{color:var(--bad)}
+.plan-areas{color:var(--mut)}
+.sysdiag .rmu-box{fill:color-mix(in srgb,var(--acc) 12%,var(--p2))}

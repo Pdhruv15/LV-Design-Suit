@@ -179,6 +179,8 @@ export interface Board {
   /** Standby generator feeding this board through an ATS: everything on
    * and below the board is then essential load for generator sizing. */
   standby?: { kva: number };
+  /** RMU (11 kV ring main unit) feeding this main board's transformer. */
+  rmu?: string;
   /** UPS rating for a UPS output board (kind 'UPS'). */
   upsKva?: number;
   /** Incoming supply of a board fed by the authority (meter cabinet / MDB
@@ -213,10 +215,66 @@ export interface Project {
   revisions?: Revision[]; // issued revisions, oldest first (A, B, C…)
   drawing?: DrawingInfo; // SLD drawing title block
   ties?: BusTie[]; // normally-open bus couplers between main boards
+  spacePlan?: SpacePlan; // areas → panels → transformers → RMUs (power density planning)
   studySettings?: StudySettings;
   boards: Board[];
   feeders: Feeder[];
   updatedAt: string;
+}
+
+/** Space planning (power density): areas are fed from panels, panels
+ * from transformers (or a parent panel), transformers from RMUs. */
+export interface SpaceUse {
+  id: string;
+  label: string;
+  wPerM2: number;
+  demandFactor: number;
+}
+
+export interface SpaceArea {
+  id: string;
+  building: string;
+  floor?: string;
+  name: string;
+  use: string; // SpaceUse id
+  areaM2?: number;
+  wPerM2?: number; // overrides the use's W/m²
+  kw?: number; // specific load (chiller, lift…) instead of area × W/m²
+  demandFactor?: number; // overrides the use's
+  panel?: string; // PlanPanel id
+}
+
+export interface PlanPanel {
+  id: string;
+  building: string;
+  kind: 'MDB' | 'SMDB';
+  location?: string;
+  transformer?: string; // MDB: PlanTransformer id
+  parent?: string; // SMDB: panel id
+}
+
+export interface PlanTransformer {
+  id: string;
+  kva: number;
+  rmu?: string;
+}
+
+export interface SpacePlanSettings {
+  /** Transformer size: 1000, 1500, or 0 = the one giving fewer units. */
+  transformerKva: number;
+  maxLoadingPct: number;
+  maxTransformersPerRmu: number;
+  powerFactor: number;
+  growthPct: number;
+}
+
+export interface SpacePlan {
+  areas: SpaceArea[];
+  panels: PlanPanel[];
+  transformers: PlanTransformer[];
+  settings: SpacePlanSettings;
+  /** Use types with W/m² and demand factor; defaults when absent. */
+  uses?: SpaceUse[];
 }
 
 /** Normally-open bus coupler (tie breaker) between two main boards: closed
