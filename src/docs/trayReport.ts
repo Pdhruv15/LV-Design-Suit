@@ -1,4 +1,4 @@
-import { routeSettings, SPACING_LABEL, trayQuantities, type TrayResult } from '../calc/cableTray';
+import { odsSource, routeSettings, SPACING_LABEL, trayQuantities, type TrayResult } from '../calc/cableTray';
 import { revisionStamp } from '../model/revisions';
 import type { Project, TrayPlan } from '../types';
 import { lineNumbers, traySectionSvg } from './traySection';
@@ -28,12 +28,12 @@ export function buildTrayReportHtml(project: Project, plan: TrayPlan, results: T
     ${r.cableCount ? `<figure>${traySectionSvg(r, plan, 330)}<figcaption>Cross-section to scale — hatched = spare</figcaption></figure>` : ''}
   </div>
   <p>${esc(basis)}; + ${e.sparePct} % spare → required ${r1(r.requiredMm)} mm.</p>
-  <p class="sel ${r.status}">Selected tray: ${trayText(r)} mm${r.manual ? ' (chosen)' : ''} — spare ${Math.round(r.sparePctActual)} %, cable weight ${r1(r.kgPerM)} kg/m, grouping factor ${r.groupFactor.toFixed(2)} (${r.loadedPerTier} per tier, ${r.arrangement})${r.notes.length ? ` — ${esc(r.notes.join('; '))}` : ''}</p>
+  <p class="sel ${r.status}">Selected tray: ${trayText(r)} mm${r.manual ? ' (chosen)' : ''} — spare ${Math.round(r.sparePctActual)} %, cable weight ${r1(r.kgPerM)} kg/m, grouping factor ${r.groupFactor.toFixed(2)} (${r.loadedPerTier} per tier, ${r.arrangement}), bend radius ≥ ${r.bendMm} mm${r.notes.length ? ` — ${esc(r.notes.join('; '))}` : ''}</p>
 </section>`;
   }).join('');
   const summary = results.map((r) => `<tr><td><b>${esc(r.route.name)}</b></td><td class="l">${esc(r.route.from ?? '')}</td><td class="l">${esc(r.route.to ?? '')}</td><td class="l">${esc(r.panels.join(', '))}</td><td>${r.cableCount}</td><td>${Math.round(r.requiredMm)}</td><td><b>${r.cableCount ? trayText(r) : '—'}</b></td><td>${Math.round(r.sparePctActual)} %</td><td>${r.groupFactor.toFixed(2)}</td><td>${r1(r.kgPerM)}</td><td>${r.route.lengthM ?? '—'}</td><td class="${r.status}">${r.status === 'ok' ? 'OK' : r.status === 'warn' ? 'Check' : 'Too small'}</td></tr>`).join('');
   const q = trayQuantities(results, s);
-  const boq = q.map((x) => `<tr><td><b>${x.size}</b></td><td>${Math.round(x.lengthM)}</td><td>${x.bends}</td><td>${x.tees}</td><td>${x.reducers}</td><td>${x.risers}</td><td>${x.supports}</td><td>${x.couplers}</td>${s.covers ? `<td>${Math.round(x.coverM)}</td>` : ''}<td class="l">${esc(x.routes.join(', '))}</td></tr>`).join('');
+  const boq = q.map((x) => `<tr><td><b>${x.size}</b></td><td>${Math.round(x.lengthM)}</td><td>${x.bends}</td><td>${x.tees}</td><td>${x.reducers}</td><td>${x.risers}</td><td>${x.supports}</td><td>${x.couplers}</td>${s.covers ? `<td>${Math.round(x.coverM)}</td>` : ''}<td>${x.bendRadiusMm || '—'}</td><td class="l">${esc(x.routes.join(', '))}</td></tr>`).join('');
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(project.name)} — cable tray schedule</title>
 <style>
 @page{size:A4 landscape;margin:12mm}
@@ -53,7 +53,7 @@ figcaption{font-size:8.5px;color:#6a7689}
 ${routes}
 <section class="route"><h2>Summary</h2>
 <table><thead><tr><th>Route</th><th>From</th><th>To</th><th>Panels</th><th>Cables</th><th>Required (mm)</th><th>Tray W × D (mm)</th><th>Spare</th><th>Grouping</th><th>kg/m</th><th>Length (m)</th><th>Status</th></tr></thead><tbody>${summary}</tbody></table></section>
-${q.length ? `<section class="route"><h2>Tray BOQ</h2><table><thead><tr><th>Size W × D (mm)</th><th>Tray (m)</th><th>Bends</th><th>Tees</th><th>Reducers</th><th>Risers</th><th>Supports</th><th>Coupler sets</th>${s.covers ? '<th>Cover (m)</th>' : ''}<th>Routes</th></tr></thead><tbody>${boq}</tbody></table></section>` : ''}
-<p class="basis">Tiers counted in the BOQ. Grouping factors: IEC 60364-5-52 Table B.52.20 (trays) / B.52.17 (bunched), typical values. Cable diameters: ${plan.ods ? 'project cable data' : 'typical catalogue values — confirm with the manufacturer'}.</p>
+${q.length ? `<section class="route"><h2>Tray BOQ</h2><table><thead><tr><th>Size W × D (mm)</th><th>Tray (m)</th><th>Bends</th><th>Tees</th><th>Reducers</th><th>Risers</th><th>Supports</th><th>Coupler sets</th>${s.covers ? '<th>Cover (m)</th>' : ''}<th>Bend radius ≥ (mm)</th><th>Routes</th></tr></thead><tbody>${boq}</tbody></table></section>` : ''}
+<p class="basis">Tiers counted in the BOQ. Grouping factors: IEC 60364-5-52 Table B.52.20 (trays) / B.52.17 (bunched), typical values. Cable diameters: ${esc(odsSource(plan))}.</p>
 </body></html>`;
 }

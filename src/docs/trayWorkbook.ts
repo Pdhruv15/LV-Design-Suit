@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { routeSettings, SPACING_LABEL, trayQuantities, type TrayResult } from '../calc/cableTray';
+import { routeSettings, SPACING_LABEL, trayQuantities, type TrayResult, odsSource } from '../calc/cableTray';
 import { revisionStamp } from '../model/revisions';
 import type { Project, TrayPlan } from '../types';
 import { lineNumbers } from './traySection';
@@ -65,7 +65,7 @@ export function buildTrayWorkbook(project: Project, plan: TrayPlan, results: Tra
       : `Fill ${e.fillPct} % of ${e.depthMm} mm depth: cable area ${Math.round(r.cableAreaMm2)} mm² → ${r1(r.occupiedMm)} mm`;
     const b = row(ws, ['', `${basis}; + ${e.sparePct} % spare → required ${r1(r.requiredMm)} mm`, '', '', '', '', '', '', ''], { border: false });
     ws.mergeCells(b.number, 2, b.number, 9);
-    const t = row(ws, ['', `SELECTED TRAY: ${trayText(r)} mm${r.manual ? ' (chosen)' : ''} — spare ${Math.round(r.sparePctActual)} %, cable weight ${r1(r.kgPerM)} kg/m, grouping factor ${r.groupFactor.toFixed(2)}${r.notes.length ? ` — ${r.notes.join('; ')}` : ''}`, '', '', '', '', '', '', ''], { bold: true, border: false });
+    const t = row(ws, ['', `SELECTED TRAY: ${trayText(r)} mm${r.manual ? ' (chosen)' : ''} — spare ${Math.round(r.sparePctActual)} %, cable weight ${r1(r.kgPerM)} kg/m, grouping factor ${r.groupFactor.toFixed(2)}, bend radius ≥ ${r.bendMm} mm${r.notes.length ? ` — ${r.notes.join('; ')}` : ''}`, '', '', '', '', '', '', ''], { bold: true, border: false });
     ws.mergeCells(t.number, 2, t.number, 9);
   }
 
@@ -80,10 +80,10 @@ export function buildTrayWorkbook(project: Project, plan: TrayPlan, results: Tra
   }
   sum.addRow([]);
   row(sum, ['', `Tray BOQ — ${s.trayType}`], { bold: true, border: false });
-  row(sum, ['', 'Size W × D (mm)', 'Tray (m, all tiers)', 'Bends', 'Tees', 'Reducers', 'Risers', 'Supports', 'Coupler sets', ...(s.covers ? ['Cover (m)'] : []), 'Routes'], { bold: true, fill: GREY });
-  for (const q of trayQuantities(results, s)) row(sum, ['', q.size, Math.round(q.lengthM), q.bends, q.tees, q.reducers, q.risers, q.supports, q.couplers, ...(s.covers ? [Math.round(q.coverM)] : []), q.routes.join(', ')]);
+  row(sum, ['', 'Size W × D (mm)', 'Tray (m, all tiers)', 'Bends', 'Tees', 'Reducers', 'Risers', 'Supports', 'Coupler sets', ...(s.covers ? ['Cover (m)'] : []), 'Bend radius ≥ (mm)', 'Routes'], { bold: true, fill: GREY });
+  for (const q of trayQuantities(results, s)) row(sum, ['', q.size, Math.round(q.lengthM), q.bends, q.tees, q.reducers, q.risers, q.supports, q.couplers, ...(s.covers ? [Math.round(q.coverM)] : []), q.bendRadiusMm || '—', q.routes.join(', ')]);
   sum.addRow([]);
-  const note = sum.addRow(['', `Basis: default spare ${s.sparePct} %, ${s.method === 'spacing' ? `single layer, spacing ${SPACING_LABEL[s.spacing]}` : `fill ${s.fillPct} %`}, depth ${s.depthMm} mm, max width ${s.maxWidthMm} mm${s.includeEcc ? ', separate 1C ECC with each feeder' : ''}. Cable diameters: ${plan.ods ? 'project cable data' : 'typical catalogue values — confirm with the manufacturer'}.`]);
+  const note = sum.addRow(['', `Basis: default spare ${s.sparePct} %, ${s.method === 'spacing' ? `single layer, spacing ${SPACING_LABEL[s.spacing]}` : `fill ${s.fillPct} %`}, depth ${s.depthMm} mm, max width ${s.maxWidthMm} mm${s.includeEcc ? ', separate 1C ECC with each feeder' : ''}. Cable diameters: ${odsSource(plan)}.`]);
   note.getCell(2).font = { name: FONT, size: 8, italic: true };
   sum.mergeCells(note.number, 2, note.number, 12);
   return wb;

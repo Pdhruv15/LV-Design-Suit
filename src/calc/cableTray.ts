@@ -1,4 +1,5 @@
 import { cpcOf } from './cableTable';
+import { brandOf, DEFAULT_CABLE_BRAND, typicalKgPerM } from '../data/cableBrands';
 import type { CableOd, Feeder, Project, TrayCable, TrayPlan, TrayRoute, TraySettings, TraySpacing } from '../types';
 
 /** Cable tray sizing, route by route.
@@ -53,25 +54,14 @@ export const SPACING_LABEL: Record<TraySpacing, string> = {
 
 const SPACING_FACTOR: Record<Exclude<TraySpacing, 'mm'>, number> = { touching: 0, quarter: 0.25, half: 0.5, one: 1, two: 2 };
 
-// Rough overall diameters (mm) and weights (kg/m) of 0.6/1 kV Cu XLPE/PVC/SWA/PVC
-// multicore cable (BS 5467 type, typical catalogue figures), and 1C PVC earth
-// cable. PLACEHOLDER — replace with your manufacturer's data.
-const SIZES = [1.5, 2.5, 4, 6, 10, 16, 25, 35, 50, 70, 95, 120, 150, 185, 240, 300, 400];
-const OD4 = [13.0, 14.4, 16.5, 17.9, 20.6, 22.8, 26.9, 29.4, 32.0, 36.5, 41.5, 45.3, 50.1, 55.8, 62.9, 68.8, 77.6];
-const KG4 = [0.4, 0.5, 0.65, 0.8, 1.1, 1.4, 2.0, 2.5, 3.0, 4.1, 5.4, 6.6, 8.1, 10.0, 12.9, 15.9, 20.1];
-const OD1 = [3.3, 3.9, 4.4, 5.0, 6.3, 7.3, 9.0, 10.2, 11.9, 13.7, 15.8, 17.5, 19.5, 21.8, 24.8, 27.6, 31.4];
-const KG1 = [0.02, 0.03, 0.05, 0.07, 0.11, 0.17, 0.26, 0.36, 0.49, 0.69, 0.94, 1.18, 1.46, 1.83, 2.37, 2.96, 3.9];
-const r1 = (v: number) => Math.round(v * 10) / 10;
-
-export const DEFAULT_CABLE_ODS: CableOd[] = [
-  ...SIZES.map((csaMm2, i) => ({ cores: 1, csaMm2, odMm: OD1[i], kgPerM: KG1[i] })),
-  ...SIZES.map((csaMm2, i) => ({ cores: 2, csaMm2, odMm: r1(OD4[i] * 0.86), kgPerM: r1(KG4[i] * 0.62) })),
-  ...SIZES.map((csaMm2, i) => ({ cores: 3, csaMm2, odMm: r1(OD4[i] * 0.93), kgPerM: r1(KG4[i] * 0.8) })),
-  ...SIZES.map((csaMm2, i) => ({ cores: 4, csaMm2, odMm: OD4[i], kgPerM: KG4[i] }))
-];
+/** Cable data in use when a project has none of its own: DUCAB. */
+export const DEFAULT_CABLE_ODS: CableOd[] = brandOf(DEFAULT_CABLE_BRAND).ods;
 
 export const emptyTrayPlan = (): TrayPlan => ({ routes: [], settings: { ...TRAY_DEFAULTS } });
-export const odsOf = (plan: TrayPlan) => plan.ods ?? DEFAULT_CABLE_ODS;
+/** The plan's cable data: its own edited table, else its brand (DUCAB by default). */
+export const odsOf = (plan: TrayPlan) => plan.ods ?? brandOf(plan.brand).ods;
+/** What the cable data is, for notes on the exports. */
+export const odsSource = (plan: TrayPlan) => (plan.ods ? `project cable data (edited from ${brandOf(plan.brand).name})` : brandOf(plan.brand).note);
 
 /** The project's tray plan with every setting filled in (older projects
  * miss the newer settings). */
@@ -80,14 +70,20 @@ export function trayPlanOf(project: Project): TrayPlan & { settings: Required<Tr
   return { ...p, settings: { ...TRAY_DEFAULTS, ...p.settings } };
 }
 
-/** Diameter and weight of cores × size: the table's row, or the nearest
- * bigger size (a size missing from the table is never under-sized). */
-export function lookupOd(ods: CableOd[], cores: number, csaMm2: number): { odMm: number; kgPerM: number; found: boolean } {
+/** Minimum bending radius when the cable data doesn't give one: 8 × D
+ * (armoured XLPE, typical — DUCAB's own figures are ≈ 8 × D). */
+export const BEND_FACTOR = 8;
+
+/** Diameter, weight and bending radius of cores × size: the table's row, or
+ * the nearest bigger size (a size missing from the table is never
+ * under-sized). */
+export function lookupOd(ods: CableOd[], cores: number, csaMm2: number): { odMm: number; kgPerM: number; bendMm: number; bendEstimated: boolean; found: boolean } {
   const rows = ods.filter((o) => o.cores === cores && o.odMm > 0).sort((a, b) => a.csaMm2 - b.csaMm2);
   const exact = rows.find((o) => o.csaMm2 === csaMm2);
-  if (exact) return { ...exact, found: true };
-  const up = rows.find((o) => o.csaMm2 > csaMm2) ?? rows[rows.length - 1];
-  return up ? { odMm: up.odMm, kgPerM: up.kgPerM, found: false } : { odMm: 0, kgPerM: 0, found: false };
+  const row = exact ?? rows.find((o) => o.csaMm2 > csaMm2) ?? rows[rows.length - 1];
+  if (!row) return { odMm: 0, kgPerM: 0, bendMm: 0, bendEstimated: true, found: false };
+  const kg = row.kgPerM || typicalKgPerM(cores, row.csaMm2);
+  return { odMm: row.odMm, kgPerM: kg, bendMm: row.bendMm ?? Math.round(row.odMm * BEND_FACTOR), bendEstimated: row.bendMm === undefined, found: !!exact };
 }
 
 // ---- Route paths -----------------------------------------------------------
@@ -201,6 +197,8 @@ export interface TrayLine {
   qty: number;
   odMm: number;
   kgPerM: number;
+  bendMm: number; // minimum bending radius
+  bendEstimated: boolean; // 8 × D (the cable data doesn't give it)
   ecc: boolean;
   path?: string; // the feeder's whole route path
   missing?: string; // why the line can't be sized
@@ -228,6 +226,8 @@ export function trayLines(project: Project, plan: TrayPlan, route: TrayRoute): T
       cores, csaMm2: csa, qty,
       odMm: c?.odMm ?? d.odMm,
       kgPerM: c?.kgPerM ?? d.kgPerM,
+      bendMm: c?.odMm ? Math.max(d.bendMm, Math.round(c.odMm * BEND_FACTOR)) : d.bendMm,
+      bendEstimated: d.bendEstimated,
       ecc: false,
       path: f?.trayRoute,
       missing: csa > 0 ? undefined : 'enter the cable size',
@@ -236,14 +236,14 @@ export function trayLines(project: Project, plan: TrayPlan, route: TrayRoute): T
     if (f && plan.settings.includeEcc) {
       const e = cpcOf(f);
       const de = lookupOd(ods, 1, e);
-      out.push({ id: `${id}:ecc`, cableId: c?.id, feederId: f.id, from, to, description: `1C × ${e} mm² ECC`, cores: 1, csaMm2: e, qty, odMm: de.odMm, kgPerM: de.kgPerM, ecc: true, unknownSize: !de.found });
+      out.push({ id: `${id}:ecc`, cableId: c?.id, feederId: f.id, from, to, description: `1C × ${e} mm² ECC`, cores: 1, csaMm2: e, qty, odMm: de.odMm, kgPerM: de.kgPerM, bendMm: de.bendMm, bendEstimated: de.bendEstimated, ecc: true, unknownSize: !de.found });
     }
   };
   for (const f of project.feeders) if (onRoute(route, f)) line(route.cables.find((c) => c.feederId === f.id), f);
   for (const c of route.cables) {
     if (!c.feederId) line(c, undefined);
     else if (!project.feeders.some((f) => f.id === c.feederId)) {
-      out.push({ id: c.id, cableId: c.id, feederId: c.feederId, from: c.from ?? '', to: c.to ?? '', description: `${c.feederId} (deleted from the design)`, cores: 0, csaMm2: 0, qty: 0, odMm: 0, kgPerM: 0, ecc: false, missing: 'not in the design any more' });
+      out.push({ id: c.id, cableId: c.id, feederId: c.feederId, from: c.from ?? '', to: c.to ?? '', description: `${c.feederId} (deleted from the design)`, cores: 0, csaMm2: 0, qty: 0, odMm: 0, kgPerM: 0, bendMm: 0, bendEstimated: false, ecc: false, missing: 'not in the design any more' });
     }
   }
   return out;
@@ -320,6 +320,9 @@ export interface TrayResult {
   sparePctActual: number;
   fillPctActual: number; // cable area / tray area (all tiers)
   kgPerM: number; // cable weight on the route (all tiers)
+  /** Largest minimum bending radius of the cables: bends and tees need at least this. */
+  bendMm: number;
+  bendEstimated: boolean;
   /** Loaded cables per tier (ECCs don't count) and the grouping factor. */
   loadedPerTier: number;
   arrangement: GroupArrangement;
@@ -370,6 +373,7 @@ export function sizeRoute(project: Project, planIn: TrayPlan, route: TrayRoute):
   const spareActual = occupied > 0 ? (total / occupied - 1) * 100 : 100;
   const fillActual = total * s.depthMm > 0 ? (area / (total * s.depthMm)) * 100 : 0;
   const kg = ok.reduce((a, l) => a + l.qty * l.kgPerM, 0);
+  const bendLine = ok.reduce<TrayLine | undefined>((m, l) => (!m || l.bendMm > m.bendMm ? l : m), undefined);
 
   const loaded = ok.filter((l) => !l.ecc).reduce((a, l) => a + l.qty, 0);
   const loadedPerTier = Math.ceil(loaded / Math.max(1, tiers));
@@ -398,7 +402,7 @@ export function sizeRoute(project: Project, planIn: TrayPlan, route: TrayRoute):
     autoWidthMm: auto.widthMm, autoTiers: auto.tiers,
     widthMm, tiers, depthMm: s.depthMm, manual,
     sparePctActual: spareActual, fillPctActual: fillActual,
-    kgPerM: kg, loadedPerTier, arrangement, groupFactor, laid, status, notes
+    kgPerM: kg, bendMm: bendLine?.bendMm ?? 0, bendEstimated: bendLine?.bendEstimated ?? false, loadedPerTier, arrangement, groupFactor, laid, status, notes
   };
 }
 
@@ -439,6 +443,7 @@ export interface TrayQuantity {
   supports: number;
   couplers: number; // joint (coupler) sets
   coverM: number;
+  bendRadiusMm: number; // minimum inside radius of the bends and tees (largest cable)
   routes: string[];
 }
 
@@ -451,7 +456,8 @@ export function trayQuantities(results: TrayResult[], settings: Partial<TraySett
   for (const r of results) {
     if (!r.cableCount) continue;
     const size = `${r.widthMm} × ${r.depthMm}`;
-    const q = m.get(size) ?? { size, widthMm: r.widthMm, depthMm: r.depthMm, lengthM: 0, bends: 0, tees: 0, reducers: 0, risers: 0, supports: 0, couplers: 0, coverM: 0, routes: [] };
+    const q = m.get(size) ?? { size, widthMm: r.widthMm, depthMm: r.depthMm, lengthM: 0, bends: 0, tees: 0, reducers: 0, risers: 0, supports: 0, couplers: 0, coverM: 0, bendRadiusMm: 0, routes: [] };
+    q.bendRadiusMm = Math.max(q.bendRadiusMm, r.bendMm);
     const len = r.route.lengthM ?? 0;
     const t = r.tiers;
     const fit = r.route.fittings ?? {};

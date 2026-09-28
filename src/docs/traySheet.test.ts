@@ -12,21 +12,22 @@ describe('cable data sheet and tray workbook', () => {
   const row = (csa: number) => sheet.sizes.indexOf(csa);
 
   it('one row per size, OD and kg/m for 1C–4C', () => {
-    expect(sheet.cols).toHaveLength(9);
+    expect(sheet.cols).toHaveLength(12); // size + 1C OD, kg + 2C–4C OD, kg, bend radius
     expect(sheet.data[row(240)].slice(0, 1)).toEqual([240]);
-    expect(sheet.data[row(240)][7]).toBe(62.9); // 4C OD
+    expect(sheet.data[row(240)][9]).toBe(63); // 4C OD (DUCAB)
+    expect(sheet.data[row(240)][11]).toBe(510); // 4C bending radius
   });
 
   it('typed and pasted values replace the rough ones', () => {
-    const { ods, rejected } = applyOdEdits(DEFAULT_CABLE_ODS, sheet, [{ y: row(240), x: 7, value: '64.5' }, { y: row(240), x: 8, value: 'x' }]);
+    const { ods, rejected } = applyOdEdits(DEFAULT_CABLE_ODS, sheet, [{ y: row(240), x: 9, value: '64.5' }, { y: row(240), x: 10, value: 'x' }]);
     expect(rejected).toEqual(['x is not a number']);
     expect(lookupOd(ods, 4, 240).odMm).toBe(64.5);
-    expect(applyOdEdits(DEFAULT_CABLE_ODS, sheet, [{ y: row(240), x: 7, value: '62.9' }]).ods).toBe(DEFAULT_CABLE_ODS);
+    expect(applyOdEdits(DEFAULT_CABLE_ODS, sheet, [{ y: row(240), x: 9, value: '63' }]).ods).toBe(DEFAULT_CABLE_ODS);
   });
 
   it('a new size in a blank row, then its diameter', () => {
     const blank = sheet.sizes.indexOf(undefined);
-    const { ods } = applyOdEdits(DEFAULT_CABLE_ODS, sheet, [{ y: blank, x: 0, value: '500' }, { y: blank, x: 7, value: '86' }]);
+    const { ods } = applyOdEdits(DEFAULT_CABLE_ODS, sheet, [{ y: blank, x: 0, value: '500' }, { y: blank, x: 9, value: '86' }]);
     expect(lookupOd(ods, 4, 500)).toMatchObject({ odMm: 86, found: true });
     expect(buildOdSheet(ods).sizes).toContain(500);
     expect(lookupOd(ods, 3, 500).found).toBe(false); // 3C not given yet
