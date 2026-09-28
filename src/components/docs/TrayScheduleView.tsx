@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import type { Project, TrayCable, TrayMethod, TrayPlan, TrayRoute, TraySettings, TraySpacing } from '../../types';
 import {
-  addFeedersToRoute, DEFAULT_CABLE_ODS, deleteRoute, newTrayId, nextRouteName, odsOf, onRoute as isOnRoute, panelCables, removeFeederFromRoute,
+  addFeedersToRoute, deleteRoute, newTrayId, nextRouteName, odsOf, onRoute as isOnRoute, panelCables, removeFeederFromRoute,
   renameRoute, routeSettings, sizeAll, SPACING_LABEL, TRAY_DEPTHS, trayFeeders, trayPlanOf, trayQuantities, unroutedFeeders, type TrayResult
 } from '../../calc/cableTray';
 import { boardsInSupplyOrder } from '../../calc/summary';
+import { brandOf, CABLE_BRANDS, DEFAULT_CABLE_BRAND } from '../../data/cableBrands';
 import { applyOdEdits, applyRoutingEdits, buildOdSheet, buildRoutingSheet } from '../../docs/traySheet';
 import { lineNumbers, traySectionSvg } from '../../docs/traySection';
 import { buildTrayWorkbook } from '../../docs/trayWorkbook';
@@ -158,13 +159,26 @@ export default function TrayScheduleView({ project, onChange, onStatus }: {
         <label className="tray-check" title="Derate the cables on each route for grouping (IEC 60364-5-52 Table B.52.20); the cable checks use it after the next Run (F5)">
           <input type="checkbox" checked={s.applyGrouping} onChange={(e) => setSettings({ applyGrouping: e.target.checked })} /> Apply grouping to cable ratings
         </label>
-        <button className="chip" onClick={() => setShowOds(!showOds)}>{showOds ? 'Hide' : 'Edit'} cable sizes (OD)</button>
+        <label>Cable data (brand)
+          <select
+            value={plan.ods ? 'custom' : brandOf(plan.brand).id}
+            onChange={(e) => {
+              if (e.target.value === 'custom') return;
+              if (plan.ods && !window.confirm('Replace your edited cable data with the brand\'s?')) return;
+              setPlan({ ...plan, brand: e.target.value, ods: undefined }, true);
+            }}
+          >
+            {CABLE_BRANDS.map((b) => <option key={b.id} value={b.id}>{b.name}{b.id === DEFAULT_CABLE_BRAND ? ' (default)' : ''}</option>)}
+            {plan.ods && <option value="custom">Edited ({brandOf(plan.brand).name} based)</option>}
+          </select>
+        </label>
+        <button className="chip" onClick={() => setShowOds(!showOds)}>{showOds ? 'Hide' : 'View / edit'} cable sizes (OD)</button>
       </div>
 
       {showOds && (
         <div className="plan-uses">
           <p className="warn m">
-            {plan.ods ? 'Your cable data.' : 'ROUGH values (typical XLPE/SWA/PVC catalogue sizes) — replace with your manufacturer\'s data.'} Outer diameter in mm, weight in kg/m. Paste from Excel works (select the first cell, ⌘V).
+            {plan.ods ? `Your edited cable data (started from ${brandOf(plan.brand).name}).` : `${brandOf(plan.brand).note}.`} Outer diameter and minimum bending radius in mm, weight in kg/m; blank weight = typical, blank bending radius = 8 × D. Sizes missing from the table use the next bigger size. Editing makes a project copy; paste from Excel works (select the first cell, ⌘V).
           </p>
           <ClassicGrid
             model={odSheet}
@@ -176,7 +190,7 @@ export default function TrayScheduleView({ project, onChange, onStatus }: {
               return { changed: ods !== odsOf(plan), rejected };
             }}
           />
-          {plan.ods && <button className="chip" onClick={() => setPlan({ ...plan, ods: undefined }, true)}>Back to the rough values ({DEFAULT_CABLE_ODS.length} sizes)</button>}
+          {plan.ods && <button className="chip" onClick={() => setPlan({ ...plan, ods: undefined }, true)}>Back to the {brandOf(plan.brand).name} data</button>}
         </div>
       )}
 
@@ -268,13 +282,14 @@ export default function TrayScheduleView({ project, onChange, onStatus }: {
             <>
               <h3 className="section-title">4 · Tray BOQ ({s.trayType})</h3>
               <table className="schedule tray-summary">
-                <thead><tr><th>Size W × D (mm)</th><th>Tray (m)</th><th>Bends</th><th>Tees</th><th>Reducers</th><th>Risers</th><th>Supports</th><th>Coupler sets</th>{s.covers && <th>Cover (m)</th>}<th>Routes</th></tr></thead>
+                <thead><tr><th>Size W × D (mm)</th><th>Tray (m)</th><th>Bends</th><th>Tees</th><th>Reducers</th><th>Risers</th><th>Supports</th><th>Coupler sets</th>{s.covers && <th>Cover (m)</th>}<th>Bend radius ≥ (mm)</th><th>Routes</th></tr></thead>
                 <tbody>
                   {quantities.map((q) => (
                     <tr key={q.size}>
                       <td><b>{q.size}</b></td><td>{q.lengthM ? f0(q.lengthM) : '— enter route lengths'}</td>
                       <td>{q.bends}</td><td>{q.tees}</td><td>{q.reducers}</td><td>{q.risers}</td><td>{q.supports}</td><td>{q.couplers}</td>
                       {s.covers && <td>{f0(q.coverM)}</td>}
+                      <td>{q.bendRadiusMm || '—'}</td>
                       <td className="l">{q.routes.join(', ')}</td>
                     </tr>
                   ))}
@@ -517,6 +532,7 @@ function RouteCard({ project, plan, res, boards, onProject, onRoute, onRemove, o
           <div className="m">
             Grouping <b>× {res.groupFactor.toFixed(2)}</b> — {res.loadedPerTier} loaded cable{res.loadedPerTier === 1 ? '' : 's'} per tier, {ARRANGEMENT[res.arrangement]}, {res.tiers} tier{res.tiers === 1 ? '' : 's'}, {s.kind === 'ladder' ? 'cable ladder' : 'perforated tray'} (IEC 60364-5-52 {res.arrangement === 'bunched' ? 'B.52.17' : 'B.52.20'})
             {s.applyGrouping ? ' — applied to the cable ratings (Run / F5)' : ' — not applied (switched off)'}
+            {res.bendMm > 0 && <> · Bends and tees: inside radius ≥ <b>{res.bendMm} mm</b>{res.bendEstimated ? ' (8 × D, estimated)' : ''}</>}
           </div>
         )}
       </div>

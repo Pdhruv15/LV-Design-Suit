@@ -3,9 +3,10 @@ import { ensureRoutes, joinPath, routeNames, trayPlanOf } from '../calc/cableTra
 import type { CableOd, Feeder, Project } from '../types';
 import { cellName, parsePositive, STYLE, type SheetEdit, type SheetModel } from './sheet';
 
-/** Cable outer diameters and weights as an Excel-style sheet: one row per
- * size, OD and kg/m for 1C–4C (paste a manufacturer's table straight in).
- * Blank rows at the end take new sizes. */
+/** Cable outer diameters, weights and bending radii as an Excel-style
+ * sheet: one row per size, for 1C–4C (paste a manufacturer's table
+ * straight in). Blank rows at the end take new sizes. Blank weight = typical
+ * weight; blank bending radius = 8 × D. */
 
 const CORES = [1, 2, 3, 4];
 const SPARE_ROWS = 3;
@@ -14,31 +15,34 @@ export interface OdSheet extends SheetModel {
   sizes: (number | undefined)[];
 }
 
-/** Column x (1…8) → cores and field. */
-const colOf = (x: number) => ({ cores: CORES[Math.floor((x - 1) / 2)], field: (x - 1) % 2 === 0 ? 'odMm' as const : 'kgPerM' as const });
+type Field = 'odMm' | 'kgPerM' | 'bendMm';
+/** Columns after the size: 1C OD, kg/m; then OD, kg/m, bending radius for 2C–4C. */
+const COLS: { cores: number; field: Field }[] = CORES.flatMap((cores) => (['odMm', 'kgPerM', ...(cores > 1 ? ['bendMm'] : [])] as Field[]).map((field) => ({ cores, field })));
+const colOf = (x: number) => COLS[x - 1];
+const TITLE: Record<Field, [string, number]> = { odMm: ['OD (mm)', 64], kgPerM: ['kg/m', 54], bendMm: ['BEND R (mm)', 64] };
 
 export function buildOdSheet(ods: CableOd[]): OdSheet {
   const sizes: (number | undefined)[] = [...[...new Set(ods.map((o) => o.csaMm2))].sort((a, b) => a - b), ...Array(SPARE_ROWS).fill(undefined)];
   const data = sizes.map((csa) => [
     csa ?? '',
-    ...CORES.flatMap((c) => {
-      const o = csa === undefined ? undefined : ods.find((x) => x.cores === c && x.csaMm2 === csa);
-      return [o?.odMm || '', o?.kgPerM || ''];
+    ...COLS.map(({ cores, field }) => {
+      const o = csa === undefined ? undefined : ods.find((x) => x.cores === cores && x.csaMm2 === csa);
+      return o?.[field] || '';
     })
   ]);
   const styles: Record<string, string> = {};
-  sizes.forEach((csa, y) => { for (let x = 0; x < 9; x++) styles[cellName(x, y)] = x === 0 && csa !== undefined ? STYLE.label : STYLE.input; });
+  sizes.forEach((csa, y) => { for (let x = 0; x <= COLS.length; x++) styles[cellName(x, y)] = x === 0 && csa !== undefined ? STYLE.label : STYLE.input; });
   return {
     sizes,
     data,
     merges: {},
-    groups: [{ title: '', colspan: 1 }, ...CORES.map((c) => ({ title: c === 1 ? '1C (earth)' : `${c}C`, colspan: 2 }))],
+    groups: [{ title: '', colspan: 1 }, ...CORES.map((c) => ({ title: c === 1 ? '1C (also ECC)' : `${c}C`, colspan: c === 1 ? 2 : 3 }))],
     styles,
     editable: () => true,
     shape: JSON.stringify(sizes),
     cols: [
       { title: 'SIZE (mm²)', width: 80, input: true },
-      ...CORES.flatMap(() => [{ title: 'OD (mm)', width: 70, input: true }, { title: 'kg/m', width: 60, input: true }])
+      ...COLS.map(({ field }) => ({ title: TITLE[field][0], width: TITLE[field][1], input: true }))
     ]
   };
 }
@@ -75,7 +79,10 @@ export function applyOdEdits(ods: CableOd[], sheet: OdSheet, edits: SheetEdit[])
     const { cores, field } = colOf(e.x);
     const i = out.findIndex((o) => o.cores === cores && o.csaMm2 === csa);
     if (raw === '') {
-      if (i >= 0 && out[i][field]) { out[i] = { ...out[i], [field]: 0 }; changed = true; }
+      if (i >= 0 && out[i][field]) {
+        if (field === 'bendMm') { const { bendMm: _b, ...rest } = out[i]; out[i] = rest; } else out[i] = { ...out[i], [field]: 0 };
+        changed = true;
+      }
       continue;
     }
     const v = parsePositive(raw);
@@ -83,7 +90,7 @@ export function applyOdEdits(ods: CableOd[], sheet: OdSheet, edits: SheetEdit[])
     if (i >= 0) {
       if (out[i][field] !== v) { out[i] = { ...out[i], [field]: v }; changed = true; }
     } else {
-      out.push({ cores, csaMm2: csa, odMm: field === 'odMm' ? v : 0, kgPerM: field === 'kgPerM' ? v : 0 });
+      out.push({ cores, csaMm2: csa, odMm: field === 'odMm' ? v : 0, kgPerM: field === 'kgPerM' ? v : 0, ...(field === 'bendMm' ? { bendMm: v } : {}) });
       changed = true;
     }
   }

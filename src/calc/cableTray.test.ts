@@ -21,26 +21,26 @@ const plan = (patch: Partial<TrayPlan['settings']> = {}): TrayPlan => {
 describe('cable tray sizing', () => {
   it('spacing method: diameters + 1 D clearances + 25 % spare → next standard width', () => {
     const r = sizeRoute(sampleProject, plan(), route());
-    expect(r.sumOdMm).toBeCloseTo(188.7, 1); // 3 × 62.9
-    expect(r.clearanceMm).toBeCloseTo(125.8, 1); // 2 gaps × 62.9
-    expect(r.requiredMm).toBeCloseTo(314.5 * 1.25, 1);
+    expect(r.sumOdMm).toBeCloseTo(189, 1); // 3 × 63.0 (DUCAB 4C × 240)
+    expect(r.clearanceMm).toBeCloseTo(126, 1); // 2 gaps × 63.0
+    expect(r.requiredMm).toBeCloseTo(315 * 1.25, 1);
     expect([r.widthMm, r.tiers, r.status]).toEqual([400, 1, 'ok']);
   });
 
   it('touching and fixed-mm spacing', () => {
-    expect(sizeRoute(sampleProject, plan({ spacing: 'touching' }), route()).occupiedMm).toBeCloseTo(188.7, 1);
-    expect(sizeRoute(sampleProject, plan({ spacing: 'mm', spacingMm: 20 }), route()).occupiedMm).toBeCloseTo(228.7, 1);
+    expect(sizeRoute(sampleProject, plan({ spacing: 'touching' }), route()).occupiedMm).toBeCloseTo(189, 1);
+    expect(sizeRoute(sampleProject, plan({ spacing: 'mm', spacingMm: 20 }), route()).occupiedMm).toBeCloseTo(229, 1);
   });
 
   it('fill method: cable area against fill % × depth', () => {
     const r = sizeRoute(sampleProject, plan({ method: 'fill' }), route());
-    const area = 3 * Math.PI * 62.9 ** 2 / 4;
+    const area = 3 * Math.PI * 63 ** 2 / 4;
     expect(r.occupiedMm).toBeCloseTo(area / (0.4 * 50), 1);
     expect(r.widthMm).toBe(600);
   });
 
   it('a route setting overrides the default', () => {
-    expect(sizeRoute(sampleProject, plan(), route({ sparePct: 0 })).widthMm).toBe(400); // 314.5 → 400
+    expect(sizeRoute(sampleProject, plan(), route({ sparePct: 0 })).widthMm).toBe(400); // 315 → 400
     expect(sizeRoute(sampleProject, plan(), route({ spacing: 'touching', sparePct: 0 })).widthMm).toBe(200);
   });
 
@@ -54,7 +54,7 @@ describe('cable tray sizing', () => {
     expect(sizeRoute(sampleProject, plan(), route({ widthMm: 300, tiers: 1 })).status).toBe('bad');
     const r = sizeRoute(sampleProject, plan({ sparePct: 40 }), route({ widthMm: 400, tiers: 1 }));
     expect(r.status).toBe('warn');
-    expect(r.sparePctActual).toBeCloseTo((400 / 314.5 - 1) * 100, 1);
+    expect(r.sparePctActual).toBeCloseTo((400 / 315 - 1) * 100, 1);
   });
 
   it('feeders from several panels go on a route through their path; size and runs follow the design; ECC optional', () => {
@@ -129,19 +129,39 @@ describe('cable tray sizing', () => {
   });
 
   it('a size missing from the cable data takes the next size up', () => {
-    expect(lookupOd(DEFAULT_CABLE_ODS, 4, 240)).toMatchObject({ odMm: 62.9, found: true });
-    expect(lookupOd(DEFAULT_CABLE_ODS, 4, 200)).toMatchObject({ odMm: 62.9, found: false });
+    expect(lookupOd(DEFAULT_CABLE_ODS, 4, 240)).toMatchObject({ odMm: 63, bendMm: 510, found: true });
+    expect(lookupOd(DEFAULT_CABLE_ODS, 4, 200)).toMatchObject({ odMm: 63, found: false });
   });
 
   it('quantities by tray size and route names A, B … Z, AA', () => {
     const p = plan();
     const a = sizeRoute(sampleProject, p, route());
     const b = sizeRoute(sampleProject, p, route({ id: 'r2', name: 'B', lengthM: 10, tiers: 2 }));
-    expect(trayQuantities([a, b])).toEqual([{ size: '400 × 50', widthMm: 400, depthMm: 50, lengthM: 60, bends: 0, tees: 0, reducers: 0, risers: 0, supports: 28 + 16, couplers: 13 + 6, coverM: 0, routes: ['A', 'B'] }]);
+    expect(trayQuantities([a, b])).toEqual([{ size: '400 × 50', widthMm: 400, depthMm: 50, lengthM: 60, bends: 0, tees: 0, reducers: 0, risers: 0, supports: 28 + 16, couplers: 13 + 6, coverM: 0, bendRadiusMm: 510, routes: ['A', 'B'] }]);
     const fit = sizeRoute(sampleProject, p, route({ fittings: { bends: 2, tees: 1 }, tiers: 2 }));
     const q = trayQuantities([fit], { covers: true, supportSpacingM: 2, lengthM: 2.5 })[0];
     expect([q.bends, q.tees, q.supports, q.couplers, q.coverM]).toEqual([4, 2, 42, 30, 80]);
     expect(nextRouteName({ ...p, routes: [route(), route({ name: 'B' })] })).toBe('C');
     expect(nextRouteName({ ...p, routes: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((name) => route({ name })) })).toBe('AA');
+  });
+});
+
+describe('cable brands', () => {
+  it('DUCAB is the default; the generic set can be chosen; an edited table wins', async () => {
+    const { brandOf, GENERIC_ODS, DUCAB_ODS } = await import('../data/cableBrands');
+    const { odsOf, BEND_FACTOR } = await import('./cableTray');
+    expect(odsOf(emptyTrayPlan())).toBe(DUCAB_ODS);
+    expect(odsOf({ ...emptyTrayPlan(), brand: 'generic' })).toBe(GENERIC_ODS);
+    expect(brandOf('nope').id).toBe('ducab');
+    // DUCAB rows as given: 630 is 1C only; 4C 400 has no bending radius → 8 × D.
+    expect(DUCAB_ODS.filter((o) => o.csaMm2 === 630).map((o) => o.cores)).toEqual([1]);
+    expect(lookupOd(DUCAB_ODS, 4, 400)).toMatchObject({ odMm: 75.5, bendMm: Math.round(75.5 * BEND_FACTOR), bendEstimated: true });
+    expect(lookupOd(DUCAB_ODS, 3, 35)).toMatchObject({ odMm: 29.6, bendMm: 180, bendEstimated: false, kgPerM: 2 });
+    expect(lookupOd(DUCAB_ODS, 2, 2.5)).toMatchObject({ odMm: 14.7, found: false }); // below DUCAB's smallest → 4 mm²
+  });
+
+  it('a route needs bends at least the largest cable bending radius', () => {
+    const r = sizeRoute(sampleProject, plan(), route({ cables: [{ id: 'a', cores: 4, csaMm2: 240, qty: 1 }, { id: 'b', cores: 4, csaMm2: 95, qty: 2 }] }));
+    expect([r.bendMm, r.bendEstimated]).toEqual([510, false]);
   });
 });

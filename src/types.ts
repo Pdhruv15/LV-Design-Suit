@@ -391,12 +391,15 @@ export interface CableOd {
   csaMm2: number;
   odMm: number;
   kgPerM: number;
+  bendMm?: number; // minimum bending radius, when the brand gives it
 }
 
 export interface TrayPlan {
   routes: TrayRoute[];
   settings: TraySettings;
-  /** Your cable data; built-in rough values when absent. */
+  /** Cable brand for the diameters (default DUCAB). */
+  brand?: string;
+  /** Your own edited cable data; the brand's when absent. */
   ods?: CableOd[];
 }
 
