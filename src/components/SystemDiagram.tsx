@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Project } from '../types';
+import type { DrawingInfo, Project } from '../types';
+import { LEGEND_ROW, LEGEND_W, legendEntries, LoadSym, polesText, SwitchSym, switchKindOf } from '../diagram/IecSymbols';
 import type { FeederResult, Status } from '../calc/electrical';
 import { boardSummary, loadTypeOf } from '../calc/summary';
 import { boardPhaseKw } from '../calc/loadSchedule';
-import { LEVEL_H, layoutSystem } from '../diagram/layout';
+import { LEAF_W, LEVEL_H, layoutSystem } from '../diagram/layout';
 import LoadIcon from './LoadIcon';
 import type { Annotations, ResultLayers } from '../diagram/annotations';
-import { canDrop, canMove, type DropTarget, type MoveItem, type PaletteItem } from '../model/sldEdit';
+import { addsWay, canDrop, canMove, type DropTarget, type MoveItem, type PaletteItem } from '../model/sldEdit';
 import { cables } from '../calc/cableTable';
 import { upsLoadingPct } from '../calc/sizing';
 import { isMotor, starterInfo, starterOf } from '../calc/motor';
@@ -65,7 +66,8 @@ export default function SystemDiagram({
   onRemoveTie,
   resizable = false,
   fullScreen = false,
-  onToggleFullScreen
+  onToggleFullScreen,
+  onDrawing
 }: {
   project: Project;
   /** The project the results were calculated for (the last run). */
@@ -105,7 +107,10 @@ export default function SystemDiagram({
   resizable?: boolean;
   fullScreen?: boolean;
   onToggleFullScreen?: () => void;
+  /** Change the drawing settings (symbol style, legend): shows their buttons. */
+  onDrawing?: (patch: Partial<DrawingInfo>) => void;
 }) {
+  const iec = (project.drawing?.symbols ?? 'iec') === 'iec';
   const feederTags = (id: string): Tag[] => {
     // Earth fault loop colouring: Zs against its limit on every feeder.
     const e = earthing?.get(id);
@@ -165,7 +170,11 @@ export default function SystemDiagram({
     return ratio === undefined ? undefined : heatColor(ratio);
   };
 
-  const full: ViewBox = { x: 0, y: 0, w: layout.width, h: layout.height };
+  // The symbol legend sits to the right of the network, inside the drawing (so it exports).
+  const legend = useMemo(() => (iec && (project.drawing?.legend ?? true) ? legendEntries(calcProject ?? project) : []), [iec, project, calcProject]);
+  const W = layout.width + (legend.length ? LEGEND_W + 30 : 0);
+  const H = Math.max(layout.height, legend.length ? 80 + legend.length * LEGEND_ROW : 0);
+  const full: ViewBox = { x: 0, y: 0, w: W, h: H };
   const [vb, setVb] = useState<ViewBox>(full);
   // Grid (lines like CAD, dots, or none) and canvas height: this viewer's preferences.
   const [grid, setGrid] = useState<GridStyle>(() => {
@@ -204,7 +213,7 @@ export default function SystemDiagram({
   const drag = useRef<{ px: number; py: number; vb: ViewBox; moved: boolean } | null>(null);
 
   // Re-fit when the network's overall size changes (boards/feeders added).
-  useEffect(() => setVb({ x: 0, y: 0, w: layout.width, h: layout.height }), [layout.width, layout.height]);
+  useEffect(() => setVb({ x: 0, y: 0, w: W, h: H }), [W, H]);
 
   function zoom(factor: number, cx = vb.x + vb.w / 2, cy = vb.y + vb.h / 2) {
     setVb((v) => {
@@ -305,6 +314,22 @@ export default function SystemDiagram({
   // Drag and drop: a busbar, a feeder or the empty canvas highlights while
   // an item that can go there is dragged over it.
   const [hover, setHover] = useState<string | null>(null);
+  // Where along a busbar a new way would go: between the two feeders nearest the pointer.
+  const [insertAt, setInsertAt] = useState<{ boardId: string; x: number; before?: string } | null>(null);
+  const busInsert = (boardId: string, clientX: number) => {
+    const svg = svgRef.current;
+    const ctm = svg?.getScreenCTM();
+    if (!svg || !ctm) return undefined;
+    const pt = svg.createSVGPoint();
+    pt.x = clientX;
+    pt.y = 0;
+    const x = pt.matrixTransform(ctm.inverse()).x;
+    const onBus = layout.feeders.filter((n) => n.feeder.boardId === boardId).sort((a, b) => a.x - b.x);
+    const next = onBus.find((n) => n.x > x);
+    const prev = [...onBus].reverse().find((n) => n.x <= x);
+    const gx = next && prev ? (next.x + prev.x) / 2 : next ? next.x - LEAF_W / 2 : prev ? prev.x + LEAF_W / 2 : x;
+    return { boardId, x: gx, before: next?.feeder.id };
+  };
   const dnd = (target: DropTarget, key: string) =>
     onDropItem
       ? {
@@ -319,6 +344,10 @@ export default function SystemDiagram({
             e.preventDefault();
             e.dataTransfer.dropEffect = 'copy';
             if (hover !== key) setHover(key);
+            if (target.type === 'bus' && addsWay(item)) {
+              const ins = busInsert(target.boardId, e.clientX);
+              if (ins && (ins.boardId !== insertAt?.boardId || ins.before !== insertAt?.before)) setInsertAt(ins);
+            } else if (insertAt) setInsertAt(null);
           },
           onDrop: (e: React.DragEvent) => {
             const item = getDragItem();
@@ -327,7 +356,9 @@ export default function SystemDiagram({
             e.stopPropagation();
             setHover(null);
             setDragItem(null);
-            onDropItem(item, target);
+            const ins = target.type === 'bus' && addsWay(item) ? busInsert(target.boardId, e.clientX) : undefined;
+            setInsertAt(null);
+            onDropItem(item, ins?.before && target.type === 'bus' ? { ...target, before: ins.before } : target);
           }
         }
       : {};
@@ -346,6 +377,8 @@ export default function SystemDiagram({
       style={resizable && height && !fullScreen ? { height } : undefined}
     >
       <div className="sysdiag-tools" role="toolbar" aria-label="Diagram zoom">
+        {onDrawing && <button className="chip" onClick={() => onDrawing({ symbols: iec ? 'simple' : 'iec' })} title={iec ? 'IEC 60617 symbols — switch to simple icons' : 'Simple icons — switch to IEC 60617 symbols'}>{iec ? 'IEC' : 'Icons'}</button>}
+        {onDrawing && iec && <button className={`chip${legend.length ? ' on' : ''}`} onClick={() => onDrawing({ legend: !(project.drawing?.legend ?? true) })} title="Symbol legend beside the drawing (printed on the exports)">Legend</button>}
         <button className="chip" onClick={nextGrid} title="Grid: lines, dots or none">{grid === 'lines' ? '▦' : grid === 'dots' ? '⁙' : '□'}</button>
         <button className="chip" onClick={() => zoom(1 / 1.25)} aria-label="Zoom in">+</button>
         <button className="chip" onClick={() => zoom(1.25)} aria-label="Zoom out">−</button>
@@ -357,8 +390,8 @@ export default function SystemDiagram({
       )}
       <svg
         ref={svgRef}
-        data-w={layout.width}
-        data-h={layout.height}
+        data-w={W}
+        data-h={H}
         viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
         role="img"
         aria-label={`Single line diagram of ${project.name}`}
@@ -367,7 +400,7 @@ export default function SystemDiagram({
         onPointerUp={onPointerUp}
         onPointerLeave={onPointerUp}
         {...dnd({ type: 'canvas' }, 'canvas')}
-        onDragLeave={(e) => { if (!svgRef.current?.contains(e.relatedTarget as Node)) setHover(null); }}
+        onDragLeave={(e) => { if (!svgRef.current?.contains(e.relatedTarget as Node)) { setHover(null); setInsertAt(null); } }}
       >
         {/* Grid: in drawing units, so it pans and zooms with the drawing; not exported. */}
         {grid !== 'off' && (
@@ -445,6 +478,7 @@ export default function SystemDiagram({
             <text className="m" x={r.x + 24} y="100">
               {r.board.sourceKva ? `${r.board.sourceKva} kVA · ${r.board.sourceImpedancePct ?? '—'}% Z` : 'no source data'}
             </text>
+            {r.board.sourceKva && <text className="m" x={r.x + 24} y="113">{r.board.vectorGroup ?? 'Dyn11'} · 11 / {(project.voltageV / 1000).toFixed(3)} kV</text>}
             <line x1={r.x} y1="114" x2={r.x} y2={r.busY - 58} className="ln" />
             <text className="m" x={r.x - 8} y={r.busY - 72} textAnchor="end">{project.voltageV} V</text>
             {scenario?.outage?.failedId === r.board.id && (
@@ -510,13 +544,14 @@ export default function SystemDiagram({
             >
               <title>{`${f.id} — double-click to edit`}</title>
               <line x1={n.x} y1={y} x2={n.x} y2={y + 18} className="ln" />
-              <rect x={n.x - 6} y={y + 18} width="12" height="16" className="sym" />
+              {iec ? <SwitchSym x={n.x} y={y + 18} kind={switchKindOf(f)} /> : <rect x={n.x - 6} y={y + 18} width="12" height="16" className="sym" />}
               {chain?.has(f.id) && (
                 <rect x={n.x - 11} y={y + 13} width="22" height="26" rx="4" className={`disc-ring ${chain.get(f.id)}`}>
                   <title>{`Discrimination: ${chain.get(f.id) === 'ok' ? 'selective' : chain.get(f.id) === 'warn' ? 'partial' : 'not selective'}`}</title>
                 </rect>
               )}
-              <line x1={n.x - 5} y1={y + 32} x2={n.x + 5} y2={y + 20} className="ln" />
+              {!iec && <line x1={n.x - 5} y1={y + 32} x2={n.x + 5} y2={y + 20} className="ln" />}
+              {iec && <text x={n.x + 10} y={y + 41} className="acc-t">{polesText(f)} · {f.breakerIcuKa} kA</text>}
               <line x1={n.x} y1={y + 34} x2={n.x} y2={endY} className={`ln ${status !== 'ok' ? status : ''}`}
                 style={feederHeat(f.id) ? { stroke: feederHeat(f.id), strokeWidth: 3.5 } : undefined} />
               <text className="b" x={n.x + 10} y={y + 30}>{f.breakerRatingA} A{f.rcdMa ? <tspan className="acc-t"> · {f.rcdMa} mA</tspan> : null}</text>
@@ -569,10 +604,19 @@ export default function SystemDiagram({
               )}
               {!n.childBoardId && (
                 <>
-                  <circle cx={n.x} cy={y + 94} r="18" className={`load ${status}`} />
-                  <g transform={`translate(${n.x} ${y + 94})`} className={`icon ${status}`}>
-                    <LoadIcon type={loadTypeOf(f)} />
-                  </g>
+                  {iec ? (
+                    <>
+                      <line x1={n.x} y1={y + 76} x2={n.x} y2={y + 84} className="ln" />
+                      <LoadSym x={n.x} y={y + 94} type={loadTypeOf(f)} motor={isMotor(f)} fireFighting={loadTypeOf(f) === 'fire-pump'} />
+                    </>
+                  ) : (
+                    <>
+                      <circle cx={n.x} cy={y + 94} r="18" className={`load ${status}`} />
+                      <g transform={`translate(${n.x} ${y + 94})`} className={`icon ${status}`}>
+                        <LoadIcon type={loadTypeOf(f)} />
+                      </g>
+                    </>
+                  )}
                   <text className="b" x={n.x} y={y + 132} textAnchor="middle">{trunc(f.id, 16)}</text>
                   <text className="m" x={n.x} y={y + 146} textAnchor="middle">{trunc(f.name, 19)}</text>
                   <text x={n.x} y={y + 160} textAnchor="middle">
@@ -714,6 +758,29 @@ export default function SystemDiagram({
             </g>
           );
         })}
+        {legend.length > 0 && (
+          <g className="legend" transform={`translate(${layout.width + 10} 30)`}>
+            <rect x="0" y="0" width={LEGEND_W} height={46 + legend.length * LEGEND_ROW} rx="4" className="legend-box" />
+            <text x="12" y="22" className="b">LEGEND</text>
+            <line x1="0" y1="32" x2={LEGEND_W} y2="32" className="ln" />
+            {legend.map((e, i) => (
+              <g key={e.key}>
+                {e.draw(28, 32 + 20 + i * LEGEND_ROW)}
+                <text x="52" y={32 + 24 + i * LEGEND_ROW} className="legend-t">{e.label}</text>
+              </g>
+            ))}
+          </g>
+        )}
+        {insertAt && hover === `bus:${insertAt.boardId}` && (() => {
+          const n = layout.boards.find((b) => b.board.id === insertAt.boardId);
+          if (!n) return null;
+          return (
+            <g className="insert-guide" pointerEvents="none">
+              <line x1={insertAt.x} y1={n.busY - 16} x2={insertAt.x} y2={n.busY + 96} />
+              <circle cx={insertAt.x} cy={n.busY} r="4.5" />
+            </g>
+          );
+        })()}
       </svg>
       {colorBy !== 'none' && (
         <div className="heat-legend">

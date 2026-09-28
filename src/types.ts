@@ -184,6 +184,7 @@ export interface Board {
   sourceKva?: number; // only set on the main board (transformer rating)
   sourceImpedancePct?: number; // transformer impedance %, only on main board
   sourceXr?: number; // transformer X/R ratio, only on main board (default 5)
+  vectorGroup?: string; // transformer vector group, e.g. "Dyn11" (default)
   // Descriptive / equipment data (all optional, shown in the properties panel)
   kind?: BoardKind;
   ratedCurrentA?: number; // busbar / main device rating, used for board loading
@@ -235,6 +236,7 @@ export interface Project {
   ties?: BusTie[]; // normally-open bus couplers between main boards
   spacePlan?: SpacePlan; // areas → panels → transformers → RMUs (power density planning)
   upsSystems?: import('./calc/ups').UpsSystem[]; // UPS and battery sizing
+  feederPresets?: import('./model/presets').FeederPreset[]; // copy of the user's feeder presets, so they travel with the project
   pv?: import('./calc/solar').PvSystem; // solar PV array and inverter sizing
   trays?: TrayPlan; // cable tray routes (A, B, C…) with the cables on each and the tray size
   substations?: DmSubstationRoom[]; // DM-D-013 minimum substation / LV room areas
@@ -435,6 +437,8 @@ export interface DrawingInfo {
   checkedBy?: string;
   approvedBy?: string;
   sheet?: 'A3' | 'A2' | 'A1';
+  symbols?: 'iec' | 'simple'; // IEC 60617 symbols (default) or simple icons
+  legend?: boolean; // symbol legend beside the drawing (default on with IEC symbols)
 }
 
 /** An issued revision: a frozen copy of the design (without the revision
