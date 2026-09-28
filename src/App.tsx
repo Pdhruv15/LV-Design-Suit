@@ -55,6 +55,7 @@ import { removeTie } from './model/sldEdit';
 import type { ColorBy } from './diagram/heatmap';
 import { applyDrop, applyMove, libraryEntries, type DropResult, type DropTarget, type MoveItem, type PaletteItem } from './model/sldEdit';
 import EquipmentPalette from './components/EquipmentPalette';
+import { loadUserPresets, presetFromFeeder, saveUserPresets, type FeederPreset } from './model/presets';
 import SldExportDialog from './components/SldExportDialog';
 import PasteBoardDialog from './components/PasteBoardDialog';
 import DiscriminationPanel from './components/DiscriminationPanel';
@@ -376,6 +377,18 @@ export default function App() {
   const blocked = () => setStatus('Results are out of date — run the calculations first (F5), then apply');
 
   /** An item from the equipment library dropped on the SLD. */
+  const [userPresets, setUserPresets] = useState<FeederPreset[]>(loadUserPresets);
+  function savePresets(next: FeederPreset[], message: string) {
+    setUserPresets(next);
+    setStatus(saveUserPresets(next) ? message : `${message} — but it could not be stored on this computer`);
+  }
+  function saveAsPreset(f: Feeder) {
+    const name = window.prompt('Name for this feeder preset (it appears under "My presets" in the equipment library):', f.feedsBoardId ? `${project.boards.find((b) => b.id === f.feedsBoardId)?.kind ?? 'DB'} ${f.breakerRatingA} A` : `${f.name} ${f.loadKw} kW`);
+    if (!name?.trim()) return;
+    const p = presetFromFeeder(project, f, name.trim());
+    savePresets([...userPresets.filter((x) => x.name !== p.name), p], `Saved the preset “${p.name}” — drag it from My presets onto any busbar`);
+  }
+
   function dropItem(item: PaletteItem, target: DropTarget) {
     showResult(applyDrop(project, item, target, db.loads));
   }
@@ -569,6 +582,7 @@ export default function App() {
                     )}
                     {diagramMode === 'system' && <button className="chip" onClick={() => setShowExport(true)} title="PDF sheet with title block, DXF for CAD, or SVG">Export drawing…</button>}
                     {selectedFeeder && panel === 'feeder' && <button className="chip" onClick={() => setShowFeederForm('edit')}>Edit {selectedFeeder.id}</button>}
+                    {selectedFeeder && panel === 'feeder' && <button className="chip" onClick={() => saveAsPreset(selectedFeeder)} title="Save this way (breaker, RCD, meter, isolator and its load or sub-board) as a preset to drag onto any busbar">Save as preset</button>}
                   </div>
                 </div>
                 {diagramMode === 'system' && (
@@ -590,7 +604,8 @@ export default function App() {
                 )}
                 {diagramMode === 'system' ? (
                   <div className="sld-edit">
-                  <EquipmentPalette onHint={setStatus} library={libraryEntries(db.loads)} />
+                  <EquipmentPalette onHint={setStatus} library={libraryEntries(db.loads)} presets={userPresets}
+                    onDeletePreset={(id) => savePresets(userPresets.filter((p) => p.id !== id), 'Deleted the preset')} />
                   <SystemDiagram
                     project={project}
                     calcProject={calcProject}

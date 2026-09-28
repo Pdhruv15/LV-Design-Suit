@@ -3,6 +3,7 @@ import { applyRecommendation, generatorForBoard, recommend, sizePfc, upsForBoard
 import type { LibraryLoad } from '../database/database';
 import { BOARD_KINDS, type Board, type BoardKind, type Feeder, type LoadType, type Project, type StarterType } from '../types';
 import { isMotor, STARTERS } from '../calc/motor';
+import { applyPreset, canDropPreset, type FeederPreset } from './presets';
 
 /** Building the SLD by drag and drop: what each library item does when it
  * is dropped on a busbar, on a feeder, or on the empty canvas. Every drop
@@ -45,6 +46,7 @@ export type PaletteItem =
   | { kind: 'load'; preset: string }
   | { kind: 'device'; device: ProtectionDevice }
   | { kind: 'accessory'; accessory: Accessory }
+  | { kind: 'preset'; preset: FeederPreset }
   | { kind: 'cable' };
 
 /** Devices added to a feeder or a busbar without changing its breaker. */
@@ -139,7 +141,7 @@ export function libraryLoadType(l: LibraryLoad): LoadType {
 }
 
 export const itemKey = (i: PaletteItem) =>
-  i.kind === 'board' ? `board:${i.board}` : i.kind === 'load' ? `load:${i.preset}` : i.kind === 'device' ? `device:${i.device}` : i.kind === 'library' ? `library:${i.name}` : i.kind === 'starter' ? `starter:${i.starter}` : i.kind === 'accessory' ? `acc:${i.accessory}` : i.kind;
+  i.kind === 'board' ? `board:${i.board}` : i.kind === 'load' ? `load:${i.preset}` : i.kind === 'device' ? `device:${i.device}` : i.kind === 'library' ? `library:${i.name}` : i.kind === 'starter' ? `starter:${i.starter}` : i.kind === 'accessory' ? `acc:${i.accessory}` : i.kind === 'preset' ? `preset:${i.preset.id}` : i.kind;
 
 /** Typical rating (A) of a new board by type; its incomer breaker and cable
  * are sized for it until real loads are added. */
@@ -171,6 +173,8 @@ export function canDrop(project: Project, item: PaletteItem, target: DropTarget)
       return target.type === 'bus' && !!tiePartner(project, target.boardId);
     case 'accessory':
       return item.accessory === 'spd' ? target.type === 'bus' : target.type === 'feeder';
+    case 'preset':
+      return target.type === 'bus' && canDropPreset(project, item.preset, target.boardId);
     case 'starter': {
       const f = target.type === 'feeder' ? project.feeders.find((x) => x.id === target.feederId) : undefined;
       return !!f && isMotor(f);
@@ -350,6 +354,8 @@ export function applyDrop(project: Project, item: PaletteItem, target: DropTarge
     };
   }
 
+  if (item.kind === 'preset' && target.type === 'bus') return applyPreset(project, item.preset, target.boardId);
+
   if (item.kind === 'accessory' && target.type === 'bus') {
     const b = project.boards.find((x) => x.id === target.boardId)!;
     const spd = b.upstreamId ? 'T2' as const : 'T1+2' as const;
@@ -434,6 +440,8 @@ export function dropHint(item: PaletteItem): string {
       return 'Drop the bus coupler on a main board that has another transformer-fed main board to tie to';
     case 'accessory':
       return item.accessory === 'spd' ? 'Drop the surge protection on a busbar' : 'Drop it on a feeder (the cable below a breaker)';
+    case 'preset':
+      return item.preset.boardKind === 'MDB' ? 'Drop an MDB preset on a meter cabinet busbar' : `Drop “${item.preset.name}” on a busbar`;
   }
 }
 

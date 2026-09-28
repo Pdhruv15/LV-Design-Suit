@@ -442,6 +442,9 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 .sysdiag .acc .acc-t.b{fill:var(--tx);font-weight:700;font-size:8px}
 .sysdiag .acc .bg-fill{fill:var(--bg);stroke:none}
 .sysdiag .acc .dot{fill:var(--tx)}
+.palette-item{position:relative}
+.palette-del{margin-left:auto;opacity:0;font-size:11px;padding:0 4px}
+.palette-item:hover .palette-del{opacity:1}
 .sysdiag .rmu-box{fill:color-mix(in srgb,var(--acc) 12%,var(--p2))}
 /* ---- Classic tables with Excel-style editing (ClassicGrid / useExcelGrid) ---- */
 .gx-wrap{overflow:auto;max-height:62vh;border:1px solid var(--line);border-radius:8px}
