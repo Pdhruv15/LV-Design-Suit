@@ -19,6 +19,7 @@ import VoltageDropStudy from './components/studies/VoltageDropStudy';
 import RevisionsView from './components/docs/RevisionsView';
 import SpacePlanView from './components/docs/SpacePlanView';
 import TrayScheduleView from './components/docs/TrayScheduleView';
+import StudyReportsView from './components/docs/StudyReportsView';
 import QuickCalcs from './components/QuickCalcs';
 import CoordinationStudy from './components/studies/CoordinationStudy';
 import { PfcStudy, TransformerGeneratorStudy } from './components/studies/SizingStudy';
@@ -699,6 +700,7 @@ export default function App() {
                 }}
               />
             )}
+            {view === 'study-reports' && <StudyReportsView project={project} run={run} stale={stale} onRun={runNow} onChange={setProject} onStatus={setStatus} />}
             {view === 'calculators' && <QuickCalcs project={project} />}
             {view === 'cable-tray' && (
               <TrayScheduleView project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />

@@ -218,6 +218,8 @@ export interface Project {
   ties?: BusTie[]; // normally-open bus couplers between main boards
   spacePlan?: SpacePlan; // areas → panels → transformers → RMUs (power density planning)
   trays?: TrayPlan; // cable tray routes (A, B, C…) with the cables on each and the tray size
+  studyReport?: StudyReportSetup; // the study report being prepared (Reports → Study reports)
+  studyReportPresets?: StudyReportPreset[]; // saved scopes / study sets for repeat submissions
   calc?: { autoRun?: boolean }; // run the network studies on every change (default: on Run / F5 only)
   studySettings?: StudySettings;
   boards: Board[];
@@ -278,6 +280,26 @@ export interface SpacePlan {
   settings: SpacePlanSettings;
   /** Use types with W/m² and demand factor; defaults when absent. */
   uses?: SpaceUse[];
+}
+
+/** A submission report for chosen studies on chosen boards. */
+export type StudyReportKind = 'sc' | 'lf' | 'cable' | 'earth' | 'disc' | 'sizing' | 'schedules';
+
+export interface StudyReportSetup {
+  boards: string[]; // selected boards (empty = all)
+  downstream: boolean; // include everything below the selected boards
+  studies: StudyReportKind[];
+  sld: boolean; // an SLD of the scope with each study's results
+  separate: boolean; // one PDF per study
+  title?: string;
+  docNo?: string;
+  preparedBy?: string;
+  checkedBy?: string;
+}
+
+export interface StudyReportPreset extends StudyReportSetup {
+  id: string;
+  name: string;
 }
 
 /** Cable tray sizing. Each route (A, B, C…) carries cables from one or

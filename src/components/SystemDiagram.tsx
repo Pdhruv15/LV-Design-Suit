@@ -10,7 +10,7 @@ import { canDrop, canMove, type DropTarget, type MoveItem, type PaletteItem } fr
 import { cables } from '../calc/cableTable';
 import { upsLoadingPct } from '../calc/sizing';
 import { isMotor, starterInfo, starterOf } from '../calc/motor';
-import { runsOf, upstreamVoltageDropPct } from '../calc/electrical';
+import { cableSizeText, runsOf, upstreamVoltageDropPct } from '../calc/electrical';
 import { MOTOR_START_DIP_LIMIT_PCT, type GeneratorRun, type OutageScenario } from '../calc/scenario';
 import { boardRatio, COLOR_BY, earthRatio, feederRatio, heatColor, type ColorBy } from '../diagram/heatmap';
 import { evaluateEarthingAll } from '../calc/earthing';
@@ -345,7 +345,19 @@ export default function SystemDiagram({
             </g>
           );
         })}
-        {layout.roots.map((r) => !r.board.sourceKva && r.board.supply ? (
+        {layout.roots.map((r) => r.board.upstreamId ? (() => {
+          // Part of the network (a study report's scope): the board is fed
+          // from a board that isn't drawn.
+          const inc = (calcProject ?? project).feeders.find((f) => f.feedsBoardId === r.board.id && f.boardId === r.board.upstreamId);
+          return (
+            <g key={`from-${r.board.id}`} className="from-up">
+              <path d={`M${r.x - 7} 60 L${r.x} 72 L${r.x + 7} 60`} className="ln" />
+              <line x1={r.x} y1="40" x2={r.x} y2={r.busY - 58} className="ln" />
+              <text className="b" x={r.x + 14} y="46">From {r.board.upstreamId}</text>
+              {inc && <text className="m" x={r.x + 14} y="60">{inc.id}: {cableSizeText(inc)}, {inc.lengthM} m · {inc.breakerRatingA} A</text>}
+            </g>
+          );
+        })() : !r.board.sourceKva && r.board.supply ? (
           <g key={`sup-${r.board.id}`} className="tx" onDoubleClick={edit(onEditBoard, r.board.id)}>
             <title>Supply from the authority — double-click to edit</title>
             <rect x={r.x - 16} y={52} width={32} height={26} rx={3} className="sym" />

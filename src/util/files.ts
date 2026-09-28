@@ -50,7 +50,7 @@ export const saveCsv = (baseName: string, headers: string[], rows: unknown[][]) 
 
 /** Renders a self-contained HTML document to PDF. In the desktop app this
  * uses Electron's printToPDF; in a browser it opens the print dialog. */
-export async function savePdf(defaultName: string, html: string, page?: { pageSize: 'A4' | 'A3' | 'A2' | 'A1'; landscape?: boolean }): Promise<string | null> {
+export async function savePdf(defaultName: string, html: string, page?: { pageSize?: 'A4' | 'A3' | 'A2' | 'A1'; landscape?: boolean; cssPages?: boolean }): Promise<string | null> {
   if (!hasBridge()) {
     const w = window.open('', '_blank');
     if (!w) return 'Allow pop-ups to print the report';

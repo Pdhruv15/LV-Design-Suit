@@ -186,7 +186,7 @@ ipcMain.handle('database:open', (_evt, file) => {
 // Sheet sizes in inches (A-series); Electron knows A3/A4 by name only.
 const SHEETS = { A1: { width: 33.11, height: 23.39 }, A2: { width: 23.39, height: 16.54 } };
 
-ipcMain.handle('files:savePdf', async (_evt, { defaultName, html, pageSize = 'A4', landscape = true }) => {
+ipcMain.handle('files:savePdf', async (_evt, { defaultName, html, pageSize = 'A4', landscape = true, cssPages = false }) => {
   const result = await dialog.showSaveDialog(win, {
     title: 'Save PDF report',
     defaultPath: path.join(ensureProjectsFolder(), defaultName),
@@ -201,7 +201,11 @@ ipcMain.handle('files:savePdf', async (_evt, { defaultName, html, pageSize = 'A4
     fs.writeFileSync(tmp, html, 'utf-8');
     await pdfWin.loadFile(tmp);
     const size = SHEETS[pageSize] ?? pageSize;
-    const pdf = await pdfWin.webContents.printToPDF({ pageSize: size, landscape: SHEETS[pageSize] ? false : landscape, printBackground: true, margins: { marginType: pageSize === 'A4' ? 'default' : 'none' } });
+    // cssPages: the document sets its own page sizes and margins (@page),
+    // e.g. A4 tables with A3 drawing pages in one file.
+    const pdf = cssPages
+      ? await pdfWin.webContents.printToPDF({ preferCSSPageSize: true, printBackground: true })
+      : await pdfWin.webContents.printToPDF({ pageSize: size, landscape: SHEETS[pageSize] ? false : landscape, printBackground: true, margins: { marginType: pageSize === 'A4' ? 'default' : 'none' } });
     fs.writeFileSync(result.filePath, pdf);
     fs.rmSync(tmp, { force: true });
     return result.filePath;
