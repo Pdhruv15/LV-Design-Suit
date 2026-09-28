@@ -129,7 +129,8 @@ export type MeterType = '1-PH' | '3-PH' | 'CT';
 export const METER_TYPES: MeterType[] = ['1-PH', '3-PH', 'CT'];
 
 export const DEFAULT_CABLE_TYPE = 'XLPE/PVC/SWA';
-export const CABLE_TYPES = ['XLPE/PVC/SWA', 'XLPE/SWA/PVC', 'XLPE/PVC', 'PVC/PVC', 'XLPE/LSF/SWA'];
+/** Cable constructions (see model/cableTypes.ts for codes and fire rating). */
+export const CABLE_TYPES = ['XLPE/PVC/SWA', 'XLPE/SWA/PVC', 'XLPE/SWA/LSZH', 'XLPE/LSF/SWA', 'XLPE/PVC', 'XLPE 1C', 'PVC/PVC', 'FR BS 8491', 'FR BS 6387 CWZ', 'FR IEC 60331', 'MICC', 'H1Z2Z2-K'];
 
 /** Supply phase of a final circuit; 'RYB' is a 3-phase circuit using all
  * three phases of its way. */

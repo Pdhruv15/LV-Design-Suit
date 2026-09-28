@@ -1,3 +1,4 @@
+import { cableTypeOf } from '../model/cableTypes';
 import { evaluateFeeder, faultCurrentKA, impedanceToBoard, cableSizeText, runsOf } from '../calc/electrical';
 import { breakerTypeOf, cpcOf } from '../calc/earthing';
 import { boardSummary, boardsInSupplyOrder, loadTypeOf } from '../calc/summary';
@@ -13,7 +14,7 @@ export interface Schedule {
 const n = (v: number, d = 0) => Number(v.toFixed(d));
 const poles = (f: Feeder) => (f.cores === 2 ? 'SP+N' : f.cores === 3 ? 'TP' : 'TP+N');
 const loadLabel = (f: Feeder) => LOAD_TYPES.find((t) => t.value === loadTypeOf(f))?.label ?? '';
-const cableText = (f: Feeder) => `${cableSizeText(f)} + ${runsOf(f) > 1 ? `${runsOf(f)} × ` : ''}${cpcOf(f)} mm² CPC`;
+const cableText = (p: Project, f: Feeder) => `${cableSizeText(f)} ${cableTypeOf(p, f).code} + ${runsOf(f) > 1 ? `${runsOf(f)} × ` : ''}${cpcOf(f)} mm² CPC`;
 
 /** Accessories on a feeder as schedule text, e.g. "RCD 30 mA · CT kWh meter · local isolator". */
 export function accessoriesText(f: Feeder): string {
@@ -42,7 +43,7 @@ export function dbSchedule(project: Project, boardIds?: string[]): Schedule {
         b.id, i + 1, f.id, f.name, f.feedsBoardId ? `Sub-board ${f.feedsBoardId}` : loadLabel(f),
         f.feedsBoardId ? '' : n(f.loadKw, 1), f.feedsBoardId ? '' : f.demandFactor,
         f.feedsBoardId ? '' : n(f.loadKw * f.demandFactor, 1), f.feedsBoardId ? '' : f.powerFactor, n(r.ib),
-        `${f.breakerRatingA} A ${breakerTypeOf(f)}`, poles(f), f.breakerIcuKa, cableText(f), f.lengthM,
+        `${f.breakerRatingA} A ${breakerTypeOf(f)}`, poles(f), f.breakerIcuKa, cableText(project, f), f.lengthM,
         n(r.vdTotalPct, 2), r.status === 'ok' ? 'Pass' : r.status === 'warn' ? 'Check' : 'Fail', accessoriesText(f)
       ]);
     });
@@ -69,7 +70,7 @@ export function cableSchedule(project: Project): Schedule {
       .map((f) => {
         const r = evaluateFeeder(project, f);
         return [
-          `C-${f.id}`, f.boardId, f.feedsBoardId ?? f.name, 'Cu/XLPE/SWA/PVC', cableSizeText(f),
+          `C-${f.id}`, f.boardId, f.feedsBoardId ?? f.name, cableTypeOf(project, f).label, cableSizeText(f),
           cpcOf(f), f.lengthM, f.trayRoute ?? '', n(r.ib), f.breakerRatingA, n(r.ampacity), n(r.vdPct, 2), n(r.vdTotalPct, 2),
           r.status === 'ok' ? 'Pass' : r.status === 'warn' ? 'Check' : 'Fail'
         ];

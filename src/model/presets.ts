@@ -1,3 +1,4 @@
+import { cableTypeDef } from './cableTypes';
 import { designCurrentA, selectCable, upstreamVoltageDropPct } from '../calc/electrical';
 import { applyRecommendation, recommend } from '../calc/sizing';
 import { BOARD_KINDS, type Board, type BoardKind, type Feeder, type LoadType, type MeterType, type Project, type StarterType } from '../types';
@@ -34,6 +35,7 @@ export interface FeederPreset {
   rcdMa?: number;
   kwhMeter?: MeterType;
   localIsolator?: boolean;
+  cableType?: string; // blank = the default (fire-rated automatically for life safety circuits)
   lengthM?: number;
   builtIn?: boolean;
 }
@@ -107,7 +109,8 @@ const breakerOf = (f: Feeder): PresetBreaker => (f.breakerType === 'ACB' ? 'ACB'
 export function presetFromFeeder(project: Project, f: Feeder, name: string): FeederPreset {
   const way = {
     breaker: breakerOf(f), breakerRatingA: f.breakerRatingA, icuKa: f.breakerIcuKa, lengthM: f.lengthM,
-    ...(f.rcdMa ? { rcdMa: f.rcdMa } : {}), ...(f.kwhMeter ? { kwhMeter: f.kwhMeter } : {}), ...(f.localIsolator ? { localIsolator: true } : {})
+    ...(f.rcdMa ? { rcdMa: f.rcdMa } : {}), ...(f.kwhMeter ? { kwhMeter: f.kwhMeter } : {}), ...(f.localIsolator ? { localIsolator: true } : {}),
+    ...(f.cableType ? { cableType: f.cableType } : {})
   };
   const id = `up-${Date.now().toString(36)}`;
   if (f.feedsBoardId) {
@@ -124,13 +127,15 @@ export function presetFromFeeder(project: Project, f: Feeder, name: string): Fee
 
 /** What the preset's way is made of, e.g. "MCCB 63 A · RCD 300 mA · isolator". */
 export function presetParts(p: FeederPreset): string {
-  return [
+  const way = [
     `${p.breaker ?? 'Breaker'}${p.breakerRatingA ? ` ${p.breakerRatingA} A` : ''}`,
     p.rcdMa ? `RCD ${p.rcdMa} mA` : '',
     p.kwhMeter ? (p.kwhMeter === 'CT' ? 'CT meter' : 'kWh meter') : '',
     p.localIsolator ? 'isolator' : '',
-    p.kind === 'board' ? `${p.boardKind} ${p.boardRatingA ?? ''} A` : `${p.loadName ?? 'load'} ${p.loadKw ?? ''} kW${p.singlePhase ? ' 1-ph' : ''}`
-  ].filter(Boolean).join(' → ').replace(/ → (RCD|CT|kWh|isolator)/g, ' + $1');
+    p.cableType ? `${cableTypeDef(p.cableType).code} cable` : ''
+  ].filter(Boolean).join(' + ');
+  const to = p.kind === 'board' ? `${p.boardKind} ${p.boardRatingA ?? ''} A` : `${p.loadName ?? 'load'} ${p.loadKw ?? ''} kW${p.singlePhase ? ' 1-ph' : ''}`;
+  return `${way} → ${to}`;
 }
 
 // ---- Dropping a preset ---------------------------------------------------------------
@@ -165,7 +170,8 @@ export function applyPreset(project: Project, p: FeederPreset, boardId: string):
   const taken = new Set([...project.boards.map((b) => b.id), ...project.feeders.map((f) => f.id)]);
   const extras: Partial<Feeder> = {
     ...(p.rcdMa ? { rcdMa: p.rcdMa } : {}), ...(p.kwhMeter ? { kwhMeter: p.kwhMeter } : {}),
-    ...(p.localIsolator && p.kind === 'load' ? { localIsolator: true } : {})
+    ...(p.localIsolator && p.kind === 'load' ? { localIsolator: true } : {}),
+    ...(p.cableType ? { cableType: p.cableType } : {})
   };
 
   if (p.kind === 'board') {

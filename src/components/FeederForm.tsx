@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { BREAKER_TYPES, LOAD_TYPES, METER_TYPES, RCD_MA, type BreakerType, type Feeder, type LoadType, type MeterType, type Project } from '../types';
 import { breakerTypeOf, defaultCpcMm2 } from '../calc/earthing';
 import type { LibraryLoad } from '../database/database';
+import { CABLE_TYPE_DEFS, cableTypeOf, needsFireRated } from '../model/cableTypes';
 
 /** Diagram icon for a library item, from its category or schedule column. */
 function libraryLoadType(item: LibraryLoad): LoadType | undefined {
@@ -171,6 +172,13 @@ export default function FeederForm({
           {(breakerTypeOf(f) === 'MCCB' || breakerTypeOf(f) === 'ACB') && (
             <label>Instantaneous Im (× In)<input type="number" step="0.5" min="1" value={f.breakerImMultiple ?? 10} onChange={(e) => set('breakerImMultiple', +e.target.value)} /></label>
           )}
+          <label>Cable type
+            <select value={f.cableType ?? ''} onChange={(e) => set('cableType', e.target.value || undefined)}>
+              <option value="">Auto — {cableTypeOf(project, f).label}</option>
+              {CABLE_TYPE_DEFS.filter((d) => d.value !== 'XLPE/SWA/PVC').map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+            </select>
+            {needsFireRated(project, f) && !cableTypeOf(project, f).fireRated && <small className="warn">Life safety circuit — fire-rated cable expected</small>}
+          </label>
           <label>Protective conductor (mm²)
             <select value={f.cpcMm2 ?? ''} onChange={(e) => set('cpcMm2', e.target.value === '' ? undefined : +e.target.value)}>
               <option value="">Auto — {defaultCpcMm2(f.cableCsaMm2)} mm² (IEC 60364-5-54)</option>

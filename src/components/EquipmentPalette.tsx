@@ -12,7 +12,7 @@ const ICON: Record<string, LucideIcon> = {
   tie: Link2, transformer: Waves, 'board:MC': Gauge, cable: Cable, generator: Power, capacitor: BatteryCharging, 'board:UPS': BatteryFull,
   'load:motor': Cog, 'load:ahu': Fan, 'load:chiller': Snowflake, 'load:fire-pump': Flame, 'load:ev': Car,
   'load:pv': Sun, 'load:lighting': Lightbulb, 'load:it': Cpu, 'load:general': Zap,
-  'acc:meter': Gauge, 'acc:ct-meter': CircleDot, 'acc:rcd': ShieldAlert, 'acc:isolator': ToggleLeft, 'acc:spd': ZapOff
+  'acc:meter': Gauge, 'acc:ct-meter': CircleDot, 'acc:rcd': ShieldAlert, 'acc:isolator': ToggleLeft, 'acc:spd': ZapOff, 'acc:cable-fr': Flame, 'acc:cable-lszh': Cable
 };
 const iconOf = (i: PaletteItem): LucideIcon => (i.kind === 'preset' ? (i.preset.kind === 'board' ? Server : ICON[`load:${i.preset.loadType === 'hvac' ? 'ahu' : i.preset.loadType}`] ?? Zap) : undefined) ?? ICON[itemKey(i)] ?? (i.kind === 'board' ? Server : i.kind === 'device' ? ShieldCheck : i.kind === 'library' ? Database : Zap);
 

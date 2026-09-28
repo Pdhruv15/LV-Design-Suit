@@ -60,6 +60,8 @@ import { applyMove, dropMany, libraryEntries, type DropResult, type DropTarget, 
 import EquipmentPalette from './components/EquipmentPalette';
 import { loadUserPresets, mergePresets, presetFromFeeder, presetsFile, readPresetsFile, saveUserPresets, type FeederPreset } from './model/presets';
 import PresetEditor from './components/PresetEditor';
+import { isScheduleCircuit } from './calc/loadSchedule';
+import { CABLE_TYPE_DEFS, cableTypeDef } from './model/cableTypes';
 import { saveText } from './util/files';
 import SldExportDialog from './components/SldExportDialog';
 import PasteBoardDialog from './components/PasteBoardDialog';
@@ -608,6 +610,24 @@ export default function App() {
                   <div>
                     <button className="chip" onClick={() => openAddFeeder({})}>+ Add feeder to {board.id}</button>
                     <button className="chip" onClick={() => setShowBoardForm(true)}>+ Add board</button>
+                    {panel === 'board' && board && (
+                      <select
+                        className="chip"
+                        value=""
+                        title={`Set the cable type of every outgoing cable of ${board.id} (not its load schedule circuits)`}
+                        onChange={(e) => {
+                          const t = e.target.value;
+                          if (!t) return;
+                          const ids = project.feeders.filter((f) => f.boardId === board.id && !isScheduleCircuit(f)).map((f) => f.id);
+                          setProject((p) => ({ ...p, feeders: p.feeders.map((f) => (ids.includes(f.id) ? { ...f, cableType: t === 'auto' ? undefined : t } : f)) }), { step: true });
+                          setStatus(`${ids.length} cable${ids.length === 1 ? '' : 's'} from ${board.id}: ${t === 'auto' ? 'automatic type (fire-rated for life safety)' : cableTypeDef(t).label}`);
+                        }}
+                      >
+                        <option value="">Cable type for all of {board.id}…</option>
+                        <option value="auto">Automatic (fire-rated for life safety)</option>
+                        {CABLE_TYPE_DEFS.filter((d) => d.value !== 'XLPE/SWA/PVC').map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+                      </select>
+                    )}
                     {panel === 'board' && board && <button className="chip" onClick={() => copyBoard(board.id)} title="Copy this board with its sub-boards, feeders and load schedule circuits (⌘C)">Copy {board.id}</button>}
                     {panel === 'board' && board && copiedBoard && project.boards.some((b) => b.id === copiedBoard) && (
                       <button className="chip" onClick={() => setPasteTarget(board.id)} title={`Paste ${copiedBoard} on ${board.id}'s busbar (⌘V)`}>Paste {copiedBoard} here</button>
@@ -764,7 +784,7 @@ export default function App() {
             {view === 'boq' && (
               <>
                 <section className="stage"><h3>Cost estimate — whole project</h3></section>
-                <BoqTable results={allResults} projectName={project.name} />
+                <BoqTable results={allResults} projectName={project.name} project={project} />
               </>
             )}
           </main>
