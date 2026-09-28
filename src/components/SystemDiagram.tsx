@@ -22,6 +22,8 @@ interface Tag {
   cls: string;
 }
 
+type GridStyle = 'lines' | 'dots' | 'off';
+
 interface ViewBox {
   x: number;
   y: number;
@@ -60,7 +62,10 @@ export default function SystemDiagram({
   colorBy = 'none',
   scenario,
   chain,
-  onRemoveTie
+  onRemoveTie,
+  resizable = false,
+  fullScreen = false,
+  onToggleFullScreen
 }: {
   project: Project;
   /** The project the results were calculated for (the last run). */
@@ -96,6 +101,10 @@ export default function SystemDiagram({
   onRemoveTie?: (id: string) => void;
   /** Breakers in the selected feeder's discrimination chain, by status. */
   chain?: Map<string, Status>;
+  /** Drag handle at the bottom edge to change the height (remembered). */
+  resizable?: boolean;
+  fullScreen?: boolean;
+  onToggleFullScreen?: () => void;
 }) {
   const feederTags = (id: string): Tag[] => {
     // Earth fault loop colouring: Zs against its limit on every feeder.
@@ -158,6 +167,39 @@ export default function SystemDiagram({
 
   const full: ViewBox = { x: 0, y: 0, w: layout.width, h: layout.height };
   const [vb, setVb] = useState<ViewBox>(full);
+  // Grid (lines like CAD, dots, or none) and canvas height: this viewer's preferences.
+  const [grid, setGrid] = useState<GridStyle>(() => {
+    try { const g = localStorage.getItem('sld.grid'); return g === 'dots' || g === 'off' ? g : 'lines'; } catch { return 'lines'; }
+  });
+  const nextGrid = () => {
+    const g: GridStyle = grid === 'lines' ? 'dots' : grid === 'dots' ? 'off' : 'lines';
+    setGrid(g);
+    try { localStorage.setItem('sld.grid', g); } catch { /* preference only */ }
+  };
+  const [height, setHeight] = useState<number | undefined>(() => {
+    try { const h = Number(localStorage.getItem('sld.height')); return h >= 300 ? h : undefined; } catch { return undefined; }
+  });
+  const rootRef = useRef<HTMLDivElement>(null);
+  function startResize(e: React.PointerEvent) {
+    e.preventDefault();
+    const y0 = e.clientY;
+    const h0 = rootRef.current?.getBoundingClientRect().height ?? 500;
+    let h = h0;
+    const move = (ev: PointerEvent) => { h = Math.max(300, Math.min(4000, h0 + ev.clientY - y0)); setHeight(h); };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      try { localStorage.setItem('sld.height', String(Math.round(h))); } catch { /* preference only */ }
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  }
+  useEffect(() => {
+    if (!fullScreen || !onToggleFullScreen) return;
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onToggleFullScreen(); };
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, [fullScreen, onToggleFullScreen]);
   const svgRef = useRef<SVGSVGElement>(null);
   const drag = useRef<{ px: number; py: number; vb: ViewBox; moved: boolean } | null>(null);
 
@@ -298,12 +340,21 @@ export default function SystemDiagram({
   const main = layout.roots[0];
 
   return (
-    <div className={`sysdiag ${tool === 'pan' ? 'pan' : ''}${dropCls('canvas')}${stale ? ' stale' : ''}`}>
+    <div
+      ref={rootRef}
+      className={`sysdiag ${tool === 'pan' ? 'pan' : ''}${dropCls('canvas')}${stale ? ' stale' : ''}`}
+      style={resizable && height && !fullScreen ? { height } : undefined}
+    >
       <div className="sysdiag-tools" role="toolbar" aria-label="Diagram zoom">
+        <button className="chip" onClick={nextGrid} title="Grid: lines, dots or none">{grid === 'lines' ? '▦' : grid === 'dots' ? '⁙' : '□'}</button>
         <button className="chip" onClick={() => zoom(1 / 1.25)} aria-label="Zoom in">+</button>
         <button className="chip" onClick={() => zoom(1.25)} aria-label="Zoom out">−</button>
         <button className="chip" onClick={() => setVb(full)}>Fit</button>
+        {onToggleFullScreen && <button className="chip" onClick={onToggleFullScreen} title={fullScreen ? 'Exit full screen (Esc)' : 'Full screen'}>{fullScreen ? '✕' : '⤢'}</button>}
       </div>
+      {resizable && !fullScreen && (
+        <div className="sysdiag-resize" onPointerDown={startResize} onDoubleClick={() => { setHeight(undefined); try { localStorage.removeItem('sld.height'); } catch { /* ignore */ } }} title="Drag to make the drawing taller or shorter — double-click for the default height" />
+      )}
       <svg
         ref={svgRef}
         data-w={layout.width}
@@ -318,6 +369,22 @@ export default function SystemDiagram({
         {...dnd({ type: 'canvas' }, 'canvas')}
         onDragLeave={(e) => { if (!svgRef.current?.contains(e.relatedTarget as Node)) setHover(null); }}
       >
+        {/* Grid: in drawing units, so it pans and zooms with the drawing; not exported. */}
+        {grid !== 'off' && (
+          <g className="grid-bg" pointerEvents="none">
+            <defs>
+              <pattern id="sld-grid-minor" width="20" height="20" patternUnits="userSpaceOnUse">
+                {grid === 'lines' ? <path d="M20 0H0V20" className="grid-minor" /> : <circle cx="0" cy="0" r="1.1" className="grid-dot" />}
+              </pattern>
+              <pattern id="sld-grid-major" width="100" height="100" patternUnits="userSpaceOnUse">
+                <rect width="100" height="100" fill="url(#sld-grid-minor)" />
+                {grid === 'lines' && <path d="M100 0H0V100" className="grid-major" />}
+              </pattern>
+            </defs>
+            <rect x={vb.x - vb.w * 2} y={vb.y - vb.h * 2} width={vb.w * 5} height={vb.h * 5} fill="url(#sld-grid-major)" />
+          </g>
+        )}
+
         {/* Utility and transformers */}
         {main && layout.roots.some((r) => r.board.sourceKva) && (
           <g>
@@ -452,7 +519,7 @@ export default function SystemDiagram({
               <line x1={n.x - 5} y1={y + 32} x2={n.x + 5} y2={y + 20} className="ln" />
               <line x1={n.x} y1={y + 34} x2={n.x} y2={endY} className={`ln ${status !== 'ok' ? status : ''}`}
                 style={feederHeat(f.id) ? { stroke: feederHeat(f.id), strokeWidth: 3.5 } : undefined} />
-              <text className="b" x={n.x + 10} y={y + 30}>{f.breakerRatingA} A</text>
+              <text className="b" x={n.x + 10} y={y + 30}>{f.breakerRatingA} A{f.rcdMa ? <tspan className="acc-t"> · {f.rcdMa} mA</tspan> : null}</text>
               <text
                 className={`m${onPatchFeeder ? ' cable-lbl' : ''}`}
                 x={n.x + 7}
@@ -468,6 +535,38 @@ export default function SystemDiagram({
                 {onPatchFeeder && <title>Click to change the cable</title>}
                 {runsOf(f) > 1 ? `${runsOf(f)}×` : ''}{f.cores}C × {f.cableCsaMm2}mm² · {f.lengthM}m
               </text>
+              {/* Accessories on the feeder, top to bottom: earth leakage (its
+                  rating goes with the breaker's), metering on the right below
+                  the cable text, local isolator just above the load. */}
+              {f.rcdMa && (
+                <g className="acc">
+                  <title>{`Earth leakage protection ${f.rcdMa} mA`}</title>
+                  <ellipse cx={n.x} cy={y + 39} rx="7" ry="3.2" className="sym-ln" />
+                </g>
+              )}
+              {f.kwhMeter && (() => {
+                // Sub-board incomers: below their result labels.
+                const my = n.childBoardId ? y + 128 : y + 62;
+                return (
+                <g className="acc">
+                  <title>{f.kwhMeter === 'CT' ? 'CT-operated kWh meter' : `${f.kwhMeter} direct kWh meter`}</title>
+                  {f.kwhMeter === 'CT' && <circle cx={n.x} cy={my} r="4.5" className="sym-ln" />}
+                  <line x1={n.x + (f.kwhMeter === 'CT' ? 4.5 : 0)} y1={my} x2={n.x + 10} y2={my} className="ln" style={f.kwhMeter === 'CT' ? { strokeDasharray: '2 1.5' } : undefined} />
+                  <rect x={n.x + 10} y={my - 6} width="24" height="12" rx="2" className="sym" />
+                  <text x={n.x + 22} y={my + 3} textAnchor="middle" className="acc-t b">kWh</text>
+                  {f.kwhMeter === 'CT' && <text x={n.x + 37} y={my + 3} className="acc-t">CT</text>}
+                </g>
+                );
+              })()}
+              {f.localIsolator && !n.childBoardId && (
+                <g className="acc">
+                  <title>Local isolator at the equipment</title>
+                  <rect x={n.x - 4} y={y + 66} width="8" height="9" className="bg-fill" />
+                  <circle cx={n.x} cy={y + 67} r="1.6" className="dot" />
+                  <line x1={n.x} y1={y + 75} x2={n.x - 7} y2={y + 67} className="ln" />
+                  <text x={n.x - 9} y={y + 74} textAnchor="end" className="acc-t">ISO</text>
+                </g>
+              )}
               {!n.childBoardId && (
                 <>
                   <circle cx={n.x} cy={y + 94} r="18" className={`load ${status}`} />
@@ -477,7 +576,7 @@ export default function SystemDiagram({
                   <text className="b" x={n.x} y={y + 132} textAnchor="middle">{trunc(f.id, 16)}</text>
                   <text className="m" x={n.x} y={y + 146} textAnchor="middle">{trunc(f.name, 19)}</text>
                   <text x={n.x} y={y + 160} textAnchor="middle">
-                    {f.kvar ? `${f.kvar} kvar` : `${(f.loadKw * f.demandFactor).toFixed(0)} kW${f.generation ? ' gen' : ''}${isMotor(f) ? ` · ${starterInfo(starterOf(f)).short}` : ''}`}
+                    {f.kvar ? `${f.capSteps && f.capSteps > 1 ? `${f.capSteps} × ${+(f.kvar / f.capSteps).toFixed(1)}` : f.kvar} kvar${f.detunedPct ? ` · ${f.detunedPct}% det.` : ''}` : `${(f.loadKw * f.demandFactor).toFixed(0)} kW${f.generation ? ' gen' : ''}${isMotor(f) ? ` · ${starterInfo(starterOf(f)).short}` : ''}`}
                     {!layers?.current && ` · ${r ? r.ib.toFixed(0) : '–'} A`}
                   </text>
                   {feederTags(f.id).map((t, i) => (
@@ -571,6 +670,28 @@ export default function SystemDiagram({
                 {b.ratedCurrentA ? ` · ${b.ratedCurrentA} A` : ''}
               </text>
               <circle cx={n.x + 52} cy={n.busY - 46} r="4" style={{ fill: `var(--${status})` }} />
+              {b.spd && (
+                <g className="acc">
+                  <title>{`Surge protection device, Type ${b.spd === 'T1+2' ? '1+2' : b.spd.slice(1)}`}</title>
+                  {(() => {
+                    // On the busbar's right end (or under the board box when it has no busbar).
+                    const sx = n.terminal ? n.x - 40 : n.busX2 - 8;
+                    const sy = n.terminal ? n.busY - 22 : n.busY;
+                    return (
+                      <>
+                        <line x1={sx} y1={sy} x2={sx} y2={sy - 12} className="ln" />
+                        <rect x={sx - 6} y={sy - 26} width="12" height="14" className="sym" />
+                        <path d={`M${sx + 2} ${sy - 24} l-3 5 h3 l-3 5`} className="sym-ln" />
+                        <line x1={sx} y1={sy - 26} x2={sx} y2={sy - 31} className="ln" />
+                        <line x1={sx - 6} y1={sy - 31} x2={sx + 6} y2={sy - 31} className="ln" />
+                        <line x1={sx - 4} y1={sy - 34} x2={sx + 4} y2={sy - 34} className="ln" />
+                        <line x1={sx - 2} y1={sy - 37} x2={sx + 2} y2={sy - 37} className="ln" />
+                        <text x={sx - 9} y={sy - 16} textAnchor="end" className="acc-t">SPD {b.spd === 'T1+2' ? 'T1+2' : b.spd}</text>
+                      </>
+                    );
+                  })()}
+                </g>
+              )}
               {n.terminal && circuitTags.length > 0 && (
                 <g className="sched" onDoubleClick={(e) => { e.stopPropagation(); edit(onOpenSchedule, b.id)(); }}>
                   <title>Final circuits are on the load schedule — double-click to open it</title>

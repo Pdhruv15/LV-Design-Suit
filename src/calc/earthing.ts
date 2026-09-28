@@ -1,5 +1,6 @@
 import { cables, cpcOf, defaultCpcMm2, getCable } from './cableTable';
 import { DEFAULT_TRANSFORMER_XR, rOperatingOhmPerKm, runsOf, transformerImpedance, zMagnitude, type Impedance, type Status } from './electrical';
+import { elcbGroups, isScheduleCircuit } from './loadSchedule';
 import type { BreakerType, Feeder, Project } from '../types';
 
 const SQRT3 = Math.sqrt(3);
@@ -79,7 +80,8 @@ export interface EarthingResult {
   zeOhm: number; // loop impedance at the supply board
   zsOhm: number; // loop impedance at the far end of the circuit
   faultA: number; // minimum earth fault current at the far end
-  tripA: number; // current for instantaneous tripping (Ia)
+  tripA: number; // current for instantaneous tripping (Ia): the breaker's magnetic trip, or 5 × IΔn with an RCD
+  rcdMa?: number; // earth leakage protection on the circuit (its own, or the DB's ELCB group)
   maxZsOhm: number; // largest Zs that still gives instantaneous tripping
   requiredS: number; // required disconnection time
   disconnection: Status; // ok: trips instantaneously; warn: 5 s circuit relying on the thermal region; bad: too slow
@@ -95,7 +97,11 @@ export function evaluateEarthing(project: Project, f: Feeder): EarthingResult {
   const zs = { r: ze.r + c.r, x: ze.x + c.x };
   const zsOhm = zMagnitude(zs);
   const faultA = (C_MIN * u0) / zsOhm;
-  const tripA = instantaneousTripA(f);
+  // An RCD (feeder's own, or the ELCB of a DB's final-circuit group) trips
+  // within 40 ms at 5 × IΔn (IEC 61008 / 61009), far below a breaker's
+  // magnetic threshold.
+  const rcdMa = rcdOf(project, f);
+  const tripA = rcdMa ? Math.min(instantaneousTripA(f), (5 * rcdMa) / 1000) : instantaneousTripA(f);
   const requiredS = requiredDisconnectionS(f);
 
   const instantaneous = faultA >= tripA;
@@ -117,6 +123,7 @@ export function evaluateEarthing(project: Project, f: Feeder): EarthingResult {
     zsOhm,
     faultA,
     tripA,
+    ...(rcdMa ? { rcdMa } : {}),
     maxZsOhm: (C_MIN * u0) / tripA,
     requiredS,
     disconnection,
@@ -124,6 +131,21 @@ export function evaluateEarthing(project: Project, f: Feeder): EarthingResult {
     adiabatic,
     status
   };
+}
+
+const elcbCache = new WeakMap<Project, Map<string, number>>();
+/** Earth leakage protection of a circuit (mA): its own RCD, else the ELCB
+ * group of its DB when it is a load schedule circuit. */
+export function rcdOf(project: Project, f: Feeder): number | undefined {
+  if (f.rcdMa) return f.rcdMa;
+  if (!isScheduleCircuit(f)) return undefined;
+  let m = elcbCache.get(project);
+  if (!m) {
+    m = new Map();
+    for (const b of project.boards) for (const g of elcbGroups(project, b)) for (const c of g.circuits) m.set(c.id, g.sensitivityMa);
+    elcbCache.set(project, m);
+  }
+  return m.get(f.id);
 }
 
 export function evaluateEarthingAll(project: Project): EarthingResult[] {

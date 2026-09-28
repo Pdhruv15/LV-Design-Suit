@@ -38,7 +38,7 @@ const INPUTS: Record<StudyKey, { feeders: FeederField[]; boards: BoardField[]; p
   vd: { feeders: [...TOPOLOGY_F, ...LOAD_F, ...CABLE_F], boards: TOPOLOGY_B, project: ['voltageV', 'vdLimitPct'] },
   fault: { feeders: [...TOPOLOGY_F, ...CABLE_F, 'breakerIcuKa'], boards: TOPOLOGY_B, project: ['voltageV'] },
   checks: { feeders: [...TOPOLOGY_F, ...LOAD_F, ...CABLE_F, ...BREAKER_F], boards: TOPOLOGY_B, project: ['voltageV', 'vdLimitPct', 'ambientC'] },
-  earthing: { feeders: [...TOPOLOGY_F, ...CABLE_F, ...BREAKER_F, 'cpcMm2'], boards: TOPOLOGY_B, project: ['voltageV'] },
+  earthing: { feeders: [...TOPOLOGY_F, ...CABLE_F, ...BREAKER_F, 'cpcMm2', 'rcdMa', 'phase', 'way', 'points'], boards: [...TOPOLOGY_B, 'elcbGroupSize', 'elcbSensitivityMa'], project: ['voltageV', 'studySettings'] },
   protection: { feeders: [...TOPOLOGY_F, ...CABLE_F, ...BREAKER_F], boards: TOPOLOGY_B, project: ['voltageV'] },
   sizing: { feeders: [...TOPOLOGY_F, ...LOAD_F, 'essential', 'starter', 'loadType'], boards: [...TOPOLOGY_B, 'standby'], project: ['voltageV', 'studySettings'] }
 };

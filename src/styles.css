@@ -78,8 +78,15 @@ table.compare td:first-child,table.compare th:first-child{text-align:left}
 .engine-notes{margin:12px 0 0;padding-left:18px;line-height:1.6}
 code{background:var(--p2);padding:1px 5px;border-radius:4px}
 /* ---- System diagram ---- */
-.sysdiag{position:relative;height:clamp(360px,52vh,620px);border:1px solid var(--line);border-radius:8px;background:
-  radial-gradient(circle,var(--line) 1px,transparent 1px) 0 0/22px 22px,var(--bg);overflow:hidden;margin-top:8px}
+.sysdiag{position:relative;height:clamp(420px,calc(100vh - 290px),3000px);border:1px solid var(--line);border-radius:8px;background:var(--bg);overflow:hidden;margin-top:8px}
+.sysdiag .grid-minor{fill:none;stroke:color-mix(in srgb,var(--line) 55%,transparent);stroke-width:.6;vector-effect:non-scaling-stroke}
+.sysdiag .grid-major{fill:none;stroke:var(--line);stroke-width:1;vector-effect:non-scaling-stroke}
+.sysdiag .grid-dot{fill:var(--line)}
+.sysdiag-resize{position:absolute;left:0;right:0;bottom:0;height:9px;cursor:ns-resize;z-index:2;background:linear-gradient(to bottom,transparent 3px,color-mix(in srgb,var(--mut) 35%,transparent) 3px,color-mix(in srgb,var(--mut) 35%,transparent) 5px,transparent 5px) center/44px 100% no-repeat}
+.sysdiag-resize:hover{background-color:color-mix(in srgb,var(--acc) 18%,transparent)}
+.sld-edit.full{position:fixed;inset:0;z-index:60;background:var(--bg);padding:10px}
+.sld-edit.full .sysdiag{height:auto;margin-top:0}
+.sld-edit.full .palette{max-height:none}
 .sysdiag svg{width:100%;height:100%;display:block;cursor:grab;touch-action:none;user-select:none}
 .sysdiag svg:active{cursor:grabbing}
 .sysdiag-tools{position:absolute;top:8px;right:8px;display:flex;gap:4px;z-index:1}
@@ -437,6 +444,14 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 .qc-ok{color:var(--ok)}.qc-bad{color:var(--bad)}
 .qc-warn{grid-column:1/-1;margin:0;font-size:12px;color:var(--mut)}
 .qc-formula{margin:0;font-size:11px;color:var(--mut);font-family:ui-monospace,Menlo,monospace;line-height:1.4}
+.sysdiag .acc .sym-ln{fill:none;stroke:var(--tx);stroke-width:1.2}
+.sysdiag .acc .acc-t{font-size:9px;fill:var(--mut)}
+.sysdiag .acc .acc-t.b{fill:var(--tx);font-weight:700;font-size:8px}
+.sysdiag .acc .bg-fill{fill:var(--bg);stroke:none}
+.sysdiag .acc .dot{fill:var(--tx)}
+.palette-item{position:relative}
+.palette-del{margin-left:auto;opacity:0;font-size:11px;padding:0 4px}
+.palette-item:hover .palette-del{opacity:1}
 .sysdiag .rmu-box{fill:color-mix(in srgb,var(--acc) 12%,var(--p2))}
 /* ---- Classic tables with Excel-style editing (ClassicGrid / useExcelGrid) ---- */
 .gx-wrap{overflow:auto;max-height:62vh;border:1px solid var(--line);border-radius:8px}
