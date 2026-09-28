@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Activity, BatteryCharging, Building2, Cable, Calculator, ClipboardCheck, Car, CircuitBoard, Cog, Ellipsis, FileDown, FileSpreadsheet, FileText,
   Gauge, Hand, LayoutGrid, ListTree, Minus, MousePointer2, Pencil, Receipt, Scale, Server, Settings2, ShieldCheck, Sun,
-  Database, History, Play, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Waves, Zap, type LucideIcon
+  Database, History, Play, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Waves, Zap, type LucideIcon, BatteryFull
 } from 'lucide-react';
 import type { Feeder } from '../types';
 import type { MainView } from '../views';
@@ -60,7 +60,7 @@ const TABS: { id: RibbonTab; label: string; icon: Icon }[] = [
 export function tabForView(v: MainView): RibbonTab {
   if (v === 'design' || v === 'load-schedule' || v === 'space-planning' || v === 'substation-area') return 'design';
   if (v === 'engines') return 'simulate';
-  if (['calculators', 'voltage-drop', 'earthing', 'coordination', 'selection', 'sizing', 'pfc'].includes(v)) return 'calculate';
+  if (['calculators', 'voltage-drop', 'earthing', 'coordination', 'selection', 'sizing', 'pfc', 'ups', 'solar'].includes(v)) return 'calculate';
   if (v === 'boq') return 'cost';
   if (v === 'database') return 'standards';
   return 'reports';
@@ -125,6 +125,10 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       [
         view('sizing', 'Transformer / Gen', Waves, 'Transformer and generator sizing'),
         view('pfc', 'Power factor', BatteryCharging, 'Power factor correction')
+      ],
+      [
+        view('ups', 'UPS & battery', BatteryFull, 'UPS rating and battery sizing for the backup time'),
+        view('solar', 'Solar PV', Sun, 'Solar PV array, string design, inverters and yield')
       ],
       [view('calculators', 'Quick calcs', Calculator, 'Quick calculators: amps, kW/kVA, voltage drop, cable & breaker, transformer, motor, PF, fault level, Ohm\'s law, energy, units')]
     ],

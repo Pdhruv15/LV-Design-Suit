@@ -234,6 +234,8 @@ export interface Project {
   drawing?: DrawingInfo; // SLD drawing title block
   ties?: BusTie[]; // normally-open bus couplers between main boards
   spacePlan?: SpacePlan; // areas → panels → transformers → RMUs (power density planning)
+  upsSystems?: import('./calc/ups').UpsSystem[]; // UPS and battery sizing
+  pv?: import('./calc/solar').PvSystem; // solar PV array and inverter sizing
   trays?: TrayPlan; // cable tray routes (A, B, C…) with the cables on each and the tray size
   substations?: DmSubstationRoom[]; // DM-D-013 minimum substation / LV room areas
   studyReport?: StudyReportSetup; // the study report being prepared (Reports → Study reports)
