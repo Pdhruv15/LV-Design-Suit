@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import type { Project } from '../../types';
 import { applyMdEdits, buildMdSheet } from '../../docs/mdSheet';
 import { revisionStamp } from '../../model/revisions';
-import FormSheet from './FormSheet';
+import ClassicGrid from '../grid/ClassicGrid';
 
 /** "Details of connected load, maximum demand & kWh metering" for one
  * board, drawn like the authority form: header, the sheet, then the demand
@@ -30,9 +30,8 @@ export default function MdSheetView({ project, boardId, onChange, onStatus, onSe
         <div><span>CONSULTANT:</span> {blank(f.consultant)}</div>
         <div><span>LOCATION:</span> {blank(f.location)}</div>
       </div>
-      <FormSheet
+      <ClassicGrid
         model={sheet}
-        height="48vh"
         onStatus={onStatus}
         onEdits={(edits) => {
           const { project: next, rejected } = applyMdEdits(project, sheet, edits);

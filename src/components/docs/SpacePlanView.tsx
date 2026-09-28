@@ -3,7 +3,7 @@ import type { PlanPanel, Project, SpacePlan, SpaceUse } from '../../types';
 import { autoAssign, DEFAULT_USES, emptyPlan, panelLoad, PLAN_TRANSFORMER_SIZES, summarize, usesOf } from '../../calc/spacePlan';
 import { applyPlanEdits, buildPlanSheet } from '../../docs/planSheet';
 import { planToSld } from '../../model/planToSld';
-import FormSheet from './FormSheet';
+import ClassicGrid from '../grid/ClassicGrid';
 import { Page } from '../ui';
 
 const f0 = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -123,9 +123,9 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated }
       </div>
 
       <h3 className="section-title flush">1 · Areas</h3>
-      <FormSheet
+      <ClassicGrid
         model={sheet}
-        height="40vh"
+        className="plan-areas-grid"
         onStatus={onStatus}
         onEdits={(edits) => {
           const { plan: next, rejected } = applyPlanEdits(plan, sheet, edits);

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Plus, Scale, Trash2, Zap } from 'lucide-react';
 import type { Board, Phase, PointType, Project } from '../../types';
 import { cables } from '../../calc/cableTable';
@@ -12,7 +12,9 @@ import { addCircuit, balancePhases, deleteCircuit, refreshBoard, updateCircuit, 
 import { saveBinary, saveCsv, savePdf, safeFileName } from '../../util/files';
 import { buildFormWorkbook, workbookBytes, type WorkbookScope } from '../../docs/formWorkbook';
 import { Page, STATUS_LABEL } from '../ui';
-import LoadScheduleSheet from './LoadScheduleSheet';
+import { applySheetEdits, buildDbSheet } from '../../docs/dbSheet';
+import { cellKey } from '../grid/excelGrid';
+import { useExcelGrid } from '../grid/useExcelGrid';
 import MdSheetView from './MdSheetView';
 import { hasMdSheet } from '../../docs/mdSheet';
 
@@ -45,8 +47,18 @@ export default function LoadScheduleView({
   const missing = missingWatts(project, board);
   const settings = settingsOf(project);
   const columns = pointColumns(project, board);
-  const [mode, setMode] = useState<'sheet' | 'classic'>(() => {
-    try { return localStorage.getItem('ls-mode') === 'classic' ? 'classic' : 'sheet'; } catch { return 'sheet'; }
+  // Excel-style keys, paste, selection, copy and fill down on the table:
+  // cells are addressed like the DB sheet model (row 0 = WATT / UNIT), and
+  // multi-cell changes go through its checks.
+  const dbs = useMemo(() => buildDbSheet(project, board.id), [project, board.id]);
+  const rowOf = useMemo(() => new Map(dbs.rows.map((r, y) => [r.type === 'circuit' ? r.feeder.id : r.type === 'watts' ? '__watts' : '', y])), [dbs]);
+  const colOf = (key: string) => dbs.sheetCols.findIndex((c) => c.key === key);
+  const cell = (feederId: string, key: string) => cellKey(rowOf.get(feederId) ?? -1, colOf(key));
+  const grid = useRef<HTMLDivElement>(null);
+  useExcelGrid(grid, (edits) => {
+    const { project: next, rejected } = applySheetEdits(project, dbs, edits);
+    if (next !== project) onChange(next);
+    if (rejected.length) onStatus(`Not applied — ${rejected.slice(0, 3).join('; ')}${rejected.length > 3 ? ` (+${rejected.length - 3} more)` : ''}`);
   });
   // Which form: the DB load distribution schedule, or the connected load &
   // maximum demand form (boards with outgoing feeders). A board with no
@@ -67,10 +79,6 @@ export default function LoadScheduleView({
       setExporting(false);
     }
   }
-  const switchMode = (m: 'sheet' | 'classic') => {
-    setMode(m);
-    try { localStorage.setItem('ls-mode', m); } catch { /* preference only */ }
-  };
 
   const setBoard = (patch: Partial<Board>, resize = false) => {
     const p = { ...project, boards: project.boards.map((b) => (b.id === board.id ? { ...b, ...patch } : b)) };
@@ -146,10 +154,7 @@ export default function LoadScheduleView({
             </p>
           )}
           <div className="ls-actions">
-            <div className="seg" role="tablist" aria-label="Schedule view">
-              <button role="tab" aria-selected={mode === 'sheet'} className={mode === 'sheet' ? 'on' : ''} onClick={() => switchMode('sheet')} title="Excel-style: type, paste from Excel, fill down">Sheet</button>
-              <button role="tab" aria-selected={mode === 'classic'} className={mode === 'classic' ? 'on' : ''} onClick={() => switchMode('classic')} title="The previous table, with WATT / UNIT library links">Classic</button>
-            </div>
+            <span className="m gx-hint" title="Arrows / Enter move · Shift+arrows or drag select · Ctrl/⌘ C copy · Ctrl/⌘ V paste from Excel · Ctrl/⌘ D fill down · Delete clears the selection">Excel keys: paste · fill down (⌘D) · copy</span>
             <button className="chip" onClick={() => add()}><Plus size={14} /> Add circuit</button>
             <button className="chip" onClick={() => add('RYB')}><Zap size={14} /> Add 3-phase circuit</button>
             <button className="chip" disabled={data.rows.length < 2} onClick={() => onChange(balancePhases(project, board.id))} title="Lighting circuits first, then power, each starting on an ELCB section; spread over R/Y/B and renumber"><Scale size={14} /> Balance phases</button>
@@ -161,10 +166,8 @@ export default function LoadScheduleView({
             </span>
           </div>
 
-          {mode === 'sheet' ? (
-            <LoadScheduleSheet project={project} boardId={board.id} onChange={onChange} onStatus={onStatus} />
-          ) : (
-            <div className="ls-wrap">
+          {(
+            <div className="ls-wrap" ref={grid}>
               <table className="ls">
                 <thead>
                   <tr>
@@ -189,7 +192,7 @@ export default function LoadScheduleView({
                     {columns.map((t) => (
                       <td key={t.value} className={missing.includes(t.value) ? 'missing' : ''} title={board.pointItems?.[t.value] ? `From library: ${board.pointItems[t.value]}` : undefined}>
                         {/* Typing a value unlinks the column from the library. */}
-                        <input type="number" min="0" value={watts[t.value] || ''} placeholder="W" aria-label={`${t.title} watts per point`}
+                        <input inputMode="numeric" data-cell={cellKey(rowOf.get('__watts') ?? 0, colOf(`pt:${t.value}`))} value={watts[t.value] || ''} placeholder="W" aria-label={`${t.title} watts per point`}
                           onChange={(e) => setBoard({ pointWatts: { ...board.pointWatts, [t.value]: num(e.target.value) }, pointItems: { ...board.pointItems, [t.value]: undefined } }, true)} />
                         {db.loads.length > 0 && (
                           <select className={`lib-pick ${board.pointItems?.[t.value] ? 'linked' : ''}`} value={board.pointItems?.[t.value] ?? ''} aria-label={`${t.title} from library`}
@@ -223,40 +226,42 @@ export default function LoadScheduleView({
                             ELCB-{r.group!.index}<br />{r.group!.label}<br /><span className="m">{r.group!.category === 'mixed' ? 'mixed!' : r.group!.category}</span>
                           </td>
                         ) : !r.group ? <td /> : null}
-                        <td>{r.sl}</td>
+                        <td data-cell={cell(f.id, 'sl')}>{r.sl}</td>
                         <td>
                           <b className={`ph-${f.phase === 'RYB' ? 'ryb' : f.phase!.toLowerCase()}`}>{r.ref}</b>
                           <span className={`cat cat-${r.category}`} title={r.category === 'lighting' ? 'Lighting circuit' : 'Power circuit'}>{r.category === 'lighting' ? 'L' : 'P'}</span>
                         </td>
                         <td>
-                          <select value={f.breakerRatingA} onChange={(e) => patch(f.id, { breakerRatingA: +e.target.value })}>
+                          <select data-cell={cell(f.id, 'mcb')} value={f.breakerRatingA} onChange={(e) => patch(f.id, { breakerRatingA: +e.target.value })}>
                             {[...new Set([...breakerRatings().filter((a) => a <= 125), f.breakerRatingA])].sort((a, b) => a - b).map((a) => <option key={a} value={a}>{a}</option>)}
                           </select>
                         </td>
                         <td>
-                          <select value={f.cableCsaMm2} onChange={(e) => patch(f.id, { cableCsaMm2: +e.target.value })}>
+                          <select data-cell={cell(f.id, 'wire')} value={f.cableCsaMm2} onChange={(e) => patch(f.id, { cableCsaMm2: +e.target.value })}>
                             {cables().map((c) => <option key={c.csaMm2} value={c.csaMm2}>{c.csaMm2}</option>)}
                           </select>
                         </td>
                         <td>
-                          <select value={f.cpcMm2 ?? ''} onChange={(e) => patch(f.id, { cpcMm2: e.target.value === '' ? undefined : +e.target.value })} title="Protective (earth) conductor">
+                          <select data-cell={cell(f.id, 'ecc')} value={f.cpcMm2 ?? ''} onChange={(e) => patch(f.id, { cpcMm2: e.target.value === '' ? undefined : +e.target.value })} title="Protective (earth) conductor">
                             <option value="">{defaultCpcMm2(f.cableCsaMm2)}</option>
                             {cables().filter((c) => c.csaMm2 <= f.cableCsaMm2).map((c) => <option key={c.csaMm2} value={c.csaMm2}>{c.csaMm2}*</option>)}
                           </select>
                         </td>
-                        <td><input className="room" value={f.room ?? ''} placeholder="Room" onChange={(e) => patch(f.id, { room: e.target.value })} /></td>
+                        <td><input className="room" data-cell={cell(f.id, 'room')} value={f.room ?? ''} placeholder="Room" onChange={(e) => patch(f.id, { room: e.target.value })} /></td>
                         {columns.map((t) => (
                           <td key={t.value}>
-                            <input type="number" min="0" className="pt-in" value={f.points?.[t.value as PointType] || ''} aria-label={`${r.ref} ${t.title}`}
+                            <input inputMode="numeric" className="pt-in" data-cell={cell(f.id, `pt:${t.value}`)} value={f.points?.[t.value as PointType] || ''} aria-label={`${r.ref} ${t.title}`}
                               onChange={(e) => patch(f.id, { points: { ...f.points, [t.value]: num(e.target.value) } })} />
                           </td>
                         ))}
-                        <td className="shade">{r.ph.R}</td><td className="shade">{r.ph.Y}</td><td className="shade">{r.ph.B}</td>
-                        <td><input type="number" min="1" className="pt-in" value={f.lengthM} onChange={(e) => patch(f.id, { lengthM: Math.max(1, +e.target.value || 1) })} aria-label={`${r.ref} length`} /></td>
+                        <td className="shade" data-cell={cell(f.id, 'R')}>{r.ph.R}</td><td className="shade" data-cell={cell(f.id, 'Y')}>{r.ph.Y}</td><td className="shade" data-cell={cell(f.id, 'B')}>{r.ph.B}</td>
+                        <td><input inputMode="decimal" className="pt-in" key={f.lengthM} data-cell={cell(f.id, 'length')} defaultValue={f.lengthM}
+                          onBlur={(e) => { const v = Number(e.target.value.replace(',', '.')); if (v > 0 && v !== f.lengthM) patch(f.id, { lengthM: v }); else e.target.value = String(f.lengthM); }}
+                          aria-label={`${r.ref} length`} /></td>
                         <td className={r.status} title={r.belowMin ? `Wire below the ${r.minWire} mm² minimum for ${r.category} circuits` : undefined}>
                           {r.belowMin ? `< ${r.minWire} mm²` : STATUS_LABEL[r.status]}
                         </td>
-                        <td><input className="room" value={f.remarks ?? ''} onChange={(e) => patch(f.id, { remarks: e.target.value || undefined })} aria-label={`${r.ref} remarks`} /></td>
+                        <td><input className="room" data-cell={cell(f.id, 'remarks')} value={f.remarks ?? ''} onChange={(e) => patch(f.id, { remarks: e.target.value || undefined })} aria-label={`${r.ref} remarks`} /></td>
                         <td>
                           <button className="icon-btn" title={`Delete ${r.ref}`} onClick={() => window.confirm(`Delete circuit ${r.ref}?`) && onChange(deleteCircuit(project, f.id))}>
                             <Trash2 size={14} />
