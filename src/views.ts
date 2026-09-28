@@ -1,7 +1,7 @@
 /** Main screens of the app, shared by the left menu and the ribbon. */
 export type MainView =
   | 'design' | 'space-planning' | 'load-schedule'
-  | 'calculators' | 'voltage-drop' | 'earthing' | 'selection' | 'coordination' | 'sizing' | 'pfc' | 'engines'
+  | 'calculators' | 'voltage-drop' | 'earthing' | 'selection' | 'coordination' | 'sizing' | 'pfc' | 'ups' | 'solar' | 'engines'
   | 'db-schedule' | 'cable-schedule' | 'cable-tray' | 'equipment' | 'study-reports' | 'boq' | 'report' | 'revisions' | 'database';
 
 export const STUDIES: [MainView, string][] = [
@@ -11,7 +11,9 @@ export const STUDIES: [MainView, string][] = [
   ['coordination', 'Protection coordination'],
   ['selection', 'Breaker & cable selection'],
   ['sizing', 'Transformer & generator'],
-  ['pfc', 'Power factor correction']
+  ['pfc', 'Power factor correction'],
+  ['ups', 'UPS & battery'],
+  ['solar', 'Solar PV']
 ];
 
 export const DOCUMENTS: [MainView, string][] = [

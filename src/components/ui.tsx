@@ -57,3 +57,47 @@ export function NumberSetting({ label, value, step = 1, min, max, suffix, onChan
     </label>
   );
 }
+
+/** Labelled number box that commits on Enter / leaving the box (typing
+ * "0." never fights the value); blank = the placeholder default when
+ * `optional`, otherwise ignored. */
+export function NumField({ label, value, unit, onSet, placeholder, optional, width = 80, title, min, max }: {
+  label: string;
+  value?: number;
+  unit?: string;
+  onSet: (v: number | undefined) => void;
+  placeholder?: string;
+  optional?: boolean;
+  width?: number;
+  title?: string;
+  min?: number;
+  max?: number;
+}) {
+  const commit = (t: string, el: HTMLInputElement) => {
+    const s = t.trim().replace(',', '.');
+    if (s === '') { if (optional) onSet(undefined); else el.value = value === undefined ? '' : String(value); return; }
+    let n = Number(s);
+    if (!Number.isFinite(n)) { el.value = value === undefined ? '' : String(value); return; }
+    if (min !== undefined) n = Math.max(min, n);
+    if (max !== undefined) n = Math.min(max, n);
+    if (n !== value) onSet(n);
+    el.value = String(n);
+  };
+  return (
+    <label className="nf" title={title}>
+      <span>{label}</span>
+      <span className="nf-in">
+        <input
+          key={`${value ?? ''}`}
+          inputMode="decimal"
+          style={{ width }}
+          defaultValue={value ?? ''}
+          placeholder={placeholder}
+          onBlur={(e) => commit(e.target.value, e.target)}
+          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+        />
+        {unit && <em>{unit}</em>}
+      </span>
+    </label>
+  );
+}

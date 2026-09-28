@@ -19,6 +19,8 @@ import VoltageDropStudy from './components/studies/VoltageDropStudy';
 import RevisionsView from './components/docs/RevisionsView';
 import SpacePlanView from './components/docs/SpacePlanView';
 import TrayScheduleView from './components/docs/TrayScheduleView';
+import UpsStudy from './components/studies/UpsStudy';
+import SolarStudy from './components/studies/SolarStudy';
 import StudyReportsView from './components/docs/StudyReportsView';
 import QuickCalcs from './components/QuickCalcs';
 import CoordinationStudy from './components/studies/CoordinationStudy';
@@ -702,6 +704,8 @@ export default function App() {
             )}
             {view === 'study-reports' && <StudyReportsView project={project} run={run} stale={stale} onRun={runNow} onChange={setProject} onStatus={setStatus} />}
             {view === 'calculators' && <QuickCalcs project={project} />}
+            {view === 'ups' && <UpsStudy project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />}
+            {view === 'solar' && <SolarStudy project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />}
             {view === 'cable-tray' && (
               <TrayScheduleView project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />
             )}
