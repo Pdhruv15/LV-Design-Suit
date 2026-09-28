@@ -41,6 +41,8 @@ const trunc = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…
  * next to each board and feeder. */
 export default function SystemDiagram({
   project,
+  calcProject,
+  stale = false,
   results,
   selectedFeederId,
   selectedBoardId,
@@ -61,6 +63,10 @@ export default function SystemDiagram({
   onRemoveTie
 }: {
   project: Project;
+  /** The project the results were calculated for (the last run). */
+  calcProject?: Project;
+  /** Results out of date: labels, dots and colours are shown faded. */
+  stale?: boolean;
   results: FeederResult[];
   selectedFeederId: string | null;
   selectedBoardId: string | null;
@@ -123,13 +129,14 @@ export default function SystemDiagram({
   const byFeeder = useMemo(() => new Map(results.map((r) => [r.feeder.id, r])), [results]);
   // Board loading and voltage come from the network that is running: the
   // generator scenario in generator mode.
-  const running = scenario?.project ?? project;
+  const running = scenario?.project ?? calcProject ?? project;
   const summaries = useMemo(
     () => new Map(project.boards.map((b) => {
-      const live = scenario ? scenario.project.boards.find((x) => x.id === b.id) : undefined;
-      return [b.id, live ? boardSummary(scenario!.project, live) : boardSummary(project, b)];
+      const src = scenario?.project ?? calcProject ?? project;
+      const calc = src.boards.find((x) => x.id === b.id);
+      return [b.id, calc ? boardSummary(src, calc) : boardSummary(project, b)];
     })),
-    [project, scenario]
+    [project, calcProject, scenario]
   );
   const off = (boardId: string) => !!scenario && !scenario.energized.has(boardId);
   const earthing = useMemo(
@@ -291,7 +298,7 @@ export default function SystemDiagram({
   const main = layout.roots[0];
 
   return (
-    <div className={`sysdiag ${tool === 'pan' ? 'pan' : ''}${dropCls('canvas')}`}>
+    <div className={`sysdiag ${tool === 'pan' ? 'pan' : ''}${dropCls('canvas')}${stale ? ' stale' : ''}`}>
       <div className="sysdiag-tools" role="toolbar" aria-label="Diagram zoom">
         <button className="chip" onClick={() => zoom(1 / 1.25)} aria-label="Zoom in">+</button>
         <button className="chip" onClick={() => zoom(1.25)} aria-label="Zoom out">−</button>

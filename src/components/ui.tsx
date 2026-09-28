@@ -19,6 +19,17 @@ export function StatusCounts({ statuses }: { statuses: Status[] }) {
   );
 }
 
+/** Shown on study results while their inputs changed since the last run. */
+export function StaleBanner({ stale, onRun, what }: { stale: string[]; onRun: () => void; what?: string }) {
+  if (!stale.length) return null;
+  return (
+    <div className="stale-banner" role="status">
+      <span>⚠ Inputs changed since the last run — {what ?? 'these results'} are out of date ({stale.join(', ')}).</span>
+      <button className="chip primary" onClick={onRun}>▶ Run calculations (F5)</button>
+    </div>
+  );
+}
+
 /** Page scaffold for a study or document: title, intro, action buttons. */
 export function Page({ title, intro, actions, children }: { title: string; intro?: ReactNode; actions?: ReactNode; children: ReactNode }) {
   return (

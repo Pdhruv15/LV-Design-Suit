@@ -216,6 +216,7 @@ export interface Project {
   drawing?: DrawingInfo; // SLD drawing title block
   ties?: BusTie[]; // normally-open bus couplers between main boards
   spacePlan?: SpacePlan; // areas → panels → transformers → RMUs (power density planning)
+  calc?: { autoRun?: boolean }; // run the network studies on every change (default: on Run / F5 only)
   studySettings?: StudySettings;
   boards: Board[];
   feeders: Feeder[];
