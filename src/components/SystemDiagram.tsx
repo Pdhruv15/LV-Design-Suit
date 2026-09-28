@@ -22,6 +22,8 @@ interface Tag {
   cls: string;
 }
 
+type GridStyle = 'lines' | 'dots' | 'off';
+
 interface ViewBox {
   x: number;
   y: number;
@@ -60,7 +62,10 @@ export default function SystemDiagram({
   colorBy = 'none',
   scenario,
   chain,
-  onRemoveTie
+  onRemoveTie,
+  resizable = false,
+  fullScreen = false,
+  onToggleFullScreen
 }: {
   project: Project;
   /** The project the results were calculated for (the last run). */
@@ -96,6 +101,10 @@ export default function SystemDiagram({
   onRemoveTie?: (id: string) => void;
   /** Breakers in the selected feeder's discrimination chain, by status. */
   chain?: Map<string, Status>;
+  /** Drag handle at the bottom edge to change the height (remembered). */
+  resizable?: boolean;
+  fullScreen?: boolean;
+  onToggleFullScreen?: () => void;
 }) {
   const feederTags = (id: string): Tag[] => {
     // Earth fault loop colouring: Zs against its limit on every feeder.
@@ -158,6 +167,39 @@ export default function SystemDiagram({
 
   const full: ViewBox = { x: 0, y: 0, w: layout.width, h: layout.height };
   const [vb, setVb] = useState<ViewBox>(full);
+  // Grid (lines like CAD, dots, or none) and canvas height: this viewer's preferences.
+  const [grid, setGrid] = useState<GridStyle>(() => {
+    try { const g = localStorage.getItem('sld.grid'); return g === 'dots' || g === 'off' ? g : 'lines'; } catch { return 'lines'; }
+  });
+  const nextGrid = () => {
+    const g: GridStyle = grid === 'lines' ? 'dots' : grid === 'dots' ? 'off' : 'lines';
+    setGrid(g);
+    try { localStorage.setItem('sld.grid', g); } catch { /* preference only */ }
+  };
+  const [height, setHeight] = useState<number | undefined>(() => {
+    try { const h = Number(localStorage.getItem('sld.height')); return h >= 300 ? h : undefined; } catch { return undefined; }
+  });
+  const rootRef = useRef<HTMLDivElement>(null);
+  function startResize(e: React.PointerEvent) {
+    e.preventDefault();
+    const y0 = e.clientY;
+    const h0 = rootRef.current?.getBoundingClientRect().height ?? 500;
+    let h = h0;
+    const move = (ev: PointerEvent) => { h = Math.max(300, Math.min(4000, h0 + ev.clientY - y0)); setHeight(h); };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      try { localStorage.setItem('sld.height', String(Math.round(h))); } catch { /* preference only */ }
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  }
+  useEffect(() => {
+    if (!fullScreen || !onToggleFullScreen) return;
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onToggleFullScreen(); };
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, [fullScreen, onToggleFullScreen]);
   const svgRef = useRef<SVGSVGElement>(null);
   const drag = useRef<{ px: number; py: number; vb: ViewBox; moved: boolean } | null>(null);
 
@@ -298,12 +340,21 @@ export default function SystemDiagram({
   const main = layout.roots[0];
 
   return (
-    <div className={`sysdiag ${tool === 'pan' ? 'pan' : ''}${dropCls('canvas')}${stale ? ' stale' : ''}`}>
+    <div
+      ref={rootRef}
+      className={`sysdiag ${tool === 'pan' ? 'pan' : ''}${dropCls('canvas')}${stale ? ' stale' : ''}`}
+      style={resizable && height && !fullScreen ? { height } : undefined}
+    >
       <div className="sysdiag-tools" role="toolbar" aria-label="Diagram zoom">
+        <button className="chip" onClick={nextGrid} title="Grid: lines, dots or none">{grid === 'lines' ? '▦' : grid === 'dots' ? '⁙' : '□'}</button>
         <button className="chip" onClick={() => zoom(1 / 1.25)} aria-label="Zoom in">+</button>
         <button className="chip" onClick={() => zoom(1.25)} aria-label="Zoom out">−</button>
         <button className="chip" onClick={() => setVb(full)}>Fit</button>
+        {onToggleFullScreen && <button className="chip" onClick={onToggleFullScreen} title={fullScreen ? 'Exit full screen (Esc)' : 'Full screen'}>{fullScreen ? '✕' : '⤢'}</button>}
       </div>
+      {resizable && !fullScreen && (
+        <div className="sysdiag-resize" onPointerDown={startResize} onDoubleClick={() => { setHeight(undefined); try { localStorage.removeItem('sld.height'); } catch { /* ignore */ } }} title="Drag to make the drawing taller or shorter — double-click for the default height" />
+      )}
       <svg
         ref={svgRef}
         data-w={layout.width}
@@ -318,6 +369,22 @@ export default function SystemDiagram({
         {...dnd({ type: 'canvas' }, 'canvas')}
         onDragLeave={(e) => { if (!svgRef.current?.contains(e.relatedTarget as Node)) setHover(null); }}
       >
+        {/* Grid: in drawing units, so it pans and zooms with the drawing; not exported. */}
+        {grid !== 'off' && (
+          <g className="grid-bg" pointerEvents="none">
+            <defs>
+              <pattern id="sld-grid-minor" width="20" height="20" patternUnits="userSpaceOnUse">
+                {grid === 'lines' ? <path d="M20 0H0V20" className="grid-minor" /> : <circle cx="0" cy="0" r="1.1" className="grid-dot" />}
+              </pattern>
+              <pattern id="sld-grid-major" width="100" height="100" patternUnits="userSpaceOnUse">
+                <rect width="100" height="100" fill="url(#sld-grid-minor)" />
+                {grid === 'lines' && <path d="M100 0H0V100" className="grid-major" />}
+              </pattern>
+            </defs>
+            <rect x={vb.x - vb.w * 2} y={vb.y - vb.h * 2} width={vb.w * 5} height={vb.h * 5} fill="url(#sld-grid-major)" />
+          </g>
+        )}
+
         {/* Utility and transformers */}
         {main && layout.roots.some((r) => r.board.sourceKva) && (
           <g>

@@ -5,7 +5,7 @@ import type { DxfPrimitive } from '../docs/dxf';
  * and heat colours kept), and interactive-only parts removed. */
 
 const STYLE_PROPS = ['stroke', 'stroke-width', 'stroke-dasharray', 'fill', 'opacity', 'font-size', 'font-weight', 'font-family', 'text-anchor', 'display', 'writing-mode'];
-const DROP = '.bus-hit, .sel-ring, title';
+const DROP = '.bus-hit, .sel-ring, title, .grid-bg';
 
 /** Theme colour (rgb string) → print colour. */
 function printPalette(): Map<string, string> {

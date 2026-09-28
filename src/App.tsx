@@ -378,6 +378,7 @@ export default function App() {
 
   /** An item from the equipment library dropped on the SLD. */
   const [userPresets, setUserPresets] = useState<FeederPreset[]>(loadUserPresets);
+  const [sldFull, setSldFull] = useState(false);
   function savePresets(next: FeederPreset[], message: string) {
     setUserPresets(next);
     setStatus(saveUserPresets(next) ? message : `${message} — but it could not be stored on this computer`);
@@ -603,7 +604,7 @@ export default function App() {
                   />
                 )}
                 {diagramMode === 'system' ? (
-                  <div className="sld-edit">
+                  <div className={`sld-edit${sldFull ? ' full' : ''}`}>
                   <EquipmentPalette onHint={setStatus} library={libraryEntries(db.loads)} presets={userPresets}
                     onDeletePreset={(id) => savePresets(userPresets.filter((p) => p.id !== id), 'Deleted the preset')} />
                   <SystemDiagram
@@ -624,6 +625,9 @@ export default function App() {
                     colorBy={colorBy}
                     scenario={genScenario}
                     chain={chain}
+                    resizable
+                    fullScreen={sldFull}
+                    onToggleFullScreen={() => setSldFull((v) => !v)}
                     onRemoveTie={(id) => {
                       if (!window.confirm(`Remove bus coupler ${id}?`)) return;
                       setProject(removeTie(project, id), { step: true });
