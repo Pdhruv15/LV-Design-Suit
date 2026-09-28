@@ -218,6 +218,7 @@ export interface Project {
   ties?: BusTie[]; // normally-open bus couplers between main boards
   spacePlan?: SpacePlan; // areas → panels → transformers → RMUs (power density planning)
   trays?: TrayPlan; // cable tray routes (A, B, C…) with the cables on each and the tray size
+  substations?: DmSubstationRoom[]; // DM-D-013 minimum substation / LV room areas
   studyReport?: StudyReportSetup; // the study report being prepared (Reports → Study reports)
   studyReportPresets?: StudyReportPreset[]; // saved scopes / study sets for repeat submissions
   calc?: { autoRun?: boolean }; // run the network studies on every change (default: on Run / F5 only)
@@ -280,6 +281,17 @@ export interface SpacePlan {
   settings: SpacePlanSettings;
   /** Use types with W/m² and demand factor; defaults when absent. */
   uses?: SpaceUse[];
+}
+
+/** A substation sized to Dubai Municipality form DM-D-013. */
+export interface DmSubstationRoom {
+  id: string;
+  name: string; // e.g. "SS-1" or the RMU name
+  type: import('./calc/dmSubstation').DmSubstationType;
+  transformers: number;
+  kva?: number; // transformer rating, for reference
+  building?: string;
+  remarks?: string; // consultant / contractor remarks on the form
 }
 
 /** A submission report for chosen studies on chosen boards. */
