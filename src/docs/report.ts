@@ -111,7 +111,7 @@ ${section('Cable schedule', scheduleTable(cableSchedule(project)))}
 ${section('Assumptions and limitations', `<ul>
   <li>Upstream MV network treated as infinite; transformer %Z split into R and X by its X/R ratio (default 5).</li>
   <li>Fault levels use voltage factor c = 1 (maximum) for breaking capacity and c = ${0.95} (minimum) for earth-fault disconnection; loads and generation are neglected.</li>
-  <li>Cable ratings: reference ampacities with ambient temperature derating only — grouping and installation-method factors are not applied.</li>
+  <li>Cable ratings: reference ampacities derated for ambient temperature and for grouping (the cable tray route the cable runs on, else its own parallel runs); other installation-method factors are not applied.</li>
   <li>Cable resistance at operating temperature = 1.2 × R20 (IEC 60228); protective conductor per IEC 60364-5-54 Table 54.2 unless specified.</li>
   <li>Selectivity is assessed from current thresholds only; confirm with the breaker manufacturer's selectivity tables.</li>
   <li>Busbar voltages are measured from the main board busbar and exclude transformer regulation.</li>

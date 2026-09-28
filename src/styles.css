@@ -385,6 +385,37 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 .tray-section svg{max-width:100%;height:auto;display:block}
 .tray-section figcaption{font-size:11px;margin-top:3px;color:#6a7689}
 .tray-routing-grid{max-height:44vh}
+/* ---- Study reports ---- */
+.sr-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;align-items:start}
+.sr-box{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;gap:7px;font-size:12.5px}
+.sr-box h4{margin:0;font-size:13.5px}
+.sr-sub{margin-top:6px!important}
+.sr-quick,.sr-presets{display:flex;flex-wrap:wrap;gap:6px}
+.sr-check{display:flex;align-items:center;gap:7px}
+.sr-tree{display:grid;gap:2px;max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:var(--p2)}
+.sr-tree label{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.sr-tree label.implied{opacity:.75}
+.sr-study{display:flex;gap:8px;align-items:flex-start;padding:4px 0;border-bottom:1px solid color-mix(in srgb,var(--line) 60%,transparent)}
+.sr-study input{margin-top:3px}
+.sr-study span{display:grid;gap:1px}
+.sr-study em{font-style:normal;font-size:11.5px;font-weight:600}
+.sr-study small{color:var(--mut);font-size:11.5px}
+.sr-study em.ok{color:var(--ok)}.sr-study em.warn{color:var(--warn)}.sr-study em.bad{color:var(--bad)}
+.sr-fields{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px}
+.sr-fields label{display:grid;gap:2px;color:var(--mut);font-size:11.5px}
+.sr-fields input,.sr-save input{background:var(--p2);color:var(--tx);border:1px solid var(--line);border-radius:5px;padding:4px 6px;font:inherit;font-size:12.5px}
+.sr-save{display:flex;gap:6px}.sr-save input{flex:1}
+.sr-preset{display:inline-flex;align-items:center;gap:2px}
+.sr-sld{height:460px;border:1px solid var(--line);border-radius:8px;overflow:hidden;position:relative}
+.sr-sld .sysdiag{height:100%}
+.sr-sld.stale{opacity:.55}
+.sr-contents details{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin-bottom:8px}
+.sr-contents summary{cursor:pointer;font-size:13px}
+.sr-contents .ok{color:var(--ok)}.sr-contents .warn{color:var(--warn)}.sr-contents .bad{color:var(--bad)}
+.sr-table h5{margin:10px 0 4px;font-size:12px}
+.sr-table{overflow-x:auto}
+.section-title .chip.primary{background:var(--acc);color:#fff}
+.sysdiag .from-up text{font-size:11px}
 .sysdiag .rmu-box{fill:color-mix(in srgb,var(--acc) 12%,var(--p2))}
 /* ---- Classic tables with Excel-style editing (ClassicGrid / useExcelGrid) ---- */
 .gx-wrap{overflow:auto;max-height:62vh;border:1px solid var(--line);border-radius:8px}
