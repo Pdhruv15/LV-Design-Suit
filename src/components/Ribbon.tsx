@@ -60,7 +60,7 @@ const TABS: { id: RibbonTab; label: string; icon: Icon }[] = [
 export function tabForView(v: MainView): RibbonTab {
   if (v === 'design' || v === 'load-schedule' || v === 'space-planning') return 'design';
   if (v === 'engines') return 'simulate';
-  if (['voltage-drop', 'earthing', 'coordination', 'selection', 'sizing', 'pfc'].includes(v)) return 'calculate';
+  if (['calculators', 'voltage-drop', 'earthing', 'coordination', 'selection', 'sizing', 'pfc'].includes(v)) return 'calculate';
   if (v === 'boq') return 'cost';
   if (v === 'database') return 'standards';
   return 'reports';
@@ -124,7 +124,8 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       [
         view('sizing', 'Transformer / Gen', Waves, 'Transformer and generator sizing'),
         view('pfc', 'Power factor', BatteryCharging, 'Power factor correction')
-      ]
+      ],
+      [view('calculators', 'Quick calcs', Calculator, 'Quick calculators: amps, kW/kVA, voltage drop, cable & breaker, transformer, motor, PF, fault level, Ohm\'s law, energy, units')]
     ],
     simulate: [
       [view('engines', 'Load flow', Activity, 'Run OpenDSS or pandapower and compare with the built-in engine')],

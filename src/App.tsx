@@ -20,6 +20,7 @@ import RevisionsView from './components/docs/RevisionsView';
 import SpacePlanView from './components/docs/SpacePlanView';
 import TrayScheduleView from './components/docs/TrayScheduleView';
 import StudyReportsView from './components/docs/StudyReportsView';
+import QuickCalcs from './components/QuickCalcs';
 import CoordinationStudy from './components/studies/CoordinationStudy';
 import { PfcStudy, TransformerGeneratorStudy } from './components/studies/SizingStudy';
 import { CableScheduleView, DbScheduleView, EquipmentScheduleView, ReportView } from './components/docs/Documents';
@@ -518,6 +519,9 @@ export default function App() {
             <button key={v} className={view === v ? 'on' : ''} onClick={() => setView(v)}>{label}</button>
           ))}
 
+          <h4>Tools</h4>
+          <button className={view === 'calculators' ? 'on' : ''} onClick={() => setView('calculators')}>Quick calculators</button>
+
           <h4>Documents</h4>
           {DOCUMENTS.map(([v, label]) => (
             <button key={v} className={view === v ? 'on' : ''} onClick={() => setView(v)}>{label}</button>
@@ -697,6 +701,7 @@ export default function App() {
               />
             )}
             {view === 'study-reports' && <StudyReportsView project={project} run={run} stale={stale} onRun={runNow} onChange={setProject} onStatus={setStatus} />}
+            {view === 'calculators' && <QuickCalcs project={project} />}
             {view === 'cable-tray' && (
               <TrayScheduleView project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />
             )}

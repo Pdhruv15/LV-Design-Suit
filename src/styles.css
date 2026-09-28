@@ -416,6 +416,27 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 .sr-table{overflow-x:auto}
 .section-title .chip.primary{background:var(--acc);color:#fff}
 .sysdiag .from-up text{font-size:11px}
+/* ---- Quick calculators ---- */
+.qc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px;align-items:start}
+.qc-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;gap:8px}
+.qc-card header{display:flex;justify-content:space-between;align-items:center}
+.qc-card h4{margin:0;font-size:14px}
+.qc-inputs{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px 10px}
+.qc-field{display:grid;gap:2px;font-size:11.5px;color:var(--mut)}
+.qc-in{display:flex;align-items:center;gap:5px}
+.qc-in em{font-style:normal;font-size:11.5px;color:var(--mut)}
+.qc-field input,.qc-field select{background:var(--p2);color:var(--tx);border:1px solid var(--line);border-radius:5px;padding:4px 6px;font:inherit;font-size:13px;max-width:100%}
+.qc-field select{width:100%}
+.qc-result{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px;background:color-mix(in srgb,var(--acc) 7%,var(--p2));border:1px solid color-mix(in srgb,var(--acc) 25%,var(--line));border-radius:8px;padding:8px 10px}
+.qc-out{display:grid;gap:1px}
+.qc-out span{font-size:11px;color:var(--mut)}
+.qc-out b{font-size:14px;font-variant-numeric:tabular-nums}
+.qc-out.main b{font-size:19px;color:var(--acc)}
+.qc-out small{font-size:11.5px;font-weight:500;color:var(--mut)}
+.qc-result p{grid-column:1/-1;margin:0;font-size:12px;font-weight:600}
+.qc-ok{color:var(--ok)}.qc-bad{color:var(--bad)}
+.qc-warn{grid-column:1/-1;margin:0;font-size:12px;color:var(--mut)}
+.qc-formula{margin:0;font-size:11px;color:var(--mut);font-family:ui-monospace,Menlo,monospace;line-height:1.4}
 .sysdiag .rmu-box{fill:color-mix(in srgb,var(--acc) 12%,var(--p2))}
 /* ---- Classic tables with Excel-style editing (ClassicGrid / useExcelGrid) ---- */
 .gx-wrap{overflow:auto;max-height:62vh;border:1px solid var(--line);border-radius:8px}
