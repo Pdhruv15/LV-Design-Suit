@@ -36,6 +36,12 @@ export default function SidePanel({ results, selected }: { results: FeederResult
             <dd className={r.vdStatus}>{r.vdPct.toFixed(2)}% feeder · {r.vdTotalPct.toFixed(2)}% total</dd>
             <dt>Cable rating Iz</dt>
             <dd className={r.protectionStatus}>{r.ampacity.toFixed(0)} A {r.protectionStatus === 'ok' ? '(Ib ≤ In ≤ Iz)' : '(Ib ≤ In ≤ Iz fails)'}</dd>
+            {r.tray && (
+              <>
+                <dt>Grouping</dt>
+                <dd>× {r.tray.factor.toFixed(2)} on cable tray route {r.tray.route}{r.feeder.trayRoute ? ` (path ${r.feeder.trayRoute})` : ''}</dd>
+              </>
+            )}
             <dt>Fault at breaker</dt>
             <dd className={r.icuStatus}>{r.breakerFaultKA.toFixed(1)} kA vs Icu {r.feeder.breakerIcuKa} kA</dd>
             <dt>Fault at cable end</dt>

@@ -1,3 +1,5 @@
+import type { Feeder } from '../types';
+
 // Reference data for copper, XLPE-insulated, steel-wire-armoured (SWA) cable,
 // 4-core, laid in free air at 30°C ambient — a common LV distribution cable
 // construction. R values (ohm/km at 20°C DC) are IEC 60228 standard values.
@@ -74,3 +76,14 @@ export function getCable(csaMm2: number): CableSpec {
   if (!c) throw new Error(`No cable data for ${csaMm2} mm²`);
   return c;
 }
+
+/** Protective conductor size from IEC 60364-5-54 Table 54.2 (same material
+ * as the line conductor): S ≤ 16 → S; 16 < S ≤ 35 → 16; S > 35 → S/2,
+ * rounded up to the next standard size. */
+export function defaultCpcMm2(phaseMm2: number): number {
+  if (phaseMm2 <= 16) return phaseMm2;
+  if (phaseMm2 <= 35) return 16;
+  return cables().find((c) => c.csaMm2 >= phaseMm2 / 2)?.csaMm2 ?? phaseMm2;
+}
+
+export const cpcOf = (f: Feeder) => f.cpcMm2 ?? defaultCpcMm2(f.cableCsaMm2);

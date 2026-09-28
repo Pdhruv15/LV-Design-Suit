@@ -49,7 +49,7 @@ export function dbSchedule(project: Project, boardIds?: string[]): Schedule {
 /** Cable schedule: every cable in the installation. */
 export function cableSchedule(project: Project): Schedule {
   const headers = [
-    'Cable tag', 'From', 'To', 'Type', 'Cores × size', 'CPC (mm²)', 'Length (m)', 'Ib (A)', 'Breaker In (A)',
+    'Cable tag', 'From', 'To', 'Type', 'Cores × size', 'CPC (mm²)', 'Length (m)', 'Tray route', 'Ib (A)', 'Breaker In (A)',
     'Iz (A)', 'Vd cable (%)', 'Vd total (%)', 'Status'
   ];
   const rows = boardsInSupplyOrder(project).flatMap((b) =>
@@ -59,7 +59,7 @@ export function cableSchedule(project: Project): Schedule {
         const r = evaluateFeeder(project, f);
         return [
           `C-${f.id}`, f.boardId, f.feedsBoardId ?? f.name, 'Cu/XLPE/SWA/PVC', cableSizeText(f),
-          cpcOf(f), f.lengthM, n(r.ib), f.breakerRatingA, n(r.ampacity), n(r.vdPct, 2), n(r.vdTotalPct, 2),
+          cpcOf(f), f.lengthM, f.trayRoute ?? '', n(r.ib), f.breakerRatingA, n(r.ampacity), n(r.vdPct, 2), n(r.vdTotalPct, 2),
           r.status === 'ok' ? 'Pass' : r.status === 'warn' ? 'Check' : 'Fail'
         ];
       })

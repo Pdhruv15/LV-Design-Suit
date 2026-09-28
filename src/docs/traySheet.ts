@@ -1,4 +1,6 @@
-import type { CableOd } from '../types';
+import { cableSizeText } from '../calc/electrical';
+import { ensureRoutes, joinPath, routeNames, trayPlanOf } from '../calc/cableTray';
+import type { CableOd, Feeder, Project } from '../types';
 import { cellName, parsePositive, STYLE, type SheetEdit, type SheetModel } from './sheet';
 
 /** Cable outer diameters and weights as an Excel-style sheet: one row per
@@ -86,4 +88,76 @@ export function applyOdEdits(ods: CableOd[], sheet: OdSheet, edits: SheetEdit[])
     }
   }
   return { ods: changed ? out.sort((a, b) => a.cores - b.cores || a.csaMm2 - b.csaMm2) : ods, rejected };
+}
+
+/** Cable routing: one row per SLD cable with its route path ("A-B-C"),
+ * typed, pasted or filled down like Excel. The cable then appears on
+ * every route of its path; unknown route names create the route. */
+export interface RoutingSheet extends SheetModel {
+  feeders: Feeder[];
+}
+
+export function buildRoutingSheet(project: Project, feeders: Feeder[]): RoutingSheet {
+  const plan = trayPlanOf(project);
+  const known = new Set(plan.routes.map((r) => r.name.toUpperCase()));
+  const data = feeders.map((f) => {
+    const names = routeNames(f.trayRoute);
+    const legacy = plan.routes.filter((r) => !names.includes(r.name.toUpperCase()) && r.cables.some((c) => c.feederId === f.id)).map((r) => r.name);
+    const all = [...names, ...legacy];
+    return [
+      f.id, f.boardId, f.feedsBoardId ?? f.name, cableSizeText(f), f.lengthM,
+      f.trayRoute ?? (legacy.length ? joinPath(legacy) : ''),
+      all.length ? (all.every((n) => known.has(n.toUpperCase())) ? `${all.length} route${all.length === 1 ? '' : 's'}` : 'new route') : 'not on a tray'
+    ];
+  });
+  const styles: Record<string, string> = {};
+  feeders.forEach((f, y) => {
+    for (let x = 0; x < 7; x++) styles[cellName(x, y)] = x === 5 ? STYLE.input : x === 6 && data[y][6] === 'not on a tray' ? STYLE.highlight : x === 0 ? STYLE.label : STYLE.calc;
+  });
+  return {
+    feeders,
+    data,
+    merges: {},
+    groups: [{ title: '', colspan: 7 }],
+    styles,
+    editable: (_y, x) => x === 5,
+    shape: JSON.stringify(feeders.map((f) => f.id)),
+    freezeColumns: 1,
+    cols: [
+      { title: 'CABLE TAG', width: 110, input: false, align: 'left' },
+      { title: 'FROM (PANEL)', width: 100, input: false, align: 'left' },
+      { title: 'TO', width: 170, input: false, align: 'left' },
+      { title: 'CABLE', width: 130, input: false, align: 'left' },
+      { title: 'LENGTH (m)', width: 70, input: false },
+      { title: 'TRAY ROUTE PATH (e.g. A-B-C)', width: 170, input: true, align: 'left' },
+      { title: 'ON TRAYS', width: 100, input: false }
+    ]
+  };
+}
+
+export function applyRoutingEdits(project: Project, sheet: RoutingSheet, edits: SheetEdit[]): { project: Project; rejected: string[]; created: string[] } {
+  const paths = new Map<string, string | undefined>();
+  for (const e of edits) {
+    if (e.x !== 5) continue;
+    const f = sheet.feeders[e.y];
+    if (!f) continue;
+    paths.set(f.id, joinPath(routeNames(String(e.value))) || undefined);
+  }
+  if (!paths.size) return { project, rejected: [], created: [] };
+  const plan = trayPlanOf(project);
+  const next: Project = {
+    ...project,
+    feeders: project.feeders.map((f) => (paths.has(f.id) ? { ...f, trayRoute: paths.get(f.id) } : f)),
+    // The path now says where the cable runs: drop old route entries that
+    // it no longer names (overrides of routes still on the path are kept).
+    trays: {
+      ...plan,
+      routes: plan.routes.map((r) => ({
+        ...r,
+        cables: r.cables.filter((c) => !c.feederId || !paths.has(c.feederId) || routeNames(paths.get(c.feederId)).includes(r.name.toUpperCase()))
+      }))
+    }
+  };
+  const { project: withRoutes, created } = ensureRoutes(next);
+  return { project: withRoutes, rejected: [], created };
 }

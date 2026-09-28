@@ -156,6 +156,7 @@ export interface Feeder {
   device?: SwitchDevice; // ACB / MCCB / ISOL column; default from the breaker type
   cableType?: string; // e.g. "XLPE/PVC/SWA" (default)
   kwhMeter?: MeterType; // proposed kWh meter on this outgoing feeder
+  trayRoute?: string; // cable tray routes the cable runs on, in order, e.g. "A-B-C"
   feedsBoardId?: string; // if set, this feeder is the incomer to a downstream board —
   // its loadKw/demandFactor are ignored and its current is derived from that
   // board's total demand instead
@@ -290,7 +291,10 @@ export type TraySpacing = 'touching' | 'quarter' | 'half' | 'one' | 'two' | 'mm'
 
 export interface TrayCable {
   id: string;
-  feederId?: string; // a cable of the SLD (size, from, to follow the design)
+  /** A cable of the SLD: size, from and to follow the design, and the
+   * feeder's trayRoute says which routes it is on — this entry only holds
+   * overrides (qty, OD) for this route. */
+  feederId?: string;
   // Manual cable (not on the SLD), or overrides of a feeder's text:
   from?: string;
   to?: string;
@@ -318,6 +322,8 @@ export interface TrayRoute {
   /** Chosen tray, instead of the automatic one. */
   widthMm?: number;
   tiers?: number;
+  /** Fittings on the route (per tier), for the tray BOQ. */
+  fittings?: { bends?: number; tees?: number; reducers?: number; risers?: number };
 }
 
 export interface TraySettings {
@@ -331,6 +337,13 @@ export interface TraySettings {
   maxWidthMm: number; // wider than this → more tiers
   includeEcc: boolean; // separate 1C earth cable with each feeder
   trayType: string; // e.g. "Perforated tray", "Cable ladder"
+  /** Construction, for the grouping factors (IEC 60364-5-52 Table B.52.20). */
+  kind?: 'perforated' | 'ladder';
+  /** Derate the cables on each route for grouping (default on). */
+  applyGrouping?: boolean;
+  supportSpacingM?: number; // tray supports, default 1.5 m
+  lengthM?: number; // standard tray length (joints / coupler sets), default 3 m
+  covers?: boolean; // tray covers on every route
 }
 
 /** Cable outer diameter and weight by cores × size. */

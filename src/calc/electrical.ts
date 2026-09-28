@@ -1,4 +1,5 @@
 import { ambientCorrectionFactor, cables, getCable } from './cableTable';
+import { trayGrouping } from './cableTray';
 import type { Board, Feeder, Project } from '../types';
 import { boardPhaseKw } from './loadSchedule';
 
@@ -67,12 +68,17 @@ export function designCurrentA(feeder: Feeder, project: Project): number {
     : (demandKw * 1000) / (u0 * feeder.powerFactor);
 }
 
-/** Cable current rating after ambient temperature derating. Grouping and
- * installation-method correction factors are not modelled yet — apply them
- * manually until that's added. */
-export function deratedAmpacityA(csaMm2: number, ambientC: number, runs = 1): number {
-  return getCable(csaMm2).ampacityA * ambientCorrectionFactor(ambientC) * runs * groupFactor(runs);
+/** Cable current rating after ambient temperature and grouping derating.
+ * Grouping: the cable tray factor when the cable is on a tray route (its
+ * parallel runs are counted among the cables there), otherwise the factor
+ * for its own parallel runs. */
+export function deratedAmpacityA(csaMm2: number, ambientC: number, runs = 1, trayFactor?: number): number {
+  return getCable(csaMm2).ampacityA * ambientCorrectionFactor(ambientC) * runs * (trayFactor ?? groupFactor(runs));
 }
+
+/** Grouping factor of a feeder from the cable trays it runs on (the worst
+ * route), if it is on any. */
+export const trayFactorOf = (project: Project, feeder: Feeder) => trayGrouping(project).get(feeder.id);
 
 /** Voltage drop as a percentage of nominal: 3-phase circuits use
  * √3·I·Z against the line-to-line voltage; single-phase circuits use the
@@ -139,13 +145,14 @@ export function selectCableRuns(
   ambientC: number,
   vdBudgetPct: number,
   breakerRatingA = 0,
-  maxRuns = 4
+  maxRuns = 4,
+  trayFactor?: number
 ): { csaMm2: number; runs: number } | null {
   const requiredIz = Math.max(ib, breakerRatingA);
   for (let runs = 1; runs <= maxRuns; runs++) {
     for (const c of cables()) {
       if (runs > 1 && c.csaMm2 < 50) continue;
-      const iz = c.ampacityA * ambientCorrectionFactor(ambientC) * runs * groupFactor(runs);
+      const iz = c.ampacityA * ambientCorrectionFactor(ambientC) * runs * (trayFactor ?? groupFactor(runs));
       if (iz < requiredIz) continue;
       if (vdPctFor(ib, c.csaMm2, lengthM, cores, cosPhi, systemVoltageV, runs) <= vdBudgetPct) return { csaMm2: c.csaMm2, runs };
     }
@@ -205,6 +212,8 @@ export interface FeederResult {
   feeder: Feeder;
   ib: number; // design current
   ampacity: number; // Iz, derated cable rating
+  /** Grouping factor from the cable tray the cable runs on (worst route). */
+  tray?: { factor: number; route: string };
   loadingPct: number; // Ib as % of breaker In
   vdPct: number; // this feeder's own cable run
   vdUpstreamPct: number; // source to this feeder's supply board
@@ -227,7 +236,8 @@ export interface FeederResult {
 
 export function evaluateFeeder(project: Project, feeder: Feeder): FeederResult {
   const ib = designCurrentA(feeder, project);
-  const ampacity = deratedAmpacityA(feeder.cableCsaMm2, project.ambientC, runsOf(feeder));
+  const tray = trayFactorOf(project, feeder);
+  const ampacity = deratedAmpacityA(feeder.cableCsaMm2, project.ambientC, runsOf(feeder), tray?.factor);
   const loadingPct = (ib / feeder.breakerRatingA) * 100;
 
   const vdPct = voltageDropPct(feeder, project);
@@ -252,7 +262,7 @@ export function evaluateFeeder(project: Project, feeder: Feeder): FeederResult {
   const status: Status = statuses.includes('bad') ? 'bad' : statuses.includes('warn') ? 'warn' : 'ok';
 
   return {
-    feeder, ib, ampacity, loadingPct, vdPct, vdUpstreamPct, vdTotalPct, vdStatus,
+    feeder, ib, ampacity, tray, loadingPct, vdPct, vdUpstreamPct, vdTotalPct, vdStatus,
     ampacityStatus, protectionStatus, breakerFaultKA, endFaultKA, icuStatus, status
   };
 }

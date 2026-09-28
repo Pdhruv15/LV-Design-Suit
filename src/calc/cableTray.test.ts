@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { addFeeders, emptyTrayPlan, lookupOd, nextRouteName, panelCables, pickTray, sizeRoute, trayQuantities, DEFAULT_CABLE_ODS } from './cableTray';
-import type { TrayPlan, TrayRoute } from '../types';
+import {
+  addFeedersToRoute, deleteRoute, emptyTrayPlan, ensureRoutes, groupingFactor, lookupOd, nextRouteName, panelCables, pickTray, removeFeederFromRoute,
+  renameRoute, routeNames, sizeRoute, trayGrouping, trayPlanOf, trayQuantities, unroutedFeeders, DEFAULT_CABLE_ODS
+} from './cableTray';
+import { evaluateFeeder } from './electrical';
+import { runCalculations, staleStudies } from './runs';
+import type { Project, TrayPlan, TrayRoute } from '../types';
 
 const route = (patch: Partial<TrayRoute> = {}): TrayRoute => ({
   id: 'r1', name: 'A', lengthM: 40,
@@ -52,19 +57,75 @@ describe('cable tray sizing', () => {
     expect(r.sparePctActual).toBeCloseTo((400 / 314.5 - 1) * 100, 1);
   });
 
-  it('feeders from several panels: size and runs follow the design, ECC optional', () => {
+  it('feeders from several panels go on a route through their path; size and runs follow the design; ECC optional', () => {
     const boards = [...new Set(sampleProject.feeders.filter((f) => !f.phase).map((f) => f.boardId))].slice(0, 2);
-    let r: TrayRoute = { id: 'r', name: 'B', cables: [] };
-    for (const b of boards) r = addFeeders(r, panelCables(sampleProject, b).map((f) => f.id));
-    const n = boards.reduce((a, b) => a + panelCables(sampleProject, b).length, 0);
-    expect(r.cables).toHaveLength(n);
-    expect(addFeeders(r, [r.cables[0].feederId!]).cables).toHaveLength(n); // no duplicates
-    const res = sizeRoute(sampleProject, emptyTrayPlan(), r);
+    let p: Project = { ...sampleProject, trays: { ...emptyTrayPlan(), routes: [{ id: 'r', name: 'B', cables: [] }] } };
+    for (const b of boards) p = addFeedersToRoute(p, 'B', panelCables(p, b).map((f) => f.id)).project;
+    const ids = boards.flatMap((b) => panelCables(sampleProject, b).map((f) => f.id));
+    expect(p.feeders.filter((f) => f.trayRoute === 'B').map((f) => f.id).sort()).toEqual([...ids].sort());
+    expect(addFeedersToRoute(p, 'B', [ids[0]]).added).toBe(0); // no duplicates
+    const route = trayPlanOf(p).routes[0];
+    const res = sizeRoute(p, trayPlanOf(p), route);
     expect(res.panels.sort()).toEqual([...boards].sort());
     const runs = boards.flatMap((b) => panelCables(sampleProject, b)).reduce((a, f) => a + (f.parallel ?? 1), 0);
     expect(res.cableCount).toBe(runs);
-    const withEcc = sizeRoute(sampleProject, { ...emptyTrayPlan(), settings: { ...emptyTrayPlan().settings, includeEcc: true } }, r);
+    const withEcc = sizeRoute(p, { ...trayPlanOf(p), settings: { ...trayPlanOf(p).settings, includeEcc: true } }, route);
     expect(withEcc.cableCount).toBe(runs * 2);
+    expect(withEcc.loadedPerTier).toBe(res.loadedPerTier); // ECCs don't count for grouping
+  });
+
+  it('a path puts a cable on every route along it; rename, remove and delete keep paths in step', () => {
+    expect(routeNames('a-b, c > b')).toEqual(['A', 'B', 'C']);
+    const f = sampleProject.feeders.find((x) => !x.phase)!;
+    let p: Project = { ...sampleProject, feeders: sampleProject.feeders.map((x) => (x.id === f.id ? { ...x, trayRoute: 'A-B-C' } : x)) };
+    const made = ensureRoutes(p);
+    expect(made.created).toEqual(['A', 'B', 'C']);
+    p = made.project;
+    const plan = trayPlanOf(p);
+    for (const r of plan.routes) expect(sizeRoute(p, plan, r).lines.map((l) => l.feederId)).toEqual([f.id]);
+    const b = plan.routes.find((r) => r.name === 'B')!;
+    p = renameRoute(p, b.id, 'riser');
+    expect(p.feeders.find((x) => x.id === f.id)!.trayRoute).toBe('A-RISER-C');
+    expect(renameRoute(p, b.id, 'A')).toBe(p); // name taken
+    p = removeFeederFromRoute(p, trayPlanOf(p).routes[0].id, f.id);
+    expect(p.feeders.find((x) => x.id === f.id)!.trayRoute).toBe('RISER-C');
+    p = deleteRoute(p, trayPlanOf(p).routes.find((r) => r.name === 'C')!.id);
+    expect(p.feeders.find((x) => x.id === f.id)!.trayRoute).toBe('RISER');
+    expect(unroutedFeeders(p).some((x) => x.id === f.id)).toBe(false);
+    expect(unroutedFeeders(sampleProject).length).toBe(sampleProject.feeders.filter((x) => !x.phase).length);
+  });
+
+  it('grouping factors: IEC 60364-5-52 B.52.20 on trays, B.52.17 bunched', () => {
+    expect(groupingFactor('perforated', 'touching', 1, 1)).toBe(1);
+    expect(groupingFactor('perforated', 'touching', 3, 1)).toBe(0.82);
+    expect(groupingFactor('perforated', 'touching', 5, 1)).toBe(0.76); // between 4 and 6 → 6
+    expect(groupingFactor('perforated', 'touching', 20, 2)).toBe(0.68); // beyond 9 → 9
+    expect(groupingFactor('perforated', 'spaced', 4, 1)).toBe(0.95);
+    expect(groupingFactor('ladder', 'spaced', 4, 1)).toBe(1);
+    expect(groupingFactor('ladder', 'touching', 3, 5)).toBe(0.79); // > 3 tiers → 3
+    expect(groupingFactor('perforated', 'bunched', 4, 1)).toBe(0.65);
+    // Route: 3 cables, 1 D spacing → spaced; touching → 0.82.
+    expect(sizeRoute(sampleProject, plan(), route()).groupFactor).toBe(0.98);
+    expect(sizeRoute(sampleProject, plan({ spacing: 'touching' }), route()).groupFactor).toBe(0.82);
+  });
+
+  it('the tray grouping derates the cables on it — after a Run, the checks are out of date', () => {
+    const ids = panelCables(sampleProject, 'MDB-1').map((f) => f.id);
+    const base: Project = { ...sampleProject, trays: { ...emptyTrayPlan(), settings: { ...emptyTrayPlan().settings, spacing: 'touching' }, routes: [{ id: 'r', name: 'A', cables: [] }] } };
+    const run = runCalculations(base);
+    const p = addFeedersToRoute(base, 'A', ids).project;
+    expect(staleStudies(run, p)).toEqual(['checks']);
+    const g = trayGrouping(p);
+    const n = ids.reduce((a, id) => a + (sampleProject.feeders.find((f) => f.id === id)!.parallel ?? 1), 0);
+    const expected = groupingFactor('perforated', 'touching', Math.ceil(n / sizeRoute(p, trayPlanOf(p), trayPlanOf(p).routes[0]).tiers), sizeRoute(p, trayPlanOf(p), trayPlanOf(p).routes[0]).tiers);
+    expect(g.get(ids[0])).toEqual({ factor: expected, route: 'A' });
+    const f = p.feeders.find((x) => x.id === ids[0])!;
+    const before = evaluateFeeder(sampleProject, sampleProject.feeders.find((x) => x.id === ids[0])!);
+    const after = evaluateFeeder(p, f);
+    expect(after.tray).toEqual({ factor: expected, route: 'A' });
+    expect(after.ampacity).toBeLessThan(before.ampacity);
+    const off = { ...p, trays: { ...trayPlanOf(p), settings: { ...trayPlanOf(p).settings, applyGrouping: false } } };
+    expect(evaluateFeeder(off, f).ampacity).toBeCloseTo(before.ampacity, 6);
   });
 
   it('a size missing from the cable data takes the next size up', () => {
@@ -76,7 +137,10 @@ describe('cable tray sizing', () => {
     const p = plan();
     const a = sizeRoute(sampleProject, p, route());
     const b = sizeRoute(sampleProject, p, route({ id: 'r2', name: 'B', lengthM: 10, tiers: 2 }));
-    expect(trayQuantities([a, b])).toEqual([{ size: '400 × 50', widthMm: 400, depthMm: 50, lengthM: 60, routes: ['A', 'B'] }]);
+    expect(trayQuantities([a, b])).toEqual([{ size: '400 × 50', widthMm: 400, depthMm: 50, lengthM: 60, bends: 0, tees: 0, reducers: 0, risers: 0, supports: 28 + 16, couplers: 13 + 6, coverM: 0, routes: ['A', 'B'] }]);
+    const fit = sizeRoute(sampleProject, p, route({ fittings: { bends: 2, tees: 1 }, tiers: 2 }));
+    const q = trayQuantities([fit], { covers: true, supportSpacingM: 2, lengthM: 2.5 })[0];
+    expect([q.bends, q.tees, q.supports, q.couplers, q.coverM]).toEqual([4, 2, 42, 30, 80]);
     expect(nextRouteName({ ...p, routes: [route(), route({ name: 'B' })] })).toBe('C');
     expect(nextRouteName({ ...p, routes: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((name) => route({ name })) })).toBe('AA');
   });

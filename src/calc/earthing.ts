@@ -1,4 +1,4 @@
-import { cables, getCable } from './cableTable';
+import { cables, cpcOf, defaultCpcMm2, getCable } from './cableTable';
 import { DEFAULT_TRANSFORMER_XR, rOperatingOhmPerKm, runsOf, transformerImpedance, zMagnitude, type Impedance, type Status } from './electrical';
 import type { BreakerType, Feeder, Project } from '../types';
 
@@ -12,16 +12,9 @@ export const C_MIN = 0.95;
  * cable (IEC 60364-5-54 Table A.54.3), used in the adiabatic check. */
 export const K_CPC_XLPE_CU = 143;
 
-/** Protective conductor size from IEC 60364-5-54 Table 54.2 (same material
- * as the line conductor): S ≤ 16 → S; 16 < S ≤ 35 → 16; S > 35 → S/2,
- * rounded up to the next standard size. */
-export function defaultCpcMm2(phaseMm2: number): number {
-  if (phaseMm2 <= 16) return phaseMm2;
-  if (phaseMm2 <= 35) return 16;
-  return cables().find((c) => c.csaMm2 >= phaseMm2 / 2)?.csaMm2 ?? phaseMm2;
-}
-
-export const cpcOf = (f: Feeder) => f.cpcMm2 ?? defaultCpcMm2(f.cableCsaMm2);
+// Protective conductor sizes live with the cable data (used by the tray
+// schedule too); re-exported here where the earthing study always had them.
+export { cpcOf, defaultCpcMm2 };
 
 export function breakerTypeOf(f: Feeder): BreakerType {
   return f.breakerType ?? (f.breakerRatingA <= 63 ? 'C' : 'MCCB');

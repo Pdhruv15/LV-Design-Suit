@@ -376,6 +376,15 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 .tray-table td.bad{color:var(--bad)}.tray-table td.warn{color:var(--warn)}
 .tray-summary td.l{text-align:left}
 .tray-empty{padding:20px;text-align:center}
+.tray-unrouted{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;background:color-mix(in srgb,var(--warn) 12%,var(--panel));border:1px solid color-mix(in srgb,var(--warn) 45%,var(--line));border-radius:8px;padding:7px 12px;margin:8px 0;font-size:12.5px}
+.tray-unrouted b{color:var(--warn)}
+.tray-fit{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px 10px}
+.tray-body{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:start}
+.tray-body .tray-table{overflow-x:auto}
+.tray-section{margin:0;background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px;text-align:center;width:fit-content;max-width:100%}
+.tray-section svg{max-width:100%;height:auto;display:block}
+.tray-section figcaption{font-size:11px;margin-top:3px;color:#6a7689}
+.tray-routing-grid{max-height:44vh}
 .sysdiag .rmu-box{fill:color-mix(in srgb,var(--acc) 12%,var(--p2))}
 /* ---- Classic tables with Excel-style editing (ClassicGrid / useExcelGrid) ---- */
 .gx-wrap{overflow:auto;max-height:62vh;border:1px solid var(--line);border-radius:8px}
