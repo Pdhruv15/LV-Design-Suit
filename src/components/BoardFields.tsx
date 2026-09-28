@@ -29,6 +29,9 @@ export default function BoardFields({ board, onChange, section }: { board: Board
         <label>Transformer (kVA){num('sourceKva', 50)}</label>
         <label>Impedance Z (%){num('sourceImpedancePct', 0.1)}</label>
         <label>X/R ratio{num('sourceXr', 0.5, String(DEFAULT_TRANSFORMER_XR))}</label>
+        <label>Vector group
+          <input value={board.vectorGroup ?? ''} placeholder="Dyn11" onChange={(e) => set('vectorGroup', e.target.value.trim() || undefined)} />
+        </label>
       </div>
     );
   }

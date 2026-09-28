@@ -56,9 +56,11 @@ import { StaleBanner } from './components/ui';
 import { generatorScenario, transformerOutage, type SupplyMode } from './calc/scenario';
 import { removeTie } from './model/sldEdit';
 import type { ColorBy } from './diagram/heatmap';
-import { applyDrop, applyMove, libraryEntries, type DropResult, type DropTarget, type MoveItem, type PaletteItem } from './model/sldEdit';
+import { applyMove, dropMany, libraryEntries, type DropResult, type DropTarget, type MoveItem, type PaletteItem } from './model/sldEdit';
 import EquipmentPalette from './components/EquipmentPalette';
-import { loadUserPresets, presetFromFeeder, saveUserPresets, type FeederPreset } from './model/presets';
+import { loadUserPresets, mergePresets, presetFromFeeder, presetsFile, readPresetsFile, saveUserPresets, type FeederPreset } from './model/presets';
+import PresetEditor from './components/PresetEditor';
+import { saveText } from './util/files';
 import SldExportDialog from './components/SldExportDialog';
 import PasteBoardDialog from './components/PasteBoardDialog';
 import DiscriminationPanel from './components/DiscriminationPanel';
@@ -276,6 +278,11 @@ export default function App() {
     const p = await window.lvds.projects.load(file);
     history.load(p);
     setRun(runCalculations(p)); // results for the project as opened
+    // Presets saved with the project join this computer's presets.
+    if (p.feederPresets?.length) {
+      const m = mergePresets(loadUserPresets(), p.feederPresets);
+      if (m.added) { setUserPresets(m.list); saveUserPresets(m.list); }
+    }
     setCurrentFile(file);
     setActiveBoardId(p.boards[0]?.id ?? '');
     setSelected(null);
@@ -382,9 +389,28 @@ export default function App() {
   /** An item from the equipment library dropped on the SLD. */
   const [userPresets, setUserPresets] = useState<FeederPreset[]>(loadUserPresets);
   const [sldFull, setSldFull] = useState(false);
+  const [editPreset, setEditPreset] = useState<FeederPreset | null>(null);
   function savePresets(next: FeederPreset[], message: string) {
     setUserPresets(next);
+    // A copy goes into the project, so the presets travel with it to another PC.
+    setProject((p) => ({ ...p, feederPresets: next.length ? next : undefined }));
     setStatus(saveUserPresets(next) ? message : `${message} — but it could not be stored on this computer`);
+  }
+  function openPresetEditor(p: FeederPreset | null, mode: 'edit' | 'copy') {
+    const id = `up-${Date.now().toString(36)}`;
+    if (!p) return setEditPreset({ id, name: '', kind: 'load', loadType: 'general', loadName: 'Load', loadKw: 5, powerFactor: 0.9, demandFactor: 1, lengthM: 30 });
+    const { builtIn: _b, ...rest } = p;
+    setEditPreset(mode === 'copy' ? { ...rest, id, name: `${p.name} (copy)` } : rest);
+  }
+  async function exportPresets() {
+    const m = await saveText('feeder-presets.json', presetsFile(userPresets), 'Feeder presets', 'json');
+    if (m) setStatus(`${m} — import it on another PC from My presets`);
+  }
+  function importPresets(text: string) {
+    const arr = readPresetsFile(text);
+    if (!arr) return setStatus('That file is not a feeder presets file');
+    const { list, added, updated } = mergePresets(userPresets, arr);
+    savePresets(list, `Imported presets: ${added} new, ${updated} updated`);
   }
   function saveAsPreset(f: Feeder) {
     const name = window.prompt('Name for this feeder preset (it appears under "My presets" in the equipment library):', f.feedsBoardId ? `${project.boards.find((b) => b.id === f.feedsBoardId)?.kind ?? 'DB'} ${f.breakerRatingA} A` : `${f.name} ${f.loadKw} kW`);
@@ -393,8 +419,9 @@ export default function App() {
     savePresets([...userPresets.filter((x) => x.name !== p.name), p], `Saved the preset “${p.name}” — drag it from My presets onto any busbar`);
   }
 
+  const [dropQty, setDropQty] = useState(1);
   function dropItem(item: PaletteItem, target: DropTarget) {
-    showResult(applyDrop(project, item, target, db.loads));
+    showResult(dropMany(project, item, target, dropQty, db.loads));
   }
 
   /** Something already on the SLD dragged to another busbar or feeder. */
@@ -609,8 +636,9 @@ export default function App() {
                 )}
                 {diagramMode === 'system' ? (
                   <div className={`sld-edit${sldFull ? ' full' : ''}`}>
-                  <EquipmentPalette onHint={setStatus} library={libraryEntries(db.loads)} presets={userPresets}
-                    onDeletePreset={(id) => savePresets(userPresets.filter((p) => p.id !== id), 'Deleted the preset')} />
+                  <EquipmentPalette onHint={setStatus} library={libraryEntries(db.loads)} presets={userPresets} qty={dropQty} onQty={setDropQty}
+                    onDeletePreset={(id) => savePresets(userPresets.filter((p) => p.id !== id), 'Deleted the preset')}
+                    onEditPreset={openPresetEditor} onExportPresets={exportPresets} onImportPresets={importPresets} />
                   <SystemDiagram
                     project={project}
                     calcProject={calcProject}
@@ -632,6 +660,7 @@ export default function App() {
                     resizable
                     fullScreen={sldFull}
                     onToggleFullScreen={() => setSldFull((v) => !v)}
+                    onDrawing={(d) => setProject((p) => ({ ...p, drawing: { ...p.drawing, ...d } }))}
                     onRemoveTie={(id) => {
                       if (!window.confirm(`Remove bus coupler ${id}?`)) return;
                       setProject(removeTie(project, id), { step: true });
@@ -797,6 +826,17 @@ export default function App() {
             selectBoard(res.rootId);
             setStatus(res.message);
             setPasteTarget(null);
+          }}
+        />
+      )}
+      {editPreset && (
+        <PresetEditor
+          initial={editPreset}
+          onClose={() => setEditPreset(null)}
+          onSave={(p) => {
+            const exists = userPresets.some((x) => x.id === p.id);
+            savePresets(exists ? userPresets.map((x) => (x.id === p.id ? p : x)) : [...userPresets, p], `${exists ? 'Updated' : 'Saved'} the preset “${p.name}”`);
+            setEditPreset(null);
           }}
         />
       )}

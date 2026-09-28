@@ -52,7 +52,12 @@ export type PaletteItem =
 /** Devices added to a feeder or a busbar without changing its breaker. */
 export type Accessory = 'meter' | 'ct-meter' | 'rcd' | 'isolator' | 'spd';
 
-export type DropTarget = { type: 'bus'; boardId: string } | { type: 'feeder'; feederId: string } | { type: 'canvas' };
+/** Where something is dropped. On a busbar, `before` is the feeder the new
+ * way goes in front of (from where it was dropped); none = at the end. */
+export type DropTarget = { type: 'bus'; boardId: string; before?: string } | { type: 'feeder'; feederId: string } | { type: 'canvas' };
+
+/** Items that add a way on a busbar, so where they're dropped along it matters. */
+export const addsWay = (i: PaletteItem) => ['load', 'library', 'capacitor', 'preset', 'board'].includes(i.kind);
 
 export interface PaletteEntry {
   item: PaletteItem;
@@ -402,6 +407,29 @@ export function applyDrop(project: Project, item: PaletteItem, target: DropTarge
   }
 
   return { project, message: dropHint(item) };
+}
+
+/** A drop, repeated `qty` times for loads and presets (e.g. 5 × split AC),
+ * with the new ways placed where they were dropped along the busbar. */
+export function dropMany(project: Project, item: PaletteItem, target: DropTarget, qty = 1, library: LibraryLoad[] = []): DropResult {
+  // Loads, presets and sub-boards on a busbar repeat (e.g. 5 apartment DBs); supplies, devices and accessories don't.
+  const repeats = ['load', 'library', 'preset', 'capacitor'].includes(item.kind) || (item.kind === 'board' && target.type === 'bus');
+  const n = repeats ? Math.max(1, Math.round(qty)) : 1;
+  let r = applyDrop(project, item, target, library);
+  for (let i = 1; i < n && r.project !== project; i++) {
+    const next = applyDrop(r.project, item, target, library);
+    if (next.project === r.project) break;
+    r = { ...next, select: next.select ?? r.select };
+  }
+  if (target.type === 'bus' && target.before && r.project !== project) {
+    const added = new Set(r.project.feeders.filter((f) => !project.feeders.some((x) => x.id === f.id)).map((f) => f.id));
+    const rest = r.project.feeders.filter((f) => !added.has(f.id));
+    const at = rest.findIndex((f) => f.id === target.before);
+    if (at >= 0) r = { ...r, project: { ...r.project, feeders: [...rest.slice(0, at), ...r.project.feeders.filter((f) => added.has(f.id)), ...rest.slice(at)] } };
+  }
+  const count = r.project.feeders.length - project.feeders.length;
+  if (n > 1 && count > 1) r = { ...r, message: `Added ${count} × ${r.message.replace(/^Added\s+/, '')}` };
+  return r;
 }
 
 /** The main board a new tie from `boardId` would connect to: another

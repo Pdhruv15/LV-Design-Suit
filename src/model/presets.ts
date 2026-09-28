@@ -73,6 +73,34 @@ export function saveUserPresets(list: FeederPreset[]): boolean {
   }
 }
 
+/** Merge presets (e.g. from a file or a project) into a list: same id or
+ * same name replaces, others are added. */
+export function mergePresets(into: FeederPreset[], add: FeederPreset[]): { list: FeederPreset[]; added: number; updated: number } {
+  let added = 0, updated = 0;
+  const list = [...into];
+  for (const raw of add) {
+    if (!raw || typeof raw.name !== 'string' || (raw.kind !== 'load' && raw.kind !== 'board')) continue;
+    const p = { ...raw, id: typeof raw.id === 'string' && raw.id ? raw.id : `up-${Date.now().toString(36)}-${list.length}` };
+    delete (p as { builtIn?: boolean }).builtIn;
+    const i = list.findIndex((x) => x.id === p.id || x.name === p.name);
+    if (i >= 0) { if (JSON.stringify(list[i]) !== JSON.stringify(p)) { list[i] = p; updated++; } }
+    else { list.push(p); added++; }
+  }
+  return { list, added, updated };
+}
+
+/** The presets file: { format, presets }. */
+export const presetsFile = (list: FeederPreset[]) => JSON.stringify({ format: 'lv-design-studio/feeder-presets', version: 1, presets: list }, null, 2);
+export function readPresetsFile(text: string): FeederPreset[] | null {
+  try {
+    const v = JSON.parse(text);
+    const arr = Array.isArray(v) ? v : Array.isArray(v?.presets) ? v.presets : null;
+    return arr;
+  } catch {
+    return null;
+  }
+}
+
 const breakerOf = (f: Feeder): PresetBreaker => (f.breakerType === 'ACB' ? 'ACB' : f.breakerType === 'MCCB' || (!f.breakerType && f.breakerRatingA > 63) ? 'MCCB' : 'MCB');
 
 /** A preset from a feeder as it is on the SLD (a load, or a sub-board's incomer). */
