@@ -9,10 +9,16 @@ declare global {
         choosePython: () => Promise<{ projectsFolder: string; pythonPath?: string }>;
       };
       projects: {
-        list: () => Promise<{ file: string; name: string; updatedAt: number }[]>;
+        list: () => Promise<import('./model/projectStore').ProjectMeta[]>;
         load: (file: string) => Promise<import('./types').Project>;
         save: (file: string | undefined, data: import('./types').Project) => Promise<{ file: string }>;
         delete: (file: string) => Promise<boolean>;
+      };
+      /** Recovery copy of unsaved work (missing in older desktop builds). */
+      recovery?: {
+        write: (r: import('./model/projectStore').Recovery) => Promise<boolean>;
+        read: () => Promise<import('./model/projectStore').Recovery | null>;
+        clear: () => Promise<boolean>;
       };
       database: {
         init: (seeds: Record<string, unknown[][]>) => Promise<import('./database/database').RawDatabase & { created: string[] }>;

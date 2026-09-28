@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Feeder, Board, Project, newProject } from './types';
 import { sampleProject } from './data/sampleProject';
 import { evaluateProject, type Status } from './calc/electrical';
@@ -68,6 +68,12 @@ import PasteBoardDialog from './components/PasteBoardDialog';
 import DiscriminationPanel from './components/DiscriminationPanel';
 import { discriminationChain } from './calc/protection';
 import { pasteBoard } from './model/copyBoard';
+import { applyDefaults, applyProfile, initialsOf, loadPrefs, savePrefs, signature, type Preferences } from './model/profile';
+import { clearRecovery, deleteProjectFile, inDesktop, listProjects, loadProject, readRecovery, recentFiles, saveProjectFile, touchRecent, whenText, writeRecovery, type ProjectMeta, type Recovery } from './model/projectStore';
+import PreferencesDialog from './components/PreferencesDialog';
+import ProjectsDashboard from './components/ProjectsDashboard';
+import { NameDialog, UnsavedDialog } from './components/FileDialogs';
+import type { ProjectStatus } from './types';
 type DiagramMode = 'system' | 'board';
 
 /** Pages that show network study results (they follow the last run). */
@@ -80,7 +86,26 @@ export default function App() {
   const setProject = history.set;
   const [currentFile, setCurrentFile] = useState<string | undefined>(undefined);
   const [projectsFolder, setProjectsFolder] = useState<string>('');
-  const [projectList, setProjectList] = useState<{ file: string; name: string; updatedAt: number }[]>([]);
+  const [projectList, setProjectList] = useState<ProjectMeta[]>([]);
+  // Unsaved changes: the project differs from the one last saved or opened.
+  const [saved, setSaved] = useState<Project | null>(project);
+  const dirty = project !== saved;
+  const [prefs, setPrefs] = useState<Preferences>(loadPrefs);
+  const [showPrefs, setShowPrefs] = useState(false);
+  const [recent, setRecent] = useState<string[]>(recentFiles);
+  const [recovery, setRecovery] = useState<Recovery | null>(null);
+  /** Asking what to do with unsaved changes before `then`. */
+  const [ask, setAsk] = useState<{ action: string; then: () => void } | null>(null);
+  const [nameAsk, setNameAsk] = useState<{ title: string; note?: string; initial: string; okLabel: string; then: (name: string) => void } | null>(null);
+  // For timers and window events, which outlive a render.
+  const live = useRef({ project, saved, currentFile });
+  live.current = { project, saved, currentFile };
+  // Changes the app makes by itself (the database syncing) don't count as
+  // the user's unsaved changes when there were none.
+  const adoptNext = useRef(false);
+  useEffect(() => {
+    if (adoptNext.current) { adoptNext.current = false; setSaved(project); }
+  }, [project]);
   const [activeBoardId, setActiveBoardId] = useState<string>(project.boards[0]?.id ?? '');
   const [selected, setSelected] = useState<string | null>(null);
   const [status, setStatus] = useState<string>('');
@@ -111,6 +136,7 @@ export default function App() {
     const parsed = parseDatabase(raw);
     applyDatabase(parsed);
     setDb(parsed);
+    adoptNext.current = live.current.project === live.current.saved;
     setProject((p) => {
       const s = syncLibrary(p, parsed);
       const next = s.changedBoards.reduce((q, id) => refreshBoard(q, id), s.project);
@@ -229,10 +255,48 @@ export default function App() {
   }
 
   useEffect(() => {
+    refreshList();
+    readRecovery().then((r) => r && setRecovery(r));
     if (!hasBridge) return;
     window.lvds.settings.get().then((s) => setProjectsFolder(s.projectsFolder));
-    refreshList();
   }, []);
+
+  // Recovery copy of unsaved work, every few minutes (Profile & preferences).
+  // Paused while a recovered copy is waiting to be restored or discarded.
+  useEffect(() => {
+    const min = prefs.app.autosaveMin;
+    if (!min || recovery) return;
+    const t = setInterval(() => {
+      const { project: p, saved: s, currentFile: f } = live.current;
+      if (p !== s) writeRecovery({ file: f, at: Date.now(), project: p });
+    }, min * 60000);
+    return () => clearInterval(t);
+  }, [prefs.app.autosaveMin, recovery]);
+
+  // Closing the window (or reloading) with unsaved changes: keep a recovery
+  // copy and ask first.
+  useEffect(() => {
+    const onUnload = (e: BeforeUnloadEvent) => {
+      const { project: p, saved: s, currentFile: f } = live.current;
+      if (p === s) return;
+      writeRecovery({ file: f, at: Date.now(), project: p });
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onUnload);
+    return () => window.removeEventListener('beforeunload', onUnload);
+  }, []);
+
+  useEffect(() => {
+    document.title = `${dirty ? '● ' : ''}${project.name} — LV Design Studio`;
+  }, [dirty, project.name]);
+
+  function restoreRecovery() {
+    if (!recovery) return;
+    loadIntoApp(recovery.project, recovery.file, `Restored your unsaved work from ${whenText(recovery.at)} — save it to keep it`);
+    setSaved(null); // restored work is unsaved
+    setRecovery(null);
+  }
 
   useEffect(() => {
     if (!board) return;
@@ -259,26 +323,39 @@ export default function App() {
   }
 
   function refreshList() {
-    if (!hasBridge) return;
-    window.lvds.projects.list().then(setProjectList);
+    listProjects().then(setProjectList).catch(() => setProjectList([]));
   }
 
-  async function saveProject() {
-    if (!hasBridge) {
-      setStatus('Save is only available in the desktop app.');
-      return;
+  /** Saves the open project (Ctrl+S); with a name, as a new project file
+   * (Save as). Resolves to false when it couldn't be saved. */
+  async function saveProject(asName?: string): Promise<boolean> {
+    const named = asName ? { ...project, name: asName } : project;
+    const toSave = { ...named, updatedAt: new Date().toISOString(), updatedBy: prefs.profile.name || named.updatedBy };
+    try {
+      const file = await saveProjectFile(asName ? undefined : currentFile, toSave);
+      if (named !== project) setProject(named, { step: true });
+      setSaved(named);
+      setCurrentFile(file);
+      setRecent(touchRecent(file));
+      clearRecovery();
+      setStatus(`Saved ${named.name} · ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+      refreshList();
+      return true;
+    } catch (e) {
+      setStatus(`Not saved: ${e instanceof Error ? e.message : String(e)}`);
+      return false;
     }
-    const toSave = { ...project, updatedAt: new Date().toISOString() };
-    const res = await window.lvds.projects.save(currentFile, toSave);
-    setCurrentFile(res.file);
-    setStatus(`Saved ${res.file}`);
-    refreshList();
   }
 
-  async function openProject(file: string) {
-    if (!hasBridge) return;
-    const p = await window.lvds.projects.load(file);
+  /** Runs `then` now, or after asking about unsaved changes. */
+  function guard(action: string, then: () => void) {
+    if (!dirty) return then();
+    setAsk({ action, then });
+  }
+
+  function loadIntoApp(p: Project, file: string | undefined, message: string) {
     history.load(p);
+    setSaved(p);
     setRun(runCalculations(p)); // results for the project as opened
     // Presets saved with the project join this computer's presets.
     if (p.feederPresets?.length) {
@@ -288,7 +365,86 @@ export default function App() {
     setCurrentFile(file);
     setActiveBoardId(p.boards[0]?.id ?? '');
     setSelected(null);
-    setStatus(`Opened ${file}`);
+    setStatus(message);
+    if (view === 'projects') setView('design');
+  }
+
+  function openProject(file: string) {
+    if (file === currentFile && !dirty) { if (view === 'projects') setView('design'); return; }
+    guard('opening another project', async () => {
+      try {
+        const p = await loadProject(file);
+        loadIntoApp(p, file, `Opened ${p.name}`);
+        setRecent(touchRecent(file));
+        clearRecovery();
+      } catch (e) {
+        setStatus(`Could not open ${file}: ${e instanceof Error ? e.message : String(e)}`);
+        refreshList();
+      }
+    });
+  }
+
+  function saveAs() {
+    setNameAsk({ title: 'Save as a new project', note: 'A new project file; the current one stays as it was last saved.', initial: `${project.name} (copy)`, okLabel: 'Save', then: (n) => saveProject(n) });
+  }
+
+  function duplicateFile(file: string) {
+    const m = projectList.find((x) => x.file === file);
+    setNameAsk({
+      title: 'Duplicate project',
+      note: 'A copy to start a similar job. Its revision history is not copied, and its status starts at Design.',
+      initial: `${m?.name ?? 'Project'} (copy)`,
+      okLabel: 'Create copy',
+      then: async (name) => {
+        try {
+          const p = await loadProject(file);
+          const copy: Project = { ...p, name, revisions: undefined, status: undefined, createdBy: prefs.profile.name || p.createdBy, updatedAt: new Date().toISOString(), updatedBy: prefs.profile.name || p.updatedBy };
+          await saveProjectFile(undefined, copy);
+          refreshList();
+          setStatus(`Created “${name}” — it’s in the projects list`);
+        } catch (e) {
+          setStatus(`Not copied: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+    });
+  }
+
+  async function deleteFile(file: string) {
+    const m = projectList.find((x) => x.file === file);
+    if (!window.confirm(`Delete the project “${m?.name ?? file}”? The file is removed from the projects folder.`)) return;
+    try {
+      await deleteProjectFile(file);
+      setRecent(touchRecent(file, true));
+      if (file === currentFile) { setCurrentFile(undefined); setSaved(null); } // still open, now unsaved
+      setStatus(`Deleted ${m?.name ?? file}`);
+    } catch (e) {
+      setStatus(`Not deleted: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    refreshList();
+  }
+
+  async function setFileStatus(file: string, st: ProjectStatus) {
+    try {
+      if (file === currentFile) {
+        const next = { ...project, status: st };
+        setProject(next, { step: true });
+        if (dirty) { setStatus('Status changed — save the project to keep it'); return; }
+        await saveProjectFile(file, { ...next, updatedAt: new Date().toISOString(), updatedBy: prefs.profile.name || next.updatedBy });
+        setSaved(next);
+      } else {
+        const p = await loadProject(file);
+        await saveProjectFile(file, { ...p, status: st });
+      }
+      refreshList();
+    } catch (e) {
+      setStatus(`Status not saved: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  function savePreferences(p: Preferences) {
+    setPrefs(p);
+    setShowPrefs(false);
+    setStatus(savePrefs(p) ? 'Preferences saved' : 'Preferences could not be stored on this computer (is the logo very large?)');
   }
 
   async function chooseFolder() {
@@ -318,13 +474,18 @@ export default function App() {
   }
 
   function startNewProject() {
-    const p = applyParameters(newProject('Untitled project'), db); // your Parameters.xlsx defaults
-    history.load(p);
-    setRun(runCalculations(p));
-    setCurrentFile(undefined);
-    setActiveBoardId(p.boards[0].id);
-    setSelected(null);
-    setStatus('New project — not saved yet');
+    guard('starting a new project', () => setNameAsk({
+      title: 'New project',
+      note: prefs.profile.name ? `Starts with your design defaults, and your details in the title block (Profile & preferences).` : 'Tip: set your name, company and design defaults in Profile & preferences — every new project then starts with them.',
+      initial: 'Untitled project',
+      okLabel: 'Create',
+      then: (name) => {
+        // Your Parameters.xlsx defaults, then your profile's defaults and details.
+        const p = applyDefaults(applyParameters(newProject(name), db), prefs);
+        loadIntoApp(p, undefined, 'New project — not saved yet');
+        clearRecovery();
+      }
+    }));
   }
 
   function saveFeeder(f: Feeder) {
@@ -415,10 +576,9 @@ export default function App() {
     savePresets(list, `Imported presets: ${added} new, ${updated} updated`);
   }
   function saveAsPreset(f: Feeder) {
-    const name = window.prompt('Name for this feeder preset (it appears under "My presets" in the equipment library):', f.feedsBoardId ? `${project.boards.find((b) => b.id === f.feedsBoardId)?.kind ?? 'DB'} ${f.breakerRatingA} A` : `${f.name} ${f.loadKw} kW`);
-    if (!name?.trim()) return;
-    const p = presetFromFeeder(project, f, name.trim());
-    savePresets([...userPresets.filter((x) => x.name !== p.name), p], `Saved the preset “${p.name}” — drag it from My presets onto any busbar`);
+    // Opens the preset editor (the desktop app has no prompt box) with the feeder's parts.
+    const name = f.feedsBoardId ? `${project.boards.find((b) => b.id === f.feedsBoardId)?.kind ?? 'DB'} ${f.breakerRatingA} A` : `${f.name} ${f.loadKw} kW`;
+    setEditPreset(presetFromFeeder(project, f, name));
   }
 
   const [dropQty, setDropQty] = useState(1);
@@ -458,6 +618,13 @@ export default function App() {
         // Run the network studies, from anywhere (also while typing).
         e.preventDefault();
         runNow();
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        // Save / Save as, from anywhere (also while typing).
+        e.preventDefault();
+        if (e.shiftKey) saveAs();
+        else saveProject();
         return;
       }
       const t = e.target instanceof HTMLElement ? e.target : null;
@@ -502,6 +669,10 @@ export default function App() {
     setShowBoardForm(false);
   }
 
+  // Left menu: the recently opened projects, else the latest saved.
+  const navRecent = [...recent.map((f) => projectList.find((m) => m.file === f)).filter((m): m is ProjectMeta => !!m), ...projectList]
+    .filter((m, i, a) => a.indexOf(m) === i).slice(0, 5);
+
   return (
     <div className="app-root">
       <div className="top">
@@ -510,13 +681,26 @@ export default function App() {
           <small>Low-voltage power design suite</small>
         </div>
         <div className="crumb">
-          Projects / <b>{project.name}</b>
+          <button className="linkish" style={{ marginLeft: 0, color: 'inherit' }} onClick={() => setView('projects')} title="All projects">Projects</button> / <b>{project.name}</b>
+          {dirty && <span className="dirty-dot" title={currentFile ? 'Unsaved changes — Ctrl+S / ⌘S to save' : 'Not saved yet — Ctrl+S / ⌘S to save'}>●</span>}
           {status && <span className="saved">{status}</span>}
         </div>
         <div className="sp" />
-        <button className="chip" onClick={startNewProject}>New project</button>
-        <button className="chip" onClick={saveProject}>Save</button>
+        <button className="chip" onClick={startNewProject}>New</button>
+        <button className="chip" onClick={() => setView('projects')} title="All projects: open, duplicate, status">Open…</button>
+        <button className="chip" onClick={() => saveProject()} title="Save (Ctrl+S / ⌘S)">Save{dirty ? ' ●' : ''}</button>
+        <button className="chip" onClick={saveAs} title="Save as a new project (Ctrl+Shift+S / ⇧⌘S)">Save as…</button>
+        <button className="chip user-chip" onClick={() => setShowPrefs(true)} title={prefs.profile.name ? `${signature(prefs.profile)} — profile & preferences` : 'Set up your profile: name, designation, company, logo and design defaults'}>
+          <span className="av">{initialsOf(prefs.profile.name)}</span>{prefs.profile.name ? prefs.profile.name.split(/\s+/)[0] : 'Profile'}
+        </button>
       </div>
+      {recovery && (
+        <div className="recover-bar" role="alert">
+          <span>Unsaved work on <b>{recovery.project.name}</b> from {whenText(recovery.at)} was kept when the app closed.</span>
+          <button className="chip primary" onClick={() => guard('restoring the recovered work', restoreRecovery)}>Restore it</button>
+          <button className="chip" onClick={() => { clearRecovery(); setRecovery(null); }}>Discard</button>
+        </div>
+      )}
 
       <Ribbon
         tab={ribbonTab}
@@ -580,17 +764,16 @@ export default function App() {
             Equipment &amp; data {db.issues.length > 0 && <span className="warn">({db.issues.length} ⚠)</span>}
           </button>
 
-          <h4>Projects folder</h4>
-          <button onClick={chooseFolder} title={projectsFolder}>
-            {hasBridge ? projectsFolder.split(/[\\/]/).pop() || 'Choose folder…' : 'Browser preview mode'}
-          </button>
-          <h4>Saved projects</h4>
-          {projectList.length === 0 && <span className="m" style={{ padding: '4px 10px', color: 'var(--mut)' }}>No projects saved yet</span>}
-          {projectList.map((p) => (
-            <button key={p.file} className={currentFile === p.file ? 'on' : ''} onClick={() => openProject(p.file)}>
-              {p.name}
+          <h4>Projects</h4>
+          <button className={view === 'projects' ? 'on' : ''} onClick={() => setView('projects')}>All projects ({projectList.length})</button>
+          {navRecent.map((p) => (
+            <button key={p.file} className={currentFile === p.file ? 'on' : ''} onClick={() => openProject(p.file)} title={`${p.name} — saved ${whenText(p.updatedAt)}`}>
+              {p.name}{currentFile === p.file && dirty ? ' ●' : ''}
             </button>
           ))}
+          <button className="nav-more" onClick={chooseFolder} title={projectsFolder}>
+            {hasBridge ? `Folder: ${projectsFolder.split(/[\\/]/).pop() || 'choose…'}` : 'Saved in this browser'}
+          </button>
 
         </nav>
 
@@ -772,7 +955,7 @@ export default function App() {
                 }}
               />
             )}
-            {view === 'study-reports' && <StudyReportsView project={project} run={run} stale={stale} onRun={runNow} onChange={setProject} onStatus={setStatus} />}
+            {view === 'study-reports' && <StudyReportsView project={project} me={{ preparedBy: signature(prefs.profile), checkedBy: prefs.profile.checkedBy }} run={run} stale={stale} onRun={runNow} onChange={setProject} onStatus={setStatus} />}
             {view === 'calculators' && <QuickCalcs project={project} />}
             {view === 'substation-area' && <SubstationAreaView project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />}
             {view === 'ups' && <UpsStudy project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />}
@@ -780,7 +963,24 @@ export default function App() {
             {view === 'cable-tray' && (
               <TrayScheduleView project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />
             )}
-            {view === 'revisions' &&<RevisionsView project={project} onChange={setProject} onStatus={setStatus} />}
+            {view === 'revisions' &&<RevisionsView project={project} me={prefs.profile.name ? initialsOf(prefs.profile.name) : ''} onChange={setProject} onStatus={setStatus} />}
+            {view === 'projects' && (
+              <ProjectsDashboard
+                list={projectList}
+                recent={recent}
+                currentFile={currentFile}
+                currentName={project.name}
+                dirty={dirty}
+                folder={projectsFolder}
+                desktop={inDesktop()}
+                onOpen={openProject}
+                onNew={startNewProject}
+                onDuplicate={duplicateFile}
+                onDelete={deleteFile}
+                onStatus={setFileStatus}
+                onChooseFolder={chooseFolder}
+              />
+            )}
             {view === 'boq' && (
               <>
                 <section className="stage"><h3>Cost estimate — whole project</h3></section>
@@ -803,7 +1003,7 @@ export default function App() {
         <button className="chip" onClick={() => setProject({ ...project, calc: { ...project.calc, autoRun: !autoRun } })} title="Run the studies on every change (small projects)">
           Auto-run: {autoRun ? 'on' : 'off'}
         </button>
-        <span>{hasBridge ? `Projects folder: ${projectsFolder}` : 'Run inside the Electron app to save/load projects'}</span>
+        <span>{hasBridge ? `Projects folder: ${projectsFolder}` : 'Web version — projects are saved in this browser'}</span>
       </div>
 
       {showFeederForm && board && (
@@ -867,6 +1067,34 @@ export default function App() {
           onSave={(d) => setProject((p) => ({ ...p, drawing: d }))}
           onStatus={setStatus}
           onClose={() => setShowExport(false)}
+        />
+      )}
+      {showPrefs && (
+        <PreferencesDialog
+          prefs={prefs}
+          project={project}
+          onSave={savePreferences}
+          onApplyToProject={(u) => { setProject((p) => applyProfile(p, u, true), { step: true }); setStatus(`Your details are in “${project.name}”’s title block and reports`); }}
+          onClose={() => setShowPrefs(false)}
+        />
+      )}
+      {ask && (
+        <UnsavedDialog
+          name={project.name}
+          action={ask.action}
+          onCancel={() => setAsk(null)}
+          onDiscard={() => { const then = ask.then; setAsk(null); clearRecovery(); then(); }}
+          onSave={async () => { const then = ask.then; setAsk(null); if (await saveProject()) then(); }}
+        />
+      )}
+      {nameAsk && (
+        <NameDialog
+          title={nameAsk.title}
+          note={nameAsk.note}
+          initial={nameAsk.initial}
+          okLabel={nameAsk.okLabel}
+          onCancel={() => setNameAsk(null)}
+          onOk={(n) => { const then = nameAsk.then; setNameAsk(null); then(n); }}
         />
       )}
       {showSettings && (

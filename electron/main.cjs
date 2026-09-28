@@ -47,6 +47,21 @@ function createWindow() {
     }
   });
 
+  // The app asks before closing with unsaved changes (beforeunload);
+  // Electron leaves showing the question to us.
+  win.webContents.on('will-prevent-unload', (e) => {
+    const choice = dialog.showMessageBoxSync(win, {
+      type: 'warning',
+      buttons: ['Close without saving', 'Cancel'],
+      defaultId: 1,
+      cancelId: 1,
+      title: 'Unsaved changes',
+      message: 'The project has unsaved changes.',
+      detail: 'Close anyway? A recovery copy is kept, and the app offers it the next time it starts.'
+    });
+    if (choice === 0) e.preventDefault(); // preventDefault here lets the window close
+  });
+
   if (isDev) {
     // If the Vite dev server isn't running the window would stay blank, so
     // explain what's wrong and retry until the server comes up.
@@ -102,12 +117,23 @@ ipcMain.handle('projects:list', () => {
     .map((f) => {
       const full = path.join(folder, f);
       const stat = fs.statSync(full);
-      let name = f.replace(/\.json$/, '');
+      const meta = { file: f, name: f.replace(/\.json$/, ''), updatedAt: stat.mtimeMs };
       try {
-        const parsed = JSON.parse(fs.readFileSync(full, 'utf-8'));
-        if (parsed.name) name = parsed.name;
+        // What the projects dashboard shows (see metaOf in src/model/projectStore.ts).
+        const p = JSON.parse(fs.readFileSync(full, 'utf-8'));
+        const revs = Array.isArray(p.revisions) ? p.revisions : [];
+        Object.assign(meta, {
+          name: p.name || meta.name,
+          status: p.status,
+          owner: p.info && p.info.owner,
+          plotNo: p.info && p.info.plotNo,
+          area: p.info && p.info.area,
+          revision: revs.length ? revs[revs.length - 1].id : undefined,
+          updatedBy: p.updatedBy,
+          boards: Array.isArray(p.boards) ? p.boards.length : undefined
+        });
       } catch {}
-      return { file: f, name, updatedAt: stat.mtimeMs };
+      return meta;
     })
     .sort((a, b) => b.updatedAt - a.updatedAt);
 });
@@ -129,6 +155,21 @@ ipcMain.handle('projects:save', (_evt, { file, data }) => {
 ipcMain.handle('projects:delete', (_evt, file) => {
   const folder = ensureProjectsFolder();
   fs.unlinkSync(path.join(folder, file));
+  return true;
+});
+
+// ---- IPC: recovery copy of unsaved work (autosave) ----
+const recoveryPath = path.join(app.getPath('userData'), 'recovery.json');
+ipcMain.handle('recovery:write', (_evt, r) => {
+  fs.mkdirSync(path.dirname(recoveryPath), { recursive: true });
+  fs.writeFileSync(recoveryPath, JSON.stringify(r), 'utf-8');
+  return true;
+});
+ipcMain.handle('recovery:read', () => {
+  try { return JSON.parse(fs.readFileSync(recoveryPath, 'utf-8')); } catch { return null; }
+});
+ipcMain.handle('recovery:clear', () => {
+  try { fs.unlinkSync(recoveryPath); } catch {}
   return true;
 });
 

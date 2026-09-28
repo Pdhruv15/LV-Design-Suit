@@ -13,11 +13,11 @@ const demandOf = (s: Snapshot) => s.boards.filter((b) => !b.upstreamId).reduce((
 
 /** Issue revisions (A, B, C…), see what changed since any of them, and go
  * back to one. Revisions are saved inside the project file. */
-export default function RevisionsView({ project, onChange, onStatus }: { project: Project; onChange: (p: Project) => void; onStatus: (m: string) => void }) {
+export default function RevisionsView({ project, me = '', onChange, onStatus }: { project: Project; /** The user's initials (profile), the default "by". */ me?: string; onChange: (p: Project) => void; onStatus: (m: string) => void }) {
   const revisions = project.revisions ?? [];
   const latest = currentRevision(project);
   const [description, setDescription] = useState('');
-  const [by, setBy] = useState('');
+  const [by, setBy] = useState(me);
   const [from, setFrom] = useState<string>(latest?.id ?? '');
   const [to, setTo] = useState<string>(CURRENT);
   const fromId = revisions.some((r) => r.id === from) ? from : latest?.id ?? '';

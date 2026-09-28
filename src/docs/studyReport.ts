@@ -324,6 +324,7 @@ export function buildStudyReportHtml(project: Project, scope: Scope, sections: S
   const info = project.info ?? {};
   const cover = `
 <section class="cover">
+  ${project.drawing?.logo?.startsWith('data:image/') ? `<img class="cover-logo" src="${esc(project.drawing.logo)}" alt="">` : ''}
   <p class="kicker">${esc(project.name)}</p>
   <h1>${esc(meta.title)}</h1>
   <table class="meta">
@@ -350,7 +351,7 @@ ${slds[s.key] ? `<section class="sld"><div class="sld-head"><b>${esc(s.title)} â
     @page { size: A4 landscape; margin: 14mm 12mm; }
     @page sld { size: A3 landscape; margin: 10mm; }
     h3 { font-size: 11px; margin: 10px 0 3px; }
-    .cover { break-after: page; } .cover h1 { font-size: 24px; margin: 4px 0 14px; } .kicker { color: #5b6b82; margin: 30px 0 0; font-size: 12px; }
+    .cover { break-after: page; } .cover h1 { font-size: 24px; margin: 4px 0 14px; } .kicker { color: #5b6b82; margin: 30px 0 0; font-size: 12px; } .cover-logo { float: right; max-height: 22mm; max-width: 70mm; margin-top: 20px; }
     .meta { width: 70%; } .meta th { width: 28%; }
     .study { break-before: page; } .scope { color: #5b6b82; margin: 0 0 6px; }
     .grid { grid-template-columns: repeat(3, 1fr); }

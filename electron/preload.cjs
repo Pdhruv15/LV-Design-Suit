@@ -12,6 +12,11 @@ contextBridge.exposeInMainWorld('lvds', {
     save: (file, data) => ipcRenderer.invoke('projects:save', { file, data }),
     delete: (file) => ipcRenderer.invoke('projects:delete', file)
   },
+  recovery: {
+    write: (r) => ipcRenderer.invoke('recovery:write', r),
+    read: () => ipcRenderer.invoke('recovery:read'),
+    clear: () => ipcRenderer.invoke('recovery:clear')
+  },
   database: {
     init: (seeds) => ipcRenderer.invoke('database:init', seeds),
     read: () => ipcRenderer.invoke('database:read'),
