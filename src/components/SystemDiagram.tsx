@@ -452,7 +452,7 @@ export default function SystemDiagram({
               <line x1={n.x - 5} y1={y + 32} x2={n.x + 5} y2={y + 20} className="ln" />
               <line x1={n.x} y1={y + 34} x2={n.x} y2={endY} className={`ln ${status !== 'ok' ? status : ''}`}
                 style={feederHeat(f.id) ? { stroke: feederHeat(f.id), strokeWidth: 3.5 } : undefined} />
-              <text className="b" x={n.x + 10} y={y + 30}>{f.breakerRatingA} A</text>
+              <text className="b" x={n.x + 10} y={y + 30}>{f.breakerRatingA} A{f.rcdMa ? <tspan className="acc-t"> · {f.rcdMa} mA</tspan> : null}</text>
               <text
                 className={`m${onPatchFeeder ? ' cable-lbl' : ''}`}
                 x={n.x + 7}
@@ -468,6 +468,38 @@ export default function SystemDiagram({
                 {onPatchFeeder && <title>Click to change the cable</title>}
                 {runsOf(f) > 1 ? `${runsOf(f)}×` : ''}{f.cores}C × {f.cableCsaMm2}mm² · {f.lengthM}m
               </text>
+              {/* Accessories on the feeder, top to bottom: earth leakage (its
+                  rating goes with the breaker's), metering on the right below
+                  the cable text, local isolator just above the load. */}
+              {f.rcdMa && (
+                <g className="acc">
+                  <title>{`Earth leakage protection ${f.rcdMa} mA`}</title>
+                  <ellipse cx={n.x} cy={y + 39} rx="7" ry="3.2" className="sym-ln" />
+                </g>
+              )}
+              {f.kwhMeter && (() => {
+                // Sub-board incomers: below their result labels.
+                const my = n.childBoardId ? y + 128 : y + 62;
+                return (
+                <g className="acc">
+                  <title>{f.kwhMeter === 'CT' ? 'CT-operated kWh meter' : `${f.kwhMeter} direct kWh meter`}</title>
+                  {f.kwhMeter === 'CT' && <circle cx={n.x} cy={my} r="4.5" className="sym-ln" />}
+                  <line x1={n.x + (f.kwhMeter === 'CT' ? 4.5 : 0)} y1={my} x2={n.x + 10} y2={my} className="ln" style={f.kwhMeter === 'CT' ? { strokeDasharray: '2 1.5' } : undefined} />
+                  <rect x={n.x + 10} y={my - 6} width="24" height="12" rx="2" className="sym" />
+                  <text x={n.x + 22} y={my + 3} textAnchor="middle" className="acc-t b">kWh</text>
+                  {f.kwhMeter === 'CT' && <text x={n.x + 37} y={my + 3} className="acc-t">CT</text>}
+                </g>
+                );
+              })()}
+              {f.localIsolator && !n.childBoardId && (
+                <g className="acc">
+                  <title>Local isolator at the equipment</title>
+                  <rect x={n.x - 4} y={y + 66} width="8" height="9" className="bg-fill" />
+                  <circle cx={n.x} cy={y + 67} r="1.6" className="dot" />
+                  <line x1={n.x} y1={y + 75} x2={n.x - 7} y2={y + 67} className="ln" />
+                  <text x={n.x - 9} y={y + 74} textAnchor="end" className="acc-t">ISO</text>
+                </g>
+              )}
               {!n.childBoardId && (
                 <>
                   <circle cx={n.x} cy={y + 94} r="18" className={`load ${status}`} />
@@ -477,7 +509,7 @@ export default function SystemDiagram({
                   <text className="b" x={n.x} y={y + 132} textAnchor="middle">{trunc(f.id, 16)}</text>
                   <text className="m" x={n.x} y={y + 146} textAnchor="middle">{trunc(f.name, 19)}</text>
                   <text x={n.x} y={y + 160} textAnchor="middle">
-                    {f.kvar ? `${f.kvar} kvar` : `${(f.loadKw * f.demandFactor).toFixed(0)} kW${f.generation ? ' gen' : ''}${isMotor(f) ? ` · ${starterInfo(starterOf(f)).short}` : ''}`}
+                    {f.kvar ? `${f.capSteps && f.capSteps > 1 ? `${f.capSteps} × ${+(f.kvar / f.capSteps).toFixed(1)}` : f.kvar} kvar${f.detunedPct ? ` · ${f.detunedPct}% det.` : ''}` : `${(f.loadKw * f.demandFactor).toFixed(0)} kW${f.generation ? ' gen' : ''}${isMotor(f) ? ` · ${starterInfo(starterOf(f)).short}` : ''}`}
                     {!layers?.current && ` · ${r ? r.ib.toFixed(0) : '–'} A`}
                   </text>
                   {feederTags(f.id).map((t, i) => (
@@ -571,6 +603,28 @@ export default function SystemDiagram({
                 {b.ratedCurrentA ? ` · ${b.ratedCurrentA} A` : ''}
               </text>
               <circle cx={n.x + 52} cy={n.busY - 46} r="4" style={{ fill: `var(--${status})` }} />
+              {b.spd && (
+                <g className="acc">
+                  <title>{`Surge protection device, Type ${b.spd === 'T1+2' ? '1+2' : b.spd.slice(1)}`}</title>
+                  {(() => {
+                    // On the busbar's right end (or under the board box when it has no busbar).
+                    const sx = n.terminal ? n.x - 40 : n.busX2 - 8;
+                    const sy = n.terminal ? n.busY - 22 : n.busY;
+                    return (
+                      <>
+                        <line x1={sx} y1={sy} x2={sx} y2={sy - 12} className="ln" />
+                        <rect x={sx - 6} y={sy - 26} width="12" height="14" className="sym" />
+                        <path d={`M${sx + 2} ${sy - 24} l-3 5 h3 l-3 5`} className="sym-ln" />
+                        <line x1={sx} y1={sy - 26} x2={sx} y2={sy - 31} className="ln" />
+                        <line x1={sx - 6} y1={sy - 31} x2={sx + 6} y2={sy - 31} className="ln" />
+                        <line x1={sx - 4} y1={sy - 34} x2={sx + 4} y2={sy - 34} className="ln" />
+                        <line x1={sx - 2} y1={sy - 37} x2={sx + 2} y2={sy - 37} className="ln" />
+                        <text x={sx - 9} y={sy - 16} textAnchor="end" className="acc-t">SPD {b.spd === 'T1+2' ? 'T1+2' : b.spd}</text>
+                      </>
+                    );
+                  })()}
+                </g>
+              )}
               {n.terminal && circuitTags.length > 0 && (
                 <g className="sched" onDoubleClick={(e) => { e.stopPropagation(); edit(onOpenSchedule, b.id)(); }}>
                   <title>Final circuits are on the load schedule — double-click to open it</title>

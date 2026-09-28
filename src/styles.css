@@ -437,6 +437,11 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 .qc-ok{color:var(--ok)}.qc-bad{color:var(--bad)}
 .qc-warn{grid-column:1/-1;margin:0;font-size:12px;color:var(--mut)}
 .qc-formula{margin:0;font-size:11px;color:var(--mut);font-family:ui-monospace,Menlo,monospace;line-height:1.4}
+.sysdiag .acc .sym-ln{fill:none;stroke:var(--tx);stroke-width:1.2}
+.sysdiag .acc .acc-t{font-size:9px;fill:var(--mut)}
+.sysdiag .acc .acc-t.b{fill:var(--tx);font-weight:700;font-size:8px}
+.sysdiag .acc .bg-fill{fill:var(--bg);stroke:none}
+.sysdiag .acc .dot{fill:var(--tx)}
 .sysdiag .rmu-box{fill:color-mix(in srgb,var(--acc) 12%,var(--p2))}
 /* ---- Classic tables with Excel-style editing (ClassicGrid / useExcelGrid) ---- */
 .gx-wrap{overflow:auto;max-height:62vh;border:1px solid var(--line);border-radius:8px}

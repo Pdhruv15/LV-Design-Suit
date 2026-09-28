@@ -44,7 +44,11 @@ export type PaletteItem =
   | { kind: 'tie' }
   | { kind: 'load'; preset: string }
   | { kind: 'device'; device: ProtectionDevice }
+  | { kind: 'accessory'; accessory: Accessory }
   | { kind: 'cable' };
+
+/** Devices added to a feeder or a busbar without changing its breaker. */
+export type Accessory = 'meter' | 'ct-meter' | 'rcd' | 'isolator' | 'spd';
 
 export type DropTarget = { type: 'bus'; boardId: string } | { type: 'feeder'; feederId: string } | { type: 'canvas' };
 
@@ -81,6 +85,16 @@ export const PALETTE: { group: string; entries: PaletteEntry[] }[] = [
       label: d === 'ISOL' ? 'Isolator' : d,
       title: `Drop on a feeder to change its switching device to ${d === 'ISOL' ? 'an isolator' : d === 'MCB' ? 'an MCB' : `an ${d}`}`
     }))
+  },
+  {
+    group: 'Metering & accessories',
+    entries: [
+      { item: { kind: 'accessory', accessory: 'meter' } as PaletteItem, label: 'kWh meter', title: 'Drop on a feeder: direct-connected kWh meter (1- or 3-phase by the cable)' },
+      { item: { kind: 'accessory', accessory: 'ct-meter' } as PaletteItem, label: 'CT metering', title: 'Drop on a feeder: CT-operated kWh meter with current transformers (large feeders)' },
+      { item: { kind: 'accessory', accessory: 'rcd' } as PaletteItem, label: 'Earth leakage (RCD)', title: 'Drop on a feeder: earth leakage protection (30 mA up to 32 A, else 300 mA) — used in the earth fault check' },
+      { item: { kind: 'accessory', accessory: 'isolator' } as PaletteItem, label: 'Local isolator', title: 'Drop on a feeder: isolator at the equipment (AC unit, pump…)' },
+      { item: { kind: 'accessory', accessory: 'spd' } as PaletteItem, label: 'Surge protection (SPD)', title: 'Drop on a busbar: surge protection device — Type 1+2 on a main board, Type 2 on the others' }
+    ]
   },
   {
     group: 'Motor starters',
@@ -125,7 +139,7 @@ export function libraryLoadType(l: LibraryLoad): LoadType {
 }
 
 export const itemKey = (i: PaletteItem) =>
-  i.kind === 'board' ? `board:${i.board}` : i.kind === 'load' ? `load:${i.preset}` : i.kind === 'device' ? `device:${i.device}` : i.kind === 'library' ? `library:${i.name}` : i.kind === 'starter' ? `starter:${i.starter}` : i.kind;
+  i.kind === 'board' ? `board:${i.board}` : i.kind === 'load' ? `load:${i.preset}` : i.kind === 'device' ? `device:${i.device}` : i.kind === 'library' ? `library:${i.name}` : i.kind === 'starter' ? `starter:${i.starter}` : i.kind === 'accessory' ? `acc:${i.accessory}` : i.kind;
 
 /** Typical rating (A) of a new board by type; its incomer breaker and cable
  * are sized for it until real loads are added. */
@@ -155,6 +169,8 @@ export function canDrop(project: Project, item: PaletteItem, target: DropTarget)
       return target.type === 'feeder';
     case 'tie':
       return target.type === 'bus' && !!tiePartner(project, target.boardId);
+    case 'accessory':
+      return item.accessory === 'spd' ? target.type === 'bus' : target.type === 'feeder';
     case 'starter': {
       const f = target.type === 'feeder' ? project.feeders.find((x) => x.id === target.feederId) : undefined;
       return !!f && isMotor(f);
@@ -334,6 +350,35 @@ export function applyDrop(project: Project, item: PaletteItem, target: DropTarge
     };
   }
 
+  if (item.kind === 'accessory' && target.type === 'bus') {
+    const b = project.boards.find((x) => x.id === target.boardId)!;
+    const spd = b.upstreamId ? 'T2' as const : 'T1+2' as const;
+    return {
+      project: { ...project, boards: project.boards.map((x) => (x.id === b.id ? { ...x, spd } : x)) },
+      select: { type: 'board', id: b.id },
+      message: `${b.id}: surge protection Type ${spd === 'T2' ? '2' : '1+2'} — change the type in the board's properties`
+    };
+  }
+
+  if (item.kind === 'accessory' && target.type === 'feeder') {
+    const f = project.feeders.find((x) => x.id === target.feederId)!;
+    const threePhase = f.cores >= 3 || f.phase === 'RYB';
+    const patch: Partial<Feeder> =
+      item.accessory === 'meter' ? { kwhMeter: threePhase ? '3-PH' : '1-PH' }
+        : item.accessory === 'ct-meter' ? { kwhMeter: 'CT' }
+          : item.accessory === 'rcd' ? { rcdMa: f.breakerRatingA <= 32 ? 30 : 300 }
+            : { localIsolator: true };
+    const what = item.accessory === 'meter' ? `${patch.kwhMeter} kWh meter`
+      : item.accessory === 'ct-meter' ? 'CT-operated kWh meter'
+        : item.accessory === 'rcd' ? `earth leakage protection ${patch.rcdMa} mA`
+          : 'local isolator';
+    return {
+      project: { ...project, feeders: project.feeders.map((x) => (x.id === f.id ? { ...x, ...patch } : x)) },
+      select: { type: 'feeder', id: f.id },
+      message: `${f.id}: ${what} added — change it in the feeder's properties${item.accessory === 'rcd' ? '; the earth fault check uses it after Run (F5)' : ''}`
+    };
+  }
+
   if (item.kind === 'starter' && target.type === 'feeder') {
     const f = project.feeders.find((x) => x.id === target.feederId)!;
     const s = STARTERS.find((x) => x.value === item.starter)!;
@@ -387,6 +432,8 @@ export function dropHint(item: PaletteItem): string {
       return 'Drop the starter on a motor or pump';
     case 'tie':
       return 'Drop the bus coupler on a main board that has another transformer-fed main board to tie to';
+    case 'accessory':
+      return item.accessory === 'spd' ? 'Drop the surge protection on a busbar' : 'Drop it on a feeder (the cable below a breaker)';
   }
 }
 

@@ -1,6 +1,6 @@
 import { STARTERS } from '../calc/motor';
 import { useState } from 'react';
-import { BREAKER_TYPES, LOAD_TYPES, type BreakerType, type Feeder, type LoadType, type Project } from '../types';
+import { BREAKER_TYPES, LOAD_TYPES, METER_TYPES, RCD_MA, type BreakerType, type Feeder, type LoadType, type MeterType, type Project } from '../types';
 import { breakerTypeOf, defaultCpcMm2 } from '../calc/earthing';
 import type { LibraryLoad } from '../database/database';
 
@@ -111,7 +111,22 @@ export default function FeederForm({
             </select>
           </label>
           {f.loadType === 'capacitor' ? (
-            <label>Capacitor bank (kvar)<input inputMode="decimal" value={f.kvar ?? ''} onChange={(e) => set('kvar', e.target.value === '' || Number.isNaN(+e.target.value) ? undefined : +e.target.value)} /></label>
+            <>
+              <label>Capacitor bank (kvar)<input inputMode="decimal" value={f.kvar ?? ''} onChange={(e) => set('kvar', e.target.value === '' || Number.isNaN(+e.target.value) ? undefined : +e.target.value)} /></label>
+              <label>Steps
+                <select value={f.capSteps ?? 1} onChange={(e) => set('capSteps', +e.target.value > 1 ? +e.target.value : undefined)}>
+                  {[1, 2, 3, 4, 5, 6, 8, 10, 12].map((n) => <option key={n} value={n}>{n === 1 ? 'Fixed (1 step)' : `${n} steps${f.kvar ? ` × ${+(f.kvar / n).toFixed(1)} kvar` : ''}`}</option>)}
+                </select>
+              </label>
+              <label>Detuning reactor
+                <select value={f.detunedPct ?? ''} onChange={(e) => set('detunedPct', e.target.value ? +e.target.value : undefined)}>
+                  <option value="">None</option>
+                  <option value={5.67}>5.67 % (tuned to 210 Hz)</option>
+                  <option value={7}>7 % (tuned to 189 Hz)</option>
+                  <option value={14}>14 % (tuned to 134 Hz)</option>
+                </select>
+              </label>
+            </>
           ) : (
             <label>Connected load (kW)<input type="number" step="0.1" value={f.loadKw} onChange={(e) => set('loadKw', +e.target.value)} /></label>
           )}
@@ -165,6 +180,21 @@ export default function FeederForm({
             </select>
           </label>
         </div>
+        <div className="grid2">
+          <label>kWh meter
+            <select value={f.kwhMeter ?? ''} onChange={(e) => set('kwhMeter', (e.target.value || undefined) as MeterType | undefined)}>
+              <option value="">None</option>
+              {METER_TYPES.map((m) => <option key={m} value={m}>{m === 'CT' ? 'CT-operated' : `${m} direct`}</option>)}
+            </select>
+          </label>
+          <label>Earth leakage (RCD / ELCB)
+            <select value={f.rcdMa ?? ''} onChange={(e) => set('rcdMa', e.target.value ? +e.target.value : undefined)} title="Used in the earth fault check: the RCD trips at 5 × IΔn">
+              <option value="">None</option>
+              {RCD_MA.map((m) => <option key={m} value={m}>{m} mA</option>)}
+            </select>
+          </label>
+        </div>
+        {!f.feedsBoardId && <label className="row"><input type="checkbox" checked={!!f.localIsolator} onChange={(e) => set('localIsolator', e.target.checked || undefined)} /> Local isolator at the equipment</label>}
         <label className="row"><input type="checkbox" checked={!!f.generation} onChange={(e) => set('generation', e.target.checked)} /> Generation source (PV / generator)</label>
         <label className="row"><input type="checkbox" checked={f.essential ?? f.loadType === 'fire-pump'} onChange={(e) => set('essential', e.target.checked)} /> Essential load (supplied by the standby generator)</label>
 

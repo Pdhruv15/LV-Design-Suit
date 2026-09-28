@@ -1,4 +1,4 @@
-import { BOARD_KINDS, type Board } from '../types';
+import { BOARD_KINDS, SPD_TYPES, type Board } from '../types';
 import { DEFAULT_TRANSFORMER_XR } from '../calc/electrical';
 
 /** Editable board fields, shared by the properties panel (applied as you
@@ -61,6 +61,12 @@ export default function BoardFields({ board, onChange, section }: { board: Board
           <option value="">—</option>
           <option value="copper">Copper</option>
           <option value="aluminium">Aluminium</option>
+        </select>
+      </label>
+      <label>Surge protection (SPD)
+        <select value={board.spd ?? ''} onChange={(e) => set('spd', (e.target.value || undefined) as Board['spd'])}>
+          <option value="">None</option>
+          {SPD_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
       </label>
       <label>IP rating{text('ipRating', 'e.g. IP42')}</label>

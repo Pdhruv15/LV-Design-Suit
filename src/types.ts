@@ -108,6 +108,17 @@ export const LIGHTING_POINTS: PointType[] = ['ltg', 'cfan', 'exfan'];
 /** Motor starter: direct on line, star-delta, soft starter, VFD. */
 export type StarterType = 'DOL' | 'SD' | 'SS' | 'VFD';
 
+/** Surge protection device class: Type 1 (lightning current, at the origin),
+ * Type 2 (distribution boards), or a combined Type 1+2. */
+export type SpdType = 'T1' | 'T2' | 'T1+2';
+export const SPD_TYPES: { value: SpdType; label: string }[] = [
+  { value: 'T1', label: 'Type 1 (lightning current)' },
+  { value: 'T2', label: 'Type 2 (overvoltage)' },
+  { value: 'T1+2', label: 'Type 1+2 (combined)' }
+];
+/** Earth leakage sensitivities (mA). */
+export const RCD_MA = [10, 30, 100, 300, 500];
+
 /** Switching device column of the connected load / MD form. */
 export type SwitchDevice = 'ACB' | 'MCCB' | 'ISOL';
 export const SWITCH_DEVICES: SwitchDevice[] = ['ACB', 'MCCB', 'ISOL'];
@@ -155,7 +166,11 @@ export interface Feeder {
   // Connected load & maximum demand form (authority submission)
   device?: SwitchDevice; // ACB / MCCB / ISOL column; default from the breaker type
   cableType?: string; // e.g. "XLPE/PVC/SWA" (default)
-  kwhMeter?: MeterType; // proposed kWh meter on this outgoing feeder
+  kwhMeter?: MeterType; // kWh meter on this feeder: 1-PH / 3-PH direct, or CT-operated
+  rcdMa?: number; // earth leakage protection (RCD / ELCB / RCBO) on this feeder, IΔn in mA
+  localIsolator?: boolean; // isolator at the equipment end (e.g. AC unit, pump)
+  capSteps?: number; // capacitor bank: number of steps
+  detunedPct?: number; // capacitor bank: detuning reactor, % (e.g. 7)
   trayRoute?: string; // cable tray routes the cable runs on, in order, e.g. "A-B-C"
   feedsBoardId?: string; // if set, this feeder is the incomer to a downstream board —
   // its loadKw/demandFactor are ignored and its current is derived from that
@@ -184,6 +199,8 @@ export interface Board {
   rmu?: string;
   /** UPS rating for a UPS output board (kind 'UPS'). */
   upsKva?: number;
+  /** Surge protection device on the busbar. */
+  spd?: SpdType;
   /** Incoming supply of a board fed by the authority (meter cabinet / MDB
    * with no upstream board): the INCOMER row of the connected load form. */
   supply?: {
