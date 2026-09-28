@@ -452,6 +452,22 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 .palette-item{position:relative}
 .palette-del{margin-left:auto;opacity:0;font-size:11px;padding:0 4px}
 .palette-item:hover .palette-del{opacity:1}
+/* ---- DM-D-013 substation areas ---- */
+.dm-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0;display:grid;gap:8px}
+.dm-head{display:flex;flex-wrap:wrap;align-items:end;gap:8px 14px;font-size:12px;color:var(--mut)}
+.dm-head label{display:grid;gap:3px}
+.dm-head .sp{flex:1}
+.dm-head input,.dm-head select,.dm-remarks textarea{background:var(--p2);color:var(--tx);border:1px solid var(--line);border-radius:5px;padding:4px 6px;font:inherit;font-size:13px}
+.dm-head label:first-child input{font-weight:700;width:130px}
+.dm-rooms{width:100%}
+.dm-rooms .l{text-align:left}
+.dm-total td{font-weight:600;background:color-mix(in srgb,var(--acc) 6%,transparent)}
+.dm-err{margin:0;font-weight:600}
+.dm-notes summary,.dm-table summary{cursor:pointer;font-size:12.5px;color:var(--mut)}
+.dm-notes ol{margin:6px 0;padding-left:20px;font-size:12.5px;line-height:1.5}
+.dm-remarks{display:grid;gap:3px;font-size:12px;color:var(--mut)}
+.dm-table{margin-top:14px}
+.plan-cards b.bad{color:var(--bad)}.plan-cards b.ok{color:var(--ok)}
 .sysdiag .rmu-box{fill:color-mix(in srgb,var(--acc) 12%,var(--p2))}
 /* ---- Classic tables with Excel-style editing (ClassicGrid / useExcelGrid) ---- */
 .gx-wrap{overflow:auto;max-height:62vh;border:1px solid var(--line);border-radius:8px}

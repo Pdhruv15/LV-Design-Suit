@@ -19,6 +19,7 @@ import VoltageDropStudy from './components/studies/VoltageDropStudy';
 import RevisionsView from './components/docs/RevisionsView';
 import SpacePlanView from './components/docs/SpacePlanView';
 import TrayScheduleView from './components/docs/TrayScheduleView';
+import SubstationAreaView from './components/docs/SubstationAreaView';
 import StudyReportsView from './components/docs/StudyReportsView';
 import QuickCalcs from './components/QuickCalcs';
 import CoordinationStudy from './components/studies/CoordinationStudy';
@@ -517,6 +518,7 @@ export default function App() {
         <nav className="nav" aria-label="Navigation">
           <h4>Design</h4>
           <button className={view === 'space-planning' ? 'on' : ''} onClick={() => setView('space-planning')}>Space planning</button>
+          <button className={view === 'substation-area' ? 'on' : ''} onClick={() => setView('substation-area')}>Substation area (DM)</button>
           <button className={view === 'design' ? 'on' : ''} onClick={() => setView('design')}>Single line diagram</button>
           <button className={view === 'load-schedule' ? 'on' : ''} onClick={() => setView('load-schedule')}>Load schedule (DB)</button>
 
@@ -721,6 +723,7 @@ export default function App() {
             )}
             {view === 'study-reports' && <StudyReportsView project={project} run={run} stale={stale} onRun={runNow} onChange={setProject} onStatus={setStatus} />}
             {view === 'calculators' && <QuickCalcs project={project} />}
+            {view === 'substation-area' && <SubstationAreaView project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />}
             {view === 'cable-tray' && (
               <TrayScheduleView project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />
             )}
