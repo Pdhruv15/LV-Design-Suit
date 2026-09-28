@@ -216,6 +216,7 @@ export interface Project {
   drawing?: DrawingInfo; // SLD drawing title block
   ties?: BusTie[]; // normally-open bus couplers between main boards
   spacePlan?: SpacePlan; // areas → panels → transformers → RMUs (power density planning)
+  trays?: TrayPlan; // cable tray routes (A, B, C…) with the cables on each and the tray size
   calc?: { autoRun?: boolean }; // run the network studies on every change (default: on Run / F5 only)
   studySettings?: StudySettings;
   boards: Board[];
@@ -276,6 +277,75 @@ export interface SpacePlan {
   settings: SpacePlanSettings;
   /** Use types with W/m² and demand factor; defaults when absent. */
   uses?: SpaceUse[];
+}
+
+/** Cable tray sizing. Each route (A, B, C…) carries cables from one or
+ * more panels; the tray width comes from the cables' outer diameters,
+ * spacing (or fill %) and spare capacity. Blank route settings use the
+ * plan defaults. */
+export type TrayMethod = 'spacing' | 'fill';
+/** Clearance between cables: touching, a fraction / multiple of the
+ * larger cable's diameter, or a fixed distance in mm. */
+export type TraySpacing = 'touching' | 'quarter' | 'half' | 'one' | 'two' | 'mm';
+
+export interface TrayCable {
+  id: string;
+  feederId?: string; // a cable of the SLD (size, from, to follow the design)
+  // Manual cable (not on the SLD), or overrides of a feeder's text:
+  from?: string;
+  to?: string;
+  cores?: number; // 1–4
+  csaMm2?: number;
+  qty?: number; // number of cables (feeders: parallel runs)
+  odMm?: number; // outer diameter override
+  kgPerM?: number; // weight override
+}
+
+export interface TrayRoute {
+  id: string;
+  name: string; // "A", "B"…
+  from?: string; // where the route starts, e.g. "Substation"
+  to?: string; // where it ends, e.g. "Block A riser"
+  lengthM?: number;
+  cables: TrayCable[];
+  // Blank = the plan default
+  method?: TrayMethod;
+  spacing?: TraySpacing;
+  spacingMm?: number;
+  sparePct?: number;
+  fillPct?: number;
+  depthMm?: number;
+  /** Chosen tray, instead of the automatic one. */
+  widthMm?: number;
+  tiers?: number;
+}
+
+export interface TraySettings {
+  method: TrayMethod;
+  spacing: TraySpacing;
+  spacingMm: number;
+  sparePct: number;
+  fillPct: number; // fill method: cable area / tray area limit
+  depthMm: number; // side height
+  widths: number[]; // standard widths, mm
+  maxWidthMm: number; // wider than this → more tiers
+  includeEcc: boolean; // separate 1C earth cable with each feeder
+  trayType: string; // e.g. "Perforated tray", "Cable ladder"
+}
+
+/** Cable outer diameter and weight by cores × size. */
+export interface CableOd {
+  cores: number;
+  csaMm2: number;
+  odMm: number;
+  kgPerM: number;
+}
+
+export interface TrayPlan {
+  routes: TrayRoute[];
+  settings: TraySettings;
+  /** Your cable data; built-in rough values when absent. */
+  ods?: CableOd[];
 }
 
 /** Normally-open bus coupler (tie breaker) between two main boards: closed

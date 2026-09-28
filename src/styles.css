@@ -350,6 +350,32 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 .plan-tree{font:12.5px/1.6 ui-monospace,Menlo,monospace;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px;white-space:pre-wrap}
 .plan-tx .ok{color:var(--ok)}.plan-tx .warn{color:var(--warn)}.plan-tx .bad{color:var(--bad)}
 .plan-areas{color:var(--mut)}
+/* ---- Cable tray schedule ---- */
+.tray-check{display:flex!important;align-items:center;gap:6px;font-size:12px;color:var(--mut)}
+.tray-check input{width:auto!important}
+.tray-route{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:10px 0}
+.tray-head,.tray-add,.tray-opts{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
+.tray-head{margin-bottom:8px;font-size:12px;color:var(--mut)}
+.tray-head label,.tray-opts label{display:flex;align-items:center;gap:6px}
+.tray-head label:first-child input{font-weight:700;font-size:14px}
+.tray-head .sp{flex:1}
+.tray-add{margin-bottom:8px;font-size:12px}
+.tray-route input,.tray-route select{background:var(--p2);color:var(--tx);border:1px solid var(--line);border-radius:5px;padding:3px 6px;font:inherit}
+.tray-table{width:100%}
+.tray-table td input{width:100%;min-width:70px}
+.tray-table td .tray-num{min-width:0}
+.tray-table .l{text-align:left}
+.tray-table tr.tray-ecc td{color:var(--mut);font-size:12px}
+.tray-size{display:inline-flex;align-items:center;gap:4px}
+.tray-size input{min-width:0!important}
+.tray-calc{display:grid;gap:6px;margin-top:8px;font-size:12px;color:var(--mut)}
+.tray-result{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px}
+.tray-pick{display:inline-flex;align-items:center;gap:6px;color:var(--tx)}
+.tray-answer{font-size:14px}
+.tray-answer.ok,.tray-summary td.ok{color:var(--ok)}.tray-answer.warn,.tray-summary td.warn{color:var(--warn)}.tray-answer.bad,.tray-summary td.bad{color:var(--bad)}
+.tray-table td.bad{color:var(--bad)}.tray-table td.warn{color:var(--warn)}
+.tray-summary td.l{text-align:left}
+.tray-empty{padding:20px;text-align:center}
 .sysdiag .rmu-box{fill:color-mix(in srgb,var(--acc) 12%,var(--p2))}
 /* ---- Classic tables with Excel-style editing (ClassicGrid / useExcelGrid) ---- */
 .gx-wrap{overflow:auto;max-height:62vh;border:1px solid var(--line);border-radius:8px}

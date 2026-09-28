@@ -2,7 +2,7 @@
 export type MainView =
   | 'design' | 'space-planning' | 'load-schedule'
   | 'voltage-drop' | 'earthing' | 'selection' | 'coordination' | 'sizing' | 'pfc' | 'engines'
-  | 'db-schedule' | 'cable-schedule' | 'equipment' | 'boq' | 'report' | 'revisions' | 'database';
+  | 'db-schedule' | 'cable-schedule' | 'cable-tray' | 'equipment' | 'boq' | 'report' | 'revisions' | 'database';
 
 export const STUDIES: [MainView, string][] = [
   ['voltage-drop', 'Voltage drop'],
@@ -17,6 +17,7 @@ export const STUDIES: [MainView, string][] = [
 export const DOCUMENTS: [MainView, string][] = [
   ['db-schedule', 'DB schedule'],
   ['cable-schedule', 'Cable schedule'],
+  ['cable-tray', 'Cable tray schedule'],
   ['equipment', 'Equipment schedule'],
   ['boq', 'Cost estimate (BOQ)'],
   ['report', 'Calculation report (PDF)'],
