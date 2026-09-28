@@ -42,8 +42,41 @@ export interface SelectivityResult {
   status: Status;
 }
 
+/** Selectivity between two breakers in series (up feeds down). */
+export function selectivityPair(project: Project, up: Feeder, down: Feeder): SelectivityResult {
+  const ratio = up.breakerRatingA / down.breakerRatingA;
+  const ratioOk = ratio >= 1.6;
+  const faultKA = evaluateFeeder(project, down).breakerFaultKA;
+  const limitKA = instantaneousNoTripA(up) / 1000;
+  const shortCircuit = limitKA >= faultKA ? 'total' : 'partial';
+  const status: Status = !ratioOk && up.breakerRatingA <= down.breakerRatingA ? 'bad' : ratioOk && shortCircuit === 'total' ? 'ok' : 'warn';
+  return { upstream: up, downstream: down, ratio, ratioOk, faultKA, limitKA, shortCircuit, status };
+}
+
+/** The breakers a feeder's supply passes through, nearest first: the
+ * incomer of its board, then that board's incomer, up to the main board. */
+export function upstreamBreakers(project: Project, f: Feeder): Feeder[] {
+  const out: Feeder[] = [];
+  const seen = new Set<string>();
+  for (let boardId = f.boardId; !seen.has(boardId); ) {
+    seen.add(boardId);
+    const inc = project.feeders.find((x) => x.feedsBoardId === boardId && project.boards.find((b) => b.id === boardId)?.upstreamId === x.boardId);
+    if (!inc) break;
+    out.push(inc);
+    boardId = inc.boardId;
+  }
+  return out;
+}
+
+/** Discrimination along a feeder's supply: each breaker with the one
+ * above it, from the feeder up to the main board. */
+export function discriminationChain(project: Project, f: Feeder): SelectivityResult[] {
+  const chain = [f, ...upstreamBreakers(project, f)];
+  return chain.slice(0, -1).map((down, i) => selectivityPair(project, chain[i + 1], down));
+}
+
 /** Current-based selectivity between a sub-board's incoming breaker and
- * each outgoing breaker on that board:
+ * each outgoing breaker on that board (see selectivityPair):
  *  - overload region: In(up) / In(down) ≥ 1.6;
  *  - short-circuit region: total if the upstream breaker's magnetic
  *    no-trip threshold is above the maximum fault at the downstream breaker,
@@ -52,15 +85,7 @@ export interface SelectivityResult {
 export function evaluateSelectivity(project: Project): SelectivityResult[] {
   const out: SelectivityResult[] = [];
   for (const up of project.feeders.filter((f) => f.feedsBoardId)) {
-    for (const down of project.feeders.filter((f) => f.boardId === up.feedsBoardId)) {
-      const ratio = up.breakerRatingA / down.breakerRatingA;
-      const ratioOk = ratio >= 1.6;
-      const faultKA = evaluateFeeder(project, down).breakerFaultKA;
-      const limitKA = instantaneousNoTripA(up) / 1000;
-      const shortCircuit = limitKA >= faultKA ? 'total' : 'partial';
-      const status: Status = !ratioOk && up.breakerRatingA <= down.breakerRatingA ? 'bad' : ratioOk && shortCircuit === 'total' ? 'ok' : 'warn';
-      out.push({ upstream: up, downstream: down, ratio, ratioOk, faultKA, limitKA, shortCircuit, status });
-    }
+    for (const down of project.feeders.filter((f) => f.boardId === up.feedsBoardId)) out.push(selectivityPair(project, up, down));
   }
   return out;
 }

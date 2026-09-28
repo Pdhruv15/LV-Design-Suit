@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { Project } from '../../types';
 import { cables } from '../../calc/cableTable';
+import { cableSizeText } from '../../calc/electrical';
 import { boardsInSupplyOrder } from '../../calc/summary';
 import { addVdCable, editVdCable, groupByPanel, vdCandidates, vdRow, type VdEdit, type VdRow } from '../../calc/voltageDrop';
 import { buildVdReportHtml, scopeLabel, VD_HEADERS, vdCells } from '../../docs/voltageDropReport';
@@ -171,7 +172,7 @@ export default function VoltageDropStudy({ project, onChange, onStatus }: { proj
                       <EditCell kind="number" min={0.1} max={1} value={r.pf} display={r.pf.toFixed(2)} onCommit={(v) => edit(r.feeder.id, { powerFactor: v })} />
                       <td>{r.ib.toFixed(1)}</td>
                       <EditCell kind="select" value={String(r.feeder.cores)} options={PHASES} display={r.threePhase ? '3-ph' : '1-ph'} onCommit={(v) => edit(r.feeder.id, { cores: +v as 2 | 3 | 4 })} />
-                      <EditCell kind="select" value={String(r.feeder.cableCsaMm2)} options={cableSizes} display={`${r.feeder.cores}C × ${r.feeder.cableCsaMm2} mm²`} onCommit={(v) => edit(r.feeder.id, { cableCsaMm2: +v })} />
+                      <EditCell kind="select" value={String(r.feeder.cableCsaMm2)} options={cableSizes} display={cableSizeText(r.feeder)} onCommit={(v) => edit(r.feeder.id, { cableCsaMm2: +v })} />
                       <EditCell kind="number" min={1} value={r.feeder.lengthM} display={r.feeder.lengthM.toFixed(0)} onCommit={(v) => edit(r.feeder.id, { lengthM: v })} />
                       <td>{r.mvPerAm.toFixed(3)}</td>
                       <td>{r.vdV.toFixed(2)}</td>

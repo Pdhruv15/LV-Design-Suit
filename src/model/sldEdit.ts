@@ -1,7 +1,8 @@
 import { selectCable } from '../calc/electrical';
 import { applyRecommendation, generatorForBoard, recommend, sizePfc, upsForBoard } from '../calc/sizing';
 import type { LibraryLoad } from '../database/database';
-import { BOARD_KINDS, type Board, type BoardKind, type Feeder, type LoadType, type Project } from '../types';
+import { BOARD_KINDS, type Board, type BoardKind, type Feeder, type LoadType, type Project, type StarterType } from '../types';
+import { isMotor, STARTERS } from '../calc/motor';
 
 /** Building the SLD by drag and drop: what each library item does when it
  * is dropped on a busbar, on a feeder, or on the empty canvas. Every drop
@@ -39,6 +40,8 @@ export type PaletteItem =
   | { kind: 'generator' }
   | { kind: 'capacitor' }
   | { kind: 'library'; name: string }
+  | { kind: 'starter'; starter: StarterType }
+  | { kind: 'tie' }
   | { kind: 'load'; preset: string }
   | { kind: 'device'; device: ProtectionDevice }
   | { kind: 'cable' };
@@ -57,6 +60,7 @@ export const PALETTE: { group: string; entries: PaletteEntry[] }[] = [
     entries: [
       { item: { kind: 'transformer' }, label: 'Transformer', title: 'Drop on the empty canvas for a new supply with its MDB, or on a main board to give it a transformer' },
       { item: { kind: 'board', board: 'MC' }, label: 'Meter cabinet', title: 'Authority supply (e.g. DEWA meter cabinet) — drop on the empty canvas' },
+      { item: { kind: 'tie' }, label: 'Bus coupler / tie', title: 'Drop on a main board: a normally-open tie to the other transformer-fed main board, for the “transformer failed” scenario' },
       { item: { kind: 'generator' }, label: 'Generator + ATS', title: 'Drop on a board (e.g. an EMDB): a standby generator through an ATS, sized for that board; everything below it becomes essential load' }
     ]
   },
@@ -77,6 +81,10 @@ export const PALETTE: { group: string; entries: PaletteEntry[] }[] = [
       label: d === 'ISOL' ? 'Isolator' : d,
       title: `Drop on a feeder to change its switching device to ${d === 'ISOL' ? 'an isolator' : d === 'MCB' ? 'an MCB' : `an ${d}`}`
     }))
+  },
+  {
+    group: 'Motor starters',
+    entries: STARTERS.map((s) => ({ item: { kind: 'starter', starter: s.value } as PaletteItem, label: s.label, title: `${s.title} — drop on a motor or pump` }))
   },
   {
     group: 'Cable',
@@ -117,7 +125,7 @@ export function libraryLoadType(l: LibraryLoad): LoadType {
 }
 
 export const itemKey = (i: PaletteItem) =>
-  i.kind === 'board' ? `board:${i.board}` : i.kind === 'load' ? `load:${i.preset}` : i.kind === 'device' ? `device:${i.device}` : i.kind === 'library' ? `library:${i.name}` : i.kind;
+  i.kind === 'board' ? `board:${i.board}` : i.kind === 'load' ? `load:${i.preset}` : i.kind === 'device' ? `device:${i.device}` : i.kind === 'library' ? `library:${i.name}` : i.kind === 'starter' ? `starter:${i.starter}` : i.kind;
 
 /** Typical rating (A) of a new board by type; its incomer breaker and cable
  * are sized for it until real loads are added. */
@@ -145,6 +153,12 @@ export function canDrop(project: Project, item: PaletteItem, target: DropTarget)
     case 'device':
     case 'cable':
       return target.type === 'feeder';
+    case 'tie':
+      return target.type === 'bus' && !!tiePartner(project, target.boardId);
+    case 'starter': {
+      const f = target.type === 'feeder' ? project.feeders.find((x) => x.id === target.feederId) : undefined;
+      return !!f && isMotor(f);
+    }
   }
 }
 
@@ -308,6 +322,29 @@ export function applyDrop(project: Project, item: PaletteItem, target: DropTarge
     };
   }
 
+  if (item.kind === 'tie' && target.type === 'bus') {
+    const other = tiePartner(project, target.boardId)!;
+    const here = project.boards.find((b) => b.id === target.boardId)!;
+    const id = uniqueId(new Set((project.ties ?? []).map((t) => t.id)), 'BC');
+    const ratingA = Math.min(here.ratedCurrentA ?? 1600, other.ratedCurrentA ?? 1600);
+    return {
+      project: { ...project, ties: [...(project.ties ?? []), { id, a: here.id, b: other.id, ratingA }] },
+      select: { type: 'board', id: here.id },
+      message: `Added bus coupler ${id} (${ratingA} A, normally open) between ${here.id} and ${other.id} — choose “Transformer of … failed” in Supply to check the other transformer carrying both`
+    };
+  }
+
+  if (item.kind === 'starter' && target.type === 'feeder') {
+    const f = project.feeders.find((x) => x.id === target.feederId)!;
+    const s = STARTERS.find((x) => x.value === item.starter)!;
+    const next = { ...f, starter: item.starter };
+    return {
+      project: { ...project, feeders: project.feeders.map((x) => (x.id === f.id ? next : x)) },
+      select: { type: 'feeder', id: f.id },
+      message: `${f.name || f.id}: ${s.label.toLowerCase()} — starting ≈ ${s.multiple} × running current`
+    };
+  }
+
   if (item.kind === 'cable' && target.type === 'feeder') {
     const f = project.feeders.find((x) => x.id === target.feederId)!;
     return { project, select: { type: 'feeder', id: f.id }, message: `${f.id}: ${f.cores}C × ${f.cableCsaMm2} mm², ${f.lengthM} m — change size, cores and length in the properties` };
@@ -315,6 +352,17 @@ export function applyDrop(project: Project, item: PaletteItem, target: DropTarge
 
   return { project, message: dropHint(item) };
 }
+
+/** The main board a new tie from `boardId` would connect to: another
+ * transformer-fed main board not already tied to it. */
+export function tiePartner(project: Project, boardId: string): Board | undefined {
+  const here = project.boards.find((b) => b.id === boardId);
+  if (!here || here.upstreamId) return undefined;
+  const tied = new Set((project.ties ?? []).filter((t) => t.a === boardId || t.b === boardId).map((t) => (t.a === boardId ? t.b : t.a)));
+  return project.boards.find((b) => b.id !== boardId && !b.upstreamId && !!b.sourceKva && !tied.has(b.id));
+}
+
+export const removeTie = (project: Project, id: string): Project => ({ ...project, ties: (project.ties ?? []).filter((t) => t.id !== id) });
 
 /** Where an item can go, for when it's dropped somewhere it can't. */
 export function dropHint(item: PaletteItem): string {
@@ -335,6 +383,10 @@ export function dropHint(item: PaletteItem): string {
     case 'device':
     case 'cable':
       return `Drop the ${item.kind === 'cable' ? 'cable' : 'device'} on a feeder`;
+    case 'starter':
+      return 'Drop the starter on a motor or pump';
+    case 'tie':
+      return 'Drop the bus coupler on a main board that has another transformer-fed main board to tie to';
   }
 }
 

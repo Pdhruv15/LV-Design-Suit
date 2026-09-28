@@ -27,6 +27,18 @@ export function rOperatingOhmPerKm(csaMm2: number): number {
   return getCable(csaMm2).rOhmPerKm20C * 1.2;
 }
 
+/** Number of cable runs in parallel (at least 1). */
+export const runsOf = (f: Pick<Feeder, 'parallel'>) => Math.max(1, Math.round(f.parallel ?? 1));
+
+/** Cable as written on drawings and schedules, e.g. "2 × 4C × 240 mm²". */
+export const cableSizeText = (f: Pick<Feeder, 'parallel' | 'cores' | 'cableCsaMm2'>) =>
+  `${runsOf(f) > 1 ? `${runsOf(f)} × ` : ''}${f.cores}C × ${f.cableCsaMm2} mm²`;
+
+/** Grouping factor for n multicore cables in parallel, touching, in one
+ * layer on a tray (IEC 60364-5-52 Table B.52.17, method E). */
+export const PARALLEL_GROUP_FACTOR = [1, 1, 0.88, 0.82, 0.77, 0.75, 0.73, 0.73, 0.72];
+export const groupFactor = (runs: number) => PARALLEL_GROUP_FACTOR[Math.min(runs, PARALLEL_GROUP_FACTOR.length - 1)];
+
 /** Total demand (kW) flowing through a board: the sum of its own end-load
  * feeders' demand, plus (recursively) the demand of every downstream board
  * fed through an incomer feeder on this board. */
@@ -58,16 +70,16 @@ export function designCurrentA(feeder: Feeder, project: Project): number {
 /** Cable current rating after ambient temperature derating. Grouping and
  * installation-method correction factors are not modelled yet — apply them
  * manually until that's added. */
-export function deratedAmpacityA(csaMm2: number, ambientC: number): number {
-  return getCable(csaMm2).ampacityA * ambientCorrectionFactor(ambientC);
+export function deratedAmpacityA(csaMm2: number, ambientC: number, runs = 1): number {
+  return getCable(csaMm2).ampacityA * ambientCorrectionFactor(ambientC) * runs * groupFactor(runs);
 }
 
 /** Voltage drop as a percentage of nominal: 3-phase circuits use
  * √3·I·Z against the line-to-line voltage; single-phase circuits use the
  * phase + neutral loop (2·I·Z) against the phase-to-neutral voltage. */
-function vdPctFor(ib: number, csaMm2: number, lengthM: number, cores: 2 | 3 | 4, cosPhi: number, voltageV: number): number {
-  const rOhmPerKm = rOperatingOhmPerKm(csaMm2);
-  const xOhmPerKm = getCable(csaMm2).xOhmPerKm;
+function vdPctFor(ib: number, csaMm2: number, lengthM: number, cores: 2 | 3 | 4, cosPhi: number, voltageV: number, runs = 1): number {
+  const rOhmPerKm = rOperatingOhmPerKm(csaMm2) / runs;
+  const xOhmPerKm = getCable(csaMm2).xOhmPerKm / runs;
   const sinPhi = Math.sqrt(Math.max(0, 1 - cosPhi * cosPhi));
   const threePhase = cores >= 3;
   const multiplier = threePhase ? SQRT3 : 2;
@@ -78,7 +90,7 @@ function vdPctFor(ib: number, csaMm2: number, lengthM: number, cores: 2 | 3 | 4,
 
 /** Voltage drop in percent over this feeder's own cable run only. */
 export function voltageDropPct(feeder: Feeder, project: Project): number {
-  return vdPctFor(designCurrentA(feeder, project), feeder.cableCsaMm2, feeder.lengthM, feeder.cores, feeder.powerFactor, project.voltageV);
+  return vdPctFor(designCurrentA(feeder, project), feeder.cableCsaMm2, feeder.lengthM, feeder.cores, feeder.powerFactor, project.voltageV, runsOf(feeder));
 }
 
 function findIncomer(project: Project, board: Board): Feeder | undefined {
@@ -112,11 +124,31 @@ export function selectCable(
   vdBudgetPct: number,
   breakerRatingA = 0
 ): number | null {
+  return selectCableRuns(ib, lengthM, systemVoltageV, cores, cosPhi, ambientC, vdBudgetPct, breakerRatingA, 1)?.csaMm2 ?? null;
+}
+
+/** Like selectCable, but when no single cable fits, tries 2, 3… runs in
+ * parallel (each run the same size), smallest size first for the fewest
+ * runs. Sizes below 50 mm² are never paralleled. */
+export function selectCableRuns(
+  ib: number,
+  lengthM: number,
+  systemVoltageV: number,
+  cores: 2 | 3 | 4,
+  cosPhi: number,
+  ambientC: number,
+  vdBudgetPct: number,
+  breakerRatingA = 0,
+  maxRuns = 4
+): { csaMm2: number; runs: number } | null {
   const requiredIz = Math.max(ib, breakerRatingA);
-  for (const c of cables()) {
-    const iz = c.ampacityA * ambientCorrectionFactor(ambientC);
-    if (iz < requiredIz) continue;
-    if (vdPctFor(ib, c.csaMm2, lengthM, cores, cosPhi, systemVoltageV) <= vdBudgetPct) return c.csaMm2;
+  for (let runs = 1; runs <= maxRuns; runs++) {
+    for (const c of cables()) {
+      if (runs > 1 && c.csaMm2 < 50) continue;
+      const iz = c.ampacityA * ambientCorrectionFactor(ambientC) * runs * groupFactor(runs);
+      if (iz < requiredIz) continue;
+      if (vdPctFor(ib, c.csaMm2, lengthM, cores, cosPhi, systemVoltageV, runs) <= vdBudgetPct) return { csaMm2: c.csaMm2, runs };
+    }
   }
   return null;
 }
@@ -130,10 +162,10 @@ export function transformerImpedance(sourceKva: number, impedancePct: number, vo
 }
 
 /** Cable phase impedance for a given length, at operating temperature. */
-export function cableImpedance(csaMm2: number, lengthM: number): Impedance {
+export function cableImpedance(csaMm2: number, lengthM: number, runs = 1): Impedance {
   return {
-    r: rOperatingOhmPerKm(csaMm2) * (lengthM / 1000),
-    x: getCable(csaMm2).xOhmPerKm * (lengthM / 1000)
+    r: (rOperatingOhmPerKm(csaMm2) * (lengthM / 1000)) / runs,
+    x: (getCable(csaMm2).xOhmPerKm * (lengthM / 1000)) / runs
   };
 }
 
@@ -153,7 +185,7 @@ export function impedanceToBoard(project: Project, boardId: string, seen = new S
   }
 
   const incomer = findIncomer(project, board);
-  const incomerZ = incomer ? cableImpedance(incomer.cableCsaMm2, incomer.lengthM) : { r: 0, x: 0 };
+  const incomerZ = incomer ? cableImpedance(incomer.cableCsaMm2, incomer.lengthM, runsOf(incomer)) : { r: 0, x: 0 };
   return addZ(impedanceToBoard(project, board.upstreamId, seen), incomerZ);
 }
 
@@ -195,7 +227,7 @@ export interface FeederResult {
 
 export function evaluateFeeder(project: Project, feeder: Feeder): FeederResult {
   const ib = designCurrentA(feeder, project);
-  const ampacity = deratedAmpacityA(feeder.cableCsaMm2, project.ambientC);
+  const ampacity = deratedAmpacityA(feeder.cableCsaMm2, project.ambientC, runsOf(feeder));
   const loadingPct = (ib / feeder.breakerRatingA) * 100;
 
   const vdPct = voltageDropPct(feeder, project);
@@ -206,7 +238,7 @@ export function evaluateFeeder(project: Project, feeder: Feeder): FeederResult {
   const breakerFaultKA = faultCurrentKA(zBoard, project.voltageV);
   // Single-phase circuits: the fault at the far end is line-to-neutral, so
   // it flows through the phase and neutral conductors (2 × cable Z).
-  const zCable = cableImpedance(feeder.cableCsaMm2, feeder.lengthM);
+  const zCable = cableImpedance(feeder.cableCsaMm2, feeder.lengthM, runsOf(feeder));
   const loop = feeder.cores >= 3 ? 1 : 2;
   const endFaultKA = faultCurrentKA(addZ(zBoard, { r: zCable.r * loop, x: zCable.x * loop }), project.voltageV);
 

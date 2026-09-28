@@ -60,7 +60,7 @@ describe('generator sizing', () => {
     expect(g.designKva).toBeCloseTo(g.demandKva / 0.8, 6);
     expect(g.recommendedKva).toBe(125);
     expect(g.largestMotor?.feeder.id).toBe('FP');
-    expect(g.largestMotor?.dolStartingKva).toBeCloseTo((6 * 55) / 0.86, 6);
+    expect(g.largestMotor?.startingKva).toBeCloseTo((6 * 55) / 0.86, 6); // direct on line by default
   });
 });
 

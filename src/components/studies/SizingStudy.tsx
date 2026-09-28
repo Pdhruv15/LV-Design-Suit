@@ -1,3 +1,4 @@
+import { MOTOR_START_DIP_LIMIT_PCT, starterInfo, starterOf } from '../../calc/motor';
 import { useMemo } from 'react';
 import type { Project, StudySettings } from '../../types';
 import { isEssential, settingsOf, sizeGenerator, sizePfc, sizeTransformer } from '../../calc/sizing';
@@ -55,7 +56,15 @@ export function TransformerGeneratorStudy({ project, onChange }: { project: Proj
             {gen.largestMotor && (
               <>
                 <dt>Largest motor</dt>
-                <dd>{gen.largestMotor.feeder.id}: {f0(gen.largestMotor.runningKva)} kVA running, ≈ {f0(gen.largestMotor.dolStartingKva)} kVA DOL start</dd>
+                <dd>{gen.largestMotor.feeder.id}: {f0(gen.largestMotor.runningKva)} kVA running, ≈ {f0(gen.largestMotor.startingKva)} kVA starting ({starterInfo(starterOf(gen.largestMotor.feeder)).label.toLowerCase()})</dd>
+                {gen.largestMotor.dipPct !== undefined && (
+                  <>
+                    <dt>Start dip on {gen.recommendedKva} kVA</dt>
+                    <dd className={gen.largestMotor.dipPct > MOTOR_START_DIP_LIMIT_PCT ? 'bad' : 'ok'}>
+                      ≈ {gen.largestMotor.dipPct.toFixed(0)} % {gen.largestMotor.dipPct > MOTOR_START_DIP_LIMIT_PCT ? `— above ${MOTOR_START_DIP_LIMIT_PCT} %: use a star-delta / soft starter / VFD, or a larger set` : `(limit ${MOTOR_START_DIP_LIMIT_PCT} %)`}
+                    </dd>
+                  </>
+                )}
               </>
             )}
           </dl>

@@ -1,4 +1,5 @@
 import { groupByPanel, type VdRow } from '../calc/voltageDrop';
+import { cableSizeText } from '../calc/electrical';
 import { esc, REPORT_CSS } from './report';
 import type { Project } from '../types';
 
@@ -9,7 +10,7 @@ export const VD_HEADERS = [
 
 const n = (v: number, d: number) => v.toFixed(d);
 const STATUS_TEXT = { ok: 'Pass', warn: 'Check', bad: 'Fail' } as const;
-export const cableText = (r: VdRow) => `${r.feeder.cores}C × ${r.feeder.cableCsaMm2} mm²`;
+export const cableText = (r: VdRow) => cableSizeText(r.feeder);
 
 /** One row of the table as text, in VD_HEADERS order. */
 export function vdCells(r: VdRow): string[] {

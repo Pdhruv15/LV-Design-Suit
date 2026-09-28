@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Feeder, Board, Project, newProject } from './types';
 import { sampleProject } from './data/sampleProject';
-import { evaluateProject } from './calc/electrical';
+import { evaluateProject, type Status } from './calc/electrical';
 import SingleLineDiagram from './components/SingleLineDiagram';
 import ResultsTable from './components/ResultsTable';
 import SidePanel from './components/SidePanel';
@@ -44,11 +44,16 @@ import { EXTERNAL_ENGINES } from './engines';
 import type { StudyResults } from './engines/types';
 import { deleteBoard } from './model/edit';
 import { useHistory } from './model/history';
-import { generatorScenario, type SupplyMode } from './calc/scenario';
+import { generatorScenario, transformerOutage, type SupplyMode } from './calc/scenario';
+import { removeTie } from './model/sldEdit';
 import type { ColorBy } from './diagram/heatmap';
 import { applyDrop, applyMove, libraryEntries, type DropResult, type DropTarget, type MoveItem, type PaletteItem } from './model/sldEdit';
 import EquipmentPalette from './components/EquipmentPalette';
 import SldExportDialog from './components/SldExportDialog';
+import PasteBoardDialog from './components/PasteBoardDialog';
+import DiscriminationPanel from './components/DiscriminationPanel';
+import { discriminationChain } from './calc/protection';
+import { pasteBoard } from './model/copyBoard';
 type DiagramMode = 'system' | 'board';
 
 export default function App() {
@@ -78,6 +83,9 @@ export default function App() {
   const [colorBy, setColorBy] = useState<ColorBy>('none');
   const [supply, setSupply] = useState<SupplyMode>('normal');
   const [showExport, setShowExport] = useState(false);
+  // Copy / paste of a board with everything below it.
+  const [copiedBoard, setCopiedBoard] = useState<string | null>(null);
+  const [pasteTarget, setPasteTarget] = useState<string | null>(null);
 
   // LV Database: Excel workbooks in the projects folder. Every save in Excel
   // arrives here; the data is applied to the calculations, library-linked
@@ -132,12 +140,31 @@ export default function App() {
   // generators (built-in engine only).
   const hasGenerator = project.boards.some((b) => b.standby);
   const onGenerator = supply === 'generator' && hasGenerator;
-  const genScenario = useMemo(() => (onGenerator ? generatorScenario(project) : undefined), [project, onGenerator]);
+  // Transformer outage: a main board with a bus tie to another.
+  const tiedRoots = [...new Set((project.ties ?? []).flatMap((t) => [t.a, t.b]))]
+    .filter((id) => project.boards.some((b) => b.id === id && !b.upstreamId && b.sourceKva));
+  const outageId = supply.startsWith('outage:') && tiedRoots.includes(supply.slice(7)) ? supply.slice(7) : undefined;
+  const genScenario = useMemo(
+    () => (onGenerator ? generatorScenario(project) : outageId ? transformerOutage(project, outageId) : undefined),
+    [project, onGenerator, outageId]
+  );
   const genResults = useMemo(() => (genScenario ? evaluateProject(genScenario.project) : undefined), [genScenario]);
   const genAnnotations = useMemo(() => (genScenario && genResults ? buildAnnotations(genScenario.project, genResults) : undefined), [genScenario, genResults]);
 
+  // The selected feeder's breaker chain, highlighted on the SLD.
+  const chain = useMemo(() => {
+    if (panel !== 'feeder' || !selectedFeeder) return undefined;
+    const m = new Map<string, Status>();
+    for (const r of discriminationChain(project, selectedFeeder)) {
+      m.set(r.upstream.id, r.status);
+      if (!m.has(r.downstream.id)) m.set(r.downstream.id, r.status);
+    }
+    return m;
+  }, [project, panel, selectedFeeder]);
+
   const resultsNote = (() => {
     if (onGenerator) return { text: 'Generator supply — built-in results; fault levels from the generators’ X″d (15 %)', cls: 'warn' };
+    if (outageId) return { text: `Transformer of ${outageId} out — built-in results with the bus tie closed`, cls: 'warn' };
     const name = EXTERNAL_ENGINES.find((e) => e.id === resultSource)?.name;
     if (resultSource === 'builtin') return { text: 'Built-in estimate — bus voltages from the main busbar' };
     if (simRunning) return { text: `Running ${name}…` };
@@ -355,6 +382,12 @@ export default function App() {
       } else if (mod && e.key.toLowerCase() === 'y') {
         e.preventDefault();
         history.redo();
+      } else if (mod && e.key.toLowerCase() === 'c' && view === 'design' && panel === 'board' && board && !!t?.closest('.sysdiag')) {
+        e.preventDefault();
+        copyBoard(board.id);
+      } else if (mod && e.key.toLowerCase() === 'v' && view === 'design' && panel === 'board' && board && copiedBoard && !!t?.closest('.sysdiag')) {
+        e.preventDefault();
+        setPasteTarget(board.id);
       } else if ((e.key === 'Delete' || e.key === 'Backspace') && view === 'design' && !!t?.closest('.sysdiag')) {
         e.preventDefault();
         deleteSelection();
@@ -363,6 +396,11 @@ export default function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
+
+  function copyBoard(id: string) {
+    setCopiedBoard(id);
+    setStatus(`Copied ${id} with everything below it — select the board to paste it on and press Paste (⌘V / Ctrl+V)`);
+  }
 
   function addBoard(b: Board, incomer: Feeder) {
     setProject((prev) => ({ ...prev, boards: [...prev.boards, b], feeders: [...prev.feeders, incomer] }));
@@ -472,6 +510,10 @@ export default function App() {
                   <div>
                     <button className="chip" onClick={() => openAddFeeder({})}>+ Add feeder to {board.id}</button>
                     <button className="chip" onClick={() => setShowBoardForm(true)}>+ Add board</button>
+                    {panel === 'board' && board && <button className="chip" onClick={() => copyBoard(board.id)} title="Copy this board with its sub-boards, feeders and load schedule circuits (⌘C)">Copy {board.id}</button>}
+                    {panel === 'board' && board && copiedBoard && project.boards.some((b) => b.id === copiedBoard) && (
+                      <button className="chip" onClick={() => setPasteTarget(board.id)} title={`Paste ${copiedBoard} on ${board.id}'s busbar (⌘V)`}>Paste {copiedBoard} here</button>
+                    )}
                     {diagramMode === 'system' && <button className="chip" onClick={() => setShowExport(true)} title="PDF sheet with title block, DXF for CAD, or SVG">Export drawing…</button>}
                     {selectedFeeder && panel === 'feeder' && <button className="chip" onClick={() => setShowFeederForm('edit')}>Edit {selectedFeeder.id}</button>}
                   </div>
@@ -487,9 +529,10 @@ export default function App() {
                     note={resultsNote}
                     colorBy={colorBy}
                     onColorBy={setColorBy}
-                    supply={onGenerator ? 'generator' : 'normal'}
+                    supply={onGenerator ? 'generator' : outageId ? `outage:${outageId}` : 'normal'}
                     onSupply={setSupply}
                     hasGenerator={hasGenerator}
+                    outages={tiedRoots}
                   />
                 )}
                 {diagramMode === 'system' ? (
@@ -510,12 +553,18 @@ export default function App() {
                     onOpenSchedule={(id) => { setActiveBoardId(id); setView('load-schedule'); }}
                     colorBy={colorBy}
                     scenario={genScenario}
+                    chain={chain}
+                    onRemoveTie={(id) => {
+                      if (!window.confirm(`Remove bus coupler ${id}?`)) return;
+                      setProject(removeTie(project, id), { step: true });
+                      setStatus(`Removed bus coupler ${id}`);
+                    }}
                     onDropItem={dropItem}
                     onMoveItem={moveItem}
                     onPatchFeeder={(id, patch) => {
                       setProject((p) => ({ ...p, feeders: p.feeders.map((f) => (f.id === id ? { ...f, ...patch, cpcMm2: patch.cableCsaMm2 && patch.cableCsaMm2 !== f.cableCsaMm2 ? undefined : f.cpcMm2 } : f)) }), { step: true });
                       selectFeeder(id);
-                      setStatus(`${id}: cable ${patch.cores}C × ${patch.cableCsaMm2} mm², ${patch.lengthM} m`);
+                      setStatus(`${id}: cable ${patch.parallel ? `${patch.parallel} × ` : ''}${patch.cores}C × ${patch.cableCsaMm2} mm², ${patch.lengthM} m`);
                     }}
                   />
                   </div>
@@ -538,7 +587,10 @@ export default function App() {
               {panel === 'board' ? (
                 <BoardPanel project={project} board={board} results={allResults} onChange={updateBoard} onSelectFeeder={selectFeeder} tab={boardTab} onTab={setBoardTab} />
               ) : (
-                <SidePanel results={boardResults} selected={selected} />
+                <>
+                  <SidePanel results={boardResults} selected={selected} />
+                  {selectedFeeder && <DiscriminationPanel project={project} feeder={selectedFeeder} />}
+                </>
               )}
             </aside>
           </>
@@ -621,6 +673,21 @@ export default function App() {
           />
         );
       })()}
+      {pasteTarget && copiedBoard && project.boards.some((b) => b.id === copiedBoard) && (
+        <PasteBoardDialog
+          project={project}
+          sourceId={copiedBoard}
+          targetId={pasteTarget}
+          onClose={() => setPasteTarget(null)}
+          onPaste={(r) => {
+            const res = pasteBoard(project, copiedBoard, pasteTarget, r);
+            setProject(res.project, { step: true });
+            selectBoard(res.rootId);
+            setStatus(res.message);
+            setPasteTarget(null);
+          }}
+        />
+      )}
       {showExport && (
         <SldExportDialog
           project={project}

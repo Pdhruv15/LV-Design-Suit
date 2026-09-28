@@ -1,3 +1,4 @@
+import { STARTERS } from '../calc/motor';
 import { useState } from 'react';
 import { BREAKER_TYPES, LOAD_TYPES, type BreakerType, type Feeder, type LoadType, type Project } from '../types';
 import { breakerTypeOf, defaultCpcMm2 } from '../calc/earthing';
@@ -129,6 +130,18 @@ export default function FeederForm({
               {cables().map((c) => (
                 <option key={c.csaMm2} value={c.csaMm2}>{c.csaMm2} mm²</option>
               ))}
+            </select>
+          </label>
+          {(f.loadType === 'motor' || f.loadType === 'fire-pump') && (
+            <label>Motor starter
+              <select value={f.starter ?? 'DOL'} onChange={(e) => set('starter', e.target.value as Feeder['starter'])}>
+                {STARTERS.map((s) => <option key={s.value} value={s.value} title={s.title}>{s.label} (≈ {s.multiple} × start)</option>)}
+              </select>
+            </label>
+          )}
+          <label>Runs in parallel
+            <select value={f.parallel ?? 1} onChange={(e) => set('parallel', +e.target.value > 1 ? +e.target.value : undefined)}>
+              {[1, 2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>{n === 1 ? 'Single cable' : `${n} cables in parallel`}</option>)}
             </select>
           </label>
           <label>Breaker rating (A)<input type="number" step="1" value={f.breakerRatingA} onChange={(e) => set('breakerRatingA', +e.target.value)} /></label>

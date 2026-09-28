@@ -1,7 +1,8 @@
 import { getCable } from './cableTable';
-import { boardDemandKw, designCurrentA, rOperatingOhmPerKm, upstreamVoltageDropPct, type Status } from './electrical';
+import { boardDemandKw, designCurrentA, rOperatingOhmPerKm, runsOf, upstreamVoltageDropPct, type Status } from './electrical';
 import { isScheduleCircuit, scheduleCircuits } from './loadSchedule';
 import { boardsInSupplyOrder, loadTypeOf } from './summary';
+import { isMotor, starterInfo, starterOf } from './motor';
 import { LOAD_TYPES, type Board, type Feeder, type Project } from '../types';
 
 const SQRT3 = Math.sqrt(3);
@@ -57,7 +58,7 @@ export function vdRow(project: Project, f: Feeder): VdRow {
   const threePhase = f.cores >= 3;
   // Ω/km equals mV per A per m; 3-phase: √3·Z against the line voltage,
   // single-phase: phase + neutral (2·Z) against the phase voltage.
-  const z = rOperatingOhmPerKm(f.cableCsaMm2) * pf + getCable(f.cableCsaMm2).xOhmPerKm * sin;
+  const z = (rOperatingOhmPerKm(f.cableCsaMm2) * pf + getCable(f.cableCsaMm2).xOhmPerKm * sin) / runsOf(f);
   const mvPerAm = (threePhase ? SQRT3 : 2) * z;
   const vdV = (mvPerAm * ib * f.lengthM) / 1000;
   const baseV = threePhase ? project.voltageV : project.voltageV / SQRT3;
@@ -70,7 +71,7 @@ export function vdRow(project: Project, f: Feeder): VdRow {
     from,
     toBoard,
     toName: toBoard ? toBoard.id : f.name || f.id,
-    toType: toBoard ? toBoard.kind ?? 'DB' : typeLabel(f),
+    toType: toBoard ? toBoard.kind ?? 'DB' : isMotor(f) ? `${typeLabel(f)} (${starterInfo(starterOf(f)).short})` : typeLabel(f),
     loadKw: f.feedsBoardId ? boardDemandKw(project, f.feedsBoardId) : f.loadKw * f.demandFactor,
     scheduleCircuits: f.feedsBoardId ? scheduleCircuits(project, f.feedsBoardId).length : 0,
     pf,

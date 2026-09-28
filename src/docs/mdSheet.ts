@@ -1,5 +1,6 @@
 import { cables } from '../calc/cableTable';
 import { breakerTypeOf, cpcOf } from '../calc/earthing';
+import { runsOf } from '../calc/electrical';
 import { isScheduleCircuit, type PhaseKw } from '../calc/loadSchedule';
 import { breakerRatings } from '../calc/sizing';
 import { CABLE_TYPES, DEFAULT_CABLE_TYPE, type Board, type Feeder, type MeterType, type Project, type SwitchDevice } from '../types';
@@ -115,7 +116,7 @@ export function buildMdSheet(project: Project, boardId: string): MdSheet {
     line[at('fault')] = f.breakerIcuKa;
     line[at('cores')] = `${f.cores}C`;
     line[at('type')] = f.cableType ?? DEFAULT_CABLE_TYPE;
-    line[at('size')] = f.cableCsaMm2;
+    line[at('size')] = runsOf(f) > 1 ? `${runsOf(f)}x${f.cableCsaMm2}` : f.cableCsaMm2;
     line[at('ecc')] = cpcOf(f);
     line[at('length')] = f.lengthM;
   };
@@ -228,7 +229,7 @@ export function buildMdSheet(project: Project, boardId: string): MdSheet {
       input: true,
       align: k === 'name' || k === 'remarks' ? 'left' : 'center',
       wrap: k === 'name' || k === 'remarks',
-      source: k === 'size' ? sizes : k === 'ecc' ? sizes : k === 'cores' ? ['2C', '3C', '4C'] : k === 'type' ? CABLE_TYPES : ['ACB', 'MCCB', 'ISOL'].includes(k) ? ratings : undefined
+      source: k === 'size' ? undefined : k === 'ecc' ? sizes : k === 'cores' ? ['2C', '3C', '4C'] : k === 'type' ? CABLE_TYPES : ['ACB', 'MCCB', 'ISOL'].includes(k) ? ratings : undefined
     })),
     shape: JSON.stringify([keys, rows.map((r) => (r.type === 'feeder' ? r.feeder.id : r.type)), merges]),
     form: {
@@ -316,7 +317,10 @@ export function applyMdEdits(project: Project, sheet: MdSheet, edits: SheetEdit[
     } else if (k === 'type') patch.cableType = v || undefined;
     else if (k === 'size' || k === 'ecc') {
       if (k === 'ecc' && v === '') { patch.cpcMm2 = undefined; feederPatch.set(f.id, patch); continue; }
-      const n = parsePositive(v);
+      // "2x240" = two 240 mm² cables in parallel
+      const runs = k === 'size' ? v.match(/^(\d+)\s*[x×]\s*(.+)$/) : null;
+      if (runs) patch.parallel = Number(runs[1]) > 1 ? Number(runs[1]) : undefined;
+      const n = parsePositive(runs ? runs[2] : v);
       if (n === null || !sizes.has(n)) { bad('a cable size from the cable table'); continue; }
       if (k === 'size') patch.cableCsaMm2 = n;
       else patch.cpcMm2 = n;

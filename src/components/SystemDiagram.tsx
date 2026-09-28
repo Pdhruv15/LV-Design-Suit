@@ -9,9 +9,11 @@ import type { Annotations, ResultLayers } from '../diagram/annotations';
 import { canDrop, canMove, type DropTarget, type MoveItem, type PaletteItem } from '../model/sldEdit';
 import { cables } from '../calc/cableTable';
 import { upsLoadingPct } from '../calc/sizing';
-import { upstreamVoltageDropPct } from '../calc/electrical';
-import { MOTOR_START_DIP_LIMIT_PCT, type GeneratorRun } from '../calc/scenario';
-import { boardRatio, COLOR_BY, feederRatio, heatColor, type ColorBy } from '../diagram/heatmap';
+import { isMotor, starterInfo, starterOf } from '../calc/motor';
+import { runsOf, upstreamVoltageDropPct } from '../calc/electrical';
+import { MOTOR_START_DIP_LIMIT_PCT, type GeneratorRun, type OutageScenario } from '../calc/scenario';
+import { boardRatio, COLOR_BY, earthRatio, feederRatio, heatColor, type ColorBy } from '../diagram/heatmap';
+import { evaluateEarthingAll } from '../calc/earthing';
 import type { Feeder } from '../types';
 import { getDragItem, setDragItem } from '../diagram/dragItem';
 
@@ -54,7 +56,9 @@ export default function SystemDiagram({
   onMoveItem,
   onPatchFeeder,
   colorBy = 'none',
-  scenario
+  scenario,
+  chain,
+  onRemoveTie
 }: {
   project: Project;
   results: FeederResult[];
@@ -81,11 +85,18 @@ export default function SystemDiagram({
   colorBy?: ColorBy;
   /** Generator mode: the network as it runs on the standby generators.
    * Everything else is drawn dimmed; results must be for this network. */
-  scenario?: { project: Project; energized: Set<string>; generators: GeneratorRun[] };
+  scenario?: { project: Project; energized: Set<string>; generators: GeneratorRun[]; outage?: OutageScenario['outage'] };
+  /** Click on a bus tie. */
+  onRemoveTie?: (id: string) => void;
+  /** Breakers in the selected feeder's discrimination chain, by status. */
+  chain?: Map<string, Status>;
 }) {
   const feederTags = (id: string): Tag[] => {
+    // Earth fault loop colouring: Zs against its limit on every feeder.
+    const e = earthing?.get(id);
+    const earthTag: Tag[] = e ? [{ text: `Zs ${e.zsOhm.toFixed(2)} / ${e.maxZsOhm.toFixed(2)} Ω`, cls: e.status }] : [];
     const a = annotations?.feeders[id];
-    if (!a || !layers) return [];
+    if (!a || !layers) return earthTag;
     const t: (Tag | false)[] = [
       layers.current && a.currentA !== undefined && { text: `${a.currentA.toFixed(0)} A`, cls: 'r-cur' },
       layers.vd && a.vdTotalPct !== undefined && { text: `ΔV ${a.vdTotalPct.toFixed(2)}%`, cls: a.vdStatus ?? '' },
@@ -93,7 +104,7 @@ export default function SystemDiagram({
       layers.pf && a.pf !== undefined && { text: `PF ${a.pf.toFixed(2)}`, cls: 'r-pf' },
       layers.loading && a.loadingPct !== undefined && { text: `${a.loadingPct.toFixed(0)}% of In`, cls: a.loadingStatus ?? '' }
     ];
-    return t.filter((x): x is Tag => !!x);
+    return [...t.filter((x): x is Tag => !!x), ...earthTag];
   };
   const boardTags = (id: string): Tag[] => {
     const a = annotations?.boards[id];
@@ -121,9 +132,14 @@ export default function SystemDiagram({
     [project, scenario]
   );
   const off = (boardId: string) => !!scenario && !scenario.energized.has(boardId);
+  const earthing = useMemo(
+    () => (colorBy === 'earth' ? new Map(evaluateEarthingAll(running).map((e) => [e.feeder.id, e])) : undefined),
+    [colorBy, running]
+  );
   const feederHeat = (id: string) => {
     const r = byFeeder.get(id);
-    const ratio = r && colorBy !== 'none' ? feederRatio(r, colorBy, project.vdLimitPct) : undefined;
+    const e = earthing?.get(id);
+    const ratio = colorBy === 'earth' ? (e ? earthRatio(e) : undefined) : r && colorBy !== 'none' ? feederRatio(r, colorBy, project.vdLimitPct) : undefined;
     return ratio === undefined ? undefined : heatColor(ratio);
   };
   const boardHeat = (id: string) => {
@@ -175,11 +191,13 @@ export default function SystemDiagram({
   // Dragging the empty background still pans.
   const pick = useRef<{ item: MoveItem; label: string; px: number; py: number } | null>(null);
   const [moving, setMoving] = useState<{ label: string; x: number; y: number } | null>(null);
-  const [cableEdit, setCableEdit] = useState<{ id: string; x: number; y: number; size: string; cores: string; length: string } | null>(null);
+  const [cableEdit, setCableEdit] = useState<{ id: string; x: number; y: number; size: string; cores: string; length: string; runs: string } | null>(null);
   const lengthOk = (v: string) => /^\d*\.?\d+$/.test(v.trim().replace(',', '.')) && Number(v.trim().replace(',', '.')) > 0;
   const saveCable = () => {
     if (!cableEdit || !onPatchFeeder || !lengthOk(cableEdit.length)) return;
-    onPatchFeeder(cableEdit.id, { cableCsaMm2: Number(cableEdit.size), cores: Number(cableEdit.cores) as 2 | 3 | 4, lengthM: Number(cableEdit.length.trim().replace(',', '.')) });
+    // Only sizes from the cable table and 2/3/4 cores: anything else would break every calculation.
+    if (!cables().some((c) => c.csaMm2 === Number(cableEdit.size)) || !['2', '3', '4'].includes(cableEdit.cores)) return;
+    onPatchFeeder(cableEdit.id, { cableCsaMm2: Number(cableEdit.size), cores: Number(cableEdit.cores) as 2 | 3 | 4, lengthM: Number(cableEdit.length.trim().replace(',', '.')), parallel: Number(cableEdit.runs) > 1 ? Number(cableEdit.runs) : undefined });
     setCableEdit(null);
   };
   const startPick = (item: MoveItem, label: string) => (e: React.PointerEvent) => {
@@ -329,8 +347,46 @@ export default function SystemDiagram({
             </text>
             <line x1={r.x} y1="114" x2={r.x} y2={r.busY - 58} className="ln" />
             <text className="m" x={r.x - 8} y={r.busY - 72} textAnchor="end">{project.voltageV} V</text>
+            {scenario?.outage?.failedId === r.board.id && (
+              <g className="failed-tx">
+                <line x1={r.x - 20} y1="68" x2={r.x + 20} y2="116" />
+                <line x1={r.x + 20} y1="68" x2={r.x - 20} y2="116" />
+                <text x={r.x + 24} y="114" className="res bad">FAILED</text>
+              </g>
+            )}
+            {(() => {
+              const t = scenario?.outage?.transformers.find((x) => x.boardId === r.board.id);
+              if (!t) return null;
+              return <text x={r.x + 24} y="114" className={`res ${t.loadingPct > 100 ? 'bad' : t.loadingPct > 80 ? 'warn' : 'ok'}`}>{t.loadingPct.toFixed(0)}% loaded ({t.demandKva.toFixed(0)} kVA)</text>;
+            })()}
           </g>
         ))}
+
+        {/* Bus couplers between main boards: normally open, closed when a transformer is out */}
+        {(project.ties ?? []).map((t) => {
+          const a = layout.roots.find((r) => r.board.id === t.a);
+          const b = layout.roots.find((r) => r.board.id === t.b);
+          if (!a || !b) return null;
+          const [left, right] = a.x < b.x ? [a, b] : [b, a];
+          const y = left.busY;
+          const x1 = left.busX2;
+          const x2 = right.busX1;
+          const mx = (x1 + x2) / 2;
+          const run = scenario?.outage?.tie?.id === t.id ? scenario.outage.tie : undefined;
+          return (
+            <g key={t.id} className={`tie${run ? ' closed' : ''}`} onClick={click(() => onRemoveTie?.(t.id))}>
+              <title>{`${t.id}: bus coupler ${t.ratingA} A, ${run ? 'closed' : 'normally open'} — click to remove`}</title>
+              <line x1={x1} y1={y} x2={mx - 9} y2={y} className="tie-ln" />
+              <line x1={mx + 9} y1={y} x2={x2} y2={y} className="tie-ln" />
+              <rect x={mx - 9} y={y - 9} width="18" height="18" rx="2" className="sym" />
+              {run ? <line x1={mx - 9} y1={y} x2={mx + 9} y2={y} className="ln" /> : <line x1={mx - 6} y1={y + 6} x2={mx + 6} y2={y - 6} className="ln" />}
+              <text x={mx} y={y - 16} textAnchor="middle" className="b">{t.id} · {t.ratingA} A</text>
+              <text x={mx} y={y + 24} textAnchor="middle" className={run ? `res ${run.loadingPct > 100 ? 'bad' : run.loadingPct > 85 ? 'warn' : 'ok'}` : 'm'}>
+                {run ? `CLOSED · ${run.currentA.toFixed(0)} A (${run.loadingPct.toFixed(0)}%)` : 'N/O'}
+              </text>
+            </g>
+          );
+        })}
 
         {/* Feeders: breaker, cable, then a load or a drop to a sub-board */}
         {layout.feeders.map((n) => {
@@ -355,6 +411,11 @@ export default function SystemDiagram({
               <title>{`${f.id} — double-click to edit`}</title>
               <line x1={n.x} y1={y} x2={n.x} y2={y + 18} className="ln" />
               <rect x={n.x - 6} y={y + 18} width="12" height="16" className="sym" />
+              {chain?.has(f.id) && (
+                <rect x={n.x - 11} y={y + 13} width="22" height="26" rx="4" className={`disc-ring ${chain.get(f.id)}`}>
+                  <title>{`Discrimination: ${chain.get(f.id) === 'ok' ? 'selective' : chain.get(f.id) === 'warn' ? 'partial' : 'not selective'}`}</title>
+                </rect>
+              )}
               <line x1={n.x - 5} y1={y + 32} x2={n.x + 5} y2={y + 20} className="ln" />
               <line x1={n.x} y1={y + 34} x2={n.x} y2={endY} className={`ln ${status !== 'ok' ? status : ''}`}
                 style={feederHeat(f.id) ? { stroke: feederHeat(f.id), strokeWidth: 3.5 } : undefined} />
@@ -368,11 +429,11 @@ export default function SystemDiagram({
                   if (!onPatchFeeder || tool === 'pan') return;
                   e.stopPropagation();
                   const r = svgRef.current!.parentElement!.getBoundingClientRect();
-                  setCableEdit({ id: f.id, x: e.clientX - r.left, y: e.clientY - r.top, size: String(f.cableCsaMm2), cores: String(f.cores), length: String(f.lengthM) });
+                  setCableEdit({ id: f.id, x: e.clientX - r.left, y: e.clientY - r.top, size: String(f.cableCsaMm2), cores: String(f.cores), length: String(f.lengthM), runs: String(runsOf(f)) });
                 }}
               >
                 {onPatchFeeder && <title>Click to change the cable</title>}
-                {f.cores}C × {f.cableCsaMm2}mm² · {f.lengthM}m
+                {runsOf(f) > 1 ? `${runsOf(f)}×` : ''}{f.cores}C × {f.cableCsaMm2}mm² · {f.lengthM}m
               </text>
               {!n.childBoardId && (
                 <>
@@ -383,7 +444,7 @@ export default function SystemDiagram({
                   <text className="b" x={n.x} y={y + 132} textAnchor="middle">{trunc(f.id, 16)}</text>
                   <text className="m" x={n.x} y={y + 146} textAnchor="middle">{trunc(f.name, 19)}</text>
                   <text x={n.x} y={y + 160} textAnchor="middle">
-                    {f.kvar ? `${f.kvar} kvar` : `${(f.loadKw * f.demandFactor).toFixed(0)} kW${f.generation ? ' gen' : ''}`}
+                    {f.kvar ? `${f.kvar} kvar` : `${(f.loadKw * f.demandFactor).toFixed(0)} kW${f.generation ? ' gen' : ''}${isMotor(f) ? ` · ${starterInfo(starterOf(f)).short}` : ''}`}
                     {!layers?.current && ` · ${r ? r.ib.toFixed(0) : '–'} A`}
                   </text>
                   {feederTags(f.id).map((t, i) => (
@@ -508,7 +569,14 @@ export default function SystemDiagram({
           <span className="m">{COLOR_BY.find((c) => c.value === colorBy)?.legend}</span>
         </div>
       )}
-      {scenario && (
+      {scenario?.outage && (
+        <div className={`mode-banner${scenario.outage.tie ? '' : ' bad'}`}>
+          {scenario.outage.tie
+            ? `Transformer of ${scenario.outage.failedId} failed — ${scenario.outage.tie.id} closed; ${scenario.outage.tie.fromId}'s transformer carries both`
+            : `Transformer of ${scenario.outage.failedId} failed — no bus tie: ${scenario.outage.failedId} and everything below it is off`}
+        </div>
+      )}
+      {scenario && !scenario.outage && (
         <div className="mode-banner">
           {scenario.generators.length
             ? `On generator: ${scenario.generators.map((g) => `${g.boardId} ${g.kva} kVA`).join(', ')} — mains lost, ATS changed over; dimmed boards are off`
@@ -527,6 +595,11 @@ export default function SystemDiagram({
           <label>Size
             <select value={cableEdit.size} onChange={(e) => setCableEdit({ ...cableEdit, size: e.target.value })}>
               {cables().map((c) => <option key={c.csaMm2} value={c.csaMm2}>{c.csaMm2} mm²</option>)}
+            </select>
+          </label>
+          <label>Runs in parallel
+            <select value={cableEdit.runs} onChange={(e) => setCableEdit({ ...cableEdit, runs: e.target.value })}>
+              {['1', '2', '3', '4', '5', '6'].map((c) => <option key={c} value={c}>{c === '1' ? 'single' : `${c} ×`}</option>)}
             </select>
           </label>
           <label>Cores

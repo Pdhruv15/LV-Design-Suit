@@ -105,6 +105,9 @@ export const DEFAULT_POINT_WATTS: Record<PointType, number> = {
 /** Point types that make a circuit a lighting circuit (if it has only these). */
 export const LIGHTING_POINTS: PointType[] = ['ltg', 'cfan', 'exfan'];
 
+/** Motor starter: direct on line, star-delta, soft starter, VFD. */
+export type StarterType = 'DOL' | 'SD' | 'SS' | 'VFD';
+
 /** Switching device column of the connected load / MD form. */
 export type SwitchDevice = 'ACB' | 'MCCB' | 'ISOL';
 export const SWITCH_DEVICES: SwitchDevice[] = ['ACB', 'MCCB', 'ISOL'];
@@ -130,6 +133,7 @@ export interface Feeder {
   powerFactor: number; // 0-1
   lengthM: number;
   cableCsaMm2: number; // conductor cross section, must exist in the cable data
+  parallel?: number; // cable runs in parallel (default 1), e.g. 2 × 4C × 240 mm²
   cores: 2 | 3 | 4;
   breakerRatingA: number;
   breakerIcuKa: number; // breaking capacity
@@ -146,6 +150,7 @@ export interface Feeder {
   points?: Partial<Record<PointType, number>>; // number of points of each type
   remarks?: string;
   manualSize?: boolean; // MCB / wire / ECC set by hand — don't auto-size on load changes
+  starter?: StarterType; // motors: default direct on line
   kvar?: number; // capacitor bank rating (loadType 'capacitor'); its current comes from this, not loadKw
   // Connected load & maximum demand form (authority submission)
   device?: SwitchDevice; // ACB / MCCB / ISOL column; default from the breaker type
@@ -207,10 +212,20 @@ export interface Project {
   info?: ProjectInfo; // header data of the authority submission forms
   revisions?: Revision[]; // issued revisions, oldest first (A, B, C…)
   drawing?: DrawingInfo; // SLD drawing title block
+  ties?: BusTie[]; // normally-open bus couplers between main boards
   studySettings?: StudySettings;
   boards: Board[];
   feeders: Feeder[];
   updatedAt: string;
+}
+
+/** Normally-open bus coupler (tie breaker) between two main boards: closed
+ * when one of their transformers is out, so the other carries both. */
+export interface BusTie {
+  id: string;
+  a: string; // board ids
+  b: string;
+  ratingA: number;
 }
 
 /** Title block of the SLD drawing. */

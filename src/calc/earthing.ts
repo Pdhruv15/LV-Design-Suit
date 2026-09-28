@@ -1,5 +1,5 @@
 import { cables, getCable } from './cableTable';
-import { DEFAULT_TRANSFORMER_XR, rOperatingOhmPerKm, transformerImpedance, zMagnitude, type Impedance, type Status } from './electrical';
+import { DEFAULT_TRANSFORMER_XR, rOperatingOhmPerKm, runsOf, transformerImpedance, zMagnitude, type Impedance, type Status } from './electrical';
 import type { BreakerType, Feeder, Project } from '../types';
 
 const SQRT3 = Math.sqrt(3);
@@ -54,8 +54,9 @@ export function requiredDisconnectionS(f: Feeder): number {
 function cableLoop(f: Feeder): Impedance {
   const km = f.lengthM / 1000;
   return {
-    r: (rOperatingOhmPerKm(f.cableCsaMm2) + rOperatingOhmPerKm(cpcOf(f))) * km,
-    x: getCable(f.cableCsaMm2).xOhmPerKm * km
+    // Each run carries its own protective conductor, in parallel too.
+    r: ((rOperatingOhmPerKm(f.cableCsaMm2) + rOperatingOhmPerKm(cpcOf(f))) * km) / runsOf(f),
+    x: (getCable(f.cableCsaMm2).xOhmPerKm * km) / runsOf(f)
   };
 }
 
