@@ -325,3 +325,13 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 .mode-banner{position:absolute;left:50%;top:8px;transform:translateX(-50%);z-index:3;background:color-mix(in srgb,var(--ok) 18%,var(--panel));border:1px solid var(--ok);color:var(--tx);border-radius:14px;padding:4px 12px;font-size:12px;white-space:nowrap;max-width:90%;overflow:hidden;text-overflow:ellipsis}
 .paste-preview{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;margin:10px 0 0}
 .paste-preview s{color:var(--mut)}
+/* ---- Discrimination on the SLD ---- */
+.sysdiag .disc-ring{fill:none;stroke-width:2.4;stroke-dasharray:3 2}
+.sysdiag .disc-ring.ok{stroke:var(--ok)}.sysdiag .disc-ring.warn{stroke:var(--warn)}.sysdiag .disc-ring.bad{stroke:var(--bad)}
+.disc h3 .m{font-weight:400;font-size:12px;margin-left:6px}
+.disc-chain{list-style:none;padding:0;margin:6px 0 8px;display:grid;gap:6px}
+.disc-chain li{border-left:3px solid var(--line);padding:4px 8px;font-size:12.5px}
+.disc-chain li.ok{border-color:var(--ok)}.disc-chain li.warn{border-color:var(--warn)}.disc-chain li.bad{border-color:var(--bad)}
+.disc-chain .pill{margin-left:6px}
+.tcc-wrap.compact .tcc{max-height:220px}
+.tcc-wrap.compact .legend{font-size:11.5px}

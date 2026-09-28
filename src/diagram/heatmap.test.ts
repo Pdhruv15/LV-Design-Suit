@@ -25,3 +25,20 @@ describe('SLD colour by result', () => {
     expect(hue(heatColor(0.7))).toBeGreaterThan(45);
   });
 });
+
+describe('earth fault loop colouring', () => {
+  it('green–amber while disconnection is in time, amber for thermal 5 s, red when too slow', async () => {
+    const { earthRatio } = await import('./heatmap');
+    const { evaluateEarthingAll } = await import('../calc/earthing');
+    const all = evaluateEarthingAll(sampleProject);
+    for (const e of all) {
+      const r = earthRatio(e);
+      if (e.status === 'ok') expect(r).toBeLessThan(0.85);
+      if (e.status === 'warn') expect(r).toBeGreaterThanOrEqual(0.86);
+      if (e.status === 'bad') expect(r).toBeGreaterThanOrEqual(1);
+    }
+    const base = all[0];
+    expect(earthRatio({ ...base, status: 'bad', zsOhm: 0.1, maxZsOhm: 1 })).toBe(1);
+    expect(earthRatio({ ...base, status: 'ok', zsOhm: 0.5, maxZsOhm: 1 })).toBe(0.5);
+  });
+});

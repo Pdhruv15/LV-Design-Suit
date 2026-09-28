@@ -12,7 +12,8 @@ import { upsLoadingPct } from '../calc/sizing';
 import { isMotor, starterInfo, starterOf } from '../calc/motor';
 import { runsOf, upstreamVoltageDropPct } from '../calc/electrical';
 import { MOTOR_START_DIP_LIMIT_PCT, type GeneratorRun } from '../calc/scenario';
-import { boardRatio, COLOR_BY, feederRatio, heatColor, type ColorBy } from '../diagram/heatmap';
+import { boardRatio, COLOR_BY, earthRatio, feederRatio, heatColor, type ColorBy } from '../diagram/heatmap';
+import { evaluateEarthingAll } from '../calc/earthing';
 import type { Feeder } from '../types';
 import { getDragItem, setDragItem } from '../diagram/dragItem';
 
@@ -55,7 +56,8 @@ export default function SystemDiagram({
   onMoveItem,
   onPatchFeeder,
   colorBy = 'none',
-  scenario
+  scenario,
+  chain
 }: {
   project: Project;
   results: FeederResult[];
@@ -83,10 +85,15 @@ export default function SystemDiagram({
   /** Generator mode: the network as it runs on the standby generators.
    * Everything else is drawn dimmed; results must be for this network. */
   scenario?: { project: Project; energized: Set<string>; generators: GeneratorRun[] };
+  /** Breakers in the selected feeder's discrimination chain, by status. */
+  chain?: Map<string, Status>;
 }) {
   const feederTags = (id: string): Tag[] => {
+    // Earth fault loop colouring: Zs against its limit on every feeder.
+    const e = earthing?.get(id);
+    const earthTag: Tag[] = e ? [{ text: `Zs ${e.zsOhm.toFixed(2)} / ${e.maxZsOhm.toFixed(2)} Ω`, cls: e.status }] : [];
     const a = annotations?.feeders[id];
-    if (!a || !layers) return [];
+    if (!a || !layers) return earthTag;
     const t: (Tag | false)[] = [
       layers.current && a.currentA !== undefined && { text: `${a.currentA.toFixed(0)} A`, cls: 'r-cur' },
       layers.vd && a.vdTotalPct !== undefined && { text: `ΔV ${a.vdTotalPct.toFixed(2)}%`, cls: a.vdStatus ?? '' },
@@ -94,7 +101,7 @@ export default function SystemDiagram({
       layers.pf && a.pf !== undefined && { text: `PF ${a.pf.toFixed(2)}`, cls: 'r-pf' },
       layers.loading && a.loadingPct !== undefined && { text: `${a.loadingPct.toFixed(0)}% of In`, cls: a.loadingStatus ?? '' }
     ];
-    return t.filter((x): x is Tag => !!x);
+    return [...t.filter((x): x is Tag => !!x), ...earthTag];
   };
   const boardTags = (id: string): Tag[] => {
     const a = annotations?.boards[id];
@@ -122,9 +129,14 @@ export default function SystemDiagram({
     [project, scenario]
   );
   const off = (boardId: string) => !!scenario && !scenario.energized.has(boardId);
+  const earthing = useMemo(
+    () => (colorBy === 'earth' ? new Map(evaluateEarthingAll(running).map((e) => [e.feeder.id, e])) : undefined),
+    [colorBy, running]
+  );
   const feederHeat = (id: string) => {
     const r = byFeeder.get(id);
-    const ratio = r && colorBy !== 'none' ? feederRatio(r, colorBy, project.vdLimitPct) : undefined;
+    const e = earthing?.get(id);
+    const ratio = colorBy === 'earth' ? (e ? earthRatio(e) : undefined) : r && colorBy !== 'none' ? feederRatio(r, colorBy, project.vdLimitPct) : undefined;
     return ratio === undefined ? undefined : heatColor(ratio);
   };
   const boardHeat = (id: string) => {
@@ -358,6 +370,11 @@ export default function SystemDiagram({
               <title>{`${f.id} — double-click to edit`}</title>
               <line x1={n.x} y1={y} x2={n.x} y2={y + 18} className="ln" />
               <rect x={n.x - 6} y={y + 18} width="12" height="16" className="sym" />
+              {chain?.has(f.id) && (
+                <rect x={n.x - 11} y={y + 13} width="22" height="26" rx="4" className={`disc-ring ${chain.get(f.id)}`}>
+                  <title>{`Discrimination: ${chain.get(f.id) === 'ok' ? 'selective' : chain.get(f.id) === 'warn' ? 'partial' : 'not selective'}`}</title>
+                </rect>
+              )}
               <line x1={n.x - 5} y1={y + 32} x2={n.x + 5} y2={y + 20} className="ln" />
               <line x1={n.x} y1={y + 34} x2={n.x} y2={endY} className={`ln ${status !== 'ok' ? status : ''}`}
                 style={feederHeat(f.id) ? { stroke: feederHeat(f.id), strokeWidth: 3.5 } : undefined} />

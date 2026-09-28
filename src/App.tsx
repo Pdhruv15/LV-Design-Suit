@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Feeder, Board, Project, newProject } from './types';
 import { sampleProject } from './data/sampleProject';
-import { evaluateProject } from './calc/electrical';
+import { evaluateProject, type Status } from './calc/electrical';
 import SingleLineDiagram from './components/SingleLineDiagram';
 import ResultsTable from './components/ResultsTable';
 import SidePanel from './components/SidePanel';
@@ -50,6 +50,8 @@ import { applyDrop, applyMove, libraryEntries, type DropResult, type DropTarget,
 import EquipmentPalette from './components/EquipmentPalette';
 import SldExportDialog from './components/SldExportDialog';
 import PasteBoardDialog from './components/PasteBoardDialog';
+import DiscriminationPanel from './components/DiscriminationPanel';
+import { discriminationChain } from './calc/protection';
 import { pasteBoard } from './model/copyBoard';
 type DiagramMode = 'system' | 'board';
 
@@ -140,6 +142,17 @@ export default function App() {
   const genScenario = useMemo(() => (onGenerator ? generatorScenario(project) : undefined), [project, onGenerator]);
   const genResults = useMemo(() => (genScenario ? evaluateProject(genScenario.project) : undefined), [genScenario]);
   const genAnnotations = useMemo(() => (genScenario && genResults ? buildAnnotations(genScenario.project, genResults) : undefined), [genScenario, genResults]);
+
+  // The selected feeder's breaker chain, highlighted on the SLD.
+  const chain = useMemo(() => {
+    if (panel !== 'feeder' || !selectedFeeder) return undefined;
+    const m = new Map<string, Status>();
+    for (const r of discriminationChain(project, selectedFeeder)) {
+      m.set(r.upstream.id, r.status);
+      if (!m.has(r.downstream.id)) m.set(r.downstream.id, r.status);
+    }
+    return m;
+  }, [project, panel, selectedFeeder]);
 
   const resultsNote = (() => {
     if (onGenerator) return { text: 'Generator supply — built-in results; fault levels from the generators’ X″d (15 %)', cls: 'warn' };
@@ -530,6 +543,7 @@ export default function App() {
                     onOpenSchedule={(id) => { setActiveBoardId(id); setView('load-schedule'); }}
                     colorBy={colorBy}
                     scenario={genScenario}
+                    chain={chain}
                     onDropItem={dropItem}
                     onMoveItem={moveItem}
                     onPatchFeeder={(id, patch) => {
@@ -558,7 +572,10 @@ export default function App() {
               {panel === 'board' ? (
                 <BoardPanel project={project} board={board} results={allResults} onChange={updateBoard} onSelectFeeder={selectFeeder} tab={boardTab} onTab={setBoardTab} />
               ) : (
-                <SidePanel results={boardResults} selected={selected} />
+                <>
+                  <SidePanel results={boardResults} selected={selected} />
+                  {selectedFeeder && <DiscriminationPanel project={project} feeder={selectedFeeder} />}
+                </>
               )}
             </aside>
           </>
