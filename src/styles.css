@@ -248,17 +248,6 @@ td.ec input,td.ec select{width:100%;min-width:70px;background:var(--bg);color:va
 td.ec input[aria-invalid="true"]{border-color:var(--bad)}
 td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad);color:#fff;font-size:11px;padding:1px 6px;border-radius:4px;white-space:nowrap}
 @media (max-width:900px){.vd-layout{grid-template-columns:1fr}.vd-pick{position:static;max-height:none}}
-/* ---- Load schedule sheet (Jspreadsheet CE) — a white "paper" form ---- */
-.ls-sheet{margin-top:8px}
-.ls-sheet .jss_container,.ls-sheet .jss_content{max-width:100%}
-.ls-sheet .jss_worksheet{font:12px/1.3 Arial,"Segoe UI",sans-serif;color:#111;background:#fff}
-.ls-sheet .jss_worksheet thead td{background:#e9edf3;color:#17202e;font-weight:600;font-size:11px;white-space:normal;line-height:1.2;vertical-align:middle}
-.ls-sheet .jss_worksheet tbody td,.ls-sheet .jss_worksheet tfoot td{border-color:#c9d1dc}
-.ls-sheet .jss_worksheet tfoot td{background:#e9edf3;color:#17202e;font-weight:700;text-align:center}
-.ls-sheet .jss_worksheet tbody td:first-child{background:#f3f5f8;color:#8a94a6}
-.ls-sheet .jss_worksheet .highlight-selected,.ls-sheet .jss_worksheet td.highlight{background-color:rgba(74,168,255,.14)}
-.ls-sheet-foot{margin:6px 2px 0;font-size:12px;color:var(--mut)}
-.jcontextmenu{color:#111}
 /* ---- Connected load & MD form ---- */
 .form-tabs{margin:4px 0 10px}
 .form-tabs button:disabled{opacity:.45;cursor:not-allowed}
@@ -343,3 +332,89 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 .sysdiag .failed-tx line{stroke:var(--bad);stroke-width:3.5}
 .mode-banner.bad{background:color-mix(in srgb,var(--bad) 18%,var(--panel));border-color:var(--bad)}
 .supply-pick.active select{border-color:var(--warn);color:var(--warn)}
+/* ---- Space planning ---- */
+.plan-settings{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:end;margin-bottom:10px}
+.plan-settings label{display:grid;gap:3px;font-size:12px;color:var(--mut)}
+.plan-settings input,.plan-settings select,.plan-table input,.plan-table select,.plan-uses input{background:var(--p2);color:var(--tx);border:1px solid var(--line);border-radius:5px;padding:4px 6px;font:inherit;width:120px}
+.plan-uses{margin-bottom:10px}
+.plan-uses input{width:80px}
+.plan-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin:6px 0 12px}
+.plan-cards>div{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:grid;gap:2px}
+.plan-cards span{font-size:11.5px;color:var(--mut)}
+.plan-cards b{font-size:15px}
+.plan-cards small{font-size:11px;color:var(--mut)}
+.plan-cards small.warn{color:var(--warn)}.plan-cards small.ok{color:var(--ok)}
+.plan-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:14px;margin-top:6px}
+.plan-table input{width:110px}
+.section-title .chip{margin-left:6px;font-size:12px;padding:2px 8px}
+.plan-tree{font:12.5px/1.6 ui-monospace,Menlo,monospace;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px;white-space:pre-wrap}
+.plan-tx .ok{color:var(--ok)}.plan-tx .warn{color:var(--warn)}.plan-tx .bad{color:var(--bad)}
+.plan-areas{color:var(--mut)}
+/* ---- Cable tray schedule ---- */
+.tray-check{display:flex!important;align-items:center;gap:6px;font-size:12px;color:var(--mut)}
+.tray-check input{width:auto!important}
+.tray-route{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:10px 0}
+.tray-head,.tray-add,.tray-opts{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
+.tray-head{margin-bottom:8px;font-size:12px;color:var(--mut)}
+.tray-head label,.tray-opts label{display:flex;align-items:center;gap:6px}
+.tray-head label:first-child input{font-weight:700;font-size:14px}
+.tray-head .sp{flex:1}
+.tray-add{margin-bottom:8px;font-size:12px}
+.tray-route input,.tray-route select{background:var(--p2);color:var(--tx);border:1px solid var(--line);border-radius:5px;padding:3px 6px;font:inherit}
+.tray-table{width:100%}
+.tray-table td input{width:100%;min-width:70px}
+.tray-table td .tray-num{min-width:0}
+.tray-table .l{text-align:left}
+.tray-table tr.tray-ecc td{color:var(--mut);font-size:12px}
+.tray-size{display:inline-flex;align-items:center;gap:4px}
+.tray-size input{min-width:0!important}
+.tray-calc{display:grid;gap:6px;margin-top:8px;font-size:12px;color:var(--mut)}
+.tray-result{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px}
+.tray-pick{display:inline-flex;align-items:center;gap:6px;color:var(--tx)}
+.tray-answer{font-size:14px}
+.tray-answer.ok,.tray-summary td.ok{color:var(--ok)}.tray-answer.warn,.tray-summary td.warn{color:var(--warn)}.tray-answer.bad,.tray-summary td.bad{color:var(--bad)}
+.tray-table td.bad{color:var(--bad)}.tray-table td.warn{color:var(--warn)}
+.tray-summary td.l{text-align:left}
+.tray-empty{padding:20px;text-align:center}
+.tray-unrouted{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;background:color-mix(in srgb,var(--warn) 12%,var(--panel));border:1px solid color-mix(in srgb,var(--warn) 45%,var(--line));border-radius:8px;padding:7px 12px;margin:8px 0;font-size:12.5px}
+.tray-unrouted b{color:var(--warn)}
+.tray-fit{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px 10px}
+.tray-body{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:start}
+.tray-body .tray-table{overflow-x:auto}
+.tray-section{margin:0;background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px;text-align:center;width:fit-content;max-width:100%}
+.tray-section svg{max-width:100%;height:auto;display:block}
+.tray-section figcaption{font-size:11px;margin-top:3px;color:#6a7689}
+.tray-routing-grid{max-height:44vh}
+.sysdiag .rmu-box{fill:color-mix(in srgb,var(--acc) 12%,var(--p2))}
+/* ---- Classic tables with Excel-style editing (ClassicGrid / useExcelGrid) ---- */
+.gx-wrap{overflow:auto;max-height:62vh;border:1px solid var(--line);border-radius:8px}
+.gx{border-collapse:collapse;width:100%;font-size:12.5px}
+.gx th{position:sticky;top:0;z-index:1;background:var(--panel);color:var(--mut);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.02em;padding:6px 6px;border-bottom:1px solid var(--line);border-right:1px solid color-mix(in srgb,var(--line) 60%,transparent);white-space:normal;line-height:1.2;vertical-align:bottom}
+.gx thead tr:first-child th.gx-group{color:var(--tx);text-align:center;border-bottom:1px solid var(--line)}
+.gx thead tr:nth-child(2) th{top:26px}
+.gx thead tr:only-child th{top:0}
+.gx th.gx-blank{border-bottom:none}
+.gx td{padding:0 6px;height:28px;border-bottom:1px solid color-mix(in srgb,var(--line) 70%,transparent);border-right:1px solid color-mix(in srgb,var(--line) 45%,transparent);text-align:center;white-space:nowrap}
+.gx td.l{text-align:left}
+.gx td.gx-calc{color:var(--mut);background:color-mix(in srgb,var(--p2) 40%,transparent)}
+.gx td.gx-label{font-weight:700;text-align:left;background:var(--p2);color:var(--bus)}
+.gx td.gx-muted{opacity:.5}
+.gx td.gx-in{padding:0}
+.gx td.gx-in input,.gx td.gx-in select{width:100%;min-width:60px;height:28px;border:0;background:transparent;color:var(--tx);font:inherit;padding:0 6px;text-align:inherit;outline:none}
+.gx td.gx-in.l input{text-align:left}
+.gx td.gx-in select{cursor:pointer}
+.gx td.gx-in input:focus,.gx td.gx-in select:focus,.gx td[data-cell]:focus{box-shadow:inset 0 0 0 2px var(--acc);background:color-mix(in srgb,var(--acc) 10%,transparent)}
+.gx td[data-cell]{outline:none}
+.gx tbody tr:hover td{background:color-mix(in srgb,var(--p2) 55%,transparent)}
+.gx tfoot td{position:sticky;bottom:0;background:var(--panel);font-weight:700;border-top:1px solid var(--line);height:30px}
+td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent) !important}
+.plan-areas-grid{max-height:45vh}
+/* ---- Calculations on demand ---- */
+.stale-banner{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:8px 0;padding:8px 12px;border:1px solid var(--warn);border-radius:8px;background:color-mix(in srgb,var(--warn) 12%,var(--panel));font-size:12.5px}
+.sysdiag.stale .res,.sysdiag.stale circle[style*="fill"],.sysdiag.stale .disc-ring,.sysdiag.stale .heat-legend{opacity:.35}
+.sysdiag.stale g.fd .ln[style*="stroke"],.sysdiag.stale .bus[style*="stroke"]{opacity:.4}
+.calc-state{font-size:12px}.calc-state.warn{color:var(--warn)}.calc-state.ok{color:var(--ok)}
+.run-chip{font-weight:600}
+.run-chip.stale,.ribbon-tools button.stale{color:var(--warn);border-color:var(--warn);animation:runPulse 1.6s ease-in-out infinite}
+@keyframes runPulse{50%{box-shadow:0 0 0 3px color-mix(in srgb,var(--warn) 35%,transparent)}}
+.foot .chip{padding:2px 8px;font-size:11.5px}

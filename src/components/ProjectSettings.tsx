@@ -46,6 +46,10 @@ export default function ProjectSettings({ project, onSave, onClose }: { project:
           <label>Future load growth (%)<input type="number" min="0" max="100" value={study.futureGrowthPct} onChange={(e) => setStudy('futureGrowthPct', num(e.target.value, study.futureGrowthPct))} /></label>
           <label>Transformer max loading (%)<input type="number" min="10" max="100" value={study.transformerMaxLoadingPct} onChange={(e) => setStudy('transformerMaxLoadingPct', num(e.target.value, study.transformerMaxLoadingPct))} /></label>
           <label>Generator max loading (%)<input type="number" min="10" max="100" value={study.generatorMaxLoadingPct} onChange={(e) => setStudy('generatorMaxLoadingPct', num(e.target.value, study.generatorMaxLoadingPct))} /></label>
+          <label className="row" style={{ gridColumn: '1 / -1' }}>
+            <input type="checkbox" checked={!!p.calc?.autoRun} onChange={(e) => set('calc', { ...p.calc, autoRun: e.target.checked })} />
+            Auto-run calculations on every change (otherwise: Run / F5). Load schedule and form totals are always live.
+          </label>
           <h4 className="modal-sub" style={{ gridColumn: '1 / -1' }}>Submission forms (load schedules, connected load &amp; MD)</h4>
           <label style={{ gridColumn: '1 / -1' }}>Load schedule point columns
             <select value={pointTemplateOf(p).id} onChange={(e) => set('pointTemplate', e.target.value)}>

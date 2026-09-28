@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Activity, BatteryCharging, Cable, Calculator, Car, CircuitBoard, Cog, Ellipsis, FileDown, FileSpreadsheet, FileText,
   Gauge, Hand, LayoutGrid, ListTree, Minus, MousePointer2, Pencil, Receipt, Scale, Server, Settings2, ShieldCheck, Sun,
-  Database, History, Redo2, Table2, Trash2, TrendingDown, Undo2, Waves, Zap, type LucideIcon
+  Database, History, Play, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Waves, Zap, type LucideIcon
 } from 'lucide-react';
 import type { Feeder } from '../types';
 import type { MainView } from '../views';
@@ -19,6 +19,8 @@ interface Tool {
   onClick: () => void;
   active?: boolean;
   disabled?: boolean;
+  /** Highlight: something needs this (e.g. Run with out-of-date results). */
+  stale?: boolean;
 }
 
 export interface RibbonActions {
@@ -40,6 +42,8 @@ export interface RibbonActions {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  onRun: () => void;
+  staleCount: number;
 }
 
 const TABS: { id: RibbonTab; label: string; icon: Icon }[] = [
@@ -54,7 +58,7 @@ const TABS: { id: RibbonTab; label: string; icon: Icon }[] = [
 /** The ribbon tab that owns a screen, so the ribbon follows navigation
  * done from the left menu. */
 export function tabForView(v: MainView): RibbonTab {
-  if (v === 'design' || v === 'load-schedule') return 'design';
+  if (v === 'design' || v === 'load-schedule' || v === 'space-planning') return 'design';
   if (v === 'engines') return 'simulate';
   if (['voltage-drop', 'earthing', 'coordination', 'selection', 'sizing', 'pfc'].includes(v)) return 'calculate';
   if (v === 'boq') return 'cost';
@@ -80,6 +84,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   const groups: Record<RibbonTab, Tool[][]> = {
     design: [
       [
+        { label: 'Run', icon: Play, title: a.staleCount ? `Run calculations (F5) — ${a.staleCount} out of date` : 'Run calculations (F5) — up to date', onClick: a.onRun, stale: a.staleCount > 0 },
         { label: 'Undo', icon: Undo2, title: 'Undo (⌘Z / Ctrl+Z)', onClick: a.onUndo, disabled: !a.canUndo },
         { label: 'Redo', icon: Redo2, title: 'Redo (⇧⌘Z / Ctrl+Y)', onClick: a.onRedo, disabled: !a.canRedo }
       ],
@@ -91,7 +96,8 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'Transformer', icon: Waves, title: 'Transformer data (main board → Electrical)', onClick: a.onTransformer },
         { label: 'Bus', icon: Minus, title: 'Add a board (busbar) fed from an existing board', onClick: a.onAddBoard },
         { label: 'Switchgear', icon: Server, title: `Board properties of ${a.boardId}`, onClick: a.onBoardProperties },
-        { label: 'Schedule', icon: Table2, title: `Load distribution schedule of ${a.boardId}`, onClick: go('load-schedule'), active: a.view === 'load-schedule' }
+        { label: 'Schedule', icon: Table2, title: `Load distribution schedule of ${a.boardId}`, onClick: go('load-schedule'), active: a.view === 'load-schedule' },
+        { label: 'Space plan', icon: LayoutGrid, title: 'Space planning: areas → panels → transformers → RMUs', onClick: go('space-planning'), active: a.view === 'space-planning' }
       ],
       [
         { label: 'Cable', icon: Cable, title: `Add a feeder cable ${addTo}`, onClick: () => a.onAddFeeder({}) },
@@ -108,6 +114,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       ]
     ],
     calculate: [
+      [{ label: 'Run', icon: Play, title: a.staleCount ? `Run calculations (F5) — ${a.staleCount} out of date` : 'Run calculations (F5) — up to date', onClick: a.onRun, stale: a.staleCount > 0 }],
       [
         view('voltage-drop', 'Voltage drop', TrendingDown, 'Voltage drop calculation: panels and equipment cables, with report'),
         view('earthing', 'Earthing', Gauge, 'Fault loop impedance and disconnection time'),
@@ -128,6 +135,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         view('load-schedule', 'Load schedule', Table2, 'DEWA load distribution schedule per DB'),
         view('db-schedule', 'DB schedule', LayoutGrid, 'Panel schedule per board'),
         view('cable-schedule', 'Cable schedule', Cable, 'Every cable in the installation'),
+        view('cable-tray', 'Cable trays', Rows3, 'Cable tray schedule: routes A, B, C… with the cables on each and the tray size'),
         view('equipment', 'Equipment', FileSpreadsheet, 'Transformers and boards')
       ],
       [view('report', 'Calc report', FileText, 'Calculation report (PDF)'), view('revisions', 'Revisions', History, 'Issue Rev A, B, C… and see what changed')]
@@ -154,8 +162,8 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       <div className="ribbon-tools" role="toolbar" aria-label={`${TABS.find((t) => t.id === tab)?.label} tools`}>
         {groups[tab].map((group, gi) => (
           <div key={gi} className="ribbon-group">
-            {group.map(({ label, icon: I, title, onClick, active, disabled }) => (
-              <button key={label} className={active ? 'on' : ''} title={title} aria-pressed={active} disabled={disabled} onClick={onClick}>
+            {group.map(({ label, icon: I, title, onClick, active, disabled, stale }) => (
+              <button key={label} className={`${active ? 'on' : ''}${stale ? ' stale' : ''}`} title={title} aria-pressed={active} disabled={disabled} onClick={onClick}>
                 <I size={20} strokeWidth={1.6} />
                 <span>{label}</span>
               </button>

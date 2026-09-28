@@ -156,6 +156,7 @@ export interface Feeder {
   device?: SwitchDevice; // ACB / MCCB / ISOL column; default from the breaker type
   cableType?: string; // e.g. "XLPE/PVC/SWA" (default)
   kwhMeter?: MeterType; // proposed kWh meter on this outgoing feeder
+  trayRoute?: string; // cable tray routes the cable runs on, in order, e.g. "A-B-C"
   feedsBoardId?: string; // if set, this feeder is the incomer to a downstream board —
   // its loadKw/demandFactor are ignored and its current is derived from that
   // board's total demand instead
@@ -179,6 +180,8 @@ export interface Board {
   /** Standby generator feeding this board through an ATS: everything on
    * and below the board is then essential load for generator sizing. */
   standby?: { kva: number };
+  /** RMU (11 kV ring main unit) feeding this main board's transformer. */
+  rmu?: string;
   /** UPS rating for a UPS output board (kind 'UPS'). */
   upsKva?: number;
   /** Incoming supply of a board fed by the authority (meter cabinet / MDB
@@ -213,10 +216,149 @@ export interface Project {
   revisions?: Revision[]; // issued revisions, oldest first (A, B, C…)
   drawing?: DrawingInfo; // SLD drawing title block
   ties?: BusTie[]; // normally-open bus couplers between main boards
+  spacePlan?: SpacePlan; // areas → panels → transformers → RMUs (power density planning)
+  trays?: TrayPlan; // cable tray routes (A, B, C…) with the cables on each and the tray size
+  calc?: { autoRun?: boolean }; // run the network studies on every change (default: on Run / F5 only)
   studySettings?: StudySettings;
   boards: Board[];
   feeders: Feeder[];
   updatedAt: string;
+}
+
+/** Space planning (power density): areas are fed from panels, panels
+ * from transformers (or a parent panel), transformers from RMUs. */
+export interface SpaceUse {
+  id: string;
+  label: string;
+  wPerM2: number;
+  demandFactor: number;
+}
+
+export interface SpaceArea {
+  id: string;
+  building: string;
+  floor?: string;
+  name: string;
+  use: string; // SpaceUse id
+  areaM2?: number;
+  wPerM2?: number; // overrides the use's W/m²
+  kw?: number; // specific load (chiller, lift…) instead of area × W/m²
+  demandFactor?: number; // overrides the use's
+  panel?: string; // PlanPanel id
+}
+
+export interface PlanPanel {
+  id: string;
+  building: string;
+  kind: 'MDB' | 'SMDB';
+  location?: string;
+  transformer?: string; // MDB: PlanTransformer id
+  parent?: string; // SMDB: panel id
+}
+
+export interface PlanTransformer {
+  id: string;
+  kva: number;
+  rmu?: string;
+}
+
+export interface SpacePlanSettings {
+  /** Transformer size: 1000, 1500, or 0 = the one giving fewer units. */
+  transformerKva: number;
+  maxLoadingPct: number;
+  maxTransformersPerRmu: number;
+  powerFactor: number;
+  growthPct: number;
+}
+
+export interface SpacePlan {
+  areas: SpaceArea[];
+  panels: PlanPanel[];
+  transformers: PlanTransformer[];
+  settings: SpacePlanSettings;
+  /** Use types with W/m² and demand factor; defaults when absent. */
+  uses?: SpaceUse[];
+}
+
+/** Cable tray sizing. Each route (A, B, C…) carries cables from one or
+ * more panels; the tray width comes from the cables' outer diameters,
+ * spacing (or fill %) and spare capacity. Blank route settings use the
+ * plan defaults. */
+export type TrayMethod = 'spacing' | 'fill';
+/** Clearance between cables: touching, a fraction / multiple of the
+ * larger cable's diameter, or a fixed distance in mm. */
+export type TraySpacing = 'touching' | 'quarter' | 'half' | 'one' | 'two' | 'mm';
+
+export interface TrayCable {
+  id: string;
+  /** A cable of the SLD: size, from and to follow the design, and the
+   * feeder's trayRoute says which routes it is on — this entry only holds
+   * overrides (qty, OD) for this route. */
+  feederId?: string;
+  // Manual cable (not on the SLD), or overrides of a feeder's text:
+  from?: string;
+  to?: string;
+  cores?: number; // 1–4
+  csaMm2?: number;
+  qty?: number; // number of cables (feeders: parallel runs)
+  odMm?: number; // outer diameter override
+  kgPerM?: number; // weight override
+}
+
+export interface TrayRoute {
+  id: string;
+  name: string; // "A", "B"…
+  from?: string; // where the route starts, e.g. "Substation"
+  to?: string; // where it ends, e.g. "Block A riser"
+  lengthM?: number;
+  cables: TrayCable[];
+  // Blank = the plan default
+  method?: TrayMethod;
+  spacing?: TraySpacing;
+  spacingMm?: number;
+  sparePct?: number;
+  fillPct?: number;
+  depthMm?: number;
+  /** Chosen tray, instead of the automatic one. */
+  widthMm?: number;
+  tiers?: number;
+  /** Fittings on the route (per tier), for the tray BOQ. */
+  fittings?: { bends?: number; tees?: number; reducers?: number; risers?: number };
+}
+
+export interface TraySettings {
+  method: TrayMethod;
+  spacing: TraySpacing;
+  spacingMm: number;
+  sparePct: number;
+  fillPct: number; // fill method: cable area / tray area limit
+  depthMm: number; // side height
+  widths: number[]; // standard widths, mm
+  maxWidthMm: number; // wider than this → more tiers
+  includeEcc: boolean; // separate 1C earth cable with each feeder
+  trayType: string; // e.g. "Perforated tray", "Cable ladder"
+  /** Construction, for the grouping factors (IEC 60364-5-52 Table B.52.20). */
+  kind?: 'perforated' | 'ladder';
+  /** Derate the cables on each route for grouping (default on). */
+  applyGrouping?: boolean;
+  supportSpacingM?: number; // tray supports, default 1.5 m
+  lengthM?: number; // standard tray length (joints / coupler sets), default 3 m
+  covers?: boolean; // tray covers on every route
+}
+
+/** Cable outer diameter and weight by cores × size. */
+export interface CableOd {
+  cores: number;
+  csaMm2: number;
+  odMm: number;
+  kgPerM: number;
+}
+
+export interface TrayPlan {
+  routes: TrayRoute[];
+  settings: TraySettings;
+  /** Your cable data; built-in rough values when absent. */
+  ods?: CableOd[];
 }
 
 /** Normally-open bus coupler (tie breaker) between two main boards: closed

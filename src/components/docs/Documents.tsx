@@ -77,7 +77,7 @@ export function EquipmentScheduleView({ project, onStatus }: { project: Project;
   );
 }
 
-export function ReportView({ project, onStatus }: { project: Project; onStatus: Status }) {
+export function ReportView({ project, onStatus, stale = false }: { project: Project; onStatus: Status; stale?: boolean; onRun?: () => void }) {
   const html = useMemo(() => buildReportHtml(project), [project]);
   const [busy, setBusy] = useState(false);
   async function exportPdf() {
@@ -93,7 +93,7 @@ export function ReportView({ project, onStatus }: { project: Project; onStatus: 
     <Page
       title="Calculation report"
       intro="Design basis, system summary, sizing, feeder, earthing and coordination results, DB and cable schedules, and assumptions — A4 landscape."
-      actions={<button className="chip primary" disabled={busy} onClick={exportPdf}>{busy ? 'Exporting…' : 'Export PDF'}</button>}
+      actions={<button className="chip primary" disabled={busy || stale} title={stale ? 'Run the calculations first (F5)' : undefined} onClick={exportPdf}>{busy ? 'Exporting…' : 'Export PDF'}</button>}
     >
       <iframe className="report-preview" title="Report preview" srcDoc={html} sandbox="" />
     </Page>

@@ -17,6 +17,8 @@ import EarthingStudy from './components/studies/EarthingStudy';
 import SelectionStudy from './components/studies/SelectionStudy';
 import VoltageDropStudy from './components/studies/VoltageDropStudy';
 import RevisionsView from './components/docs/RevisionsView';
+import SpacePlanView from './components/docs/SpacePlanView';
+import TrayScheduleView from './components/docs/TrayScheduleView';
 import CoordinationStudy from './components/studies/CoordinationStudy';
 import { PfcStudy, TransformerGeneratorStudy } from './components/studies/SizingStudy';
 import { CableScheduleView, DbScheduleView, EquipmentScheduleView, ReportView } from './components/docs/Documents';
@@ -44,6 +46,8 @@ import { EXTERNAL_ENGINES } from './engines';
 import type { StudyResults } from './engines/types';
 import { deleteBoard } from './model/edit';
 import { useHistory } from './model/history';
+import { runCalculations, staleStudies, STUDY_LABEL, type CalcRun } from './calc/runs';
+import { StaleBanner } from './components/ui';
 import { generatorScenario, transformerOutage, type SupplyMode } from './calc/scenario';
 import { removeTie } from './model/sldEdit';
 import type { ColorBy } from './diagram/heatmap';
@@ -55,6 +59,9 @@ import DiscriminationPanel from './components/DiscriminationPanel';
 import { discriminationChain } from './calc/protection';
 import { pasteBoard } from './model/copyBoard';
 type DiagramMode = 'system' | 'board';
+
+/** Pages that show network study results (they follow the last run). */
+const STUDY_VIEWS: MainView[] = ['voltage-drop', 'earthing', 'selection', 'coordination', 'sizing', 'pfc', 'db-schedule', 'cable-schedule', 'report'];
 
 export default function App() {
   // The project, with undo / redo. Opening or starting a project clears the history.
@@ -124,7 +131,27 @@ export default function App() {
   const [diagramMode, setDiagramMode] = useState<DiagramMode>('system');
   const [panel, setPanel] = useState<'feeder' | 'board'>('board');
 
-  const allResults = useMemo(() => evaluateProject(project), [project]);
+  // Network studies run on demand (Run calculations / F5): results come from
+  // the last run, and a study shows as out of date once one of its own
+  // inputs changes. Auto-run (project setting) runs them on every change.
+  const [run, setRun] = useState<CalcRun | undefined>(() => runCalculations(project));
+  const autoRun = !!project.calc?.autoRun;
+  useEffect(() => { if (autoRun && run?.project !== project) setRun(runCalculations(project)); }, [autoRun, project]);
+  const staleKeys = useMemo(() => staleStudies(run, project), [run, project]);
+  const stale = staleKeys.map((k) => STUDY_LABEL[k]);
+  // What the studies show: the project as last run while out of date,
+  // otherwise the live one (same results, current names).
+  const calcProject = staleKeys.length && run ? run.project : project;
+  const runNow = () => {
+    const r = runCalculations(project);
+    setRun(r);
+    const fails = r.results.filter((x) => x.status === 'bad').length;
+    setStatus(`Calculated ${r.results.length} feeders in ${Math.max(1, Math.round(r.ms))} ms — ${fails ? `${fails} failing` : 'all passing'}`);
+  };
+  const allResults = useMemo(() => {
+    const live = new Map(project.feeders.map((f) => [f.id, f]));
+    return (run?.results ?? []).map((r) => ({ ...r, feeder: live.get(r.feeder.id) ?? r.feeder }));
+  }, [run, project]);
   const board = project.boards.find((b) => b.id === activeBoardId) ?? project.boards[0];
   const boardResults = useMemo(() => allResults.filter((r) => r.feeder.boardId === board?.id), [allResults, board]);
   const selectedFeeder = project.feeders.find((f) => f.id === selected);
@@ -133,8 +160,8 @@ export default function App() {
   // the chosen source; any edit falls back to the instant built-in values.
   const engineFresh = !!engineRun && engineRun.project === project && engineRun.results.engineId === resultSource;
   const annotations = useMemo(
-    () => buildAnnotations(project, allResults, engineFresh ? engineRun!.results : undefined),
-    [project, allResults, engineFresh, engineRun]
+    () => buildAnnotations(calcProject, allResults, engineFresh ? engineRun!.results : undefined),
+    [calcProject, allResults, engineFresh, engineRun]
   );
   // Generator mode: the SLD shows the network as it runs on the standby
   // generators (built-in engine only).
@@ -145,8 +172,8 @@ export default function App() {
     .filter((id) => project.boards.some((b) => b.id === id && !b.upstreamId && b.sourceKva));
   const outageId = supply.startsWith('outage:') && tiedRoots.includes(supply.slice(7)) ? supply.slice(7) : undefined;
   const genScenario = useMemo(
-    () => (onGenerator ? generatorScenario(project) : outageId ? transformerOutage(project, outageId) : undefined),
-    [project, onGenerator, outageId]
+    () => (onGenerator ? generatorScenario(calcProject) : outageId ? transformerOutage(calcProject, outageId) : undefined),
+    [calcProject, onGenerator, outageId]
   );
   const genResults = useMemo(() => (genScenario ? evaluateProject(genScenario.project) : undefined), [genScenario]);
   const genAnnotations = useMemo(() => (genScenario && genResults ? buildAnnotations(genScenario.project, genResults) : undefined), [genScenario, genResults]);
@@ -155,12 +182,14 @@ export default function App() {
   const chain = useMemo(() => {
     if (panel !== 'feeder' || !selectedFeeder) return undefined;
     const m = new Map<string, Status>();
-    for (const r of discriminationChain(project, selectedFeeder)) {
+    const f = calcProject.feeders.find((x) => x.id === selectedFeeder.id);
+    if (!f) return undefined;
+    for (const r of discriminationChain(calcProject, f)) {
       m.set(r.upstream.id, r.status);
       if (!m.has(r.downstream.id)) m.set(r.downstream.id, r.status);
     }
     return m;
-  }, [project, panel, selectedFeeder]);
+  }, [calcProject, panel, selectedFeeder]);
 
   const resultsNote = (() => {
     if (onGenerator) return { text: 'Generator supply — built-in results; fault levels from the generators’ X″d (15 %)', cls: 'warn' };
@@ -240,6 +269,7 @@ export default function App() {
     if (!hasBridge) return;
     const p = await window.lvds.projects.load(file);
     history.load(p);
+    setRun(runCalculations(p)); // results for the project as opened
     setCurrentFile(file);
     setActiveBoardId(p.boards[0]?.id ?? '');
     setSelected(null);
@@ -275,6 +305,7 @@ export default function App() {
   function startNewProject() {
     const p = applyParameters(newProject('Untitled project'), db); // your Parameters.xlsx defaults
     history.load(p);
+    setRun(runCalculations(p));
     setCurrentFile(undefined);
     setActiveBoardId(p.boards[0].id);
     setSelected(null);
@@ -338,6 +369,10 @@ export default function App() {
     setShowFeederForm(null);
   }
 
+  // Study changes made from a page whose results are out of date would act
+  // on the last-run copy of the project: ask for a run first.
+  const blocked = () => setStatus('Results are out of date — run the calculations first (F5), then apply');
+
   /** An item from the equipment library dropped on the SLD. */
   function dropItem(item: PaletteItem, target: DropTarget) {
     showResult(applyDrop(project, item, target, db.loads));
@@ -371,9 +406,19 @@ export default function App() {
   // field or a sheet keeps its own undo and delete.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement | null;
-      const typing = !!t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable || !!t.closest('.jss_container, .ls-sheet'));
+      if (e.key === 'F5') {
+        // Run the network studies, from anywhere (also while typing).
+        e.preventDefault();
+        runNow();
+        return;
+      }
+      const t = e.target instanceof HTMLElement ? e.target : null;
+      // Table cells save straight into the project, so ⌘Z there is the app's
+      // undo (a whole paste or fill is one step); other fields keep their own.
+      const inGrid = !!t?.closest('.gx-wrap, .ls-wrap');
+      const typing = !!t && !inGrid && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable);
       if (typing) return;
+      if (inGrid && !((e.metaKey || e.ctrlKey) && /^[zy]$/i.test(e.key))) return;
       const mod = e.metaKey || e.ctrlKey;
       if (mod && e.key.toLowerCase() === 'z') {
         e.preventDefault();
@@ -443,6 +488,8 @@ export default function App() {
           onDeleteSelected: confirmDeleteSelected,
           onExportDss: exportOpenDss,
           onSettings: () => setShowSettings(true),
+          onRun: runNow,
+          staleCount: staleKeys.length,
           onUndo: history.undo,
           onRedo: history.redo,
           canUndo: history.canUndo,
@@ -453,6 +500,7 @@ export default function App() {
       <div className="app">
         <nav className="nav" aria-label="Navigation">
           <h4>Design</h4>
+          <button className={view === 'space-planning' ? 'on' : ''} onClick={() => setView('space-planning')}>Space planning</button>
           <button className={view === 'design' ? 'on' : ''} onClick={() => setView('design')}>Single line diagram</button>
           <button className={view === 'load-schedule' ? 'on' : ''} onClick={() => setView('load-schedule')}>Load schedule (DB)</button>
 
@@ -540,6 +588,8 @@ export default function App() {
                   <EquipmentPalette onHint={setStatus} library={libraryEntries(db.loads)} />
                   <SystemDiagram
                     project={project}
+                    calcProject={calcProject}
+                    stale={staleKeys.length > 0}
                     results={genResults ?? allResults}
                     selectedFeederId={panel === 'feeder' ? selected : null}
                     selectedBoardId={panel === 'board' ? board.id : null}
@@ -573,7 +623,7 @@ export default function App() {
                 )}
               </section>
               <SystemSummaryCards
-                project={project}
+                project={calcProject}
                 selectedBoardId={panel === 'board' ? board.id : null}
                 onSelectBoard={selectBoard}
                 annotations={engineFresh ? annotations : undefined}
@@ -585,11 +635,14 @@ export default function App() {
 
             <aside className="side">
               {panel === 'board' ? (
-                <BoardPanel project={project} board={board} results={allResults} onChange={updateBoard} onSelectFeeder={selectFeeder} tab={boardTab} onTab={setBoardTab} />
+                <BoardPanel project={calcProject} board={board} results={allResults} onChange={updateBoard} onSelectFeeder={selectFeeder} tab={boardTab} onTab={setBoardTab} />
               ) : (
                 <>
                   <SidePanel results={boardResults} selected={selected} />
-                  {selectedFeeder && <DiscriminationPanel project={project} feeder={selectedFeeder} />}
+                  {staleKeys.length > 0 && <StaleBanner stale={stale} onRun={runNow} what="the feeder results" />}
+                  {selectedFeeder && calcProject.feeders.some((f) => f.id === selectedFeeder.id) && (
+                    <DiscriminationPanel project={calcProject} feeder={calcProject.feeders.find((f) => f.id === selectedFeeder.id)!} />
+                  )}
                 </>
               )}
             </aside>
@@ -616,17 +669,36 @@ export default function App() {
                 <EngineCompare project={project} />
               </>
             )}
-            {view === 'voltage-drop' && <VoltageDropStudy project={project} onChange={setProject} onStatus={setStatus} />}
-            {view === 'earthing' && <EarthingStudy project={project} onSelectFeeder={(id) => { setView('design'); selectFeeder(id); }} />}
-            {view === 'selection' && <SelectionStudy project={project} onChange={setProject} />}
-            {view === 'coordination' && <CoordinationStudy project={project} />}
-            {view === 'sizing' && <TransformerGeneratorStudy project={project} onChange={setProject} />}
-            {view === 'pfc' && <PfcStudy project={project} onChange={setProject} />}
-            {view === 'db-schedule' && <DbScheduleView project={project} onStatus={setStatus} />}
-            {view === 'cable-schedule' && <CableScheduleView project={project} onStatus={setStatus} />}
-            {view === 'equipment' && <EquipmentScheduleView project={project} onStatus={setStatus} />}
-            {view === 'report' && <ReportView project={project} onStatus={setStatus} />}
-            {view === 'revisions' && <RevisionsView project={project} onChange={setProject} onStatus={setStatus} />}
+            {STUDY_VIEWS.includes(view) && <StaleBanner stale={stale} onRun={runNow} what="the results on this page" />}
+            {view === 'voltage-drop' && <VoltageDropStudy project={project} calcProject={calcProject} stale={staleKeys.length > 0} onChange={setProject} onStatus={setStatus} />}
+            {view === 'earthing' && <EarthingStudy project={calcProject} onSelectFeeder={(id) => { setView('design'); selectFeeder(id); }} />}
+            {/* Pages that also change the design act on the live project, so
+                they only apply changes while their results are up to date. */}
+            {view === 'selection' && <SelectionStudy project={calcProject} onChange={staleKeys.length ? blocked : setProject} />}
+            {view === 'coordination' && <CoordinationStudy project={calcProject} />}
+            {view === 'sizing' && <TransformerGeneratorStudy project={calcProject} onChange={staleKeys.length ? blocked : setProject} />}
+            {view === 'pfc' && <PfcStudy project={calcProject} onChange={staleKeys.length ? blocked : setProject} />}
+            {view === 'db-schedule' && <DbScheduleView project={calcProject} onStatus={setStatus} />}
+            {view === 'cable-schedule' && <CableScheduleView project={calcProject} onStatus={setStatus} />}
+            {view === 'equipment' && <EquipmentScheduleView project={calcProject} onStatus={setStatus} />}
+            {view === 'report' && <ReportView project={calcProject} stale={staleKeys.length > 0} onRun={runNow} onStatus={setStatus} />}
+            {view === 'space-planning' && (
+              <SpacePlanView
+                project={project}
+                onChange={(p, step) => setProject(p, step ? { step: true } : undefined)}
+                onStatus={setStatus}
+                onCreated={() => {
+                  const first = project.boards[0]?.id;
+                  setView('design');
+                  setDiagramMode('system');
+                  if (first) setActiveBoardId(first);
+                }}
+              />
+            )}
+            {view === 'cable-tray' && (
+              <TrayScheduleView project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />
+            )}
+            {view === 'revisions' &&<RevisionsView project={project} onChange={setProject} onStatus={setStatus} />}
             {view === 'boq' && (
               <>
                 <section className="stage"><h3>Cost estimate — whole project</h3></section>
@@ -642,6 +714,13 @@ export default function App() {
         <span>Ambient: {project.ambientC} °C</span>
         <span>Vd limit: {project.vdLimitPct}%</span>
         <span className="sp" />
+        <span className={`calc-state ${staleKeys.length ? 'warn' : 'ok'}`} title={staleKeys.length ? `Out of date: ${stale.join(', ')}` : undefined}>
+          {staleKeys.length ? `⚠ ${staleKeys.length} stud${staleKeys.length === 1 ? 'y' : 'ies'} out of date` : `✓ Calculations up to date${run ? ` (${new Date(run.at).toLocaleTimeString()})` : ''}`}
+        </span>
+        <button className={`chip run-chip${staleKeys.length ? ' stale' : ''}`} onClick={runNow} title="Run the network studies (F5)">▶ Run (F5)</button>
+        <button className="chip" onClick={() => setProject({ ...project, calc: { ...project.calc, autoRun: !autoRun } })} title="Run the studies on every change (small projects)">
+          Auto-run: {autoRun ? 'on' : 'off'}
+        </button>
         <span>{hasBridge ? `Projects folder: ${projectsFolder}` : 'Run inside the Electron app to save/load projects'}</span>
       </div>
 
@@ -691,6 +770,7 @@ export default function App() {
       {showExport && (
         <SldExportDialog
           project={project}
+          stale={staleKeys.length > 0}
           onSave={(d) => setProject((p) => ({ ...p, drawing: d }))}
           onStatus={setStatus}
           onClose={() => setShowExport(false)}

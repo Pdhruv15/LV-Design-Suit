@@ -18,7 +18,14 @@ const PHASES = [
 /** Voltage drop calculation for panel-to-panel and equipment cables. The
  * user picks the cables (whole panels or single cables); final circuits
  * below DBs are left out, and a DB's load comes from its load schedule. */
-export default function VoltageDropStudy({ project, onChange, onStatus }: { project: Project; onChange: (p: Project) => void; onStatus: (m: string) => void }) {
+export default function VoltageDropStudy({ project, calcProject = project, stale = false, onChange, onStatus }: {
+  project: Project;
+  /** The project as last calculated: the results columns come from it. */
+  calcProject?: Project;
+  stale?: boolean;
+  onChange: (p: Project) => void;
+  onStatus: (m: string) => void;
+}) {
   const [scope, setScope] = useState(''); // '' = entire system, else a board id
   const [busy, setBusy] = useState(false);
   const candidates = useMemo(() => vdCandidates(project), [project]);
@@ -28,8 +35,13 @@ export default function VoltageDropStudy({ project, onChange, onStatus }: { proj
     [project, candidates]
   );
   const rows = useMemo(
-    () => candidates.filter((f) => selected.has(f.id) && (!scope || f.boardId === scope)).map((f) => vdRow(project, f)),
-    [project, candidates, selected, scope]
+    // Inputs (the white cells) are the live values; results come from the
+    // last run, so editing a cell doesn't recalculate until Run.
+    () => candidates.filter((f) => selected.has(f.id) && (!scope || f.boardId === scope)).map((f) => {
+      const calc = calcProject.feeders.find((x) => x.id === f.id);
+      return { ...(calc ? vdRow(calcProject, calc) : vdRow(project, f)), feeder: f };
+    }),
+    [calcProject, project, candidates, selected, scope]
   );
   const scopeName = scopeLabel(project, scope);
   const cableSizes = useMemo(() => cables().map((c) => ({ value: String(c.csaMm2), label: `${c.csaMm2} mm²` })), [project]);
@@ -98,8 +110,8 @@ export default function VoltageDropStudy({ project, onChange, onStatus }: { proj
             {panels.map(({ board }) => <option key={board.id} value={board.id}>Report: panel {board.id}</option>)}
           </select>
           <button className="chip" onClick={addCable} title={`Add a cable to equipment (AHU, isolator, motor…) on ${scope || panels[0]?.board.id}`}>+ Add equipment cable</button>
-          <button className="chip" onClick={exportCsv} disabled={!rows.length}>Export CSV (Excel)</button>
-          <button className="chip primary" onClick={exportPdf} disabled={busy || !rows.length}>{busy ? 'Exporting…' : 'Export PDF'}</button>
+          <button className="chip" onClick={exportCsv} disabled={!rows.length || stale} title={stale ? 'Run the calculations first (F5)' : undefined}>Export CSV (Excel)</button>
+          <button className="chip primary" onClick={exportPdf} disabled={busy || !rows.length || stale} title={stale ? 'Run the calculations first (F5)' : undefined}>{busy ? 'Exporting…' : 'Export PDF'}</button>
         </>
       }
     >

@@ -17,8 +17,10 @@ function currentSvg(): { svg: string; w: number; h: number } | undefined {
 /** Title block details and export of the SLD as a drawing: PDF sheet with
  * frame and title block (A3 / A2 / A1), DXF for CAD, or plain SVG. The
  * drawing shows what's on screen — result labels, colours, generator mode. */
-export default function SldExportDialog({ project, onSave, onStatus, onClose }: {
+export default function SldExportDialog({ project, onSave, onStatus, onClose, stale = false }: {
   project: Project;
+  /** Results on the diagram are out of date. */
+  stale?: boolean;
   onSave: (d: DrawingInfo) => void;
   onStatus: (m: string) => void;
   onClose: () => void;
@@ -68,6 +70,7 @@ export default function SldExportDialog({ project, onSave, onStatus, onClose }: 
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h3>Export SLD drawing</h3>
+        {stale && <p className="warn">⚠ The result labels on the diagram are out of date — press Run (F5) first if the drawing shows results.</p>}
         <p className="m">The drawing shows the diagram as it is on screen — result labels, colours and generator mode included. Title block details are saved with the project.</p>
         <div className="grid2">
           <label style={{ gridColumn: '1 / -1' }}>Company / consultant<input value={d.company ?? ''} placeholder={project.info?.consultant ?? ''} onChange={(e) => set('company', e.target.value)} /></label>
