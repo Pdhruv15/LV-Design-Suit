@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DrawingInfo, Project } from '../types';
+import { cableTypeOf, CABLE_TYPE_DEFS, labelCode, needsFireRated } from '../model/cableTypes';
 import { LEGEND_ROW, LEGEND_W, legendEntries, LoadSym, polesText, SwitchSym, switchKindOf } from '../diagram/IecSymbols';
 import type { FeederResult, Status } from '../calc/electrical';
 import { boardSummary, loadTypeOf } from '../calc/summary';
@@ -249,13 +250,13 @@ export default function SystemDiagram({
   // Dragging the empty background still pans.
   const pick = useRef<{ item: MoveItem; label: string; px: number; py: number } | null>(null);
   const [moving, setMoving] = useState<{ label: string; x: number; y: number } | null>(null);
-  const [cableEdit, setCableEdit] = useState<{ id: string; x: number; y: number; size: string; cores: string; length: string; runs: string } | null>(null);
+  const [cableEdit, setCableEdit] = useState<{ id: string; x: number; y: number; size: string; cores: string; length: string; runs: string; type: string } | null>(null);
   const lengthOk = (v: string) => /^\d*\.?\d+$/.test(v.trim().replace(',', '.')) && Number(v.trim().replace(',', '.')) > 0;
   const saveCable = () => {
     if (!cableEdit || !onPatchFeeder || !lengthOk(cableEdit.length)) return;
     // Only sizes from the cable table and 2/3/4 cores: anything else would break every calculation.
     if (!cables().some((c) => c.csaMm2 === Number(cableEdit.size)) || !['2', '3', '4'].includes(cableEdit.cores)) return;
-    onPatchFeeder(cableEdit.id, { cableCsaMm2: Number(cableEdit.size), cores: Number(cableEdit.cores) as 2 | 3 | 4, lengthM: Number(cableEdit.length.trim().replace(',', '.')), parallel: Number(cableEdit.runs) > 1 ? Number(cableEdit.runs) : undefined });
+    onPatchFeeder(cableEdit.id, { cableCsaMm2: Number(cableEdit.size), cores: Number(cableEdit.cores) as 2 | 3 | 4, lengthM: Number(cableEdit.length.trim().replace(',', '.')), parallel: Number(cableEdit.runs) > 1 ? Number(cableEdit.runs) : undefined, cableType: cableEdit.type || undefined });
     setCableEdit(null);
   };
   const startPick = (item: MoveItem, label: string) => (e: React.PointerEvent) => {
@@ -552,7 +553,7 @@ export default function SystemDiagram({
               )}
               {!iec && <line x1={n.x - 5} y1={y + 32} x2={n.x + 5} y2={y + 20} className="ln" />}
               {iec && <text x={n.x + 10} y={y + 41} className="acc-t">{polesText(f)} · {f.breakerIcuKa} kA</text>}
-              <line x1={n.x} y1={y + 34} x2={n.x} y2={endY} className={`ln ${status !== 'ok' ? status : ''}`}
+              <line x1={n.x} y1={y + 34} x2={n.x} y2={endY} className={`ln ${status !== 'ok' ? status : ''}${cableTypeOf(project, f).fireRated ? ' fr' : ''}`}
                 style={feederHeat(f.id) ? { stroke: feederHeat(f.id), strokeWidth: 3.5 } : undefined} />
               <text className="b" x={n.x + 10} y={y + 30}>{f.breakerRatingA} A{f.rcdMa ? <tspan className="acc-t"> · {f.rcdMa} mA</tspan> : null}</text>
               <text
@@ -564,11 +565,12 @@ export default function SystemDiagram({
                   if (!onPatchFeeder || tool === 'pan') return;
                   e.stopPropagation();
                   const r = svgRef.current!.parentElement!.getBoundingClientRect();
-                  setCableEdit({ id: f.id, x: e.clientX - r.left, y: e.clientY - r.top, size: String(f.cableCsaMm2), cores: String(f.cores), length: String(f.lengthM), runs: String(runsOf(f)) });
+                  setCableEdit({ id: f.id, x: e.clientX - r.left, y: e.clientY - r.top, size: String(f.cableCsaMm2), cores: String(f.cores), length: String(f.lengthM), runs: String(runsOf(f)), type: f.cableType ?? '' });
                 }}
               >
                 {onPatchFeeder && <title>Click to change the cable</title>}
-                {runsOf(f) > 1 ? `${runsOf(f)}×` : ''}{f.cores}C × {f.cableCsaMm2}mm² · {f.lengthM}m
+                {runsOf(f) > 1 ? `${runsOf(f)}×` : ''}{f.cores}C × {f.cableCsaMm2}mm²{(() => { const c = labelCode(project, f); return c ? ` ${c}` : ''; })()} · {f.lengthM}m
+                {needsFireRated(project, f) && !cableTypeOf(project, f).fireRated && <tspan className="res warn"> ⚠ FR</tspan>}
               </text>
               {/* Accessories on the feeder, top to bottom: earth leakage (its
                   rating goes with the breaker's), metering on the right below
@@ -826,6 +828,12 @@ export default function SystemDiagram({
           <label>Cores
             <select value={cableEdit.cores} onChange={(e) => setCableEdit({ ...cableEdit, cores: e.target.value })}>
               {['2', '3', '4'].map((c) => <option key={c} value={c}>{c}C</option>)}
+            </select>
+          </label>
+          <label>Type
+            <select value={cableEdit.type} onChange={(e) => setCableEdit({ ...cableEdit, type: e.target.value })}>
+              {(() => { const f = project.feeders.find((x) => x.id === cableEdit.id); return <option value="">Auto — {f ? cableTypeOf(project, f).label : ''}</option>; })()}
+              {CABLE_TYPE_DEFS.filter((d) => d.value !== 'XLPE/SWA/PVC').map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
             </select>
           </label>
           <label>Length (m)

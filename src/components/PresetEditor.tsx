@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { BOARD_KINDS, LOAD_TYPES, METER_TYPES, RCD_MA, type BoardKind, type LoadType, type MeterType, type StarterType } from '../types';
 import { STARTERS } from '../calc/motor';
 import { presetParts, type FeederPreset, type PresetBreaker } from '../model/presets';
+import { CABLE_TYPE_DEFS } from '../model/cableTypes';
 
 const num = (v: string) => (v.trim() === '' || Number.isNaN(+v) ? undefined : +v);
 
@@ -82,6 +83,12 @@ export default function PresetEditor({ initial, onSave, onClose }: {
           <label>Breaker rating (A){n('breakerRatingA', 'sized for the load')}</label>
           <label>Breaking capacity (kA){n('icuKa', p.kind === 'board' ? '36' : '25')}</label>
           <label>Cable length (m){n('lengthM', '30')}</label>
+          <label>Cable type
+            <select value={p.cableType ?? ''} onChange={(e) => set('cableType', e.target.value || undefined)}>
+              <option value="">Default (fire-rated for life safety)</option>
+              {CABLE_TYPE_DEFS.filter((d) => d.value !== 'XLPE/SWA/PVC').map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+            </select>
+          </label>
           <label>Earth leakage (RCD)
             <select value={p.rcdMa ?? ''} onChange={(e) => set('rcdMa', num(e.target.value))}>
               <option value="">None</option>

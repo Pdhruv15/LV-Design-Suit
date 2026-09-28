@@ -12,6 +12,7 @@ import type { ColorBy } from '../diagram/heatmap';
 import { currentRevision } from '../model/revisions';
 import type { Board, Feeder, Project, StudyReportKind, StudyReportSetup } from '../types';
 import { esc, REPORT_CSS } from './report';
+import { cableTypeOf, fireRatingIssues } from '../model/cableTypes';
 import { cableSchedule, dbSchedule } from './schedules';
 
 /** Submission reports for chosen studies on a chosen part of the network:
@@ -198,10 +199,17 @@ export function buildSection(key: StudyReportKind, data: CalcData, scope: Scope)
         'Cu/XLPE/SWA multicore cable, reference rating in free air; derated for the ambient temperature and for grouping (the cable tray the cable runs on, else its own parallel runs).',
         'Overload protection per IEC 60364-4-43: Ib ≤ In ≤ Iz. Voltage drop from the main board to the load within the limit.'
       ],
-      summary: [{ label: 'Circuits checked', value: tally(statuses), status: worst(statuses) }, { label: 'Ambient', value: `${p.ambientC} °C` }],
+      summary: [
+        { label: 'Circuits checked', value: tally(statuses), status: worst(statuses) },
+        { label: 'Ambient', value: `${p.ambientC} °C` },
+        ...(() => {
+          const fr = fireRatingIssues(p).filter((f) => rs.some((r) => r.feeder.id === f.id));
+          return fr.length ? [{ label: 'Life safety circuits not on fire-rated cable', value: fr.map((f) => f.id).join(', '), status: 'warn' as const }] : [];
+        })()
+      ],
       tables: [{
         title: 'Cables and breakers', headers: ['Circuit', 'From', 'To', 'Cable', 'Ib (A)', 'Breaker In (A)', 'Iz (A)', 'Grouping', 'Ib ≤ In ≤ Iz', 'ΔV total (%)', 'Result'],
-        rows: rs.map((r, i) => [tag(r.feeder), r.feeder.boardId, to(r.feeder), `${cableSizeText(r.feeder)} + ${cpcOf(r.feeder)} CPC`, n(r.ib, 1), `${r.feeder.breakerRatingA} ${breakerTypeOf(r.feeder)}`, n(r.ampacity, 0), r.tray ? `${r.tray.factor.toFixed(2)} (tray ${r.tray.route})` : '—', S(r.protectionStatus), n(r.vdTotalPct, 2), S(statuses[i])])
+        rows: rs.map((r, i) => [tag(r.feeder), r.feeder.boardId, to(r.feeder), `${cableSizeText(r.feeder)} ${cableTypeOf(p, r.feeder).code} + ${cpcOf(r.feeder)} CPC`, n(r.ib, 1), `${r.feeder.breakerRatingA} ${breakerTypeOf(r.feeder)}`, n(r.ampacity, 0), r.tray ? `${r.tray.factor.toFixed(2)} (tray ${r.tray.route})` : '—', S(r.protectionStatus), n(r.vdTotalPct, 2), S(statuses[i])])
       }]
     };
   }

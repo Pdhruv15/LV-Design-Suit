@@ -1,4 +1,5 @@
 import { cpcOf } from './cableTable';
+import { cableTypeOf } from '../model/cableTypes';
 import { brandOf, DEFAULT_CABLE_BRAND, typicalKgPerM } from '../data/cableBrands';
 import type { CableOd, Feeder, Project, TrayCable, TrayPlan, TrayRoute, TraySettings, TraySpacing } from '../types';
 
@@ -200,6 +201,7 @@ export interface TrayLine {
   bendMm: number; // minimum bending radius
   bendEstimated: boolean; // 8 × D (the cable data doesn't give it)
   ecc: boolean;
+  fireRated?: boolean; // fire-rated cable (segregated from the others)
   path?: string; // the feeder's whole route path
   missing?: string; // why the line can't be sized
   unknownSize?: boolean; // diameter from the next size up
@@ -222,7 +224,8 @@ export function trayLines(project: Project, plan: TrayPlan, route: TrayRoute): T
     const id = c?.id ?? `f:${f!.id}`;
     out.push({
       id, cableId: c?.id, feederId: f?.id, from, to,
-      description: `${cores}C × ${csa} mm²`,
+      description: `${cores}C × ${csa} mm²${f ? ` ${cableTypeOf(project, f).code}` : ''}`,
+      fireRated: f ? !!cableTypeOf(project, f).fireRated : undefined,
       cores, csaMm2: csa, qty,
       odMm: c?.odMm ?? d.odMm,
       kgPerM: c?.kgPerM ?? d.kgPerM,
@@ -391,6 +394,10 @@ export function sizeRoute(project: Project, planIn: TrayPlan, route: TrayRoute):
   if (missing.length) { notes.push(`${missing.length} cable${missing.length === 1 ? '' : 's'} without a size`); if (status === 'ok') status = 'warn'; }
   if (lines.some((l) => l.unknownSize)) notes.push('Some sizes are not in the cable data — the next size up is used');
   if (tiers > 1) notes.push(`${tiers} tiers of ${widthMm} mm`);
+  if (ok.some((l) => l.fireRated) && ok.some((l) => !l.fireRated && !l.ecc)) {
+    notes.push('Fire-rated and other cables share this route — segregate them (separate tray or a divider)');
+    if (status === 'ok') status = 'warn';
+  }
   if (tiers > 3 && arrangement !== 'bunched') notes.push('Grouping for more than 3 tiers taken as 3 tiers');
 
   return {

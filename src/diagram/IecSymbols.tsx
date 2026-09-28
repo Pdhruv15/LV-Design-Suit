@@ -2,6 +2,8 @@ import type { Feeder, LoadType, Project } from '../types';
 import { breakerTypeOf } from '../calc/earthing';
 import { isMotor } from '../calc/motor';
 import { isScheduleCircuit } from '../calc/loadSchedule';
+import { cableTypeDef, cableTypeOf, labelCode } from '../model/cableTypes';
+import { DEFAULT_CABLE_TYPE } from '../types';
 
 /** IEC 60617 symbols for the single line diagram, drawn with the diagram's
  * own classes (.ln lines, .sym filled shapes) so they follow the theme and
@@ -117,6 +119,10 @@ export function legendEntries(project: Project): LegendEntry[] {
     <g className="iec"><circle cx={x} cy={y} r="9" className="sym" /><text x={x} y={y + 4} textAnchor="middle" className="iec-t b">G</text></g>
   ));
   add('bus', 'Busbar', (x, y) => <line x1={x - 12} y1={y} x2={x + 12} y2={y} className="bus" />);
+  if (drawn.length) add('cable', `Cable ${cableTypeDef(DEFAULT_CABLE_TYPE).label.replace(/ \(.*\)$/, '')} unless marked`, (x, y) => <line x1={x} y1={y - 10} x2={x} y2={y + 10} className="ln" />);
+  if (drawn.some((f) => cableTypeOf(project, f).fireRated)) add('fr', 'Fire-rated cable (FR, MICC)', (x, y) => <line x1={x} y1={y - 10} x2={x} y2={y + 10} className="ln fr" />);
+  const others = [...new Set(drawn.map((f) => labelCode(project, f)).filter((c) => c && c !== 'FR' && c !== 'MICC'))];
+  if (others.length) add('ctype', `Marked cables: ${others.join(', ')}`, (x, y) => <text x={x} y={y + 3} textAnchor="middle" className="iec-t s">code</text>);
   if (has('breaker')) add('cb', 'Circuit breaker (MCB / MCCB)', (x, y) => <SwitchSym x={x} y={y - 8} kind="breaker" />);
   if (has('acb')) add('acb', 'Air circuit breaker, withdrawable', (x, y) => <SwitchSym x={x} y={y - 8} kind="acb" />);
   if (has('isolator')) add('isol', 'Switch-disconnector', (x, y) => <SwitchSym x={x} y={y - 8} kind="isolator" />);

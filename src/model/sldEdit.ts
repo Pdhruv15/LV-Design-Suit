@@ -50,7 +50,7 @@ export type PaletteItem =
   | { kind: 'cable' };
 
 /** Devices added to a feeder or a busbar without changing its breaker. */
-export type Accessory = 'meter' | 'ct-meter' | 'rcd' | 'isolator' | 'spd';
+export type Accessory = 'meter' | 'ct-meter' | 'rcd' | 'isolator' | 'spd' | 'cable-fr' | 'cable-lszh';
 
 /** Where something is dropped. On a busbar, `before` is the feeder the new
  * way goes in front of (from where it was dropped); none = at the end. */
@@ -101,6 +101,13 @@ export const PALETTE: { group: string; entries: PaletteEntry[] }[] = [
       { item: { kind: 'accessory', accessory: 'rcd' } as PaletteItem, label: 'Earth leakage (RCD)', title: 'Drop on a feeder: earth leakage protection (30 mA up to 32 A, else 300 mA) — used in the earth fault check' },
       { item: { kind: 'accessory', accessory: 'isolator' } as PaletteItem, label: 'Local isolator', title: 'Drop on a feeder: isolator at the equipment (AC unit, pump…)' },
       { item: { kind: 'accessory', accessory: 'spd' } as PaletteItem, label: 'Surge protection (SPD)', title: 'Drop on a busbar: surge protection device — Type 1+2 on a main board, Type 2 on the others' }
+    ]
+  },
+  {
+    group: 'Cable types',
+    entries: [
+      { item: { kind: 'accessory', accessory: 'cable-fr' } as PaletteItem, label: 'Fire-rated cable (FR)', title: 'Drop on a feeder: fire-rated cable (BS 8491) — drawn dashed, marked FR' },
+      { item: { kind: 'accessory', accessory: 'cable-lszh' } as PaletteItem, label: 'LSZH cable', title: 'Drop on a feeder: low smoke zero halogen armoured cable (XLPE/SWA/LSZH)' }
     ]
   },
   {
@@ -375,11 +382,15 @@ export function applyDrop(project: Project, item: PaletteItem, target: DropTarge
     const f = project.feeders.find((x) => x.id === target.feederId)!;
     const threePhase = f.cores >= 3 || f.phase === 'RYB';
     const patch: Partial<Feeder> =
-      item.accessory === 'meter' ? { kwhMeter: threePhase ? '3-PH' : '1-PH' }
+      item.accessory === 'cable-fr' ? { cableType: 'FR BS 8491' }
+      : item.accessory === 'cable-lszh' ? { cableType: 'XLPE/SWA/LSZH' }
+      : item.accessory === 'meter' ? { kwhMeter: threePhase ? '3-PH' : '1-PH' }
         : item.accessory === 'ct-meter' ? { kwhMeter: 'CT' }
           : item.accessory === 'rcd' ? { rcdMa: f.breakerRatingA <= 32 ? 30 : 300 }
             : { localIsolator: true };
-    const what = item.accessory === 'meter' ? `${patch.kwhMeter} kWh meter`
+    const what = item.accessory === 'cable-fr' ? 'fire-rated cable (BS 8491)'
+      : item.accessory === 'cable-lszh' ? 'LSZH cable'
+      : item.accessory === 'meter' ? `${patch.kwhMeter} kWh meter`
       : item.accessory === 'ct-meter' ? 'CT-operated kWh meter'
         : item.accessory === 'rcd' ? `earth leakage protection ${patch.rcdMa} mA`
           : 'local isolator';
