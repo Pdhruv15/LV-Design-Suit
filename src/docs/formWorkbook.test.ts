@@ -20,7 +20,7 @@ const text = (ws: ExcelJS.Worksheet) => {
 describe('submission workbook (Excel)', () => {
   it('has the MD forms first in supply order, then the DB schedules', async () => {
     const wb = await roundTrip(buildFormWorkbook(sampleProject));
-    expect(wb.worksheets.map((w) => w.name)).toEqual(['MDB-1 LOAD SUMMARY', 'SMDB-GF MD', 'SMDB-FF MD', 'MCC-1 MD', 'DB-GF1 SCHEDULE']);
+    expect(wb.worksheets.map((w) => w.name)).toEqual(['TCL SUMMARY', 'MDB-1 LOAD SUMMARY', 'SMDB-GF MD', 'SMDB-FF MD', 'MCC-1 MD', 'DB-GF1 SCHEDULE']);
   });
 
   it('MD form: title, rows, totals, demand factor line and A4 landscape', async () => {

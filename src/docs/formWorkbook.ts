@@ -5,6 +5,8 @@ import type { Project } from '../types';
 import { buildDbSheet } from './dbSheet';
 import { buildMdSheet, hasMdSheet } from './mdSheet';
 import { revisionStamp } from '../model/revisions';
+import { acbText, buildTxSummary, rowCtText } from './txSummary';
+import { buildRiserForm, type RiserFormRow } from './riserForm';
 
 /** Page header and footer printed on every sheet: revision top right. */
 function stamp(ws: ExcelJS.Worksheet, project: Project) {
@@ -163,6 +165,139 @@ export function addMdSheet(wb: ExcelJS.Workbook, project: Project, boardId: stri
   return ws;
 }
 
+/** Summary of the TCL at transformer level (landscape): one row per
+ * transformer, grouped by substation, then totals, diversity, maximum
+ * demand, TCL and TCL (duty). */
+export function addTxSheet(wb: ExcelJS.Workbook, project: Project, name = 'TCL SUMMARY'): Ws {
+  const s = buildTxSummary(project);
+  const h = s.header;
+  const ws = wb.addWorksheet(sheetName(wb, name), {
+    pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 } },
+    views: [{ showGridLines: false }]
+  });
+  const n = 19;
+  [22, 7, 14, 10, 9, 16, 9, 9, 10, 9, 9, 9, 10, 7, 10, 7, 7, 7, 30].forEach((w, i) => (ws.getColumn(i + 1).width = w));
+  const u = (v: string) => ({ align: 'left' as const, bold: true, v });
+  const head = (r: number, c1: number, c2: number, x: { v: string; align: 'left'; bold: boolean }) => { put(ws, r, c1, x.v, { align: x.align, bold: x.bold }); merge(ws, r, c1, r, c2); };
+  head(1, 1, 5, u(`PROJECT :  ${h.project}`));
+  put(ws, 1, 6, 'DETAILS OF CONNECTED LOAD, MAX DEMAND & kWh METERING', { bold: true, size: 11, border: true }); merge(ws, 1, 6, 1, 13);
+  head(1, 16, n, u(`AREA :  ${h.area}`));
+  head(2, 1, 5, u(`PLANNED COMPLETION DATE :  ${h.completion}`));
+  head(2, 6, 13, u(`OWNER :  ${h.owner}`));
+  head(2, 16, n, u(`PLOT No:  ${h.plotNo}`));
+  head(3, 1, 5, u('SUMMARY OF THE TCL AT TRANSFORMER LEVEL'));
+  head(3, 6, 13, u(`CONSULTANT :  ${h.consultant}`));
+  head(3, 16, n, u(`LOC: ${h.location.toUpperCase()}`));
+  [1, 2, 3].forEach((r) => (ws.getRow(r).height = 20));
+
+  const h1 = 5, h2 = 6;
+  const single: [number, string][] = [[1, 'TRANSFORMER REFERENCE'], [2, 'SP/TP'], [5, 'FAULT DUTY kA'], [9, 'ECC SIZE 1C, mm2'], [13, 'TCL (kW)'], [14, 'D.F'], [15, 'MDL (kW)'], [19, 'Remarks']];
+  for (const [c, t] of single) { put(ws, h1, c, t, { bold: true, border: true }); merge(ws, h1, c, h2, c); }
+  const group = (c1: number, c2: number, t: string, subs: string[]) => {
+    put(ws, h1, c1, t, { bold: true, border: true }); merge(ws, h1, c1, h1, c2);
+    subs.forEach((x, i) => put(ws, h2, c1 + i, x, { bold: true, border: true }));
+  };
+  group(3, 4, 'RATING - AMPS', ['ACB', 'MCCB']);
+  group(6, 8, 'CABLE SIZE', ['PVC/XLPE/SWA/ PVC', '2/4X1C MM2', '2/3/4C MM2']);
+  group(10, 12, 'CONNECTION LOAD - kW', ['R-PHASE kW', 'Y-PHASE kW', 'B-PHASE kW']);
+  group(16, 18, 'kWH METER', ['1 - 0 (1)', '3 - 0 (2)', 'CT (3)']);
+  box(ws, h1, 1, h2, n);
+  ws.getRow(h1).height = 22;
+  ws.getRow(h2).height = 34;
+
+  let r = h2 + 1;
+  const k = (v: number) => Number(v.toFixed(2));
+  for (const g of s.groups) {
+    put(ws, r, 1, g.name, { bold: true, align: 'left' }); merge(ws, r, 1, r, n); ws.getRow(r).height = 22; r++;
+    for (const x of g.rows) {
+      const vals: Val[] = [x.board.txRef ?? x.board.id, x.poles, x.device === 'ACB' ? acbText(x) : '', x.device === 'MCCB' ? acbText(x) : '', x.faultKa ?? '', x.cable, '', '', x.ecc,
+        k(x.phases.R), k(x.phases.Y), k(x.phases.B), k(x.tclKw), x.df, k(x.mdlKw), x.meters['1-PH'] || '', x.meters['3-PH'] || '', x.meters.CT || '', rowCtText(x)];
+      vals.forEach((v, i) => put(ws, r, i + 1, v, { border: true, align: i === 0 ? 'left' : 'center' }));
+      merge(ws, r, 6, r, 8);
+      ws.getRow(r).height = 22;
+      r++;
+    }
+  }
+  put(ws, r, 3, 'TOTAL CONNECTED - LOAD PER PHASE', { bold: true, align: 'left' }); merge(ws, r, 3, r, 9);
+  [s.phases.R, s.phases.Y, s.phases.B, s.tclKw].forEach((v, i) => put(ws, r, 10 + i, k(v), { bold: true, border: true }));
+  put(ws, r, 15, k(s.mdlKw), { bold: true, border: true });
+  put(ws, r, 16, s.meters['1-PH'] || '', { bold: true, border: true });
+  put(ws, r, 17, s.meters['3-PH'] || '', { bold: true, border: true });
+  put(ws, r, 18, s.meters.CT || '', { bold: true, border: true });
+  put(ws, r, 19, s.ctText, { border: true, size: 8 });
+  ws.getRow(r).height = 30;
+  r++;
+  put(ws, r, 3, 'DIVERSITY FACTOR', { bold: true, align: 'left' }); merge(ws, r, 3, r, 5);
+  put(ws, r, 6, Number(s.diversity.toFixed(2)), { bold: true, border: true });
+  put(ws, r, 7, 'TOTAL', { bold: true, align: 'left' });
+  r += 2;
+  put(ws, r, 3, 'MAX. DEMAND - 3 PHASE', { bold: true, align: 'left' }); merge(ws, r, 3, r, 5);
+  put(ws, r, 6, Number(s.mdlKw.toFixed(1)), { bold: true, border: true });
+  put(ws, r, 7, 'kW', { align: 'left' });
+  put(ws, r, 9, 'TCL =', { align: 'right' });
+  put(ws, r, 10, Number(s.tclKw.toFixed(1)), { bold: true, border: true });
+  put(ws, r, 11, 'kW', { align: 'left' });
+  r++;
+  put(ws, r, 8, 'TCL (DUTY)=', { align: 'right' }); merge(ws, r, 8, r, 9);
+  put(ws, r, 10, Number(s.tclDutyKw.toFixed(1)), { bold: true, border: true });
+  put(ws, r, 11, 'kW', { align: 'left' });
+  frame(ws, 1, 1, r, n);
+  ws.pageSetup.printArea = `A1:${ws.getColumn(n).letter}${r}`;
+  stamp(ws, project);
+  return ws;
+}
+
+/** Bus bar riser — details of connected load / max. demand (landscape). */
+export function addRiserSheet(wb: ExcelJS.Workbook, project: Project, riserId: string): Ws | undefined {
+  const f = buildRiserForm(project, riserId);
+  if (!f) return undefined;
+  const ws = wb.addWorksheet(sheetName(wb, `${f.ref} RISER`), {
+    pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 } },
+    views: [{ showGridLines: false }]
+  });
+  const n = 19;
+  [22, 6, 9, 9, 8, 10, 14, 8, 9, 9, 9, 9, 9, 7, 9, 7, 7, 7, 22].forEach((w, i) => (ws.getColumn(i + 1).width = w));
+  put(ws, 1, 1, 'BUS BAR RISER', { bold: true, align: 'left' }); merge(ws, 1, 1, 1, 5);
+  put(ws, 2, 1, 'DETAILS OF CONNECTED LOAD / MAX. DEMAND', { bold: true, size: 11 }); merge(ws, 2, 1, 2, n);
+  put(ws, 3, 1, `PROJECT :  ${project.name}`, { bold: true, align: 'left' }); merge(ws, 3, 1, 3, 10);
+  put(ws, 4, 1, `BUS BAR RISER REF:  ${f.ref}`, { bold: true, align: 'left' }); merge(ws, 4, 1, 4, 10);
+  put(ws, 5, 1, `FED FROM  ${f.fedFrom}`, { bold: true, align: 'left' }); merge(ws, 5, 1, 5, 10);
+  const h1 = 6, h2 = 7;
+  const single: [number, string][] = [[1, 'CIRCUIT FEEDER / SMDB /DB NO.'], [2, 'SP/TP'], [5, 'FAULT DUTY (kA)'], [9, 'ECC SIZE 1C mm2'], [13, 'TCL (kW)'], [14, 'D.F'], [15, 'MD (Kw)'], [19, 'REMARKS']];
+  for (const [c, t] of single) { put(ws, h1, c, t, { bold: true, border: true }); merge(ws, h1, c, h2, c); }
+  const group = (c1: number, c2: number, t: string, subs: string[]) => {
+    put(ws, h1, c1, t, { bold: true, border: true }); merge(ws, h1, c1, h1, c2);
+    subs.forEach((x, i) => put(ws, h2, c1 + i, x, { bold: true, border: true }));
+  };
+  group(3, 4, 'RATING - AMPS', ['ACB', 'MCCB']);
+  group(6, 8, 'CABLE SIZE, TYPE & No.OF CORES', ['NO. OF CORES: 1C/2C/4C', 'TYPE: XLPE/PVC/SWA', 'SIZE']);
+  group(10, 12, 'CONNECTION LOAD - KW', ['R-PH kW', 'Y-PH kW', 'B-PH kW']);
+  group(16, 18, 'PROPOSED TYPE & No OF kWh METER', ['1-PH (1)', '3-PH (2)', 'LV/HV-CT (3)']);
+  box(ws, h1, 1, h2, n);
+  ws.getRow(h2).height = 40;
+  const k = (v: number) => Number(v.toFixed(2));
+  let r = h2 + 1;
+  const i = f.incomer;
+  [i.name, 'TP', i.acb ?? '', '', i.faultKa ?? '', i.busway, '', '', '', k(i.phases.R), k(i.phases.Y), k(i.phases.B), k(i.tcl), '', '', '', '', '', ''].forEach((v, x) => put(ws, r, x + 1, v, { border: true }));
+  merge(ws, r, 6, r, 9); r++;
+  put(ws, r, 1, 'OUTGOINGS', { border: true }); box(ws, r, 1, r, n); r++;
+  const line = (x: RiserFormRow) => [x.name, x.sptp, x.acb ?? '', x.mccb ?? '', x.faultKa ?? '', x.cores ?? '', x.type ?? '', x.size ?? '', x.ecc ?? '', k(x.phases.R), k(x.phases.Y), k(x.phases.B), k(x.tcl), x.df ?? '', k(x.md ?? 0), x.meters['1-PH'], x.meters['3-PH'], x.meters.CT, x.remarks ?? ''];
+  for (const x of f.rows) { line(x).forEach((v, c) => put(ws, r, c + 1, v, { border: true, align: c === 0 ? 'left' : 'center' })); r++; }
+  put(ws, r, 5, 'TOTAL CONNECTED - LOAD PER PHASE', { bold: true, border: true }); merge(ws, r, 5, r, 9);
+  [f.totals.phases.R, f.totals.phases.Y, f.totals.phases.B, f.totals.tcl].forEach((v, c) => put(ws, r, 10 + c, k(v), { bold: true, border: true }));
+  put(ws, r, 14, '', { border: true });
+  put(ws, r, 15, k(f.totals.md), { bold: true, border: true });
+  (['1-PH', '3-PH', 'CT'] as const).forEach((m, c) => put(ws, r, 16 + c, f.totals.meters[m], { bold: true, border: true }));
+  r += 2;
+  for (const [l, v] of [['TCL (kw)', k(f.totals.tcl)], ['MDL (kw)', k(f.totals.md)], ['DF', Number(f.df.toFixed(2))]] as [string, number][]) {
+    put(ws, r, 9, l, { bold: true, border: true }); put(ws, r, 10, v, { bold: true, border: true }); r++;
+  }
+  frame(ws, 1, 1, r - 1, n);
+  ws.pageSetup.printArea = `A1:${ws.getColumn(n).letter}${r - 1}`;
+  stamp(ws, project);
+  return ws;
+}
+
 /** Load distribution schedule of one DB (portrait). Columns that exist only
  * in the app (length, checks) are left off. */
 export function addDbSheet(wb: ExcelJS.Workbook, project: Project, boardId: string, name?: string): Ws {
@@ -269,7 +404,7 @@ export interface WorkbookScope {
   /** Boards to include; default: all. */
   boardIds?: string[];
   /** Which forms: default both. */
-  forms?: ('md' | 'db')[];
+  forms?: ('tx' | 'riser' | 'md' | 'db')[];
 }
 
 /** Every form of the project in supply order: connected load & MD sheets
@@ -279,7 +414,9 @@ export function buildFormWorkbook(project: Project, scope: WorkbookScope = {}): 
   const wb = new ExcelJS.Workbook();
   wb.creator = 'LV Design Studio';
   wb.created = new Date();
-  const forms = scope.forms ?? ['md', 'db'];
+  const forms = scope.forms ?? ['tx', 'riser', 'md', 'db'];
+  if (forms.includes('tx') && !scope.boardIds && project.boards.some((b) => !b.upstreamId)) addTxSheet(wb, project);
+  if (forms.includes('riser') && !scope.boardIds) for (const r of project.busRisers ?? []) addRiserSheet(wb, project, r.id);
   const boards = boardsInSupplyOrder(project).filter((b) => !scope.boardIds || scope.boardIds.includes(b.id));
   if (forms.includes('md')) {
     for (const b of boards) if (hasMdSheet(project, b.id)) addMdSheet(wb, project, b.id, b.upstreamId ? `${b.id} MD` : `${b.id} LOAD SUMMARY`);

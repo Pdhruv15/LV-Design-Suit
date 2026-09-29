@@ -154,6 +154,7 @@ export interface Feeder {
   breakerType?: BreakerType; // default: MCB type C up to 63 A, MCCB above
   breakerImMultiple?: number; // MCCB/ACB instantaneous setting as a multiple of In (default 10)
   cpcMm2?: number; // protective (earth) conductor size; default per IEC 60364-5-54 Table 54.2
+  standbyUnit?: boolean; // a standby unit (e.g. standby pump): not in the TCL (duty)
   essential?: boolean; // supplied by the standby generator (fire pump defaults to essential)
   // DB load schedule fields (final circuits entered from the load schedule)
   phase?: Phase; // R / Y / B single-phase circuit, or RYB 3-phase
@@ -213,7 +214,18 @@ export interface Board {
     cable?: string; // e.g. "BY DEWA"
     ecc?: string; // e.g. "2X1CX35"
     meter?: MeterType;
+    irSetting?: number; // main breaker long-time setting, × In (e.g. 0.85)
+    ctRatio?: string; // main meter CT, e.g. "2400/5A" (else from the setting)
   };
+  /** Substation this main board's transformer is in (transformer summary form). */
+  substation?: string;
+  /** Demand factor of this transformer on the summary form (else the project's). */
+  mdDemandFactor?: number;
+  /** Transformer reference on the summary form, e.g. "SS1-LV-MDB-01" (else the board id). */
+  txRef?: string;
+  /** Typed on the summary form while nothing is drawn below this board. */
+  summaryLoad?: { R: number; Y: number; B: number };
+  summaryMeters?: Partial<Record<MeterType, number>>;
   // DB load schedule settings
   pointWatts?: Partial<Record<PointType, number>>; // WATT/UNIT row overrides for this DB
   pointItems?: Partial<Record<PointType, string>>; // library item chosen per column (kept in sync with Loads.xlsx)
