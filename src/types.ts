@@ -245,6 +245,8 @@ export interface Project {
   studyReportPresets?: StudyReportPreset[]; // saved scopes / study sets for repeat submissions
   calc?: { autoRun?: boolean }; // run the network studies on every change (default: on Run / F5 only)
   studySettings?: StudySettings;
+  busRisers?: import('./calc/busbar').BusRiser[]; // busbar trunking risers (high-rise)
+  busbarData?: import('./calc/busbar').BusbarData; // manufacturer busway data (typical when absent)
   txGen?: Partial<import('./calc/txGen').TxGenPlan>; // transformer & generator sizing choices
   pfc?: Partial<import('./calc/pfc').PfcPlan>; // power factor correction: strategy, boards, bank design
   status?: ProjectStatus; // where the job is (projects dashboard)
@@ -334,7 +336,7 @@ export interface DmSubstationRoom {
 }
 
 /** A submission report for chosen studies on chosen boards. */
-export type StudyReportKind = 'sc' | 'lf' | 'cable' | 'earth' | 'disc' | 'sizing' | 'pfc' | 'schedules';
+export type StudyReportKind = 'sc' | 'lf' | 'cable' | 'earth' | 'disc' | 'sizing' | 'pfc' | 'busbar' | 'schedules';
 
 export interface StudyReportSetup {
   boards: string[]; // selected boards (empty = all)
