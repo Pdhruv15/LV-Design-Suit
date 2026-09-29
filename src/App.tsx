@@ -28,6 +28,7 @@ import CoordinationStudy from './components/studies/CoordinationStudy';
 import { TransformerGeneratorStudy } from './components/studies/SizingStudy';
 import PfcStudy from './components/studies/PfcStudy';
 import BusbarStudy from './components/studies/BusbarStudy';
+import BuildingView from './components/docs/BuildingView';
 import { CableScheduleView, DbScheduleView, EquipmentScheduleView, ReportView } from './components/docs/Documents';
 import LoadScheduleView from './components/docs/LoadScheduleView';
 import { refreshBoard } from './model/schedule';
@@ -936,6 +937,7 @@ export default function App() {
             {view === 'selection' && <SelectionStudy project={calcProject} focus={focus} onClearFocus={() => setFocus(null)} onChange={staleKeys.length ? blocked : setProject} />}
             {view === 'coordination' && <CoordinationStudy project={calcProject} board={board?.id} onBoard={setActiveBoardId} />}
             {view === 'sizing' && <TransformerGeneratorStudy project={project} onStatus={setStatus} onChange={(p) => setProject(p, { step: true })} />}
+            {view === 'building' && <BuildingView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'busbar' && <BusbarStudy project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'pfc' && <PfcStudy project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'db-schedule' && <DbScheduleView project={calcProject} board={dbScheduleAll ? '' : board?.id} onBoard={(id) => { setDbScheduleAll(!id); if (id) setActiveBoardId(id); }} onStatus={setStatus} />}

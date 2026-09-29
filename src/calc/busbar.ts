@@ -1,4 +1,5 @@
 import type { Project } from '../types';
+import { summarizeBuilding } from './building';
 import { boardTotals } from './summary';
 import { faultCurrentKA, impedanceToBoard } from './electrical';
 import { STANDARD_BREAKER_A } from './sizing';
@@ -227,4 +228,24 @@ export function busbarTypeFrom(row: (string | number)[]): BusbarType | null {
   const [ratingA, csaMm2, rMohmPerM, xMohmPerM, icwKa, widthMm, heightMm, kgPerM] = n;
   if (!(ratingA > 0) || !(csaMm2 > 0) || !(rMohmPerM > 0)) return null;
   return { ratingA, csaMm2, rMohmPerM, xMohmPerM: xMohmPerM || 0, icwKa: icwKa || 0, widthMm: widthMm || 0, heightMm: heightMm || 0, kgPerM: kgPerM || 0 };
+}
+
+/** A riser's floors from a building's levels: each level with rooms is a
+ * tap-off (its demand per floor, typical floors repeated), the typical
+ * floor height, and the levels below the first one skipped. */
+export function riserFromBuilding(project: Project, buildingId: string): Pick<BusRiser, 'floors' | 'floorHeightM' | 'offsetFloors'> | null {
+  const info = project.building;
+  const b = info?.buildings.find((x) => x.id === buildingId);
+  if (!info || !b) return null;
+  const s = summarizeBuilding(info, b);
+  const byHeight = [...s.levels].sort((x, y) => x.elevationM - y.elevationM);
+  const served = byHeight.filter((l) => l.demandKw > 0);
+  if (!served.length) return null;
+  const typical = s.levels.find((l) => l.level.kind === 'typical') ?? served[0];
+  const firstIdx = byHeight.indexOf(served[0]);
+  return {
+    floors: served.map((l) => ({ id: l.level.id, name: l.level.name, kw: Math.round(l.perFloorDemandKw * 10) / 10, pf: 0.9, count: l.count > 1 ? l.count : undefined })),
+    floorHeightM: typical.level.heightM,
+    offsetFloors: byHeight.slice(0, firstIdx).reduce((n, l) => n + l.count, 0)
+  };
 }

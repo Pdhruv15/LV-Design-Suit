@@ -1,6 +1,6 @@
 /** Main screens of the app, shared by the left menu and the ribbon. */
 export type MainView =
-  | 'projects' | 'design' | 'space-planning' | 'substation-area' | 'load-schedule'
+  | 'projects' | 'building' | 'design' | 'space-planning' | 'substation-area' | 'load-schedule'
   | 'calculators' | 'voltage-drop' | 'earthing' | 'selection' | 'coordination' | 'sizing' | 'pfc' | 'busbar' | 'ups' | 'solar' | 'engines'
   | 'db-schedule' | 'cable-schedule' | 'cable-tray' | 'equipment' | 'study-reports' | 'boq' | 'report' | 'revisions' | 'database';
 
