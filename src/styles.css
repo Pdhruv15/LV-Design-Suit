@@ -680,19 +680,18 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .ls-rooms{margin:0 0 8px;font-size:12.5px;padding:6px 10px;border-radius:6px;background:var(--p2)}
 .ls-rooms.warn{color:var(--warn)}
 
-/* TCL summary at transformer level */
-.txs-wrap{overflow-x:auto}
-.txs-table{border-collapse:collapse;min-width:1200px;font-size:12px}
-.txs-table th,.txs-table td{border:1px solid var(--line);padding:4px 6px;text-align:center;white-space:nowrap}
-.txs-table th{font-weight:600;color:var(--tx);font-size:11px;white-space:normal}
-.txs-group td{text-align:left;font-weight:700;background:var(--p2)}
-.txs-ref{text-align:left !important;font-weight:600}
-.txs-rem{white-space:normal !important;min-width:160px;font-size:11px}
-.txs-total td{font-weight:700}
-.txs-right{text-align:right !important}
-.txs-in{background:#fff;color:#111;border:1px solid var(--line);border-radius:3px;padding:2px 4px;font:inherit;text-align:center}
-.txs-group .txs-in{text-align:left;font-weight:700}
+/* TCL summary at transformer level (same grid as the other forms) */
+.txs-wrap{max-height:none}
+.txs-table{min-width:1250px}
+.txs-table th{text-align:center}
+.txs-ref input{font-weight:600}
 .txs-acb{white-space:nowrap}
+.txs-acb input{min-width:0 !important;padding:0 3px !important;text-align:center}
+.txs-acb span{color:var(--mut);padding:0 2px}
+.txs-rem{white-space:normal;min-width:170px;font-size:11.5px}
+.txs-act{width:26px}
+.txs-add{padding:2px 8px;font-size:11.5px}
+.txs-under{display:flex;gap:12px;align-items:center;margin-top:8px;flex-wrap:wrap}
 .txs-foot{display:flex;flex-direction:column;gap:8px;margin-top:10px;font-size:13px}
 .txs-foot span{font-weight:600}
 .txs-box{display:inline-block;min-width:70px;text-align:center;border:1.5px solid var(--tx);padding:2px 8px;margin:0 6px}

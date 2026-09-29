@@ -35,6 +35,8 @@ export interface TxSummaryRow {
   meters: Record<MeterType, number>;
   /** CT meters by ratio, e.g. { "2400/5A": 1 }. */
   cts: Record<string, number>;
+  /** Nothing drawn below: loads and meters are typed on the form. */
+  manual: boolean;
 }
 
 export interface TxSummary {
@@ -74,16 +76,22 @@ export function buildTxSummary(project: Project): TxSummary {
     const setting = breakerSetting(project, b, ratingA);
     const fault = faultCurrentKA(impedanceToBoard(project, b.id), project.voltageV);
     const faultKa = b.supply?.faultKa ?? (Number.isFinite(fault) && b.sourceKva ? STANDARD_ICU_KA.find((k) => k >= fault - 1e-6) : undefined);
-    const phases = connectedPhaseKw(project, b.id);
+    const manual = !project.feeders.some((f) => f.boardId === b.id);
+    const phases = manual ? { ...ZERO, ...b.summaryLoad } : connectedPhaseKw(project, b.id);
     const tclKw = phases.R + phases.Y + phases.B;
     const df = b.mdDemandFactor ?? dfDefault;
     const meters: Record<MeterType, number> = { '1-PH': 0, '3-PH': 0, CT: 0 };
     const cts: Record<string, number> = {};
     // The transformer's own meter, then every metered feeder below it.
     const own: MeterType | undefined = b.supply?.meter ?? (ratingA ? suggestedMeter(ratingA, true) : undefined);
-    if (own) {
+    const ownCt = b.supply?.ctRatio ?? ctFor((ratingA ?? 0) * (setting ?? 1));
+    if (manual && b.summaryMeters) {
+      // Typed on the form: every meter of this transformer, its own included.
+      (['1-PH', '3-PH', 'CT'] as MeterType[]).forEach((m) => (meters[m] = b.summaryMeters?.[m] ?? 0));
+      if (meters.CT) cts[ownCt] = meters.CT;
+    } else if (own) {
       meters[own]++;
-      if (own === 'CT') { const r = b.supply?.ctRatio ?? ctFor((ratingA ?? 0) * (setting ?? 1)); cts[r] = (cts[r] ?? 0) + 1; }
+      if (own === 'CT') cts[ownCt] = (cts[ownCt] ?? 0) + 1;
     }
     for (const f of feeders) {
       if (!f.kwhMeter) continue;
@@ -93,7 +101,7 @@ export function buildTxSummary(project: Project): TxSummary {
     const standbyKw = feeders.filter((f: Feeder) => f.standbyUnit && !f.feedsBoardId).reduce((s, f) => s + f.loadKw, 0);
     return {
       board: b, poles: '4P', device, ratingA, setting, faultKa, cable: b.supply?.cable ?? `BY ${b.supply?.fedFrom ?? 'DEWA'}`, ecc: b.supply?.ecc ?? '',
-      phases, tclKw, df, mdlKw: tclKw * df, standbyKw, meters, cts
+      phases, tclKw, df, mdlKw: tclKw * df, standbyKw, meters, cts, manual
     };
   });
   // Substations: as set on the main board, else its RMU, else one substation.
@@ -124,6 +132,23 @@ export function buildTxSummary(project: Project): TxSummary {
     }
   };
 }
+
+/** A new transformer (main board) on the summary form, in a substation. */
+export function addTransformerRow(project: Project, substation: string): { project: Project; id: string } {
+  const taken = new Set(project.boards.map((b) => b.id));
+  let n = project.boards.filter((b) => !b.upstreamId).length + 1;
+  while (taken.has(`MDB-${n}`)) n++;
+  const id = `MDB-${n}`;
+  const board: Board = { id, name: 'Main Distribution Board', kind: 'MDB', sourceKva: 1500, sourceImpedancePct: 6, ratedCurrentA: 2500, substation };
+  return { project: { ...project, boards: [...project.boards, board] }, id };
+}
+
+/** Substations on the form, in order (as shown in the group rows). */
+export const nextSubstationName = (s: TxSummary) => {
+  let n = s.groups.length + 1;
+  while (s.groups.some((g) => g.name === `SUBSTATION-${String(n).padStart(2, '0')}`)) n++;
+  return `SUBSTATION-${String(n).padStart(2, '0')}`;
+};
 
 export const rowCtText = (r: TxSummaryRow) => ctText(r.cts).replace(/^1X /, '').replace(/ \+ 1X /g, ' + ');
 export const acbText = (r: TxSummaryRow) => (r.ratingA ? `${r.ratingA}${r.setting ? ` @ ${r.setting.toFixed(2)}` : ''}` : '');

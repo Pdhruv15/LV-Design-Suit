@@ -58,3 +58,19 @@ describe('TCL summary at transformer level', () => {
     expect(texts.some((t) => t.startsWith('SUMMARY OF THE TCL'))).toBe(true);
   });
 });
+
+describe('adding rows on the TCL summary', () => {
+  it('a new transformer takes typed loads and meters until boards are drawn below it', async () => {
+    const { addTransformerRow } = await import('./txSummary');
+    const { project: p, id } = addTransformerRow(sampleProject, 'SUBSTATION-02');
+    const typed: Project = { ...p, boards: p.boards.map((b) => (b.id === id ? { ...b, summaryLoad: { R: 540.43, Y: 533.09, B: 541.94 }, mdDemandFactor: 0.72, summaryMeters: { '1-PH': 121, '3-PH': 22, CT: 1 }, txRef: 'SS1-LV-MDB-01' } : b)) };
+    const s = buildTxSummary(typed);
+    const r = s.groups.find((g) => g.name === 'SUBSTATION-02')!.rows[0];
+    expect(r.manual).toBe(true);
+    expect(r.tclKw).toBeCloseTo(1615.46, 2);
+    expect(r.mdlKw).toBeCloseTo(1615.46 * 0.72, 2);
+    expect([r.meters['1-PH'], r.meters['3-PH'], r.meters.CT]).toEqual([121, 22, 1]);
+    expect(rowCtText(r)).toBe('2400/5A CT'); // 2500 A @ 0.85 on 1500 kVA
+    expect(s.groups[0].rows[0].manual).toBe(false); // MDB-1 has its boards
+  });
+});

@@ -209,7 +209,7 @@ export function addTxSheet(wb: ExcelJS.Workbook, project: Project, name = 'TCL S
   for (const g of s.groups) {
     put(ws, r, 1, g.name, { bold: true, align: 'left' }); merge(ws, r, 1, r, n); ws.getRow(r).height = 22; r++;
     for (const x of g.rows) {
-      const vals: Val[] = [x.board.id, x.poles, x.device === 'ACB' ? acbText(x) : '', x.device === 'MCCB' ? acbText(x) : '', x.faultKa ?? '', x.cable, '', '', x.ecc,
+      const vals: Val[] = [x.board.txRef ?? x.board.id, x.poles, x.device === 'ACB' ? acbText(x) : '', x.device === 'MCCB' ? acbText(x) : '', x.faultKa ?? '', x.cable, '', '', x.ecc,
         k(x.phases.R), k(x.phases.Y), k(x.phases.B), k(x.tclKw), x.df, k(x.mdlKw), x.meters['1-PH'] || '', x.meters['3-PH'] || '', x.meters.CT || '', rowCtText(x)];
       vals.forEach((v, i) => put(ws, r, i + 1, v, { border: true, align: i === 0 ? 'left' : 'center' }));
       merge(ws, r, 6, r, 8);

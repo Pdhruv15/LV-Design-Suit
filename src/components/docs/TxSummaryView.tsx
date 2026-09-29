@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { Board, Project } from '../../types';
-import { acbText, buildTxSummary, rowCtText } from '../../docs/txSummary';
+import { addTransformerRow, buildTxSummary, nextSubstationName, rowCtText } from '../../docs/txSummary';
+import { deleteBoard } from '../../model/edit';
 import { revisionStamp } from '../../model/revisions';
 
 const kw = (v: number) => v.toFixed(2);
@@ -14,8 +15,13 @@ export default function TxSummaryView({ project, onChange, onSettings }: { proje
   const h = s.header;
   const setBoard = (id: string, patch: Partial<Board>) => onChange({ ...project, boards: project.boards.map((b) => (b.id === id ? { ...b, ...patch } : b)) });
   const setSupply = (b: Board, patch: NonNullable<Board['supply']>) => setBoard(b.id, { supply: { ...b.supply, ...patch } });
-  const In = ({ value, onSet, w = 56, ph }: { value?: string | number; onSet: (v: string) => void; w?: number; ph?: string }) => (
-    <input className="txs-in" style={{ width: w }} defaultValue={value ?? ''} key={String(value ?? '')} placeholder={ph}
+  const addRow = (substation: string) => onChange(addTransformerRow(project, substation).project);
+  const removeRow = (id: string, manual: boolean) => {
+    if (!window.confirm(manual ? `Remove ${id}?` : `Remove ${id} and every board and circuit below it?`)) return;
+    try { onChange(deleteBoard(project, id)); } catch (e) { window.alert(e instanceof Error ? e.message : String(e)); }
+  };
+  const In = ({ value, onSet, w = '100%', ph }: { value?: string | number; onSet: (v: string) => void; w?: number | string; ph?: string }) => (
+    <input style={{ width: w }} defaultValue={value ?? ''} key={String(value ?? '')} placeholder={ph}
       onBlur={(e) => e.target.value !== String(value ?? '') && onSet(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} />
   );
   const blank = (v: string) => v || <span className="md-blank" title="Set in Project settings">—</span>;
@@ -33,57 +39,75 @@ export default function TxSummaryView({ project, onChange, onSettings }: { proje
         <div><span>CONSULTANT:</span> {blank(h.consultant)}</div>
         <div><span>LOC:</span> {blank(h.location.toUpperCase())}</div>
       </div>
-      <div className="txs-wrap">
-        <table className="txs-table">
+      <div className="gx-wrap txs-wrap">
+        <table className="gx txs-table">
           <thead>
             <tr>
-              <th rowSpan={2}>TRANSFORMER REFERENCE</th><th rowSpan={2}>SP/TP</th><th colSpan={2}>RATING - AMPS</th><th rowSpan={2}>FAULT DUTY kA</th>
-              <th colSpan={3}>CABLE SIZE</th><th rowSpan={2}>ECC SIZE 1C, mm²</th><th colSpan={3}>CONNECTION LOAD - kW</th>
-              <th rowSpan={2}>TCL (kW)</th><th rowSpan={2}>D.F</th><th rowSpan={2}>MDL (kW)</th><th colSpan={3}>kWH METER</th><th rowSpan={2}>Remarks</th>
+              <th className="gx-blank" colSpan={2} /><th className="gx-group" colSpan={2}>RATING - AMPS</th><th className="gx-blank" />
+              <th className="gx-group" colSpan={3}>CABLE SIZE</th><th className="gx-blank" /><th className="gx-group" colSpan={3}>CONNECTION LOAD - kW</th>
+              <th className="gx-blank" colSpan={3} /><th className="gx-group" colSpan={3}>kWH METER</th><th className="gx-blank" colSpan={2} />
             </tr>
             <tr>
-              <th>ACB</th><th>MCCB</th><th>PVC/XLPE/SWA/PVC</th><th>2/4X1C mm²</th><th>2/3/4C mm²</th>
-              <th>R-PHASE kW</th><th>Y-PHASE kW</th><th>B-PHASE kW</th><th>1 - 0 (1)</th><th>3 - 0 (2)</th><th>CT (3)</th>
+              <th>TRANSFORMER REFERENCE</th><th>SP/TP</th><th>ACB</th><th>MCCB</th><th>FAULT DUTY kA</th>
+              <th>PVC/XLPE/SWA/PVC</th><th>2/4X1C mm²</th><th>2/3/4C mm²</th><th>ECC SIZE 1C, mm²</th>
+              <th>R-PHASE kW</th><th>Y-PHASE kW</th><th>B-PHASE kW</th><th>TCL (kW)</th><th>D.F</th><th>MDL (kW)</th>
+              <th>1 - 0 (1)</th><th>3 - 0 (2)</th><th>CT (3)</th><th>REMARKS</th><th />
             </tr>
           </thead>
           <tbody>
             {s.groups.map((g) => [
-              <tr key={`g-${g.name}`} className="txs-group">
-                <td colSpan={19}>
-                  <In value={g.name} w={220} onSet={(v) => g.rows.forEach((r) => setBoard(r.board.id, { substation: v.trim() || undefined }))} />
+              <tr key={`g-${g.name}`}>
+                <td className="gx-label gx-in l" colSpan={18}>
+                  <In value={g.name} w="100%" onSet={(v) => g.rows.forEach((r) => setBoard(r.board.id, { substation: v.trim() || undefined }))} />
+                </td>
+                <td className="gx-label" colSpan={2} style={{ textAlign: 'right' }}>
+                  <button className="chip txs-add" onClick={() => addRow(g.name)} title={`Add a transformer to ${g.name}`}>+ Transformer</button>
                 </td>
               </tr>,
               ...g.rows.map((r) => (
                 <tr key={r.board.id}>
-                  <td className="txs-ref">{r.board.id}</td>
-                  <td>{r.poles}</td>
-                  <td colSpan={r.device === 'ACB' ? 1 : 1} className="txs-acb">
-                    {r.device === 'ACB' ? <>
-                      <In value={r.ratingA} w={52} onSet={(v) => setSupply(r.board, { ratingA: num(v) })} /> @ <In value={r.setting ?? ''} ph="1.0" w={40} onSet={(v) => setSupply(r.board, { irSetting: num(v) })} />
-                    </> : ''}
+                  <td className="gx-in l txs-ref"><In value={r.board.txRef ?? r.board.id} w="100%" onSet={(v) => setBoard(r.board.id, { txRef: v.trim() && v.trim() !== r.board.id ? v.trim() : undefined })} /></td>
+                  <td className="gx-calc">{r.poles}</td>
+                  {r.device === 'ACB'
+                    ? <td className="gx-in txs-acb"><In value={r.ratingA} w={52} onSet={(v) => setSupply(r.board, { ratingA: num(v) })} /><span>@</span><In value={r.setting ?? ''} ph="1.0" w={42} onSet={(v) => setSupply(r.board, { irSetting: num(v) })} /></td>
+                    : <td className="gx-calc" />}
+                  {r.device === 'MCCB'
+                    ? <td className="gx-in"><In value={r.ratingA} onSet={(v) => setSupply(r.board, { ratingA: num(v) })} /></td>
+                    : <td className="gx-calc" />}
+                  <td className="gx-in"><In value={r.faultKa} onSet={(v) => setSupply(r.board, { faultKa: num(v) })} /></td>
+                  <td className="gx-in" colSpan={3}><In value={r.cable} w="100%" onSet={(v) => setSupply(r.board, { cable: v || undefined })} /></td>
+                  <td className="gx-in"><In value={r.ecc} ph="2X150" onSet={(v) => setSupply(r.board, { ecc: v || undefined })} /></td>
+                  {(['R', 'Y', 'B'] as const).map((ph) => r.manual
+                    ? <td key={ph} className="gx-in"><In value={r.phases[ph] ? kw(r.phases[ph]) : ''} ph="0.00" onSet={(v) => setBoard(r.board.id, { summaryLoad: { ...{ R: 0, Y: 0, B: 0 }, ...r.board.summaryLoad, [ph]: num(v) ?? 0 } })} /></td>
+                    : <td key={ph} className="gx-calc" title="From the boards and load schedules below">{kw(r.phases[ph])}</td>)}
+                  <td className="gx-calc"><b>{kw(r.tclKw)}</b></td>
+                  <td className="gx-in"><In value={r.df} onSet={(v) => setBoard(r.board.id, { mdDemandFactor: num(v) })} /></td>
+                  <td className="gx-calc"><b>{kw(r.mdlKw)}</b></td>
+                  {(['1-PH', '3-PH', 'CT'] as const).map((m) => r.manual
+                    ? <td key={m} className="gx-in"><In value={r.meters[m] || ''} onSet={(v) => setBoard(r.board.id, { summaryMeters: { ...r.board.summaryMeters, [m]: num(v) ?? 0 } })} /></td>
+                    : <td key={m} className="gx-calc" title="kWh meters of everything below">{r.meters[m] || ''}</td>)}
+                  <td className="gx-in l txs-rem"><In value={r.board.supply?.ctRatio ? `${r.board.supply.ctRatio} CT` : rowCtText(r)} w="100%" onSet={(v) => setSupply(r.board, { ctRatio: v.replace(/\s*CT\s*$/i, '').trim() || undefined })} /></td>
+                  <td className="txs-act">
+                    <button className="icon-btn" title={r.manual ? 'Remove this transformer' : `Remove ${r.board.id} and everything below it`} onClick={() => removeRow(r.board.id, r.manual)}>✕</button>
                   </td>
-                  <td>{r.device === 'MCCB' ? <In value={r.ratingA} w={52} onSet={(v) => setSupply(r.board, { ratingA: num(v) })} /> : ''}</td>
-                  <td><In value={r.faultKa} w={44} onSet={(v) => setSupply(r.board, { faultKa: num(v) })} /></td>
-                  <td colSpan={3}><In value={r.cable} w={170} onSet={(v) => setSupply(r.board, { cable: v || undefined })} /></td>
-                  <td><In value={r.ecc} w={70} ph="2X150" onSet={(v) => setSupply(r.board, { ecc: v || undefined })} /></td>
-                  <td>{kw(r.phases.R)}</td><td>{kw(r.phases.Y)}</td><td>{kw(r.phases.B)}</td>
-                  <td><b>{kw(r.tclKw)}</b></td>
-                  <td><In value={r.df} w={44} onSet={(v) => setBoard(r.board.id, { mdDemandFactor: num(v) })} /></td>
-                  <td><b>{kw(r.mdlKw)}</b></td>
-                  <td>{r.meters['1-PH'] || ''}</td><td>{r.meters['3-PH'] || ''}</td><td>{r.meters.CT || ''}</td>
-                  <td className="txs-rem">{rowCtText(r)}</td>
                 </tr>
               ))
             ])}
-            <tr className="txs-total">
-              <td colSpan={9} className="txs-right">TOTAL CONNECTED - LOAD PER PHASE</td>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colSpan={9} style={{ textAlign: 'right' }}>TOTAL CONNECTED - LOAD PER PHASE</td>
               <td>{kw(s.phases.R)}</td><td>{kw(s.phases.Y)}</td><td>{kw(s.phases.B)}</td>
               <td>{kw(s.tclKw)}</td><td /><td>{kw(s.mdlKw)}</td>
               <td>{s.meters['1-PH'] || ''}</td><td>{s.meters['3-PH'] || ''}</td><td>{s.meters.CT || ''}</td>
-              <td className="txs-rem">{s.ctText}</td>
+              <td className="l txs-rem">{s.ctText}</td><td />
             </tr>
-          </tbody>
+          </tfoot>
         </table>
+      </div>
+      <div className="txs-under">
+        <button className="chip" onClick={() => addRow(nextSubstationName(s))}>+ Substation</button>
+        <span className="m">White cells are typed. A new transformer takes its loads and meters as typed here until boards are drawn below it on the SLD — then they come from there.</span>
       </div>
       <div className="txs-foot">
         <div><span>DIVERSITY FACTOR</span> <b className="txs-box">{s.diversity.toFixed(2)}</b> <span>TOTAL</span></div>

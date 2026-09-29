@@ -221,6 +221,11 @@ export interface Board {
   substation?: string;
   /** Demand factor of this transformer on the summary form (else the project's). */
   mdDemandFactor?: number;
+  /** Transformer reference on the summary form, e.g. "SS1-LV-MDB-01" (else the board id). */
+  txRef?: string;
+  /** Typed on the summary form while nothing is drawn below this board. */
+  summaryLoad?: { R: number; Y: number; B: number };
+  summaryMeters?: Partial<Record<MeterType, number>>;
   // DB load schedule settings
   pointWatts?: Partial<Record<PointType, number>>; // WATT/UNIT row overrides for this DB
   pointItems?: Partial<Record<PointType, string>>; // library item chosen per column (kept in sync with Loads.xlsx)
