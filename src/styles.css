@@ -643,3 +643,39 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .focus-chip{display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 4px 3px 9px;border:1px dashed var(--acc);border-radius:12px;color:var(--tx)}
 .ribbon-menu button.on{color:var(--acc)}
 @media (max-width:1000px){.tree{width:100% !important;max-height:190px;border-right:0;border-bottom:1px solid var(--line)}.tree-resize{display:none}}
+
+/* Busbar risers */
+.bb-risers{margin-bottom:10px}
+.bb-setup{margin-bottom:12px}
+.bb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
+.bb-grid label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mut)}
+.bb-grid input,.bb-grid select,.bb-floors input,.bb-floors select,.bb-datatable input{background:var(--p2);border:1px solid var(--line);border-radius:6px;padding:5px 7px;color:var(--tx);font:inherit}
+.bb-grid .seg{align-self:flex-start}
+.bb-floors input{width:100%;min-width:60px}
+.bb-floors td:first-child input{min-width:130px}
+.bb-row-actions{display:flex;gap:8px;align-items:center;margin:8px 0}
+.bb-results{margin-top:12px}
+.bb-compare{min-width:0;margin-bottom:8px}
+.bb-compare td,.bb-compare th{padding:4px 8px}
+.bb-notes{margin:6px 0 12px;padding-left:18px}
+.bb-data{margin-top:14px}
+.bb-data summary{cursor:pointer}
+.bb-datatable input{width:90px}
+
+/* Building information */
+.bi-tabs{margin-bottom:10px}
+.bi-head{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
+.bi-grid{display:flex;gap:12px;flex-wrap:wrap}
+.bi-grid label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mut)}
+.bi-num,.bi-text,.bi-sel{background:var(--p2);border:1px solid var(--line);border-radius:6px;padding:4px 7px;color:var(--tx);font:inherit}
+.bi-kpis{display:flex;gap:18px;flex-wrap:wrap;font-size:13px}
+.bi-table{margin-bottom:6px}
+.bi-table td{padding:5px 8px}
+.bi-table tr.on td{background:var(--p2)}
+.bi-move{white-space:nowrap}
+.bi-move .icon-btn{font-size:9px;padding:1px 3px}
+.bi-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:6px 0 14px}
+.bi-types{margin-top:12px}
+.bi-paste{width:100%;min-height:200px;background:var(--p2);border:1px solid var(--line);border-radius:6px;color:var(--tx);font:12px ui-monospace,monospace;padding:8px}
+.ls-rooms{margin:0 0 8px;font-size:12.5px;padding:6px 10px;border-radius:6px;background:var(--p2)}
+.ls-rooms.warn{color:var(--warn)}

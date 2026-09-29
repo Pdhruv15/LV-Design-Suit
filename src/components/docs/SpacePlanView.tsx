@@ -5,6 +5,7 @@ import { applyPlanEdits, buildPlanSheet } from '../../docs/planSheet';
 import { planToSld } from '../../model/planToSld';
 import ClassicGrid from '../grid/ClassicGrid';
 import { Page } from '../ui';
+import { spaceAreasFromRooms } from '../../calc/building';
 
 const f0 = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 0 });
 
@@ -71,6 +72,12 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated }
       intro="Enter the areas (m² × W/m², or a specific kW), then Auto-assign: areas go to an MDB per building, MDBs to transformers at the loading limit (a transformer may feed MDBs in several buildings), transformers to RMUs. Change any assignment in the tables, then Create SLD."
       actions={
         <>
+          {!!project.building?.rooms.length && (
+            <button className="chip" title="One area per room of the Building information (area × its room type's W/m²); the room types become the use types"
+              onClick={() => { if (!plan.areas.length || window.confirm(`Replace the ${plan.areas.length} areas with the ${project.building!.rooms.length} rooms from Building information?`)) { setPlan(spaceAreasFromRooms(project.building!, plan), true); onStatus(`Took ${project.building!.rooms.length} rooms from Building information`); } }}>
+              Take areas from the rooms
+            </button>
+          )}
           <button className="chip" onClick={() => auto(false)} title="Fill in what's missing, keeping your assignments">Auto-assign</button>
           <button className="chip" onClick={() => window.confirm('Clear all panels, transformers and assignments and plan again?') && auto(true)}>Re-plan from scratch</button>
           <button className="chip primary" onClick={createSld}>Create SLD</button>

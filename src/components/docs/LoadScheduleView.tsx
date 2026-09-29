@@ -17,6 +17,7 @@ import { cellKey } from '../grid/excelGrid';
 import { useExcelGrid } from '../grid/useExcelGrid';
 import MdSheetView from './MdSheetView';
 import { hasMdSheet } from '../../docs/mdSheet';
+import { dbChecks } from '../../calc/building';
 
 const num = (v: string) => (v === '' ? 0 : Math.max(0, Math.round(+v) || 0));
 
@@ -119,6 +120,17 @@ export default function LoadScheduleView({
         </>
       }
     >
+      {(() => {
+        const c = dbChecks(project).find((x) => x.boardId === board.id);
+        if (!c) return null;
+        return (
+          <p className={`ls-rooms ${c.status}`} title="From Building information: the rooms this board serves and their room types' W/m²">
+            Serves {c.rooms.length} room{c.rooms.length === 1 ? '' : 's'} ({c.rooms.map((x) => x.room.name).slice(0, 3).join(', ')}{c.rooms.length > 3 ? '…' : ''}), {c.areaM2.toLocaleString('en-US', { maximumFractionDigits: 0 })} m²:
+            {' '}expected {c.expectedKw.toFixed(1)} kW from the room types, designed {c.scheduledKw.toFixed(1)} kW ({c.wPerM2.toFixed(1)} W/m²)
+            {c.status === 'warn' ? ' — check' : ' — OK'}
+          </p>
+        );
+      })()}
       <div className="seg form-tabs" role="tablist" aria-label="Form">
         <button role="tab" aria-selected={form === 'db'} className={form === 'db' ? 'on' : ''} onClick={() => setPick({ board: board.id, form: 'db' })}>DB load distribution schedule</button>
         <button role="tab" aria-selected={form === 'md'} className={form === 'md' ? 'on' : ''} disabled={!mdAvailable} title={mdAvailable ? undefined : `${board.id} has no outgoing feeders`} onClick={() => setPick({ board: board.id, form: 'md' })}>Connected load &amp; MD</button>

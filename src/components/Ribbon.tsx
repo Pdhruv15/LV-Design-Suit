@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Activity, BatteryCharging, Building2, Cable, Calculator, ClipboardCheck, Car, CircuitBoard, Cog, Ellipsis, FileDown, FileSpreadsheet, FileText,
   Gauge, Hand, LayoutGrid, ListTree, Minus, MousePointer2, Pencil, Receipt, Scale, Server, Settings2, ShieldCheck, Sun,
-  Database, History, Play, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Waves, Zap, type LucideIcon, BatteryFull
+  Database, History, Play, AlignVerticalSpaceAround, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Waves, Zap, type LucideIcon, BatteryFull
 } from 'lucide-react';
 import type { Feeder } from '../types';
 import type { MainView } from '../views';
@@ -72,9 +72,9 @@ const TABS: { id: RibbonTab; label: string; icon: Icon }[] = [
  * done from the left menu. */
 export function tabForView(v: MainView): RibbonTab {
   if (v === 'projects') return 'home';
-  if (v === 'design' || v === 'load-schedule' || v === 'space-planning' || v === 'substation-area') return 'design';
+  if (v === 'building' || v === 'design' || v === 'load-schedule' || v === 'space-planning' || v === 'substation-area') return 'design';
   if (v === 'engines') return 'simulate';
-  if (['calculators', 'voltage-drop', 'earthing', 'coordination', 'selection', 'sizing', 'pfc', 'ups', 'solar'].includes(v)) return 'calculate';
+  if (['calculators', 'voltage-drop', 'earthing', 'coordination', 'selection', 'sizing', 'pfc', 'busbar', 'ups', 'solar'].includes(v)) return 'calculate';
   if (v === 'boq') return 'cost';
   if (v === 'database') return 'standards';
   return 'reports';
@@ -110,6 +110,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'Redo', icon: Redo2, title: 'Redo (⇧⌘Z / Ctrl+Y)', onClick: a.onRedo, disabled: !a.canRedo }
       ],
       [
+        view('building', 'Building', Building2, 'Building information: GFA, levels, typical floors, rooms and room types'),
         { label: 'Project settings', icon: Scale, title: 'Voltage, ambient, voltage-drop limit, sizing targets, submission form details', onClick: a.onSettings },
         { label: 'Profile', icon: UserRound, title: 'Your name, designation, company, logo and new-project defaults', onClick: a.onProfile },
         { label: a.folderLabel, icon: FolderCog, title: 'Where projects are saved (e.g. a Google Drive folder)', onClick: a.onChooseFolder }
@@ -131,6 +132,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'Bus', icon: Minus, title: 'Add a board (busbar) fed from an existing board', onClick: a.onAddBoard },
         { label: 'Switchgear', icon: Server, title: `Board properties of ${a.boardId}`, onClick: a.onBoardProperties },
         { label: 'Schedule', icon: Table2, title: `Load distribution schedule of ${a.boardId}`, onClick: go('load-schedule'), active: a.view === 'load-schedule' },
+        view('building', 'Building', Building2, 'Building information: GFA, levels, typical floors, rooms and room types'),
         { label: 'Space plan', icon: LayoutGrid, title: 'Space planning: areas → panels → transformers → RMUs', onClick: go('space-planning'), active: a.view === 'space-planning' },
         { label: 'Substation area', icon: Building2, title: 'Minimum substation, RMU and LV room areas (Dubai Municipality DM-D-013)', onClick: go('substation-area'), active: a.view === 'substation-area' }
       ],
@@ -158,7 +160,8 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       ],
       [
         view('sizing', 'Transformer / Gen', Waves, 'Transformer and generator sizing'),
-        view('pfc', 'Power factor', BatteryCharging, 'Power factor correction')
+        view('pfc', 'Power factor', BatteryCharging, 'Power factor correction'),
+        view('busbar', 'Busbar riser', AlignVerticalSpaceAround, 'Busbar trunking risers for high-rise buildings: rating (Cu / Al), area, voltage drop per floor, size and weight')
       ],
       [
         view('ups', 'UPS & battery', BatteryFull, 'UPS rating and battery sizing for the backup time'),

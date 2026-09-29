@@ -245,6 +245,9 @@ export interface Project {
   studyReportPresets?: StudyReportPreset[]; // saved scopes / study sets for repeat submissions
   calc?: { autoRun?: boolean }; // run the network studies on every change (default: on Run / F5 only)
   studySettings?: StudySettings;
+  building?: BuildingInfo; // architectural information: buildings, levels, rooms, room types
+  busRisers?: import('./calc/busbar').BusRiser[]; // busbar trunking risers (high-rise)
+  busbarData?: import('./calc/busbar').BusbarData; // manufacturer busway data (typical when absent)
   txGen?: Partial<import('./calc/txGen').TxGenPlan>; // transformer & generator sizing choices
   pfc?: Partial<import('./calc/pfc').PfcPlan>; // power factor correction: strategy, boards, bank design
   status?: ProjectStatus; // where the job is (projects dashboard)
@@ -266,6 +269,55 @@ export const PROJECT_STATUSES: { value: ProjectStatus; label: string }[] = [
   { value: 'hold', label: 'On hold' },
   { value: 'completed', label: 'Completed' }
 ];
+
+/** Architectural information, entered once and used by the calculations:
+ * buildings with their levels (typical floors repeated), the rooms on each
+ * level with their type and area, and the DB that serves them. */
+export type LevelKind = 'basement' | 'ground' | 'podium' | 'typical' | 'roof' | 'other';
+
+export interface BuildingLevel {
+  id: string;
+  name: string; // e.g. "L1–L20 (typical)"
+  kind: LevelKind;
+  heightM: number; // floor to floor
+  grossM2?: number; // gross floor area of one floor
+  count?: number; // identical floors (typical), default 1
+}
+
+export interface ProjectBuilding {
+  id: string;
+  name: string; // e.g. "Tower A"
+  use?: string; // e.g. "Residential tower"
+  plotAreaM2?: number;
+  buaM2?: number; // built-up area (DEWA forms); the GFA when absent
+  gfaM2?: number; // typed in; else the sum of the levels
+  levels: BuildingLevel[]; // bottom to top
+}
+
+export interface RoomType {
+  id: string;
+  label: string;
+  wPerM2: number; // connected load density
+  demandFactor: number;
+  lux?: number;
+}
+
+export interface BuildingRoom {
+  id: string;
+  buildingId: string;
+  levelId: string;
+  name: string;
+  type: string; // RoomType id
+  areaM2: number;
+  count?: number; // identical rooms on the level (e.g. 8 × 2BR apartments)
+  boardId?: string; // the DB that serves it
+}
+
+export interface BuildingInfo {
+  buildings: ProjectBuilding[];
+  rooms: BuildingRoom[];
+  roomTypes?: RoomType[]; // the project's copy; defaults when absent
+}
 
 /** Space planning (power density): areas are fed from panels, panels
  * from transformers (or a parent panel), transformers from RMUs. */
@@ -334,7 +386,7 @@ export interface DmSubstationRoom {
 }
 
 /** A submission report for chosen studies on chosen boards. */
-export type StudyReportKind = 'sc' | 'lf' | 'cable' | 'earth' | 'disc' | 'sizing' | 'pfc' | 'schedules';
+export type StudyReportKind = 'sc' | 'lf' | 'cable' | 'earth' | 'disc' | 'sizing' | 'pfc' | 'busbar' | 'schedules';
 
 export interface StudyReportSetup {
   boards: string[]; // selected boards (empty = all)
