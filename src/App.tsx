@@ -117,7 +117,7 @@ export default function App() {
   const [activeBoardId, setActiveBoardId] = useState<string>(project.boards[0]?.id ?? '');
   const [selected, setSelected] = useState<string | null>(null);
   const [status, setStatus] = useState<string>('');
-  const [view, setViewState] = useState<MainView>('dashboard');
+  const [view, setViewState] = useState<MainView>('projects'); // the app starts on the projects list
   const [ribbonTab, setRibbonTab] = useState<RibbonTab>('home');
   const [tool, setTool] = useState<DiagramTool>('select');
   const [feederPreset, setFeederPreset] = useState<Partial<Feeder>>({});
