@@ -58,7 +58,7 @@ const TABS: { id: RibbonTab; label: string; icon: Icon }[] = [
 /** The ribbon tab that owns a screen, so the ribbon follows navigation
  * done from the left menu. */
 export function tabForView(v: MainView): RibbonTab {
-  if (v === 'design' || v === 'load-schedule' || v === 'space-planning' || v === 'substation-area') return 'design';
+  if (v === 'projects' || v === 'design' || v === 'load-schedule' || v === 'space-planning' || v === 'substation-area') return 'design';
   if (v === 'engines') return 'simulate';
   if (['calculators', 'voltage-drop', 'earthing', 'coordination', 'selection', 'sizing', 'pfc', 'ups', 'solar'].includes(v)) return 'calculate';
   if (v === 'boq') return 'cost';

@@ -53,8 +53,10 @@ async function captureSld(drawing: Project, data: CalcData, key: StudyReportKind
  * it feeds) and the studies (short circuit, load flow…), then export a PDF —
  * one file, or one per study — with an SLD of just that part showing each
  * study's results, and the tables in Excel. */
-export default function StudyReportsView({ project, run, stale, onRun, onChange, onStatus }: {
+export default function StudyReportsView({ project, me, run, stale, onRun, onChange, onStatus }: {
   project: Project;
+  /** From the user's profile, while the report doesn't name anyone. */
+  me?: { preparedBy?: string; checkedBy?: string };
   run?: CalcRun;
   stale: string[];
   onRun: () => void;
@@ -62,6 +64,8 @@ export default function StudyReportsView({ project, run, stale, onRun, onChange,
   onStatus: (m: string) => void;
 }) {
   const setup = setupOf(project);
+  setup.preparedBy ??= me?.preparedBy || undefined;
+  setup.checkedBy ??= me?.checkedBy || undefined;
   const set = (patch: Partial<StudyReportSetup>) => onChange({ ...project, studyReport: { ...setup, ...patch } });
   const calc = run?.project ?? project;
   const boards = boardsInSupplyOrder(project);

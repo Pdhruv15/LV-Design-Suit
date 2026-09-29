@@ -245,10 +245,26 @@ export interface Project {
   studyReportPresets?: StudyReportPreset[]; // saved scopes / study sets for repeat submissions
   calc?: { autoRun?: boolean }; // run the network studies on every change (default: on Run / F5 only)
   studySettings?: StudySettings;
+  pfc?: Partial<import('./calc/pfc').PfcPlan>; // power factor correction: strategy, boards, bank design
+  status?: ProjectStatus; // where the job is (projects dashboard)
+  createdBy?: string;
+  updatedBy?: string; // who saved it last (the user profile's name)
   boards: Board[];
   feeders: Feeder[];
   updatedAt: string;
 }
+
+export type ProjectStatus = 'design' | 'review' | 'submitted' | 'comments' | 'approved' | 'ifc' | 'hold' | 'completed';
+export const PROJECT_STATUSES: { value: ProjectStatus; label: string }[] = [
+  { value: 'design', label: 'Design' },
+  { value: 'review', label: 'Internal review' },
+  { value: 'submitted', label: 'Submitted (DEWA / DM)' },
+  { value: 'comments', label: 'Comments to address' },
+  { value: 'approved', label: 'Approved' },
+  { value: 'ifc', label: 'Issued for construction' },
+  { value: 'hold', label: 'On hold' },
+  { value: 'completed', label: 'Completed' }
+];
 
 /** Space planning (power density): areas are fed from panels, panels
  * from transformers (or a parent panel), transformers from RMUs. */
@@ -317,7 +333,7 @@ export interface DmSubstationRoom {
 }
 
 /** A submission report for chosen studies on chosen boards. */
-export type StudyReportKind = 'sc' | 'lf' | 'cable' | 'earth' | 'disc' | 'sizing' | 'schedules';
+export type StudyReportKind = 'sc' | 'lf' | 'cable' | 'earth' | 'disc' | 'sizing' | 'pfc' | 'schedules';
 
 export interface StudyReportSetup {
   boards: string[]; // selected boards (empty = all)
@@ -440,6 +456,7 @@ export interface DrawingInfo {
   sheet?: 'A3' | 'A2' | 'A1';
   symbols?: 'iec' | 'simple'; // IEC 60617 symbols (default) or simple icons
   legend?: boolean; // symbol legend beside the drawing (default on with IEC symbols)
+  logo?: string; // company logo (data: URL) in the title block and on report covers
 }
 
 /** An issued revision: a frozen copy of the design (without the revision

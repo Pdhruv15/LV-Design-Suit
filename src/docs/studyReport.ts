@@ -6,7 +6,8 @@ import { breakerTypeOf, cpcOf } from '../calc/earthing';
 import type { SelectivityResult } from '../calc/protection';
 import { isScheduleCircuit } from '../calc/loadSchedule';
 import { boardSummary, boardsInSupplyOrder } from '../calc/summary';
-import { generatorForBoard, settingsOf, sizePfc, STANDARD_TRANSFORMER_KVA } from '../calc/sizing';
+import { generatorForBoard, settingsOf, STANDARD_TRANSFORMER_KVA } from '../calc/sizing';
+import { planPfc, pfcPlanOf, STRATEGY_LABEL } from '../calc/pfc';
 import type { ResultLayers } from '../diagram/annotations';
 import type { ColorBy } from '../diagram/heatmap';
 import { currentRevision } from '../model/revisions';
@@ -43,6 +44,7 @@ export const STUDIES: StudyInfo[] = [
     sld: { layers: NO_LAYERS, colorBy: 'earth', note: 'Zs against the largest Zs that disconnects in time' } },
   { key: 'disc', label: 'Discrimination', title: 'Protection discrimination study', description: 'Selectivity between each breaker and the one above it', sld: undefined },
   { key: 'sizing', label: 'Transformer, generator & PF', title: 'Transformer, generator and power factor correction', description: 'Transformer and generator sizing and capacitor banks for the main boards in scope', sld: undefined },
+  { key: 'pfc', label: 'Power factor correction', title: 'Power factor correction', description: 'Capacitor banks as planned (central / group / individual): kvar, steps, detuning, breaker and cable, PF before and after', sld: undefined },
   { key: 'schedules', label: 'DB & cable schedules', title: 'DB and cable schedules', description: 'Panel schedule of each board and the cable schedule, for the boards in scope', sld: undefined }
 ];
 export const studyInfo = (k: StudyReportKind) => STUDIES.find((s) => s.key === k)!;
@@ -251,6 +253,8 @@ export function buildSection(key: StudyReportKind, data: CalcData, scope: Scope)
     };
   }
 
+  if (key === 'pfc') return pfcSection(p, scope);
+
   if (key === 'sizing') {
     const set = settingsOf(p);
     const mains = scope.boards.filter((b) => !b.upstreamId);
@@ -262,7 +266,7 @@ export function buildSection(key: StudyReportKind, data: CalcData, scope: Scope)
       return { b, s, design, rec, status };
     });
     const gens = scope.boards.filter((b) => b.standby).map((b) => ({ b, rec: generatorForBoard(p, b.id) }));
-    const pfc = mains.map((b) => sizePfc(p, b.id));
+    const pfc = planPfc(p).mains.filter((m) => scope.ids.has(m.boardId));
     const statuses = [...tx.map((t) => t.status), ...gens.map((g) => ((g.b.standby?.kva ?? 0) >= g.rec ? 'ok' : 'bad') as Status)];
     return {
       key, title: info.title, statuses,
@@ -276,8 +280,8 @@ export function buildSection(key: StudyReportKind, data: CalcData, scope: Scope)
           rows: tx.map((t) => [t.b.id, n(t.s.demandKva, 0), n(t.design, 0), t.rec ?? '> 3150', t.b.sourceKva ?? '—', `${n((t.s.demandKva / (t.b.sourceKva ?? 1)) * 100, 0)} %`, S(t.status)]) },
         ...(gens.length ? [{ title: 'Standby generators', headers: ['Board', 'Recommended (kVA)', 'Installed (kVA)', 'Result'],
           rows: gens.map((g) => [g.b.id, g.rec, g.b.standby?.kva ?? '—', S((g.b.standby?.kva ?? 0) >= g.rec ? 'ok' : 'bad')]) }] : []),
-        { title: 'Power factor correction', headers: ['Main board', 'Demand (kW)', 'PF before', 'Bank (kvar)', 'PF after', 'Current before → after (A)'],
-          rows: pfc.map((x) => [x.boardId, n(x.demandKw, 0), n(x.pfBefore, 2), x.bankKvar || 'Not required', n(x.pfAfter, 3), `${n(x.currentBeforeA, 0)} → ${n(x.currentAfterA, 0)}`]) }
+        { title: 'Power factor correction (see the power factor correction study for the banks)', headers: ['Main board', 'Demand (kW)', 'PF before', 'Capacitors (kvar)', 'PF after', 'Demand before → after'],
+          rows: pfc.map((x) => [x.boardId, n(x.demandKw, 0), n(x.pfBefore, 2), x.plannedKvar || 'Not required', n(x.pfAfter, 3), `${n(x.kvaBefore, 0)} → ${n(x.kvaAfter, 0)} kVA`]) }
       ]
     };
   }
@@ -295,6 +299,48 @@ export function buildSection(key: StudyReportKind, data: CalcData, scope: Scope)
     tables: [
       { title: 'DB schedule', headers: db.headers, rows: db.rows.map((r) => r.map(toCell)) },
       { title: 'Cable schedule', headers: cs.headers, rows: cs.rows.filter((r) => inScope.has(String(r[1])) || incomerTags.has(String(r[0]))).map((r) => r.map(toCell)) }
+    ]
+  };
+}
+
+/** Power factor correction as planned on the PFC page, for the boards in scope. */
+export function pfcSection(p: Project, scope: Scope): Section {
+  const r = planPfc(p);
+  const plan = pfcPlanOf(p);
+  const rows = r.rows.filter((x) => scope.ids.has(x.boardId));
+  const mains = r.mains.filter((m) => scope.ids.has(m.boardId));
+  const statuses: Status[] = rows.map((x) => (x.warn ? 'warn' : x.bankKvar === 0 || x.pfAfter >= x.pfTarget - 1e-6 || x.kind === 'load' ? 'ok' : 'warn'));
+  const kvar = rows.reduce((s, x) => s + x.bankKvar, 0);
+  const noted = rows.filter((x) => x.notes.length);
+  return {
+    key: 'pfc', title: studyInfo('pfc').title, statuses,
+    method: [
+      `Strategy: ${STRATEGY_LABEL[plan.strategy]}.${plan.strategy !== 'central' && plan.remainder ? ' The main board has a bank for what the others leave.' : ''}`,
+      `Qc = P × (tan φ1 − tan φ2) to PF ${r.pfTarget}, from the maximum demand (demand factors applied). Capacitors already on the drawing are included.`,
+      'Banks are sized from the bottom up: each bank only covers what the banks below it do not, so nothing is corrected twice.',
+      `Board banks: automatic (APFC) in ${plan.stepKvar} kvar steps, rounded up. Individual capacitors: fixed, rounded down (never over-correct a motor).`,
+      `Detuned (7 %, 189 Hz) where non-linear load ≥ 25 % of demand${plan.detuning === 'auto' ? '' : ` — set to ${plan.detuning ? `${plan.detuning} %` : 'none'} for this project`}. Capacitor rating ≥ 1.05 × U ÷ (1 − p).`,
+      `Breaker ≥ 1.43 × bank current (IEC 60831 1.3 × overcurrent and capacitance tolerance). Light-load check at ${plan.lightLoadPct} % of demand.`
+    ],
+    summary: [
+      { label: 'Target PF', value: String(r.pfTarget) },
+      { label: 'Capacitors (new)', value: `${n(kvar, 1)} kvar in ${rows.filter((x) => x.bankKvar).length} banks` },
+      ...mains.map((m) => ({ label: `${m.boardId} PF`, value: `${m.pfBefore.toFixed(2)} → ${m.pfAfter.toFixed(3)}`, status: (m.pfAfter >= r.pfTarget - 1e-6 ? 'ok' : 'warn') as Status })),
+      ...mains.filter((m) => m.releasedKva > 0.5).map((m) => ({ label: `${m.boardId} capacity released`, value: `${n(m.releasedKva, 0)} kVA${m.loadingBeforePct !== undefined ? ` (transformer ${n(m.loadingBeforePct, 0)} % → ${n(m.loadingAfterPct!, 0)} %)` : ''}` }))
+    ],
+    tables: [
+      { title: 'Capacitor banks', headers: ['Location', 'Demand (kW)', 'Reactive (kvar)', 'Existing (kvar)', 'Banks below (kvar)', 'PF now', 'Required (kvar)', 'Bank', 'Detuning · capacitor V', 'Breaker · cable', 'PF after', 'Current (A)', 'Result'],
+        rows: rows.map((x, k) => [
+          x.kind === 'load' ? `  ${x.label} (at the load)` : x.label, n(x.demandKw, 0), n(x.demandKvar, 0), x.existingKvar ? n(x.existingKvar, 1) : '—', x.downstreamKvar ? n(x.downstreamKvar, 1) : '—',
+          n(x.pfBefore, 2), n(x.requiredKvar, 1),
+          x.bankKvar ? (x.steps > 1 ? `${n(x.bankKvar, 1)} kvar (${x.steps} × ${x.stepKvar})` : `${n(x.bankKvar, 1)} kvar fixed`) : 'Not required',
+          x.bankKvar ? `${x.detunedPct ? `${x.detunedPct} %` : 'None'} · ${x.capVoltageV} V` : '—',
+          x.bankKvar ? `${x.breakerA ?? '—'} A · ${x.cable ?? '—'}` : '—',
+          n(x.pfAfter, 3), `${n(x.currentBeforeA, 0)} → ${n(x.currentAfterA, 0)}`, S(statuses[k])
+        ]) },
+      { title: 'Main boards', headers: ['Main board', 'Demand (kW)', 'PF before', 'PF after', 'kVA before → after', 'Released (kVA)', 'Transformer loading'],
+        rows: mains.map((m) => [m.boardId, n(m.demandKw, 0), n(m.pfBefore, 2), n(m.pfAfter, 3), `${n(m.kvaBefore, 0)} → ${n(m.kvaAfter, 0)}`, n(m.releasedKva, 0), m.loadingBeforePct !== undefined ? `${n(m.loadingBeforePct, 0)} % → ${n(m.loadingAfterPct!, 0)} %` : '—']) },
+      ...(noted.length ? [{ title: 'Notes', headers: ['Location', 'Note'], rows: noted.flatMap((x) => x.notes.map((t) => [x.label, t])) }] : [])
     ]
   };
 }
@@ -324,6 +370,7 @@ export function buildStudyReportHtml(project: Project, scope: Scope, sections: S
   const info = project.info ?? {};
   const cover = `
 <section class="cover">
+  ${project.drawing?.logo?.startsWith('data:image/') ? `<img class="cover-logo" src="${esc(project.drawing.logo)}" alt="">` : ''}
   <p class="kicker">${esc(project.name)}</p>
   <h1>${esc(meta.title)}</h1>
   <table class="meta">
@@ -350,7 +397,7 @@ ${slds[s.key] ? `<section class="sld"><div class="sld-head"><b>${esc(s.title)} �
     @page { size: A4 landscape; margin: 14mm 12mm; }
     @page sld { size: A3 landscape; margin: 10mm; }
     h3 { font-size: 11px; margin: 10px 0 3px; }
-    .cover { break-after: page; } .cover h1 { font-size: 24px; margin: 4px 0 14px; } .kicker { color: #5b6b82; margin: 30px 0 0; font-size: 12px; }
+    .cover { break-after: page; } .cover h1 { font-size: 24px; margin: 4px 0 14px; } .kicker { color: #5b6b82; margin: 30px 0 0; font-size: 12px; } .cover-logo { float: right; max-height: 22mm; max-width: 70mm; margin-top: 20px; }
     .meta { width: 70%; } .meta th { width: 28%; }
     .study { break-before: page; } .scope { color: #5b6b82; margin: 0 0 6px; }
     .grid { grid-template-columns: repeat(3, 1fr); }
