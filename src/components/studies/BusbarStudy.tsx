@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { Project } from '../../types';
 import { boardsInSupplyOrder } from '../../calc/summary';
-import { MATERIAL_LABEL, newRiser, sizeRiser, TYPICAL_BUSBAR_DATA, type BusbarData, type BusbarType, type BusMaterial, type BusRiser, type RiserFloor, type RiserResult } from '../../calc/busbar';
+import { MATERIAL_LABEL, riserFromBuilding, newRiser, sizeRiser, TYPICAL_BUSBAR_DATA, type BusbarData, type BusbarType, type BusMaterial, type BusRiser, type RiserFloor, type RiserResult } from '../../calc/busbar';
 import { buildSection, buildStudyReportHtml, buildStudyWorkbook, scopeOf, setupOf } from '../../docs/studyReport';
 import { workbookBytes } from '../../docs/formWorkbook';
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
@@ -152,6 +152,14 @@ export default function BusbarStudy({ project, onChange, onStatus }: { project: 
           <div className="bb-row-actions">
             <button className="chip" onClick={addFloor}>+ Floor</button>
             <button className="chip" disabled={!riser.sourceBoardId} onClick={fromBoards} title="One tap-off per board fed from the source board">Take floors from the boards</button>
+            {(project.building?.buildings ?? []).map((b) => (
+              <button key={b.id} className="chip" title={`One tap-off per level of ${b.name} with rooms: its demand per floor, typical floors repeated, the typical floor height`} onClick={() => {
+                const f = riserFromBuilding(project, b.id);
+                if (!f) { onStatus?.(`${b.name} has no rooms with a load yet — add them in Building information`); return; }
+                setRiser(f);
+                onStatus?.(`${f.floors.length} tap-off rows from ${b.name}'s levels`);
+              }}>Take floors from {b.name}</button>
+            ))}
           </div>
 
           {res && (

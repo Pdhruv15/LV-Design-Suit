@@ -1,4 +1,5 @@
 import { cables } from '../calc/cableTable';
+import { builtUpAreaOf } from '../calc/building';
 import { breakerTypeOf, cpcOf } from '../calc/earthing';
 import { runsOf } from '../calc/electrical';
 import { isScheduleCircuit, type PhaseKw } from '../calc/loadSchedule';
@@ -246,7 +247,7 @@ export function buildMdSheet(project: Project, boardId: string): MdSheet {
       demandFactor: df,
       maxDemandKw: sum(total) * df,
       totalConnectedKw: sum(total),
-      builtUpArea: info.builtUpAreaM2 ? String(info.builtUpAreaM2) : '',
+      builtUpArea: builtUpAreaOf(project) ? String(builtUpAreaOf(project)) : '',
       contractor: info.contractor ?? '',
       tel: info.tel ?? '',
       fax: info.fax ?? ''
