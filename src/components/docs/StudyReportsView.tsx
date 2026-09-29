@@ -10,6 +10,13 @@ import {
   buildSection, buildStudyReportHtml, buildStudyWorkbook, defaultTitle, drawingProject, scopeOf, scopeText, setupOf, STUDIES, studyInfo, type CalcData, type Section
 } from '../../docs/studyReport';
 import { workbookBytes } from '../../docs/formWorkbook';
+import { buildStudyDocx, docxBytes } from '../../docs/studyWord';
+import { mergePdfs } from '../../docs/mergePdf';
+import { buildDashboard } from '../../calc/dashboard';
+import { buildDashboardHtml } from '../../docs/dashboardPdf';
+import { buildLoadScheduleHtml } from '../../docs/loadScheduleDoc';
+import { scheduleCircuits } from '../../calc/loadSchedule';
+import { revisionStamp } from '../../model/revisions';
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
 import SystemDiagram from '../SystemDiagram';
 import { Page, StaleBanner } from '../ui';
@@ -133,6 +140,46 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
     }
   }
 
+  async function exportWord() {
+    if (!sections.length) return;
+    setBusy('docx');
+    try {
+      const doc = buildStudyDocx(calc, scope, sections, { title, docNo: setup.docNo, preparedBy: setup.preparedBy, checkedBy: setup.checkedBy });
+      const m = await saveBinary(`${safeFileName(`${project.name} ${title}`)}.docx`, await docxBytes(doc), 'Word document', 'docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      if (m) onStatus(m);
+    } catch (e) {
+      onStatus(`Word export failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy('');
+    }
+  }
+
+  /** One PDF for the submission: project summary, the study report (with
+   * its SLDs), then the load schedule of every DB in scope — page-numbered. */
+  async function exportPack() {
+    const toBytes = window.lvds?.files?.pdfBytes;
+    if (!data || !sections.length) return;
+    if (!toBytes) { onStatus('The all-in-one PDF needs the desktop app (restart it after updating)'); return; }
+    setBusy('pack');
+    try {
+      const slds: Partial<Record<StudyReportKind, string>> = {};
+      if (setup.sld) for (const s of sections) slds[s.key] = await captureSld(drawing, data, s.key);
+      const meta = { title, docNo: setup.docNo, preparedBy: setup.preparedBy, checkedBy: setup.checkedBy };
+      const parts: Uint8Array[] = [];
+      parts.push(await toBytes({ html: buildDashboardHtml(calc, buildDashboard(calc, run)), cssPages: true }));
+      parts.push(await toBytes({ html: buildStudyReportHtml(calc, scope, sections, meta, slds), cssPages: true }));
+      const dbs = scope.boards.filter((b) => scheduleCircuits(calc, b.id).length);
+      for (const b of dbs) parts.push(await toBytes({ html: buildLoadScheduleHtml(calc, b.id), cssPages: true }));
+      const bytes = await mergePdfs(parts, `${project.name} · ${setup.docNo ?? title} · ${revisionStamp(project)}`);
+      const m = await saveBinary(`${safeFileName(`${project.name} ${setup.docNo ?? ''} submission`.trim())}.pdf`, bytes, 'PDF', 'pdf', 'application/pdf');
+      if (m) onStatus(`${m} — summary, ${sections.length} stud${sections.length > 1 ? 'ies' : 'y'}, ${dbs.length} load schedule${dbs.length === 1 ? '' : 's'}`);
+    } catch (e) {
+      onStatus(`Submission PDF failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy('');
+    }
+  }
+
   function savePreset() {
     const name = presetName.trim() || `${title} — ${scope.all ? 'all boards' : scope.roots.map((b) => b.id).join(', ')}`;
     const preset: StudyReportPreset = { ...setup, id: `p-${Date.now().toString(36)}`, name };
@@ -152,6 +199,8 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
       actions={
         <>
           <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportExcel}>{busy === 'xlsx' ? 'Exporting…' : 'Excel'}</button>
+          <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportWord} title="Editable Word report (.docx)">{busy === 'docx' ? 'Exporting…' : 'Word'}</button>
+          <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportPack} title="One PDF: project summary + this report with SLDs + the load schedule of every DB in scope, page-numbered">{busy === 'pack' ? 'Building…' : 'Submission PDF (all-in-one)'}</button>
           <button className="chip primary" disabled={blocked || !sections.length || !!busy} onClick={exportPdf} title={blocked ? 'Run the calculations first (F5)' : undefined}>
             {busy === 'pdf' ? 'Exporting…' : setup.separate && sections.length > 1 ? `Export ${sections.length} PDFs` : 'Export PDF'}
           </button>
