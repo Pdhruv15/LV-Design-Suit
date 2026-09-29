@@ -29,6 +29,7 @@ import { TransformerGeneratorStudy } from './components/studies/SizingStudy';
 import PfcStudy from './components/studies/PfcStudy';
 import BusbarStudy from './components/studies/BusbarStudy';
 import BuildingView from './components/docs/BuildingView';
+import ProjectDashboard from './components/docs/ProjectDashboard';
 import { CableScheduleView, DbScheduleView, EquipmentScheduleView, ReportView } from './components/docs/Documents';
 import LoadScheduleView from './components/docs/LoadScheduleView';
 import { refreshBoard } from './model/schedule';
@@ -116,8 +117,8 @@ export default function App() {
   const [activeBoardId, setActiveBoardId] = useState<string>(project.boards[0]?.id ?? '');
   const [selected, setSelected] = useState<string | null>(null);
   const [status, setStatus] = useState<string>('');
-  const [view, setViewState] = useState<MainView>('design');
-  const [ribbonTab, setRibbonTab] = useState<RibbonTab>('design');
+  const [view, setViewState] = useState<MainView>('dashboard');
+  const [ribbonTab, setRibbonTab] = useState<RibbonTab>('home');
   const [tool, setTool] = useState<DiagramTool>('select');
   const [feederPreset, setFeederPreset] = useState<Partial<Feeder>>({});
   const [boardTab, setBoardTab] = useState<BoardTab>('general');
@@ -376,7 +377,7 @@ export default function App() {
     setActiveBoardId(p.boards[0]?.id ?? '');
     setSelected(null);
     setStatus(message);
-    if (view === 'projects') setView('design');
+    setView('dashboard'); // a project opens on its dashboard
   }
 
   function openProject(file: string) {
@@ -937,6 +938,20 @@ export default function App() {
             {view === 'selection' && <SelectionStudy project={calcProject} focus={focus} onClearFocus={() => setFocus(null)} onChange={staleKeys.length ? blocked : setProject} />}
             {view === 'coordination' && <CoordinationStudy project={calcProject} board={board?.id} onBoard={setActiveBoardId} />}
             {view === 'sizing' && <TransformerGeneratorStudy project={project} onStatus={setStatus} onChange={(p) => setProject(p, { step: true })} />}
+            {view === 'dashboard' && (
+              <ProjectDashboard
+                project={project}
+                run={run}
+                stale={staleKeys}
+                onRun={runNow}
+                onStatus={setStatus}
+                onGo={(g) => {
+                  if (g.feederId) { setView('design'); selectFeeder(g.feederId); return; }
+                  if (g.boardId) setActiveBoardId(g.boardId);
+                  setView(g.view);
+                }}
+              />
+            )}
             {view === 'building' && <BuildingView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'busbar' && <BusbarStudy project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'pfc' && <PfcStudy project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}

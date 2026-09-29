@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Activity, BatteryCharging, Building2, Cable, Calculator, ClipboardCheck, Car, CircuitBoard, Cog, Ellipsis, FileDown, FileSpreadsheet, FileText,
   Gauge, Hand, LayoutGrid, ListTree, Minus, MousePointer2, Pencil, Receipt, Scale, Server, Settings2, ShieldCheck, Sun,
-  Database, History, Play, AlignVerticalSpaceAround, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Waves, Zap, type LucideIcon, BatteryFull
+  Database, History, Play, AlignVerticalSpaceAround, LayoutDashboard, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Waves, Zap, type LucideIcon, BatteryFull
 } from 'lucide-react';
 import type { Feeder } from '../types';
 import type { MainView } from '../views';
@@ -71,7 +71,7 @@ const TABS: { id: RibbonTab; label: string; icon: Icon }[] = [
 /** The ribbon tab that owns a screen, so the ribbon follows navigation
  * done from the left menu. */
 export function tabForView(v: MainView): RibbonTab {
-  if (v === 'projects') return 'home';
+  if (v === 'projects' || v === 'dashboard') return 'home';
   if (v === 'building' || v === 'design' || v === 'load-schedule' || v === 'space-planning' || v === 'substation-area') return 'design';
   if (v === 'engines') return 'simulate';
   if (['calculators', 'voltage-drop', 'earthing', 'coordination', 'selection', 'sizing', 'pfc', 'busbar', 'ups', 'solar'].includes(v)) return 'calculate';
@@ -110,6 +110,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'Redo', icon: Redo2, title: 'Redo (⇧⌘Z / Ctrl+Y)', onClick: a.onRedo, disabled: !a.canRedo }
       ],
       [
+        view('dashboard', 'Dashboard', LayoutDashboard, 'The project at a glance: load, transformers, generators, panels, area, power density, checks'),
         view('building', 'Building', Building2, 'Building information: GFA, levels, typical floors, rooms and room types'),
         { label: 'Project settings', icon: Scale, title: 'Voltage, ambient, voltage-drop limit, sizing targets, submission form details', onClick: a.onSettings },
         { label: 'Profile', icon: UserRound, title: 'Your name, designation, company, logo and new-project defaults', onClick: a.onProfile },
