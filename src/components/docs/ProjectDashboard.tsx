@@ -5,6 +5,9 @@ import { buildDashboard, lengthText, sizesText, type DashBar, type TodoItem } fr
 import { buildDashboardHtml } from '../../docs/dashboardPdf';
 import { safeFileName, savePdf } from '../../util/files';
 import { Page } from '../ui';
+import { Checklist } from '../HelpView';
+import { startChecklist } from '../../help/guide';
+import type { MainView } from '../../views';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const f1 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 1 });
@@ -39,8 +42,10 @@ function Bars({ bars, unit = 'kW', empty }: { bars: DashBar[]; unit?: string; em
 
 /** The project at a glance: headline numbers, load breakdowns, transformer
  * loading and a to-do list; exports as a one-page PDF. */
-export default function ProjectDashboard({ project, run, stale, onGo, onRun, onStatus }: {
+export default function ProjectDashboard({ project, run, stale, saved = false, onOpen, onGo, onRun, onStatus }: {
   project: Project;
+  saved?: boolean;
+  onOpen?: (v: MainView | 'settings') => void;
   run?: CalcRun;
   stale: StudyKey[];
   onGo: (go: NonNullable<TodoItem['go']>) => void;
@@ -103,6 +108,11 @@ export default function ProjectDashboard({ project, run, stale, onGo, onRun, onS
           sub={run ? <>{passes} pass · {checks} check · {fails} fail{stale.length ? ' · out of date' : ''}</> : 'Press Run (F5)'} onClick={stale.length || !run ? onRun : () => onGo({ view: 'report' })} />
       </div>
 
+      {(() => {
+        const items = startChecklist(project, run, stale, saved);
+        if (items.every((x) => x.done) || !onOpen) return null;
+        return <section className="card dash-start"><h4>Start here <span className="m">— tick off as you go · Home → Help for the full guide</span></h4><Checklist items={items} onGo={onOpen} compact /></section>;
+      })()}
       <div className="dash-grid">
         <section className="card">
           <h4>Load by type <span className="m">(maximum demand)</span></h4>
