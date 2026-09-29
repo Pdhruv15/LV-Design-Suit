@@ -245,6 +245,7 @@ export interface Project {
   studyReportPresets?: StudyReportPreset[]; // saved scopes / study sets for repeat submissions
   calc?: { autoRun?: boolean }; // run the network studies on every change (default: on Run / F5 only)
   studySettings?: StudySettings;
+  txGen?: Partial<import('./calc/txGen').TxGenPlan>; // transformer & generator sizing choices
   pfc?: Partial<import('./calc/pfc').PfcPlan>; // power factor correction: strategy, boards, bank design
   status?: ProjectStatus; // where the job is (projects dashboard)
   createdBy?: string;

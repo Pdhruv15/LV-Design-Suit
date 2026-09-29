@@ -2,12 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Activity, BatteryCharging, Building2, Cable, Calculator, ClipboardCheck, Car, CircuitBoard, Cog, Ellipsis, FileDown, FileSpreadsheet, FileText,
   Gauge, Hand, LayoutGrid, ListTree, Minus, MousePointer2, Pencil, Receipt, Scale, Server, Settings2, ShieldCheck, Sun,
-  Database, History, Play, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Waves, Zap, type LucideIcon, BatteryFull
+  Database, History, Play, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Waves, Zap, type LucideIcon, BatteryFull
 } from 'lucide-react';
 import type { Feeder } from '../types';
 import type { MainView } from '../views';
 
-export type RibbonTab = 'design' | 'calculate' | 'simulate' | 'reports' | 'cost' | 'standards';
+export type RibbonTab = 'home' | 'design' | 'calculate' | 'simulate' | 'reports' | 'cost' | 'standards';
 export type DiagramTool = 'select' | 'pan';
 
 type Icon = LucideIcon;
@@ -44,9 +44,22 @@ export interface RibbonActions {
   canRedo: boolean;
   onRun: () => void;
   staleCount: number;
+  // Home: projects
+  onNew: () => void;
+  onSave: () => void;
+  onSaveAs: () => void;
+  onProfile: () => void;
+  onChooseFolder: () => void;
+  folderLabel: string;
+  dirty: boolean;
+  recent: { file: string; name: string; when: string }[];
+  currentFile?: string;
+  onOpenRecent: (file: string) => void;
+  dbIssues: number;
 }
 
 const TABS: { id: RibbonTab; label: string; icon: Icon }[] = [
+  { id: 'home', label: 'Home', icon: House },
   { id: 'design', label: 'Design', icon: CircuitBoard },
   { id: 'calculate', label: 'Calculate', icon: Calculator },
   { id: 'simulate', label: 'Simulate', icon: Activity },
@@ -58,7 +71,8 @@ const TABS: { id: RibbonTab; label: string; icon: Icon }[] = [
 /** The ribbon tab that owns a screen, so the ribbon follows navigation
  * done from the left menu. */
 export function tabForView(v: MainView): RibbonTab {
-  if (v === 'projects' || v === 'design' || v === 'load-schedule' || v === 'space-planning' || v === 'substation-area') return 'design';
+  if (v === 'projects') return 'home';
+  if (v === 'design' || v === 'load-schedule' || v === 'space-planning' || v === 'substation-area') return 'design';
   if (v === 'engines') return 'simulate';
   if (['calculators', 'voltage-drop', 'earthing', 'coordination', 'selection', 'sizing', 'pfc', 'ups', 'solar'].includes(v)) return 'calculate';
   if (v === 'boq') return 'cost';
@@ -82,6 +96,25 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   const view = (v: MainView, label: string, icon: Icon, title: string): Tool => ({ label, icon, title, onClick: go(v), active: a.view === v });
 
   const groups: Record<RibbonTab, Tool[][]> = {
+    home: [
+      [
+        { label: 'New', icon: FilePlus2, title: 'New project', onClick: a.onNew },
+        view('projects', 'Open', FolderOpen, 'All projects: open, duplicate, status'),
+        { label: a.dirty ? 'Save ●' : 'Save', icon: Save, title: 'Save (Ctrl+S / ⌘S)', onClick: a.onSave, stale: a.dirty },
+        { label: 'Save as', icon: SaveAll, title: 'Save as a new project (Ctrl+Shift+S / ⇧⌘S)', onClick: a.onSaveAs }
+      ],
+      [
+        { label: 'SLD', icon: Network, title: 'Single line diagram', onClick: go('design'), active: a.view === 'design' },
+        { label: 'Run', icon: Play, title: a.staleCount ? `Run calculations (F5) — ${a.staleCount} out of date` : 'Run calculations (F5) — up to date', onClick: a.onRun, stale: a.staleCount > 0 },
+        { label: 'Undo', icon: Undo2, title: 'Undo (⌘Z / Ctrl+Z)', onClick: a.onUndo, disabled: !a.canUndo },
+        { label: 'Redo', icon: Redo2, title: 'Redo (⇧⌘Z / Ctrl+Y)', onClick: a.onRedo, disabled: !a.canRedo }
+      ],
+      [
+        { label: 'Project settings', icon: Scale, title: 'Voltage, ambient, voltage-drop limit, sizing targets, submission form details', onClick: a.onSettings },
+        { label: 'Profile', icon: UserRound, title: 'Your name, designation, company, logo and new-project defaults', onClick: a.onProfile },
+        { label: a.folderLabel, icon: FolderCog, title: 'Where projects are saved (e.g. a Google Drive folder)', onClick: a.onChooseFolder }
+      ]
+    ],
     design: [
       [
         { label: 'Run', icon: Play, title: a.staleCount ? `Run calculations (F5) — ${a.staleCount} out of date` : 'Run calculations (F5) — up to date', onClick: a.onRun, stale: a.staleCount > 0 },
@@ -89,6 +122,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'Redo', icon: Redo2, title: 'Redo (⇧⌘Z / Ctrl+Y)', onClick: a.onRedo, disabled: !a.canRedo }
       ],
       [
+        { label: 'SLD', icon: Network, title: 'Single line diagram', onClick: go('design'), active: a.view === 'design' },
         { label: 'Select', icon: MousePointer2, title: 'Click boards and loads to select them', onClick: () => { a.onView('design'); a.onTool('select'); }, active: a.view === 'design' && a.tool === 'select' },
         { label: 'Pan', icon: Hand, title: 'Drag to move around the diagram without selecting', onClick: () => { a.onView('design'); a.onTool('pan'); }, active: a.view === 'design' && a.tool === 'pan' }
       ],
@@ -150,7 +184,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
     standards: [
       [
         { label: 'Project settings', icon: Scale, title: 'Voltage, ambient, voltage-drop limit and sizing targets', onClick: a.onSettings },
-        view('database', 'Database', Database, 'Your equipment, cable, breaker and parameter data (Excel, synced by Drive)')
+        view('database', a.dbIssues ? `Database (${a.dbIssues} ⚠)` : 'Database', Database, 'Your equipment, cable, breaker and parameter data (Excel, synced by Drive)')
       ]
     ]
   };
@@ -176,6 +210,31 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
             ))}
           </div>
         ))}
+        {tab === 'home' && a.recent.length > 0 && (
+          <div className="ribbon-group more" ref={moreRef}>
+            <button
+              title="Recently opened projects"
+              aria-expanded={moreOpen}
+              onClick={(e) => {
+                const ribbon = e.currentTarget.closest('.ribbon')!.getBoundingClientRect();
+                setMenuLeft(e.currentTarget.getBoundingClientRect().left - ribbon.left);
+                setMoreOpen((o) => !o);
+              }}
+            >
+              <Clock size={20} strokeWidth={1.6} />
+              <span>Recent ▾</span>
+            </button>
+            {moreOpen && (
+              <div className="ribbon-menu" role="menu" style={{ left: menuLeft }}>
+                {a.recent.map((r) => (
+                  <button key={r.file} role="menuitem" className={r.file === a.currentFile ? 'on' : ''} onClick={() => { setMoreOpen(false); a.onOpenRecent(r.file); }}>
+                    {r.name} <span className="m">· {r.when}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         {tab === 'design' && (
           <div className="ribbon-group more" ref={moreRef}>
             <button

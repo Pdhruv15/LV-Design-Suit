@@ -3,7 +3,8 @@ import type { Project } from '../../types';
 import { cableSchedule, dbSchedule, equipmentSchedule, type Schedule } from '../../docs/schedules';
 import { buildReportHtml } from '../../docs/report';
 import { saveCsv, savePdf, safeFileName } from '../../util/files';
-import { Page } from '../ui';
+import { FocusChip, Page } from '../ui';
+import { subtree } from '../../calc/pfc';
 
 function ScheduleTable({ schedule }: { schedule: Schedule }) {
   const cls = (v: string | number) => (v === 'Pass' ? 'ok' : v === 'Check' ? 'warn' : v === 'Fail' ? 'bad' : undefined);
@@ -33,8 +34,10 @@ function ExportCsvButton({ name, schedule, onStatus }: { name: string; schedule:
   );
 }
 
-export function DbScheduleView({ project, onStatus }: { project: Project; onStatus: Status }) {
-  const [boardId, setBoardId] = useState('');
+export function DbScheduleView({ project, onStatus, board, onBoard }: { project: Project; onStatus: Status; /** Picked in the panel tree ('' = all). */ board?: string; onBoard?: (id: string) => void }) {
+  const [own, setOwn] = useState('');
+  const boardId = board ?? own;
+  const setBoardId = onBoard ?? setOwn;
   const schedule = useMemo(() => dbSchedule(project, boardId ? [boardId] : undefined), [project, boardId]);
   return (
     <Page
@@ -55,10 +58,15 @@ export function DbScheduleView({ project, onStatus }: { project: Project; onStat
   );
 }
 
-export function CableScheduleView({ project, onStatus }: { project: Project; onStatus: Status }) {
-  const schedule = useMemo(() => cableSchedule(project), [project]);
+export function CableScheduleView({ project, onStatus, focus, onClearFocus }: { project: Project; onStatus: Status; focus?: string | null; onClearFocus?: () => void }) {
+  const schedule = useMemo(() => {
+    const s = cableSchedule(project);
+    if (!focus) return s;
+    const ids = subtree(project, focus);
+    return { ...s, rows: s.rows.filter((r) => ids.has(String(r[1]))) };
+  }, [project, focus]);
   return (
-    <Page title="Cable schedule" actions={<ExportCsvButton name={`${project.name} cable schedule`} schedule={schedule} onStatus={onStatus} />}>
+    <Page title="Cable schedule" actions={<><FocusChip id={focus} onClear={onClearFocus} /><ExportCsvButton name={`${project.name} cable schedule${focus ? ` ${focus}` : ''}`} schedule={schedule} onStatus={onStatus} /></>}>
       <ScheduleTable schedule={schedule} />
     </Page>
   );
