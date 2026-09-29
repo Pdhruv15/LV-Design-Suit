@@ -25,7 +25,8 @@ import SolarStudy from './components/studies/SolarStudy';
 import StudyReportsView from './components/docs/StudyReportsView';
 import QuickCalcs from './components/QuickCalcs';
 import CoordinationStudy from './components/studies/CoordinationStudy';
-import { PfcStudy, TransformerGeneratorStudy } from './components/studies/SizingStudy';
+import { TransformerGeneratorStudy } from './components/studies/SizingStudy';
+import PfcStudy from './components/studies/PfcStudy';
 import { CableScheduleView, DbScheduleView, EquipmentScheduleView, ReportView } from './components/docs/Documents';
 import LoadScheduleView from './components/docs/LoadScheduleView';
 import { refreshBoard } from './model/schedule';
@@ -77,7 +78,7 @@ import type { ProjectStatus } from './types';
 type DiagramMode = 'system' | 'board';
 
 /** Pages that show network study results (they follow the last run). */
-const STUDY_VIEWS: MainView[] = ['voltage-drop', 'earthing', 'selection', 'coordination', 'sizing', 'pfc', 'db-schedule', 'cable-schedule', 'report'];
+const STUDY_VIEWS: MainView[] = ['voltage-drop', 'earthing', 'selection', 'coordination', 'sizing', 'db-schedule', 'cable-schedule', 'report'];
 
 export default function App() {
   // The project, with undo / redo. Opening or starting a project clears the history.
@@ -937,7 +938,7 @@ export default function App() {
             {view === 'selection' && <SelectionStudy project={calcProject} onChange={staleKeys.length ? blocked : setProject} />}
             {view === 'coordination' && <CoordinationStudy project={calcProject} />}
             {view === 'sizing' && <TransformerGeneratorStudy project={calcProject} onChange={staleKeys.length ? blocked : setProject} />}
-            {view === 'pfc' && <PfcStudy project={calcProject} onChange={staleKeys.length ? blocked : setProject} />}
+            {view === 'pfc' && <PfcStudy project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'db-schedule' && <DbScheduleView project={calcProject} onStatus={setStatus} />}
             {view === 'cable-schedule' && <CableScheduleView project={calcProject} onStatus={setStatus} />}
             {view === 'equipment' && <EquipmentScheduleView project={calcProject} onStatus={setStatus} />}

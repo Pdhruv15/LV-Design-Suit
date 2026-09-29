@@ -1,7 +1,7 @@
 import { MOTOR_START_DIP_LIMIT_PCT, starterInfo, starterOf } from '../../calc/motor';
 import { useMemo } from 'react';
 import type { Project, StudySettings } from '../../types';
-import { isEssential, settingsOf, sizeGenerator, sizePfc, sizeTransformer } from '../../calc/sizing';
+import { isEssential, settingsOf, sizeGenerator, sizeTransformer } from '../../calc/sizing';
 import { boardsInSupplyOrder } from '../../calc/summary';
 import { loadTypeOf } from '../../calc/summary';
 import { NumberSetting, Page } from '../ui';
@@ -91,35 +91,3 @@ export function TransformerGeneratorStudy({ project, onChange }: { project: Proj
   );
 }
 
-export function PfcStudy({ project, onChange }: { project: Project; onChange: (p: Project) => void }) {
-  const { s, set } = useSettings(project, onChange);
-  const rows = useMemo(() => boardsInSupplyOrder(project).map((b) => ({ board: b, r: sizePfc(project, b.id) })), [project]);
-
-  return (
-    <Page
-      title="Power factor correction"
-      intro="Capacitor bank at each board: Qc = P × (tan φ1 − tan φ2), rounded up to 25 kvar steps. A single bank at the main board corrects the whole installation; banks at sub-boards also reduce the current in their incomer cables. Consider detuned (reactor) banks where there are harmonic loads such as VFDs or IT equipment."
-      actions={<NumberSetting label="Target PF" value={s.pfTarget} step={0.01} min={0.8} max={1} onChange={(v) => set('pfTarget', v)} />}
-    >
-      <table>
-        <thead>
-          <tr><th>Board</th><th>Demand (kW)</th><th>Reactive (kvar)</th><th>PF now</th><th>Required (kvar)</th><th>Bank</th><th>PF after</th><th>Current now → after (A)</th></tr>
-        </thead>
-        <tbody>
-          {rows.map(({ board, r }) => (
-            <tr key={board.id}>
-              <td>{board.upstreamId ? board.id : <b>{board.id} (whole installation)</b>}</td>
-              <td>{f0(r.demandKw)}</td>
-              <td>{f0(r.demandKvar)}</td>
-              <td className={r.pfBefore < r.pfTarget ? 'warn' : 'ok'}>{r.pfBefore.toFixed(2)}</td>
-              <td>{r.requiredKvar.toFixed(1)}</td>
-              <td><b>{r.bankKvar ? `${r.bankKvar} kvar` : 'Not needed'}</b></td>
-              <td className="ok">{r.pfAfter.toFixed(3)}</td>
-              <td>{f0(r.currentBeforeA)} → {f0(r.currentAfterA)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </Page>
-  );
-}

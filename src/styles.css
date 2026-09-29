@@ -569,3 +569,26 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .dirty-dot{color:var(--warn);margin-left:4px}
 .recover-bar{display:flex;align-items:center;gap:10px;padding:7px 14px;background:rgba(245,192,74,.12);border-bottom:1px solid var(--warn);font-size:13px;flex-wrap:wrap}
 .nav .nav-more{color:var(--mut);font-size:12px}
+
+/* Power factor correction */
+.pfc-setup{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:12px;margin-bottom:12px}
+@media (max-width:900px){.pfc-setup{grid-template-columns:1fr}}
+.pfc-setup .card{display:flex;flex-direction:column;gap:8px}
+.pfc-setup h4{margin:0}
+.pfc-strategies{display:flex;flex-direction:column;gap:4px}
+.pfc-strategy{display:flex;gap:8px;align-items:flex-start;padding:6px 8px;border:1px solid var(--line);border-radius:6px;cursor:pointer}
+.pfc-strategy.on{border-color:var(--acc);background:var(--p2)}
+.pfc-strategy input{margin-top:3px}
+.pfc-boards-head{display:flex;gap:8px;align-items:baseline}
+.pfc-boards{display:flex;flex-direction:column;gap:2px;max-height:220px;overflow-y:auto}
+.pfc-setup label.row{display:flex;gap:6px;align-items:center}
+.pfc-design{display:flex;flex-direction:column;gap:8px}
+.pfc-design label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--mut)}
+.pfc-design select{background:var(--p2);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font:inherit;color:var(--tx)}
+.pfc-mains{margin-bottom:10px}
+.pfc-kpi{display:flex;flex-direction:column;gap:3px}
+.pfc-actions{display:flex;gap:12px;align-items:center;margin:4px 0 8px}
+.pfc-table td{vertical-align:top}
+.pfc-table tr.sub td{background:rgba(255,255,255,.015)}
+.pfc-note{font-size:11px;color:var(--mut);white-space:normal;max-width:360px;margin-top:2px}
+.pfc-note.warn{color:var(--warn)}
