@@ -592,3 +592,23 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .pfc-table tr.sub td{background:rgba(255,255,255,.015)}
 .pfc-note{font-size:11px;color:var(--mut);white-space:normal;max-width:360px;margin-top:2px}
 .pfc-note.warn{color:var(--warn)}
+
+/* Transformer & generator sizing */
+.txg-card{margin-bottom:12px;display:flex;flex-direction:column;gap:8px}
+.txg-head{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.txg-head h4{margin:0}
+.txg-head .settings{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.txg-sel{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--mut)}
+.txg-sel select{background:var(--p2);border:1px solid var(--line);border-radius:6px;padding:4px 6px;font:inherit;color:var(--tx)}
+.txg-pick{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.txg-pick label,.txg-head label.row,.txg-board label{display:flex;gap:5px;align-items:center}
+.txg-table td{vertical-align:top}
+.txg-table tr.sub td{background:rgba(255,255,255,.015);font-size:12.5px}
+.txg-toggle{margin:0 6px 0 0;text-decoration:none}
+.txg-gen{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:18px}
+@media (max-width:900px){.txg-gen{grid-template-columns:1fr}}
+.txg-boards{display:flex;flex-direction:column;gap:3px;max-height:260px;overflow-y:auto;margin-top:4px}
+.txg-board{display:flex;gap:8px;align-items:center;min-height:24px}
+.txg-pct input{width:44px;background:var(--p2);border:1px solid var(--line);border-radius:5px;padding:2px 5px;color:var(--tx);font:inherit}
+.txg-board .tag{font-size:10.5px;padding:0 6px;border:1px solid var(--acc);color:var(--acc);border-radius:8px}
+.txg-adv summary{cursor:pointer;color:var(--mut);font-size:12.5px}

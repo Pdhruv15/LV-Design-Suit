@@ -8,6 +8,8 @@ import { isScheduleCircuit } from '../calc/loadSchedule';
 import { boardSummary, boardsInSupplyOrder } from '../calc/summary';
 import { generatorForBoard, settingsOf, STANDARD_TRANSFORMER_KVA } from '../calc/sizing';
 import { planPfc, pfcPlanOf, STRATEGY_LABEL } from '../calc/pfc';
+import { sizeGeneratorByBoards, sizeTransformers, txGenPlanOf, type TxRow } from '../calc/txGen';
+import { GENERATOR_XD_TRANSIENT_PCT, MOTOR_START_DIP_LIMIT_PCT } from '../calc/motor';
 import type { ResultLayers } from '../diagram/annotations';
 import type { ColorBy } from '../diagram/heatmap';
 import { currentRevision } from '../model/revisions';
@@ -43,7 +45,7 @@ export const STUDIES: StudyInfo[] = [
   { key: 'earth', label: 'Earth fault loop', title: 'Earth fault loop impedance and disconnection', description: 'Zs, earth fault current, disconnection time and protective conductor size',
     sld: { layers: NO_LAYERS, colorBy: 'earth', note: 'Zs against the largest Zs that disconnects in time' } },
   { key: 'disc', label: 'Discrimination', title: 'Protection discrimination study', description: 'Selectivity between each breaker and the one above it', sld: undefined },
-  { key: 'sizing', label: 'Transformer, generator & PF', title: 'Transformer, generator and power factor correction', description: 'Transformer and generator sizing and capacitor banks for the main boards in scope', sld: undefined },
+  { key: 'sizing', label: 'Transformer & generator', title: 'Transformer and standby generator sizing', description: 'Transformer per main board (size, loading, fault level, main breaker) and the standby generator from the boards on it', sld: undefined },
   { key: 'pfc', label: 'Power factor correction', title: 'Power factor correction', description: 'Capacitor banks as planned (central / group / individual): kvar, steps, detuning, breaker and cable, PF before and after', sld: undefined },
   { key: 'schedules', label: 'DB & cable schedules', title: 'DB and cable schedules', description: 'Panel schedule of each board and the cable schedule, for the boards in scope', sld: undefined }
 ];
@@ -257,34 +259,58 @@ export function buildSection(key: StudyReportKind, data: CalcData, scope: Scope)
 
   if (key === 'sizing') {
     const set = settingsOf(p);
-    const mains = scope.boards.filter((b) => !b.upstreamId);
-    const tx = mains.filter((b) => b.sourceKva).map((b) => {
-      const s = boardSummary(p, b);
-      const design = (s.demandKva * (1 + set.futureGrowthPct / 100)) / (set.transformerMaxLoadingPct / 100);
-      const rec = STANDARD_TRANSFORMER_KVA.find((k) => k >= design);
-      const status: Status = (b.sourceKva ?? 0) >= design ? 'ok' : (b.sourceKva ?? 0) >= s.demandKva ? 'warn' : 'bad';
-      return { b, s, design, rec, status };
-    });
-    const gens = scope.boards.filter((b) => b.standby).map((b) => ({ b, rec: generatorForBoard(p, b.id) }));
-    const pfc = planPfc(p).mains.filter((m) => scope.ids.has(m.boardId));
-    const statuses = [...tx.map((t) => t.status), ...gens.map((g) => ((g.b.standby?.kva ?? 0) >= g.rec ? 'ok' : 'bad') as Status)];
+    const plan = txGenPlanOf(p);
+    const tx = sizeTransformers(p, plan).filter((r) => scope.ids.has(r.board.id));
+    const gen = sizeGeneratorByBoards(p, plan);
+    const txStatus = (r: TxRow): Status => (r.adequate === false ? 'bad' : r.outage && !r.outage.ok ? 'warn' : r.checks && (r.checks.icuOk === false || r.checks.busbarOk === false) ? 'warn' : 'ok');
+    const genStatus: Status | undefined = gen.recommendedKva === undefined ? undefined : !gen.installedKva ? 'ok' : gen.installedKva >= gen.recommendedKva ? 'ok' : 'bad';
+    const statuses = [...tx.map(txStatus), ...(genStatus ? [genStatus] : [])];
+    const pfcTaken = tx.some((r) => r.pfcKvar > 0);
     return {
       key, title: info.title, statuses,
       method: [
-        `Transformer: maximum demand × (1 + ${set.futureGrowthPct} % growth) ÷ ${set.transformerMaxLoadingPct} % design loading, next standard size.`,
-        `Standby generator: demand of the boards it feeds ÷ ${set.generatorMaxLoadingPct} % loading. Power factor correction to PF ${set.pfTarget}, banks in 25 kvar steps.`
+        `Transformer per main board: maximum demand${pfcTaken ? ' (after the planned power factor correction)' : ''} × (1 + ${set.futureGrowthPct} % growth) ÷ ${set.transformerMaxLoadingPct} % design loading, next ${plan.sizeList === 'dewa' ? 'DEWA standard size (500 / 1000 / 1500 kVA)' : 'IEC standard size'}.`,
+        'For that size: full-load current and main breaker, LV fault level (typical IEC 60076-5 impedance, infinite MV source), voltage regulation at the design demand.',
+        `Bus couplers: with one transformer out, the other carries both boards up to ${plan.emergencyLoadingPct} % of its rating. Duty / standby: two transformers, each for the whole load.`,
+        `Standby generator from the boards on it (share of each), plus circuits marked essential: demand ÷ ${set.generatorMaxLoadingPct} % loading, or larger if the largest motor, started last, would dip the voltage over ${MOTOR_START_DIP_LIMIT_PCT} % (X′d ${GENERATOR_XD_TRANSIENT_PCT} %).`
       ],
-      summary: [{ label: 'Items checked', value: tally(statuses), status: statuses.length ? worst(statuses) : undefined }],
+      summary: [
+        { label: 'Items checked', value: tally(statuses), status: statuses.length ? worst(statuses) : undefined },
+        ...tx.map((r) => ({ label: `${r.board.id} transformer`, value: r.recommendedKva ? `${r.split > 1 ? `${r.split} × ` : r.n1 ? '2 × ' : ''}${r.recommendedKva} kVA` : '—', status: txStatus(r) })),
+        ...(gen.recommendedKva ? [{ label: 'Standby generator', value: `${gen.recommendedKva} kVA / ${n(gen.recommendedKw!, 0)} kW`, status: genStatus }] : [])
+      ],
       tables: [
-        { title: 'Transformers', headers: ['Main board', 'Maximum demand (kVA)', 'Design requirement (kVA)', 'Recommended (kVA)', 'Installed (kVA)', 'Loading', 'Result'],
-          rows: tx.map((t) => [t.b.id, n(t.s.demandKva, 0), n(t.design, 0), t.rec ?? '> 3150', t.b.sourceKva ?? '—', `${n((t.s.demandKva / (t.b.sourceKva ?? 1)) * 100, 0)} %`, S(t.status)]) },
-        ...(gens.length ? [{ title: 'Standby generators', headers: ['Board', 'Recommended (kVA)', 'Installed (kVA)', 'Result'],
-          rows: gens.map((g) => [g.b.id, g.rec, g.b.standby?.kva ?? '—', S((g.b.standby?.kva ?? 0) >= g.rec ? 'ok' : 'bad')]) }] : []),
-        { title: 'Power factor correction (see the power factor correction study for the banks)', headers: ['Main board', 'Demand (kW)', 'PF before', 'Capacitors (kvar)', 'PF after', 'Demand before → after'],
-          rows: pfc.map((x) => [x.boardId, n(x.demandKw, 0), n(x.pfBefore, 2), x.plannedKvar || 'Not required', n(x.pfAfter, 3), `${n(x.kvaBefore, 0)} → ${n(x.kvaAfter, 0)} kVA`]) }
+        { title: 'Transformers', headers: ['Main board', 'Demand (kVA)', 'PF', 'Design (kVA)', 'Recommended', 'Installed · loading', 'FLC · main breaker', 'LV fault (kA) · lowest Icu', 'Regulation', 'Result'],
+          rows: tx.map((r) => [r.board.id, n(r.demandKva, 0), n(r.pf, 2), n(r.designKva, 0),
+            r.recommendedKva ? `${r.split > 1 ? `${r.split} × ` : r.n1 ? '2 × ' : ''}${r.recommendedKva} kVA${r.n1 ? ' (duty / standby)' : ''}` : '—',
+            r.installedKva ? `${r.installedKva} kVA · ${n(r.loadingPct!, 0)} %` : '—',
+            r.checks ? `${n(r.checks.flcA, 0)} A · ${r.checks.acbA} A` : '—',
+            r.checks ? `${n(r.checks.faultKa, 1)} · ${r.checks.minIcuKa ?? '—'}` : '—',
+            r.checks ? `${n(r.checks.regulationPct, 1)} %` : '—', S(txStatus(r))]) },
+        ...(tx.some((r) => r.outage) ? [{ title: 'Bus coupler — one transformer out', headers: ['Transformer', 'Also carries', 'Load (kVA)', 'Of its rating', 'Result'],
+          rows: tx.filter((r) => r.outage).map((r) => [r.board.id, r.outage!.with, n(r.outage!.kva, 0), r.outage!.pctOfRecommended !== undefined ? `${n(r.outage!.pctOfRecommended, 0)} %` : '—', S(r.outage!.ok ? 'ok' : 'warn')]) }] : []),
+        ...(gen.recommendedKva ? [
+          { title: 'Standby generator — loads', headers: ['Board / circuit', 'Share', 'Demand (kW)', 'Reactive (kvar)'],
+            rows: [...gen.picks.filter((x) => !x.within && x.pct > 0).map((x) => [x.board.id + (x.auto === 'emdb' ? ' (EMDB)' : x.auto === 'standby' ? ' (ATS)' : ''), `${x.pct} %`, n(x.kw, 0), n(x.kvar, 0)]),
+              ...gen.circuits.map((f) => [`${f.id} ${f.name} (essential circuit)`, '100 %', n(f.loadKw * f.demandFactor, 0), '—'])] },
+          { title: 'Standby generator — size', headers: ['Item', 'Value'],
+            rows: [
+              ['Running demand', `${n(gen.demandKw, 0)} kW · ${n(gen.demandKva, 0)} kVA`],
+              ['For the running load', `${n(gen.runningDesignKva, 0)} kVA`],
+              ...(gen.motor ? [
+                ['Largest motor start', `${gen.motor.feeder.id}: ${n(gen.motor.startingKva, 0)} kVA starting with ${n(gen.motor.baseKva, 0)} kVA already running`],
+                ['For the motor start', `${n(gen.startDesignKva, 0)} kVA (dip ${n(gen.motor.dipPct ?? 0, 1)} % on the recommended set)`]
+              ] : []),
+              ['Recommended', `${gen.recommendedKva} kVA / ${n(gen.recommendedKw!, 0)} kW at 0.8 PF`],
+              ...(gen.softStartKva ? [['With a soft starter on the largest motor', `${gen.softStartKva} kVA`]] : []),
+              ['Full-load current · ATS / breaker', `${n(gen.flcA!, 0)} A · ${gen.atsA ?? '—'} A`],
+              ['Installed', gen.installedKva ? `${gen.installedKva} kVA` : '—']
+            ] }
+        ] : [])
       ]
     };
   }
+
 
   // schedules
   const db = dbSchedule(p, scope.boards.map((b) => b.id));

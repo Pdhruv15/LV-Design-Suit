@@ -78,7 +78,7 @@ import type { ProjectStatus } from './types';
 type DiagramMode = 'system' | 'board';
 
 /** Pages that show network study results (they follow the last run). */
-const STUDY_VIEWS: MainView[] = ['voltage-drop', 'earthing', 'selection', 'coordination', 'sizing', 'db-schedule', 'cable-schedule', 'report'];
+const STUDY_VIEWS: MainView[] = ['voltage-drop', 'earthing', 'selection', 'coordination', 'db-schedule', 'cable-schedule', 'report'];
 
 export default function App() {
   // The project, with undo / redo. Opening or starting a project clears the history.
@@ -937,7 +937,7 @@ export default function App() {
                 they only apply changes while their results are up to date. */}
             {view === 'selection' && <SelectionStudy project={calcProject} onChange={staleKeys.length ? blocked : setProject} />}
             {view === 'coordination' && <CoordinationStudy project={calcProject} />}
-            {view === 'sizing' && <TransformerGeneratorStudy project={calcProject} onChange={staleKeys.length ? blocked : setProject} />}
+            {view === 'sizing' && <TransformerGeneratorStudy project={project} onStatus={setStatus} onChange={(p) => setProject(p, { step: true })} />}
             {view === 'pfc' && <PfcStudy project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'db-schedule' && <DbScheduleView project={calcProject} onStatus={setStatus} />}
             {view === 'cable-schedule' && <CableScheduleView project={calcProject} onStatus={setStatus} />}
