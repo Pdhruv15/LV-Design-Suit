@@ -12,6 +12,37 @@ equations), not fake numbers. Treat the reference cable/ampacity table as a
 starting point to replace with your manufacturer's datasheets or exact
 DEWA/IEC tables before relying on it for real projects.
 
+## Screenshots
+
+The built-in demo project (a 415 V villa complex).
+
+**Single line diagram**: IEC symbols and a legend, the panel tree on the left, the equipment palette, and properties on the right.
+![Single line diagram](docs/screenshots/01-single-line-diagram.png)
+
+**Load schedule**: the DEWA connected load / maximum demand form for the board picked in the panel tree.
+![Load schedule](docs/screenshots/02-load-schedule.png)
+
+**Transformer & generator sizing**: a transformer per MDB (fault level, main breaker, regulation, Apply to SLD), and the generator chosen by board, with the largest motor starting last.
+![Transformer and generator sizing](docs/screenshots/03-transformer-generator.png)
+
+**Power factor correction**: central, group or individual correction. Banks are sized from the bottom up (nothing is corrected twice), with steps and detuning. Add them to the SLD.
+![Power factor correction](docs/screenshots/04-power-factor-correction.png)
+
+**Earthing, filtered from the panel tree**: click SMDB-GF to see only that board and the boards below it.
+![Earthing](docs/screenshots/05-earthing-with-panel-tree.png)
+
+**Study reports**: choose boards and studies (short circuit, load flow, PFC…) and export a submission PDF or Excel file, with an SLD for each study.
+![Study reports](docs/screenshots/06-study-reports.png)
+
+**Cable tray schedule**: route paths (A-B-C), tray sizing with DUCAB cable data, grouping derating, cross-sections and BOQ.
+![Cable tray schedule](docs/screenshots/07-cable-tray-schedule.png)
+
+**Quick calculators**: amps, kW/kVA, cable & breaker, voltage drop, transformer and more.
+![Quick calculators](docs/screenshots/08-quick-calculators.png)
+
+**Projects dashboard**: recent projects, status (Design → Submitted → Approved), search, duplicate.
+![Projects dashboard](docs/screenshots/09-projects-dashboard.png)
+
 ## Setup
 
 Requires [Node.js](https://nodejs.org) 18 or later.
@@ -29,7 +60,7 @@ real). Click any feeder in the diagram or table to see its properties.
 ## Saving projects to Google Drive
 
 On first run the app creates `~/LV Design Studio Projects`. Click the
-**projects folder** button in the left sidebar and point it at a folder
+**projects folder** button on the ribbon's **Home** tab and point it at a folder
 inside your Google Drive desktop-sync folder (e.g.
 `~/Google Drive/My Drive/LV Projects`). Every "Save" writes a plain `.json`
 file there, which Drive then syncs automatically — no login or API needed
