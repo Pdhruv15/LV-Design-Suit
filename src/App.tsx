@@ -30,6 +30,7 @@ import PfcStudy from './components/studies/PfcStudy';
 import BusbarStudy from './components/studies/BusbarStudy';
 import BuildingView from './components/docs/BuildingView';
 import ProjectDashboard from './components/docs/ProjectDashboard';
+import HelpView from './components/HelpView';
 import { CableScheduleView, DbScheduleView, EquipmentScheduleView, ReportView } from './components/docs/Documents';
 import LoadScheduleView from './components/docs/LoadScheduleView';
 import { refreshBoard } from './model/schedule';
@@ -938,11 +939,14 @@ export default function App() {
             {view === 'selection' && <SelectionStudy project={calcProject} focus={focus} onClearFocus={() => setFocus(null)} onChange={staleKeys.length ? blocked : setProject} />}
             {view === 'coordination' && <CoordinationStudy project={calcProject} board={board?.id} onBoard={setActiveBoardId} />}
             {view === 'sizing' && <TransformerGeneratorStudy project={project} onStatus={setStatus} onChange={(p) => setProject(p, { step: true })} />}
+            {view === 'help' && <HelpView project={project} run={run} stale={staleKeys} saved={!!currentFile && !dirty} onGo={(v) => (v === 'settings' ? setShowSettings(true) : setView(v))} />}
             {view === 'dashboard' && (
               <ProjectDashboard
                 project={project}
                 run={run}
                 stale={staleKeys}
+                saved={!!currentFile && !dirty}
+                onOpen={(v) => (v === 'settings' ? setShowSettings(true) : setView(v))}
                 onRun={runNow}
                 onStatus={setStatus}
                 onGo={(g) => {

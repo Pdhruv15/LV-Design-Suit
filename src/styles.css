@@ -730,3 +730,28 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .dash-todo .linkish:hover{text-decoration:underline;color:var(--acc)}
 .dash-todo-mark{flex:none;font-size:11px;font-weight:700;min-width:54px}
 .dash-todo-mark.bad{color:var(--bad)}.dash-todo-mark.warn{color:var(--warn)}
+
+/* Help */
+.help-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:12px}
+@media (max-width:1000px){.help-grid{grid-template-columns:1fr}}
+.help-grid h4{margin:0 0 10px}
+.help-flow{display:flex;flex-direction:column;gap:8px}
+.help-phase{border-left:3px solid var(--acc);padding-left:10px;display:flex;flex-direction:column;gap:4px}
+.help-phase.p-design{border-color:#9085e9}.help-phase.p-check{border-color:var(--ok)}.help-phase.p-deliver{border-color:var(--warn)}
+.help-phase-name{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut)}
+.help-step{display:flex;gap:10px;text-align:left;padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:var(--p2);color:var(--tx);font-size:13px}
+.help-step:hover{border-color:var(--acc)}
+.help-n{flex:none;width:22px;height:22px;border-radius:50%;background:var(--acc);color:#04142b;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:12px}
+.help-what{font-size:12px;color:var(--mut)}
+.help-check ul,.help-tips{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px;font-size:13px}
+.help-tips li{padding-left:2px}
+.help-check li{display:flex;gap:8px;align-items:baseline}
+.help-check .linkish{margin-left:0;text-align:left;text-decoration:none;color:var(--tx)}
+.help-check .linkish:hover{color:var(--acc);text-decoration:underline}
+.help-check li.done .linkish{color:var(--mut);text-decoration:line-through}
+.help-tick{width:14px;color:var(--mut)}.help-check li.done .help-tick{color:var(--ok)}
+.help-progress{height:6px;border-radius:3px;background:var(--p2);overflow:hidden;margin-bottom:4px}
+.help-progress span{display:block;height:100%;background:var(--ok)}
+.help-quick td{white-space:normal;vertical-align:top}
+.dash-start{margin-bottom:12px}
+.dash-start ul{flex-direction:row !important;flex-wrap:wrap;gap:6px 18px !important}
