@@ -697,3 +697,61 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .txs-box{display:inline-block;min-width:70px;text-align:center;border:1.5px solid var(--tx);padding:2px 8px;margin:0 6px}
 .txs-gap{margin-left:40px}
 .txs-gap2{margin-left:230px}
+
+/* Project dashboard */
+.dash-info{margin-bottom:12px;display:flex;flex-direction:column;gap:6px}
+.dash-name{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.dash-name b{font-size:16px}
+.dash-status{font-size:11px;padding:1px 8px;border-radius:9px;border:1px solid var(--acc);color:var(--acc)}
+.dash-meta{display:flex;gap:6px 18px;flex-wrap:wrap;font-size:12.5px}
+.dash-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;margin-bottom:12px}
+.dash-tile{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel);min-width:0;color:var(--tx)}
+.dash-tile:disabled{cursor:default;opacity:1}
+.dash-tile.link:hover{border-color:var(--acc)}
+.dash-label{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.03em}
+.dash-value{font-size:21px;font-weight:700;line-height:1.15;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dash-sub{font-size:12px;color:var(--mut);max-width:100%}
+.dash-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media (max-width:1000px){.dash-grid{grid-template-columns:1fr}}
+.dash-grid .card h4{margin:0 0 10px}
+.dash-bars,.dash-meters{display:flex;flex-direction:column;gap:6px}
+.dash-bar,.dash-meter{display:grid;grid-template-columns:minmax(90px,34%) 1fr auto;gap:10px;align-items:center;font-size:12.5px;text-align:left;color:var(--tx);padding:1px 0}
+.dash-meter:hover .dash-bar-label{color:var(--acc)}
+.dash-bar-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dash-bar-track{height:10px;display:block}
+.dash-bar-fill{display:block;height:10px;background:var(--acc);border-radius:0 4px 4px 0}
+.dash-bar-val{white-space:nowrap;font-variant-numeric:tabular-nums}
+.dash-meter-track{position:relative;height:10px;display:block;background:color-mix(in srgb,var(--acc) 18%,transparent);border-radius:4px}
+.dash-meter-fill{display:block;height:10px;background:var(--acc);border-radius:4px}
+.dash-meter-limit{position:absolute;top:-3px;bottom:-3px;border-left:2px dashed var(--tx);opacity:.8}
+.dash-todo{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:12.5px}
+.dash-todo li{display:flex;gap:8px;align-items:baseline}
+.dash-todo .linkish{margin-left:0;text-align:left;text-decoration:none;color:var(--tx)}
+.dash-todo .linkish:hover{text-decoration:underline;color:var(--acc)}
+.dash-todo-mark{flex:none;font-size:11px;font-weight:700;min-width:54px}
+.dash-todo-mark.bad{color:var(--bad)}.dash-todo-mark.warn{color:var(--warn)}
+
+/* Help */
+.help-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:12px}
+@media (max-width:1000px){.help-grid{grid-template-columns:1fr}}
+.help-grid h4{margin:0 0 10px}
+.help-flow{display:flex;flex-direction:column;gap:8px}
+.help-phase{border-left:3px solid var(--acc);padding-left:10px;display:flex;flex-direction:column;gap:4px}
+.help-phase.p-design{border-color:#9085e9}.help-phase.p-check{border-color:var(--ok)}.help-phase.p-deliver{border-color:var(--warn)}
+.help-phase-name{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut)}
+.help-step{display:flex;gap:10px;text-align:left;padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:var(--p2);color:var(--tx);font-size:13px}
+.help-step:hover{border-color:var(--acc)}
+.help-n{flex:none;width:22px;height:22px;border-radius:50%;background:var(--acc);color:#04142b;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:12px}
+.help-what{font-size:12px;color:var(--mut)}
+.help-check ul,.help-tips{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px;font-size:13px}
+.help-tips li{padding-left:2px}
+.help-check li{display:flex;gap:8px;align-items:baseline}
+.help-check .linkish{margin-left:0;text-align:left;text-decoration:none;color:var(--tx)}
+.help-check .linkish:hover{color:var(--acc);text-decoration:underline}
+.help-check li.done .linkish{color:var(--mut);text-decoration:line-through}
+.help-tick{width:14px;color:var(--mut)}.help-check li.done .help-tick{color:var(--ok)}
+.help-progress{height:6px;border-radius:3px;background:var(--p2);overflow:hidden;margin-bottom:4px}
+.help-progress span{display:block;height:100%;background:var(--ok)}
+.help-quick td{white-space:normal;vertical-align:top}
+.dash-start{margin-bottom:12px}
+.dash-start ul{flex-direction:row !important;flex-wrap:wrap;gap:6px 18px !important}
