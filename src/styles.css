@@ -785,3 +785,14 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .comp-table{min-width:0}
 .comp-table td{padding:3px 4px}
 .comp-table input{background:var(--p2);border:1px solid var(--line);border-radius:5px;padding:4px 6px;color:var(--tx);font:inherit;width:100%}
+
+/* Drawing set */
+.ds-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.ds-tools label.row{display:flex;gap:5px;align-items:center;font-size:12.5px}
+.ds-table td{vertical-align:middle}
+.ds-boards{margin-left:0;text-align:left;white-space:normal;max-width:420px}
+.ds-pick{display:flex;flex-direction:column;gap:3px;max-height:50vh;overflow:auto}
+.ds-pick label{display:flex;gap:6px;align-items:center}
+.ds-preview{max-width:92vw;width:1200px}
+.ds-paper{background:#fff;border-radius:6px;padding:10px;overflow:auto;max-height:70vh}
+.ds-paper svg{width:100%;height:auto}

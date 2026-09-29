@@ -117,7 +117,7 @@ export default function PreferencesDialog({ prefs, project, onSave, onApplyToPro
               <label>SLD sheet size
                 <select value={d.sheet ?? ''} onChange={(e) => setD('sheet', (e.target.value || undefined) as DesignDefaults['sheet'])}>
                   <option value="">App default (A3)</option>
-                  {(['A3', 'A2', 'A1'] as const).map((s) => <option key={s} value={s}>{s}</option>)}
+                  {(['A4', 'A3', 'A2', 'A1'] as const).map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </label>
               <label>SLD symbols
