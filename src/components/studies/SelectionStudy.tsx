@@ -3,15 +3,16 @@ import type { Project } from '../../types';
 import { evaluateFeeder } from '../../calc/electrical';
 import { breakerTypeOf } from '../../calc/earthing';
 import { applyAllRecommendations, applyRecommendation, recommend, type SelectionMode } from '../../calc/sizing';
-import { Page, StatusCell, StatusCounts } from '../ui';
+import { FocusChip, Page, StatusCell, StatusCounts } from '../ui';
+import { subtree } from '../../calc/pfc';
 
 /** Current vs recommended breaker (In, type, Icu) and cable for every
  * feeder, with Apply per row or for everything. */
-export default function SelectionStudy({ project, onChange }: { project: Project; onChange: (p: Project) => void }) {
+export default function SelectionStudy({ project, onChange, focus, onClearFocus }: { project: Project; onChange: (p: Project) => void; focus?: string | null; onClearFocus?: () => void }) {
   const [mode, setMode] = useState<SelectionMode>('fix');
   const rows = useMemo(
-    () => project.feeders.map((f) => ({ rec: recommend(project, f, mode), result: evaluateFeeder(project, f) })),
-    [project, mode]
+    () => { const ids = focus ? subtree(project, focus) : undefined; return project.feeders.filter((f) => !ids || ids.has(f.boardId)).map((f) => ({ rec: recommend(project, f, mode), result: evaluateFeeder(project, f) })); },
+    [project, mode, focus]
   );
   const pending = rows.filter((r) => r.rec.changed).length;
 
@@ -23,6 +24,7 @@ export default function SelectionStudy({ project, onChange }: { project: Project
       title="Breaker and cable selection"
       actions={
         <>
+          <FocusChip id={focus} onClear={onClearFocus} />
           <StatusCounts statuses={rows.map((r) => r.result.status)} />
           <div className="seg" role="radiogroup" aria-label="Selection mode">
             <button role="radio" aria-checked={mode === 'fix'} className={mode === 'fix' ? 'on' : ''} onClick={() => setMode('fix')}>Fix only</button>

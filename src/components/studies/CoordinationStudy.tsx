@@ -6,9 +6,11 @@ import { evaluateSelectivity } from '../../calc/protection';
 import { faultCurrentKA, impedanceToBoard } from '../../calc/electrical';
 import { Page, StatusCell, StatusCounts } from '../ui';
 
-export default function CoordinationStudy({ project }: { project: Project }) {
+export default function CoordinationStudy({ project, board, onBoard }: { project: Project; /** Picked in the panel tree. */ board?: string; onBoard?: (id: string) => void }) {
   const incomers = project.feeders.filter((f) => f.feedsBoardId);
-  const [boardId, setBoardId] = useState(incomers[0]?.feedsBoardId ?? '');
+  const [own, setOwn] = useState(incomers[0]?.feedsBoardId ?? '');
+  const boardId = board && incomers.some((f) => f.feedsBoardId === board) ? board : own;
+  const setBoardId = (id: string) => (onBoard ? onBoard(id) : setOwn(id));
   const all = useMemo(() => evaluateSelectivity(project), [project]);
 
   const incomer = incomers.find((f) => f.feedsBoardId === boardId);
