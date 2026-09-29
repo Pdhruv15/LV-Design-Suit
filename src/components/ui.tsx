@@ -101,3 +101,14 @@ export function NumField({ label, value, unit, onSet, placeholder, optional, wid
     </label>
   );
 }
+
+/** A study page filtered to one board and the boards below it (picked in the panel tree). */
+export function FocusChip({ id, onClear }: { id?: string | null; onClear?: () => void }) {
+  if (!id) return null;
+  return (
+    <span className="focus-chip" title="Picked in the panel tree">
+      Showing <b>{id}</b> and below
+      {onClear && <button className="icon-btn" onClick={onClear} title="Show all boards">✕</button>}
+    </span>
+  );
+}

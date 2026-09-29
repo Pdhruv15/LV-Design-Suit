@@ -41,7 +41,7 @@ const hasBridge = typeof window !== 'undefined' && !!window.lvds;
 // (an older running instance has the bridge but no database handlers).
 const hasDatabase = hasBridge && !!window.lvds.database;
 
-import { DOCUMENTS, STUDIES, type MainView } from './views';
+import type { MainView } from './views';
 import Ribbon, { tabForView, type DiagramTool, type RibbonTab } from './components/Ribbon';
 import ProjectSettings from './components/ProjectSettings';
 import type { BoardTab } from './components/BoardPanel';
@@ -72,12 +72,16 @@ import { pasteBoard } from './model/copyBoard';
 import { applyDefaults, applyProfile, initialsOf, loadPrefs, savePrefs, signature, type Preferences } from './model/profile';
 import { clearRecovery, deleteProjectFile, inDesktop, listProjects, loadProject, readRecovery, recentFiles, saveProjectFile, touchRecent, whenText, writeRecovery, type ProjectMeta, type Recovery } from './model/projectStore';
 import PreferencesDialog from './components/PreferencesDialog';
+import PanelTree from './components/PanelTree';
 import ProjectsDashboard from './components/ProjectsDashboard';
 import { NameDialog, UnsavedDialog } from './components/FileDialogs';
 import type { ProjectStatus } from './types';
 type DiagramMode = 'system' | 'board';
 
 /** Pages that show network study results (they follow the last run). */
+/** Pages the panel tree filters to a board and the boards below it. */
+const FOCUS_VIEWS: MainView[] = ['earthing', 'selection', 'cable-schedule'];
+
 const STUDY_VIEWS: MainView[] = ['voltage-drop', 'earthing', 'selection', 'coordination', 'db-schedule', 'cable-schedule', 'report'];
 
 export default function App() {
@@ -129,6 +133,9 @@ export default function App() {
   // Copy / paste of a board with everything below it.
   const [copiedBoard, setCopiedBoard] = useState<string | null>(null);
   const [pasteTarget, setPasteTarget] = useState<string | null>(null);
+  // Study pages filtered to a board and the boards below it (panel tree).
+  const [focus, setFocus] = useState<string | null>(null);
+  const [dbScheduleAll, setDbScheduleAll] = useState(true);
 
   // LV Database: Excel workbooks in the projects folder. Every save in Excel
   // arrives here; the data is applied to the calculations, library-linked
@@ -670,7 +677,16 @@ export default function App() {
     setShowBoardForm(false);
   }
 
-  // Left menu: the recently opened projects, else the latest saved.
+  /** A board clicked in the panel tree: what it does depends on the page. */
+  function pickBoard(id: string) {
+    if (view === 'design') return selectBoard(id);
+    if (FOCUS_VIEWS.includes(view)) return setFocus(focus === id ? null : id);
+    setActiveBoardId(id);
+    if (view === 'db-schedule') setDbScheduleAll(false);
+    if (view !== 'load-schedule' && view !== 'db-schedule' && view !== 'coordination') setStatus(`${id} selected — double-click it to open it on the SLD`);
+  }
+
+  // Recent projects (Home ▸ Recent): the recently opened, else the latest saved.
   const navRecent = [...recent.map((f) => projectList.find((m) => m.file === f)).filter((m): m is ProjectMeta => !!m), ...projectList]
     .filter((m, i, a) => a.indexOf(m) === i).slice(0, 5);
 
@@ -687,10 +703,7 @@ export default function App() {
           {status && <span className="saved">{status}</span>}
         </div>
         <div className="sp" />
-        <button className="chip" onClick={startNewProject}>New</button>
-        <button className="chip" onClick={() => setView('projects')} title="All projects: open, duplicate, status">Open…</button>
-        <button className="chip" onClick={() => saveProject()} title="Save (Ctrl+S / ⌘S)">Save{dirty ? ' ●' : ''}</button>
-        <button className="chip" onClick={saveAs} title="Save as a new project (Ctrl+Shift+S / ⇧⌘S)">Save as…</button>
+        <button className="chip" onClick={() => saveProject()} title="Save (Ctrl+S / ⌘S) — New, Open and Save as are on the Home tab">Save{dirty ? ' ●' : ''}</button>
         <button className="chip user-chip" onClick={() => setShowPrefs(true)} title={prefs.profile.name ? `${signature(prefs.profile)} — profile & preferences` : 'Set up your profile: name, designation, company, logo and design defaults'}>
           <span className="av">{initialsOf(prefs.profile.name)}</span>{prefs.profile.name ? prefs.profile.name.split(/\s+/)[0] : 'Profile'}
         </button>
@@ -726,57 +739,41 @@ export default function App() {
           onUndo: history.undo,
           onRedo: history.redo,
           canUndo: history.canUndo,
-          canRedo: history.canRedo
+          canRedo: history.canRedo,
+          onNew: startNewProject,
+          onSave: () => saveProject(),
+          onSaveAs: saveAs,
+          onProfile: () => setShowPrefs(true),
+          onChooseFolder: chooseFolder,
+          folderLabel: hasBridge ? `Folder: ${projectsFolder.split(/[\\/]/).pop() || 'choose…'}` : 'This browser',
+          dirty,
+          recent: navRecent.map((m) => ({ file: m.file, name: m.name, when: whenText(m.updatedAt) })),
+          currentFile,
+          onOpenRecent: openProject,
+          dbIssues: db.issues.length
         }}
       />
 
       <div className="app">
-        <nav className="nav" aria-label="Navigation">
-          <h4>Design</h4>
-          <button className={view === 'space-planning' ? 'on' : ''} onClick={() => setView('space-planning')}>Space planning</button>
-          <button className={view === 'substation-area' ? 'on' : ''} onClick={() => setView('substation-area')}>Substation area (DM)</button>
-          <button className={view === 'design' ? 'on' : ''} onClick={() => setView('design')}>Single line diagram</button>
-          <button className={view === 'load-schedule' ? 'on' : ''} onClick={() => setView('load-schedule')}>Load schedule (DB)</button>
-
-          <h4>Boards</h4>
-          {project.boards.map((b) => (
-            <button key={b.id} className={view === 'design' && panel === 'board' && board?.id === b.id ? 'on' : ''} style={{ paddingLeft: 10 + (b.upstreamId ? 12 : 0) }} onClick={() => { setView('design'); selectBoard(b.id); }}>
-              {b.id}
-            </button>
-          ))}
-          <button onClick={() => setShowBoardForm(true)}>+ Add board</button>
-
-          <h4>Studies</h4>
-          {STUDIES.map(([v, label]) => (
-            <button key={v} className={view === v ? 'on' : ''} onClick={() => setView(v)}>{label}</button>
-          ))}
-
-          <h4>Tools</h4>
-          <button className={view === 'calculators' ? 'on' : ''} onClick={() => setView('calculators')}>Quick calculators</button>
-
-          <h4>Documents</h4>
-          {DOCUMENTS.map(([v, label]) => (
-            <button key={v} className={view === v ? 'on' : ''} onClick={() => setView(v)}>{label}</button>
-          ))}
-          <button onClick={exportOpenDss} title="Export the network as an OpenDSS script to cross-check load flow and fault levels">Export OpenDSS (.dss)</button>
-
-          <h4>Database</h4>
-          <button className={view === 'database' ? 'on' : ''} onClick={() => setView('database')}>
-            Equipment &amp; data {db.issues.length > 0 && <span className="warn">({db.issues.length} ⚠)</span>}
-          </button>
-
-          <h4>Projects</h4>
-          <button className={view === 'projects' ? 'on' : ''} onClick={() => setView('projects')}>All projects ({projectList.length})</button>
-          {navRecent.map((p) => (
-            <button key={p.file} className={currentFile === p.file ? 'on' : ''} onClick={() => openProject(p.file)} title={`${p.name} — saved ${whenText(p.updatedAt)}`}>
-              {p.name}{currentFile === p.file && dirty ? ' ●' : ''}
-            </button>
-          ))}
-          <button className="nav-more" onClick={chooseFolder} title={projectsFolder}>
-            {hasBridge ? `Folder: ${projectsFolder.split(/[\\/]/).pop() || 'choose…'}` : 'Saved in this browser'}
-          </button>
-
-        </nav>
+        <PanelTree
+          project={project}
+          results={allResults}
+          view={view}
+          activeId={FOCUS_VIEWS.includes(view) ? focus ?? undefined : board?.id}
+          focusId={FOCUS_VIEWS.includes(view) ? focus : null}
+          copiedId={copiedBoard}
+          onPick={pickBoard}
+          onOpen={(id) => { setView('design'); selectBoard(id); }}
+          menu={{
+            onAddBoard: (id) => { setActiveBoardId(id); setShowBoardForm(true); },
+            onAddFeeder: (id) => { setActiveBoardId(id); openAddFeeder({}); },
+            onProperties: (id) => { setView('design'); selectBoard(id); setBoardTab('general'); },
+            onSchedule: (id) => { setActiveBoardId(id); setView('load-schedule'); },
+            onCopy: copyBoard,
+            onPaste: (id) => { setActiveBoardId(id); setPasteTarget(id); },
+            onDelete: (id) => { if (window.confirm(`Delete ${id} and everything fed from it?`)) removeBoard(id); }
+          }}
+        />
 
         {view === 'design' && board ? (
           <>
@@ -932,15 +929,15 @@ export default function App() {
             )}
             {STUDY_VIEWS.includes(view) && <StaleBanner stale={stale} onRun={runNow} what="the results on this page" />}
             {view === 'voltage-drop' && <VoltageDropStudy project={project} calcProject={calcProject} stale={staleKeys.length > 0} onChange={setProject} onStatus={setStatus} />}
-            {view === 'earthing' && <EarthingStudy project={calcProject} onSelectFeeder={(id) => { setView('design'); selectFeeder(id); }} />}
+            {view === 'earthing' && <EarthingStudy project={calcProject} focus={focus} onClearFocus={() => setFocus(null)} onSelectFeeder={(id) => { setView('design'); selectFeeder(id); }} />}
             {/* Pages that also change the design act on the live project, so
                 they only apply changes while their results are up to date. */}
-            {view === 'selection' && <SelectionStudy project={calcProject} onChange={staleKeys.length ? blocked : setProject} />}
-            {view === 'coordination' && <CoordinationStudy project={calcProject} />}
+            {view === 'selection' && <SelectionStudy project={calcProject} focus={focus} onClearFocus={() => setFocus(null)} onChange={staleKeys.length ? blocked : setProject} />}
+            {view === 'coordination' && <CoordinationStudy project={calcProject} board={board?.id} onBoard={setActiveBoardId} />}
             {view === 'sizing' && <TransformerGeneratorStudy project={project} onStatus={setStatus} onChange={(p) => setProject(p, { step: true })} />}
             {view === 'pfc' && <PfcStudy project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
-            {view === 'db-schedule' && <DbScheduleView project={calcProject} onStatus={setStatus} />}
-            {view === 'cable-schedule' && <CableScheduleView project={calcProject} onStatus={setStatus} />}
+            {view === 'db-schedule' && <DbScheduleView project={calcProject} board={dbScheduleAll ? '' : board?.id} onBoard={(id) => { setDbScheduleAll(!id); if (id) setActiveBoardId(id); }} onStatus={setStatus} />}
+            {view === 'cable-schedule' && <CableScheduleView project={calcProject} focus={focus} onClearFocus={() => setFocus(null)} onStatus={setStatus} />}
             {view === 'equipment' && <EquipmentScheduleView project={calcProject} onStatus={setStatus} />}
             {view === 'report' && <ReportView project={calcProject} stale={staleKeys.length > 0} onRun={runNow} onStatus={setStatus} />}
             {view === 'space-planning' && (

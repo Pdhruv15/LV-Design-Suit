@@ -1,15 +1,17 @@
 import { useMemo } from 'react';
 import type { Project } from '../../types';
 import { evaluateEarthingAll, breakerTypeOf, C_MIN, K_CPC_XLPE_CU } from '../../calc/earthing';
-import { Page, StatusCell, StatusCounts } from '../ui';
+import { FocusChip, Page, StatusCell, StatusCounts } from '../ui';
+import { subtree } from '../../calc/pfc';
 
-export default function EarthingStudy({ project, onSelectFeeder }: { project: Project; onSelectFeeder: (id: string) => void }) {
-  const results = useMemo(() => evaluateEarthingAll(project), [project]);
+export default function EarthingStudy({ project, onSelectFeeder, focus, onClearFocus }: { project: Project; onSelectFeeder: (id: string) => void; focus?: string | null; onClearFocus?: () => void }) {
+  const all = useMemo(() => evaluateEarthingAll(project), [project]);
+  const results = useMemo(() => { if (!focus) return all; const ids = subtree(project, focus); return all.filter((r) => ids.has(r.feeder.boardId)); }, [all, project, focus]);
 
   return (
     <Page
       title="Earthing — fault loop impedance and disconnection time"
-      actions={<StatusCounts statuses={results.map((r) => r.status)} />}
+      actions={<><FocusChip id={focus} onClear={onClearFocus} /><StatusCounts statuses={results.map((r) => r.status)} /></>}
       intro={
         <>
           TN-S system. Zs = Ze + (R1 + R2) at operating temperature; minimum fault current If = {C_MIN} × U0 / Zs. A circuit
