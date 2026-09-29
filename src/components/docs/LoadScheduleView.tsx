@@ -19,6 +19,7 @@ import MdSheetView from './MdSheetView';
 import { hasMdSheet } from '../../docs/mdSheet';
 import { dbChecks } from '../../calc/building';
 import TxSummaryView from './TxSummaryView';
+import RiserFormView from './RiserFormView';
 
 const num = (v: string) => (v === '' ? 0 : Math.max(0, Math.round(+v) || 0));
 
@@ -30,6 +31,7 @@ export default function LoadScheduleView({
   boardId,
   db,
   onBoard,
+  onOpenRiser,
   onChange,
   onStatus,
   onSettings
@@ -38,6 +40,7 @@ export default function LoadScheduleView({
   boardId: string;
   db: Database;
   onBoard: (id: string) => void;
+  onOpenRiser?: () => void;
   onChange: (p: Project) => void;
   onStatus: (m: string) => void;
   onSettings: () => void;
@@ -67,8 +70,8 @@ export default function LoadScheduleView({
   // circuits opens on the MD form.
   const mdAvailable = hasMdSheet(project, board.id);
   const [pick, setPick] = useState<{ board: string; form: 'db' | 'md' } | null>(null);
-  const [txForm, setTxForm] = useState(false);
-  const form: 'db' | 'md' | 'tx' = txForm ? 'tx' : pick?.board === board.id ? pick.form : data.rows.length || !mdAvailable ? 'db' : 'md';
+  const [txForm, setTxForm] = useState<false | 'tx' | 'riser'>(false);
+  const form: 'db' | 'md' | 'tx' | 'riser' = txForm ? txForm : pick?.board === board.id ? pick.form : data.rows.length || !mdAvailable ? 'db' : 'md';
   const [exporting, setExporting] = useState(false);
   async function exportExcel(scope: WorkbookScope, name: string) {
     setExporting(true);
@@ -98,17 +101,17 @@ export default function LoadScheduleView({
 
   return (
     <Page
-      title={form === 'tx' ? 'Summary of the TCL at transformer level' : form === 'md' ? 'Connected load, maximum demand & kWh metering' : 'Load distribution schedule'}
-      intro={form === 'tx' ? 'Authority summary of every transformer: main breaker and setting, fault duty, connected load per phase, TCL, demand factor, MDL and the kWh meters it feeds. Loads and meters come from the MD forms and load schedules below each transformer.' : form === 'md'
+      title={form === 'riser' ? 'Bus bar riser — connected load / max. demand' : form === 'tx' ? 'Summary of the TCL at transformer level' : form === 'md' ? 'Connected load, maximum demand & kWh metering' : 'Load distribution schedule'}
+      intro={form === 'riser' ? 'For high-rise buildings: the busbar riser from the MDB and each floor’s tap-off to its SMDB / DB, with connected load per phase, TCL, D.F, MD and kWh meters.' : form === 'tx' ? 'Authority summary of every transformer: main breaker and setting, fault duty, connected load per phase, TCL, demand factor, MDL and the kWh meters it feeds. Loads and meters come from the MD forms and load schedules below each transformer.' : form === 'md'
         ? 'Authority form for a meter cabinet, MDB, SMDB or MCC: its incomer and every outgoing feeder. Connected load per phase, TCL and MDL come from everything below each feeder, down to the DB load schedules. Type ratings, cable type, meters and remarks in the white cells.'
         : `Enter circuits here or on the SLD — both edit the same data. Circuit references are phase + way (R1, Y1, B1, R2…; RYB = 3-phase). Load per circuit = points × WATT/UNIT (your input). Lighting circuits (LTG / fans only): min ${settings.minWireLightingMm2} mm², ${settings.elcbLightingMa} mA ELCB; power circuits: min ${settings.minWirePowerMm2} mm², ${settings.elcbPowerMa} mA ELCB — change these in Project settings. MCB and wire are sized from the load, voltage drop and earth fault; a size chosen by hand is kept.`}
       actions={
         <>
-          {form !== 'tx' && <select className="chip" value={board.id} onChange={(e) => onBoard(e.target.value)} aria-label="DB">
+          {form !== 'tx' && form !== 'riser' && <select className="chip" value={board.id} onChange={(e) => onBoard(e.target.value)} aria-label="DB">
             {project.boards.map((b) => <option key={b.id} value={b.id}>{b.id} — {b.name}</option>)}
           </select>}
           <button className="chip" disabled={exporting} title="This form as an Excel workbook, laid out like the authority form"
-            onClick={() => exportExcel(form === 'tx' ? { forms: ['tx'] } : { boardIds: [board.id], forms: [form] }, form === 'tx' ? `${project.name} TCL summary at transformer level` : `${project.name} ${board.id} ${form === 'md' ? 'connected load MD' : 'load schedule'}`)}>
+            onClick={() => exportExcel(form === 'riser' ? { forms: ['riser'] } : form === 'tx' ? { forms: ['tx'] } : { boardIds: [board.id], forms: [form] }, form === 'riser' ? `${project.name} bus bar risers` : form === 'tx' ? `${project.name} TCL summary at transformer level` : `${project.name} ${board.id} ${form === 'md' ? 'connected load MD' : 'load schedule'}`)}>
             Export Excel
           </button>
           <button className="chip" disabled={exporting} title="Every form of the project in one workbook: load summary, MDB / SMDB / MCC forms, then every DB schedule"
@@ -136,9 +139,12 @@ export default function LoadScheduleView({
       <div className="seg form-tabs" role="tablist" aria-label="Form">
         <button role="tab" aria-selected={form === 'db'} className={form === 'db' ? 'on' : ''} onClick={() => { setTxForm(false); setPick({ board: board.id, form: 'db' }); }}>DB load distribution schedule</button>
         <button role="tab" aria-selected={form === 'md'} className={form === 'md' ? 'on' : ''} disabled={!mdAvailable} title={mdAvailable ? undefined : `${board.id} has no outgoing feeders`} onClick={() => { setTxForm(false); setPick({ board: board.id, form: 'md' }); }}>Connected load &amp; MD</button>
-        <button role="tab" aria-selected={form === 'tx'} className={form === 'tx' ? 'on' : ''} title="Summary of the TCL at transformer level — every transformer of the project" onClick={() => setTxForm(true)}>TCL summary (transformers)</button>
+        <button role="tab" aria-selected={form === 'tx'} className={form === 'tx' ? 'on' : ''} title="Summary of the TCL at transformer level — every transformer of the project" onClick={() => setTxForm('tx')}>TCL summary (transformers)</button>
+        {!!project.busRisers?.length && <button role="tab" aria-selected={form === 'riser'} className={form === 'riser' ? 'on' : ''} title="Bus bar riser — connected load / max. demand of each tap-off (high-rise)" onClick={() => setTxForm('riser')}>Bus bar riser</button>}
       </div>
-      {form === 'tx' ? (
+      {form === 'riser' ? (
+        <RiserFormView project={project} onOpenRiser={() => onOpenRiser?.()} />
+      ) : form === 'tx' ? (
         <TxSummaryView project={project} onChange={onChange} onSettings={onSettings} />
       ) : form === 'md' ? (
         <MdSheetView project={project} boardId={board.id} onChange={onChange} onStatus={onStatus} onSettings={onSettings} />

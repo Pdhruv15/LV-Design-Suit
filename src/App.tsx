@@ -911,7 +911,7 @@ export default function App() {
         ) : (
           <main className="mid" style={{ gridColumn: '2 / span 2' }}>
             {view === 'load-schedule' && board && (
-              <LoadScheduleView project={project} boardId={board.id} db={db} onBoard={(id) => setActiveBoardId(id)} onChange={setProject} onStatus={setStatus} onSettings={() => setShowSettings(true)} />
+              <LoadScheduleView project={project} onOpenRiser={() => setView('busbar')} boardId={board.id} db={db} onBoard={(id) => setActiveBoardId(id)} onChange={setProject} onStatus={setStatus} onSettings={() => setShowSettings(true)} />
             )}
             {view === 'database' && (
               <DatabaseView
