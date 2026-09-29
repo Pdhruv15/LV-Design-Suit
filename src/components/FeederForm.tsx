@@ -205,6 +205,7 @@ export default function FeederForm({
         {!f.feedsBoardId && <label className="row"><input type="checkbox" checked={!!f.localIsolator} onChange={(e) => set('localIsolator', e.target.checked || undefined)} /> Local isolator at the equipment</label>}
         <label className="row"><input type="checkbox" checked={!!f.generation} onChange={(e) => set('generation', e.target.checked)} /> Generation source (PV / generator)</label>
         <label className="row"><input type="checkbox" checked={f.essential ?? f.loadType === 'fire-pump'} onChange={(e) => set('essential', e.target.checked)} /> Essential load (supplied by the standby generator)</label>
+        <label className="row" title="Duty / standby pairs: the standby unit is left out of the TCL (duty) on the transformer summary"><input type="checkbox" checked={!!f.standbyUnit} onChange={(e) => set('standbyUnit', e.target.checked || undefined)} /> Standby unit (not in the TCL duty)</label>
 
         <div className="suggest-row">
           <button type="button" className="chip" onClick={suggestCable}>Suggest cable size</button>

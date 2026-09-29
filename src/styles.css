@@ -679,3 +679,22 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .bi-paste{width:100%;min-height:200px;background:var(--p2);border:1px solid var(--line);border-radius:6px;color:var(--tx);font:12px ui-monospace,monospace;padding:8px}
 .ls-rooms{margin:0 0 8px;font-size:12.5px;padding:6px 10px;border-radius:6px;background:var(--p2)}
 .ls-rooms.warn{color:var(--warn)}
+
+/* TCL summary at transformer level */
+.txs-wrap{overflow-x:auto}
+.txs-table{border-collapse:collapse;min-width:1200px;font-size:12px}
+.txs-table th,.txs-table td{border:1px solid var(--line);padding:4px 6px;text-align:center;white-space:nowrap}
+.txs-table th{font-weight:600;color:var(--tx);font-size:11px;white-space:normal}
+.txs-group td{text-align:left;font-weight:700;background:var(--p2)}
+.txs-ref{text-align:left !important;font-weight:600}
+.txs-rem{white-space:normal !important;min-width:160px;font-size:11px}
+.txs-total td{font-weight:700}
+.txs-right{text-align:right !important}
+.txs-in{background:#fff;color:#111;border:1px solid var(--line);border-radius:3px;padding:2px 4px;font:inherit;text-align:center}
+.txs-group .txs-in{text-align:left;font-weight:700}
+.txs-acb{white-space:nowrap}
+.txs-foot{display:flex;flex-direction:column;gap:8px;margin-top:10px;font-size:13px}
+.txs-foot span{font-weight:600}
+.txs-box{display:inline-block;min-width:70px;text-align:center;border:1.5px solid var(--tx);padding:2px 8px;margin:0 6px}
+.txs-gap{margin-left:40px}
+.txs-gap2{margin-left:230px}
