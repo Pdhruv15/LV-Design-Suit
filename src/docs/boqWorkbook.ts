@@ -52,6 +52,7 @@ export function buildBoqWorkbook(project: Project, bom: PricedBom, list?: PriceL
   };
   line('Subtotal', bom.subtotal, true);
   if (list?.markupPct) line(`Overheads and profit (${list.markupPct} %)`, bom.markup);
+  if (bom.discount) line('Discount', -bom.discount);
   line('Total', bom.total, true);
   sum.getColumn(3).numFmt = MONEY;
   r++;
@@ -73,8 +74,9 @@ export function buildBoqWorkbook(project: Project, bom: PricedBom, list?: PriceL
     t.eachCell((c) => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDBE7F7' } }; });
     s.items.forEach((it, i) => {
       const row = ws.getRow(r++);
-      row.values = [`${s.section}.${i + 1}`, it.description, it.unit, it.qty, it.rate ?? null, it.labour || null, null, it.where.slice(0, 6).join(', ') + (it.where.length > 6 ? '…' : '')];
-      row.getCell(7).value = { formula: `D${row.number}*(E${row.number}+F${row.number})`, result: it.amount };
+      const loc = [it.note, it.where.slice(0, 6).join(', ') + (it.where.length > 6 ? '…' : '')].filter(Boolean).join(' · ');
+      row.values = [`${s.section}.${i + 1}`, it.description, it.unit, it.qty, it.source === 'excluded' ? null : it.rate ?? null, it.labour || null, null, loc];
+      row.getCell(7).value = it.source === 'excluded' ? 'By others' : { formula: `D${row.number}*(E${row.number}+F${row.number})`, result: it.amount };
       row.getCell(2).alignment = { wrapText: true };
       row.eachCell({ includeEmpty: true }, (c, n) => { if (n <= 8) c.border = box; });
       if (it.source === 'missing') row.getCell(5).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF2CC' } };
@@ -152,4 +154,35 @@ export async function readPriceWorkbook(bytes: ArrayBuffer, items: BomItem[]): P
     read++;
   });
   return { rates, read, unmatched };
+}
+
+const escH = (v: string) => v.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
+const m2 = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** The BOQ as a printable page (PDF): header with logo, summary, and — unless
+ * summaryOnly — the full bill with section totals. */
+export function buildBoqHtml(project: Project, bom: PricedBom, list?: PriceList, summaryOnly = false): string {
+  const cur = list?.currency ?? 'AED';
+  const logo = project.drawing?.logo?.startsWith('data:image/') ? `<img class="logo" src="${escH(project.drawing.logo)}" alt="">` : '';
+  const summary = `<table class="t"><thead><tr><th>Section</th><th>Description</th><th class="n">Amount (${escH(cur)})</th></tr></thead><tbody>
+    ${bom.sections.map((s) => `<tr><td>${escH(s.section)}</td><td>${escH(s.title)}</td><td class="n">${m2(s.amount)}</td></tr>`).join('')}
+    <tr class="b"><td></td><td>Subtotal</td><td class="n">${m2(bom.subtotal)}</td></tr>
+    ${list?.markupPct ? `<tr><td></td><td>Overheads and profit (${list.markupPct} %)</td><td class="n">${m2(bom.markup)}</td></tr>` : ''}
+    ${bom.discount ? `<tr><td></td><td>Discount</td><td class="n">−${m2(bom.discount)}</td></tr>` : ''}
+    <tr class="b"><td></td><td>Total</td><td class="n">${escH(cur)} ${m2(bom.total)}</td></tr></tbody></table>`;
+  const bill = summaryOnly ? '' : `<h2>Bill of quantities</h2><table class="t"><thead><tr><th>Item</th><th>Description</th><th>Unit</th><th class="n">Qty</th><th class="n">Supply</th><th class="n">Install</th><th class="n">Amount</th></tr></thead><tbody>
+    ${bom.sections.map((s) => `<tr class="sec"><td>${escH(s.section)}</td><td colspan="6">${escH(s.title.toUpperCase())}</td></tr>${s.items.map((it, i) => `<tr><td>${s.section}.${i + 1}</td><td>${escH(it.description)}${it.note ? ` <span class="m">(${escH(it.note)})</span>` : ''}</td><td>${escH(it.unit)}</td><td class="n">${it.qty}</td><td class="n">${it.source === 'excluded' || it.rate === undefined ? '' : m2(it.rate)}</td><td class="n">${it.labour ? m2(it.labour) : ''}</td><td class="n">${it.source === 'excluded' ? 'By others' : it.amount ? m2(it.amount) : ''}</td></tr>`).join('')}<tr class="b"><td></td><td colspan="5">Total section ${escH(s.section)} carried to summary</td><td class="n">${m2(s.amount)}</td></tr>`).join('')}
+    </tbody></table>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escH(project.name)} — BOQ</title><style>
+    @page { size: A4; margin: 12mm; } body { font: 9.5px/1.35 Arial, sans-serif; color: #111; margin: 0; }
+    header { display: flex; align-items: center; gap: 10px; border-bottom: 2px solid #111; padding-bottom: 4px; margin-bottom: 8px; }
+    header h1 { font-size: 15px; margin: 0; } .logo { max-height: 12mm; max-width: 45mm; } .sp { flex: 1; } .m { color: #555; }
+    h2 { font-size: 12px; margin: 12px 0 4px; }
+    .t { width: 100%; border-collapse: collapse; } .t th, .t td { border: 0.2mm solid #999; padding: 2px 4px; vertical-align: top; }
+    .t th { background: #1d4f8f; color: #fff; text-align: left; } .n { text-align: right; white-space: nowrap; }
+    .sec td { background: #dbe7f7; font-weight: 700; } .b td { font-weight: 700; } thead { display: table-header-group; } tr { break-inside: avoid; }
+  </style></head><body>
+  <header>${logo}<div><h1>${escH(project.name)}</h1><div class="m">Bill of quantities · ${escH(revisionStamp(project))}${project.info?.owner ? ` · ${escH(project.info.owner)}` : ''}</div></div><span class="sp"></span><div class="m">Rates: ${list ? `${escH(list.name)}, ${escH(list.date)}` : 'typical'}</div></header>
+  <h2>Summary</h2>${summary}${bill}
+  </body></html>`;
 }

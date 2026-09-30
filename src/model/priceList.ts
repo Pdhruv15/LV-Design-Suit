@@ -36,37 +36,107 @@ export function fallbackRate(key: string): number | undefined {
   return undefined;
 }
 
+/** Your own BOQ lines and adjustments, kept with the project. */
+export interface ManualItem { id: string; section: string; description: string; unit: string; qty: number; rate?: number; labour?: number; note?: string }
+export interface BoqOverride { qty?: number; description?: string; excluded?: boolean; designQty?: number /* design qty when you set it */ }
+export interface BoqCustom {
+  sections?: { id: string; title: string }[]; // your sections, J, K…
+  manual?: ManualItem[];
+  overrides?: Record<string, BoqOverride>;
+  wastage?: Record<string, number>; // % per section, on design quantities
+  discountPct?: number;
+}
+
 export interface PricedItem extends BomItem {
   rate?: number;
   labour: number;
   amount: number; // qty × (rate + labour)
-  source: 'list' | 'typical' | 'missing';
+  source: 'list' | 'typical' | 'missing' | 'manual' | 'excluded';
+  designQty?: number; // quantity from the design, when yours differs
+  changed?: boolean; // the design quantity moved since you adjusted it
+  note?: string;
+  manualId?: string;
 }
 export interface PricedBom {
   items: PricedItem[];
   sections: { section: BomSection; title: string; amount: number; items: PricedItem[] }[];
   subtotal: number;
   markup: number;
+  discount: number;
   total: number;
   missing: number;
+  changed: number;
 }
 
-export function priceBom(items: BomItem[], list?: PriceList): PricedBom {
-  const priced: PricedItem[] = items.map((it) => {
-    const e = list?.rates[it.key];
-    const fb = e ? undefined : fallbackRate(it.key);
+export const sectionTitles = (custom?: BoqCustom): Record<string, string> => ({
+  ...BOM_SECTIONS, ...Object.fromEntries((custom?.sections ?? []).map((s) => [s.id, s.title]))
+});
+/** Next free section letter after the design ones. */
+export function nextSectionId(custom?: BoqCustom): string {
+  const used = new Set(Object.keys(sectionTitles(custom)));
+  for (let i = 9; i < 26; i++) { const id = String.fromCharCode(65 + i); if (!used.has(id)) return id; }
+  return `S${used.size + 1}`;
+}
+
+/** Design quantity with the section's wastage allowance (rounded up). */
+export function designQty(raw: BomItem, custom?: BoqCustom): number {
+  const w = custom?.wastage?.[raw.section] ?? 0;
+  return w ? Math.ceil(raw.qty * (1 + w / 100)) : raw.qty;
+}
+
+export function priceBom(items: BomItem[], list?: PriceList, custom?: BoqCustom): PricedBom {
+  const ov = custom?.overrides ?? {};
+  const priced: PricedItem[] = items.map((raw) => {
+    const design = designQty(raw, custom);
+    const o = ov[raw.key];
+    const qty = o?.qty ?? design;
+    const it = { ...raw, qty, description: o?.description || raw.description };
+    const extra = { designQty: o?.qty !== undefined && o.qty !== design ? design : undefined, changed: o?.designQty !== undefined && o.designQty !== design };
+    if (o?.excluded) return { ...it, ...extra, labour: 0, amount: 0, source: 'excluded' as const, note: 'By others' };
+    const e = list?.rates[raw.key];
+    const fb = e ? undefined : fallbackRate(raw.key);
     const rate = e?.rate ?? fb;
     const labour = e?.labour ?? 0;
-    return { ...it, rate, labour, amount: rate === undefined ? 0 : it.qty * (rate + labour), source: e ? 'list' : fb !== undefined ? 'typical' : 'missing' };
+    return { ...it, ...extra, rate, labour, amount: rate === undefined ? 0 : qty * (rate + labour), source: e ? 'list' as const : fb !== undefined ? 'typical' as const : 'missing' as const };
   });
-  const sections = (Object.keys(BOM_SECTIONS) as BomSection[])
-    .map((s) => ({ section: s, title: BOM_SECTIONS[s], items: priced.filter((x) => x.section === s) }))
-    .filter((s) => s.items.length)
+  for (const m of custom?.manual ?? []) {
+    const labour = m.labour ?? 0;
+    priced.push({ key: `manual:${m.id}`, manualId: m.id, section: m.section, description: m.description, unit: m.unit, qty: m.qty, where: [], note: m.note,
+      rate: m.rate, labour, amount: m.rate === undefined && !labour ? 0 : m.qty * ((m.rate ?? 0) + labour), source: 'manual' });
+  }
+  const titles = sectionTitles(custom);
+  const order = [...Object.keys(titles), ...new Set(priced.map((x) => x.section).filter((s) => !(s in titles)))];
+  const sections = order
+    .map((s) => ({ section: s, title: titles[s] ?? s, items: priced.filter((x) => x.section === s) }))
+    .filter((s) => s.items.length || (custom?.sections ?? []).some((c) => c.id === s.section))
     .map((s) => ({ ...s, amount: s.items.reduce((a, x) => a + x.amount, 0) }));
   const subtotal = priced.reduce((a, x) => a + x.amount, 0);
   const markup = subtotal * ((list?.markupPct ?? 0) / 100);
-  return { items: priced, sections, subtotal, markup, total: subtotal + markup, missing: priced.filter((x) => x.source === 'missing').length };
+  const discount = (subtotal + markup) * ((custom?.discountPct ?? 0) / 100);
+  return {
+    items: priced, sections, subtotal, markup, discount, total: subtotal + markup - discount,
+    missing: priced.filter((x) => x.source === 'missing' || (x.source === 'manual' && x.rate === undefined && !x.labour)).length,
+    changed: priced.filter((x) => x.changed).length
+  };
 }
+
+/** Ready-made extra scope lines (one click to add). */
+export const EXTRAS: { section: string; description: string; unit: string; qty: number }[] = [
+  { section: 'K', description: 'Testing and commissioning of the LV installation, with test certificates', unit: 'LS', qty: 1 },
+  { section: 'K', description: 'DEWA inspection, meter application and authority fees', unit: 'LS', qty: 1 },
+  { section: 'K', description: 'Insulation resistance and earth loop impedance tests of all circuits', unit: 'LS', qty: 1 },
+  { section: 'K', description: 'As-built drawings (SLD, layouts, schedules), 3 hard copies + soft copy', unit: 'set', qty: 1 },
+  { section: 'K', description: 'Operation and maintenance manuals', unit: 'set', qty: 1 },
+  { section: 'K', description: 'Training of the client\'s maintenance staff', unit: 'LS', qty: 1 },
+  { section: 'L', description: 'Cable pulling labour for main feeders', unit: 'LS', qty: 1 },
+  { section: 'L', description: 'Scaffolding and access equipment', unit: 'LS', qty: 1 },
+  { section: 'L', description: 'Core drilling and fire stopping of wall / slab penetrations', unit: 'no', qty: 1 },
+  { section: 'L', description: 'Excavation, sand bedding, cable tiles and backfill for buried cables', unit: 'm', qty: 1 },
+  { section: 'L', description: 'Cable trench / duct bank with draw pits', unit: 'm', qty: 1 },
+  { section: 'M', description: 'Provisional sum for authority requirements', unit: 'PS', qty: 1 },
+  { section: 'M', description: 'Contingency', unit: 'LS', qty: 1 }
+];
+export const EXTRA_SECTIONS: Record<string, string> = { K: 'Testing, commissioning and documentation', L: 'Installation works', M: 'Provisional sums' };
 
 /** Change between two BOMs (e.g. revision A and now), priced with the same list. */
 export interface BomChange { key: string; section: BomSection; description: string; unit: string; before: number; after: number; delta: number; cost: number }

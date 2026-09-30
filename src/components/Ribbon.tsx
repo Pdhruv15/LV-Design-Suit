@@ -2,12 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Activity, BatteryCharging, Building2, Cable, Calculator, ClipboardCheck, Car, CircuitBoard, Cog, Ellipsis, FileDown, FileSpreadsheet, FileText,
   Gauge, Hand, LayoutGrid, ListTree, Minus, MousePointer2, Pencil, Receipt, Scale, Server, Settings2, ShieldCheck, Sun,
-  Database, History, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Waves, Zap, type LucideIcon, BatteryFull
+  Database, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Waves, Zap, type LucideIcon, BatteryFull
 } from 'lucide-react';
 import type { Feeder } from '../types';
 import type { MainView } from '../views';
 
-export type BomCommand = 'boq' | 'changes' | 'circuits' | 'excel' | 'rates-sheet' | 'import' | 'save-list';
+export type BomCommand = 'boq' | 'changes' | 'circuits' | 'excel' | 'pdf' | 'summary-pdf' | 'rates-sheet' | 'import' | 'save-list' | 'add-item' | 'add-section' | 'extras' | 'wastage' | 'markup';
 export type RibbonTab = 'home' | 'design' | 'calculate' | 'simulate' | 'reports' | 'cost' | 'standards';
 export type DiagramTool = 'select' | 'pan';
 
@@ -199,16 +199,21 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'Per circuit', icon: Table2, title: 'Cable and breaker cost of every circuit', onClick: () => a.onBom('circuits') }
       ],
       [
+        { label: '+ Item', icon: FilePlus2, title: 'Add your own line: manual work, extra scope, anything not in the design', onClick: () => a.onBom('add-item') },
+        { label: '+ Section', icon: Rows3, title: 'Add your own section, e.g. J Lighting fixtures, L Civil works', onClick: () => a.onBom('add-section') },
+        { label: 'Extras', icon: ClipboardCheck, title: 'Ready-made extras: testing and commissioning, DEWA fees, as-built drawings, scaffolding, core drilling…', onClick: () => a.onBom('extras') },
+        { label: 'Wastage', icon: Percent, title: 'Wastage % per section on the design quantities (e.g. cables 5 %)', onClick: () => a.onBom('wastage') }
+      ],
+      [
         { label: 'Rates sheet', icon: FileSpreadsheet, title: 'Every item of this project in Excel — fill in your supplier rates', onClick: () => a.onBom('rates-sheet') },
         { label: 'Import rates', icon: FolderOpen, title: 'Read supply / install rates from an Excel sheet', onClick: () => a.onBom('import') },
-        { label: 'Save price list', icon: Save, title: a.hasPriceList ? 'Keep this price list for your other projects' : 'Enter or import some rates first', onClick: () => a.onBom('save-list'), disabled: !a.hasPriceList }
+        { label: 'Save price list', icon: Save, title: a.hasPriceList ? 'Keep this price list for your other projects' : 'Enter or import some rates first', onClick: () => a.onBom('save-list'), disabled: !a.hasPriceList },
+        { label: 'Markup / discount', icon: BadgePercent, title: 'Overheads and profit %, discount %', onClick: () => a.onBom('markup') }
       ],
-      [{ label: 'Excel BOQ', icon: FileDown, title: 'Tender BOQ in Excel: summary, bill with section totals, changes since the revision', onClick: () => a.onBom('excel') }],
       [
-        view('cable-schedule', 'Cable schedule', Cable, 'Cable lengths and sizes behind the cable quantities'),
-        view('cable-tray', 'Cable trays', Rows3, 'Tray routes and sizes behind the containment quantities'),
-        view('busbar', 'Busbar riser', AlignVerticalSpaceAround, 'Busbar trunking behind the busway quantities'),
-        view('equipment', 'Equipment', Server, 'Transformers and boards')
+        { label: 'Excel BOQ', icon: FileDown, title: 'Tender BOQ in Excel: summary, bill with section totals, changes since the revision', onClick: () => a.onBom('excel') },
+        { label: 'PDF BOQ', icon: FileText, title: 'The BOQ as a PDF with your logo: summary and full bill', onClick: () => a.onBom('pdf') },
+        { label: 'Summary only', icon: Scale, title: 'One-page PDF: section totals, markup, discount and total', onClick: () => a.onBom('summary-pdf') }
       ]
     ],
     standards: [

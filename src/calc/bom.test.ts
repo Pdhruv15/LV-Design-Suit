@@ -69,3 +69,34 @@ describe('pricing', () => {
     expect(r.rates[items[1].key]).toMatchObject({ rate: 45, labour: 5 });
   });
 });
+
+describe('your own BOQ lines and adjustments', () => {
+  const items = buildBom(p);
+  const cable = items.find((x) => x.key.startsWith('cable:'))!;
+  it('adds manual items in your own section', () => {
+    const b = priceBom(items, undefined, { sections: [{ id: 'K', title: 'Testing' }], manual: [{ id: 'x', section: 'K', description: 'T&C', unit: 'LS', qty: 1, rate: 5000, labour: 500 }] });
+    const k = b.sections.find((s) => s.section === 'K')!;
+    expect(k.title).toBe('Testing');
+    expect(k.amount).toBe(5500);
+    expect(k.items[0].source).toBe('manual');
+  });
+  it('applies wastage, your quantity and by-others', () => {
+    const w = priceBom(items, undefined, { wastage: { E: 10 } }).items.find((x) => x.key === cable.key)!;
+    expect(w.qty).toBe(Math.ceil(cable.qty * 1.1));
+    const o = priceBom(items, undefined, { overrides: { [cable.key]: { qty: 999, designQty: cable.qty } } }).items.find((x) => x.key === cable.key)!;
+    expect(o.qty).toBe(999);
+    expect(o.designQty).toBe(cable.qty);
+    expect(o.changed).toBe(false);
+    const ex = priceBom(items, undefined, { overrides: { [cable.key]: { excluded: true } } }).items.find((x) => x.key === cable.key)!;
+    expect(ex.amount).toBe(0);
+    expect(ex.source).toBe('excluded');
+  });
+  it('flags a line when the design quantity moved after you adjusted it', () => {
+    const o = priceBom(items, undefined, { overrides: { [cable.key]: { qty: 5, designQty: cable.qty - 1 } } });
+    expect(o.changed).toBe(1);
+  });
+  it('takes the discount off the total with markup', () => {
+    const b = priceBom(items, { ...newPriceList(), markupPct: 10 }, { discountPct: 5 });
+    expect(b.total).toBeCloseTo(b.subtotal * 1.1 * 0.95);
+  });
+});

@@ -10,8 +10,9 @@ import { sizeRoute, trayPlanOf, trayQuantities } from './cableTray';
  * into tender BOQ sections. Each item has a stable key, so a price list
  * entered once prices it on every project. */
 
-export type BomSection = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I';
-export const BOM_SECTIONS: Record<BomSection, string> = {
+/** Design sections A–I; your own sections (J, K…) come from the project's BOQ settings. */
+export type BomSection = string;
+export const BOM_SECTIONS: Record<string, string> = {
   A: 'Panels and switchboards',
   B: 'Switchgear and protection',
   C: 'Metering and instruments',
@@ -27,7 +28,7 @@ export interface BomItem {
   key: string; // stable, e.g. "cable:XLPE/PVC/SWA:4C:95"
   section: BomSection;
   description: string;
-  unit: 'no' | 'm' | 'set';
+  unit: string; // no, m, set, lot, LS
   qty: number;
   where: string[]; // boards / routes / risers it comes from
 }
