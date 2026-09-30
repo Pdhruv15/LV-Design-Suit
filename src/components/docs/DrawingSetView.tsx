@@ -16,7 +16,7 @@ export default function DrawingSetView({ project, run, onChange, onStatus }: { p
   const setSheet = (id: string, patch: Partial<DrawingSheet>) => save({ ...set, sheets: set.sheets.map((s) => (s.id === id ? { ...s, ...patch } : s)) });
   const [dbSheets, setDbSheets] = useState(false);
   const [perSheet, setPerSheet] = useState(10);
-  const dewa = project.drawing?.sldStyle === 'dewa';
+  const dewa = project.drawing?.sldStyle !== 'standard';
   const [editing, setEditing] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ id: string; html: string; size: SheetSize; fits: boolean } | null>(null);
   const [sizes, setSizes] = useState<Record<string, { size: SheetSize; fits: boolean }>>({});
@@ -70,7 +70,7 @@ export default function DrawingSetView({ project, run, onChange, onStatus }: { p
         <label className="row"><input type="checkbox" checked={dbSheets} onChange={(e) => setDbSheets(e.target.checked)} /> Also a circuit diagram for every DB</label>
         <span className="sp" />
         <label className="row">Numbers <input className="bi-text" style={{ width: 80 }} defaultValue={set.prefix} key={set.prefix} onBlur={(e) => save(renumber({ ...set, prefix: e.target.value || 'E-SLD-' }))} />001…</label>
-        <label className="row" title="A frame around each panel with its summary box (LOC, TCL, DF, MDL), way numbers and DEWA wording"><input type="checkbox" checked={dewa} onChange={(e) => { onChange({ ...project, drawing: { ...project.drawing, sldStyle: e.target.checked ? 'dewa' : undefined } }); setSizes({}); }} /> DEWA submission style</label>
+        <label className="row" title="A frame around each panel with its summary box (LOC, TCL, DF, MDL), way numbers and DEWA wording"><input type="checkbox" checked={dewa} onChange={(e) => { onChange({ ...project, drawing: { ...project.drawing, sldStyle: e.target.checked ? undefined : 'standard' } }); setSizes({}); }} /> Panel frames and summary boxes (DEWA style)</label>
         <label className="row"><input type="checkbox" checked={!!set.register} onChange={(e) => save({ ...set, register: e.target.checked })} /> Drawing register first</label>
       </section>
 
