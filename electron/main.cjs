@@ -255,6 +255,24 @@ ipcMain.handle('files:savePdf', async (_evt, { defaultName, html, pageSize = 'A4
   }
 });
 
+// ---- IPC: HTML → PDF bytes (no dialog), to merge several parts into one file ----
+ipcMain.handle('files:pdfBytes', async (_evt, { html, pageSize = 'A4', landscape = true, cssPages = false }) => {
+  const pdfWin = new BrowserWindow({ show: false, webPreferences: { contextIsolation: true, nodeIntegration: false, javascript: false } });
+  const tmp = path.join(os.tmpdir(), `lvds-part-${Date.now()}-${Math.random().toString(36).slice(2)}.html`);
+  try {
+    fs.writeFileSync(tmp, html, 'utf-8');
+    await pdfWin.loadFile(tmp);
+    const size = SHEETS[pageSize] ?? pageSize;
+    const pdf = cssPages
+      ? await pdfWin.webContents.printToPDF({ preferCSSPageSize: true, printBackground: true })
+      : await pdfWin.webContents.printToPDF({ pageSize: size, landscape: SHEETS[pageSize] ? false : landscape, printBackground: true });
+    return new Uint8Array(pdf);
+  } finally {
+    fs.rmSync(tmp, { force: true });
+    pdfWin.destroy();
+  }
+});
+
 // ---- IPC: external calculation engines (Python helper) ----
 // engines/python/lvds_engine.py runs OpenDSS (OpenDSSDirect.py) and
 // pandapower. It reads one JSON request on stdin and answers on stdout.

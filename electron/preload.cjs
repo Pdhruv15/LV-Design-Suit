@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('lvds', {
   files: {
     saveText: (opts) => ipcRenderer.invoke('files:saveText', opts),
     saveBinary: (opts) => ipcRenderer.invoke('files:saveBinary', opts),
-    savePdf: (opts) => ipcRenderer.invoke('files:savePdf', opts)
+    savePdf: (opts) => ipcRenderer.invoke('files:savePdf', opts),
+    pdfBytes: (opts) => ipcRenderer.invoke('files:pdfBytes', opts)
   }
 });

@@ -1,0 +1,40 @@
+import { describe, expect, it } from 'vitest';
+import { sampleProject } from '../data/sampleProject';
+import { autoSheets, autoSize, renumber, sheetProject } from './drawingSet';
+import type { Project } from '../types';
+
+const two: Project = { ...sampleProject, boards: [...sampleProject.boards, { id: 'MDB-2', name: 'MDB 2', kind: 'MDB', sourceKva: 1000, sourceImpedancePct: 5 }] };
+
+describe('drawing set', () => {
+  it('one sheet per MDB (overview when several), DBs as boxes, DB diagrams only on request', () => {
+    const one = autoSheets(sampleProject, 'perMdb');
+    expect(one.sheets.map((s) => s.number)).toEqual(['E-SLD-001']);
+    expect(one.sheets[0].boards).toContain('DB-GF1');
+    const t = autoSheets(two, 'perMdb');
+    expect(t.sheets.map((s) => s.title)).toEqual(['SLD — overall (main boards and sub-mains)', 'SLD — MDB-1', 'SLD — MDB-2']);
+    expect(t.sheets[0].boards).not.toContain('DB-GF1');
+    const withDb = autoSheets(sampleProject, 'perMdb', true);
+    expect(withDb.sheets[withDb.sheets.length - 1]).toMatchObject({ kind: 'board', boards: ['DB-GF1'], number: 'E-SLD-002' });
+  });
+  it('per SMDB: overview then a sheet for each SMDB with DBs', () => {
+    const s = autoSheets(sampleProject, 'perSmdb');
+    expect(s.sheets[0].boards).toEqual(['MDB-1', 'SMDB-GF', 'SMDB-FF', 'MCC-1']);
+    expect(s.sheets.map((x) => x.title)).toContain('SLD — SMDB-GF');
+  });
+  it('feeders to a panel on another sheet end in "to X — sheet N"', () => {
+    const s = autoSheets(sampleProject, 'perSmdb');
+    const p = sheetProject(sampleProject, s, s.sheets[0]);
+    const inc = p.feeders.find((f) => f.name.startsWith('To DB-GF1'))!;
+    const gf = s.sheets.find((x) => x.title === 'SLD — SMDB-GF')!;
+    expect(inc.name).toBe(`To DB-GF1 — sheet ${gf.number}`);
+    expect(inc.feedsBoardId).toBeUndefined();
+    expect(p.boards.map((b) => b.id)).not.toContain('DB-GF1');
+  });
+  it('size from what is drawn; renumbering', () => {
+    expect(autoSize(800, 500).size).toBe('A4');
+    expect(autoSize(1800, 700).size).toBe('A3');
+    expect(autoSize(3800, 1500).size).toBe('A1');
+    expect(autoSize(9000, 3000).fits).toBe(false);
+    expect(renumber({ prefix: 'X-', sheets: autoSheets(two, 'perMdb').sheets }).sheets.map((s) => s.number)).toEqual(['X-001', 'X-002', 'X-003']);
+  });
+});
