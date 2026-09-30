@@ -7,7 +7,7 @@ import ResultsTable from './components/ResultsTable';
 import SidePanel from './components/SidePanel';
 import FeederForm from './components/FeederForm';
 import BoardForm from './components/BoardForm';
-import BoqTable from './components/BoqTable';
+import BomView from './components/docs/BomView';
 import { exportDss } from './engines/opendss/exportDss';
 import EngineCompare from './components/EngineCompare';
 import SystemDiagram from './components/SystemDiagram';
@@ -33,6 +33,7 @@ import ProjectDashboard from './components/docs/ProjectDashboard';
 import HelpView from './components/HelpView';
 import ParametersView from './components/docs/ParametersView';
 import TitleBlockDesigner from './components/docs/TitleBlockDesigner';
+import DrawingRegisterView from './components/docs/DrawingRegisterView';
 import DrawingSetView from './components/docs/DrawingSetView';
 import ComponentEditor from './components/ComponentEditor';
 import { componentPreset, newComponent, syncComponent, type UserComponent } from './model/components';
@@ -51,7 +52,7 @@ const hasBridge = typeof window !== 'undefined' && !!window.lvds;
 const hasDatabase = hasBridge && !!window.lvds.database;
 
 import type { MainView } from './views';
-import Ribbon, { tabForView, type DiagramTool, type RibbonTab } from './components/Ribbon';
+import Ribbon, { type BomCommand, tabForView, type DiagramTool, type RibbonTab } from './components/Ribbon';
 import ProjectSettings from './components/ProjectSettings';
 import type { BoardTab } from './components/BoardPanel';
 import BoardEditForm from './components/BoardEditForm';
@@ -145,6 +146,7 @@ export default function App() {
   // Study pages filtered to a board and the boards below it (panel tree).
   const [focus, setFocus] = useState<string | null>(null);
   const [dbScheduleAll, setDbScheduleAll] = useState(true);
+  const [bomCmd, setBomCmd] = useState<{ cmd: BomCommand; n: number } | undefined>();
 
   // LV Database: Excel workbooks in the projects folder. Every save in Excel
   // arrives here; the data is applied to the calculations, library-linked
@@ -749,6 +751,9 @@ export default function App() {
         a={{
           view,
           onView: setView,
+          onBom: (cmd) => { setView('boq'); setBomCmd((c) => ({ cmd, n: (c?.n ?? 0) + 1 })); },
+          hasPriceList: !!project.priceList,
+          hasRevisions: !!project.revisions?.length,
           tool,
           onTool: setTool,
           boardId: board?.id ?? '',
@@ -965,6 +970,7 @@ export default function App() {
             {view === 'selection' && <SelectionStudy project={calcProject} focus={focus} onClearFocus={() => setFocus(null)} onChange={staleKeys.length ? blocked : setProject} />}
             {view === 'coordination' && <CoordinationStudy project={calcProject} board={board?.id} onBoard={setActiveBoardId} />}
             {view === 'sizing' && <TransformerGeneratorStudy project={project} onStatus={setStatus} onChange={(p) => setProject(p, { step: true })} />}
+            {view === 'drawing-register' && <DrawingRegisterView project={project} run={run} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onOpen={setView} />}
             {view === 'drawings' && <DrawingSetView project={project} run={run} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'parameters' && <ParametersView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onTitleBlock={() => setView('titleblock')} />}
             {view === 'titleblock' && <TitleBlockDesigner project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onParams={() => setView('parameters')} />}
@@ -1033,8 +1039,8 @@ export default function App() {
             )}
             {view === 'boq' && (
               <>
-                <section className="stage"><h3>Cost estimate — whole project</h3></section>
-                <BoqTable results={allResults} projectName={project.name} project={project} />
+                <section className="stage"><h3>Bill of quantities — whole project</h3></section>
+                <BomView command={bomCmd} project={project} results={allResults} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />
               </>
             )}
           </main>

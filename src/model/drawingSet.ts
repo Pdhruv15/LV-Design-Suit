@@ -17,6 +17,15 @@ export interface DrawingSheet {
   kind: 'system' | 'board'; // board = one DB's circuit diagram
   boards: string[];
   size: 'auto' | SheetSize;
+  // Title block of this sheet (blank = the project's, managed in the drawing register)
+  status?: string; // e.g. FOR APPROVAL, IFC, AS-BUILT
+  rev?: string; // blank = the project's current revision
+  date?: string;
+  drawnBy?: string;
+  checkedBy?: string;
+  approvedBy?: string;
+  scale?: string; // default NTS
+  remarks?: string; // register only
 }
 export interface DrawingSet {
   prefix: string; // E-SLD-
@@ -24,12 +33,24 @@ export interface DrawingSet {
   register?: boolean; // a drawing register as the first page
   /** Result values printed on the sheets (else SHEET_LAYERS). */
   tags?: import('../diagram/annotations').ResultLayers;
+  /** Numbers typed by hand: renumbering fills blanks only. */
+  manualNumbers?: boolean;
+  start?: number; // first number (default 1)
+  digits?: number; // zero padding (default 3)
+  suffix?: string; // after the number, e.g. "-EL"
+  status?: string; // default status of every sheet
 }
+
+export const SHEET_STATUSES = ['FOR APPROVAL', 'FOR AUTHORITY SUBMISSION', 'FOR TENDER', 'FOR CONSTRUCTION', 'AS-BUILT', 'PRELIMINARY'];
 
 export const SIZES: SheetSize[] = ['A4', 'A3', 'A2', 'A1'];
 export const setOf = (p: Project): DrawingSet => p.drawingSet ?? { prefix: 'E-SLD-', sheets: [], register: true };
-const num = (prefix: string, i: number) => `${prefix}${String(i).padStart(3, '0')}`;
-export const renumber = (set: DrawingSet): DrawingSet => ({ ...set, sheets: set.sheets.map((s, i) => ({ ...s, number: num(set.prefix, i + 1) })) });
+export const sheetNumber = (set: DrawingSet, i: number) => `${set.prefix}${String((set.start ?? 1) + i).padStart(set.digits ?? 3, '0')}${set.suffix ?? ''}`;
+/** Numbers in order (prefix, start, digits, suffix); with manual numbers only blanks are filled. */
+export const renumber = (set: DrawingSet, force = false): DrawingSet => ({
+  ...set,
+  sheets: set.sheets.map((s, i) => ({ ...s, number: set.manualNumbers && !force && s.number ? s.number : sheetNumber(set, i) }))
+});
 
 const isDb = (b: Board) => (b.kind ?? (b.upstreamId ? 'DB' : 'MDB')) === 'DB';
 
@@ -57,6 +78,30 @@ export function autoSheets(p: Project, mode: 'perMdb' | 'perSmdb', dbSheets = fa
   return renumber({ prefix, register: true, sheets: sheets.map((s) => ({ ...s, number: '' })) });
 }
 
+/** Sheets of at most n panels each (authority submissions: e.g. 10 per
+ * sheet), in supply order, keeping each panel's branch together where it
+ * fits: a sub-main's branch starts a new sheet rather than being split. */
+export function sheetsByCount(p: Project, n: number, prefix = 'E-SLD-'): DrawingSet {
+  const max = Math.max(1, Math.round(n));
+  const order = boardsInSupplyOrder(p);
+  const sheets: string[][] = [[]];
+  const size = (id: string) => order.filter((b) => subtree(p, id).has(b.id)).length;
+  for (const b of order) {
+    const cur = sheets[sheets.length - 1];
+    // A panel whose whole branch fits on a fresh sheet but not on this one starts a new sheet.
+    const branch = size(b.id);
+    const parentHere = !!b.upstreamId && cur.includes(b.upstreamId);
+    const startNew = cur.length >= max || (cur.length > 0 && branch > 1 && branch <= max && cur.length + branch > max && !(parentHere && cur.length + 1 <= max && branch > max));
+    if (startNew) sheets.push([b.id]);
+    else cur.push(b.id);
+  }
+  const list = sheets.filter((x) => x.length);
+  return renumber({
+    prefix, register: true,
+    sheets: list.map((boards, i) => ({ id: `sh-${Math.random().toString(36).slice(2, 8)}`, number: '', title: `SLD — ${boards[0]}${boards.length > 1 ? ` to ${boards[boards.length - 1]}` : ''}${list.length > 1 ? ` (${i + 1} of ${list.length})` : ''}`, kind: 'system' as const, boards, size: 'auto' as const }))
+  });
+}
+
 /** Where each board is drawn in full (its first system sheet, or its DB sheet). */
 export function sheetOfBoard(set: DrawingSet): Map<string, DrawingSheet> {
   const m = new Map<string, DrawingSheet>();
@@ -74,7 +119,7 @@ export function sheetProject(p: Project, set: DrawingSet, sheet: DrawingSheet): 
     const other = where.get(f.feedsBoardId);
     const t = boardTotals(p, f.feedsBoardId);
     const { feedsBoardId: _x, ...rest } = f;
-    return { ...rest, name: `To ${f.feedsBoardId}${other ? ` — sheet ${other.number}` : ''}`, loadType: 'general', loadKw: t.demandKw, demandFactor: 1, powerFactor: t.demandKw ? t.demandKw / Math.max(t.demandKw, Math.hypot(t.demandKw, t.demandKvar)) : 0.9 };
+    return { ...rest, name: `To ${f.feedsBoardId}${other ? ` — sheet ${other.number}` : ''}`, loadType: 'general', loadKw: t.connectedKw, demandFactor: t.connectedKw > 0 ? t.demandKw / t.connectedKw : 1, powerFactor: t.demandKw ? t.demandKw / Math.max(t.demandKw, Math.hypot(t.demandKw, t.demandKvar)) : 0.9 };
   });
   return {
     ...p,
@@ -98,14 +143,14 @@ export function autoSize(widthPx: number, heightPx: number): { size: SheetSize; 
 }
 
 /** The drawing register (first page): sheet no., title, size, revision. */
-export function registerHtml(p: Project, rows: { number: string; title: string; size: string }[], rev: string, date: string): string {
+export function registerHtml(p: Project, rows: { number: string; title: string; size: string; rev?: string; date?: string; status?: string }[], rev: string, date: string): string {
   const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
   return `<!doctype html><html><head><meta charset="utf-8"><style>
   @page { size: A4 portrait; margin: 16mm; } body { font: 11px Arial, sans-serif; color: #000; }
   h1 { font-size: 16px; margin: 0 0 2px; } .m { color: #555; } table { width: 100%; border-collapse: collapse; margin-top: 10px; }
   th, td { border: 1px solid #000; padding: 4px 6px; text-align: left; } th { background: #eef2f7; }
   </style></head><body><h1>Drawing register — single line diagrams</h1><div class="m">${esc(p.name)} · ${esc(p.info?.owner ?? '')} · Plot ${esc(p.info?.plotNo ?? '')}</div>
-  <table><thead><tr><th style="width:18%">Drawing no.</th><th>Title</th><th style="width:9%">Size</th><th style="width:8%">Rev</th><th style="width:14%">Date</th></tr></thead><tbody>
-  ${rows.map((r) => `<tr><td>${esc(r.number)}</td><td>${esc(r.title)}</td><td>${esc(r.size)}</td><td>${esc(rev)}</td><td>${esc(date)}</td></tr>`).join('')}
+  <table><thead><tr><th style="width:18%">Drawing no.</th><th>Title</th><th style="width:9%">Size</th><th style="width:8%">Rev</th><th style="width:13%">Date</th><th style="width:16%">Status</th></tr></thead><tbody>
+  ${rows.map((r) => `<tr><td>${esc(r.number)}</td><td>${esc(r.title)}</td><td>${esc(r.size)}</td><td>${esc(r.rev || rev)}</td><td>${esc(r.date || date)}</td><td>${esc(r.status ?? '')}</td></tr>`).join('')}
   </tbody></table></body></html>`;
 }

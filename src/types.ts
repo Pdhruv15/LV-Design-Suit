@@ -278,6 +278,8 @@ export interface Project {
   /** Your own equipment, with parameters and formulas (palette → My components). */
   components?: import('./model/components').UserComponent[];
   building?: BuildingInfo; // architectural information: buildings, levels, rooms, room types
+  boq?: import('./model/priceList').BoqCustom; // manual BOQ lines, your sections, quantity changes, wastage
+  priceList?: import('./model/priceList').PriceList; // rates used for this project's BOQ (a copy)
   busRisers?: import('./calc/busbar').BusRiser[]; // busbar trunking risers (high-rise)
   busbarData?: import('./calc/busbar').BusbarData; // manufacturer busway data (typical when absent)
   txGen?: Partial<import('./calc/txGen').TxGenPlan>; // transformer & generator sizing choices
@@ -555,7 +557,8 @@ export interface DrawingInfo {
   logo?: string; // company logo (data: URL) in the title block and on report covers
   titleTemplateId?: string; // a custom title block (else the standard one)
   notes?: string[]; // text notes on the SLD sheet; {Parameters} are filled in
-  abbreviations?: boolean; // abbreviations table on the sheets (default on)
+  abbreviations?: boolean;
+  sldStyle?: 'standard' | 'dewa'; // default DEWA submission style (blank or 'dewa'): panel frames, summary boxes (LOC, TCL, DF, MDL), DEWA wording // abbreviations table on the sheets (default on)
 }
 
 /** An issued revision: a frozen copy of the design (without the revision
