@@ -51,7 +51,7 @@ const hasBridge = typeof window !== 'undefined' && !!window.lvds;
 const hasDatabase = hasBridge && !!window.lvds.database;
 
 import type { MainView } from './views';
-import Ribbon, { tabForView, type DiagramTool, type RibbonTab } from './components/Ribbon';
+import Ribbon, { type BomCommand, tabForView, type DiagramTool, type RibbonTab } from './components/Ribbon';
 import ProjectSettings from './components/ProjectSettings';
 import type { BoardTab } from './components/BoardPanel';
 import BoardEditForm from './components/BoardEditForm';
@@ -145,6 +145,7 @@ export default function App() {
   // Study pages filtered to a board and the boards below it (panel tree).
   const [focus, setFocus] = useState<string | null>(null);
   const [dbScheduleAll, setDbScheduleAll] = useState(true);
+  const [bomCmd, setBomCmd] = useState<{ cmd: BomCommand; n: number } | undefined>();
 
   // LV Database: Excel workbooks in the projects folder. Every save in Excel
   // arrives here; the data is applied to the calculations, library-linked
@@ -749,6 +750,9 @@ export default function App() {
         a={{
           view,
           onView: setView,
+          onBom: (cmd) => { setView('boq'); setBomCmd((c) => ({ cmd, n: (c?.n ?? 0) + 1 })); },
+          hasPriceList: !!project.priceList,
+          hasRevisions: !!project.revisions?.length,
           tool,
           onTool: setTool,
           boardId: board?.id ?? '',
@@ -1034,7 +1038,7 @@ export default function App() {
             {view === 'boq' && (
               <>
                 <section className="stage"><h3>Bill of quantities — whole project</h3></section>
-                <BomView project={project} results={allResults} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />
+                <BomView command={bomCmd} project={project} results={allResults} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />
               </>
             )}
           </main>

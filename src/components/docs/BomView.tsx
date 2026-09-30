@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { BomCommand } from '../Ribbon';
 import type { Project } from '../../types';
 import type { FeederResult } from '../../calc/electrical';
 import { buildBom } from '../../calc/bom';
@@ -15,7 +16,7 @@ const qtyText = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 /** BOM / Cost → Bill of quantities: everything in the design rolled up by
  * tender section, priced from your own price list, exported as an Excel
  * BOQ; with the change since an issued revision. */
-export default function BomView({ project, results, onChange, onStatus }: { project: Project; results: FeederResult[]; onChange: (p: Project) => void; onStatus: (m: string) => void }) {
+export default function BomView({ command, project, results, onChange, onStatus }: { command?: { cmd: BomCommand; n: number }; project: Project; results: FeederResult[]; onChange: (p: Project) => void; onStatus: (m: string) => void }) {
   const [tab, setTab] = useState<'boq' | 'changes' | 'circuits'>('boq');
   const [library, setLibrary] = useState<PriceList[]>(loadPriceLists);
   const [since, setSince] = useState<string>(() => project.revisions?.[project.revisions.length - 1]?.id ?? '');
@@ -71,6 +72,20 @@ export default function BomView({ project, results, onChange, onStatus }: { proj
       onStatus(`Import failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
+
+  // Ribbon commands (BOM / Cost tab).
+  const last = useRef(0);
+  useEffect(() => {
+    if (!command || command.n === last.current) return;
+    last.current = command.n;
+    const c = command.cmd;
+    if (c === 'boq' || c === 'changes' || c === 'circuits') setTab(c);
+    else if (c === 'excel') exportBoq();
+    else if (c === 'rates-sheet') exportTemplate();
+    else if (c === 'import') fileRef.current?.click();
+    else if (c === 'save-list') saveToLibrary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [command]);
 
   const q = filter.trim().toLowerCase();
   const cur = list?.currency ?? 'AED';

@@ -50,10 +50,10 @@ export default function BoqTable({ results, projectName, project }: { results: F
   return (
     <div className="tw">
       <div className="boq-head">
-        <span className="m">Illustrative unit rates — edit src/data/rates.ts with your real supplier prices.</span>
+        <span className="m">Typical built-in rates for a quick check — your own rates go in the Bill of quantities price list.</span>
         <button className="chip" onClick={exportCsv}>Export CSV</button>
       </div>
-      {byType.length > 1 && <p className="m">Cable by type: {byType.map(([t, m]) => `${t} ${Math.round(m)} m`).join(' · ')} — the rates are the same for every type; enter fire-rated / LSZH prices in rates.ts.</p>}
+      {byType.length > 1 && <p className="m">Cable by type: {byType.map(([t, m]) => `${t} ${Math.round(m)} m`).join(' · ')}.</p>}
       <table>
         <thead>
           <tr>
