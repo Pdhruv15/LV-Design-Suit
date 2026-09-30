@@ -78,3 +78,45 @@ describe('voltage drop calculation', () => {
     expect(vdCandidates(b.project).map((f) => f.id)).toContain('MCC-1-EQ2');
   });
 });
+
+describe('voltage drop page additions', async () => {
+  const { sampleProject: p } = await import('../data/sampleProject');
+  const { vdPath, suggestCable, worstFinalCircuits, vdFormula, vdRow } = await import('./voltageDrop');
+  const { riserVd, newRiser } = await import('./busbar');
+  const { resistanceFactor } = await import('./electrical');
+  it('conductor temperature changes the resistance', () => {
+    const f = p.feeders.find((x) => x.feedsBoardId)!;
+    const r70 = vdRow({ ...p, vdTempC: 70 }, f), r90 = vdRow({ ...p, vdTempC: 90 }, f);
+    expect(r90.vdPct).toBeGreaterThan(r70.vdPct);
+    expect(resistanceFactor(90)).toBeCloseTo(1.2751, 3);
+    expect(resistanceFactor()).toBe(1.2);
+  });
+  it('follows the supply path from the main board', () => {
+    const deep = p.feeders.find((f) => f.boardId === 'SMDB-GF' && !f.phase)!;
+    const path = vdPath(p, deep);
+    expect(path[0].from.id).toBe('MDB-1');
+    expect(path[path.length - 1].feeder.id).toBe(deep.id);
+    expect(path[path.length - 1].totalPct).toBeCloseTo(path.reduce((a, r) => a + r.vdPct, 0), 6);
+  });
+  it('suggests a bigger cable that passes', () => {
+    const f = { ...p.feeders.find((x) => !x.feedsBoardId && !x.phase)!, lengthM: 900 };
+    const s = suggestCable({ ...p, feeders: p.feeders.map((x) => (x.id === f.id ? f : x)) }, f);
+    if (s) { expect(s.csaMm2).toBeGreaterThan(f.cableCsaMm2); expect(s.totalPct).toBeLessThanOrEqual(p.vdLimitPct); }
+  });
+  it('finds each DB’s worst final circuit and writes the formula', () => {
+    const w = worstFinalCircuits(p);
+    expect(w.length).toBeGreaterThan(0);
+    expect(w[0].finalCircuit).toBe(true);
+    expect(vdFormula(p, w[0])).toContain('ΔV =');
+  });
+  it('splits a riser into concentrated and distributed lengths', () => {
+    const r = { ...newRiser('R1', 'MDB-1'), feedM: 10, offsetFloors: 1, floorHeightM: 3.6 };
+    const v = riserVd(p, r);
+    expect(v.concentratedM).toBeCloseTo(10 + 3.6, 6);
+    expect(v.distributedM).toBeCloseTo(5 * 3.6, 6);
+    expect(v.segments[0].kind).toBe('concentrated');
+    expect(v.segments[v.segments.length - 1].currentA).toBeLessThan(v.segments[0].currentA);
+    // Uniform-load quick check is close to (and not below) the exact result for equal floors.
+    expect(v.uniformTopPct).toBeGreaterThanOrEqual(v.exactTopPct - 1e-9);
+  });
+});

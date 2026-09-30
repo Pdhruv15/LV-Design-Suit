@@ -252,7 +252,9 @@ export interface Project {
   voltageV: number; // phase-phase, e.g. 415
   frequencyHz: number;
   ambientC: number;
-  vdLimitPct: number; // allowable voltage drop, e.g. 4.0 per DEWA/IEC
+  vdLimitPct: number;
+  vdTempC?: number; // conductor temperature for voltage drop (°C); blank = R20 × 1.2
+  vdFinalCircuits?: boolean; // voltage drop page: include each DB's worst final circuit // allowable voltage drop, e.g. 4.0 per DEWA/IEC
   vdSelection?: string[]; // feeder ids chosen for the voltage drop calculation
   pointTemplate?: string; // load schedule point columns (POINT_TEMPLATES id)
   info?: ProjectInfo; // header data of the authority submission forms
