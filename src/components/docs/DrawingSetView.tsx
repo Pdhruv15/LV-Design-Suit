@@ -1,57 +1,11 @@
 import { useState } from 'react';
-import { createRoot } from 'react-dom/client';
-import { flushSync } from 'react-dom';
+import { LAYER_LABELS, SHEET_LAYERS } from '../../diagram/annotations';
+import { boardsInSupplyOrder } from '../../calc/summary';
+import { autoSheets, sheetsByCount, renumber, setOf, SIZES, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
 import type { Project } from '../../types';
 import type { CalcRun } from '../../calc/runs';
-import { evaluateProject } from '../../calc/electrical';
-import { buildAnnotations } from '../../diagram/annotations';
-import { printableSvg } from '../../diagram/exportSvg';
-import { boardsInSupplyOrder } from '../../calc/summary';
-import { autoSheets, autoSize, registerHtml, renumber, setOf, sheetProject, SIZES, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
-import { buildSldSheetHtml } from '../../docs/sldSheet';
-import { mergePdfs } from '../../docs/mergePdf';
-import { currentRevision, revisionStamp } from '../../model/revisions';
-import { safeFileName, saveBinary, savePdf } from '../../util/files';
-import SystemDiagram from '../SystemDiagram';
-import SingleLineDiagram from '../SingleLineDiagram';
+import { exportDrawingSet, sheetHtml, SheetPreview } from './sheetRender';
 import { Page } from '../ui';
-
-const noop = () => {};
-
-/** Draws one sheet off-screen and returns printable SVG with its size in px. */
-async function renderSheet(project: Project, set: DrawingSet, s: DrawingSheet, run?: CalcRun): Promise<{ svg: string; w: number; h: number } | undefined> {
-  const host = document.createElement('div');
-  host.style.cssText = 'position:fixed;left:-30000px;top:0;width:2400px;height:1400px;pointer-events:none';
-  document.body.appendChild(host);
-  const root = createRoot(host);
-  try {
-    if (s.kind === 'board') {
-      const b = project.boards.find((x) => x.id === s.boards[0]);
-      if (!b) return undefined;
-      const results = (run?.results ?? evaluateProject(project)).filter((r) => r.feeder.boardId === b.id);
-      flushSync(() => root.render(<div className="sld-print"><SingleLineDiagram board={b} voltageV={project.voltageV} results={results} selected={null} onSelect={noop} /></div>));
-      await new Promise((r) => requestAnimationFrame(() => r(null)));
-      const svg = host.querySelector<SVGSVGElement>('svg');
-      if (!svg) return undefined;
-      const [, , w, h] = (svg.getAttribute('viewBox') ?? '0 0 1000 345').split(' ').map(Number);
-      return { svg: printableSvg(svg, w, h), w, h };
-    }
-    const drawing = sheetProject(project, set, s);
-    const results = evaluateProject(drawing);
-    flushSync(() => root.render(
-      <SystemDiagram project={drawing} calcProject={drawing} results={results} annotations={buildAnnotations(drawing, results)}
-        selectedFeederId={null} selectedBoardId={null} onSelectFeeder={noop} onSelectBoard={noop} />
-    ));
-    await new Promise((r) => requestAnimationFrame(() => r(null)));
-    const svg = host.querySelector<SVGSVGElement>('.sysdiag svg');
-    if (!svg) return undefined;
-    const w = Number(svg.dataset.w), h = Number(svg.dataset.h);
-    return { svg: printableSvg(svg, w, h), w, h };
-  } finally {
-    root.unmount();
-    host.remove();
-  }
-}
 
 /** Reports → Drawing set: the SLD as numbered sheets — which panels on
  * each, size chosen from what's drawn, DB circuit diagrams only when wanted,
@@ -61,8 +15,10 @@ export default function DrawingSetView({ project, run, onChange, onStatus }: { p
   const save = (next: DrawingSet) => onChange({ ...project, drawingSet: next });
   const setSheet = (id: string, patch: Partial<DrawingSheet>) => save({ ...set, sheets: set.sheets.map((s) => (s.id === id ? { ...s, ...patch } : s)) });
   const [dbSheets, setDbSheets] = useState(false);
+  const [perSheet, setPerSheet] = useState(10);
+  const dewa = project.drawing?.sldStyle !== 'standard';
   const [editing, setEditing] = useState<string | null>(null);
-  const [preview, setPreview] = useState<{ id: string; svg: string; size: SheetSize; fits: boolean } | null>(null);
+  const [preview, setPreview] = useState<{ id: string; html: string; size: SheetSize; fits: boolean } | null>(null);
   const [sizes, setSizes] = useState<Record<string, { size: SheetSize; fits: boolean }>>({});
   const [busy, setBusy] = useState('');
   const boards = boardsInSupplyOrder(project);
@@ -83,44 +39,14 @@ export default function DrawingSetView({ project, run, onChange, onStatus }: { p
   const add = (kind: DrawingSheet['kind'], boardId?: string) => save(renumber({ ...set, sheets: [...set.sheets, { id: `sh-${Date.now().toString(36)}`, number: '', title: kind === 'board' ? `${boardId} — circuit diagram` : `SLD — sheet ${set.sheets.length + 1}`, kind, boards: boardId ? [boardId] : [], size: 'auto' }] }));
 
   async function sizeOf(s: DrawingSheet) {
-    const r = await renderSheet(project, set, s, run);
-    if (!r) return undefined;
-    const a = autoSize(r.w, r.h);
-    const size = s.size === 'auto' ? a.size : s.size;
-    setSizes((x) => ({ ...x, [s.id]: { size, fits: a.fits || s.size !== 'auto' } }));
-    return { ...r, size, fits: a.fits };
+    const r = await sheetHtml(project, set, s, run);
+    if (r) setSizes((x) => ({ ...x, [s.id]: { size: r.size, fits: r.fits } }));
+    return r;
   }
-
   async function exportSet(each: boolean) {
     if (!set.sheets.length) return;
     setBusy(each ? 'each' : 'set');
-    try {
-      const rev = currentRevision(project);
-      const pages: { html: string; size: SheetSize; s: DrawingSheet }[] = [];
-      for (const [i, s] of set.sheets.entries()) {
-        if (!s.boards.length) continue;
-        const r = await sizeOf(s);
-        if (!r) continue;
-        pages.push({ s, size: r.size, html: buildSldSheetHtml(project, r.svg, r.size, { no: s.number, title: s.title, count: set.sheets.length, index: i + 1 }) });
-      }
-      const toBytes = window.lvds?.files?.pdfBytes;
-      if (each || !toBytes) {
-        let n = 0;
-        for (const p of pages) if (await savePdf(`${safeFileName(`${p.s.number} ${p.s.title}`)}.pdf`, p.html, { pageSize: p.size, landscape: true })) n++;
-        onStatus(`Saved ${n} of ${pages.length} sheets${!toBytes && !each ? ' (one PDF per sheet — the combined set needs the desktop app)' : ''}`);
-        return;
-      }
-      const parts: Uint8Array[] = [];
-      if (set.register) parts.push(await toBytes({ html: registerHtml(project, pages.map((p) => ({ number: p.s.number, title: p.s.title, size: p.size })), rev?.id ?? '—', rev?.date ?? new Date().toISOString().slice(0, 10)), cssPages: true }));
-      for (const p of pages) parts.push(await toBytes({ html: p.html, cssPages: true }));
-      const bytes = await mergePdfs(parts, `${project.name} · SLD set · ${revisionStamp(project)}`);
-      const m = await saveBinary(`${safeFileName(`${project.name} SLD drawing set`)}.pdf`, bytes, 'PDF', 'pdf', 'application/pdf');
-      if (m) onStatus(`${m} — ${pages.length} sheets${set.register ? ' + register' : ''}`);
-    } catch (e) {
-      onStatus(`Export failed: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setBusy('');
-    }
+    try { await exportDrawingSet(project, set, run, each, onStatus); } finally { setBusy(''); }
   }
 
   const editSheet = set.sheets.find((s) => s.id === editing);
@@ -138,10 +64,23 @@ export default function DrawingSetView({ project, run, onChange, onStatus }: { p
         <span className="m">Automatic:</span>
         <button className="chip" onClick={() => auto('perMdb')}>One sheet per MDB</button>
         <button className="chip" onClick={() => auto('perSmdb')}>Overview + one per SMDB</button>
+        <span className="sp" style={{ flex: 'none', width: 8 }} />
+        <button className="chip" onClick={() => { if (set.sheets.length && !window.confirm('Replace the sheets with a new automatic set?')) return; save(sheetsByCount(project, perSheet, set.prefix)); setSizes({}); }}>Split by panels</button>
+        <label className="row">max <input className="bi-text" style={{ width: 44 }} inputMode="numeric" value={perSheet} onChange={(e) => setPerSheet(Math.max(1, Number(e.target.value) || 1))} /> panels per sheet</label>
         <label className="row"><input type="checkbox" checked={dbSheets} onChange={(e) => setDbSheets(e.target.checked)} /> Also a circuit diagram for every DB</label>
         <span className="sp" />
         <label className="row">Numbers <input className="bi-text" style={{ width: 80 }} defaultValue={set.prefix} key={set.prefix} onBlur={(e) => save(renumber({ ...set, prefix: e.target.value || 'E-SLD-' }))} />001…</label>
+        <label className="row" title="A frame around each panel with its summary box (LOC, TCL, DF, MDL), way numbers and DEWA wording"><input type="checkbox" checked={dewa} onChange={(e) => { onChange({ ...project, drawing: { ...project.drawing, sldStyle: e.target.checked ? undefined : 'standard' } }); setSizes({}); }} /> Panel frames and summary boxes (DEWA style)</label>
         <label className="row"><input type="checkbox" checked={!!set.register} onChange={(e) => save({ ...set, register: e.target.checked })} /> Drawing register first</label>
+      </section>
+
+      <section className="card ds-tools">
+        <span className="m">Values printed on the sheets:</span>
+        {LAYER_LABELS.map(([k, label]) => {
+          const tags = set.tags ?? SHEET_LAYERS;
+          return <label key={k} className="row"><input type="checkbox" checked={tags[k]} onChange={(e) => { save({ ...set, tags: { ...tags, [k]: e.target.checked } }); setSizes({}); }} /> {label}</label>;
+        })}
+        <span className="m">— failures print in red (e.g. breaker Icu below the fault level)</span>
       </section>
 
       <table className="ds-table">
@@ -168,7 +107,7 @@ export default function DrawingSetView({ project, run, onChange, onStatus }: { p
                 {sizes[s.id] && !sizes[s.id].fits && <span className="warn" title="Too much for A1 — split the sheet"> ⚠ crowded</span>}
               </td>
               <td className="acts">
-                <button className="chip" disabled={!s.boards.length} onClick={async () => { const r = await sizeOf(s); if (r) setPreview({ id: s.id, svg: r.svg, size: r.size, fits: r.fits }); }}>Preview</button>
+                <button className="chip" disabled={!s.boards.length} onClick={async () => { const r = await sizeOf(s); if (r) setPreview({ id: s.id, ...r }); }}>Preview</button>
                 <button className="icon-btn" title="Remove" onClick={() => save(renumber({ ...set, sheets: set.sheets.filter((x) => x.id !== s.id) }))}>✕</button>
               </td>
             </tr>
@@ -212,7 +151,7 @@ export default function DrawingSetView({ project, run, onChange, onStatus }: { p
         <div className="modal-backdrop" onClick={() => setPreview(null)}>
           <div className="modal ds-preview" onClick={(e) => e.stopPropagation()}>
             <h3>{set.sheets.find((s) => s.id === preview.id)?.number} — {preview.size}{!preview.fits && <span className="warn"> · crowded even on A1: split this sheet</span>}</h3>
-            <div className="ds-paper" dangerouslySetInnerHTML={{ __html: preview.svg }} />
+            <SheetPreview html={preview.html} size={preview.size} />
             <div className="modal-actions"><span className="sp" /><button className="chip" onClick={() => setPreview(null)}>Close</button></div>
           </div>
         </div>

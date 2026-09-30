@@ -1,3 +1,4 @@
+import { DEWA_GENERAL_NOTES } from '../../docs/sldNotes';
 import { useMemo, useState } from 'react';
 import type { Project, ProjectParams } from '../../types';
 import { boardParamNames, fillParams, paramList, type ParamDef } from '../../model/params';
@@ -79,6 +80,12 @@ export default function ParametersView({ project, onChange, onStatus, onTitleBlo
             <textarea className="param-try" style={{ minHeight: 120 }} defaultValue={notes.join('\n')} key={notes.join('\n')}
               placeholder={'1. All cables Cu/XLPE/SWA/PVC unless noted.\n2. Maximum demand {MaxDemand} on {TransformerKVA} transformer.'}
               onBlur={(e) => setNotes(e.target.value.split('\n').map((l) => l.trimEnd()).filter(Boolean))} />
+            <div className="row" style={{ gap: 6, margin: '6px 0', flexWrap: 'wrap' }}>
+              <button className="chip" onClick={() => setNotes([...notes, ...DEWA_GENERAL_NOTES.filter((n) => !notes.includes(n))])}>+ Standard DEWA notes</button>
+              <button className="chip" onClick={() => { try { localStorage.setItem('lvds.sldNotes', JSON.stringify(notes)); } catch { /* ignore */ } }} disabled={!notes.length} title="Keep these notes for your next projects">Save as my notes</button>
+              <button className="chip" onClick={() => { try { const n = JSON.parse(localStorage.getItem('lvds.sldNotes') ?? '[]'); if (Array.isArray(n) && n.length) setNotes(n.map(String)); } catch { /* ignore */ } }} title="Replace with your saved notes">Use my notes</button>
+              <label className="row"><input type="checkbox" checked={project.drawing?.abbreviations !== false} onChange={(e) => onChange({ ...project, drawing: { ...project.drawing, abbreviations: e.target.checked ? undefined : false } })} /> Abbreviations table on the sheets</label>
+            </div>
             {notes.length > 0 && <ol className="param-notes">{notes.map((n, i) => <li key={i}>{fillParams(n, project)}</li>)}</ol>}
           </section>
         </div>

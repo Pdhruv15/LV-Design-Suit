@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { autoSheets, autoSize, renumber, sheetProject } from './drawingSet';
+import { autoSheets, autoSize, renumber, sheetProject, sheetsByCount } from './drawingSet';
 import type { Project } from '../types';
 
 const two: Project = { ...sampleProject, boards: [...sampleProject.boards, { id: 'MDB-2', name: 'MDB 2', kind: 'MDB', sourceKva: 1000, sourceImpedancePct: 5 }] };
@@ -36,5 +36,37 @@ describe('drawing set', () => {
     expect(autoSize(3800, 1500).size).toBe('A1');
     expect(autoSize(9000, 3000).fits).toBe(false);
     expect(renumber({ prefix: 'X-', sheets: autoSheets(two, 'perMdb').sheets }).sheets.map((s) => s.number)).toEqual(['X-001', 'X-002', 'X-003']);
+  });
+});
+
+describe('sheets by panel count', () => {
+  it('puts at most n panels on a sheet, every panel once, in supply order', async () => {
+
+    const set = sheetsByCount(sampleProject, 2);
+    const all = set.sheets.flatMap((s) => s.boards);
+    expect(set.sheets.every((s) => s.boards.length <= 2)).toBe(true);
+    expect(new Set(all).size).toBe(sampleProject.boards.length);
+    expect(all.length).toBe(sampleProject.boards.length);
+    expect(set.sheets[0].boards[0]).toBe('MDB-1');
+    expect(sheetsByCount(sampleProject, 10).sheets.length).toBe(1);
+  });
+  it('keeps the connected load of a panel drawn on another sheet', () => {
+    const set = sheetsByCount(sampleProject, 1);
+    const first = sheetProject(sampleProject, set, set.sheets[0]);
+    const cut = first.feeders.find((f) => f.name.startsWith('To SMDB-GF'))!;
+    expect(cut.loadKw).toBeGreaterThan(0);
+    expect(cut.demandFactor).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('drawing register', () => {
+  it('numbers with prefix, start, digits and suffix; manual numbers are kept', () => {
+    const set = sheetsByCount(sampleProject, 2, 'EL-');
+    const r = renumber({ ...set, start: 101, digits: 4, suffix: '-SLD' }, true);
+    expect(r.sheets[0].number).toBe('EL-0101-SLD');
+    expect(r.sheets[1].number).toBe('EL-0102-SLD');
+    const manual = { ...r, manualNumbers: true, sheets: r.sheets.map((s, i) => (i === 0 ? { ...s, number: 'E-100' } : s)) };
+    expect(renumber(manual).sheets[0].number).toBe('E-100');
+    expect(renumber(manual, true).sheets[0].number).toBe('EL-0101-SLD');
   });
 });

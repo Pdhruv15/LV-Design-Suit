@@ -129,8 +129,17 @@ export function legendEntries(project: Project): LegendEntry[] {
   if (drawn.some((f) => f.rcdMa)) add('rcd', 'Earth leakage protection (RCD)', (x, y) => (
     <g className="iec"><line x1={x} y1={y - 9} x2={x} y2={y + 9} className="ln" /><ellipse cx={x} cy={y} rx="7" ry="3.2" className="sym-ln" /></g>
   ));
-  if (drawn.some((f) => f.kwhMeter === 'CT')) add('ct', 'Current transformer', (x, y) => (
+  const prot = project.boards.map((b) => b.protection);
+  if (drawn.some((f) => f.kwhMeter === 'CT') || project.boards.some((b) => b.protection?.ctRatio || b.supply?.ctRatio)) add('ct', 'Current transformer', (x, y) => (
     <g className="iec"><line x1={x} y1={y - 9} x2={x} y2={y + 9} className="ln" /><circle cx={x} cy={y} r="4.5" className="sym-ln" /></g>
+  ));
+  const relays = [...new Set(prot.flatMap((p) => p?.relays ?? []))];
+  if (relays.length) add('relay', `Protection relays: ${relays.join(', ')}`, (x, y) => (
+    <g className="iec"><circle cx={x - 8} cy={y} r="4.5" className="sym-ln" /><line x1={x - 3.5} y1={y} x2={x + 6} y2={y} className="ln" style={{ strokeDasharray: '2 1.5' }} /><text x={x + 8} y={y + 3} className="iec-t s">{relays[0]}</text></g>
+  ));
+  if (project.boards.some((b) => b.standby?.changeover === 'ACB')) add('il', 'Mechanical / electrical interlock (IL)', (x, y) => <line x1={x - 12} y1={y} x2={x + 12} y2={y} className="ln interlock" />);
+  if (prot.some((p) => p?.apfc)) add('pfr', 'Power factor relay (PFR), CT from the incomer', (x, y) => (
+    <g className="iec"><rect x={x - 9} y={y - 5.5} width="18" height="11" rx="1" className="sym" /><text x={x} y={y + 3} textAnchor="middle" className="iec-t s">PFR</text></g>
   ));
   if (drawn.some((f) => f.kwhMeter)) add('kwh', 'kWh meter', (x, y) => (
     <g className="iec"><rect x={x - 12} y={y - 6} width="24" height="12" rx="2" className="sym" /><text x={x} y={y + 3} textAnchor="middle" className="iec-t b">kWh</text></g>

@@ -1,4 +1,4 @@
-import { BOARD_KINDS, SPD_TYPES, type Board } from '../types';
+import { BOARD_KINDS, RELAY_TYPES, SPD_TYPES, type Board } from '../types';
 import { DEFAULT_TRANSFORMER_XR } from '../calc/electrical';
 
 /** Editable board fields, shared by the properties panel (applied as you
@@ -9,6 +9,10 @@ export default function BoardFields({ board, onChange, section }: { board: Board
   function set<K extends keyof Board>(key: K, value: Board[K]) {
     onChange({ ...board, [key]: value });
   }
+  const setProt = (patch: Partial<NonNullable<Board['protection']>>) => {
+    const p = { ...board.protection, ...patch };
+    set('protection', Object.values(p).some((v) => v !== undefined) ? p : undefined);
+  };
   const text = (key: 'name' | 'ipRating' | 'location' | 'manufacturer' | 'model', placeholder = '') => (
     <input value={board[key] ?? ''} placeholder={placeholder} onChange={(e) => set(key, e.target.value || (key === 'name' ? '' : undefined))} />
   );
@@ -58,6 +62,36 @@ export default function BoardFields({ board, onChange, section }: { board: Board
           title="Leave blank for no generator. Everything on and below this board then counts as essential load."
           onChange={(e) => set('standby', e.target.value === '' || Number.isNaN(+e.target.value) ? undefined : { kva: +e.target.value })} />
       </label>
+      {board.standby && (
+        <label>Changeover
+          <select value={board.standby.changeover ?? 'ATS'} onChange={(e) => set('standby', { ...board.standby!, changeover: e.target.value === 'ACB' ? 'ACB' : undefined })}>
+            <option value="ATS">ATS</option>
+            <option value="ACB">Mains + generator ACBs, interlocked</option>
+          </select>
+        </label>
+      )}
+      <label>Incomer CT ratio
+        <input value={board.protection?.ctRatio ?? ''} placeholder={board.supply?.ctRatio ?? 'e.g. 1600/5A'}
+          onChange={(e) => setProt({ ctRatio: e.target.value || undefined })} />
+      </label>
+      <label>Incomer Ir setting (× In)
+        <input inputMode="decimal" value={board.protection?.irSetting ?? ''} placeholder={board.supply?.irSetting ? String(board.supply.irSetting) : 'e.g. 0.9'}
+          onChange={(e) => setProt({ irSetting: e.target.value === '' || Number.isNaN(+e.target.value) ? undefined : +e.target.value })} />
+      </label>
+      <fieldset className="relays">
+        <legend>Incomer relays (shown on the SLD)</legend>
+        {RELAY_TYPES.map((r) => (
+          <label key={r.value} className="row">
+            <input type="checkbox" checked={!!board.protection?.relays?.includes(r.value)}
+              onChange={(e) => { const cur = board.protection?.relays ?? []; const next = e.target.checked ? [...cur, r.value] : cur.filter((x) => x !== r.value); setProt({ relays: next.length ? next : undefined }); }} />
+            {r.label}
+          </label>
+        ))}
+        <label className="row">
+          <input type="checkbox" checked={!!board.protection?.apfc} onChange={(e) => setProt({ apfc: e.target.checked || undefined })} />
+          APFC relay CT (to the capacitor bank)
+        </label>
+      </fieldset>
       <label>
         Busbar material
         <select value={board.busbarMaterial ?? ''} onChange={(e) => set('busbarMaterial', (e.target.value || undefined) as Board['busbarMaterial'])}>
@@ -65,6 +99,11 @@ export default function BoardFields({ board, onChange, section }: { board: Board
           <option value="copper">Copper</option>
           <option value="aluminium">Aluminium</option>
         </select>
+      </label>
+      <label>Diversity factor (DF)
+        <input inputMode="decimal" value={board.mdDemandFactor ?? ''} placeholder="from its loads"
+          title="This panel's own DF: MDL = TCL × DF on the SLD summary box and the MD form. Blank = its loads' maximum demand ÷ connected load."
+          onChange={(e) => set('mdDemandFactor', e.target.value === '' || Number.isNaN(+e.target.value) ? undefined : +e.target.value)} />
       </label>
       <label>Surge protection (SPD)
         <select value={board.spd ?? ''} onChange={(e) => set('spd', (e.target.value || undefined) as Board['spd'])}>

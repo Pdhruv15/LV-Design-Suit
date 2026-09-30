@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Activity, BatteryCharging, Building2, Cable, Calculator, ClipboardCheck, Car, CircuitBoard, Cog, Ellipsis, FileDown, FileSpreadsheet, FileText,
   Gauge, Hand, LayoutGrid, ListTree, Minus, MousePointer2, Pencil, Receipt, Scale, Server, Settings2, ShieldCheck, Sun,
-  Database, History, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Waves, Zap, type LucideIcon, BatteryFull
+  Database, History, ListOrdered, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Waves, Zap, type LucideIcon, BatteryFull
 } from 'lucide-react';
 import type { Feeder } from '../types';
 import type { MainView } from '../views';
 
+export type BomCommand = 'boq' | 'changes' | 'circuits' | 'excel' | 'pdf' | 'summary-pdf' | 'rates-sheet' | 'import' | 'save-list' | 'add-item' | 'add-section' | 'extras' | 'wastage' | 'markup';
 export type RibbonTab = 'home' | 'design' | 'calculate' | 'simulate' | 'reports' | 'cost' | 'standards';
 export type DiagramTool = 'select' | 'pan';
 
@@ -56,6 +57,10 @@ export interface RibbonActions {
   currentFile?: string;
   onOpenRecent: (file: string) => void;
   dbIssues: number;
+  /** BOM / Cost tab: a command for the bill of quantities page. */
+  onBom: (cmd: BomCommand) => void;
+  hasPriceList: boolean;
+  hasRevisions: boolean;
 }
 
 const TABS: { id: RibbonTab; label: string; icon: Icon }[] = [
@@ -185,9 +190,32 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         view('cable-tray', 'Cable trays', Rows3, 'Cable tray schedule: routes A, B, C… with the cables on each and the tray size'),
         view('equipment', 'Equipment', FileSpreadsheet, 'Transformers and boards')
       ],
-      [view('drawings', 'Drawing set', Files, 'SLD drawing sheets: panels per sheet, auto sheet size, DB circuit diagrams, one PDF with a register'), view('study-reports', 'Study reports', ClipboardCheck, 'Submission reports: chosen studies (short circuit, load flow…) for chosen boards, with their SLD'), view('report', 'Calc report', FileText, 'Calculation report (PDF)'), view('revisions', 'Revisions', History, 'Issue Rev A, B, C… and see what changed')]
+      [view('drawings', 'Drawing set', Files, 'SLD drawing sheets: panels per sheet, auto sheet size, DB circuit diagrams, one PDF with a register'), view('drawing-register', 'Drawing register', ListOrdered, 'All sheets in one table: numbers, titles, status, revision, dates, drawn / checked / approved, and the title block details'), view('study-reports', 'Study reports', ClipboardCheck, 'Submission reports: chosen studies (short circuit, load flow…) for chosen boards, with their SLD'), view('report', 'Calc report', FileText, 'Calculation report (PDF)'), view('revisions', 'Revisions', History, 'Issue Rev A, B, C… and see what changed')]
     ],
-    cost: [[view('boq', 'Cost estimate', Receipt, 'Bill of quantities with cost')]],
+    cost: [
+      [
+        { label: 'Bill of quantities', icon: Receipt, title: 'Full BOQ by tender section, priced from your price list', onClick: () => a.onBom('boq'), active: a.view === 'boq' },
+        { label: 'Changes', icon: History, title: a.hasRevisions ? 'Quantity and cost change since an issued revision' : 'Issue a revision first (Reports → Revisions)', onClick: () => a.onBom('changes') },
+        { label: 'Per circuit', icon: Table2, title: 'Cable and breaker cost of every circuit', onClick: () => a.onBom('circuits') }
+      ],
+      [
+        { label: '+ Item', icon: FilePlus2, title: 'Add your own line: manual work, extra scope, anything not in the design', onClick: () => a.onBom('add-item') },
+        { label: '+ Section', icon: Rows3, title: 'Add your own section, e.g. J Lighting fixtures, L Civil works', onClick: () => a.onBom('add-section') },
+        { label: 'Extras', icon: ClipboardCheck, title: 'Ready-made extras: testing and commissioning, DEWA fees, as-built drawings, scaffolding, core drilling…', onClick: () => a.onBom('extras') },
+        { label: 'Wastage', icon: Percent, title: 'Wastage % per section on the design quantities (e.g. cables 5 %)', onClick: () => a.onBom('wastage') }
+      ],
+      [
+        { label: 'Rates sheet', icon: FileSpreadsheet, title: 'Every item of this project in Excel — fill in your supplier rates', onClick: () => a.onBom('rates-sheet') },
+        { label: 'Import rates', icon: FolderOpen, title: 'Read supply / install rates from an Excel sheet', onClick: () => a.onBom('import') },
+        { label: 'Save price list', icon: Save, title: a.hasPriceList ? 'Keep this price list for your other projects' : 'Enter or import some rates first', onClick: () => a.onBom('save-list'), disabled: !a.hasPriceList },
+        { label: 'Markup / discount', icon: BadgePercent, title: 'Overheads and profit %, discount %', onClick: () => a.onBom('markup') }
+      ],
+      [
+        { label: 'Excel BOQ', icon: FileDown, title: 'Tender BOQ in Excel: summary, bill with section totals, changes since the revision', onClick: () => a.onBom('excel') },
+        { label: 'PDF BOQ', icon: FileText, title: 'The BOQ as a PDF with your logo: summary and full bill', onClick: () => a.onBom('pdf') },
+        { label: 'Summary only', icon: Scale, title: 'One-page PDF: section totals, markup, discount and total', onClick: () => a.onBom('summary-pdf') }
+      ]
+    ],
     standards: [
       [
         { label: 'Project settings', icon: Scale, title: 'Voltage, ambient, voltage-drop limit and sizing targets', onClick: a.onSettings },

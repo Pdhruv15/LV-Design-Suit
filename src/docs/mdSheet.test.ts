@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { applyMdEdits, buildMdSheet, connectedPhaseKw, hasMdSheet, suggestedMeter, type MdSheet } from './mdSheet';
+import { applyMdEdits, buildMdSheet, connectedPhaseKw, panelDf, hasMdSheet, suggestedMeter, type MdSheet } from './mdSheet';
 
 const col = (s: MdSheet, k: string) => s.keys.indexOf(k as never);
 const rowOf = (s: MdSheet, id: string) => s.rows.findIndex((r) => (r.type === 'feeder' || r.type === 'incomer') && r.feeder?.id === id);
@@ -27,7 +27,8 @@ describe('connected load & maximum demand sheet', () => {
     const p = connectedPhaseKw(sampleProject, 'DB-GF1');
     expect(s.data[y][col(s, 'R')]).toBe(p.R.toFixed(2));
     expect(s.data[y][col(s, 'tcl')]).toBe((p.R + p.Y + p.B).toFixed(2));
-    expect(s.data[y][col(s, 'mdl')]).toBe(((p.R + p.Y + p.B) * 0.8).toFixed(2));
+    const df = panelDf(sampleProject, sampleProject.boards.find((b) => b.id === 'SMDB-GF')!);
+    expect(s.data[y][col(s, 'mdl')]).toBe(((p.R + p.Y + p.B) * df).toFixed(2));
   });
 
   it('totals the connected load, and maximum demand = TCL × demand factor', () => {
@@ -35,9 +36,19 @@ describe('connected load & maximum demand sheet', () => {
     const tcl = connectedPhaseKw(sampleProject, 'MDB-1');
     const total = tcl.R + tcl.Y + tcl.B;
     expect(s.totals[col(s, 'tcl')]).toBe(total.toFixed(2));
-    expect(s.form.maxDemandKw).toBeCloseTo(total * 0.8, 9);
-    expect(s.form.demandFactor).toBe(0.8);
+    const df = panelDf(sampleProject, sampleProject.boards.find((b) => b.id === 'MDB-1')!);
+    expect(s.form.maxDemandKw).toBeCloseTo(total * df, 9);
+    expect(s.form.demandFactor).toBe(df);
     expect(s.form.connectedTo[0]).toBe('MDB CONNECTED TO: DEWA METER CABINET');
+  });
+
+  it("uses the panel's own diversity factor: typed on the panel, else its loads' demand ÷ connected", () => {
+    const b = sampleProject.boards.find((x) => x.id === 'MDB-1')!;
+    const own = panelDf(sampleProject, b);
+    expect(own).toBeGreaterThan(0);
+    expect(own).toBeLessThanOrEqual(1);
+    const typed = { ...sampleProject, boards: sampleProject.boards.map((x) => (x.id === 'MDB-1' ? { ...x, mdDemandFactor: 0.8 } : x)) };
+    expect(buildMdSheet(typed, 'MDB-1').form.demandFactor).toBe(0.8);
   });
 
   it('leaves generation (PV) out of the connected load', () => {
