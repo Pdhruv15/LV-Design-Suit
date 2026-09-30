@@ -24,9 +24,14 @@ export const zMagnitude = (z: Impedance): number => Math.hypot(z.r, z.x);
  * factor over the 20°C IEC 60228 value to account for the rise to ~90°C
  * conductor temperature. Skin/proximity effect is ignored (negligible below
  * ~120 mm² and a reasonable simplification above it for this tool). */
-export function rOperatingOhmPerKm(csaMm2: number): number {
-  return getCable(csaMm2).rOhmPerKm20C * 1.2;
+export function rOperatingOhmPerKm(csaMm2: number, tempC?: number): number {
+  return getCable(csaMm2).rOhmPerKm20C * resistanceFactor(tempC);
 }
+
+/** R(θ) ÷ R(20 °C) for copper (α = 0.00393 /K). No temperature set: the
+ * flat 1.2 used everywhere so far (≈ 70 °C). */
+export const COPPER_ALPHA = 0.00393;
+export const resistanceFactor = (tempC?: number) => (tempC === undefined ? 1.2 : 1 + COPPER_ALPHA * (tempC - 20));
 
 /** Number of cable runs in parallel (at least 1). */
 export const runsOf = (f: Pick<Feeder, 'parallel'>) => Math.max(1, Math.round(f.parallel ?? 1));
@@ -83,8 +88,8 @@ export const trayFactorOf = (project: Project, feeder: Feeder) => trayGrouping(p
 /** Voltage drop as a percentage of nominal: 3-phase circuits use
  * √3·I·Z against the line-to-line voltage; single-phase circuits use the
  * phase + neutral loop (2·I·Z) against the phase-to-neutral voltage. */
-function vdPctFor(ib: number, csaMm2: number, lengthM: number, cores: 2 | 3 | 4, cosPhi: number, voltageV: number, runs = 1): number {
-  const rOhmPerKm = rOperatingOhmPerKm(csaMm2) / runs;
+function vdPctFor(ib: number, csaMm2: number, lengthM: number, cores: 2 | 3 | 4, cosPhi: number, voltageV: number, runs = 1, tempC?: number): number {
+  const rOhmPerKm = rOperatingOhmPerKm(csaMm2, tempC) / runs;
   const xOhmPerKm = getCable(csaMm2).xOhmPerKm / runs;
   const sinPhi = Math.sqrt(Math.max(0, 1 - cosPhi * cosPhi));
   const threePhase = cores >= 3;
@@ -96,7 +101,7 @@ function vdPctFor(ib: number, csaMm2: number, lengthM: number, cores: 2 | 3 | 4,
 
 /** Voltage drop in percent over this feeder's own cable run only. */
 export function voltageDropPct(feeder: Feeder, project: Project): number {
-  return vdPctFor(designCurrentA(feeder, project), feeder.cableCsaMm2, feeder.lengthM, feeder.cores, feeder.powerFactor, project.voltageV, runsOf(feeder));
+  return vdPctFor(designCurrentA(feeder, project), feeder.cableCsaMm2, feeder.lengthM, feeder.cores, feeder.powerFactor, project.voltageV, runsOf(feeder), project.vdTempC);
 }
 
 function findIncomer(project: Project, board: Board): Feeder | undefined {

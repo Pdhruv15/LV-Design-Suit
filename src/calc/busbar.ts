@@ -1,7 +1,7 @@
 import type { Project } from '../types';
 import { summarizeBuilding } from './building';
 import { boardTotals } from './summary';
-import { faultCurrentKA, impedanceToBoard } from './electrical';
+import { faultCurrentKA, impedanceToBoard, upstreamVoltageDropPct } from './electrical';
 import { STANDARD_BREAKER_A } from './sizing';
 
 /** Busbar trunking risers (busway) for high-rise buildings, instead of
@@ -247,5 +247,72 @@ export function riserFromBuilding(project: Project, buildingId: string): Pick<Bu
     floors: served.map((l) => ({ id: l.level.id, name: l.level.name, kw: Math.round(l.perFloorDemandKw * 10) / 10, pf: 0.9, count: l.count > 1 ? l.count : undefined })),
     floorHeightM: typical.level.heightM,
     offsetFloors: byHeight.slice(0, firstIdx).reduce((n, l) => n + l.count, 0)
+  };
+}
+
+/** One section of a riser in the voltage drop breakdown. */
+export interface RiserVdSegment {
+  label: string; // "Feed (board → riser foot)", "Riser foot → L1", "L1 → L2"…
+  kind: 'concentrated' | 'distributed';
+  lengthM: number;
+  currentA: number; // current in this section
+  vdPct: number;
+  cumPct: number; // source to the end of this section (incl. upstream)
+  floor?: string; // tap-off at the end of the section
+}
+export interface RiserVd {
+  riser: BusRiser;
+  upstreamPct: number; // source to the feeding board
+  designA: number;
+  zOhmPerM: number;
+  concentratedM: number; // full current: feed + riser up to the first tap-off
+  distributedM: number; // first to last tap-off
+  segments: RiserVdSegment[];
+  exactTopPct: number; // floor by floor, source to the top tap-off
+  uniformTopPct: number; // uniformly distributed load: full current over L/2
+  limitPct: number;
+  status: 'ok' | 'warn' | 'bad';
+}
+
+/** Riser voltage drop split into its concentrated length (the feed and the
+ * riser up to the first tap-off carry the full current) and distributed
+ * length (the current falls at each tap-off). Exact: section by section;
+ * quick check: ΔV = √3 · I · z · (Lc + Ld/2) for a uniformly distributed load. */
+export function riserVd(project: Project, r: BusRiser): RiserVd {
+  const s = sizeRiser(project, r);
+  const upstreamPct = r.sourceBoardId ? upstreamVoltageDropPct(project, r.sourceBoardId) : 0;
+  const sinφ = Math.sin(Math.acos(s.pf));
+  const z = s.type ? (s.type.rMohmPerM * s.pf + s.type.xMohmPerM * sinφ) / 1000 : 0;
+  const vd = (a: number, m: number) => (SQRT3 * a * z * m / project.voltageV) * 100;
+  const I = (kva: number) => (kva * 1000) / (SQRT3 * project.voltageV);
+  // Tap-offs from the bottom up, with each one's (diversified) load.
+  const taps: { name: string; h: number; kva: number }[] = [];
+  let level = r.offsetFloors;
+  for (const fr of s.floors) {
+    const count = Math.max(1, Math.round(fr.floor.count ?? 1));
+    for (let k = 0; k < count; k++) taps.push({ name: count > 1 ? `${fr.floor.name} (${k + 1})` : fr.floor.name, h: level++ * r.floorHeightM, kva: fr.kva * s.diversity });
+  }
+  const segments: RiserVdSegment[] = [];
+  let cum = upstreamPct;
+  const push = (label: string, kind: RiserVdSegment['kind'], lengthM: number, currentA: number, floor?: string) => {
+    const v = vd(currentA, lengthM);
+    cum += v;
+    segments.push({ label, kind, lengthM, currentA, vdPct: v, cumPct: cum, floor });
+  };
+  push(`Feed: ${r.sourceBoardId ?? 'board'} → riser foot`, 'concentrated', r.feedM, s.designA);
+  let prevH = 0, prevName = 'riser foot';
+  taps.forEach((t, i) => {
+    const above = taps.slice(i).reduce((a, x) => a + x.kva, 0);
+    push(`${prevName} → ${t.name}`, i === 0 ? 'concentrated' : 'distributed', t.h - prevH, i === 0 ? s.designA : I(above), t.name);
+    prevH = t.h; prevName = t.name;
+  });
+  const first = taps[0]?.h ?? 0, last = taps[taps.length - 1]?.h ?? 0;
+  const concentratedM = r.feedM + first, distributedM = last - first;
+  const uniformTopPct = upstreamPct + vd(s.designA, concentratedM) + vd(s.designA, distributedM / 2);
+  const limitPct = project.vdLimitPct;
+  return {
+    riser: r, upstreamPct, designA: s.designA, zOhmPerM: z, concentratedM, distributedM, segments,
+    exactTopPct: cum, uniformTopPct, limitPct,
+    status: cum > limitPct ? 'bad' : cum > limitPct * 0.85 ? 'warn' : 'ok'
   };
 }

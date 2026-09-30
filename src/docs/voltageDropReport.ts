@@ -2,6 +2,8 @@ import { groupByPanel, type VdRow } from '../calc/voltageDrop';
 import { cableSizeText } from '../calc/electrical';
 import { esc, REPORT_CSS } from './report';
 import type { Project } from '../types';
+import type { RiserVd } from '../calc/busbar';
+import { resistanceFactor } from '../calc/electrical';
 
 export const VD_HEADERS = [
   'Ref', 'From panel', 'To', 'Type', 'Load (kW)', 'PF', 'Ib (A)', 'Phase', 'Cable (Cu)', 'Length (m)',
@@ -28,7 +30,7 @@ export const scopeLabel = (project: Project, boardId: string) => {
 
 /** Print-ready voltage drop report: design basis, then one table per panel
  * (cables fed from it), with source-to-end totals against the limit. */
-export function buildVdReportHtml(project: Project, rows: VdRow[], scope: string): string {
+export function buildVdReportHtml(project: Project, rows: VdRow[], scope: string, risers: RiserVd[] = []): string {
   const date = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
   const count = (s: VdRow['status']) => rows.filter((r) => r.status === s).length;
   const worst = rows.reduce<VdRow | undefined>((w, r) => (!w || r.totalPct > w.totalPct ? r : w), undefined);
@@ -50,9 +52,15 @@ export function buildVdReportHtml(project: Project, rows: VdRow[], scope: string
   ${worst ? ` · highest total ${worst.totalPct.toFixed(2)} % (${esc(worst.feeder.id)} to ${esc(worst.toName)})` : ''}</p>
 <table><tbody>
   <tr><th>System</th><td>${project.voltageV} V, 3-phase + N, ${project.frequencyHz} Hz</td><th>Voltage drop limit</th><td>${project.vdLimitPct} % source to load</td></tr>
-  <tr><th>Method</th><td colspan="3">Vd = mV/A/m × Ib × L ÷ 1000, with mV/A/m = k × (R·cos φ + X·sin φ); k = √3 for 3-phase (% of ${project.voltageV} V), 2 for single-phase (% of ${(project.voltageV / Math.sqrt(3)).toFixed(0)} V). R at operating temperature (1.2 × R20, IEC 60228).</td></tr>
-  <tr><th>Scope</th><td colspan="3">Panel-to-panel and equipment cables. Final circuits below each DB are not included; a DB's load is taken from its load schedule. Total Vd = drop from the source to the From panel + this cable.</td></tr>
+  <tr><th>Method</th><td colspan="3">Vd = mV/A/m × Ib × L ÷ 1000, with mV/A/m = k × (R·cos φ + X·sin φ); k = √3 for 3-phase (% of ${project.voltageV} V), 2 for single-phase (% of ${(project.voltageV / Math.sqrt(3)).toFixed(0)} V). R at ${project.vdTempC === undefined ? 'operating temperature (1.2 × R20' : `${project.vdTempC} °C (R20 × ${resistanceFactor(project.vdTempC).toFixed(3)}`}, IEC 60228).</td></tr>
+  <tr><th>Scope</th><td colspan="3">Panel-to-panel and equipment cables. ${project.vdFinalCircuits ? "Each DB's worst final circuit is included (marked)." : 'Final circuits below each DB are not included;'} a DB's load is taken from its load schedule. Total Vd = drop from the source to the From panel + this cable.</td></tr>
 </tbody></table>
 ${body || '<p class="note">No cables selected.</p>'}
+${risers.map((v) => `<h2>Busbar riser ${esc(v.riser.name)} — from ${esc(v.riser.sourceBoardId ?? '—')}</h2>
+<p class="sub">Design current ${v.designA.toFixed(0)} A · z = ${(v.zOhmPerM * 1000).toFixed(3)} mΩ/m · concentrated length ${v.concentratedM.toFixed(1)} m (full current) · distributed length ${v.distributedM.toFixed(1)} m · upstream ${v.upstreamPct.toFixed(2)} %<br>
+Top tap-off: floor by floor <b class="${v.status}">${v.exactTopPct.toFixed(2)} %</b> · uniformly distributed load check ΔV = √3 · I · z · (Lc + Ld/2): ${v.uniformTopPct.toFixed(2)} %</p>
+<table><thead><tr><th>Section</th><th>Part</th><th>Length (m)</th><th>Current (A)</th><th>Vd (%)</th><th>Total at end (%)</th><th>Result</th></tr></thead><tbody>
+${v.segments.map((g) => { const st = g.cumPct > v.limitPct ? 'bad' : g.cumPct > v.limitPct * 0.85 ? 'warn' : 'ok'; return `<tr><td>${esc(g.label)}</td><td>${g.kind}</td><td>${g.lengthM.toFixed(1)}</td><td>${g.currentA.toFixed(0)}</td><td>${g.vdPct.toFixed(3)}</td><td>${g.cumPct.toFixed(2)}</td><td class="${st}">${STATUS_TEXT[st]}</td></tr>`; }).join('')}
+</tbody></table>`).join('')}
 </body></html>`;
 }

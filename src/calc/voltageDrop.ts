@@ -1,4 +1,4 @@
-import { getCable } from './cableTable';
+import { cables, getCable } from './cableTable';
 import { boardDemandKw, designCurrentA, rOperatingOhmPerKm, runsOf, upstreamVoltageDropPct, type Status } from './electrical';
 import { isScheduleCircuit, scheduleCircuits } from './loadSchedule';
 import { boardsInSupplyOrder, loadTypeOf } from './summary';
@@ -35,7 +35,16 @@ export interface VdRow {
   totalPct: number;
   limitPct: number;
   status: Status;
+  rOhmPerKm: number; // at the conductor temperature, one run
+  xOhmPerKm: number;
+  /** Final circuit on a DB's load schedule (the DB's worst one). */
+  finalCircuit?: boolean;
+  /** Motors: total drop while starting (running drop × starting current multiple). */
+  startPct?: number;
 }
+
+/** Drop allowed while a motor starts (source to motor terminals). */
+export const MOTOR_START_VD_LIMIT_PCT = 10;
 
 /** Cables that belong in a voltage drop calculation: every feeder except
  * the final circuits on a DB's load schedule (those end at the DB). */
@@ -58,7 +67,9 @@ export function vdRow(project: Project, f: Feeder): VdRow {
   const threePhase = f.cores >= 3;
   // Ω/km equals mV per A per m; 3-phase: √3·Z against the line voltage,
   // single-phase: phase + neutral (2·Z) against the phase voltage.
-  const z = (rOperatingOhmPerKm(f.cableCsaMm2) * pf + getCable(f.cableCsaMm2).xOhmPerKm * sin) / runsOf(f);
+  const rOhmPerKm = rOperatingOhmPerKm(f.cableCsaMm2, project.vdTempC);
+  const xOhmPerKm = getCable(f.cableCsaMm2).xOhmPerKm;
+  const z = (rOhmPerKm * pf + xOhmPerKm * sin) / runsOf(f);
   const mvPerAm = (threePhase ? SQRT3 : 2) * z;
   const vdV = (mvPerAm * ib * f.lengthM) / 1000;
   const baseV = threePhase ? project.voltageV : project.voltageV / SQRT3;
@@ -83,8 +94,57 @@ export function vdRow(project: Project, f: Feeder): VdRow {
     upstreamPct,
     totalPct,
     limitPct,
-    status: totalPct > limitPct ? 'bad' : totalPct > limitPct * 0.85 ? 'warn' : 'ok'
+    status: totalPct > limitPct ? 'bad' : totalPct > limitPct * 0.85 ? 'warn' : 'ok',
+    rOhmPerKm,
+    xOhmPerKm,
+    finalCircuit: isScheduleCircuit(f) || undefined,
+    startPct: isMotor(f) ? upstreamPct + vdPct * starterInfo(starterOf(f)).multiple : undefined
   };
+}
+
+/** The supply path to a cable: every incomer from the main board down,
+ * then the cable itself — for the voltage drop profile. */
+export function vdPath(project: Project, f: Feeder): VdRow[] {
+  const chain: Feeder[] = [f];
+  let b = project.boards.find((x) => x.id === f.boardId);
+  const seen = new Set<string>();
+  while (b?.upstreamId && !seen.has(b.id)) {
+    seen.add(b.id);
+    const inc = project.feeders.find((x) => x.boardId === b!.upstreamId && x.feedsBoardId === b!.id);
+    if (!inc) break;
+    chain.unshift(inc);
+    b = project.boards.find((x) => x.id === b!.upstreamId);
+  }
+  return chain.map((x) => vdRow(project, x));
+}
+
+/** Smallest cable size (same runs) that brings the total drop within the
+ * limit, never smaller than now; undefined when none does. */
+export function suggestCable(project: Project, f: Feeder): { csaMm2: number; totalPct: number } | undefined {
+  for (const c of cables()) {
+    if (c.csaMm2 <= f.cableCsaMm2) continue;
+    const r = vdRow(project, { ...f, cableCsaMm2: c.csaMm2 });
+    if (r.totalPct <= r.limitPct) return { csaMm2: c.csaMm2, totalPct: r.totalPct };
+  }
+  return undefined;
+}
+
+/** Each DB's worst final circuit (highest source-to-end drop). */
+export function worstFinalCircuits(project: Project): VdRow[] {
+  return boardsInSupplyOrder(project).flatMap((b) => {
+    const rows = scheduleCircuits(project, b.id).filter((f) => f.lengthM > 0 && f.loadKw > 0).map((f) => vdRow(project, f));
+    const w = rows.reduce<VdRow | undefined>((m, r) => (!m || r.totalPct > m.totalPct ? r : m), undefined);
+    return w ? [w] : [];
+  });
+}
+
+/** The row's calculation written out, for the page and the report. */
+export function vdFormula(project: Project, r: VdRow): string {
+  const runs = runsOf(r.feeder);
+  const sin = Math.sqrt(Math.max(0, 1 - r.pf * r.pf));
+  const k = r.threePhase ? '√3' : '2';
+  const base = r.threePhase ? project.voltageV : project.voltageV / SQRT3;
+  return `ΔV = ${k} × Ib × L × (R cosφ + X sinφ)${runs > 1 ? ` ÷ ${runs} runs` : ''} = ${k} × ${r.ib.toFixed(1)} A × ${(r.feeder.lengthM / 1000).toFixed(3)} km × (${r.rOhmPerKm.toFixed(3)} × ${r.pf.toFixed(2)} + ${r.xOhmPerKm.toFixed(3)} × ${sin.toFixed(2)}) Ω/km = ${r.vdV.toFixed(2)} V = ${r.vdPct.toFixed(2)} % of ${base.toFixed(0)} V; + ${r.upstreamPct.toFixed(2)} % upstream = ${r.totalPct.toFixed(2)} %`;
 }
 
 /** Rows for the selected cables, in supply order. Ids that no longer exist
