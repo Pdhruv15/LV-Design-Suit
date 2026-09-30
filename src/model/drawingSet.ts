@@ -22,6 +22,8 @@ export interface DrawingSet {
   prefix: string; // E-SLD-
   sheets: DrawingSheet[];
   register?: boolean; // a drawing register as the first page
+  /** Result values printed on the sheets (else SHEET_LAYERS). */
+  tags?: import('../diagram/annotations').ResultLayers;
 }
 
 export const SIZES: SheetSize[] = ['A4', 'A3', 'A2', 'A1'];

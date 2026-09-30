@@ -4,7 +4,7 @@ import { flushSync } from 'react-dom';
 import type { Project } from '../../types';
 import type { CalcRun } from '../../calc/runs';
 import { evaluateProject } from '../../calc/electrical';
-import { buildAnnotations } from '../../diagram/annotations';
+import { buildAnnotations, LAYER_LABELS, SHEET_LAYERS } from '../../diagram/annotations';
 import { printableSvg } from '../../diagram/exportSvg';
 import { boardsInSupplyOrder } from '../../calc/summary';
 import { autoSheets, autoSize, registerHtml, renumber, setOf, sheetProject, SIZES, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
@@ -39,7 +39,7 @@ async function renderSheet(project: Project, set: DrawingSet, s: DrawingSheet, r
     const drawing = sheetProject(project, set, s);
     const results = evaluateProject(drawing);
     flushSync(() => root.render(
-      <SystemDiagram project={drawing} calcProject={drawing} results={results} annotations={buildAnnotations(drawing, results)}
+      <SystemDiagram project={drawing} calcProject={drawing} results={results} annotations={buildAnnotations(drawing, results)} layers={set.tags ?? SHEET_LAYERS}
         selectedFeederId={null} selectedBoardId={null} onSelectFeeder={noop} onSelectBoard={noop} />
     ));
     await new Promise((r) => requestAnimationFrame(() => r(null)));
@@ -142,6 +142,15 @@ export default function DrawingSetView({ project, run, onChange, onStatus }: { p
         <span className="sp" />
         <label className="row">Numbers <input className="bi-text" style={{ width: 80 }} defaultValue={set.prefix} key={set.prefix} onBlur={(e) => save(renumber({ ...set, prefix: e.target.value || 'E-SLD-' }))} />001…</label>
         <label className="row"><input type="checkbox" checked={!!set.register} onChange={(e) => save({ ...set, register: e.target.checked })} /> Drawing register first</label>
+      </section>
+
+      <section className="card ds-tools">
+        <span className="m">Values printed on the sheets:</span>
+        {LAYER_LABELS.map(([k, label]) => {
+          const tags = set.tags ?? SHEET_LAYERS;
+          return <label key={k} className="row"><input type="checkbox" checked={tags[k]} onChange={(e) => { save({ ...set, tags: { ...tags, [k]: e.target.checked } }); setSizes({}); }} /> {label}</label>;
+        })}
+        <span className="m">— failures print in red (e.g. breaker Icu below the fault level)</span>
       </section>
 
       <table className="ds-table">

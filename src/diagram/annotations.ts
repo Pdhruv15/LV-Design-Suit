@@ -15,6 +15,9 @@ export interface ResultLayers {
 
 export const DEFAULT_LAYERS: ResultLayers = { current: true, voltage: true, vd: true, fault: false, pf: false, loading: false };
 
+/** Printed drawing sheets: what an approver checks — current, voltage drop and fault level. */
+export const SHEET_LAYERS: ResultLayers = { current: true, voltage: false, vd: true, fault: true, pf: false, loading: false };
+
 export const LAYER_LABELS: [keyof ResultLayers, string][] = [
   ['current', 'Current (A)'],
   ['voltage', 'Bus voltage'],

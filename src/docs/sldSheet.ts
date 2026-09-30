@@ -3,6 +3,7 @@ import type { DrawingInfo, Project } from '../types';
 import { esc } from './report';
 import { templateOf, templateSize, titleBlockHtml } from '../model/titleBlock';
 import { fillParams } from '../model/params';
+import { abbreviationsIn } from './sldNotes';
 
 /** The SLD as a drawing sheet: frame, the diagram scaled to fit, and a
  * title block (company, project, owner, consultant, title, drawing no.,
@@ -64,6 +65,7 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
   const extra: Record<string, string> = one ? { SheetNo: one.no, SheetTitle: one.title, SheetCount: String(one.count), SheetIndex: String(one.index), SheetSize: sheet, DrawingNo: one.no, DrawingTitle: one.title } : { SheetNo: t.number, SheetTitle: t.title, SheetCount: '1', SheetIndex: '1', SheetSize: sheet };
   const custom = templateOf(project);
   const notes = project.drawing?.notes ?? [];
+  const abbr = project.drawing?.abbreviations === false ? [] : abbreviationsIn(svg);
   const history = t.history.length
     ? t.history.map((r) => `<tr><td>${esc(r.id)}</td><td>${esc(r.date)}</td><td>${esc(r.description)}</td></tr>`).join('')
     : '<tr><td>—</td><td></td><td>Not issued</td></tr>';
@@ -87,6 +89,9 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
     .tbx { position: absolute; right: 0; bottom: 0; }
     .notes { position: absolute; right: 0; font-size: 8px; border: 0.25mm solid #000; padding: 1mm 2mm; background: #fff; }
     .notes ol { margin: 0.5mm 0 0; padding-left: 4mm; }
+    .abbr { position: absolute; left: 0; bottom: 44mm; font-size: 7px; border: 0.25mm solid #000; border-left: 0; padding: 1mm 2mm; background: #fff; column-count: ${abbr.length > 12 ? 2 : 1}; column-gap: 4mm; }
+    .abbr b { display: block; column-span: all; font-size: 8px; margin-bottom: 0.5mm; }
+    .abbr div { break-inside: avoid; white-space: nowrap; } .abbr span { display: inline-block; min-width: 9mm; font-weight: 600; }
     .gen { position: absolute; left: 1.5mm; bottom: 1mm; font-size: 6.5px; color: #555; }
   </style></head><body>
   <div class="frame">
@@ -103,6 +108,7 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
       <tr><td><span class="k">Drawn</span><span class="v">${esc(t.drawnBy)}</span></td><td><span class="k">Checked</span><span class="v">${esc(t.checkedBy)}</span></td><td><span class="k">Approved</span><span class="v">${esc(t.approvedBy)}</span></td></tr>
       <tr><td colspan="2"><span class="k">Sheet</span><span class="v">${sheet} · Scale ${t.scale}</span></td><td><span class="k">System</span><span class="v">${project.voltageV} V, 3Ph + N, ${project.frequencyHz} Hz</span></td></tr>
     </table>`}
+    ${abbr.length ? `<div class="abbr"><b>ABBREVIATIONS</b>${abbr.map(([a, d]) => `<div><span>${esc(a)}</span>${esc(d)}</div>`).join('')}</div>` : ''}
     ${notes.length ? `<div class="notes" style="bottom:${(custom ? templateSize(custom).h : 44) + 3}mm;width:${custom ? templateSize(custom).w : 180}mm"><b>NOTES</b><ol>${notes.map((n) => `<li>${esc(fillParams(n, project))}</li>`).join('')}</ol></div>` : ''}
   </div>
   </body></html>`;

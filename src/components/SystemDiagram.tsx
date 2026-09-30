@@ -17,7 +17,7 @@ import { cableSizeText, runsOf, upstreamVoltageDropPct } from '../calc/electrica
 import { MOTOR_START_DIP_LIMIT_PCT, type GeneratorRun, type OutageScenario } from '../calc/scenario';
 import { boardRatio, COLOR_BY, earthRatio, feederRatio, heatColor, type ColorBy } from '../diagram/heatmap';
 import { evaluateEarthingAll } from '../calc/earthing';
-import type { Feeder } from '../types';
+import type { Board, Feeder } from '../types';
 import { getDragItem, setDragItem } from '../diagram/dragItem';
 
 interface Tag {
@@ -36,6 +36,12 @@ interface ViewBox {
 
 const worst = (statuses: (Status | undefined)[]): Status =>
   statuses.includes('bad') ? 'bad' : statuses.includes('warn') ? 'warn' : 'ok';
+
+/** Incomer protection: the board's own, else the authority supply's CT and setting. */
+export const protectionOf = (b: Board): Board['protection'] | undefined => {
+  const p = { ctRatio: b.protection?.ctRatio ?? b.supply?.ctRatio, irSetting: b.protection?.irSetting ?? b.supply?.irSetting, relays: b.protection?.relays, apfc: b.protection?.apfc };
+  return p.ctRatio || p.irSetting || p.relays?.length || p.apfc ? p : undefined;
+};
 
 const trunc = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
 
@@ -123,10 +129,17 @@ export default function SystemDiagram({
       layers.current && a.currentA !== undefined && { text: `${a.currentA.toFixed(0)} A`, cls: 'r-cur' },
       layers.vd && a.vdTotalPct !== undefined && { text: `ΔV ${a.vdTotalPct.toFixed(2)}%`, cls: a.vdStatus ?? '' },
       layers.fault && a.faultKA !== undefined && { text: `Ik ${a.faultKA.toFixed(1)} kA`, cls: 'r-fault' },
+      layers.fault && icuShort(id),
       layers.pf && a.pf !== undefined && { text: `PF ${a.pf.toFixed(2)}`, cls: 'r-pf' },
       layers.loading && a.loadingPct !== undefined && { text: `${a.loadingPct.toFixed(0)}% of In`, cls: a.loadingStatus ?? '' }
     ];
     return [...t.filter((x): x is Tag => !!x), ...earthTag];
+  };
+  // Breaking capacity below the fault level at the board the breaker is on.
+  const icuShort = (id: string): Tag | false => {
+    const f = project.feeders.find((x) => x.id === id);
+    const ik = f && annotations?.boards[f.boardId]?.faultKA;
+    return !!f && ik !== undefined && f.breakerIcuKa > 0 && f.breakerIcuKa < ik && { text: `✕ Icu ${f.breakerIcuKa} < Ik ${ik.toFixed(1)} kA`, cls: 'bad' };
   };
   const boardTags = (id: string): Tag[] => {
     const a = annotations?.boards[id];
@@ -482,7 +495,7 @@ export default function SystemDiagram({
             </text>
             {r.board.sourceKva && <text className="m" x={r.x + 24} y="113">{r.board.vectorGroup ?? 'Dyn11'} · 11 / {(project.voltageV / 1000).toFixed(3)} kV</text>}
             <line x1={r.x} y1="114" x2={r.x} y2={r.busY - 58} className="ln" />
-            <text className="m" x={r.x - 8} y={r.busY - 72} textAnchor="end">{project.voltageV} V</text>
+            <text className="m" x={r.x - 8} y={r.busY - (protectionOf(r.board) ? 84 : 72)} textAnchor="end">{project.voltageV} V</text>
             {scenario?.outage?.failedId === r.board.id && (
               <g className="failed-tx">
                 <line x1={r.x - 20} y1="68" x2={r.x + 20} y2="116" />
@@ -675,34 +688,76 @@ export default function SystemDiagram({
               {/* Wide invisible band along the busbar, so drops don't need pixel precision. */}
               {onDropItem && <line x1={n.busX1 - 20} y1={n.busY} x2={n.busX2 + 20} y2={n.busY} className="bus-hit" />}
               <line x1={n.x} y1={n.busY - 22} x2={n.x} y2={n.busY} className="ln" />
-              {b.standby && (
-                <g className="standby">
-                  <title>{`Standby generator ${b.standby.kva} kVA through an ATS — everything on ${b.id} is essential load`}</title>
-                  <rect x={n.x - 11} y={n.busY - 88} width="22" height="15" rx="2" className="sym" />
-                  <text x={n.x} y={n.busY - 77} textAnchor="middle" className="b" style={{ fontSize: 8 }}>ATS</text>
-                  <line x1={n.x + 11} y1={n.busY - 80} x2={n.x + 34} y2={n.busY - 80} className="ln" />
-                  <circle cx={n.x + 45} cy={n.busY - 80} r="11" className="sym" />
-                  <text x={n.x + 45} y={n.busY - 76} textAnchor="middle" className="b" style={{ fontSize: 11 }}>G</text>
-                  <text x={n.x + 60} y={n.busY - 77} className="m">{b.standby.kva} kVA</text>
-                  {(() => {
-                    const g = scenario?.generators.find((x) => x.boardId === b.id);
-                    if (!g) return null;
-                    const cls = g.loadingPct > 100 ? 'bad' : g.loadingPct > 80 ? 'warn' : 'ok';
-                    const m = g.largestMotor;
-                    return (
+              {b.standby && (() => {
+                // ATS (one box on the incoming line) or two ACBs, mains and
+                // generator, mechanically / electrically interlocked.
+                const acb = b.standby.changeover === 'ACB';
+                const gx = acb ? n.x + 67 : n.x + 45;
+                const gy = n.busY - (acb ? 72 : 80);
+                const g = scenario?.generators.find((x) => x.boardId === b.id);
+                const cls = g ? (g.loadingPct > 100 ? 'bad' : g.loadingPct > 80 ? 'warn' : 'ok') : '';
+                const m = g?.largestMotor;
+                return (
+                  <g className="standby">
+                    <title>{`Standby generator ${b.standby.kva} kVA through ${acb ? 'interlocked mains and generator ACBs' : 'an ATS'} — everything on ${b.id} is essential load`}</title>
+                    {acb ? (
                       <>
-                        <circle cx={n.x + 45} cy={n.busY - 80} r="14" className="gen-live" />
-                        <text x={n.x + 60} y={n.busY - 90} className={`res ${cls}`}>ON · {g.loadingPct.toFixed(0)}% loaded</text>
+                        <rect x={n.x - 2} y={n.busY - 89} width="4" height="13" className="bg-fill" />
+                        <SwitchSym x={n.x} y={n.busY - 92} kind="acb" />
+                        <line x1={n.x} y1={gy} x2={n.x + 18} y2={gy} className="ln" />
+                        <rect x={n.x + 18} y={gy - 6} width="20" height="12" rx="1" className="sym" />
+                        <path d={`M${n.x + 24} ${gy - 3} l8 6 M${n.x + 32} ${gy - 3} l-8 6`} className="ln" />
+                        <line x1={n.x + 38} y1={gy} x2={gx - 11} y2={gy} className="ln" />
+                        <path d={`M${n.x + 7} ${n.busY - 84} L${n.x + 28} ${n.busY - 84} L${n.x + 28} ${gy - 6}`} className="ln interlock" />
+                        <text x={n.x + 9} y={n.busY - 76} className="acc-t b">IL</text>
+                      </>
+                    ) : (
+                      <>
+                        <rect x={n.x - 11} y={n.busY - 88} width="22" height="15" rx="2" className="sym" />
+                        <text x={n.x} y={n.busY - 77} textAnchor="middle" className="b" style={{ fontSize: 8 }}>ATS</text>
+                        <line x1={n.x + 11} y1={gy} x2={gx - 11} y2={gy} className="ln" />
+                      </>
+                    )}
+                    <circle cx={gx} cy={gy} r="11" className="sym" />
+                    <text x={gx} y={gy + 4} textAnchor="middle" className="b" style={{ fontSize: 11 }}>G</text>
+                    <text x={gx + 15} y={gy + 3} className="m">{b.standby.kva} kVA</text>
+                    {g && (
+                      <>
+                        <circle cx={gx} cy={gy} r="14" className="gen-live" />
+                        <text x={gx + 15} y={gy - 10} className={`res ${cls}`}>ON · {g.loadingPct.toFixed(0)}% loaded</text>
                         {m && (
-                          <text x={n.x + 60} y={n.busY - 64} className={`res ${m.dipPct > MOTOR_START_DIP_LIMIT_PCT ? 'bad' : 'ok'}`}>
+                          <text x={gx + 15} y={gy + 16} className={`res ${m.dipPct > MOTOR_START_DIP_LIMIT_PCT ? 'bad' : 'ok'}`}>
                             {m.feeder.name || m.feeder.id} start: dip {m.dipPct.toFixed(0)}%
                           </text>
                         )}
                       </>
-                    );
-                  })()}
-                </g>
-              )}
+                    )}
+                  </g>
+                );
+              })()}
+              {(() => {
+                // Incomer CT, long-time setting and protection relays.
+                const p = protectionOf(b);
+                if (!p) return null;
+                const cy = n.busY - 66;
+                const txt = [p.ctRatio && `CT ${p.ctRatio}`, p.irSetting && `Ir ${p.irSetting}×In`, ...(p.relays ?? [])].filter(Boolean).join(' · ');
+                const cap = p.apfc ? layout.feeders.find((x) => x.feeder.boardId === b.id && loadTypeOf(x.feeder) === 'capacitor') : undefined;
+                return (
+                  <g className="acc">
+                    <title>{`Incomer: ${txt}${p.apfc ? ' · APFC relay CT' : ''}`}</title>
+                    <circle cx={n.x} cy={cy} r="4.5" className="sym-ln" />
+                    <line x1={n.x - 4.5} y1={cy} x2={n.x - 14} y2={cy} className="ln" style={{ strokeDasharray: '2 1.5' }} />
+                    <text x={n.x - 16} y={cy + 3} textAnchor="end" className="acc-t">{txt}</text>
+                    {cap && (
+                      <>
+                        <path d={`M${n.x + 4.5} ${cy} H${cap.x - 22} V${n.busY + 22}`} className="ln interlock" />
+                        <rect x={cap.x - 31} y={n.busY + 22} width="18" height="11" rx="1" className="sym" />
+                        <text x={cap.x - 22} y={n.busY + 30} textAnchor="middle" className="acc-t b">PFR</text>
+                      </>
+                    )}
+                  </g>
+                );
+              })()}
               {b.kind === 'UPS' && (
                 <g>
                   <title>{`UPS ${b.upsKva ?? '—'} kVA`}</title>

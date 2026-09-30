@@ -110,6 +110,13 @@ export type StarterType = 'DOL' | 'SD' | 'SS' | 'VFD';
 
 /** Surge protection device class: Type 1 (lightning current, at the origin),
  * Type 2 (distribution boards), or a combined Type 1+2. */
+export type RelayType = 'ELR' | 'EFR' | 'UVR' | 'OVR';
+export const RELAY_TYPES: { value: RelayType; label: string }[] = [
+  { value: 'ELR', label: 'Earth leakage relay (ELR)' },
+  { value: 'EFR', label: 'Earth fault relay (EFR)' },
+  { value: 'UVR', label: 'Under-voltage relay (UVR)' },
+  { value: 'OVR', label: 'Over-voltage relay (OVR)' }
+];
 export type SpdType = 'T1' | 'T2' | 'T1+2';
 export const SPD_TYPES: { value: SpdType; label: string }[] = [
   { value: 'T1', label: 'Type 1 (lightning current)' },
@@ -199,7 +206,10 @@ export interface Board {
   model?: string;
   /** Standby generator feeding this board through an ATS: everything on
    * and below the board is then essential load for generator sizing. */
-  standby?: { kva: number };
+  standby?: { kva: number; changeover?: 'ATS' | 'ACB' }; // ACB: mains and generator ACBs, interlocked
+  /** Incomer protection and metering drawn on the SLD: CT ratio, long-time
+   * setting and protection relays (earth leakage, earth fault, under / over voltage). */
+  protection?: { ctRatio?: string; irSetting?: number; relays?: RelayType[]; apfc?: boolean };
   /** RMU (11 kV ring main unit) feeding this main board's transformer. */
   rmu?: string;
   /** UPS rating for a UPS output board (kind 'UPS'). */
@@ -545,6 +555,7 @@ export interface DrawingInfo {
   logo?: string; // company logo (data: URL) in the title block and on report covers
   titleTemplateId?: string; // a custom title block (else the standard one)
   notes?: string[]; // text notes on the SLD sheet; {Parameters} are filled in
+  abbreviations?: boolean; // abbreviations table on the sheets (default on)
 }
 
 /** An issued revision: a frozen copy of the design (without the revision

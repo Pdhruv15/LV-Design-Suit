@@ -796,3 +796,6 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .ds-preview{max-width:92vw;width:1200px}
 .ds-paper{background:#fff;border-radius:6px;padding:10px;overflow:auto;max-height:70vh}
 .ds-paper svg{width:100%;height:auto}
+.sysdiag .ln.interlock{stroke-dasharray:4 3;stroke-width:1}
+.form-kv fieldset.relays{grid-column:1/-1;border:1px solid var(--line);border-radius:6px;padding:4px 8px;display:flex;flex-wrap:wrap;gap:2px 14px}.form-kv fieldset.relays legend{font-size:11px;color:var(--mut)}
+.form-kv fieldset.relays label.row{display:flex;flex-direction:row;align-items:center;gap:6px;width:100%;font-size:12px}.form-kv fieldset.relays input{width:auto;flex:none}
