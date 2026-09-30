@@ -263,6 +263,8 @@ export interface Project {
   params?: ProjectParams;
   /** Title block templates (the SLD sheet uses drawing.titleTemplateId). */
   titleTemplates?: import('./model/titleBlock').TitleTemplate[];
+  /** The SLD as a set of drawing sheets (Reports → Drawing set). */
+  drawingSet?: import('./model/drawingSet').DrawingSet;
   /** Your own equipment, with parameters and formulas (palette → My components). */
   components?: import('./model/components').UserComponent[];
   building?: BuildingInfo; // architectural information: buildings, levels, rooms, room types
@@ -537,7 +539,7 @@ export interface DrawingInfo {
   drawnBy?: string;
   checkedBy?: string;
   approvedBy?: string;
-  sheet?: 'A3' | 'A2' | 'A1';
+  sheet?: 'A4' | 'A3' | 'A2' | 'A1';
   symbols?: 'iec' | 'simple'; // IEC 60617 symbols (default) or simple icons
   legend?: boolean; // symbol legend beside the drawing (default on with IEC symbols)
   logo?: string; // company logo (data: URL) in the title block and on report covers

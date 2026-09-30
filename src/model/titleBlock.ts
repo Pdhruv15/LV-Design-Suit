@@ -64,7 +64,7 @@ export const templateOf = (p: Project): TitleTemplate | undefined =>
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
 /** The block as HTML (mm units) for the drawing sheet and the preview. */
-export function titleBlockHtml(t: TitleTemplate, p: Project): string {
+export function titleBlockHtml(t: TitleTemplate, p: Project, extra: Record<string, string> = {}): string {
   const list = paramList(p);
   const covered = new Set<string>();
   for (const c of t.cells) for (let r = c.r; r < c.r + (c.rs ?? 1); r++) for (let k = c.c; k < c.c + (c.cs ?? 1); k++) if (r !== c.r || k !== c.c) covered.add(`${r},${k}`);
@@ -75,7 +75,7 @@ export function titleBlockHtml(t: TitleTemplate, p: Project): string {
       const revs = (p.revisions ?? []).slice(-4).reverse();
       return `<table style="width:100%;border-collapse:collapse;font-size:6.5pt">${revs.length ? revs.map((r) => `<tr><td style="border:0;padding:0 1mm">${esc(r.id)}</td><td style="border:0;padding:0 1mm">${esc(r.date)}</td><td style="border:0;padding:0 1mm">${esc(r.description)}</td></tr>`).join('') : '<tr><td style="border:0">Not issued</td></tr>'}</table>`;
     }
-    return esc(fillParams(c.text, p, {}, list)).replace(/\n/g, '<br>');
+    return esc(fillParams(c.text, p, extra, list)).replace(/\n/g, '<br>');
   };
   const rows = t.rows.map((h, r) => `<tr style="height:${h}mm">${t.cols.map((_, k) => {
     if (covered.has(`${r},${k}`)) return '';
