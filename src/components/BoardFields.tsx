@@ -13,6 +13,11 @@ export default function BoardFields({ board, onChange, section }: { board: Board
     const p = { ...board.protection, ...patch };
     set('protection', Object.values(p).some((v) => v !== undefined) ? p : undefined);
   };
+  const numOrU = (v: string) => (v.trim() === '' || Number.isNaN(+v) ? undefined : +v);
+  const setEarth = (patch: Partial<NonNullable<Board['earthing']>>) => {
+    const e = { ...board.earthing, ...patch };
+    set('earthing', Object.values(e).some((v) => v !== undefined) ? e : undefined);
+  };
   const text = (key: 'name' | 'ipRating' | 'location' | 'manufacturer' | 'model', placeholder = '') => (
     <input value={board[key] ?? ''} placeholder={placeholder} onChange={(e) => set(key, e.target.value || (key === 'name' ? '' : undefined))} />
   );
@@ -91,6 +96,25 @@ export default function BoardFields({ board, onChange, section }: { board: Board
           <input type="checkbox" checked={!!board.protection?.apfc} onChange={(e) => setProt({ apfc: e.target.checked || undefined })} />
           APFC relay CT (to the capacitor bank)
         </label>
+      </fieldset>
+      <fieldset className="relays">
+        <legend>On the SLD</legend>
+        <label className="row">
+          <input type="checkbox" checked={board.instruments ?? isMain} onChange={(e) => set('instruments', e.target.checked === isMain ? undefined : e.target.checked)} />
+          Ammeter + voltmeter with selector switches, R-Y-B lamps
+        </label>
+        <label className="row">
+          <input type="checkbox" checked={board.earthing?.show ?? isMain} onChange={(e) => setEarth({ show: e.target.checked === isMain ? undefined : e.target.checked })} />
+          Earth pit detail{!isMain && ' (main boards only)'}
+        </label>
+        {(board.earthing?.show ?? isMain) && (
+          <div className="earth-kv">
+            <label>Pits <input inputMode="numeric" value={board.earthing?.pits ?? ''} placeholder="2" onChange={(e) => setEarth({ pits: numOrU(e.target.value) })} /></label>
+            <label>Earth conductor mm² <input inputMode="decimal" value={board.earthing?.conductorMm2 ?? ''} placeholder="auto" onChange={(e) => setEarth({ conductorMm2: numOrU(e.target.value) })} /></label>
+            <label>Electrode m <input inputMode="decimal" value={board.earthing?.electrodeM ?? ''} placeholder="3" onChange={(e) => setEarth({ electrodeM: numOrU(e.target.value) })} /></label>
+            <label>Spacing m <input inputMode="decimal" value={board.earthing?.spacingM ?? ''} placeholder="6" onChange={(e) => setEarth({ spacingM: numOrU(e.target.value) })} /></label>
+          </div>
+        )}
       </fieldset>
       <label>
         Busbar material

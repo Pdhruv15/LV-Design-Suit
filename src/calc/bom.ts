@@ -92,6 +92,18 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
       } else add('B', `ats:${rating ?? '-'}`, `Automatic transfer switch ${rating ?? ''} A 4P`, 'no', 1, b.id);
       add('D', `gen:${b.standby.kva}`, `Standby diesel generator ${b.standby.kva} kVA, 400/230 V, with AMF panel, fuel tank and canopy`, 'no', 1, b.id);
     }
+    if ((b.instruments ?? !b.upstreamId) && p.feeders.some((f) => f.boardId === b.id)) {
+      add('C', 'ammeter-ss', 'Ammeter with selector switch and CTs, 96 × 96 mm', 'no', 1, b.id);
+      add('C', 'voltmeter-ss', 'Voltmeter with selector switch and protection fuses, 96 × 96 mm', 'no', 1, b.id);
+      add('C', 'lamps-ryb', 'Indicating lamps R-Y-B, LED, with fuses', 'set', 1, b.id);
+    }
+    if (b.earthing?.show ?? !b.upstreamId) {
+      const el = b.earthing?.electrodeM ?? 3;
+      add('I', `earth-pit:${el}`, `Earth pit: ${el} m copper-bonded earth electrode with inspection pit and cover, tested`, 'no', b.earthing?.pits ?? 2, b.id);
+      const inc = p.feeders.find((f) => f.feedsBoardId === b.id);
+      const mm = b.earthing?.conductorMm2 ?? (inc ? Math.max(16, cpcOf(inc)) : 50);
+      add('I', `met:${mm}`, `Main earth terminal bar with test link; earth conductor 1C × ${mm} mm² Cu/PVC to the pits (length to site)`, 'set', 1, b.id);
+    }
     if (b.sourceKva) add('D', `tx:${b.sourceKva}:${b.sourceImpedancePct ?? '-'}`, `Distribution transformer ${b.sourceKva} kVA, 11/0.415 kV, ${b.vectorGroup ?? 'Dyn11'}${b.sourceImpedancePct ? `, Z ${b.sourceImpedancePct} %` : ''}`, 'no', 1, b.id);
     if (k === 'UPS' && b.upsKva) add('D', `ups:${b.upsKva}`, `UPS ${b.upsKva} kVA online double conversion, with batteries`, 'no', 1, b.id);
   }

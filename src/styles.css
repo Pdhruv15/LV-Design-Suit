@@ -835,3 +835,4 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .dr-fill{display:flex;gap:2px;margin-top:4px;min-width:70px}
 .dr-fill input{font-weight:400}
 .dr-panels{font-size:11px;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.earth-kv{display:grid;grid-template-columns:1fr 1fr;gap:4px 8px;width:100%;font-size:12px}.earth-kv label{display:flex;flex-direction:column}
