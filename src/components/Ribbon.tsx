@@ -187,7 +187,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       ],
       [view('drawings', 'Drawing set', Files, 'SLD drawing sheets: panels per sheet, auto sheet size, DB circuit diagrams, one PDF with a register'), view('study-reports', 'Study reports', ClipboardCheck, 'Submission reports: chosen studies (short circuit, load flow…) for chosen boards, with their SLD'), view('report', 'Calc report', FileText, 'Calculation report (PDF)'), view('revisions', 'Revisions', History, 'Issue Rev A, B, C… and see what changed')]
     ],
-    cost: [[view('boq', 'Cost estimate', Receipt, 'Bill of quantities with cost')]],
+    cost: [[view('boq', 'Bill of quantities', Receipt, 'Full BOQ priced from your price list, Excel export')]],
     standards: [
       [
         { label: 'Project settings', icon: Scale, title: 'Voltage, ambient, voltage-drop limit and sizing targets', onClick: a.onSettings },

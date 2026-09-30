@@ -799,3 +799,15 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .sysdiag .ln.interlock{stroke-dasharray:4 3;stroke-width:1}
 .form-kv fieldset.relays{grid-column:1/-1;border:1px solid var(--line);border-radius:6px;padding:4px 8px;display:flex;flex-wrap:wrap;gap:2px 14px}.form-kv fieldset.relays legend{font-size:11px;color:var(--mut)}
 .form-kv fieldset.relays label.row{display:flex;flex-direction:row;align-items:center;gap:6px;width:100%;font-size:12px}.form-kv fieldset.relays input{width:auto;flex:none}
+
+.bom-bar,.bom-prices{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px}
+.bom-tabs{display:flex;gap:6px}
+.bom-prices label{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--mut)}
+.bom-totals{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:12.5px;margin:4px 0}
+.bom-sec b{color:var(--acc)}
+.bom-table{width:100%;border-collapse:collapse;font-size:12.5px}
+.bom-table th,.bom-table td{border-bottom:1px solid var(--line);padding:4px 6px;text-align:left;vertical-align:top}
+.bom-table td.num{text-align:right;white-space:nowrap}
+.bom-sec-row td{font-weight:700;background:color-mix(in srgb,var(--acc) 12%,transparent)}
+.bom-missing td:nth-child(5) input{border-color:var(--warn)}
+.bom-rate{width:90px;text-align:right;background:transparent;color:inherit;border:1px solid var(--line);border-radius:4px;padding:2px 4px}

@@ -7,7 +7,7 @@ import ResultsTable from './components/ResultsTable';
 import SidePanel from './components/SidePanel';
 import FeederForm from './components/FeederForm';
 import BoardForm from './components/BoardForm';
-import BoqTable from './components/BoqTable';
+import BomView from './components/docs/BomView';
 import { exportDss } from './engines/opendss/exportDss';
 import EngineCompare from './components/EngineCompare';
 import SystemDiagram from './components/SystemDiagram';
@@ -1033,8 +1033,8 @@ export default function App() {
             )}
             {view === 'boq' && (
               <>
-                <section className="stage"><h3>Cost estimate — whole project</h3></section>
-                <BoqTable results={allResults} projectName={project.name} project={project} />
+                <section className="stage"><h3>Bill of quantities — whole project</h3></section>
+                <BomView project={project} results={allResults} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />
               </>
             )}
           </main>

@@ -21,7 +21,7 @@ export const DOCUMENTS: [MainView, string][] = [
   ['cable-schedule', 'Cable schedule'],
   ['cable-tray', 'Cable tray schedule'],
   ['equipment', 'Equipment schedule'],
-  ['boq', 'Cost estimate (BOQ)'],
+  ['boq', 'Bill of quantities (BOQ)'],
   ['study-reports', 'Study reports (submission)'],
   ['report', 'Calculation report (PDF)'],
   ['revisions', 'Revisions']

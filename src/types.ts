@@ -278,6 +278,7 @@ export interface Project {
   /** Your own equipment, with parameters and formulas (palette → My components). */
   components?: import('./model/components').UserComponent[];
   building?: BuildingInfo; // architectural information: buildings, levels, rooms, room types
+  priceList?: import('./model/priceList').PriceList; // rates used for this project's BOQ (a copy)
   busRisers?: import('./calc/busbar').BusRiser[]; // busbar trunking risers (high-rise)
   busbarData?: import('./calc/busbar').BusbarData; // manufacturer busway data (typical when absent)
   txGen?: Partial<import('./calc/txGen').TxGenPlan>; // transformer & generator sizing choices
