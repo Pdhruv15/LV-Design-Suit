@@ -126,7 +126,7 @@ export default function SystemDiagram({
 }) {
   const iec = (project.drawing?.symbols ?? 'iec') === 'iec';
   // DEWA submission style: panel frames, summary boxes (LOC, TCL, DF, MDL), DEWA wording.
-  const dewa = project.drawing?.sldStyle === 'dewa';
+  const dewa = project.drawing?.sldStyle !== 'standard'; // on unless switched off
   const feederTags = (id: string): Tag[] => {
     // Earth fault loop colouring: Zs against its limit on every feeder.
     const e = earthing?.get(id);
@@ -403,7 +403,7 @@ export default function SystemDiagram({
     >
       <div className="sysdiag-tools" role="toolbar" aria-label="Diagram zoom">
         {onDrawing && <button className="chip" onClick={() => onDrawing({ symbols: iec ? 'simple' : 'iec' })} title={iec ? 'IEC 60617 symbols — switch to simple icons' : 'Simple icons — switch to IEC 60617 symbols'}>{iec ? 'IEC' : 'Icons'}</button>}
-        {onDrawing && <button className={`chip${dewa ? ' on' : ''}`} onClick={() => onDrawing({ sldStyle: dewa ? undefined : 'dewa' })} title="DEWA submission style: a frame around each panel with its summary (LOC, TCL, DF, MDL), way numbers and DEWA wording">DEWA</button>}
+        {onDrawing && <button className={`chip${dewa ? ' on' : ''}`} onClick={() => onDrawing({ sldStyle: dewa ? 'standard' : undefined })} title="DEWA submission style: a frame around each panel with its summary (LOC, TCL, DF, MDL), way numbers and DEWA wording">DEWA</button>}
         {onDrawing && iec && <button className={`chip${legend.length ? ' on' : ''}`} onClick={() => onDrawing({ legend: !(project.drawing?.legend ?? true) })} title="Symbol legend beside the drawing (printed on the exports)">Legend</button>}
         <button className="chip" onClick={nextGrid} title="Grid: lines, dots or none">{grid === 'lines' ? '▦' : grid === 'dots' ? '⁙' : '□'}</button>
         <button className="chip" onClick={() => zoom(1 / 1.25)} aria-label="Zoom in">+</button>
@@ -810,7 +810,7 @@ export default function SystemDiagram({
                 return (
                   <g className="panel-sum">
                     <title>{`${b.id}: TCL ${sm.tclKw.toFixed(2)} kW × DF ${sm.df.toFixed(2)} = MDL ${sm.mdlKw.toFixed(2)} kW`}</title>
-                    <rect x={bx} y={by} width="118" height="70" className="sum-box" />
+                    <rect x={bx} y={by} width="118" height="70" rx="6" className="sum-box" />
                     <text x={bx + 6} y={by + 13} className="b" style={{ textDecoration: 'underline' }}>{trunc(b.id, 16)}</text>
                     {lines.map((t, i) => <text key={i} x={bx + 6} y={by + 27 + i * 12} className="acc-t">{t}</text>)}
                   </g>

@@ -558,7 +558,7 @@ export interface DrawingInfo {
   titleTemplateId?: string; // a custom title block (else the standard one)
   notes?: string[]; // text notes on the SLD sheet; {Parameters} are filled in
   abbreviations?: boolean;
-  sldStyle?: 'standard' | 'dewa'; // DEWA submission: panel frames, summary boxes (LOC, TCL, DF, MDL), DEWA wording // abbreviations table on the sheets (default on)
+  sldStyle?: 'standard' | 'dewa'; // default DEWA submission style (blank or 'dewa'): panel frames, summary boxes (LOC, TCL, DF, MDL), DEWA wording // abbreviations table on the sheets (default on)
 }
 
 /** An issued revision: a frozen copy of the design (without the revision

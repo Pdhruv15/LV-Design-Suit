@@ -17,6 +17,15 @@ export interface DrawingSheet {
   kind: 'system' | 'board'; // board = one DB's circuit diagram
   boards: string[];
   size: 'auto' | SheetSize;
+  // Title block of this sheet (blank = the project's, managed in the drawing register)
+  status?: string; // e.g. FOR APPROVAL, IFC, AS-BUILT
+  rev?: string; // blank = the project's current revision
+  date?: string;
+  drawnBy?: string;
+  checkedBy?: string;
+  approvedBy?: string;
+  scale?: string; // default NTS
+  remarks?: string; // register only
 }
 export interface DrawingSet {
   prefix: string; // E-SLD-
@@ -24,12 +33,24 @@ export interface DrawingSet {
   register?: boolean; // a drawing register as the first page
   /** Result values printed on the sheets (else SHEET_LAYERS). */
   tags?: import('../diagram/annotations').ResultLayers;
+  /** Numbers typed by hand: renumbering fills blanks only. */
+  manualNumbers?: boolean;
+  start?: number; // first number (default 1)
+  digits?: number; // zero padding (default 3)
+  suffix?: string; // after the number, e.g. "-EL"
+  status?: string; // default status of every sheet
 }
+
+export const SHEET_STATUSES = ['FOR APPROVAL', 'FOR AUTHORITY SUBMISSION', 'FOR TENDER', 'FOR CONSTRUCTION', 'AS-BUILT', 'PRELIMINARY'];
 
 export const SIZES: SheetSize[] = ['A4', 'A3', 'A2', 'A1'];
 export const setOf = (p: Project): DrawingSet => p.drawingSet ?? { prefix: 'E-SLD-', sheets: [], register: true };
-const num = (prefix: string, i: number) => `${prefix}${String(i).padStart(3, '0')}`;
-export const renumber = (set: DrawingSet): DrawingSet => ({ ...set, sheets: set.sheets.map((s, i) => ({ ...s, number: num(set.prefix, i + 1) })) });
+export const sheetNumber = (set: DrawingSet, i: number) => `${set.prefix}${String((set.start ?? 1) + i).padStart(set.digits ?? 3, '0')}${set.suffix ?? ''}`;
+/** Numbers in order (prefix, start, digits, suffix); with manual numbers only blanks are filled. */
+export const renumber = (set: DrawingSet, force = false): DrawingSet => ({
+  ...set,
+  sheets: set.sheets.map((s, i) => ({ ...s, number: set.manualNumbers && !force && s.number ? s.number : sheetNumber(set, i) }))
+});
 
 const isDb = (b: Board) => (b.kind ?? (b.upstreamId ? 'DB' : 'MDB')) === 'DB';
 
@@ -122,14 +143,14 @@ export function autoSize(widthPx: number, heightPx: number): { size: SheetSize; 
 }
 
 /** The drawing register (first page): sheet no., title, size, revision. */
-export function registerHtml(p: Project, rows: { number: string; title: string; size: string }[], rev: string, date: string): string {
+export function registerHtml(p: Project, rows: { number: string; title: string; size: string; rev?: string; date?: string; status?: string }[], rev: string, date: string): string {
   const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
   return `<!doctype html><html><head><meta charset="utf-8"><style>
   @page { size: A4 portrait; margin: 16mm; } body { font: 11px Arial, sans-serif; color: #000; }
   h1 { font-size: 16px; margin: 0 0 2px; } .m { color: #555; } table { width: 100%; border-collapse: collapse; margin-top: 10px; }
   th, td { border: 1px solid #000; padding: 4px 6px; text-align: left; } th { background: #eef2f7; }
   </style></head><body><h1>Drawing register — single line diagrams</h1><div class="m">${esc(p.name)} · ${esc(p.info?.owner ?? '')} · Plot ${esc(p.info?.plotNo ?? '')}</div>
-  <table><thead><tr><th style="width:18%">Drawing no.</th><th>Title</th><th style="width:9%">Size</th><th style="width:8%">Rev</th><th style="width:14%">Date</th></tr></thead><tbody>
-  ${rows.map((r) => `<tr><td>${esc(r.number)}</td><td>${esc(r.title)}</td><td>${esc(r.size)}</td><td>${esc(rev)}</td><td>${esc(date)}</td></tr>`).join('')}
+  <table><thead><tr><th style="width:18%">Drawing no.</th><th>Title</th><th style="width:9%">Size</th><th style="width:8%">Rev</th><th style="width:13%">Date</th><th style="width:16%">Status</th></tr></thead><tbody>
+  ${rows.map((r) => `<tr><td>${esc(r.number)}</td><td>${esc(r.title)}</td><td>${esc(r.size)}</td><td>${esc(r.rev || rev)}</td><td>${esc(r.date || date)}</td><td>${esc(r.status ?? '')}</td></tr>`).join('')}
   </tbody></table></body></html>`;
 }

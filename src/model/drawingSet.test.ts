@@ -58,3 +58,15 @@ describe('sheets by panel count', () => {
     expect(cut.demandFactor).toBeLessThanOrEqual(1);
   });
 });
+
+describe('drawing register', () => {
+  it('numbers with prefix, start, digits and suffix; manual numbers are kept', () => {
+    const set = sheetsByCount(sampleProject, 2, 'EL-');
+    const r = renumber({ ...set, start: 101, digits: 4, suffix: '-SLD' }, true);
+    expect(r.sheets[0].number).toBe('EL-0101-SLD');
+    expect(r.sheets[1].number).toBe('EL-0102-SLD');
+    const manual = { ...r, manualNumbers: true, sheets: r.sheets.map((s, i) => (i === 0 ? { ...s, number: 'E-100' } : s)) };
+    expect(renumber(manual).sheets[0].number).toBe('E-100');
+    expect(renumber(manual, true).sheets[0].number).toBe('EL-0101-SLD');
+  });
+});

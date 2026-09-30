@@ -822,6 +822,16 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .bom-extras{margin:6px 0}.bom-extras label.row{display:flex;gap:6px;align-items:flex-start;margin:3px 0;font-size:12.5px}
 .bom-no{white-space:nowrap}.bom-no .icon-btn{margin-left:4px;opacity:.55}.bom-table tr:hover .bom-no .icon-btn{opacity:1}
 
-.sysdiag .frame-ln{fill:none;stroke:var(--acc);stroke-width:1;stroke-dasharray:5 4}
-.sysdiag .sum-box{fill:var(--bg);stroke:var(--bad);stroke-width:1}
+.sysdiag .frame-ln{fill:none;stroke:var(--mut);stroke-width:1;stroke-dasharray:5 4}
+.sysdiag .sum-box{fill:var(--p2);stroke:var(--line);stroke-width:1.2}
 .sysdiag .way-no{opacity:.8}
+.ds-sheet{overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.35);margin:6px auto;background:#fff}
+
+.dr-top{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:12px;margin-bottom:12px}
+@media (max-width:1100px){.dr-top{grid-template-columns:1fr}}
+.dr-top h4{margin:0 0 8px}
+.dr-line{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin-top:8px}
+.dr-table th{vertical-align:bottom;white-space:nowrap}
+.dr-fill{display:flex;gap:2px;margin-top:4px;min-width:70px}
+.dr-fill input{font-weight:400}
+.dr-panels{font-size:11px;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
