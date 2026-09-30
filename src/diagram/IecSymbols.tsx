@@ -141,6 +141,18 @@ export function legendEntries(project: Project): LegendEntry[] {
   if (prot.some((p) => p?.apfc)) add('pfr', 'Power factor relay (PFR), CT from the incomer', (x, y) => (
     <g className="iec"><rect x={x - 9} y={y - 5.5} width="18" height="11" rx="1" className="sym" /><text x={x} y={y + 3} textAnchor="middle" className="iec-t s">PFR</text></g>
   ));
+  const main = (b: { upstreamId?: string }) => !b.upstreamId;
+  if (project.boards.some((b) => b.instruments ?? main(b))) {
+    add('am', 'Ammeter (A) / voltmeter (V) with selector switch (S/S)', (x, y) => (
+      <g className="iec"><rect x={x - 17} y={y - 7} width="14" height="14" className="sym" /><text x={x - 10} y={y + 4} textAnchor="middle" className="iec-t b">A</text><rect x={x + 3} y={y - 7} width="14" height="14" className="sym" /><text x={x + 10} y={y + 4} textAnchor="middle" className="iec-t b">V</text></g>
+    ));
+    add('lamps', 'Indicating lamps R, Y, B', (x, y) => (
+      <g className="iec">{['R', 'Y', 'B'].map((p, i) => <g key={p}><circle cx={x - 13 + i * 13} cy={y} r="5.5" className="sym" /><text x={x - 13 + i * 13} y={y + 3} textAnchor="middle" className="iec-t s">{p}</text></g>)}</g>
+    ));
+  }
+  if (project.boards.some((b) => b.earthing?.show ?? main(b))) add('pit', 'Earth pit: electrode with inspection pit and cover', (x, y) => (
+    <g className="iec"><rect x={x - 7} y={y - 11} width="14" height="9" className="sym" /><line x1={x} y1={y - 6} x2={x} y2={y + 6} className="ln" /><path d={`M${x - 7} ${y + 6} h14 M${x - 4.5} ${y + 9} h9 M${x - 2} ${y + 12} h4`} className="ln" /></g>
+  ));
   if (drawn.some((f) => f.kwhMeter)) add('kwh', 'kWh meter', (x, y) => (
     <g className="iec"><rect x={x - 12} y={y - 6} width="24" height="12" rx="2" className="sym" /><text x={x} y={y + 3} textAnchor="middle" className="iec-t b">kWh</text></g>
   ));

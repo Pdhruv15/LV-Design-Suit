@@ -210,6 +210,10 @@ export interface Board {
   /** Incomer protection and metering drawn on the SLD: CT ratio, long-time
    * setting and protection relays (earth leakage, earth fault, under / over voltage). */
   protection?: { ctRatio?: string; irSetting?: number; relays?: RelayType[]; apfc?: boolean };
+  /** Ammeter and voltmeter with selector switches and R-Y-B indicating lamps (default: on for main boards). */
+  instruments?: boolean;
+  /** Main earthing detail on the SLD (default: on for main boards): pits and earth conductor. */
+  earthing?: { show?: boolean; pits?: number; conductorMm2?: number; electrodeM?: number; spacingM?: number };
   /** RMU (11 kV ring main unit) feeding this main board's transformer. */
   rmu?: string;
   /** UPS rating for a UPS output board (kind 'UPS'). */

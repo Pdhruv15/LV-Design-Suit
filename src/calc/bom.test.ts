@@ -100,3 +100,13 @@ describe('your own BOQ lines and adjustments', () => {
     expect(b.total).toBeCloseTo(b.subtotal * 1.1 * 0.95);
   });
 });
+
+describe('instruments and earthing', () => {
+  it('main boards get instruments and earth pits by default; the panel can switch them off', () => {
+    const keys = buildBom(p).map((x) => x.key);
+    expect(keys).toEqual(expect.arrayContaining(['ammeter-ss', 'voltmeter-ss', 'lamps-ryb', 'earth-pit:3']));
+    expect(buildBom(p).find((x) => x.key === 'earth-pit:3')!.qty).toBe(p.boards.filter((b) => !b.upstreamId).length * 2);
+    const off = { ...p, boards: p.boards.map((b) => ({ ...b, instruments: false, earthing: { show: false } })) };
+    expect(buildBom(off).some((x) => x.key === 'ammeter-ss' || x.key.startsWith('earth-pit'))).toBe(false);
+  });
+});
