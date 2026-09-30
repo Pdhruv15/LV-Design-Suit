@@ -33,6 +33,7 @@ import ProjectDashboard from './components/docs/ProjectDashboard';
 import HelpView from './components/HelpView';
 import ParametersView from './components/docs/ParametersView';
 import TitleBlockDesigner from './components/docs/TitleBlockDesigner';
+import DrawingRegisterView from './components/docs/DrawingRegisterView';
 import DrawingSetView from './components/docs/DrawingSetView';
 import ComponentEditor from './components/ComponentEditor';
 import { componentPreset, newComponent, syncComponent, type UserComponent } from './model/components';
@@ -969,6 +970,7 @@ export default function App() {
             {view === 'selection' && <SelectionStudy project={calcProject} focus={focus} onClearFocus={() => setFocus(null)} onChange={staleKeys.length ? blocked : setProject} />}
             {view === 'coordination' && <CoordinationStudy project={calcProject} board={board?.id} onBoard={setActiveBoardId} />}
             {view === 'sizing' && <TransformerGeneratorStudy project={project} onStatus={setStatus} onChange={(p) => setProject(p, { step: true })} />}
+            {view === 'drawing-register' && <DrawingRegisterView project={project} run={run} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onOpen={setView} />}
             {view === 'drawings' && <DrawingSetView project={project} run={run} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'parameters' && <ParametersView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onTitleBlock={() => setView('titleblock')} />}
             {view === 'titleblock' && <TitleBlockDesigner project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onParams={() => setView('parameters')} />}
