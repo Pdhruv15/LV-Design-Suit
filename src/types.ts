@@ -154,6 +154,8 @@ export interface Feeder {
   breakerType?: BreakerType; // default: MCB type C up to 63 A, MCCB above
   breakerImMultiple?: number; // MCCB/ACB instantaneous setting as a multiple of In (default 10)
   cpcMm2?: number; // protective (earth) conductor size; default per IEC 60364-5-54 Table 54.2
+  componentId?: string; // made from a user component (edits to the component update it)
+  componentValues?: Record<string, number>; // this copy's values of the component's inputs
   standbyUnit?: boolean; // a standby unit (e.g. standby pump): not in the TCL (duty)
   essential?: boolean; // supplied by the standby generator (fire pump defaults to essential)
   // DB load schedule fields (final circuits entered from the load schedule)
@@ -257,6 +259,14 @@ export interface Project {
   studyReportPresets?: StudyReportPreset[]; // saved scopes / study sets for repeat submissions
   calc?: { autoRun?: boolean }; // run the network studies on every change (default: on Run / F5 only)
   studySettings?: StudySettings;
+  /** People, dates and your own values used as {Name} in title blocks, notes and labels. */
+  params?: ProjectParams;
+  /** Title block templates (the SLD sheet uses drawing.titleTemplateId). */
+  titleTemplates?: import('./model/titleBlock').TitleTemplate[];
+  /** The SLD as a set of drawing sheets (Reports → Drawing set). */
+  drawingSet?: import('./model/drawingSet').DrawingSet;
+  /** Your own equipment, with parameters and formulas (palette → My components). */
+  components?: import('./model/components').UserComponent[];
   building?: BuildingInfo; // architectural information: buildings, levels, rooms, room types
   busRisers?: import('./calc/busbar').BusRiser[]; // busbar trunking risers (high-rise)
   busbarData?: import('./calc/busbar').BusbarData; // manufacturer busway data (typical when absent)
@@ -329,6 +339,17 @@ export interface BuildingInfo {
   buildings: ProjectBuilding[];
   rooms: BuildingRoom[];
   roomTypes?: RoomType[]; // the project's copy; defaults when absent
+}
+
+export interface ProjectParams {
+  designedBy?: string;
+  drawnBy?: string;
+  checkedBy?: string;
+  approvedBy?: string;
+  submissionDate?: string;
+  authorityRef?: string; // e.g. DEWA reference
+  discipline?: string;
+  custom?: { name: string; value: string }[];
 }
 
 /** Space planning (power density): areas are fed from panels, panels
@@ -518,10 +539,12 @@ export interface DrawingInfo {
   drawnBy?: string;
   checkedBy?: string;
   approvedBy?: string;
-  sheet?: 'A3' | 'A2' | 'A1';
+  sheet?: 'A4' | 'A3' | 'A2' | 'A1';
   symbols?: 'iec' | 'simple'; // IEC 60617 symbols (default) or simple icons
   legend?: boolean; // symbol legend beside the drawing (default on with IEC symbols)
   logo?: string; // company logo (data: URL) in the title block and on report covers
+  titleTemplateId?: string; // a custom title block (else the standard one)
+  notes?: string[]; // text notes on the SLD sheet; {Parameters} are filled in
 }
 
 /** An issued revision: a frozen copy of the design (without the revision

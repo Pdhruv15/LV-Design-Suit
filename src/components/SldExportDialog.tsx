@@ -78,6 +78,7 @@ export default function SldExportDialog({ project, onSave, onStatus, onClose, st
           <label>Drawing no.<input value={d.number ?? ''} placeholder="e.g. E-SLD-001" onChange={(e) => set('number', e.target.value)} /></label>
           <label>Sheet
             <select value={d.sheet ?? 'A3'} onChange={(e) => set('sheet', e.target.value)}>
+              <option value="A4">A4 landscape</option>
               <option value="A3">A3 landscape</option>
               <option value="A2">A2 landscape</option>
               <option value="A1">A1 landscape</option>

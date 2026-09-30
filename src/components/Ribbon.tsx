@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Activity, BatteryCharging, Building2, Cable, Calculator, ClipboardCheck, Car, CircuitBoard, Cog, Ellipsis, FileDown, FileSpreadsheet, FileText,
   Gauge, Hand, LayoutGrid, ListTree, Minus, MousePointer2, Pencil, Receipt, Scale, Server, Settings2, ShieldCheck, Sun,
-  Database, History, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Waves, Zap, type LucideIcon, BatteryFull
+  Database, History, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Waves, Zap, type LucideIcon, BatteryFull
 } from 'lucide-react';
 import type { Feeder } from '../types';
 import type { MainView } from '../views';
@@ -71,7 +71,7 @@ const TABS: { id: RibbonTab; label: string; icon: Icon }[] = [
 /** The ribbon tab that owns a screen, so the ribbon follows navigation
  * done from the left menu. */
 export function tabForView(v: MainView): RibbonTab {
-  if (v === 'projects' || v === 'dashboard' || v === 'help') return 'home';
+  if (v === 'projects' || v === 'dashboard' || v === 'help' || v === 'parameters' || v === 'titleblock') return 'home';
   if (v === 'building' || v === 'design' || v === 'load-schedule' || v === 'space-planning' || v === 'substation-area') return 'design';
   if (v === 'engines') return 'simulate';
   if (['calculators', 'voltage-drop', 'earthing', 'coordination', 'selection', 'sizing', 'pfc', 'busbar', 'ups', 'solar'].includes(v)) return 'calculate';
@@ -113,6 +113,8 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         view('dashboard', 'Dashboard', LayoutDashboard, 'The project at a glance: load, transformers, generators, panels, area, power density, checks'),
         view('building', 'Building', Building2, 'Building information: GFA, levels, typical floors, rooms and room types'),
         { label: 'Project settings', icon: Scale, title: 'Voltage, ambient, voltage-drop limit, sizing targets, submission form details', onClick: a.onSettings },
+        view('parameters', 'Parameters', Braces, '{Parameters}: designed / checked by, submission date, your own values — used in title blocks, notes and labels'),
+        view('titleblock', 'Title block', PanelBottom, 'Design your own title blocks with logo, text and {Parameters}'),
         { label: 'Profile', icon: UserRound, title: 'Your name, designation, company, logo and new-project defaults', onClick: a.onProfile },
         view('help', 'Help', LifeBuoy, 'How to use the app: the workflow start to finish, quick paths for one job, and a start-here checklist'),
         { label: a.folderLabel, icon: FolderCog, title: 'Where projects are saved (e.g. a Google Drive folder)', onClick: a.onChooseFolder }
@@ -183,7 +185,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         view('cable-tray', 'Cable trays', Rows3, 'Cable tray schedule: routes A, B, C… with the cables on each and the tray size'),
         view('equipment', 'Equipment', FileSpreadsheet, 'Transformers and boards')
       ],
-      [view('study-reports', 'Study reports', ClipboardCheck, 'Submission reports: chosen studies (short circuit, load flow…) for chosen boards, with their SLD'), view('report', 'Calc report', FileText, 'Calculation report (PDF)'), view('revisions', 'Revisions', History, 'Issue Rev A, B, C… and see what changed')]
+      [view('drawings', 'Drawing set', Files, 'SLD drawing sheets: panels per sheet, auto sheet size, DB circuit diagrams, one PDF with a register'), view('study-reports', 'Study reports', ClipboardCheck, 'Submission reports: chosen studies (short circuit, load flow…) for chosen boards, with their SLD'), view('report', 'Calc report', FileText, 'Calculation report (PDF)'), view('revisions', 'Revisions', History, 'Issue Rev A, B, C… and see what changed')]
     ],
     cost: [[view('boq', 'Cost estimate', Receipt, 'Bill of quantities with cost')]],
     standards: [

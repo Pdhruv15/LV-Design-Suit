@@ -1,8 +1,8 @@
 /** Main screens of the app, shared by the left menu and the ribbon. */
 export type MainView =
-  | 'projects' | 'help' | 'dashboard' | 'building' | 'design' | 'space-planning' | 'substation-area' | 'load-schedule'
+  | 'projects' | 'help' | 'parameters' | 'titleblock' | 'dashboard' | 'building' | 'design' | 'space-planning' | 'substation-area' | 'load-schedule'
   | 'calculators' | 'voltage-drop' | 'earthing' | 'selection' | 'coordination' | 'sizing' | 'pfc' | 'busbar' | 'ups' | 'solar' | 'engines'
-  | 'db-schedule' | 'cable-schedule' | 'cable-tray' | 'equipment' | 'study-reports' | 'boq' | 'report' | 'revisions' | 'database';
+  | 'drawings' | 'db-schedule' | 'cable-schedule' | 'cable-tray' | 'equipment' | 'study-reports' | 'boq' | 'report' | 'revisions' | 'database';
 
 export const STUDIES: [MainView, string][] = [
   ['voltage-drop', 'Voltage drop'],

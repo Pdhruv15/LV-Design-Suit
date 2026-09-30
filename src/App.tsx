@@ -31,6 +31,11 @@ import BusbarStudy from './components/studies/BusbarStudy';
 import BuildingView from './components/docs/BuildingView';
 import ProjectDashboard from './components/docs/ProjectDashboard';
 import HelpView from './components/HelpView';
+import ParametersView from './components/docs/ParametersView';
+import TitleBlockDesigner from './components/docs/TitleBlockDesigner';
+import DrawingSetView from './components/docs/DrawingSetView';
+import ComponentEditor from './components/ComponentEditor';
+import { componentPreset, newComponent, syncComponent, type UserComponent } from './model/components';
 import { CableScheduleView, DbScheduleView, EquipmentScheduleView, ReportView } from './components/docs/Documents';
 import LoadScheduleView from './components/docs/LoadScheduleView';
 import { refreshBoard } from './model/schedule';
@@ -595,7 +600,25 @@ export default function App() {
 
   const [dropQty, setDropQty] = useState(1);
   function dropItem(item: PaletteItem, target: DropTarget) {
-    showResult(dropMany(project, item, target, dropQty, db.loads));
+    const r = dropMany(project, item, target, dropQty, db.loads);
+    // A component dropped: its new ways remember it, so editing it updates them.
+    if (item.kind === 'preset' && item.preset.id.startsWith('cmp-') && r.project !== project) {
+      const old = new Set(project.feeders.map((f) => f.id));
+      const cid = item.preset.id.slice(4);
+      r.project = { ...r.project, feeders: r.project.feeders.map((f) => (!old.has(f.id) && !f.feedsBoardId ? { ...f, componentId: cid } : f)) };
+    }
+    showResult(r);
+  }
+
+  const [editComponent, setEditComponent] = useState<UserComponent | null>(null);
+  const componentPresets = useMemo(() => (project.components ?? []).map((c) => componentPreset(project, c)), [project]);
+  function saveComponent(c: UserComponent) {
+    const list = project.components ?? [];
+    const next = { ...project, components: list.some((x) => x.id === c.id) ? list.map((x) => (x.id === c.id ? c : x)) : [...list, c] };
+    const s = syncComponent(next, c);
+    setProject(s.project, { step: true });
+    setEditComponent(null);
+    setStatus(`Saved the component “${c.name}”${s.updated ? ` — ${s.updated} cop${s.updated > 1 ? 'ies' : 'y'} on the SLD updated` : ' — drag it from My components onto a busbar'}`);
   }
 
   /** Something already on the SLD dragged to another busbar or feeder. */
@@ -843,7 +866,10 @@ export default function App() {
                   <div className={`sld-edit${sldFull ? ' full' : ''}`}>
                   <EquipmentPalette onHint={setStatus} library={libraryEntries(db.loads)} presets={userPresets} qty={dropQty} onQty={setDropQty}
                     onDeletePreset={(id) => savePresets(userPresets.filter((p) => p.id !== id), 'Deleted the preset')}
-                    onEditPreset={openPresetEditor} onExportPresets={exportPresets} onImportPresets={importPresets} />
+                    onEditPreset={openPresetEditor} onExportPresets={exportPresets} onImportPresets={importPresets}
+                    components={componentPresets}
+                    onEditComponent={(id) => setEditComponent(id ? project.components?.find((c) => c.id === id) ?? null : newComponent(`c${Date.now().toString(36)}`))}
+                    onDeleteComponent={(id) => setProject((p) => ({ ...p, components: (p.components ?? []).filter((c) => c.id !== id), feeders: p.feeders.map((f) => (f.componentId === id ? { ...f, componentId: undefined, componentValues: undefined } : f)) }), { step: true })} />
                   <SystemDiagram
                     project={project}
                     calcProject={calcProject}
@@ -939,6 +965,9 @@ export default function App() {
             {view === 'selection' && <SelectionStudy project={calcProject} focus={focus} onClearFocus={() => setFocus(null)} onChange={staleKeys.length ? blocked : setProject} />}
             {view === 'coordination' && <CoordinationStudy project={calcProject} board={board?.id} onBoard={setActiveBoardId} />}
             {view === 'sizing' && <TransformerGeneratorStudy project={project} onStatus={setStatus} onChange={(p) => setProject(p, { step: true })} />}
+            {view === 'drawings' && <DrawingSetView project={project} run={run} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
+            {view === 'parameters' && <ParametersView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onTitleBlock={() => setView('titleblock')} />}
+            {view === 'titleblock' && <TitleBlockDesigner project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onParams={() => setView('parameters')} />}
             {view === 'help' && <HelpView project={project} run={run} stale={staleKeys} saved={!!currentFile && !dirty} onGo={(v) => (v === 'settings' ? setShowSettings(true) : setView(v))} />}
             {view === 'dashboard' && (
               <ProjectDashboard
@@ -1090,6 +1119,7 @@ export default function App() {
           onClose={() => setShowExport(false)}
         />
       )}
+      {editComponent && <ComponentEditor project={project} initial={editComponent} onSave={saveComponent} onClose={() => setEditComponent(null)} />}
       {showPrefs && (
         <PreferencesDialog
           prefs={prefs}
