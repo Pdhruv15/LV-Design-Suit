@@ -58,11 +58,26 @@ export function titleBlockOf(project: Project, date = new Date().toISOString().s
 
 /** Print-ready HTML for one sheet (the PDF export renders it). svg is the
  * diagram as standalone SVG markup. */
-export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNullable<DrawingInfo['sheet']> = 'A3', one?: { no: string; title: string; count: number; index: number }): string {
+/** One sheet of a set: number, title, position and its own title block values. */
+export interface SheetInfo { no: string; title: string; count: number; index: number; status?: string; rev?: string; date?: string; drawnBy?: string; checkedBy?: string; approvedBy?: string; scale?: string }
+
+export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNullable<DrawingInfo['sheet']> = 'A3', one?: SheetInfo): string {
   const { w, h } = SHEET_MM[sheet];
   const t = titleBlockOf(project);
-  if (one) { t.number = one.no; t.title = one.title; }
-  const extra: Record<string, string> = one ? { SheetNo: one.no, SheetTitle: one.title, SheetCount: String(one.count), SheetIndex: String(one.index), SheetSize: sheet, DrawingNo: one.no, DrawingTitle: one.title } : { SheetNo: t.number, SheetTitle: t.title, SheetCount: '1', SheetIndex: '1', SheetSize: sheet };
+  if (one) {
+    t.number = one.no; t.title = one.title;
+    if (one.rev) t.revision = one.rev;
+    if (one.date) t.date = one.date;
+    if (one.drawnBy) t.drawnBy = one.drawnBy;
+    if (one.checkedBy) t.checkedBy = one.checkedBy;
+    if (one.approvedBy) t.approvedBy = one.approvedBy;
+    if (one.scale) t.scale = one.scale;
+  }
+  const status = one?.status ?? '';
+  const extra: Record<string, string> = one
+    ? { SheetNo: one.no, SheetTitle: one.title, SheetCount: String(one.count), SheetIndex: String(one.index), SheetSize: sheet, DrawingNo: one.no, DrawingTitle: one.title, Status: status, Scale: t.scale,
+      ...(one.rev ? { Rev: one.rev } : {}), ...(one.date ? { RevDate: one.date } : {}), ...(one.drawnBy ? { DrawnBy: one.drawnBy } : {}), ...(one.checkedBy ? { CheckedBy: one.checkedBy } : {}), ...(one.approvedBy ? { ApprovedBy: one.approvedBy } : {}) }
+    : { SheetNo: t.number, SheetTitle: t.title, SheetCount: '1', SheetIndex: '1', SheetSize: sheet, Status: '', Scale: t.scale };
   const custom = templateOf(project);
   const notes = project.drawing?.notes ?? [];
   const abbr = project.drawing?.abbreviations === false ? [] : abbreviationsIn(svg);
@@ -103,10 +118,10 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
     ${custom ? `<div class="tbx">${titleBlockHtml(custom, project, extra)}</div>` : `    <table class="tb">
       <tr><td colspan="3"><span class="k">Company / consultant</span>${t.logo ? `<img class="logo" src="${esc(t.logo)}" alt="">` : ''}<span class="v">${esc(t.company)}</span></td></tr>
       <tr><td colspan="2"><span class="k">Project</span><span class="v">${esc(t.project)}</span></td><td><span class="k">Owner</span><span class="v">${esc(t.owner)}</span></td></tr>
-      <tr><td colspan="3" class="title"><span class="k">Drawing title</span><span class="v">${esc(t.title)}</span></td></tr>
+      <tr><td colspan="3" class="title"><span class="k">Drawing title${status ? ` — <b>${esc(status)}</b>` : ''}</span><span class="v">${esc(t.title)}</span></td></tr>
       <tr><td><span class="k">Drawing no.</span><span class="v">${esc(t.number)}</span></td><td><span class="k">Revision</span><span class="v">${esc(t.revision)}</span></td><td><span class="k">Date</span><span class="v">${esc(t.date)}</span></td></tr>
       <tr><td><span class="k">Drawn</span><span class="v">${esc(t.drawnBy)}</span></td><td><span class="k">Checked</span><span class="v">${esc(t.checkedBy)}</span></td><td><span class="k">Approved</span><span class="v">${esc(t.approvedBy)}</span></td></tr>
-      <tr><td colspan="2"><span class="k">Sheet</span><span class="v">${sheet} · Scale ${t.scale}</span></td><td><span class="k">System</span><span class="v">${project.voltageV} V, 3Ph + N, ${project.frequencyHz} Hz</span></td></tr>
+      <tr><td colspan="2"><span class="k">Sheet</span><span class="v">${one ? `${one.index} of ${one.count} · ` : ''}${sheet} · Scale ${esc(t.scale)}</span></td><td><span class="k">System</span><span class="v">${project.voltageV} V, 3Ph + N, ${project.frequencyHz} Hz</span></td></tr>
     </table>`}
     ${abbr.length ? `<div class="abbr"><b>ABBREVIATIONS</b>${abbr.map(([a, d]) => `<div><span>${esc(a)}</span>${esc(d)}</div>`).join('')}</div>` : ''}
     ${notes.length ? `<div class="notes" style="bottom:${(custom ? templateSize(custom).h : 44) + 3}mm;width:${custom ? templateSize(custom).w : 180}mm"><b>NOTES</b><ol>${notes.map((n) => `<li>${esc(fillParams(n, project))}</li>`).join('')}</ol></div>` : ''}

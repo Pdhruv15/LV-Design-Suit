@@ -36,6 +36,8 @@ export interface SystemLayout {
   utilityX: number;
   width: number;
   height: number;
+  levelH: number; // vertical distance between board levels
+  rootY: number; // busbar height of the main boards
 }
 
 /** Tree layout of the whole network: each load takes one LEAF_W slot, a
@@ -43,7 +45,12 @@ export interface SystemLayout {
  * and every board is centred over its own feeders. Final circuits of a DB
  * (lighting / power ways on its load schedule) are not drawn. Boards not reachable from a main
  * board are laid out as extra roots so nothing silently disappears. */
-export function layoutSystem(project: Project): SystemLayout {
+/** DEWA submission style: more room above each panel for its frame and summary box. */
+export const DEWA_EXTRA_Y = 110;
+
+export function layoutSystem(project: Project, extraY = 0): SystemLayout {
+  const rootY = ROOT_BUS_Y + extraY;
+  const levelH = LEVEL_H + extraY;
   const byId = new Map(project.boards.map((b) => [b.id, b]));
   const scheduled = (boardId: string) => project.feeders.filter((f) => f.boardId === boardId && isScheduleCircuit(f));
   const children = (boardId: string) => project.feeders.filter((f) => f.boardId === boardId && !isScheduleCircuit(f));
@@ -70,7 +77,7 @@ export function layoutSystem(project: Project): SystemLayout {
 
   const place = (board: Board, left: number, depth: number): BoardNode => {
     placed.add(board.id);
-    const busY = ROOT_BUS_Y + depth * LEVEL_H;
+    const busY = rootY + depth * levelH;
     let cursor = left;
     const xs: number[] = [];
     for (const f of children(board.id)) {
@@ -127,6 +134,8 @@ export function layoutSystem(project: Project): SystemLayout {
     roots,
     utilityX,
     width: Math.max(left + MARGIN_X, 480),
-    height: ROOT_BUS_Y + maxDepth * LEVEL_H + 250 // room for load labels and result tags
+    height: rootY + maxDepth * levelH + 250, // room for load labels and result tags
+    levelH,
+    rootY
   };
 }

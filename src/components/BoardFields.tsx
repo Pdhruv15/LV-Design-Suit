@@ -100,6 +100,11 @@ export default function BoardFields({ board, onChange, section }: { board: Board
           <option value="aluminium">Aluminium</option>
         </select>
       </label>
+      <label>Diversity factor (DF)
+        <input inputMode="decimal" value={board.mdDemandFactor ?? ''} placeholder="from its loads"
+          title="This panel's own DF: MDL = TCL × DF on the SLD summary box and the MD form. Blank = its loads' maximum demand ÷ connected load."
+          onChange={(e) => set('mdDemandFactor', e.target.value === '' || Number.isNaN(+e.target.value) ? undefined : +e.target.value)} />
+      </label>
       <label>Surge protection (SPD)
         <select value={board.spd ?? ''} onChange={(e) => set('spd', (e.target.value || undefined) as Board['spd'])}>
           <option value="">None</option>

@@ -32,7 +32,7 @@ describe('submission workbook (Excel)', () => {
     expect(t).toContain('DB-GF1 (VILLA GROUND FLOOR DB)');
     expect(t).toContain('OUT GOING');
     expect(t).toContain(s.totals[s.keys.indexOf('tcl')]);
-    expect(t.some((v) => v.startsWith('DEMAND FACTOR :  0.80'))).toBe(true);
+    expect(t.some((v) => v.startsWith(`DEMAND FACTOR :  ${s.form.demandFactor.toFixed(2)}`))).toBe(true);
     expect(ws.pageSetup.orientation).toBe('landscape');
     expect(ws.getCell('A7').isMerged).toBe(true); // OUT GOING spans the row
   });
