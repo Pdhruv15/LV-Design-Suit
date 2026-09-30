@@ -45,6 +45,16 @@ export const protectionOf = (b: Board): Board['protection'] | undefined => {
   return p.ctRatio || p.irSetting || p.relays?.length || p.apfc ? p : undefined;
 };
 
+/** Instruments and earthing default on for main boards. */
+export const hasInstruments = (b: Board) => b.instruments ?? !b.upstreamId;
+export const hasEarthPits = (b: Board) => b.earthing?.show ?? !b.upstreamId;
+/** Main earth conductor: typed, else the incomer's protective conductor size (min. 16), else 50 mm². */
+export function earthConductorOf(project: Project, b: Board): number {
+  if (b.earthing?.conductorMm2) return b.earthing.conductorMm2;
+  const inc = project.feeders.find((f) => f.feedsBoardId === b.id);
+  return inc ? Math.max(16, cpcOf(inc)) : 50;
+}
+
 /** DEWA wording of poles and device. */
 const dewaPoles = (f: Feeder) => (f.phase && f.phase !== 'RYB' ? 'SP' : f.cores === 2 ? 'SPN' : f.cores === 3 ? 'TP' : 'TPN');
 const dewaDevice = (f: Feeder) => { const t = f.breakerType ?? (f.breakerRatingA <= 63 ? 'C' : 'MCCB'); return t === 'ACB' ? 'ACB' : t === 'MCCB' ? 'MCCB' : 'MCB'; };
@@ -512,7 +522,7 @@ export default function SystemDiagram({
             </text>
             {r.board.sourceKva && <text className="m" x={r.x + 24} y="113">{r.board.vectorGroup ?? 'Dyn11'} · 11 / {(project.voltageV / 1000).toFixed(3)} kV</text>}
             <line x1={r.x} y1="114" x2={r.x} y2={r.busY - 58} className="ln" />
-            <text className="m" x={r.x - 8} y={r.busY - (protectionOf(r.board) ? 84 : 72)} textAnchor="end">{project.voltageV} V</text>
+            <text className="m" x={r.x - 8} y={r.busY - (dewa ? 96 : protectionOf(r.board) ? 84 : 72)} textAnchor="end">{project.voltageV} V</text>
             {scenario?.outage?.failedId === r.board.id && (
               <g className="failed-tx">
                 <line x1={r.x - 20} y1="68" x2={r.x + 20} y2="116" />
@@ -527,6 +537,48 @@ export default function SystemDiagram({
             })()}
           </g>
         ))}
+
+        {/* Main earthing detail: earth pits left of each main board's incoming supply */}
+        {layout.roots.map((r, i) => {
+          const b = r.board;
+          if (!hasEarthPits(b)) return null;
+          const prev = layout.roots[i - 1];
+          if (prev && prev.x > r.x - 280) return null; // no room beside a neighbouring main board
+          const ox = r.x - 150, oy = 60;
+          const mm = earthConductorOf(project, b);
+          const pits = b.earthing?.pits ?? 2;
+          const el = b.earthing?.electrodeM ?? 3;
+          const sp = b.earthing?.spacingM ?? 6;
+          const rod = (x: number) => (
+            <g key={x}>
+              <rect x={x - 7} y={oy + 12} width="14" height="10" className="sym" />
+              <line x1={x} y1={oy + 17} x2={x} y2={oy + 40} className="ln" />
+              <line x1={x - 7} y1={oy + 40} x2={x + 7} y2={oy + 40} className="ln" />
+              <line x1={x - 4.5} y1={oy + 43} x2={x + 4.5} y2={oy + 43} className="ln" />
+              <line x1={x - 2} y1={oy + 46} x2={x + 2} y2={oy + 46} className="ln" />
+            </g>
+          );
+          return (
+            <g key={`earth-${b.id}`} className="acc earth-pit">
+              <title>{`${b.id} main earthing: ${pits} earth pits, ${el} m electrodes, min. ${sp} m apart, 1C ${mm} mm² Cu/PVC earth conductor`}</title>
+              <text x={ox} y={oy - 6} className="acc-t b">EARTH PITS ({pits} NO.)</text>
+              <line x1={ox + 15} y1={oy + 8} x2={ox + 85} y2={oy + 8} className="ln" />
+              <line x1={ox + 15} y1={oy + 8} x2={ox + 15} y2={oy + 12} className="ln" />
+              <line x1={ox + 85} y1={oy + 8} x2={ox + 85} y2={oy + 12} className="ln" />
+              <line x1={ox + 50} y1={oy + 8} x2={ox + 50} y2={oy + 2} className="ln" />
+              <path d={`M${ox + 50} ${oy + 2} H${r.x - 20}`} className="ln interlock" />
+              <text x={r.x - 22} y={oy + 11} textAnchor="end" className="acc-t" style={{ fontSize: 7 }}>to MET</text>
+              {rod(ox + 15)}
+              {rod(ox + 85)}
+              <line x1={ox + 15} y1={oy + 52} x2={ox + 85} y2={oy + 52} className="ln" />
+              <path d={`M${ox + 15} ${oy + 52} l5 -2.5 v5 z M${ox + 85} ${oy + 52} l-5 -2.5 v5 z`} className="dot" />
+              <text x={ox + 50} y={oy + 50} textAnchor="middle" className="acc-t" style={{ fontSize: 7 }}>{sp.toFixed(1)} m (MIN)</text>
+              <text x={ox} y={oy + 63} className="acc-t" style={{ fontSize: 7.5 }}>1C {mm}mm² CU/PVC</text>
+              <text x={ox} y={oy + 72} className="acc-t" style={{ fontSize: 7.5 }}>MIN. {el} m ELECTRODE WITH</text>
+              <text x={ox} y={oy + 81} className="acc-t" style={{ fontSize: 7.5 }}>INSPECTION PIT AND COVER</text>
+            </g>
+          );
+        })}
 
         {/* Bus couplers between main boards: normally open, closed when a transformer is out */}
         {(project.ties ?? []).map((t) => {
@@ -806,7 +858,7 @@ export default function SystemDiagram({
                 // Summary box: name, LOC, TCL, DF, MDL = TCL × DF (the panel's own DF).
                 const sm = panelSummary(project, b);
                 const bx = n.x + 12, by = n.terminal ? n.busY - 150 : n.busY - 160;
-                const lines = [`LOC : ${trunc(b.location || '—', 17)}`, `TCL : ${sm.tclKw.toFixed(2)} kW`, `DF : ${sm.df.toFixed(2)}`, `MDL : ${sm.mdlKw.toFixed(2)} kW`];
+                const lines = [`LOC : ${trunc(b.location || '—', 14)}`, `TCL : ${sm.tclKw.toFixed(2)} kW`, `DF : ${sm.df.toFixed(2)}`, `MDL : ${sm.mdlKw.toFixed(2)} kW`];
                 return (
                   <g className="panel-sum">
                     <title>{`${b.id}: TCL ${sm.tclKw.toFixed(2)} kW × DF ${sm.df.toFixed(2)} = MDL ${sm.mdlKw.toFixed(2)} kW`}</title>
@@ -823,6 +875,33 @@ export default function SystemDiagram({
                 {b.ratedCurrentA ? ` · ${b.ratedCurrentA} A` : ''}
               </text>
               <circle cx={n.x + 52} cy={n.busY - 46} r="4" style={{ fill: `var(--${status})` }} />
+              {hasInstruments(b) && !n.terminal && (() => {
+                // Ammeter and voltmeter with selector switches, R-Y-B lamps: inside the panel, left of the board box.
+                const room = n.x - 66 - n.busX1;
+                const x0 = room >= 50 ? n.busX1 + 2 : n.busX1 - 52;
+                const y0 = n.busY - 52;
+                const meter = (x: number, t: string) => (
+                  <g key={t}>
+                    <rect x={x} y={y0} width="16" height="14" className="sym" />
+                    <text x={x + 8} y={y0 + 11} textAnchor="middle" className="acc-t b">{t}</text>
+                    <rect x={x - 1} y={y0 + 16} width="18" height="10" className="sym" />
+                    <text x={x + 8} y={y0 + 24} textAnchor="middle" className="acc-t" style={{ fontSize: 7 }}>S/S</text>
+                  </g>
+                );
+                return (
+                  <g className="acc instruments">
+                    <title>Ammeter and voltmeter with selector switches, R-Y-B indicating lamps</title>
+                    {meter(x0 + 2, 'A')}
+                    {meter(x0 + 24, 'V')}
+                    {['R', 'Y', 'B'].map((ph, i) => (
+                      <g key={ph}>
+                        <circle cx={x0 + 7 + i * 15} cy={y0 + 38} r="5.5" className="sym" />
+                        <text x={x0 + 7 + i * 15} y={y0 + 41} textAnchor="middle" className="acc-t" style={{ fontSize: 7 }}>{ph}</text>
+                      </g>
+                    ))}
+                  </g>
+                );
+              })()}
               {b.spd && (
                 <g className="acc">
                   <title>{`Surge protection device, Type ${b.spd === 'T1+2' ? '1+2' : b.spd.slice(1)}`}</title>

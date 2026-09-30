@@ -851,3 +851,4 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .vd-fix{white-space:nowrap;padding:2px 8px}
 .vd-riser{margin-top:12px}.vd-riser h4{margin:0 0 6px}
 .vd-riser-sum{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12.5px;margin-bottom:8px}
+.earth-kv{display:grid;grid-template-columns:1fr 1fr;gap:4px 8px;width:100%;font-size:12px}.earth-kv label{display:flex;flex-direction:column}
