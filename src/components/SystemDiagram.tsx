@@ -6,7 +6,9 @@ import { LEGEND_ROW, LEGEND_W, legendEntries, LoadSym, polesText, SwitchSym, swi
 import type { FeederResult, Status } from '../calc/electrical';
 import { boardSummary, loadTypeOf } from '../calc/summary';
 import { boardPhaseKw } from '../calc/loadSchedule';
-import { LEAF_W, LEVEL_H, layoutSystem } from '../diagram/layout';
+import { DEWA_EXTRA_Y, LEAF_W, layoutSystem } from '../diagram/layout';
+import { panelSummary } from '../docs/mdSheet';
+import { cpcOf } from '../calc/cableTable';
 import LoadIcon from './LoadIcon';
 import type { Annotations, ResultLayers } from '../diagram/annotations';
 import { addsWay, canDrop, canMove, type DropTarget, type MoveItem, type PaletteItem } from '../model/sldEdit';
@@ -42,6 +44,10 @@ export const protectionOf = (b: Board): Board['protection'] | undefined => {
   const p = { ctRatio: b.protection?.ctRatio ?? b.supply?.ctRatio, irSetting: b.protection?.irSetting ?? b.supply?.irSetting, relays: b.protection?.relays, apfc: b.protection?.apfc };
   return p.ctRatio || p.irSetting || p.relays?.length || p.apfc ? p : undefined;
 };
+
+/** DEWA wording of poles and device. */
+const dewaPoles = (f: Feeder) => (f.phase && f.phase !== 'RYB' ? 'SP' : f.cores === 2 ? 'SPN' : f.cores === 3 ? 'TP' : 'TPN');
+const dewaDevice = (f: Feeder) => { const t = f.breakerType ?? (f.breakerRatingA <= 63 ? 'C' : 'MCCB'); return t === 'ACB' ? 'ACB' : t === 'MCCB' ? 'MCCB' : 'MCB'; };
 
 const trunc = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
 
@@ -119,6 +125,8 @@ export default function SystemDiagram({
   onDrawing?: (patch: Partial<DrawingInfo>) => void;
 }) {
   const iec = (project.drawing?.symbols ?? 'iec') === 'iec';
+  // DEWA submission style: panel frames, summary boxes (LOC, TCL, DF, MDL), DEWA wording.
+  const dewa = project.drawing?.sldStyle === 'dewa';
   const feederTags = (id: string): Tag[] => {
     // Earth fault loop colouring: Zs against its limit on every feeder.
     const e = earthing?.get(id);
@@ -154,7 +162,9 @@ export default function SystemDiagram({
   const edit = (fn?: (id: string) => void, id?: string) => () => {
     if (tool !== 'pan' && fn && id) fn(id);
   };
-  const layout = useMemo(() => layoutSystem(project), [project]);
+  const layout = useMemo(() => layoutSystem(project, dewa ? DEWA_EXTRA_Y : 0), [project, dewa]);
+  // Way numbers along each busbar (DEWA style).
+  const wayNo = useMemo(() => { const m = new Map<string, number>(), c = new Map<string, number>(); for (const n of [...layout.feeders].sort((a, b) => a.x - b.x)) { const k = (c.get(n.feeder.boardId) ?? 0) + 1; c.set(n.feeder.boardId, k); m.set(n.feeder.id, k); } return m; }, [layout]);
   const byFeeder = useMemo(() => new Map(results.map((r) => [r.feeder.id, r])), [results]);
   // Board loading and voltage come from the network that is running: the
   // generator scenario in generator mode.
@@ -393,6 +403,7 @@ export default function SystemDiagram({
     >
       <div className="sysdiag-tools" role="toolbar" aria-label="Diagram zoom">
         {onDrawing && <button className="chip" onClick={() => onDrawing({ symbols: iec ? 'simple' : 'iec' })} title={iec ? 'IEC 60617 symbols — switch to simple icons' : 'Simple icons — switch to IEC 60617 symbols'}>{iec ? 'IEC' : 'Icons'}</button>}
+        {onDrawing && <button className={`chip${dewa ? ' on' : ''}`} onClick={() => onDrawing({ sldStyle: dewa ? undefined : 'dewa' })} title="DEWA submission style: a frame around each panel with its summary (LOC, TCL, DF, MDL), way numbers and DEWA wording">DEWA</button>}
         {onDrawing && iec && <button className={`chip${legend.length ? ' on' : ''}`} onClick={() => onDrawing({ legend: !(project.drawing?.legend ?? true) })} title="Symbol legend beside the drawing (printed on the exports)">Legend</button>}
         <button className="chip" onClick={nextGrid} title="Grid: lines, dots or none">{grid === 'lines' ? '▦' : grid === 'dots' ? '⁙' : '□'}</button>
         <button className="chip" onClick={() => zoom(1 / 1.25)} aria-label="Zoom in">+</button>
@@ -478,7 +489,13 @@ export default function SystemDiagram({
             <rect x={r.x - 16} y={52} width={32} height={26} rx={3} className="sym" />
             <text className="b" x={r.x} y={69} textAnchor="middle" style={{ fontSize: 10 }}>kWh</text>
             <text className="b" x={r.x + 24} y="62">{r.board.supply.fedFrom ?? 'DEWA'} supply</text>
-            <text className="m" x={r.x + 24} y="76">{r.board.supply.ratingA ? `${r.board.supply.ratingA} A ${r.board.supply.device ?? ''}` : 'meter cabinet'}{r.board.supply.meter ? ` · ${r.board.supply.meter} meter` : ''}</text>
+            {dewa ? (
+              <>
+                <text className="m" x={r.x + 24} y="76">METER CABINET{r.board.supply.ctRatio || r.board.protection?.ctRatio ? ` · CTM ${r.board.supply.ctRatio ?? r.board.protection?.ctRatio}` : ''}</text>
+                {r.board.supply.ratingA && <text className="m" x={r.x + 24} y="90">{r.board.supply.ratingA}A TP {r.board.supply.device ?? 'MCCB'}{r.board.supply.faultKa ? ` ${r.board.supply.faultKa} kA` : ''}</text>}
+                <text className="m" x={r.x + 24} y="104">CABLE BY {r.board.supply.fedFrom ?? 'DEWA'} · FED FROM {r.board.supply.fedFrom ?? 'DEWA'}</text>
+              </>
+            ) : <text className="m" x={r.x + 24} y="76">{r.board.supply.ratingA ? `${r.board.supply.ratingA} A ${r.board.supply.device ?? ''}` : 'meter cabinet'}{r.board.supply.meter ? ` · ${r.board.supply.meter} meter` : ''}</text>}
             <line x1={r.x} y1="34" x2={r.x} y2="52" className="ln" />
             <line x1={r.x} y1="78" x2={r.x} y2={r.busY - 58} className="ln" />
             <text className="m" x={r.x - 8} y={r.busY - 72} textAnchor="end">{project.voltageV} V</text>
@@ -544,7 +561,8 @@ export default function SystemDiagram({
           const status = r?.status ?? 'ok';
           const sel = f.id === selectedFeederId;
           const y = n.busY;
-          const endY = n.childBoardId ? y + LEVEL_H - 58 : y + 76;
+          const endY = n.childBoardId ? y + layout.levelH - 58 : y + 76;
+          const tagY = dewa ? 16 : 0; // DEWA: cable text takes two lines
           return (
             <g
               key={f.id}
@@ -566,14 +584,18 @@ export default function SystemDiagram({
                 </rect>
               )}
               {!iec && <line x1={n.x - 5} y1={y + 32} x2={n.x + 5} y2={y + 20} className="ln" />}
-              {iec && <text x={n.x + 10} y={y + 41} className="acc-t">{polesText(f)} · {f.breakerIcuKa} kA</text>}
+              {dewa ? <text x={n.x + 10} y={y + 41} className="acc-t">{f.breakerIcuKa} kA{f.rcdMa ? ` · ${f.rcdMa}mA ELCB` : ''}</text>
+                : iec && <text x={n.x + 10} y={y + 41} className="acc-t">{polesText(f)} · {f.breakerIcuKa} kA</text>}
+              {dewa && <text x={n.x - 5} y={y + 13} textAnchor="end" className="acc-t way-no">{wayNo.get(f.id)}</text>}
               <line x1={n.x} y1={y + 34} x2={n.x} y2={endY} className={`ln ${status !== 'ok' ? status : ''}${cableTypeOf(project, f).fireRated ? ' fr' : ''}`}
                 style={feederHeat(f.id) ? { stroke: feederHeat(f.id), strokeWidth: 3.5 } : undefined} />
-              <text className="b" x={n.x + 10} y={y + 30}>{f.breakerRatingA} A{f.rcdMa ? <tspan className="acc-t"> · {f.rcdMa} mA</tspan> : null}</text>
+              {dewa ? <text className="b" x={n.x + 10} y={y + 28}>{f.breakerRatingA}A {dewaPoles(f)} {dewaDevice(f)}</text>
+                : <text className="b" x={n.x + 10} y={y + 30}>{f.breakerRatingA} A{f.rcdMa ? <tspan className="acc-t"> · {f.rcdMa} mA</tspan> : null}</text>}
               <text
-                className={`m${onPatchFeeder ? ' cable-lbl' : ''}`}
+                className={`${dewa ? 'acc-t' : 'm'}${onPatchFeeder ? ' cable-lbl' : ''}`}
+                style={dewa ? { fontSize: 9 } : undefined}
                 x={n.x + 7}
-                y={y + 52}
+                y={y + (dewa ? 57 : 52)}
                 onPointerDown={(e) => onPatchFeeder && e.stopPropagation()}
                 onClick={(e) => {
                   if (!onPatchFeeder || tool === 'pan') return;
@@ -583,9 +605,11 @@ export default function SystemDiagram({
                 }}
               >
                 {onPatchFeeder && <title>Click to change the cable</title>}
-                {runsOf(f) > 1 ? `${runsOf(f)}×` : ''}{f.cores}C × {f.cableCsaMm2}mm²{(() => { const c = labelCode(project, f); return c ? ` ${c}` : ''; })()} · {f.lengthM}m
+                {dewa ? `${runsOf(f) > 1 ? `${runsOf(f)}×` : ''}${f.cores}C ${f.cableCsaMm2}mm² CU/${cableTypeOf(project, f).code}`
+                  : <>{runsOf(f) > 1 ? `${runsOf(f)}×` : ''}{f.cores}C × {f.cableCsaMm2}mm²{(() => { const c = labelCode(project, f); return c ? ` ${c}` : ''; })()} · {f.lengthM}m</>}
                 {needsFireRated(project, f) && !cableTypeOf(project, f).fireRated && <tspan className="res warn"> ⚠ FR</tspan>}
               </text>
+              {dewa && <text className="acc-t" style={{ fontSize: 9 }} x={n.x + 7} y={y + 67}>{cableTypeOf(project, f).armoured ? `+1C ${cpcOf(f)}mm² ECC · ` : ''}{f.lengthM}m</text>}
               {/* Accessories on the feeder, top to bottom: earth leakage (its
                   rating goes with the breaker's), metering on the right below
                   the cable text, local isolator just above the load. */}
@@ -597,7 +621,7 @@ export default function SystemDiagram({
               )}
               {f.kwhMeter && (() => {
                 // Sub-board incomers: below their result labels.
-                const my = n.childBoardId ? y + 128 : y + 62;
+                const my = n.childBoardId ? y + 128 + tagY : y + 62;
                 return (
                 <g className="acc">
                   <title>{f.kwhMeter === 'CT' ? 'CT-operated kWh meter' : `${f.kwhMeter} direct kWh meter`}</title>
@@ -615,7 +639,7 @@ export default function SystemDiagram({
                   <rect x={n.x - 4} y={y + 66} width="8" height="9" className="bg-fill" />
                   <circle cx={n.x} cy={y + 67} r="1.6" className="dot" />
                   <line x1={n.x} y1={y + 75} x2={n.x - 7} y2={y + 67} className="ln" />
-                  <text x={n.x - 9} y={y + 74} textAnchor="end" className="acc-t">ISO</text>
+                  {dewa ? <text x={n.x + 10} y={y + 79} className="acc-t" style={{ fontSize: 9 }}>{f.breakerRatingA}A {dewaPoles(f)} ISOLATOR (W/P)</text> : <text x={n.x - 9} y={y + 74} textAnchor="end" className="acc-t">ISO</text>}
                 </g>
               )}
               {!n.childBoardId && (
@@ -636,7 +660,7 @@ export default function SystemDiagram({
                   <text className="b" x={n.x} y={y + 132} textAnchor="middle">{trunc(f.id, 16)}</text>
                   <text className="m" x={n.x} y={y + 146} textAnchor="middle">{trunc(f.name, 19)}</text>
                   <text x={n.x} y={y + 160} textAnchor="middle">
-                    {f.componentId && project.components?.some((c) => c.id === f.componentId) ? trunc(componentLabel(project, project.components!.find((c) => c.id === f.componentId)!, f), 30) : f.kvar ? `${f.capSteps && f.capSteps > 1 ? `${f.capSteps} × ${+(f.kvar / f.capSteps).toFixed(1)}` : f.kvar} kvar${f.detunedPct ? ` · ${f.detunedPct}% det.` : ''}` : `${(f.loadKw * f.demandFactor).toFixed(0)} kW${f.generation ? ' gen' : ''}${isMotor(f) ? ` · ${starterInfo(starterOf(f)).short}` : ''}`}
+                    {f.componentId && project.components?.some((c) => c.id === f.componentId) ? trunc(componentLabel(project, project.components!.find((c) => c.id === f.componentId)!, f), 30) : f.kvar ? `${f.capSteps && f.capSteps > 1 ? `${f.capSteps} × ${+(f.kvar / f.capSteps).toFixed(1)}` : f.kvar} kvar${f.detunedPct ? ` · ${f.detunedPct}% det.` : ''}` : `${dewa && !f.generation ? `TCL : ${f.loadKw.toFixed(2)}` : (f.loadKw * f.demandFactor).toFixed(0)} kW${f.generation ? ' gen' : ''}${isMotor(f) ? ` · ${starterInfo(starterOf(f)).short}` : ''}`}
                     {!layers?.current && ` · ${r ? r.ib.toFixed(0) : '–'} A`}
                   </text>
                   {feederTags(f.id).map((t, i) => (
@@ -647,7 +671,7 @@ export default function SystemDiagram({
               )}
               {n.childBoardId &&
                 feederTags(f.id).map((t, i) => (
-                  <text key={t.text} x={n.x + 7} y={y + 72 + i * 13} className={`res ${t.cls}`}>{t.text}</text>
+                  <text key={t.text} x={n.x + 7} y={y + 72 + tagY + i * 13} className={`res ${t.cls}`}>{t.text}</text>
                 ))}
               {sel && <rect x={n.x - 60} y={y + 8} width="120" height={n.childBoardId ? 50 : 160} rx="8" className="sel-ring" />}
             </g>
@@ -765,6 +789,33 @@ export default function SystemDiagram({
                   <text x={n.x} y={n.busY - 106} textAnchor="middle" className="b" style={{ fontSize: 9 }}>UPS</text>
                 </g>
               )}
+              {dewa && !n.terminal && (() => {
+                // Panel frame: busbar, outgoing ways and incomer; cables cross it at a gland mark.
+                const x1 = n.busX1 - 7, x2 = n.busX2 + 7, y1 = n.busY - 84, y2 = n.busY + 47;
+                const gland = (x: number, gy: number) => <path key={`${x}-${gy}`} d={`M${x - 5} ${gy - 4} q3 4 0 8 M${x + 5} ${gy - 4} q-3 4 0 8`} className="ln" />;
+                const outs = layout.feeders.filter((f) => f.feeder.boardId === b.id);
+                return (
+                  <g className="panel-frame">
+                    <rect x={x1} y={y1} width={x2 - x1} height={y2 - y1} className="frame-ln" />
+                    {gland(n.x, y1)}
+                    {outs.map((f) => gland(f.x, y2))}
+                  </g>
+                );
+              })()}
+              {dewa && (() => {
+                // Summary box: name, LOC, TCL, DF, MDL = TCL × DF (the panel's own DF).
+                const sm = panelSummary(project, b);
+                const bx = n.x + 12, by = n.terminal ? n.busY - 150 : n.busY - 160;
+                const lines = [`LOC : ${trunc(b.location || '—', 17)}`, `TCL : ${sm.tclKw.toFixed(2)} kW`, `DF : ${sm.df.toFixed(2)}`, `MDL : ${sm.mdlKw.toFixed(2)} kW`];
+                return (
+                  <g className="panel-sum">
+                    <title>{`${b.id}: TCL ${sm.tclKw.toFixed(2)} kW × DF ${sm.df.toFixed(2)} = MDL ${sm.mdlKw.toFixed(2)} kW`}</title>
+                    <rect x={bx} y={by} width="118" height="70" className="sum-box" />
+                    <text x={bx + 6} y={by + 13} className="b" style={{ textDecoration: 'underline' }}>{trunc(b.id, 16)}</text>
+                    {lines.map((t, i) => <text key={i} x={bx + 6} y={by + 27 + i * 12} className="acc-t">{t}</text>)}
+                  </g>
+                );
+              })()}
               <rect x={n.x - 62} y={n.busY - 58} width="124" height="36" rx="6" className="box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
               <text className="b" x={n.x - 54} y={n.busY - 42}>{trunc(b.id, 14)}</text>
               <text className="m" x={n.x - 54} y={n.busY - 28}>

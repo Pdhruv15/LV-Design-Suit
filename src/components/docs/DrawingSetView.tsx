@@ -7,7 +7,7 @@ import { evaluateProject } from '../../calc/electrical';
 import { buildAnnotations, LAYER_LABELS, SHEET_LAYERS } from '../../diagram/annotations';
 import { printableSvg } from '../../diagram/exportSvg';
 import { boardsInSupplyOrder } from '../../calc/summary';
-import { autoSheets, autoSize, registerHtml, renumber, setOf, sheetProject, SIZES, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
+import { autoSheets, autoSize, sheetsByCount, registerHtml, renumber, setOf, sheetProject, SIZES, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
 import { buildSldSheetHtml } from '../../docs/sldSheet';
 import { mergePdfs } from '../../docs/mergePdf';
 import { currentRevision, revisionStamp } from '../../model/revisions';
@@ -61,6 +61,8 @@ export default function DrawingSetView({ project, run, onChange, onStatus }: { p
   const save = (next: DrawingSet) => onChange({ ...project, drawingSet: next });
   const setSheet = (id: string, patch: Partial<DrawingSheet>) => save({ ...set, sheets: set.sheets.map((s) => (s.id === id ? { ...s, ...patch } : s)) });
   const [dbSheets, setDbSheets] = useState(false);
+  const [perSheet, setPerSheet] = useState(10);
+  const dewa = project.drawing?.sldStyle === 'dewa';
   const [editing, setEditing] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ id: string; svg: string; size: SheetSize; fits: boolean } | null>(null);
   const [sizes, setSizes] = useState<Record<string, { size: SheetSize; fits: boolean }>>({});
@@ -138,9 +140,13 @@ export default function DrawingSetView({ project, run, onChange, onStatus }: { p
         <span className="m">Automatic:</span>
         <button className="chip" onClick={() => auto('perMdb')}>One sheet per MDB</button>
         <button className="chip" onClick={() => auto('perSmdb')}>Overview + one per SMDB</button>
+        <span className="sp" style={{ flex: 'none', width: 8 }} />
+        <button className="chip" onClick={() => { if (set.sheets.length && !window.confirm('Replace the sheets with a new automatic set?')) return; save(sheetsByCount(project, perSheet, set.prefix)); setSizes({}); }}>Split by panels</button>
+        <label className="row">max <input className="bi-text" style={{ width: 44 }} inputMode="numeric" value={perSheet} onChange={(e) => setPerSheet(Math.max(1, Number(e.target.value) || 1))} /> panels per sheet</label>
         <label className="row"><input type="checkbox" checked={dbSheets} onChange={(e) => setDbSheets(e.target.checked)} /> Also a circuit diagram for every DB</label>
         <span className="sp" />
         <label className="row">Numbers <input className="bi-text" style={{ width: 80 }} defaultValue={set.prefix} key={set.prefix} onBlur={(e) => save(renumber({ ...set, prefix: e.target.value || 'E-SLD-' }))} />001…</label>
+        <label className="row" title="A frame around each panel with its summary box (LOC, TCL, DF, MDL), way numbers and DEWA wording"><input type="checkbox" checked={dewa} onChange={(e) => { onChange({ ...project, drawing: { ...project.drawing, sldStyle: e.target.checked ? 'dewa' : undefined } }); setSizes({}); }} /> DEWA submission style</label>
         <label className="row"><input type="checkbox" checked={!!set.register} onChange={(e) => save({ ...set, register: e.target.checked })} /> Drawing register first</label>
       </section>
 

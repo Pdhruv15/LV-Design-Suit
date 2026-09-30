@@ -57,6 +57,30 @@ export function autoSheets(p: Project, mode: 'perMdb' | 'perSmdb', dbSheets = fa
   return renumber({ prefix, register: true, sheets: sheets.map((s) => ({ ...s, number: '' })) });
 }
 
+/** Sheets of at most n panels each (authority submissions: e.g. 10 per
+ * sheet), in supply order, keeping each panel's branch together where it
+ * fits: a sub-main's branch starts a new sheet rather than being split. */
+export function sheetsByCount(p: Project, n: number, prefix = 'E-SLD-'): DrawingSet {
+  const max = Math.max(1, Math.round(n));
+  const order = boardsInSupplyOrder(p);
+  const sheets: string[][] = [[]];
+  const size = (id: string) => order.filter((b) => subtree(p, id).has(b.id)).length;
+  for (const b of order) {
+    const cur = sheets[sheets.length - 1];
+    // A panel whose whole branch fits on a fresh sheet but not on this one starts a new sheet.
+    const branch = size(b.id);
+    const parentHere = !!b.upstreamId && cur.includes(b.upstreamId);
+    const startNew = cur.length >= max || (cur.length > 0 && branch > 1 && branch <= max && cur.length + branch > max && !(parentHere && cur.length + 1 <= max && branch > max));
+    if (startNew) sheets.push([b.id]);
+    else cur.push(b.id);
+  }
+  const list = sheets.filter((x) => x.length);
+  return renumber({
+    prefix, register: true,
+    sheets: list.map((boards, i) => ({ id: `sh-${Math.random().toString(36).slice(2, 8)}`, number: '', title: `SLD — ${boards[0]}${boards.length > 1 ? ` to ${boards[boards.length - 1]}` : ''}${list.length > 1 ? ` (${i + 1} of ${list.length})` : ''}`, kind: 'system' as const, boards, size: 'auto' as const }))
+  });
+}
+
 /** Where each board is drawn in full (its first system sheet, or its DB sheet). */
 export function sheetOfBoard(set: DrawingSet): Map<string, DrawingSheet> {
   const m = new Map<string, DrawingSheet>();
@@ -74,7 +98,7 @@ export function sheetProject(p: Project, set: DrawingSet, sheet: DrawingSheet): 
     const other = where.get(f.feedsBoardId);
     const t = boardTotals(p, f.feedsBoardId);
     const { feedsBoardId: _x, ...rest } = f;
-    return { ...rest, name: `To ${f.feedsBoardId}${other ? ` — sheet ${other.number}` : ''}`, loadType: 'general', loadKw: t.demandKw, demandFactor: 1, powerFactor: t.demandKw ? t.demandKw / Math.max(t.demandKw, Math.hypot(t.demandKw, t.demandKvar)) : 0.9 };
+    return { ...rest, name: `To ${f.feedsBoardId}${other ? ` — sheet ${other.number}` : ''}`, loadType: 'general', loadKw: t.connectedKw, demandFactor: t.connectedKw > 0 ? t.demandKw / t.connectedKw : 1, powerFactor: t.demandKw ? t.demandKw / Math.max(t.demandKw, Math.hypot(t.demandKw, t.demandKvar)) : 0.9 };
   });
   return {
     ...p,
