@@ -1,6 +1,8 @@
+import { pushLibrary } from '../database/librarySync';
 import type { BomItem, BomSection } from '../calc/bom';
 import { BOM_SECTIONS } from '../calc/bom';
 import { breakerRateAed, cableRatePerM, CURRENCY } from '../data/rates';
+import { catalog, catalogRate } from '../database/catalog';
 
 /** Your supplier rates, by BOM item key. Several catalogues can be kept
  * (e.g. Schneider, ABB, local panel builder); a project uses one and keeps a
@@ -20,15 +22,20 @@ export const newPriceList = (name = 'My rates'): PriceList => ({
 });
 
 const KEY = 'lvds.priceLists';
+/** Price lists: those in Prices.xlsx, then the ones saved on this computer. */
 export function loadPriceLists(): PriceList[] {
-  try { const v = JSON.parse(localStorage.getItem(KEY) ?? '[]'); return Array.isArray(v) ? v : []; } catch { return []; }
+  let mine: PriceList[] = [];
+  try { const v = JSON.parse(localStorage.getItem(KEY) ?? '[]'); mine = Array.isArray(v) ? v : []; } catch { /* none */ }
+  return [...catalog().priceLists, ...mine.filter((l) => !l.id.startsWith('xl-'))];
 }
 export function savePriceLists(lists: PriceList[]): void {
-  try { localStorage.setItem(KEY, JSON.stringify(lists)); } catch { /* storage full or blocked */ }
+  try { localStorage.setItem(KEY, JSON.stringify(lists)); void pushLibrary(); } catch { /* storage full or blocked */ }
 }
 
 /** Built-in illustrative rates (cables and breakers only) when the list has none. */
 export function fallbackRate(key: string): number | undefined {
+  const c = catalogRate(key);
+  if (c) return c.rate + (c.install ?? 0);
   const [kind, ...rest] = key.split(':');
   if (kind === 'cable') return cableRatePerM(Number(rest[2]));
   if (kind === 'mccb' || kind === 'acb') return breakerRateAed(Number(rest[0]));

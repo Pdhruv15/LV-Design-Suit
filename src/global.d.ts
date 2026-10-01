@@ -26,6 +26,9 @@ declare global {
         /** Opens a workbook in Excel (or the folder when file is omitted). */
         open: (file?: string) => Promise<string>;
         onChange: (cb: (data: import('./database/database').RawDatabase) => void) => () => void;
+        write: (bookId: string, rows: Record<string, string | number>[]) => Promise<{ file: string }>;
+        readLibrary: () => Promise<Record<string, unknown>>;
+        writeLibrary: (data: Record<string, unknown>) => Promise<boolean>;
       };
       engines: {
         probe: () => Promise<import('./engines/types').EngineProbe | { error: string }>;

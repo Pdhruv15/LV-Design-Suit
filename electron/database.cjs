@@ -36,23 +36,25 @@ async function createWorkbook(file, book, seedRows) {
   // them as used, so rows added afterwards would land below row 2000.
   for (const row of seedRows ?? []) ws.addRow(row);
   book.columns.forEach((c, i) => {
-    if (!c.list) return;
+    if (!c.list && !c.number) return;
     const letter = ws.getColumn(i + 1).letter;
-    for (let r = 2; r <= MAX_ROWS; r++) {
-      ws.getCell(`${letter}${r}`).dataValidation = {
-        type: 'list',
-        allowBlank: true,
-        formulae: [`"${c.list.join(',').replace(/"/g, '""')}"`]
-      };
-    }
+    // Dropdown lists; numbers must be numbers (a typo is stopped by Excel).
+    const rule = c.list
+      ? { type: 'list', allowBlank: true, formulae: [`"${c.list.join(',').replace(/"/g, '""')}"`] }
+      : { type: 'decimal', allowBlank: true, operator: 'greaterThanOrEqual', formulae: [0], showErrorMessage: true, errorTitle: 'Number expected', error: `${c.header}: enter a number (0 or more)` };
+    for (let r = 2; r <= MAX_ROWS; r++) ws.getCell(`${letter}${r}`).dataValidation = rule;
   });
 
-  const about = wb.addWorksheet('About');
-  about.getColumn(1).width = 120;
+  const about = wb.addWorksheet('Read me');
+  about.columns = [{ width: 28 }, { width: 10 }, { width: 90 }];
   about.addRow([`${book.file} — LV Design Studio database`]).font = { bold: true, size: 13 };
   for (const line of book.about) about.addRow([line]);
   about.addRow([]);
-  about.addRow(['Keep the header row as it is; the app finds columns by their header text. Extra columns are ignored.']);
+  const h = about.addRow(['Column', 'Required', 'Meaning / allowed values']);
+  h.font = { bold: true };
+  for (const c of book.columns) about.addRow([c.header, c.required ? 'yes' : '', [c.help, c.list ? `one of: ${c.list.join(', ')}` : c.number ? 'a number' : ''].filter(Boolean).join(' — ')]);
+  about.addRow([]);
+  about.addRow(['Keep the header row as it is; the app finds columns by their header text. Extra columns are ignored. The app makes a backup in Backups/ before it saves this file.']);
 
   // Write to a temp name then rename, so a watcher never reads a half-written file.
   // The name must be unique per call: init can run twice at once (React
@@ -154,4 +156,68 @@ function watchDatabase(projectsFolder, onChange) {
   };
 }
 
-module.exports = { spec, folderFor, ensureDatabase, readDatabase, watchDatabase };
+/** Copies a workbook into Backups/ (kept: the last 20 per file). */
+function backup(folder, fileName) {
+  const src = path.join(folder, fileName);
+  if (!fs.existsSync(src)) return;
+  const dir = path.join(folder, 'Backups');
+  fs.mkdirSync(dir, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
+  fs.copyFileSync(src, path.join(dir, `${fileName.replace(/\.xlsx$/i, '')} ${stamp}.xlsx`));
+  const mine = fs.readdirSync(dir).filter((f) => f.startsWith(fileName.replace(/\.xlsx$/i, '') + ' ')).sort();
+  for (const old of mine.slice(0, Math.max(0, mine.length - 20))) fs.rmSync(path.join(dir, old), { force: true });
+}
+
+/** Writes rows (keyed by column key) into a workbook from the app: backup
+ * first, then only the cell values of the known columns are replaced, so the
+ * header, other columns, dropdowns and the Read me sheet stay as they are. */
+async function writeBook(projectsFolder, bookId, rows) {
+  const book = spec.books.find((b) => b.id === bookId);
+  if (!book) throw new Error(`Unknown workbook ${bookId}`);
+  const folder = folderFor(projectsFolder);
+  const file = path.join(folder, book.file);
+  if (!fs.existsSync(file)) await createWorkbook(file, book, []);
+  backup(folder, book.file);
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.readFile(file);
+  const ws = wb.getWorksheet(book.sheet) ?? wb.worksheets[0];
+  const norm = (x) => String(x).toLowerCase().replace(/[^a-z0-9]/g, '');
+  const colOf = {};
+  ws.getRow(1).eachCell((cell, col) => {
+    const c = book.columns.find((x) => norm(x.header) === norm(cellValue(cell.value)));
+    if (c) colOf[c.key] = col;
+  });
+  // Columns missing from an older file are added at the end.
+  let next = ws.getRow(1).cellCount + 1;
+  for (const c of book.columns) if (!colOf[c.key]) { ws.getRow(1).getCell(next).value = c.header; ws.getColumn(next).width = c.width; colOf[c.key] = next++; }
+  const last = Math.max(ws.rowCount, rows.length + 1);
+  for (let r = 2; r <= last; r++) {
+    const data = rows[r - 2];
+    for (const c of book.columns) {
+      const v = data ? data[c.key] : undefined;
+      ws.getRow(r).getCell(colOf[c.key]).value = v === undefined || v === null || v === '' ? null : c.number && v !== '' && !Number.isNaN(Number(v)) ? Number(v) : v;
+    }
+  }
+  const tmp = `${file}.tmp-${process.pid}-${Date.now()}.xlsx`;
+  await wb.xlsx.writeFile(tmp);
+  fs.renameSync(tmp, file);
+  return { file: book.file };
+}
+
+/** Library.json: libraries that don't fit a table (title blocks, components,
+ * feeder presets, notes), kept beside the workbooks so they sync too. */
+const LIBRARY = 'Library.json';
+function readLibrary(projectsFolder) {
+  try { return JSON.parse(fs.readFileSync(path.join(folderFor(projectsFolder), LIBRARY), 'utf8')); } catch { return {}; }
+}
+function writeLibrary(projectsFolder, data) {
+  const folder = folderFor(projectsFolder);
+  fs.mkdirSync(folder, { recursive: true });
+  const file = path.join(folder, LIBRARY);
+  const tmp = `${file}.tmp-${process.pid}-${Date.now()}`;
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
+  fs.renameSync(tmp, file);
+  return true;
+}
+
+module.exports = { spec, folderFor, ensureDatabase, readDatabase, watchDatabase, writeBook, readLibrary, writeLibrary };
