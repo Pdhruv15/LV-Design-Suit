@@ -1,3 +1,4 @@
+import { pushLibrary } from '../database/librarySync';
 import type { Project } from '../types';
 import { fillParams, paramList } from './params';
 
@@ -170,5 +171,5 @@ export function loadTemplateLibrary(): TitleTemplate[] {
   try { const v = JSON.parse(localStorage.getItem(LIB) ?? '[]'); return Array.isArray(v) ? v : []; } catch { return []; }
 }
 export function saveTemplateLibrary(list: TitleTemplate[]): boolean {
-  try { localStorage.setItem(LIB, JSON.stringify(list)); return true; } catch { return false; }
+  try { localStorage.setItem(LIB, JSON.stringify(list)); void pushLibrary(); return true; } catch { return false; }
 }

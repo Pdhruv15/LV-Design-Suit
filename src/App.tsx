@@ -41,6 +41,7 @@ import { CableScheduleView, DbScheduleView, EquipmentScheduleView, ReportView } 
 import LoadScheduleView from './components/docs/LoadScheduleView';
 import { refreshBoard } from './model/schedule';
 import DatabaseView from './components/docs/DatabaseView';
+import { pullLibrary } from './database/librarySync';
 import { applyDatabase, applyParameters, databaseSeeds, EMPTY_DATABASE, parseDatabase, syncLibrary, type Database, type RawDatabase } from './database/database';
 
 // window.lvds is only present when running inside Electron. Fall back to
@@ -168,7 +169,7 @@ export default function App() {
 
   function initDatabase() {
     if (!hasDatabase) return;
-    window.lvds.database.init(databaseSeeds()).then(receiveDatabase).catch((e) => setStatus(`Database: ${e.message}`));
+    window.lvds.database.init(databaseSeeds()).then(receiveDatabase).then(() => pullLibrary()).catch((e) => setStatus(`Database: ${e.message}`));
   }
 
   useEffect(() => {
@@ -954,6 +955,7 @@ export default function App() {
                   setProject((p) => p.boards.reduce((q, b) => refreshBoard(q, b.id), applyParameters(p, db)));
                   setStatus('Applied Parameters.xlsx to this project');
                 }}
+                onStatus={setStatus}
               />
             )}
             {view === 'engines' && (
