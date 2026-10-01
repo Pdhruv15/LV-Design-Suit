@@ -21,6 +21,9 @@ contextBridge.exposeInMainWorld('lvds', {
     init: (seeds) => ipcRenderer.invoke('database:init', seeds),
     read: () => ipcRenderer.invoke('database:read'),
     open: (file) => ipcRenderer.invoke('database:open', file),
+    write: (bookId, rows) => ipcRenderer.invoke('database:write', bookId, rows),
+    readLibrary: () => ipcRenderer.invoke('database:library:read'),
+    writeLibrary: (data) => ipcRenderer.invoke('database:library:write', data),
     onChange: (cb) => {
       const listener = (_evt, data) => cb(data);
       ipcRenderer.on('database:changed', listener);

@@ -1,4 +1,5 @@
 import { cables, getCable } from './cableTable';
+import { rule } from '../database/catalog';
 import { boardDemandKw, designCurrentA, rOperatingOhmPerKm, runsOf, upstreamVoltageDropPct, type Status } from './electrical';
 import { isScheduleCircuit, scheduleCircuits } from './loadSchedule';
 import { boardsInSupplyOrder, loadTypeOf } from './summary';
@@ -44,7 +45,7 @@ export interface VdRow {
 }
 
 /** Drop allowed while a motor starts (source to motor terminals). */
-export const MOTOR_START_VD_LIMIT_PCT = 10;
+export const motorStartVdLimit = () => rule('motorStartVdLimitPct');
 
 /** Cables that belong in a voltage drop calculation: every feeder except
  * the final circuits on a DB's load schedule (those end at the DB). */

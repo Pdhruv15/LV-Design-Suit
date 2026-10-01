@@ -216,6 +216,9 @@ async function initDatabase(seeds) {
 
 ipcMain.handle('database:init', (_evt, seeds) => initDatabase(seeds));
 ipcMain.handle('database:read', () => database.readDatabase(ensureProjectsFolder()));
+ipcMain.handle('database:write', (_evt, bookId, rows) => database.writeBook(ensureProjectsFolder(), bookId, rows));
+ipcMain.handle('database:library:read', () => database.readLibrary(ensureProjectsFolder()));
+ipcMain.handle('database:library:write', (_evt, data) => database.writeLibrary(ensureProjectsFolder(), data));
 ipcMain.handle('database:open', (_evt, file) => {
   const folder = database.folderFor(ensureProjectsFolder());
   // Only files the spec knows about, or the folder itself.

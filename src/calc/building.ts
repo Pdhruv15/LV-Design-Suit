@@ -1,5 +1,6 @@
 import type { BuildingInfo, BuildingLevel, BuildingRoom, LevelKind, Project, ProjectBuilding, RoomType } from '../types';
 import { boardTotals } from './summary';
+import { catalog } from '../database/catalog';
 import type { SpaceArea, SpacePlan } from '../types';
 
 /** Architectural information as project parameters: GFA and floors from
@@ -39,7 +40,8 @@ export const LEVEL_KINDS: { value: LevelKind; label: string; short: string }[] =
 
 export const emptyBuildingInfo = (): BuildingInfo => ({ buildings: [], rooms: [] });
 export const buildingInfoOf = (p: Project): BuildingInfo => p.building ?? emptyBuildingInfo();
-export const roomTypesOf = (info: BuildingInfo): RoomType[] => info.roomTypes ?? DEFAULT_ROOM_TYPES;
+/** The project's room types, else your library (RoomTypes.xlsx), else the placeholders. */
+export const roomTypesOf = (info: BuildingInfo): RoomType[] => info.roomTypes ?? (catalog().roomTypes.length ? catalog().roomTypes : DEFAULT_ROOM_TYPES);
 
 export const newBuilding = (id: string, name = 'Building'): ProjectBuilding => ({
   id, name, levels: [

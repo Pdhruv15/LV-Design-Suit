@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { BuildingInfo, MeterType, Project, ProjectBuilding, RoomType, UnitType } from '../../types';
 import { METER_TYPES } from '../../types';
 import { roomTypesOf } from '../../calc/building';
+import { catalog } from '../../database/catalog';
 import { addServices, benchOf, defaultServices, floorLoads, generateBuildingDbs, plannedDbs, roomDensities, rulesOf, lpdOf, unitLoads, type ServiceItem } from '../../calc/buildingDesign';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -67,7 +68,9 @@ export function UnitTypesCard({ info, onChange }: { info: BuildingInfo; onChange
     <section className="card bi-units">
       <div className="bi-actions" style={{ marginTop: 0 }}>
         <b>Flats / tenants</b><span className="m">a layout entered once, placed on levels (Levels → Flats). Each flat gets its own DB and meter.</span>
-        <span className="sp" /><button className="chip" onClick={add}>+ Unit type</button>
+        <span className="sp" />
+        {catalog().unitTypes.length > 0 && <button className="chip" title="Add the layouts from UnitTypes.xlsx (database)" onClick={() => set([...units, ...catalog().unitTypes.filter((u) => !units.some((x) => x.id === u.id)).map((u) => ({ ...u, rooms: u.rooms.map((r) => ({ ...r })) }))])}>From library ({catalog().unitTypes.length})</button>}
+        <button className="chip" onClick={add}>+ Unit type</button>
       </div>
       {!units.length && <p className="m">No unit types yet — e.g. Studio, 1BR, 2BR, 3BR, shop.</p>}
       <div className="bi-unit-grid">

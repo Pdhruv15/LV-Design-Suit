@@ -5,6 +5,7 @@ import { DEFAULT_TRANSFORMER_XR, faultCurrentKA, transformerImpedance } from './
 import { STANDARD_BREAKER_A, STANDARD_GENERATOR_KVA, STANDARD_TRANSFORMER_KVA, isEssential, standbyBoards } from './sizing';
 import { GENERATOR_XD_TRANSIENT_PCT, isMotor, MOTOR_START_DIP_LIMIT_PCT, motorStartDipPct, runningKva, startingKva } from './motor';
 import { planPfc, subtree } from './pfc';
+import { transformerFor } from '../database/catalog';
 
 /** Transformer and standby generator sizing, done at board level:
  *  - a transformer per main board (the ones chosen), with duty / standby
@@ -38,7 +39,7 @@ const nextStd = (list: number[], v: number) => list.find((x) => x >= v - 1e-9);
 const sizesOf = (plan: TxGenPlan) => (plan.sizeList === 'dewa' ? DEWA_TRANSFORMER_KVA : STANDARD_TRANSFORMER_KVA);
 
 /** Typical impedance (IEC 60076-5 minimum values). */
-export const typicalImpedancePct = (kva: number) => (kva <= 630 ? 4 : kva <= 1250 ? 5 : 6);
+export const typicalImpedancePct = (kva: number) => transformerFor(kva)?.zPct ?? (kva <= 630 ? 4 : kva <= 1250 ? 5 : 6);
 
 export interface TxChecks {
   kva: number;
