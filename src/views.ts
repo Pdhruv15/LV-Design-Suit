@@ -24,6 +24,6 @@ export const DOCUMENTS: [MainView, string][] = [
   ['boq', 'Bill of quantities (BOQ)'],
   ['study-reports', 'Study reports (submission)'],
   ['report', 'Calculation report (PDF)'],
-  ['drawing-register', 'Drawing register'],
+  ['drawings', 'Drawings (SLD sheets & register)'],
   ['revisions', 'Revisions']
 ];

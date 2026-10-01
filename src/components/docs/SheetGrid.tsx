@@ -11,7 +11,7 @@ const THUMB_W = 230;
 /** The sheets as a grid of thumbnails with a status badge. Drag a card to
  * reorder (automatic numbers follow); click to open the full preview;
  * tick to select for bulk changes. Thumbnails are drawn one at a time. */
-export default function SheetGrid({ project, set, sheets, run, selected, canDrag, onToggle, onMove, onPreview }: {
+export default function SheetGrid({ project, set, sheets, run, selected, canDrag, onToggle, onMove, onPreview, onEdit }: {
   project: Project;
   set: DrawingSet;
   sheets: DrawingSheet[];
@@ -21,6 +21,7 @@ export default function SheetGrid({ project, set, sheets, run, selected, canDrag
   onToggle: (id: string) => void;
   onMove: (from: number, to: number) => void;
   onPreview: (s: DrawingSheet, t: Thumb) => void;
+  onEdit?: (s: DrawingSheet) => void;
 }) {
   const [thumbs, setThumbs] = useState<Record<string, Thumb>>({});
   const [stamp, setStamp] = useState(0); // bump to redraw all
@@ -77,10 +78,11 @@ export default function SheetGrid({ project, set, sheets, run, selected, canDrag
                 <span className="sg-badge" style={{ background: statusColor(status) }}>{status || 'NO STATUS'}</span>
                 {t && <span className="sg-size">{t.size}</span>}
               </div>
-              <label className="sg-meta">
-                <input type="checkbox" checked={selected.has(s.id)} onChange={() => onToggle(s.id)} />
-                <span><b>{s.number}</b>  <span className="m">Rev {sheetRev(s, projectRev) || '—'}</span><br />{s.title}</span>
-              </label>
+              <div className="sg-meta">
+                <input type="checkbox" checked={selected.has(s.id)} onChange={() => onToggle(s.id)} aria-label={`Select ${s.number}`} />
+                <span style={{ flex: 1 }}><b>{s.number}</b>  <span className="m">Rev {sheetRev(s, projectRev) || '—'}</span><br />{s.title}</span>
+                {onEdit && <button className="chip" onClick={() => onEdit(s)}>Edit</button>}
+              </div>
             </div>
           );
         })}
