@@ -7,6 +7,8 @@ import { buildStudyReportHtml, buildStudyWorkbook, pfcSection, scopeOf, setupOf 
 import { workbookBytes } from '../../docs/formWorkbook';
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
 import { NumberSetting, Page } from '../ui';
+import PfcCalculator from './PfcCalculator';
+import { powerTriangleSvg, triangleFrom } from '../../calc/pfcCalc';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const f1 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 1 });
@@ -29,6 +31,8 @@ export default function PfcStudy({ project, onChange, onStatus }: { project: Pro
   const mains = boards.filter((b) => !b.upstreamId);
   const depth = (id: string) => { let d = 0, b = project.boards.find((x) => x.id === id); while (b?.upstreamId && d < 20) { d++; b = project.boards.find((x) => x.id === b!.upstreamId); } return d; };
   const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState<'design' | 'calc'>(() => (project.boards.length ? 'design' : 'calc'));
+  const modeSwitch = <div className="seg">{([['design', 'From the design'], ['calc', 'Calculator (existing installation)']] as const).map(([k, l]) => <button key={k} className={mode === k ? 'on' : ''} onClick={() => setMode(k)}>{l}</button>)}</div>;
 
   const choice = plan.strategy === 'central' ? mains : boards;
   const ticked = (id: string) => (plan.strategy === 'central' && !plan.boards.length) || plan.boards.includes(id);
@@ -63,11 +67,20 @@ export default function PfcStudy({ project, onChange, onStatus }: { project: Pro
     }
   }
 
+  if (mode === 'calc') {
+    return (
+      <Page title="Power factor correction" intro="For an existing installation, no design needed: enter what was measured (kW, kVA or V and A with the PF), the DEWA bill's kWh and kvarh, or a list of loads. The bank, its steps and detuning, the diagrams and the report update as you type." actions={modeSwitch}>
+        <PfcCalculator project={project} onChange={onChange} onStatus={(m) => onStatus?.(m)} />
+      </Page>
+    );
+  }
+
   return (
     <Page
       title="Power factor correction"
       intro="Choose where the capacitor banks go, and only those are sized. Banks are sized from the bottom up — a bank only covers what the banks below it don’t — and capacitors already on the SLD count."
       actions={<>
+        {modeSwitch}
         <NumberSetting label="Target PF" value={target} step={0.01} min={0.8} max={1} onChange={(v) => onChange({ ...project, studySettings: { ...project.studySettings, pfTarget: v } })} />
         <button className="chip" disabled={busy} onClick={() => exportSheet('pdf')}>PDF sheet</button>
         <button className="chip" disabled={busy} onClick={() => exportSheet('xlsx')}>Excel</button>
@@ -149,6 +162,7 @@ export default function PfcStudy({ project, onChange, onStatus }: { project: Pro
               <span>{f0(m.kvaBefore)} → {f0(m.kvaAfter)} kVA{m.releasedKva > 0.5 ? <> · frees <b>{f0(m.releasedKva)} kVA</b></> : null}</span>
               {m.loadingBeforePct !== undefined && <span className="m">Transformer {m.transformerKva} kVA: {f0(m.loadingBeforePct)} % → {f0(m.loadingAfterPct!)} %</span>}
             </div>
+            {m.demandKw > 0 && <div className="pfcc-svg pfc-mini" dangerouslySetInnerHTML={{ __html: powerTriangleSvg(triangleFrom(m.demandKw, m.pfBefore, m.pfAfter, target)) }} />}
           </section>
         ))}
       </div>

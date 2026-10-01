@@ -285,7 +285,8 @@ export interface Project {
   components?: import('./model/components').UserComponent[];
   building?: BuildingInfo; // architectural information: buildings, levels, rooms, room types
   boq?: import('./model/priceList').BoqCustom; // manual BOQ lines, your sections, quantity changes, wastage
-  priceList?: import('./model/priceList').PriceList; // rates used for this project's BOQ (a copy)
+  priceList?: import('./model/priceList').PriceList;
+  pfcCalc?: import('./calc/pfcCalc').PfcCalcInput; // standalone power factor calculator (existing installation) // rates used for this project's BOQ (a copy)
   busRisers?: import('./calc/busbar').BusRiser[]; // busbar trunking risers (high-rise)
   busbarData?: import('./calc/busbar').BusbarData; // manufacturer busway data (typical when absent)
   txGen?: Partial<import('./calc/txGen').TxGenPlan>; // transformer & generator sizing choices
