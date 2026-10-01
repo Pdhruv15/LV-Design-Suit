@@ -3,7 +3,7 @@ import type { Project } from '../../types';
 import { cables } from '../../calc/cableTable';
 import { cableSizeText } from '../../calc/electrical';
 import { boardsInSupplyOrder } from '../../calc/summary';
-import { addVdCable, editVdCable, groupByPanel, MOTOR_START_VD_LIMIT_PCT, suggestCable, vdCandidates, vdFormula, vdPath, vdRow, worstFinalCircuits, type VdEdit, type VdRow } from '../../calc/voltageDrop';
+import { addVdCable, editVdCable, groupByPanel, motorStartVdLimit, suggestCable, vdCandidates, vdFormula, vdPath, vdRow, worstFinalCircuits, type VdEdit, type VdRow } from '../../calc/voltageDrop';
 import { riserVd, type RiserVd } from '../../calc/busbar';
 import { resistanceFactor } from '../../calc/electrical';
 import { buildVdReportHtml, scopeLabel, VD_HEADERS, vdCells } from '../../docs/voltageDropReport';
@@ -61,7 +61,7 @@ export default function VoltageDropStudy({ project, calcProject = project, stale
   // Each DB's worst final circuit (optional): shown under the DB, edited on its load schedule.
   const finals = useMemo(() => (project.vdFinalCircuits ? worstFinalCircuits(calcProject).filter((r) => !scope || r.from.id === scope) : []), [calcProject, project.vdFinalCircuits, scope]);
   const allRows = useMemo(() => [...rows, ...finals], [rows, finals]);
-  const shown = onlyIssues ? allRows.filter((r) => r.status !== 'ok' || (r.startPct ?? 0) > MOTOR_START_VD_LIMIT_PCT) : allRows;
+  const shown = onlyIssues ? allRows.filter((r) => r.status !== 'ok' || (r.startPct ?? 0) > motorStartVdLimit()) : allRows;
   const risers = useMemo(() => (project.busRisers ?? []).filter((r) => !scope || r.sourceBoardId === scope).map((r) => riserVd(calcProject, r)), [calcProject, project.busRisers, scope]);
   const worst = allRows.reduce<VdRow | undefined>((w, r) => (!w || r.totalPct > w.totalPct ? r : w), undefined);
   const focus = allRows.find((r) => r.feeder.id === focusId) ?? worst;
@@ -168,8 +168,8 @@ export default function VoltageDropStudy({ project, calcProject = project, stale
         <VdCard label="Limit" value={`${project.vdLimitPct} %`} sub={`source to load · ${tempC === undefined ? 'R20 × 1.2' : `${tempC} °C`}`} />
         <VdCard label="Results" value={`${allRows.length} cables`} sub={<StatusCounts statuses={allRows.map((r) => r.status)} />} />
         <VdCard label="Longest cable" value={longest ? `${longest.feeder.lengthM} m` : '—'} sub={longest ? `${longest.feeder.id} → ${longest.toName} · ${longest.totalPct.toFixed(2)} %` : ''} onClick={longest ? () => setFocusId(longest.feeder.id) : undefined} />
-        <VdCard label="Motor starting" value={worstStart ? `${worstStart.startPct!.toFixed(1)} %` : '—'} status={worstStart ? (worstStart.startPct! > MOTOR_START_VD_LIMIT_PCT ? 'bad' : 'ok') : undefined}
-          sub={worstStart ? `${worstStart.toName} · limit ${MOTOR_START_VD_LIMIT_PCT} %` : 'No motors selected'} onClick={worstStart ? () => setFocusId(worstStart.feeder.id) : undefined} />
+        <VdCard label="Motor starting" value={worstStart ? `${worstStart.startPct!.toFixed(1)} %` : '—'} status={worstStart ? (worstStart.startPct! > motorStartVdLimit() ? 'bad' : 'ok') : undefined}
+          sub={worstStart ? `${worstStart.toName} · limit ${motorStartVdLimit()} %` : 'No motors selected'} onClick={worstStart ? () => setFocusId(worstStart.feeder.id) : undefined} />
         <VdCard label="Busbar risers" value={worstRiser ? `${worstRiser.exactTopPct.toFixed(2)} %` : '—'} status={worstRiser?.status} sub={worstRiser ? `${worstRiser.riser.name} · top tap-off` : 'None in the project'} />
       </div>
 
@@ -242,7 +242,7 @@ export default function VoltageDropStudy({ project, calcProject = project, stale
                       ) : (
                         <EditCell kind="text" value={r.feeder.name} display={r.toName} title="Equipment name (e.g. AHU-01, isolator) — double-click to edit" onCommit={(v) => edit(r.feeder.id, { name: v || r.feeder.id })} />
                       )}
-                      <td>{r.toType}{r.startPct !== undefined && <div className={`m ${r.startPct > MOTOR_START_VD_LIMIT_PCT ? 'bad' : ''}`} title={`Drop while starting (running drop × starting current), limit ${MOTOR_START_VD_LIMIT_PCT} %`}>start {r.startPct.toFixed(1)} %</div>}</td>
+                      <td>{r.toType}{r.startPct !== undefined && <div className={`m ${r.startPct > motorStartVdLimit() ? 'bad' : ''}`} title={`Drop while starting (running drop × starting current), limit ${motorStartVdLimit()} %`}>start {r.startPct.toFixed(1)} %</div>}</td>
                       {fc ? <td>{r.loadKw.toFixed(1)}</td> : loadCell(r)}
                       {fc ? <td>{r.pf.toFixed(2)}</td> : <EditCell kind="number" min={0.1} max={1} value={r.pf} display={r.pf.toFixed(2)} onCommit={(v) => edit(r.feeder.id, { powerFactor: v })} />}
                       <td>{r.ib.toFixed(1)}</td>
