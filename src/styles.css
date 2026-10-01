@@ -852,6 +852,7 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .vd-riser{margin-top:12px}.vd-riser h4{margin:0 0 6px}
 .vd-riser-sum{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12.5px;margin-bottom:8px}
 .earth-kv{display:grid;grid-template-columns:1fr 1fr;gap:4px 8px;width:100%;font-size:12px}.earth-kv label{display:flex;flex-direction:column}
+.settings-name{display:flex;flex-direction:column;gap:4px;margin-bottom:4px}.settings-body{min-height:300px}
 .feeder-tabs{padding:0;margin:6px 0 10px}
 .feeder-tab-body{min-height:330px}
 .feeder-sum{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--p2)}
