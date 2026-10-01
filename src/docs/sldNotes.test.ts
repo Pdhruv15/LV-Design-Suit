@@ -26,3 +26,19 @@ describe('sheet title block values', () => {
     for (const t of ['E-SLD-002', 'SLD — SMDB-FF', 'FOR APPROVAL', '2 of 3', '2026-10-01', 'AK', 'PG']) expect(html).toContain(t);
   });
 });
+
+describe('sheet furniture scale', async () => {
+  const { furnitureScale } = await import('./sldSheet');
+  const svg = (w: number, h: number) => `<svg viewBox="0 0 ${w} ${h}"></svg>`;
+  it('matches the drawing text: same drawing bigger on A1 than on A3', () => {
+    const d = svg(1400, 700);
+    expect(furnitureScale('A1', d)).toBeGreaterThan(furnitureScale('A3', d));
+  });
+  it('keeps the title block within ≈ 60 % of an A4 sheet', () => {
+    const k = furnitureScale('A4', svg(200, 100));
+    expect(180 * k).toBeLessThanOrEqual((297 - 30) * 0.6 + 0.5);
+  });
+  it('a crowded A1 sheet keeps readable furniture', () => {
+    expect(furnitureScale('A1', svg(6000, 3000))).toBeGreaterThanOrEqual(0.62);
+  });
+});
