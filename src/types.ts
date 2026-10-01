@@ -285,6 +285,7 @@ export interface Project {
   titleTemplates?: import('./model/titleBlock').TitleTemplate[];
   /** The SLD as a set of drawing sheets (Reports → Drawing set). */
   drawingSet?: import('./model/drawingSet').DrawingSet;
+  cableRefs?: import('./model/cableRefs').CableRef[]; // the project's own cable reference numbers (after the standard list)
   /** Your own equipment, with parameters and formulas (palette → My components). */
   components?: import('./model/components').UserComponent[];
   building?: BuildingInfo; // architectural information: buildings, levels, rooms, room types
@@ -595,6 +596,7 @@ export interface DrawingInfo {
   approvedBy?: string;
   sheet?: 'A4' | 'A3' | 'A2' | 'A1';
   symbols?: 'iec' | 'simple'; // IEC 60617 symbols (default) or simple icons
+  cableLabels?: 'auto' | 'ref' | 'full'; // SLD cable text: auto = reference numbers when the sheet is crowded
   legend?: boolean; // symbol legend beside the drawing (default on with IEC symbols)
   logo?: string; // company logo (data: URL) in the title block and on report covers
   titleTemplateId?: string; // a custom title block (else the standard one)

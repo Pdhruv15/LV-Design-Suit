@@ -261,6 +261,13 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
           <h4>Drawing style</h4>
           <div className="ds-tools">
             <label className="row" title="A frame around each panel with its summary box (LOC, TCL, DF, MDL), way numbers and DEWA wording"><input type="checkbox" checked={dewa} onChange={(e) => onChange({ ...project, drawing: { ...d, sldStyle: e.target.checked ? undefined : 'standard' } })} /> Panel frames and summary boxes (DEWA style)</label>
+            <label className="row" title="Cable text on the drawing sheets. Reference numbers keep a large SLD readable: each cable shows its size and a number; the CABLE SCHEDULE on every sheet gives the full description.">Cable text
+              <select className="chip" value={d.cableLabels ?? 'auto'} onChange={(e) => onChange({ ...project, drawing: { ...d, cableLabels: e.target.value === 'auto' ? undefined : e.target.value as 'ref' | 'full' } })}>
+                <option value="auto">Auto — reference numbers when the sheet is crowded</option>
+                <option value="ref">Always reference numbers + cable schedule</option>
+                <option value="full">Always full cable description</option>
+              </select>
+            </label>
             <label className="row"><input type="checkbox" checked={d.abbreviations !== false} onChange={(e) => onChange({ ...project, drawing: { ...d, abbreviations: e.target.checked ? undefined : false } })} /> Abbreviations table</label>
             <label className="row"><input type="checkbox" checked={!!set.register} onChange={(e) => save({ ...set, register: e.target.checked })} /> Drawing register as the first page of the set</label>
           </div>

@@ -4,6 +4,7 @@ import { esc } from './report';
 import { templateOf, templateSize, titleBlockHtml } from '../model/titleBlock';
 import { fillParams } from '../model/params';
 import { abbreviationsIn } from './sldNotes';
+import { FIRE_NOTE } from '../model/cableRefs';
 
 /** The SLD as a drawing sheet: frame, the diagram scaled to fit, and a
  * title block (company, project, owner, consultant, title, drawing no.,
@@ -59,7 +60,9 @@ export function titleBlockOf(project: Project, date = new Date().toISOString().s
 /** Print-ready HTML for one sheet (the PDF export renders it). svg is the
  * diagram as standalone SVG markup. */
 /** One sheet of a set: number, title, position and its own title block values. */
-export interface SheetInfo { no: string; title: string; count: number; index: number; status?: string; rev?: string; date?: string; drawnBy?: string; checkedBy?: string; approvedBy?: string; scale?: string; history?: { id: string; date: string; description: string }[] }
+export interface SheetInfo { no: string; title: string; count: number; index: number; status?: string; rev?: string; date?: string; drawnBy?: string; checkedBy?: string; approvedBy?: string; scale?: string; history?: { id: string; date: string; description: string }[];
+  /** CABLE SCHEDULE legend: reference numbers used on the drawings. */
+  cables?: { ref: number; text: string; fireRated?: boolean }[] }
 
 export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNullable<DrawingInfo['sheet']> = 'A3', one?: SheetInfo): string {
   const { w, h } = SHEET_MM[sheet];
@@ -91,12 +94,15 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
   const mm = (v: number) => `${+(v * k).toFixed(2)}mm`;
   const px = (v: number) => `${+(v * k).toFixed(2)}px`;
   const tbW = custom ? templateSize(custom).w : 180;
+  const cables = one?.cables ?? [];
+  const csW = cables.length ? 92 : 0; // cable schedule column (mm at scale 1)
+  const fire = cables.some((c) => c.fireRated);
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(t.number || t.title)}</title><style>
     @page { size: ${w}mm ${h}mm; margin: 0; }
     * { box-sizing: border-box; }
     html, body { margin: 0; width: ${w}mm; height: ${h}mm; font: ${px(9)} Arial, sans-serif; color: #000; background: #fff; }
     .frame { position: absolute; inset: 10mm 10mm 10mm 20mm; border: 0.7mm solid #000; }
-    .drawing { position: absolute; inset: 3mm 3mm 3mm 3mm; bottom: ${mm(44)}; display: flex; align-items: center; justify-content: center; }
+    .drawing { position: absolute; inset: 3mm 3mm 3mm 3mm; bottom: ${mm(44)}; right: calc(3mm + ${mm(csW)}); display: flex; align-items: center; justify-content: center; }
     .drawing svg { width: 100%; height: 100%; }
     .tb { position: absolute; right: 0; bottom: 0; width: ${mm(180)}; border-top: ${mm(0.5)} solid #000; border-left: ${mm(0.5)} solid #000; border-collapse: collapse; }
     .tb td { border: ${mm(0.25)} solid #000; padding: ${mm(1)} ${mm(1.5)}; vertical-align: top; }
@@ -114,6 +120,11 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
     .abbr { position: absolute; left: 0; bottom: ${mm(44)}; font-size: ${px(7)}; border: ${mm(0.25)} solid #000; border-left: 0; padding: ${mm(1)} ${mm(2)}; background: #fff; column-count: ${abbr.length > 12 ? 2 : 1}; column-gap: ${mm(4)}; }
     .abbr b { display: block; column-span: all; font-size: ${px(8)}; margin-bottom: ${mm(0.5)}; }
     .abbr div { break-inside: avoid; white-space: nowrap; } .abbr span { display: inline-block; min-width: ${mm(9)}; font-weight: 600; }
+    .cs { position: absolute; right: 0; top: 0; width: ${mm(csW)}; max-height: calc(100% - ${mm(47)}); overflow: hidden; border-left: ${mm(0.25)} solid #000; border-bottom: ${mm(0.25)} solid #000; background: #fff; font-size: ${px(7)}; }
+    .cs h5 { margin: 0; padding: ${mm(1)} ${mm(2)}; font-size: ${px(9)}; text-align: center; text-decoration: underline; border-bottom: ${mm(0.25)} solid #000; }
+    .cs table { width: 100%; border-collapse: collapse; } .cs td { border-bottom: ${mm(0.15)} solid #000; padding: ${mm(0.6)} ${mm(1)}; vertical-align: middle; }
+    .cs .n { width: ${mm(8)}; text-align: center; } .cs .n span { display: inline-block; min-width: ${mm(4.6)}; line-height: ${mm(4.2)}; border: ${mm(0.25)} solid #c00; border-radius: 50%; font-weight: 700; }
+    .cs p { margin: 0; padding: ${mm(1)} ${mm(2)}; font-size: ${px(7)}; }
     .gen { position: absolute; left: ${mm(1.5)}; bottom: ${mm(1)}; font-size: ${px(6.5)}; color: #555; }
   </style></head><body>
   <div class="frame">
@@ -130,6 +141,7 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
       <tr><td><span class="k">Drawn</span><span class="v">${esc(t.drawnBy)}</span></td><td><span class="k">Checked</span><span class="v">${esc(t.checkedBy)}</span></td><td><span class="k">Approved</span><span class="v">${esc(t.approvedBy)}</span></td></tr>
       <tr><td colspan="2"><span class="k">Sheet</span><span class="v">${one ? `${one.index} of ${one.count} · ` : ''}${sheet} · Scale ${esc(t.scale)}</span></td><td><span class="k">System</span><span class="v">${project.voltageV} V, 3Ph + N, ${project.frequencyHz} Hz</span></td></tr>
     </table>`}
+    ${cables.length ? `<div class="cs"><h5>CABLE SCHEDULE</h5><table>${cables.map((c) => `<tr><td class="n"><span>${c.ref}</span></td><td>${esc(c.text)}</td></tr>`).join('')}</table>${fire ? `<p><b>NOTE:</b> ${esc(FIRE_NOTE)}</p>` : ''}</div>` : ''}
     ${abbr.length ? `<div class="abbr"><b>ABBREVIATIONS</b>${abbr.map(([a, d]) => `<div><span>${esc(a)}</span>${esc(d)}</div>`).join('')}</div>` : ''}
     ${notes.length ? `<div class="notes" style="bottom:${mm((custom ? templateSize(custom).h : 44) + 3)};width:${mm(tbW)}"><b>NOTES</b><ol>${notes.map((n) => `<li>${esc(fillParams(n, project))}</li>`).join('')}</ol></div>` : ''}
   </div>

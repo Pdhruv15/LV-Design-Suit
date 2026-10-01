@@ -34,6 +34,7 @@ import HelpView from './components/HelpView';
 import ParametersView from './components/docs/ParametersView';
 import TitleBlockDesigner from './components/docs/TitleBlockDesigner';
 import DrawingsView from './components/docs/DrawingsView';
+import { withCableRefs } from './model/cableRefs';
 import ComponentEditor from './components/ComponentEditor';
 import { componentPreset, newComponent, syncComponent, type UserComponent } from './model/components';
 import { CableScheduleView, DbScheduleView, EquipmentScheduleView, ReportView } from './components/docs/Documents';
@@ -99,6 +100,8 @@ export default function App() {
   const history = useHistory<Project>(sampleProject);
   const project = history.value;
   const setProject = history.set;
+  // A cable type new to the project gets the next free reference number (kept).
+  useEffect(() => { history.patch(withCableRefs); }, [project.feeders, project.cableRefs]); // eslint-disable-line react-hooks/exhaustive-deps
   const [currentFile, setCurrentFile] = useState<string | undefined>(undefined);
   const [projectsFolder, setProjectsFolder] = useState<string>('');
   const [projectList, setProjectList] = useState<ProjectMeta[]>([]);
