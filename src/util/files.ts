@@ -50,7 +50,7 @@ export const saveCsv = (baseName: string, headers: string[], rows: unknown[][]) 
 
 /** Renders a self-contained HTML document to PDF. In the desktop app this
  * uses Electron's printToPDF; in a browser it opens the print dialog. */
-export async function savePdf(defaultName: string, html: string, page?: { pageSize?: 'A4' | 'A3' | 'A2' | 'A1'; landscape?: boolean; cssPages?: boolean }): Promise<string | null> {
+export async function savePdf(defaultName: string, html: string, page?: { pageSize?: 'A4' | 'A3' | 'A2' | 'A1'; landscape?: boolean; cssPages?: boolean; bookmarks?: { title: string; page: number }[] }): Promise<string | null> {
   if (!hasBridge()) {
     const w = window.open('', '_blank');
     if (!w) return 'Allow pop-ups to print the report';
@@ -59,6 +59,20 @@ export async function savePdf(defaultName: string, html: string, page?: { pageSi
     w.focus();
     w.print();
     return 'Opened the print dialog';
+  }
+  // Chrome lays the page out; pdf-lib adds page numbers, the document
+  // information and bookmarks, and saves it compactly.
+  const toBytes = window.lvds.files.pdfBytes;
+  if (toBytes) {
+    const { PDFDocument } = await import('pdf-lib');
+    const { finishPdf, htmlTitle } = await import('../docs/pdfTools');
+    const { pageSize, landscape, cssPages, bookmarks } = page ?? {};
+    const doc = await PDFDocument.load(await toBytes({ html, pageSize, landscape, cssPages }));
+    const title = htmlTitle(html) || defaultName.replace(/[.]pdf$/i, '');
+    let author: string | undefined;
+    try { author = JSON.parse(localStorage.getItem('lvds.preferences') ?? '{}').profile?.name || undefined; } catch { /* none */ }
+    const bytes = await finishPdf(doc, { title, author, bookmarks });
+    return saveBinary(defaultName, bytes, 'PDF', 'pdf', 'application/pdf');
   }
   const saved = await window.lvds.files.savePdf({ defaultName, html, ...page });
   return saved ? `Saved ${saved.split(/[\\/]/).pop()}` : null;

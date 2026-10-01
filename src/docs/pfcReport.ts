@@ -34,7 +34,7 @@ export function pfcReportHtml(project: Project, input: PfcCalcInput, r: PfcCalcR
   h1 { font-size: 16px; margin: 0; } h2 { font-size: 12.5px; margin: 14px 0 5px; color: #1d4f8f; border-bottom: 1px solid #1d4f8f; } .m { color: #555; } .logo { max-height: 12mm; max-width: 45mm; }
   table { width: 100%; border-collapse: collapse; } th, td { border: 0.2mm solid #999; padding: 3px 6px; text-align: left; } thead th { background: #1d4f8f; color: #fff; } th.k { background: #eef2f7; width: 30%; }
   .n { text-align: right; } .grid { display: grid; grid-template-columns: 1.7fr 1fr; gap: 10px; align-items: start; } svg { width: 100%; height: auto; color: #111; }
-  .big { font-size: 15px; font-weight: 700; } .warn { color: #a86500; } .keep { break-inside: avoid; } code { font-family: Menlo, monospace; font-size: 10px; }
+  .big { font-size: 15px; font-weight: 700; } .warn { color: #a86500; } .keep { break-inside: avoid; } code { font-family: Menlo, Consolas, monospace; font-size: 10px; }
   </style></head><body>
   <header>${logo}<div><h1>Power factor correction${input.title ? ` — ${esc(input.title)}` : ''}</h1><div class="m">${esc(project.name)} · ${esc(revisionStamp(project))} · ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</div></div></header>
   <p class="big">Capacitor bank ${r.bankKvar ? `${r.bankKvar} kvar = ${r.steps} × ${r.stepKvar} kvar${r.detunedPct ? `, ${r.detunedPct} % detuned` : ''} — PF ${r.pf1.toFixed(2)} → ${r.pf2.toFixed(3)}` : 'not needed'}</p>

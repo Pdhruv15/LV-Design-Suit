@@ -268,7 +268,7 @@ ipcMain.handle('files:pdfBytes', async (_evt, { html, pageSize = 'A4', landscape
     const size = SHEETS[pageSize] ?? pageSize;
     const pdf = cssPages
       ? await pdfWin.webContents.printToPDF({ preferCSSPageSize: true, printBackground: true })
-      : await pdfWin.webContents.printToPDF({ pageSize: size, landscape: SHEETS[pageSize] ? false : landscape, printBackground: true });
+      : await pdfWin.webContents.printToPDF({ pageSize: size, landscape: SHEETS[pageSize] ? false : landscape, printBackground: true, margins: { marginType: pageSize === 'A4' ? 'default' : 'none' } });
     return new Uint8Array(pdf);
   } finally {
     fs.rmSync(tmp, { force: true });

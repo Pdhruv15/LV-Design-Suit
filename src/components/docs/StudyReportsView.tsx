@@ -170,7 +170,8 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
       parts.push(await toBytes({ html: buildStudyReportHtml(calc, scope, sections, meta, slds), cssPages: true }));
       const dbs = scope.boards.filter((b) => scheduleCircuits(calc, b.id).length);
       for (const b of dbs) parts.push(await toBytes({ html: buildLoadScheduleHtml(calc, b.id), cssPages: true }));
-      const bytes = await mergePdfs(parts, `${project.name} · ${setup.docNo ?? title} · ${revisionStamp(project)}`);
+      const titles = ['Project summary', title, ...dbs.map((b) => `Load schedule — ${b.id}`)];
+      const bytes = await mergePdfs(parts, `${project.name} · ${setup.docNo ?? title} · ${revisionStamp(project)}`, titles);
       const m = await saveBinary(`${safeFileName(`${project.name} ${setup.docNo ?? ''} submission`.trim())}.pdf`, bytes, 'PDF', 'pdf', 'application/pdf');
       if (m) onStatus(`${m} — summary, ${sections.length} stud${sections.length > 1 ? 'ies' : 'y'}, ${dbs.length} load schedule${dbs.length === 1 ? '' : 's'}`);
     } catch (e) {
