@@ -1,3 +1,4 @@
+import { pushLibrary } from '../database/librarySync';
 import { cableTypeDef } from './cableTypes';
 import { designCurrentA, selectCable, upstreamVoltageDropPct } from '../calc/electrical';
 import { applyRecommendation, recommend } from '../calc/sizing';
@@ -68,7 +69,7 @@ export function loadUserPresets(): FeederPreset[] {
 }
 export function saveUserPresets(list: FeederPreset[]): boolean {
   try {
-    localStorage.setItem(KEY, JSON.stringify(list.map(({ builtIn: _b, ...p }) => p)));
+    localStorage.setItem(KEY, JSON.stringify(list.map(({ builtIn: _b, ...p }) => p))); void pushLibrary();
     return true;
   } catch {
     return false;

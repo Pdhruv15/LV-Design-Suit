@@ -4,6 +4,7 @@ import { addCircuit, balancePhases, updateCircuit } from '../model/schedule';
 import { applyRecommendation, recommend } from './sizing';
 import { boardTotals } from './summary';
 import { circuitWatts, pointWattsFor, scheduleCircuits } from './loadSchedule';
+import { rule } from '../database/catalog';
 
 /** Building → design: DBs and load schedules generated from the rooms and
  * the flats on each floor, incomer lengths from the riser, common services,
@@ -35,8 +36,9 @@ export const lpdOf = (t?: RoomType): number | undefined => t?.lpdMax ?? (t ? DEF
 export const benchOf = (t?: RoomType): number | undefined => t?.benchWPerM2 ?? (t ? DEFAULT_RULES[t.id]?.benchWPerM2 : undefined) ?? t?.wPerM2;
 
 /** PLACEHOLDER watts per point on generated DBs (edit on the load schedule). */
-export const GEN_POINT_WATTS: Partial<Record<PointType, number>> = { ltg: 40, exfan: 40, s13: 200, wh: 1500, cooker: 3000, sac: 2500 };
-const MAX_PER_CIRCUIT: Partial<Record<PointType, number>> = { ltg: 10, s13: 6 };
+/** Watts per point on generated DBs: Rules.xlsx, else these placeholders. */
+export const genPointWatts = (): Partial<Record<PointType, number>> => ({ ltg: rule('wattsLtg'), exfan: rule('wattsExfan'), s13: rule('wattsS13'), wh: rule('wattsWh'), cooker: rule('wattsCooker'), sac: 2500 });
+const maxPerCircuit = (): Partial<Record<PointType, number>> => ({ ltg: rule('maxLtgPerCircuit'), s13: rule('maxS13PerCircuit') });
 
 /** Every floor of the building, bottom to top, with a short tag (B2, B1, G, L1… R). */
 export interface FloorInstance { level: BuildingLevel; index: number; tag: string; name: string; elevationM: number }
@@ -61,7 +63,7 @@ export function floorsOf(info: BuildingInfo, b: ProjectBuilding): FloorInstance[
   return out;
 }
 
-const meterFor = (kw: number): MeterType => (kw <= 13 ? '1-PH' : kw <= 70 ? '3-PH' : 'CT');
+const meterFor = (kw: number): MeterType => (kw <= rule('meter1PhMaxKw') ? '1-PH' : kw <= rule('meter3PhMaxKw') ? '3-PH' : 'CT');
 
 /** Incomer cable length from the riser: horizontal run at the source, up or
  * down the riser to the floor, and across to the DB. */
@@ -109,7 +111,7 @@ function roomCircuits(r: RoomSpec): Partial<Record<PointType, number>>[] {
   const rule = rulesOf(r.type);
   const out: Partial<Record<PointType, number>>[] = [];
   const split = (t: PointType, n: number, extra?: Partial<Record<PointType, number>>) => {
-    const max = MAX_PER_CIRCUIT[t] ?? 1;
+    const max = maxPerCircuit()[t] ?? 1;
     for (let left = n, first = true; left > 0; left -= max, first = false) out.push({ [t]: Math.min(max, left), ...(first ? extra : {}) });
   };
   const ltg = rule.ltgM2PerPoint ? Math.max(1, Math.ceil(r.areaM2 / rule.ltgM2PerPoint)) : 0;
@@ -137,7 +139,7 @@ export function generateBuildingDbs(project: Project, buildingId: string, source
   for (const spec of plannedDbs(project, buildingId)) {
     const exists = p.boards.find((x) => x.id === spec.id);
     const acKw = Math.max(0, ...spec.rooms.map((r) => rulesOf(r.type).acKwPerUnit ?? 0)) || 2.5;
-    const watts = { ...GEN_POINT_WATTS, sac: acKw * 1000, ...exists?.pointWatts };
+    const watts = { ...genPointWatts(), sac: acKw * 1000, ...exists?.pointWatts };
     const board: Board = { ...(exists ?? { id: spec.id, name: spec.name, kind: 'DB', upstreamId: sourceBoardId }), location: spec.location, pointWatts: watts, generated: `${b.id}:${spec.unit ?? spec.floor.tag}` };
     if (!exists) {
       p = { ...p, boards: [...p.boards, board] };

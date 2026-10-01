@@ -4,7 +4,8 @@ import {
   buildingInfoOf, dbChecks, DEFAULT_ROOM_TYPES, LEVEL_KINDS, loadRoomTypeLibrary, newBuilding, roomLoad, roomsFromTable, roomTypesOf, saveRoomTypeLibrary, summarizeBuilding
 } from '../../calc/building';
 import { Page } from '../ui';
-import { applyRiserLengths, floorLoads, unitLoads } from '../../calc/buildingDesign';
+import { applyRiserLengths, benchOf, floorLoads, lpdOf, rulesOf, unitLoads } from '../../calc/buildingDesign';
+import { catalog } from '../../database/catalog';
 import { buildingSummaryHtml, buildingSummaryWorkbook } from '../../docs/buildingSummary';
 import { workbookBytes } from '../../docs/formWorkbook';
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
@@ -280,8 +281,13 @@ export default function BuildingView({ project, onChange, onStatus }: { project:
             <span className="m">{info.roomTypes ? 'this project’s' : 'placeholder values — replace with yours'}</span>
             <span className="sp" />
             <button className="chip" onClick={() => { const i = types.length + 1; setTypes([...types, { id: `type${i}`, label: `Type ${i}`, wPerM2: 20, demandFactor: 0.8 }]); }}>+ Type</button>
-            <button className="chip" title="Keep these room types on this computer for new projects" onClick={() => onStatus(saveRoomTypeLibrary(types) ? 'Saved as your room type library' : 'Could not store the library on this computer')}>Save as my library</button>
-            <button className="chip" onClick={() => { const lib = loadRoomTypeLibrary(); if (!lib) onStatus('No room type library saved on this computer yet'); else { setTypes(lib); onStatus('Loaded your room type library'); } }}>Use my library</button>
+            <button className="chip" title="Write these room types to RoomTypes.xlsx (database) — new projects start with them" onClick={async () => {
+              if (window.lvds?.database.write) {
+                await window.lvds.database.write('roomTypes', types.map((t) => { const r = rulesOf(t); return { id: t.id, label: t.label, wPerM2: t.wPerM2, demandFactor: t.demandFactor, lux: t.lux ?? '', ltgM2PerPoint: r.ltgM2PerPoint ?? '', s13M2PerPoint: r.s13M2PerPoint ?? '', acM2PerUnit: r.acM2PerUnit ?? '', acKwPerUnit: r.acKwPerUnit ?? '', wh: r.wh ?? '', cooker: r.cooker ?? '', exfan: r.exfan ?? '', lpdMax: lpdOf(t) ?? '', benchWPerM2: benchOf(t) ?? '' }; }));
+                onStatus('Saved to RoomTypes.xlsx (database) — backup in Backups/');
+              } else onStatus(saveRoomTypeLibrary(types) ? 'Saved as your room type library on this computer' : 'Could not store the library');
+            }}>Save as my library</button>
+            <button className="chip" title="Load the room types from RoomTypes.xlsx (database)" onClick={() => { const lib = catalog().roomTypes.length ? catalog().roomTypes : loadRoomTypeLibrary(); if (!lib?.length) onStatus('No room type library yet — Save as my library, or fill RoomTypes.xlsx'); else { setTypes(lib); onStatus(`Loaded ${lib.length} room types from your library`); } }}>Use my library</button>
             {info.roomTypes && <button className="chip" onClick={() => set({ ...info, roomTypes: undefined })}>Placeholders</button>}
           </div>
           <table className="bi-table">

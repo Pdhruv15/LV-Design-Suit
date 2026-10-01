@@ -2,6 +2,14 @@ import spec from '../../electron/databaseSpec.json';
 import { REFERENCE_CABLE_TABLE, setCables, type CableSpec } from '../calc/cableTable';
 import { STANDARD_BREAKER_A, setBreakerLists } from '../calc/sizing';
 import { breakerRateAed, CABLE_RATE_PER_M, setBreakerPrices } from '../data/rates';
+import { EMPTY_CATALOG, RULES, setCatalog, type Catalog, type CatalogBusbar } from './catalog';
+import { DEFAULT_ROOM_TYPES } from '../calc/building';
+import { DEFAULT_RULES } from '../calc/buildingDesign';
+import { TYPICAL_BUSBAR_DATA } from '../calc/busbar';
+import { STANDARD_GENERATOR_KVA, STANDARD_TRANSFORMER_KVA } from '../calc/sizing';
+import { typicalImpedancePct } from '../calc/txGen';
+import type { RoomType, UnitType } from '../types';
+import type { PriceList } from '../model/priceList';
 import { POINT_TYPES, STUDY_DEFAULTS, type Board, type PointType, type Project, type StudySettings } from '../types';
 
 export const DATABASE_FOLDER = spec.folderName;
@@ -64,9 +72,10 @@ export interface Database {
   parameters: Record<string, number>;
   issues: string[]; // human-readable problems, with file and row
   raw?: RawDatabase;
+  catalog: Catalog;
 }
 
-export const EMPTY_DATABASE: Database = { loads: [], cables: [], breakers: [], parameters: {}, issues: [] };
+export const EMPTY_DATABASE: Database = { loads: [], cables: [], breakers: [], parameters: {}, issues: [], catalog: EMPTY_CATALOG };
 
 const num = (v: unknown): number | undefined => {
   if (v === '' || v === null || v === undefined) return undefined;
@@ -154,8 +163,88 @@ export function parseDatabase(raw: RawDatabase): Database {
     parameters[key] = v;
   }
 
-  return { loads, cables, breakers, parameters, issues, raw };
+  return { loads, cables, breakers, parameters, issues, raw, catalog: parseCatalog(raw, bad) };
 }
+
+const pos = (v: unknown) => { const n = num(v); return n !== undefined && !Number.isNaN(n) && n > 0 ? n : undefined; };
+const opt = (v: unknown) => { const n = num(v); return n !== undefined && !Number.isNaN(n) ? n : undefined; };
+
+/** Transformers, generators, busbar, equipment, room / unit types, prices, rules. */
+function parseCatalog(raw: RawDatabase, bad: (file: string, row: unknown, why: string) => void): Catalog {
+  const rowsOf = (id: string) => raw.books[id]?.rows ?? [];
+  const fileOf = (id: string) => raw.books[id]?.file ?? id;
+  const c: Catalog = { transformers: [], generators: [], busbar: [], equipment: [], roomTypes: [], unitTypes: [], priceLists: [], rules: {} };
+  for (const r of rowsOf('transformers')) {
+    const kva = pos(r.kva);
+    if (!kva) { bad(fileOf('transformers'), r._row, 'Rating (kVA) must be a positive number'); continue; }
+    if (c.transformers.some((t) => t.kva === kva)) { bad(fileOf('transformers'), r._row, `duplicate ${kva} kVA`); continue; }
+    c.transformers.push({ kva, zPct: pos(r.zPct), xr: pos(r.xr), vectorGroup: str(r.vectorGroup) || undefined, noLoadW: opt(r.noLoadW), loadLossW: opt(r.loadLossW), dims: str(r.dims) || undefined, weightKg: opt(r.weightKg), price: opt(r.price), manufacturer: str(r.manufacturer) || undefined });
+  }
+  for (const r of rowsOf('generators')) {
+    const kva = pos(r.kva);
+    if (!kva) { bad(fileOf('generators'), r._row, 'Rating (kVA) must be a positive number'); continue; }
+    if (c.generators.some((t) => t.kva === kva)) { bad(fileOf('generators'), r._row, `duplicate ${kva} kVA`); continue; }
+    c.generators.push({ kva, kw: opt(r.kw), xdPct: pos(r.xdPct), fuelLph: opt(r.fuelLph), dims: str(r.dims) || undefined, weightKg: opt(r.weightKg), price: opt(r.price), manufacturer: str(r.manufacturer) || undefined });
+  }
+  for (const r of rowsOf('busbar')) {
+    const m = str(r.material).toLowerCase();
+    const material = m.startsWith('cu') ? 'cu' : m.startsWith('al') ? 'al' : undefined;
+    const ratingA = pos(r.ratingA), R = pos(r.rMohmPerM), X = opt(r.xMohmPerM);
+    if (!material || !ratingA || !R || X === undefined) { bad(fileOf('busbar'), r._row, 'Material (Cu / Al), Rating, R and X are needed'); continue; }
+    const b: CatalogBusbar = { material, ratingA, csaMm2: opt(r.csaMm2) ?? 0, rMohmPerM: R, xMohmPerM: X, icwKa: opt(r.icwKa) ?? 0, widthMm: opt(r.widthMm) ?? 0, heightMm: opt(r.heightMm) ?? 0, kgPerM: opt(r.kgPerM) ?? 0, ratePerM: opt(r.ratePerM), manufacturer: str(r.manufacturer) || undefined };
+    c.busbar.push(b);
+  }
+  for (const r of rowsOf('equipment')) {
+    const description = str(r.description);
+    if (!description) { bad(fileOf('equipment'), r._row, 'no description'); continue; }
+    c.equipment.push({ category: str(r.category) || 'Other', description, rating: str(r.rating) || undefined, unit: str(r.unit) || undefined, price: opt(r.price), install: opt(r.install), boqKey: str(r.boqKey) || undefined, manufacturer: str(r.manufacturer) || undefined });
+  }
+  for (const r of rowsOf('roomTypes')) {
+    const id = str(r.id).replace(/\s+/g, '-').toLowerCase(), label = str(r.label), w = opt(r.wPerM2);
+    if (!id || !label || w === undefined) { bad(fileOf('roomTypes'), r._row, 'Id, Name and Load (W/m²) are needed'); continue; }
+    if (c.roomTypes.some((t) => t.id === id)) { bad(fileOf('roomTypes'), r._row, `duplicate id ${id}`); continue; }
+    const t: RoomType = { id, label, wPerM2: w, demandFactor: pos(r.demandFactor) ?? 0.8, lux: opt(r.lux),
+      rules: { ltgM2PerPoint: pos(r.ltgM2PerPoint), s13M2PerPoint: pos(r.s13M2PerPoint), acM2PerUnit: pos(r.acM2PerUnit), acKwPerUnit: pos(r.acKwPerUnit), wh: opt(r.wh), cooker: opt(r.cooker), exfan: opt(r.exfan) },
+      lpdMax: pos(r.lpdMax), benchWPerM2: pos(r.benchWPerM2) };
+    c.roomTypes.push(t);
+  }
+  const units = new Map<string, UnitType>();
+  for (const r of rowsOf('unitTypes')) {
+    const name = str(r.unitType), room = str(r.room), type = str(r.roomType).toLowerCase(), area = pos(r.areaM2);
+    if (!name || !room || !type || !area) { bad(fileOf('unitTypes'), r._row, 'Unit type, Room, Room type and Area are needed'); continue; }
+    const id = `lib-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+    const u = units.get(id) ?? { id, name, rooms: [] };
+    u.rooms.push({ name: room, type, areaM2: area });
+    const m = str(r.meter);
+    if (m === '1-PH' || m === '3-PH' || m === 'CT') u.meter = m;
+    units.set(id, u);
+  }
+  c.unitTypes = [...units.values()];
+  const lists = new Map<string, PriceList>();
+  for (const r of rowsOf('prices')) {
+    const list = str(r.list), key = str(r.key), rate = opt(r.rate);
+    if (!list || !key || rate === undefined) { bad(fileOf('prices'), r._row, 'List, Key and Supply rate are needed'); continue; }
+    const id = `xl-${list.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+    const l = lists.get(id) ?? { id, name: `${list} (Excel)`, date: str(r.date) || new Date().toISOString().slice(0, 10), currency: str(r.currency) || 'AED', markupPct: 0, rates: {} };
+    const install = opt(r.install);
+    l.rates[key] = { rate, ...(install ? { labour: install } : {}), ...(str(r.description) ? { description: str(r.description) } : {}) };
+    lists.set(id, l);
+  }
+  c.priceLists = [...lists.values()];
+  for (const r of rowsOf('rules')) {
+    const key = str(r.key);
+    if (!RULES.some((x) => x.key === key)) continue;
+    const v = opt(r.value);
+    if (v === undefined) continue;
+    if (v <= 0) { bad(fileOf('rules'), r._row, `${str(r.parameter) || key}: value must be positive`); continue; }
+    c.rules[key] = v;
+  }
+  return c;
+}
+
+// Built-in lists, kept so an emptied workbook goes back to them.
+const BUILT_IN = { tx: [...STANDARD_TRANSFORMER_KVA], gen: [...STANDARD_GENERATOR_KVA], bus: { cu: [...TYPICAL_BUSBAR_DATA.cu], al: [...TYPICAL_BUSBAR_DATA.al] } };
+const replaceAll = <T,>(arr: T[], next: T[]) => { arr.splice(0, arr.length, ...next); };
 
 /** Makes the calculations use the database's cables, breaker ratings and
  * prices (falling back to the built-in values for anything empty). */
@@ -166,6 +255,13 @@ export function applyDatabase(db: Database): void {
     db.breakers.some((b) => b.icuKa) ? db.breakers.filter((b) => b.icuKa).map((b) => b.icuKa!) : null
   );
   setBreakerPrices(db.breakers.filter((b) => b.price !== undefined).map((b) => ({ ratingA: b.ratingA, price: b.price! })));
+  const c = db.catalog ?? EMPTY_CATALOG;
+  setCatalog(c);
+  replaceAll(STANDARD_TRANSFORMER_KVA, c.transformers.length ? c.transformers.map((t) => t.kva).sort((a, b) => a - b) : BUILT_IN.tx);
+  replaceAll(STANDARD_GENERATOR_KVA, c.generators.length ? c.generators.map((g) => g.kva).sort((a, b) => a - b) : BUILT_IN.gen);
+  const bus = (m: 'cu' | 'al') => c.busbar.filter((b) => b.material === m).sort((a, b) => a.ratingA - b.ratingA);
+  replaceAll(TYPICAL_BUSBAR_DATA.cu, bus('cu').length ? bus('cu') : BUILT_IN.bus.cu);
+  replaceAll(TYPICAL_BUSBAR_DATA.al, bus('al').length ? bus('al') : BUILT_IN.bus.al);
 }
 
 /** Rows written into newly created workbooks. Loads start empty (user
@@ -177,7 +273,20 @@ export function databaseSeeds(): Record<string, (string | number)[][]> {
     loads: [],
     cables: REFERENCE_CABLE_TABLE.map((c) => [c.csaMm2, c.rOhmPerKm20C, c.xOhmPerKm, c.ampacityA, CABLE_RATE_PER_M[c.csaMm2] ?? '', 'App reference value — replace with manufacturer data']),
     breakers: STANDARD_BREAKER_A.map((a) => [a, a <= 63 ? 'MCB' : a <= 1600 ? 'MCCB' : 'ACB', '', breakerRateAed(a), '', '']),
-    parameters: PARAMETERS.map((p) => [p.label, '', p.unit, p.key])
+    parameters: PARAMETERS.map((p) => [p.label, '', p.unit, p.key]),
+    transformers: BUILT_IN.tx.map((k) => [k, typicalImpedancePct(k), 5, 'Dyn11', '', '', '', '', '', '', 'Typical — replace with your supplier data']),
+    generators: BUILT_IN.gen.map((k) => [k, Math.round(k * 0.8), 15, '', '', '', '', '', 'Typical — replace with your supplier data']),
+    busbar: (['cu', 'al'] as const).flatMap((m) => BUILT_IN.bus[m].map((b) => [m === 'cu' ? 'Cu' : 'Al', b.ratingA, b.csaMm2, b.rMohmPerM, b.xMohmPerM, b.icwKa, b.widthMm, b.heightMm, b.kgPerM, '', '', 'Typical — replace with your catalogue (e.g. RR)'])),
+    equipment: [
+      ['Capacitor bank', 'Automatic capacitor bank with APFC relay, per kvar', '', 'no', '', '', '', '', 'Example row — set your price'],
+      ['SPD', 'Surge protection device Type 2, 4P', '', 'no', '', '', 'spd:T2', '', ''],
+      ['kWh meter', 'kWh meter, direct 3-phase', '', 'no', '', '', 'kwh:3-PH', '', ''],
+      ['kWh meter', 'kWh meter, CT operated, with CTs and test block', '', 'no', '', '', 'kwh:CT', '', '']
+    ],
+    roomTypes: DEFAULT_ROOM_TYPES.map((t) => { const r = DEFAULT_RULES[t.id] ?? {}; return [t.id, t.label, t.wPerM2, t.demandFactor, t.lux ?? '', r.ltgM2PerPoint ?? '', r.s13M2PerPoint ?? '', r.acM2PerUnit ?? '', r.acKwPerUnit ?? '', r.wh ?? '', r.cooker ?? '', r.exfan ?? '', r.lpdMax ?? '', r.benchWPerM2 ?? '']; }),
+    unitTypes: [['2BR apartment', 'Living / dining', 'living', 35, ''], ['2BR apartment', 'Bedroom 1', 'bedroom', 16, ''], ['2BR apartment', 'Bedroom 2', 'bedroom', 14, ''], ['2BR apartment', 'Kitchen', 'kitchen', 10, ''], ['2BR apartment', 'Bathroom 1', 'bathroom', 5, ''], ['2BR apartment', 'Bathroom 2', 'bathroom', 4, '']],
+    prices: [],
+    rules: RULES.map((r) => [r.label, '', r.unit, r.key])
   };
 }
 

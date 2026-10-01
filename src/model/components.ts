@@ -1,3 +1,4 @@
+import { pushLibrary } from '../database/librarySync';
 import type { Feeder, LoadType, Project, StarterType } from '../types';
 import { evaluate, fillParams } from './params';
 import type { FeederPreset } from './presets';
@@ -90,5 +91,5 @@ export function loadComponentLibrary(): UserComponent[] {
   try { const v = JSON.parse(localStorage.getItem(LIB) ?? '[]'); return Array.isArray(v) ? v : []; } catch { return []; }
 }
 export function saveComponentLibrary(list: UserComponent[]): boolean {
-  try { localStorage.setItem(LIB, JSON.stringify(list)); return true; } catch { return false; }
+  try { localStorage.setItem(LIB, JSON.stringify(list)); void pushLibrary(); return true; } catch { return false; }
 }
