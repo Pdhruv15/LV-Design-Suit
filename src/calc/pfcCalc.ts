@@ -1,4 +1,5 @@
 import { capVoltage } from './pfc';
+import { rule } from '../database/catalog';
 import { breakerRatings } from './sizing';
 
 /** Standalone power factor correction (an existing installation, no design
@@ -110,7 +111,7 @@ export function calcPfc(i: PfcCalcInput): PfcCalcResult {
     return { steps: k, kvar, pf: s > 0 ? (q < 0 ? -p / s : p / s) : 1, kva: s, a: I(s) };
   });
   if (pf1 >= target) warnings.push(`The power factor is already ${pf1.toFixed(3)} — at or above the target ${target}`);
-  if (pf1 < 0.9) warnings.push(`PF ${pf1.toFixed(2)} is below DEWA's 0.90 minimum`);
+  if (pf1 < rule('pfMinimum')) warnings.push(`PF ${pf1.toFixed(2)} is below the authority's ${rule('pfMinimum').toFixed(2)} minimum (Rules.xlsx)`);
   const t = i.transformerKva;
   return {
     p, q1, s1, pf1, phi1Deg: (Math.acos(pf1) * 180) / Math.PI, i1,

@@ -1,6 +1,7 @@
 import type { Project } from '../types';
 import { calcPfc, phasorSvg, powerTriangleSvg, type PfcCalcInput, type PfcCalcResult } from '../calc/pfcCalc';
 import { revisionStamp } from '../model/revisions';
+import { rule } from '../database/catalog';
 import { esc } from './report';
 
 /** Power factor correction report: inputs and method, the power triangle
@@ -52,6 +53,6 @@ export function pfcReportHtml(project: Project, input: PfcCalcInput, r: PfcCalcR
   </tbody></table></div>
   <h2>Other targets</h2><table><thead><tr><th>Target PF</th><th class="n">Required kvar</th><th class="n">Standard bank</th></tr></thead><tbody>${r.compare.map((c) => `<tr><td>${c.pf.toFixed(2)}</td><td class="n">${f(c.kvar)}</td><td class="n">${c.bank}</td></tr>`).join('')}</tbody></table>
   ${r.warnings.length ? `<h2>Notes</h2><ul>${r.warnings.map((w) => `<li class="warn">${esc(w)}</li>`).join('')}</ul>` : ''}
-  <p class="m">DEWA requires a power factor of at least 0.90. Detuning recommendations are indicative — confirm with a harmonic survey where VFDs, UPS or large LED loads are present.</p>
+  <p class="m">Minimum power factor required: ${rule('pfMinimum').toFixed(2)}. Detuning recommendations are indicative — confirm with a harmonic survey where VFDs, UPS or large LED loads are present.</p>
   </body></html>`;
 }
