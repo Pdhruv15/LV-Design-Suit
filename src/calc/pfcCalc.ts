@@ -135,7 +135,7 @@ const arrowDefs = `<defs>${[['b', BEFORE], ['a', AFTER], ['c', CAP], ['k', 'curr
 /** Power triangle, before and after on the same axes, to scale: P along the
  * bottom, Q up, S the hypotenuse; the bank's kvar takes Q1 down to Q2. */
 export function powerTriangleSvg(r: PfcCalcResult): string {
-  const W = 560, H = 340, ox = 70, oy = 290;
+  const W = 560, H = 366, ox = 70, oy = 290;
   const sx = (W - ox - 150) / Math.max(r.p, 1);
   const sy = (oy - 30) / Math.max(r.q1, r.p * 0.2, 1);
   const k = Math.min(sx, sy); // same scale both ways: angles are true
@@ -162,9 +162,28 @@ export function powerTriangleSvg(r: PfcCalcResult): string {
   <line x1="${px + 26}" y1="${Y(r.q1)}" x2="${px + 26}" y2="${Y(r.q2)}" stroke="${CAP}" stroke-width="3" marker-end="url(#ar-c)"/>
   <text x="${px + 34}" y="${(Y(r.q1) + Y(r.q2)) / 2 + 4}" fill="${CAP}" font-weight="700">Qc = ${n0(Math.min(r.bankKvar, r.q1))} kvar</text>
   <text x="${px - 6}" y="${Y(r.q2) - 6}" text-anchor="end" fill="${AFTER}">Q2 = ${n0(r.q2)} kvar</text>
-  ${arc(r.phi2Deg, 58, AFTER)}<text x="${ox + 64}" y="${oy - 4}" fill="${AFTER}" font-size="11">φ2 ${r.phi2Deg.toFixed(1)}° · PF ${r.pf2.toFixed(3)}</text>` : ''}
-  ${arc(r.phi1Deg, 38, BEFORE)}<text x="${ox + 42}" y="${oy - 18 - Math.min(40, r.phi1Deg)}" fill="${BEFORE}" font-size="11">φ1 ${r.phi1Deg.toFixed(1)}° · PF ${r.pf1.toFixed(3)}</text>
+  ${arc(r.phi2Deg, 46, AFTER)}` : ''}
+  ${arc(r.phi1Deg, 34, BEFORE)}
+  ${angleLabels(r, ox, oy, px - ox)}
+  <text x="${ox}" y="${H - 6}" font-size="12"><tspan fill="${BEFORE}" font-weight="700">φ1 = ${r.phi1Deg.toFixed(1)}°</tspan><tspan fill="currentColor"> · PF ${r.pf1.toFixed(3)} (before)</tspan>${r.bankKvar > 0 ? `<tspan fill="currentColor">   </tspan><tspan fill="${AFTER}" font-weight="700">φ2 = ${r.phi2Deg.toFixed(1)}°</tspan><tspan fill="currentColor"> · PF ${r.pf2.toFixed(3)} (after)</tspan>` : ''}</text>
   </svg>`;
+}
+
+/** "φ1" and "φ2" placed where there is room: φ1 halfway between the green
+ * and red lines, φ2 halfway between the P axis and the green line — moved out
+ * until the gap between the lines is at least one text line high. */
+function angleLabels(r: PfcCalcResult, ox: number, oy: number, pLen: number): string {
+  const at = (fromDeg: number, toDeg: number, minR: number, text: string, color: string) => {
+    const span = Math.max(0.5, toDeg - fromDeg);
+    const mid = ((fromDeg + toDeg) / 2) * (Math.PI / 180);
+    // Distance at which the wedge is ~16 px wide, kept inside the triangle.
+    const need = 16 / (2 * Math.sin(((span / 2) * Math.PI) / 180));
+    const rad = Math.min(Math.max(minR, need), pLen * 0.85);
+    const x = ox + rad * Math.cos(mid), y = oy - rad * Math.sin(mid);
+    return `<text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="middle" fill="${color}" font-weight="700" font-size="12">${text}</text>`;
+  };
+  const after = r.bankKvar > 0;
+  return (after ? at(0, r.phi2Deg, 62, 'φ2', AFTER) : '') + at(after ? r.phi2Deg : 0, r.phi1Deg, 50, 'φ1', BEFORE);
 }
 
 /** Current phasors: V as the reference, I lagging by φ — before and after. */
@@ -196,7 +215,7 @@ export function stepsSvg(r: PfcCalcResult): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" font-family="Arial, sans-serif" font-size="11">
   ${[lo, (lo + 1) / 2, 1].map((v) => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="currentColor" stroke-opacity=".15"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end" fill="currentColor" opacity=".7">${v.toFixed(2)}</text>`).join('')}
   <line x1="${L}" x2="${W - R}" y1="${y(r.targetPf)}" y2="${y(r.targetPf)}" stroke="${AFTER}" stroke-dasharray="6 4"/>
-  <text x="${W - R}" y="${y(r.targetPf) - 4}" text-anchor="end" fill="${AFTER}">target ${r.targetPf}</text>
+  <text x="${L + 6}" y="${y(r.targetPf) - 5}" fill="${AFTER}">target ${r.targetPf}</text>
   <path d="${path}" fill="none" stroke="${CAP}" stroke-width="2.5"/>
   ${pts.map((p, i) => `<circle cx="${x(i)}" cy="${y(Math.max(lo, p.pf))}" r="3.5" fill="${p.pf >= r.targetPf ? AFTER : BEFORE}"/><text x="${x(i)}" y="${H - B + 16}" text-anchor="middle" fill="currentColor" opacity=".8">${p.kvar}</text>`).join('')}
   <text x="${(W + L) / 2}" y="${H - 6}" text-anchor="middle" fill="currentColor" opacity=".7">kvar switched in</text>
