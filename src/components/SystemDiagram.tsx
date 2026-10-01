@@ -81,6 +81,9 @@ export default function SystemDiagram({
   layers,
   cableRefs: cableRefsProp,
   hideLegend = false,
+  outlines,
+  clouds,
+  onOutline,
   onEditFeeder,
   onEditBoard,
   onOpenSchedule,
@@ -114,6 +117,11 @@ export default function SystemDiagram({
   cableRefs?: boolean;
   /** Leave the symbol legend out (drawing sheets put it in their legend column). */
   hideLegend?: boolean;
+  /** Sheet outlines on the design canvas: which panels go on which sheet. */
+  outlines?: { id: string; label: string; boards: string[]; color: string }[];
+  /** Revision clouds around panels (drawing sheets). */
+  clouds?: { boards: string[]; rev: string }[];
+  onOutline?: (sheetId: string) => void;
   onEditFeeder?: (id: string) => void;
   onEditBoard?: (id: string) => void;
   /** Opens a DB's load schedule (double-click on the DB's circuit summary). */
@@ -180,6 +188,16 @@ export default function SystemDiagram({
     if (tool !== 'pan' && fn && id) fn(id);
   };
   const layout = useMemo(() => layoutSystem(project, dewa ? DEWA_EXTRA_Y : 0), [project, dewa]);
+  /** Box around these panels: board box, summary box, busbar and outgoing ways. */
+  const boardsBox = (ids: string[], pad: number) => {
+    const ns = layout.boards.filter((n) => ids.includes(n.board.id));
+    if (!ns.length) return null;
+    const x1 = Math.min(...ns.map((n) => (n.terminal ? n.x - 66 : n.busX1 - 12))) - pad;
+    const x2 = Math.max(...ns.map((n) => (n.terminal ? n.x + 135 : Math.max(n.busX2 + 12, n.x + 135)))) + pad;
+    const y1 = Math.min(...ns.map((n) => n.busY - (dewa ? 165 : 70))) - pad;
+    const y2 = Math.max(...ns.map((n) => n.busY + (n.terminal ? 10 : 120))) + pad;
+    return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+  };
   // Way numbers along each busbar (DEWA style).
   const wayNo = useMemo(() => { const m = new Map<string, number>(), c = new Map<string, number>(); for (const n of [...layout.feeders].sort((a, b) => a.x - b.x)) { const k = (c.get(n.feeder.boardId) ?? 0) + 1; c.set(n.feeder.boardId, k); m.set(n.feeder.id, k); } return m; }, [layout]);
   const byFeeder = useMemo(() => new Map(results.map((r) => [r.feeder.id, r])), [results]);
@@ -976,6 +994,28 @@ export default function SystemDiagram({
             ))}
           </g>
         )}
+        {(outlines ?? []).map((o, i) => {
+          const r = boardsBox(o.boards, 8 + (i % 3) * 6);
+          if (!r) return null;
+          return (
+            <g key={o.id} className="sheet-outline" onClick={(e) => { if (!onOutline) return; e.stopPropagation(); onOutline(o.id); }}>
+              <title>{`${o.label} — click to open the sheet`}</title>
+              <rect x={r.x} y={r.y} width={r.w} height={r.h} rx="10" style={{ stroke: o.color }} />
+              <text x={r.x + 8} y={r.y + 16} style={{ fill: o.color }}>{o.label}</text>
+            </g>
+          );
+        })}
+        {(clouds ?? []).map((c, i) => {
+          const r = boardsBox(c.boards, 12);
+          if (!r) return null;
+          return (
+            <g key={i} className="rev-cloud">
+              <path d={cloudPath(r.x, r.y, r.w, r.h)} />
+              <path d={`M${r.x + r.w - 6} ${r.y - 4} l12 -20 l12 20 z`} className="rev-tri" />
+              <text x={r.x + r.w + 6} y={r.y - 9} textAnchor="middle" className="b">{c.rev}</text>
+            </g>
+          );
+        })}
         {insertAt && hover === `bus:${insertAt.boardId}` && (() => {
           const n = layout.boards.find((b) => b.board.id === insertAt.boardId);
           if (!n) return null;
@@ -1076,4 +1116,17 @@ export function LegendSvg({ project }: { project: Project }) {
       </svg>
     </div>
   );
+}
+
+/** A revision cloud: arcs along a rectangle. */
+function cloudPath(x: number, y: number, w: number, h: number): string {
+  const step = 18;
+  const nx = Math.max(2, Math.round(w / step)), ny = Math.max(2, Math.round(h / step));
+  const sx = w / nx, sy = h / ny;
+  let d = `M${x} ${y}`;
+  for (let i = 0; i < nx; i++) d += ` a${sx / 2} ${sx / 2} 0 0 1 ${sx} 0`;
+  for (let i = 0; i < ny; i++) d += ` a${sy / 2} ${sy / 2} 0 0 1 0 ${sy}`;
+  for (let i = 0; i < nx; i++) d += ` a${sx / 2} ${sx / 2} 0 0 1 ${-sx} 0`;
+  for (let i = 0; i < ny; i++) d += ` a${sy / 2} ${sy / 2} 0 0 1 0 ${-sy}`;
+  return `${d} z`;
 }

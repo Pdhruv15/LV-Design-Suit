@@ -35,6 +35,8 @@ import ParametersView from './components/docs/ParametersView';
 import TitleBlockDesigner from './components/docs/TitleBlockDesigner';
 import DrawingsView from './components/docs/DrawingsView';
 import { withCableRefs } from './model/cableRefs';
+import { SheetTabs, SheetWorkspace, sheetOutlines } from './components/sld/SheetWorkspace';
+import { setOf } from './model/drawingSet';
 import ComponentEditor from './components/ComponentEditor';
 import { componentPreset, newComponent, syncComponent, type UserComponent } from './model/components';
 import { CableScheduleView, DbScheduleView, EquipmentScheduleView, ReportView } from './components/docs/Documents';
@@ -100,6 +102,9 @@ export default function App() {
   const history = useHistory<Project>(sampleProject);
   const project = history.value;
   const setProject = history.set;
+  // SLD tabs: null = Design (the working canvas), else a drawing sheet.
+  const [sheetTab, setSheetTab] = useState<string | null>(null);
+  const [sheetOutlinesOn, setSheetOutlinesOn] = useState(false);
   // A cable type new to the project gets the next free reference number (kept).
   useEffect(() => { history.patch(withCableRefs); }, [project.feeders, project.cableRefs]); // eslint-disable-line react-hooks/exhaustive-deps
   const [currentFile, setCurrentFile] = useState<string | undefined>(undefined);
@@ -878,6 +883,8 @@ export default function App() {
                     components={componentPresets}
                     onEditComponent={(id) => setEditComponent(id ? project.components?.find((c) => c.id === id) ?? null : newComponent(`c${Date.now().toString(36)}`))}
                     onDeleteComponent={(id) => setProject((p) => ({ ...p, components: (p.components ?? []).filter((c) => c.id !== id), feeders: p.feeders.map((f) => (f.componentId === id ? { ...f, componentId: undefined, componentValues: undefined } : f)) }), { step: true })} />
+                  {(() => {
+                    const diagram = (
                   <SystemDiagram
                     project={project}
                     calcProject={calcProject}
@@ -899,6 +906,8 @@ export default function App() {
                     resizable
                     fullScreen={sldFull}
                     onToggleFullScreen={() => setSldFull((v) => !v)}
+                    outlines={sheetOutlinesOn ? sheetOutlines(project) : undefined}
+                    onOutline={setSheetTab}
                     onDrawing={(d) => setProject((p) => ({ ...p, drawing: { ...p.drawing, ...d } }))}
                     onRemoveTie={(id) => {
                       if (!window.confirm(`Remove bus coupler ${id}?`)) return;
@@ -913,6 +922,13 @@ export default function App() {
                       setStatus(`${id}: cable ${patch.parallel ? `${patch.parallel} × ` : ''}${patch.cores}C × ${patch.cableCsaMm2} mm², ${patch.lengthM} m`);
                     }}
                   />
+                    );
+                    return sheetTab && setOf(project).sheets.some((x) => x.id === sheetTab)
+                      ? <SheetWorkspace project={project} run={run} sheetId={sheetTab} design={diagram} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onActive={setSheetTab} />
+                      : diagram;
+                  })()}
+                  <SheetTabs project={project} run={run} active={sheetTab} selectedBoardId={panel === 'board' ? board.id : null} outlinesOn={sheetOutlinesOn}
+                    onActive={setSheetTab} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onToggleOutlines={() => setSheetOutlinesOn((v) => !v)} />
                   </div>
                 ) : (
                   <SingleLineDiagram board={board} voltageV={project.voltageV} results={boardResults} selected={selected} onSelect={selectFeeder} />

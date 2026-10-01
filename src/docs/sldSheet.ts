@@ -64,7 +64,9 @@ export interface SheetInfo { no: string; title: string; count: number; index: nu
   /** CABLE SCHEDULE legend: reference numbers used on the drawings. */
   cables?: { ref: number; text: string; fireRated?: boolean }[];
   /** Symbol legend as SVG: goes in the legend column with the cable schedule and abbreviations. */
-  legendSvg?: string }
+  legendSvg?: string;
+  /** Notes on this sheet only (after the project's SLD notes). */
+  notes?: string[] }
 
 export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNullable<DrawingInfo['sheet']> = 'A3', one?: SheetInfo): string {
   const { w, h } = SHEET_MM[sheet];
@@ -85,7 +87,7 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
       ...(one.rev ? { Rev: one.rev } : {}), ...(one.date ? { RevDate: one.date } : {}), ...(one.drawnBy ? { DrawnBy: one.drawnBy } : {}), ...(one.checkedBy ? { CheckedBy: one.checkedBy } : {}), ...(one.approvedBy ? { ApprovedBy: one.approvedBy } : {}) }
     : { SheetNo: t.number, SheetTitle: t.title, SheetCount: '1', SheetIndex: '1', SheetSize: sheet, Status: '', Scale: t.scale };
   const custom = templateOf(project);
-  const notes = project.drawing?.notes ?? [];
+  const notes = [...(project.drawing?.notes ?? []), ...(one?.notes ?? [])];
   const abbr = project.drawing?.abbreviations === false ? [] : abbreviationsIn(svg);
   const history = t.history.length
     ? t.history.map((r) => `<tr><td>${esc(r.id)}</td><td>${esc(r.date)}</td><td>${esc(r.description)}</td></tr>`).join('')

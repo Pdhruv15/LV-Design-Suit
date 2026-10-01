@@ -4,7 +4,7 @@ import type { CalcRun } from '../../calc/runs';
 import { LAYER_LABELS, SHEET_LAYERS } from '../../diagram/annotations';
 import { boardsInSupplyOrder } from '../../calc/summary';
 import {
-  autoSheets, filterSheets, issueSheets, moveSheet, nextRev, registerHtml, renumber, setOf, SHEET_STATUSES, sheetNumber, sheetRev, sheetsByCount, SIZES, statusColor, transmittalHtml,
+  autoSheets, filterSheets, sheetHash, issueSheets, moveSheet, nextRev, registerHtml, renumber, setOf, SHEET_STATUSES, sheetNumber, sheetRev, sheetsByCount, SIZES, statusColor, transmittalHtml,
   type DrawingIssue, type DrawingSet, type DrawingSheet, type IssueInput, type SheetFilter, type SheetSize, type SheetSort
 } from '../../model/drawingSet';
 import { currentRevision } from '../../model/revisions';
@@ -381,7 +381,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
       )}
 
       {issuing && <IssueDialog sheets={targets} projectRev={rev?.id} onClose={() => setIssuing(false)} onIssue={async (o, pdf) => {
-        const r = issueSheets(set, targets.map((s) => s.id), o, rev?.id);
+        const r = issueSheets(set, targets.map((s) => s.id), o, rev?.id, (s) => sheetHash(project, set, s));
         save(r.set);
         setIssuing(false);
         setSelected(new Set());
@@ -483,7 +483,7 @@ function SheetPanel({ sheet: s, set, project, boards, rev, onPatch, onClose, onR
 
 /** Issue the chosen sheets: date, purpose (becomes their status), what
  * changed, to whom; optionally move each to its next revision. */
-function IssueDialog({ sheets, projectRev, onClose, onIssue }: { sheets: DrawingSheet[]; projectRev?: string; onClose: () => void; onIssue: (o: IssueInput, pdf: boolean) => void }) {
+export function IssueDialog({ sheets, projectRev, onClose, onIssue }: { sheets: DrawingSheet[]; projectRev?: string; onClose: () => void; onIssue: (o: IssueInput, pdf: boolean) => void }) {
   const [o, setO] = useState<IssueInput>({ date: new Date().toISOString().slice(0, 10), purpose: 'FOR APPROVAL', description: '', to: '', bump: sheets.some((s) => s.history?.length || s.rev) });
   const [pdf, setPdf] = useState(true);
   const after = (s: DrawingSheet) => { const cur = sheetRev(s, projectRev); return o.bump && (s.history?.length || s.rev) ? nextRev(cur) : (cur || 'A'); };
