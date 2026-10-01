@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { componentLabel } from '../model/components';
 import type { DrawingInfo, Project } from '../types';
 import { cableTypeOf, CABLE_TYPE_DEFS, labelCode, needsFireRated } from '../model/cableTypes';
+import { cableRefOf } from '../model/cableRefs';
 import { LEGEND_ROW, LEGEND_W, legendEntries, LoadSym, polesText, SwitchSym, switchKindOf } from '../diagram/IecSymbols';
 import type { FeederResult, Status } from '../calc/electrical';
 import { boardSummary, loadTypeOf } from '../calc/summary';
@@ -78,6 +79,7 @@ export default function SystemDiagram({
   tool = 'select',
   annotations,
   layers,
+  cableRefs = false,
   onEditFeeder,
   onEditBoard,
   onOpenSchedule,
@@ -107,6 +109,8 @@ export default function SystemDiagram({
   tool?: 'select' | 'pan';
   annotations?: Annotations;
   layers?: ResultLayers;
+  /** Cable text as a reference number (legend: CABLE SCHEDULE) and the size only. */
+  cableRefs?: boolean;
   onEditFeeder?: (id: string) => void;
   onEditBoard?: (id: string) => void;
   /** Opens a DB's load schedule (double-click on the DB's circuit summary). */
@@ -657,11 +661,17 @@ export default function SystemDiagram({
                 }}
               >
                 {onPatchFeeder && <title>Click to change the cable</title>}
-                {dewa ? `${runsOf(f) > 1 ? `${runsOf(f)}×` : ''}${f.cores}C ${f.cableCsaMm2}mm² CU/${cableTypeOf(project, f).code}`
+                {cableRefs ? `${runsOf(f) > 1 ? `${runsOf(f)}×` : ''}${f.cores}C ${f.cableCsaMm2}mm²${cableTypeOf(project, f).fireRated ? ' *' : ''}` : dewa ? `${runsOf(f) > 1 ? `${runsOf(f)}×` : ''}${f.cores}C ${f.cableCsaMm2}mm² CU/${cableTypeOf(project, f).code}`
                   : <>{runsOf(f) > 1 ? `${runsOf(f)}×` : ''}{f.cores}C × {f.cableCsaMm2}mm²{(() => { const c = labelCode(project, f); return c ? ` ${c}` : ''; })()} · {f.lengthM}m</>}
                 {needsFireRated(project, f) && !cableTypeOf(project, f).fireRated && <tspan className="res warn"> ⚠ FR</tspan>}
               </text>
-              {dewa && <text className="acc-t" style={{ fontSize: 9 }} x={n.x + 7} y={y + 67}>{cableTypeOf(project, f).armoured ? `+1C ${cpcOf(f)}mm² ECC · ` : ''}{f.lengthM}m</text>}
+              {cableRefs && (() => { const r = cableRefOf(project, f); return (
+                <g className="cable-ref"><title>{`Cable ${r.ref}: ${r.text}`}</title>
+                  <circle cx={n.x + 15} cy={y + (dewa ? 70 : 65)} r="7.5" className="cable-ref-c" />
+                  <text x={n.x + 15} y={y + (dewa ? 73 : 68)} textAnchor="middle" className="cable-ref-t">{r.ref}</text>
+                  <text x={n.x + 26} y={y + (dewa ? 73 : 68)} className="acc-t" style={{ fontSize: 8 }}>{f.lengthM}m</text>
+                </g>); })()}
+              {dewa && !cableRefs && <text className="acc-t" style={{ fontSize: 9 }} x={n.x + 7} y={y + 67}>{cableTypeOf(project, f).armoured ? `+1C ${cpcOf(f)}mm² ECC · ` : ''}{f.lengthM}m</text>}
               {/* Accessories on the feeder, top to bottom: earth leakage (its
                   rating goes with the breaker's), metering on the right below
                   the cable text, local isolator just above the load. */}

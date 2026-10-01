@@ -794,6 +794,71 @@
           "width": 26
         }
       ]
+    },
+    {
+      "id": "cableSchedule",
+      "file": "CableSchedule.xlsx",
+      "sheet": "Cable schedule",
+      "about": [
+        "Cable reference numbers used on the SLD (CABLE SCHEDULE legend) and the cable schedule.",
+        "Each row is one cable build-up. Keep a number once used on drawings; add new cables with the next free number.",
+        "Cores: 4C, 3C, 2C, 1C, or runs x cores such as 2x1C or 4x1C. Construction: e.g. XLPE/SWA/PVC, XLPE/PVC, XLPE/SWA/LSZH. ECC blank = no separate earth cable.",
+        "Description blank = written by the app. Fire-rated cables use the same number and are marked * on the SLD."
+      ],
+      "columns": [
+        {
+          "key": "ref",
+          "header": "Ref no.",
+          "width": 8,
+          "required": true,
+          "number": true
+        },
+        {
+          "key": "cores",
+          "header": "Cores",
+          "width": 8,
+          "required": true,
+          "help": "4C, 3C, 2C, 1C, 2x1C, 4x1C …"
+        },
+        {
+          "key": "size",
+          "header": "Size (mm²)",
+          "width": 10,
+          "required": true,
+          "number": true
+        },
+        {
+          "key": "construction",
+          "header": "Construction",
+          "width": 18,
+          "list": [
+            "XLPE/SWA/PVC",
+            "XLPE/PVC",
+            "XLPE/SWA/LSZH",
+            "XLPE/LSF/SWA",
+            "XLPE 1C",
+            "PVC/PVC",
+            "MICC",
+            "H1Z2Z2-K"
+          ]
+        },
+        {
+          "key": "ecc",
+          "header": "ECC (mm²)",
+          "width": 10,
+          "number": true
+        },
+        {
+          "key": "description",
+          "header": "Description (blank = automatic)",
+          "width": 60
+        },
+        {
+          "key": "note",
+          "header": "Note",
+          "width": 24
+        }
+      ]
     }
   ]
 }

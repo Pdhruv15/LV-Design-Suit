@@ -46,6 +46,9 @@ export function useHistory<T>(initial: T) {
     value: h.present,
     set,
     load: useCallback((v: T) => setH(reset(v)), []),
+    /** Updates the current value in place (no undo step): bookkeeping the
+     * app adds by itself, e.g. new cable reference numbers. */
+    patch: useCallback((f: (prev: T) => T) => setH((cur) => { const v = f(cur.present); return v === cur.present ? cur : { ...cur, present: v }; }), []),
     undo: useCallback(() => setH(undo), []),
     redo: useCallback(() => setH(redo), []),
     canUndo: h.past.length > 0,

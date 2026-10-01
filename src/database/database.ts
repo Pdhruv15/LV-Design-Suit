@@ -2,6 +2,7 @@ import spec from '../../electron/databaseSpec.json';
 import { REFERENCE_CABLE_TABLE, setCables, type CableSpec } from '../calc/cableTable';
 import { STANDARD_BREAKER_A, setBreakerLists } from '../calc/sizing';
 import { breakerRateAed, CABLE_RATE_PER_M, setBreakerPrices } from '../data/rates';
+import { BUILT_IN_CABLES, cableBuildText, cableKey } from '../model/cableRefs';
 import { EMPTY_CATALOG, RULES, setCatalog, type Catalog, type CatalogBusbar } from './catalog';
 import { DEFAULT_ROOM_TYPES } from '../calc/building';
 import { DEFAULT_RULES } from '../calc/buildingDesign';
@@ -173,7 +174,7 @@ const opt = (v: unknown) => { const n = num(v); return n !== undefined && !Numbe
 function parseCatalog(raw: RawDatabase, bad: (file: string, row: unknown, why: string) => void): Catalog {
   const rowsOf = (id: string) => raw.books[id]?.rows ?? [];
   const fileOf = (id: string) => raw.books[id]?.file ?? id;
-  const c: Catalog = { transformers: [], generators: [], busbar: [], equipment: [], roomTypes: [], unitTypes: [], priceLists: [], rules: {} };
+  const c: Catalog = { transformers: [], generators: [], busbar: [], equipment: [], roomTypes: [], unitTypes: [], priceLists: [], rules: {}, cableRefs: [] };
   for (const r of rowsOf('transformers')) {
     const kva = pos(r.kva);
     if (!kva) { bad(fileOf('transformers'), r._row, 'Rating (kVA) must be a positive number'); continue; }
@@ -239,6 +240,16 @@ function parseCatalog(raw: RawDatabase, bad: (file: string, row: unknown, why: s
     if (v <= 0) { bad(fileOf('rules'), r._row, `${str(r.parameter) || key}: value must be positive`); continue; }
     c.rules[key] = v;
   }
+  for (const r of rowsOf('cableSchedule')) {
+    const ref = pos(r.ref), csa = pos(r.size);
+    const m = str(r.cores).replace(/\s/g, '').match(/^(?:(\d+)[x×])?(\d+)C$/i);
+    if (!ref || !csa || !m) { bad(fileOf('cableSchedule'), r._row, 'Ref no., Cores (e.g. 4C, 2x1C) and Size are needed'); continue; }
+    if (c.cableRefs.some((x) => x.ref === ref)) { bad(fileOf('cableSchedule'), r._row, `duplicate Ref no. ${ref}`); continue; }
+    const build = { runs: Number(m[1] ?? 1), cores: Number(m[2]), csa, type: str(r.construction) || 'XLPE/SWA/PVC', ecc: pos(r.ecc) };
+    const key = cableKey(build);
+    if (c.cableRefs.some((x) => x.key === key)) { bad(fileOf('cableSchedule'), r._row, `same cable as Ref no. ${c.cableRefs.find((x) => x.key === key)!.ref}`); continue; }
+    c.cableRefs.push({ ref, key, text: str(r.description) || cableBuildText(build), standard: true });
+  }
   return c;
 }
 
@@ -286,7 +297,8 @@ export function databaseSeeds(): Record<string, (string | number)[][]> {
     roomTypes: DEFAULT_ROOM_TYPES.map((t) => { const r = DEFAULT_RULES[t.id] ?? {}; return [t.id, t.label, t.wPerM2, t.demandFactor, t.lux ?? '', r.ltgM2PerPoint ?? '', r.s13M2PerPoint ?? '', r.acM2PerUnit ?? '', r.acKwPerUnit ?? '', r.wh ?? '', r.cooker ?? '', r.exfan ?? '', r.lpdMax ?? '', r.benchWPerM2 ?? '']; }),
     unitTypes: [['2BR apartment', 'Living / dining', 'living', 35, ''], ['2BR apartment', 'Bedroom 1', 'bedroom', 16, ''], ['2BR apartment', 'Bedroom 2', 'bedroom', 14, ''], ['2BR apartment', 'Kitchen', 'kitchen', 10, ''], ['2BR apartment', 'Bathroom 1', 'bathroom', 5, ''], ['2BR apartment', 'Bathroom 2', 'bathroom', 4, '']],
     prices: [],
-    rules: RULES.map((r) => [r.label, '', r.unit, r.key])
+    rules: RULES.map((r) => [r.label, '', r.unit, r.key]),
+    cableSchedule: BUILT_IN_CABLES.map((c) => [c.ref, `${c.build.runs > 1 ? `${c.build.runs}x` : ''}${c.build.cores}C`, c.build.csa, c.build.type, c.build.ecc ?? '', '', c.note ?? ''])
   };
 }
 
