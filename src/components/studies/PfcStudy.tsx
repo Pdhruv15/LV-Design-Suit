@@ -32,7 +32,7 @@ export default function PfcStudy({ project, onChange, onStatus }: { project: Pro
   const depth = (id: string) => { let d = 0, b = project.boards.find((x) => x.id === id); while (b?.upstreamId && d < 20) { d++; b = project.boards.find((x) => x.id === b!.upstreamId); } return d; };
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<'design' | 'calc'>(() => (project.boards.length ? 'design' : 'calc'));
-  const modeSwitch = <div className="seg">{([['design', 'From the design'], ['calc', 'Calculator (existing installation)']] as const).map(([k, l]) => <button key={k} className={mode === k ? 'on' : ''} onClick={() => setMode(k)}>{l}</button>)}</div>;
+  const modeSwitch = <div className="seg">{([['design', 'From the design'], ['calc', 'Custom calculation']] as const).map(([k, l]) => <button key={k} className={mode === k ? 'on' : ''} onClick={() => setMode(k)}>{l}</button>)}</div>;
 
   const choice = plan.strategy === 'central' ? mains : boards;
   const ticked = (id: string) => (plan.strategy === 'central' && !plan.boards.length) || plan.boards.includes(id);
@@ -69,7 +69,7 @@ export default function PfcStudy({ project, onChange, onStatus }: { project: Pro
 
   if (mode === 'calc') {
     return (
-      <Page title="Power factor correction" intro="For an existing installation, no design needed: enter what was measured (kW, kVA or V and A with the PF), the DEWA bill's kWh and kvarh, or a list of loads. The bank, its steps and detuning, the diagrams and the report update as you type." actions={modeSwitch}>
+      <Page title="Power factor correction" intro="A custom calculation, no design needed — e.g. an existing installation: enter what was measured (kW, kVA or V and A with the PF), the DEWA bill's kWh and kvarh, or a list of loads. The bank, its steps and detuning, the diagrams and the report update as you type." actions={modeSwitch}>
         <PfcCalculator project={project} onChange={onChange} onStatus={(m) => onStatus?.(m)} />
       </Page>
     );

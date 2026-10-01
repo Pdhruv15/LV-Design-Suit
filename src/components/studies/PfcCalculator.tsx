@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { Project } from '../../types';
-import { calcPfc, PFC_CALC_DEFAULT, phasorSvg, powerTriangleSvg, stepsSvg, type PfcCalcInput, type PfcInputMode } from '../../calc/pfcCalc';
+import { calcPfc, PFC_CALC_DEFAULT, phasorSvg, powerTriangleSvg, type PfcCalcInput, type PfcInputMode } from '../../calc/pfcCalc';
 import { capacitorFeeder } from '../../calc/pfc';
 import { pfcReportHtml } from '../../docs/pfcReport';
 import { safeFileName, savePdf } from '../../util/files';
@@ -41,8 +41,8 @@ export default function PfcCalculator({ project, onChange, onStatus }: { project
   return (
     <div className="pfcc">
       <section className="card pfcc-inputs">
-        <h4>Existing installation</h4>
-        <label>Name / location<input value={input.title ?? ''} placeholder="e.g. MDB-1, Warehouse 3" onChange={(e) => set({ title: e.target.value || undefined })} /></label>
+        <h4>Custom calculation</h4>
+        <label>Name / location<input className="bi-text" value={input.title ?? ''} placeholder="e.g. MDB-1, Warehouse 3" onChange={(e) => set({ title: e.target.value || undefined })} /></label>
         <div className="seg pfcc-modes">{MODES.map(([m, l]) => <button key={m} className={input.mode === m ? 'on' : ''} onClick={() => set({ mode: m })}>{l}</button>)}</div>
         <div className="form-kv">
           {input.mode === 'kw-pf' && <><Num label="Active power" unit="kW" value={input.kw} onSet={(v) => set({ kw: v })} /><Num label="Power factor now" value={input.pf} onSet={(v) => set({ pf: v })} /></>}
@@ -90,7 +90,6 @@ export default function PfcCalculator({ project, onChange, onStatus }: { project
           <section className="card"><h4>Power triangle <span className="m">— before (red), after (green), to scale</span></h4><div className="pfcc-svg" dangerouslySetInnerHTML={{ __html: powerTriangleSvg(r) }} /></section>
           <section className="card"><h4>Current phasors</h4><div className="pfcc-svg" dangerouslySetInnerHTML={{ __html: phasorSvg(r, input.voltageV) }} /></section>
         </div>
-        {r.steps > 0 && <section className="card"><h4>Power factor as the steps switch in</h4><div className="pfcc-svg" dangerouslySetInnerHTML={{ __html: stepsSvg(r) }} /></section>}
         <section className="card pfcc-bank">
           <h4>Bank</h4>
           <div className="pfc-kpi">
