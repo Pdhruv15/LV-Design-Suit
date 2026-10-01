@@ -79,7 +79,8 @@ export default function SystemDiagram({
   tool = 'select',
   annotations,
   layers,
-  cableRefs = false,
+  cableRefs: cableRefsProp,
+  hideLegend = false,
   onEditFeeder,
   onEditBoard,
   onOpenSchedule,
@@ -111,6 +112,8 @@ export default function SystemDiagram({
   layers?: ResultLayers;
   /** Cable text as a reference number (legend: CABLE SCHEDULE) and the size only. */
   cableRefs?: boolean;
+  /** Leave the symbol legend out (drawing sheets put it in their legend column). */
+  hideLegend?: boolean;
   onEditFeeder?: (id: string) => void;
   onEditBoard?: (id: string) => void;
   /** Opens a DB's load schedule (double-click on the DB's circuit summary). */
@@ -210,7 +213,9 @@ export default function SystemDiagram({
   };
 
   // The symbol legend sits to the right of the network, inside the drawing (so it exports).
-  const legend = useMemo(() => (iec && (project.drawing?.legend ?? true) ? legendEntries(calcProject ?? project) : []), [iec, project, calcProject]);
+  const legend = useMemo(() => (iec && !hideLegend && (project.drawing?.legend ?? true) ? legendEntries(calcProject ?? project) : []), [iec, hideLegend, project, calcProject]);
+  // Cable text as reference numbers: on the drawing sheets when chosen there, on screen with Always numbers.
+  const cableRefs = cableRefsProp ?? project.drawing?.cableLabels === 'ref';
   const W = layout.width + (legend.length ? LEGEND_W + 30 : 0);
   const H = Math.max(layout.height, legend.length ? 80 + legend.length * LEGEND_ROW : 0);
   const full: ViewBox = { x: 0, y: 0, w: W, h: H };
@@ -418,6 +423,7 @@ export default function SystemDiagram({
       <div className="sysdiag-tools" role="toolbar" aria-label="Diagram zoom">
         {onDrawing && <button className="chip" onClick={() => onDrawing({ symbols: iec ? 'simple' : 'iec' })} title={iec ? 'IEC 60617 symbols — switch to simple icons' : 'Simple icons — switch to IEC 60617 symbols'}>{iec ? 'IEC' : 'Icons'}</button>}
         {onDrawing && <button className={`chip${dewa ? ' on' : ''}`} onClick={() => onDrawing({ sldStyle: dewa ? 'standard' : undefined })} title="DEWA submission style: a frame around each panel with its summary (LOC, TCL, DF, MDL), way numbers and DEWA wording">DEWA</button>}
+        {onDrawing && <button className={`chip${project.drawing?.cableLabels === 'ref' ? ' on' : ''}`} onClick={() => onDrawing({ cableLabels: project.drawing?.cableLabels === 'ref' ? undefined : 'ref' })} title="Cable text as reference numbers (CABLE SCHEDULE legend). Off: full description on screen; drawing sheets switch to numbers by themselves when crowded.">Cable no.</button>}
         {onDrawing && iec && <button className={`chip${legend.length ? ' on' : ''}`} onClick={() => onDrawing({ legend: !(project.drawing?.legend ?? true) })} title="Symbol legend beside the drawing (printed on the exports)">Legend</button>}
         <button className="chip" onClick={nextGrid} title="Grid: lines, dots or none">{grid === 'lines' ? '▦' : grid === 'dots' ? '⁙' : '□'}</button>
         <button className="chip" onClick={() => zoom(1 / 1.25)} aria-label="Zoom in">+</button>
@@ -1042,6 +1048,31 @@ export default function SystemDiagram({
           </div>
         </form>
       )}
+    </div>
+  );
+}
+
+/** The symbol legend on its own (the drawing sheets' legend column). */
+export function LegendSvg({ project }: { project: Project }) {
+  const legend = legendEntries(project);
+  if (!legend.length) return null;
+  const h = 46 + legend.length * LEGEND_ROW;
+  const W = LEGEND_W + 90; // room for the longest labels
+  return (
+    <div className="sysdiag">
+      <svg viewBox={`0 0 ${W} ${h}`} width={W} height={h} data-w={W} data-h={h}>
+        <g className="legend">
+          <rect x="0" y="0" width={W} height={h} rx="4" className="legend-box" />
+          <text x="12" y="22" className="b">LEGEND</text>
+          <line x1="0" y1="32" x2={W} y2="32" className="ln" />
+          {legend.map((e, i) => (
+            <g key={e.key}>
+              {e.draw(28, 32 + 20 + i * LEGEND_ROW)}
+              <text x="52" y={32 + 24 + i * LEGEND_ROW} className="legend-t">{e.label}</text>
+            </g>
+          ))}
+        </g>
+      </svg>
     </div>
   );
 }

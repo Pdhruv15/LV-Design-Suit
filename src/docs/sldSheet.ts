@@ -62,7 +62,9 @@ export function titleBlockOf(project: Project, date = new Date().toISOString().s
 /** One sheet of a set: number, title, position and its own title block values. */
 export interface SheetInfo { no: string; title: string; count: number; index: number; status?: string; rev?: string; date?: string; drawnBy?: string; checkedBy?: string; approvedBy?: string; scale?: string; history?: { id: string; date: string; description: string }[];
   /** CABLE SCHEDULE legend: reference numbers used on the drawings. */
-  cables?: { ref: number; text: string; fireRated?: boolean }[] }
+  cables?: { ref: number; text: string; fireRated?: boolean }[];
+  /** Symbol legend as SVG: goes in the legend column with the cable schedule and abbreviations. */
+  legendSvg?: string }
 
 export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNullable<DrawingInfo['sheet']> = 'A3', one?: SheetInfo): string {
   const { w, h } = SHEET_MM[sheet];
@@ -95,7 +97,12 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
   const px = (v: number) => `${+(v * k).toFixed(2)}px`;
   const tbW = custom ? templateSize(custom).w : 180;
   const cables = one?.cables ?? [];
-  const csW = cables.length ? 92 : 0; // cable schedule column (mm at scale 1)
+  const legendSvg = one?.legendSvg ?? '';
+  // Legend column on the right (top to bottom): LEGEND, CABLE SCHEDULE,
+  // ABBREVIATIONS — one width, one alignment. Without a column (single
+  // SLD export) the abbreviations stay bottom left.
+  const side = !!one && (!!legendSvg || cables.length > 0 || abbr.length > 0);
+  const csW = side ? 92 : 0; // legend column width (mm at scale 1)
   const fire = cables.some((c) => c.fireRated);
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(t.number || t.title)}</title><style>
     @page { size: ${w}mm ${h}mm; margin: 0; }
@@ -117,6 +124,9 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
     .tbx { position: absolute; right: 0; bottom: 0; }
     .notes { position: absolute; right: 0; font-size: ${px(8)}; border: ${mm(0.25)} solid #000; padding: ${mm(1)} ${mm(2)}; background: #fff; }
     .notes ol { margin: ${mm(0.5)} 0 0; padding-left: ${mm(4)}; }
+    .side { position: absolute; right: 0; top: 0; width: ${mm(csW)}; bottom: ${mm(47)}; display: flex; flex-direction: column; gap: ${mm(2)}; overflow: hidden; border-left: ${mm(0.25)} solid #000; padding: ${mm(2)}; }
+    .side .lg svg { width: 100%; height: auto; display: block; }
+    .side .abbr, .side .cs { position: static; width: auto; max-height: none; border: ${mm(0.25)} solid #000; column-count: 1; }
     .abbr { position: absolute; left: 0; bottom: ${mm(44)}; font-size: ${px(7)}; border: ${mm(0.25)} solid #000; border-left: 0; padding: ${mm(1)} ${mm(2)}; background: #fff; column-count: ${abbr.length > 12 ? 2 : 1}; column-gap: ${mm(4)}; }
     .abbr b { display: block; column-span: all; font-size: ${px(8)}; margin-bottom: ${mm(0.5)}; }
     .abbr div { break-inside: avoid; white-space: nowrap; } .abbr span { display: inline-block; min-width: ${mm(9)}; font-weight: 600; }
@@ -141,8 +151,10 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
       <tr><td><span class="k">Drawn</span><span class="v">${esc(t.drawnBy)}</span></td><td><span class="k">Checked</span><span class="v">${esc(t.checkedBy)}</span></td><td><span class="k">Approved</span><span class="v">${esc(t.approvedBy)}</span></td></tr>
       <tr><td colspan="2"><span class="k">Sheet</span><span class="v">${one ? `${one.index} of ${one.count} · ` : ''}${sheet} · Scale ${esc(t.scale)}</span></td><td><span class="k">System</span><span class="v">${project.voltageV} V, 3Ph + N, ${project.frequencyHz} Hz</span></td></tr>
     </table>`}
+    ${side ? `<div class="side">${legendSvg ? `<div class="lg">${legendSvg}</div>` : ''}` : ''}
     ${cables.length ? `<div class="cs"><h5>CABLE SCHEDULE</h5><table>${cables.map((c) => `<tr><td class="n"><span>${c.ref}</span></td><td>${esc(c.text)}</td></tr>`).join('')}</table>${fire ? `<p><b>NOTE:</b> ${esc(FIRE_NOTE)}</p>` : ''}</div>` : ''}
     ${abbr.length ? `<div class="abbr"><b>ABBREVIATIONS</b>${abbr.map(([a, d]) => `<div><span>${esc(a)}</span>${esc(d)}</div>`).join('')}</div>` : ''}
+    ${side ? '</div>' : ''}
     ${notes.length ? `<div class="notes" style="bottom:${mm((custom ? templateSize(custom).h : 44) + 3)};width:${mm(tbW)}"><b>NOTES</b><ol>${notes.map((n) => `<li>${esc(fillParams(n, project))}</li>`).join('')}</ol></div>` : ''}
   </div>
   </body></html>`;
