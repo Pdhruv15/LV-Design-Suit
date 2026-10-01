@@ -3,7 +3,7 @@ import { componentLabel } from '../model/components';
 import type { DrawingInfo, Project } from '../types';
 import { cableTypeOf, CABLE_TYPE_DEFS, labelCode, needsFireRated } from '../model/cableTypes';
 import { cableRefOf } from '../model/cableRefs';
-import { LEGEND_ROW, LEGEND_W, legendEntries, LoadSym, polesText, SwitchSym, switchKindOf } from '../diagram/IecSymbols';
+import { LEGEND_ROW, LEGEND_SYM_X, LEGEND_TEXT_X, legendEntries, legendWidth, LoadSym, polesText, SwitchSym, switchKindOf } from '../diagram/IecSymbols';
 import type { FeederResult, Status } from '../calc/electrical';
 import { boardSummary, loadTypeOf } from '../calc/summary';
 import { boardPhaseKw } from '../calc/loadSchedule';
@@ -216,7 +216,8 @@ export default function SystemDiagram({
   const legend = useMemo(() => (iec && !hideLegend && (project.drawing?.legend ?? true) ? legendEntries(calcProject ?? project) : []), [iec, hideLegend, project, calcProject]);
   // Cable text as reference numbers: on the drawing sheets when chosen there, on screen with Always numbers.
   const cableRefs = cableRefsProp ?? project.drawing?.cableLabels === 'ref';
-  const W = layout.width + (legend.length ? LEGEND_W + 30 : 0);
+  const legendW = legendWidth(legend);
+  const W = layout.width + (legend.length ? legendW + 30 : 0);
   const H = Math.max(layout.height, legend.length ? 80 + legend.length * LEGEND_ROW : 0);
   const full: ViewBox = { x: 0, y: 0, w: W, h: H };
   const [vb, setVb] = useState<ViewBox>(full);
@@ -964,13 +965,13 @@ export default function SystemDiagram({
         })}
         {legend.length > 0 && (
           <g className="legend" transform={`translate(${layout.width + 10} 30)`}>
-            <rect x="0" y="0" width={LEGEND_W} height={46 + legend.length * LEGEND_ROW} rx="4" className="legend-box" />
+            <rect x="0" y="0" width={legendW} height={46 + legend.length * LEGEND_ROW} rx="4" className="legend-box" />
             <text x="12" y="22" className="b">LEGEND</text>
-            <line x1="0" y1="32" x2={LEGEND_W} y2="32" className="ln" />
+            <line x1="0" y1="32" x2={legendW} y2="32" className="ln" />
             {legend.map((e, i) => (
               <g key={e.key}>
-                {e.draw(28, 32 + 20 + i * LEGEND_ROW)}
-                <text x="52" y={32 + 24 + i * LEGEND_ROW} className="legend-t">{e.label}</text>
+                {e.draw(LEGEND_SYM_X, 32 + 20 + i * LEGEND_ROW)}
+                <text x={LEGEND_TEXT_X} y={32 + 24 + i * LEGEND_ROW} className="legend-t">{e.label}</text>
               </g>
             ))}
           </g>
@@ -1057,7 +1058,7 @@ export function LegendSvg({ project }: { project: Project }) {
   const legend = legendEntries(project);
   if (!legend.length) return null;
   const h = 46 + legend.length * LEGEND_ROW;
-  const W = LEGEND_W + 90; // room for the longest labels
+  const W = legendWidth(legend);
   return (
     <div className="sysdiag">
       <svg viewBox={`0 0 ${W} ${h}`} width={W} height={h} data-w={W} data-h={h}>
@@ -1067,8 +1068,8 @@ export function LegendSvg({ project }: { project: Project }) {
           <line x1="0" y1="32" x2={W} y2="32" className="ln" />
           {legend.map((e, i) => (
             <g key={e.key}>
-              {e.draw(28, 32 + 20 + i * LEGEND_ROW)}
-              <text x="52" y={32 + 24 + i * LEGEND_ROW} className="legend-t">{e.label}</text>
+              {e.draw(LEGEND_SYM_X, 32 + 20 + i * LEGEND_ROW)}
+              <text x={LEGEND_TEXT_X} y={32 + 24 + i * LEGEND_ROW} className="legend-t">{e.label}</text>
             </g>
           ))}
         </g>
