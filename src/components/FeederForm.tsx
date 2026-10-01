@@ -15,7 +15,10 @@ function libraryLoadType(item: LibraryLoad): LoadType | undefined {
   return item.category ? 'general' : undefined;
 }
 import { cables } from '../calc/cableTable';
-import { designCurrentA, selectCable, upstreamVoltageDropPct } from '../calc/electrical';
+import { designCurrentA, selectCable, upstreamVoltageDropPct, voltageDropPct } from '../calc/electrical';
+
+type FeederTab = 'general' | 'cable' | 'protection' | 'metering';
+const FEEDER_TABS: [FeederTab, string][] = [['general', 'General & load'], ['cable', 'Cable'], ['protection', 'Protection'], ['metering', 'Metering']];
 
 const emptyFeeder = (boardId: string): Feeder => ({
   id: '', boardId, name: '', loadKw: 10, demandFactor: 0.8, powerFactor: 0.85,
@@ -45,6 +48,7 @@ export default function FeederForm({
 }) {
   const [f, setF] = useState<Feeder>(initial ?? { ...emptyFeeder(boardId), ...preset });
   const [suggestion, setSuggestion] = useState<string>('');
+  const [tab, setTab] = useState<FeederTab>('general');
 
   /** Fills the form from a library item (power, PF, DF, phases, load type). */
   function fromLibrary(name: string) {
@@ -82,9 +86,14 @@ export default function FeederForm({
     }
   }
 
+  // Live summary while editing: design current and source-to-load voltage drop.
+  const calcP = { ...project, feeders: [...project.feeders.filter((x) => x.id !== (initial?.id ?? f.id)), f] };
+  const ib = (() => { try { return designCurrentA(f, calcP); } catch { return 0; } })();
+  const vdTotal = (() => { try { return voltageDropPct(f, calcP) + upstreamVoltageDropPct(calcP, f.boardId); } catch { return 0; } })();
+
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!f.id.trim() || !f.name.trim()) return;
+    if (!f.id.trim() || !f.name.trim()) { setTab('general'); return; }
     onSave(f);
   }
 
@@ -92,6 +101,19 @@ export default function FeederForm({
     <div className="modal-backdrop" onClick={onClose}>
       <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
         <h3>{isNew ? 'Add feeder' : `Edit feeder: ${initial!.id}`}</h3>
+        <div className="feeder-sum" aria-live="polite">
+          <span><b>{ib.toFixed(0)} A</b> design</span>
+          <span>{f.parallel && f.parallel > 1 ? `${f.parallel} × ` : ''}{f.cores}C × {f.cableCsaMm2} mm² · {f.lengthM} m</span>
+          <span>{f.breakerRatingA} A {breakerTypeOf(f) === 'MCCB' || breakerTypeOf(f) === 'ACB' ? breakerTypeOf(f) : `MCB ${breakerTypeOf(f)}`} · {f.breakerIcuKa} kA</span>
+          <span className={vdTotal > project.vdLimitPct ? 'bad' : vdTotal > project.vdLimitPct * 0.85 ? 'warn' : 'ok'}>ΔV {vdTotal.toFixed(2)} % <span className="m">of {project.vdLimitPct} %</span></span>
+          {ib > f.breakerRatingA && <span className="bad">Ib above the breaker</span>}
+        </div>
+        <div className="tabs feeder-tabs" role="tablist">
+          {FEEDER_TABS.map(([k, label]) => <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{label}</button>)}
+        </div>
+        <div className="feeder-tab-body">
+        {tab === 'general' && (
+          <>
         {library.length > 0 && !f.feedsBoardId && (
           <label className="row">
             From library
@@ -133,6 +155,23 @@ export default function FeederForm({
           )}
           <label>Demand factor<input type="number" step="0.01" min="0" max="1" value={f.demandFactor} onChange={(e) => set('demandFactor', +e.target.value)} /></label>
           <label>Power factor<input type="number" step="0.01" min="0" max="1" value={f.powerFactor} onChange={(e) => set('powerFactor', +e.target.value)} /></label>
+          {(f.loadType === 'motor' || f.loadType === 'fire-pump') && (
+            <label>Motor starter
+              <select value={f.starter ?? 'DOL'} onChange={(e) => set('starter', e.target.value as Feeder['starter'])}>
+                {STARTERS.map((s) => <option key={s.value} value={s.value} title={s.title}>{s.label} (≈ {s.multiple} × start)</option>)}
+              </select>
+            </label>
+          )}
+        </div>
+        <label className="row"><input type="checkbox" checked={!!f.generation} onChange={(e) => set('generation', e.target.checked)} /> Generation source (PV / generator)</label>
+        <label className="row"><input type="checkbox" checked={f.essential ?? f.loadType === 'fire-pump'} onChange={(e) => set('essential', e.target.checked)} /> Essential load (supplied by the standby generator)</label>
+        <label className="row" title="Duty / standby pairs: the standby unit is left out of the TCL (duty) on the transformer summary"><input type="checkbox" checked={!!f.standbyUnit} onChange={(e) => set('standbyUnit', e.target.checked || undefined)} /> Standby unit (not in the TCL duty)</label>
+
+          </>
+        )}
+        {tab === 'cable' && (
+          <>
+        <div className="grid2">
           <label>Cable length (m)<input type="number" step="1" value={f.lengthM} onChange={(e) => set('lengthM', +e.target.value)} /></label>
           <label>Cores
             <select value={f.cores} onChange={(e) => set('cores', +e.target.value as 2 | 3 | 4)}>
@@ -148,30 +187,11 @@ export default function FeederForm({
               ))}
             </select>
           </label>
-          {(f.loadType === 'motor' || f.loadType === 'fire-pump') && (
-            <label>Motor starter
-              <select value={f.starter ?? 'DOL'} onChange={(e) => set('starter', e.target.value as Feeder['starter'])}>
-                {STARTERS.map((s) => <option key={s.value} value={s.value} title={s.title}>{s.label} (≈ {s.multiple} × start)</option>)}
-              </select>
-            </label>
-          )}
           <label>Runs in parallel
             <select value={f.parallel ?? 1} onChange={(e) => set('parallel', +e.target.value > 1 ? +e.target.value : undefined)}>
               {[1, 2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>{n === 1 ? 'Single cable' : `${n} cables in parallel`}</option>)}
             </select>
           </label>
-          <label>Breaker rating (A)<input type="number" step="1" value={f.breakerRatingA} onChange={(e) => set('breakerRatingA', +e.target.value)} /></label>
-          <label>Breaker Icu (kA)<input type="number" step="0.5" value={f.breakerIcuKa} onChange={(e) => set('breakerIcuKa', +e.target.value)} /></label>
-          <label>Breaker type
-            <select value={breakerTypeOf(f)} onChange={(e) => set('breakerType', e.target.value as BreakerType)}>
-              {BREAKER_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>{t.label}</option>
-              ))}
-            </select>
-          </label>
-          {(breakerTypeOf(f) === 'MCCB' || breakerTypeOf(f) === 'ACB') && (
-            <label>Instantaneous Im (× In)<input type="number" step="0.5" min="1" value={f.breakerImMultiple ?? 10} onChange={(e) => set('breakerImMultiple', +e.target.value)} /></label>
-          )}
           <label>Cable type
             <select value={f.cableType ?? ''} onChange={(e) => set('cableType', e.target.value || undefined)}>
               <option value="">Auto — {cableTypeOf(project, f).label}</option>
@@ -188,13 +208,28 @@ export default function FeederForm({
             </select>
           </label>
         </div>
+        <div className="suggest-row">
+          <button type="button" className="chip" onClick={suggestCable}>Suggest cable size</button>
+          {suggestion && <span className="m">{suggestion}</span>}
+        </div>
+
+          </>
+        )}
+        {tab === 'protection' && (
+          <>
         <div className="grid2">
-          <label>kWh meter
-            <select value={f.kwhMeter ?? ''} onChange={(e) => set('kwhMeter', (e.target.value || undefined) as MeterType | undefined)}>
-              <option value="">None</option>
-              {METER_TYPES.map((m) => <option key={m} value={m}>{m === 'CT' ? 'CT-operated' : `${m} direct`}</option>)}
+          <label>Breaker rating (A)<input type="number" step="1" value={f.breakerRatingA} onChange={(e) => set('breakerRatingA', +e.target.value)} /></label>
+          <label>Breaker Icu (kA)<input type="number" step="0.5" value={f.breakerIcuKa} onChange={(e) => set('breakerIcuKa', +e.target.value)} /></label>
+          <label>Breaker type
+            <select value={breakerTypeOf(f)} onChange={(e) => set('breakerType', e.target.value as BreakerType)}>
+              {BREAKER_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
             </select>
           </label>
+          {(breakerTypeOf(f) === 'MCCB' || breakerTypeOf(f) === 'ACB') && (
+            <label>Instantaneous Im (× In)<input type="number" step="0.5" min="1" value={f.breakerImMultiple ?? 10} onChange={(e) => set('breakerImMultiple', +e.target.value)} /></label>
+          )}
           <label>Earth leakage (RCD / ELCB)
             <select value={f.rcdMa ?? ''} onChange={(e) => set('rcdMa', e.target.value ? +e.target.value : undefined)} title="Used in the earth fault check: the RCD trips at 5 × IΔn">
               <option value="">None</option>
@@ -203,13 +238,18 @@ export default function FeederForm({
           </label>
         </div>
         {!f.feedsBoardId && <label className="row"><input type="checkbox" checked={!!f.localIsolator} onChange={(e) => set('localIsolator', e.target.checked || undefined)} /> Local isolator at the equipment</label>}
-        <label className="row"><input type="checkbox" checked={!!f.generation} onChange={(e) => set('generation', e.target.checked)} /> Generation source (PV / generator)</label>
-        <label className="row"><input type="checkbox" checked={f.essential ?? f.loadType === 'fire-pump'} onChange={(e) => set('essential', e.target.checked)} /> Essential load (supplied by the standby generator)</label>
-        <label className="row" title="Duty / standby pairs: the standby unit is left out of the TCL (duty) on the transformer summary"><input type="checkbox" checked={!!f.standbyUnit} onChange={(e) => set('standbyUnit', e.target.checked || undefined)} /> Standby unit (not in the TCL duty)</label>
-
-        <div className="suggest-row">
-          <button type="button" className="chip" onClick={suggestCable}>Suggest cable size</button>
-          {suggestion && <span className="m">{suggestion}</span>}
+          </>
+        )}
+        {tab === 'metering' && (
+          <div className="grid2">
+          <label>kWh meter
+            <select value={f.kwhMeter ?? ''} onChange={(e) => set('kwhMeter', (e.target.value || undefined) as MeterType | undefined)}>
+              <option value="">None</option>
+              {METER_TYPES.map((m) => <option key={m} value={m}>{m === 'CT' ? 'CT-operated' : `${m} direct`}</option>)}
+            </select>
+          </label>
+          </div>
+        )}
         </div>
 
         <div className="modal-actions">
