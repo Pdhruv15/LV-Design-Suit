@@ -674,8 +674,8 @@ export default function SystemDiagram({
               </text>
               {cableRefs && (() => { const r = cableRefOf(project, f); return (
                 <g className="cable-ref"><title>{`Cable ${r.ref}: ${r.text}`}</title>
-                  <circle cx={n.x - 13} cy={y + (dewa ? 54 : 49)} r="7.5" className="cable-ref-c" />
-                  <text x={n.x - 13} y={y + (dewa ? 57 : 52)} textAnchor="middle" className="cable-ref-t">{r.ref}</text>
+                  <circle cx={n.x - 13} cy={y + (dewa ? 64 : 49)} r="7.5" className="cable-ref-c" />
+                  <text x={n.x - 13} y={y + (dewa ? 67 : 52)} textAnchor="middle" className="cable-ref-t">{r.ref}</text>
                   <text x={n.x + 7} y={y + (dewa ? 68 : 63)} className="acc-t" style={{ fontSize: 8 }}>{f.lengthM}m</text>
                 </g>); })()}
               {dewa && !cableRefs && <text className="acc-t" style={{ fontSize: 9 }} x={n.x + 7} y={y + 67}>{cableTypeOf(project, f).armoured ? `+1C ${cpcOf(f)}mm² ECC · ` : ''}{f.lengthM}m</text>}
