@@ -1,22 +1,16 @@
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { PDFDocument } from 'pdf-lib';
+import { finishPdf, type Bookmark } from './pdfTools';
 
-/** Several PDFs as one submission document, each page stamped at the foot
- * with "project · revision · Page n of N". */
-export async function mergePdfs(parts: Uint8Array[], stamp: string): Promise<Uint8Array> {
+/** Several PDFs as one submission document: each page stamped at the foot
+ * with "project · revision · Page n of N", and a bookmark at the start of
+ * each part (titles in the same order as the parts). */
+export async function mergePdfs(parts: Uint8Array[], stamp: string, titles: string[] = []): Promise<Uint8Array> {
   const out = await PDFDocument.create();
-  for (const bytes of parts) {
+  const bookmarks: Bookmark[] = [];
+  for (const [i, bytes] of parts.entries()) {
     const src = await PDFDocument.load(bytes);
+    if (titles[i]) bookmarks.push({ title: titles[i], page: out.getPageCount() });
     for (const p of await out.copyPages(src, src.getPageIndices())) out.addPage(p);
   }
-  const font = await out.embedFont(StandardFonts.Helvetica);
-  const pages = out.getPages();
-  pages.forEach((p, i) => {
-    const text = `${stamp}   ·   Page ${i + 1} of ${pages.length}`.replace(/[^\x20-\x7E·]/g, '-');
-    const size = 7;
-    const w = font.widthOfTextAtSize(text, size);
-    p.drawText(text, { x: p.getWidth() - w - 20, y: 8, size, font, color: rgb(0.36, 0.42, 0.51) });
-  });
-  out.setTitle(stamp);
-  out.setProducer('LV Design Studio');
-  return out.save();
+  return finishPdf(out, { title: stamp, stamp, bookmarks });
 }

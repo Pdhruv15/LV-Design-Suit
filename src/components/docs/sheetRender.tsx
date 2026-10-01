@@ -87,7 +87,8 @@ export async function exportDrawingSet(project: Project, set: DrawingSet, run: C
     const parts: Uint8Array[] = [];
     if (set.register && !only) parts.push(await toBytes({ html: registerHtml(project, registerRows(set, pages.map((p) => [p.s.id, p.size] as [string, string])), rev?.id ?? '—', rev?.date ?? new Date().toISOString().slice(0, 10)), cssPages: true }));
     for (const p of pages) parts.push(await toBytes({ html: p.html, cssPages: true }));
-    const bytes = await mergePdfs(parts, `${project.name} · SLD set · ${revisionStamp(project)}`);
+    const titles = [...(set.register && !only ? ['Drawing register'] : []), ...pages.map((p) => `${p.s.number}  ${p.s.title}`)];
+    const bytes = await mergePdfs(parts, `${project.name} · SLD set · ${revisionStamp(project)}`, titles);
     const m = await saveBinary(`${safeFileName(`${project.name} SLD drawing set`)}.pdf`, bytes, 'PDF', 'pdf', 'application/pdf');
     if (m) onStatus(`${m} — ${pages.length} sheets${set.register && !only ? ' + register' : ''}`);
   } catch (e) {
