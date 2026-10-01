@@ -14,6 +14,7 @@ import { workbookBytes } from '../../docs/formWorkbook';
 import { saveBinary, savePdf, safeFileName } from '../../util/files';
 import ClassicGrid from '../grid/ClassicGrid';
 import { Page } from '../ui';
+import ContainmentCalculator from './ContainmentCalculator';
 
 const f0 = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const f1 = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 1 });
@@ -49,10 +50,25 @@ const trayText = (r: TrayResult) => `${r.tiers > 1 ? `${r.tiers} × ` : ''}${r.w
  * appears on every route along it; routes are sized from the cables'
  * diameters, spacing and spare, drawn in cross-section, and give the
  * grouping factor back to the cable ratings. */
-export default function TrayScheduleView({ project, onChange, onStatus }: {
+/** Cable tray page: the design's routes, or a custom calculation. */
+export default function TrayScheduleView(props: { project: Project; onChange: (p: Project, step?: boolean) => void; onStatus: (m: string) => void }) {
+  const [mode, setMode] = useState<'design' | 'calc'>(() => (props.project.feeders.length ? 'design' : 'calc'));
+  const modeSwitch = <div className="seg">{([['design', 'From the design'], ['calc', 'Custom calculation']] as const).map(([k, l]) => <button key={k} className={mode === k ? 'on' : ''} onClick={() => setMode(k)}>{l}</button>)}</div>;
+  if (mode === 'calc') {
+    return (
+      <Page title="Cable containment" intro="A custom calculation, no design needed: list the cables (size and cores, or the diameter) and choose the containment — tray, ladder, basket, trunking, conduit, or buried in a trench or duct bank." actions={modeSwitch}>
+        <ContainmentCalculator project={props.project} onChange={(p) => props.onChange(p, true)} onStatus={props.onStatus} />
+      </Page>
+    );
+  }
+  return <TrayDesignView {...props} modeSwitch={modeSwitch} />;
+}
+
+function TrayDesignView({ project, onChange, onStatus, modeSwitch }: {
   project: Project;
   onChange: (p: Project, step?: boolean) => void;
   onStatus: (m: string) => void;
+  modeSwitch: React.ReactNode;
 }) {
   const plan = trayPlanOf(project);
   const s = plan.settings;
@@ -112,6 +128,7 @@ export default function TrayScheduleView({ project, onChange, onStatus }: {
       intro="Give each cable its tray route path once (e.g. A-B-C) in the routing table — type, paste or fill down (⌘D) like Excel — and it appears on every route along the way. New route names create the route. Each route is sized from the cable diameters, the spacing and the spare, drawn in cross-section, and its grouping factor derates the cables on it."
       actions={
         <>
+          {modeSwitch}
           <button className="chip" onClick={addRoute}>+ Route</button>
           <button className="chip" disabled={busy || !plan.routes.length} onClick={exportPdf}>Export PDF</button>
           <button className="chip primary" disabled={busy || !plan.routes.length} onClick={exportExcel}>{busy ? 'Exporting…' : 'Export Excel'}</button>
