@@ -4,6 +4,11 @@ import {
   buildingInfoOf, dbChecks, DEFAULT_ROOM_TYPES, LEVEL_KINDS, loadRoomTypeLibrary, newBuilding, roomLoad, roomsFromTable, roomTypesOf, saveRoomTypeLibrary, summarizeBuilding
 } from '../../calc/building';
 import { Page } from '../ui';
+import { applyRiserLengths, floorLoads, unitLoads } from '../../calc/buildingDesign';
+import { buildingSummaryHtml, buildingSummaryWorkbook } from '../../docs/buildingSummary';
+import { workbookBytes } from '../../docs/formWorkbook';
+import { safeFileName, saveBinary, savePdf } from '../../util/files';
+import { DensityPanel, GenerateDialog, LevelUnitsDialog, RoomRulesTable, ServicesDialog, UnitTypesCard } from './BuildingDesignPanels';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const f1 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 1 });
@@ -30,9 +35,23 @@ export default function BuildingView({ project, onChange, onStatus }: { project:
   const [levelFilter, setLevelFilter] = useState('');
   const [paste, setPaste] = useState<string | null>(null);
   const [showTypes, setShowTypes] = useState(false);
+  const [dialog, setDialog] = useState<'generate' | 'services' | null>(null);
+  const [unitsFor, setUnitsFor] = useState<string | null>(null);
+  const exportSummary = async (kind: 'pdf' | 'xlsx') => {
+    const ids = info.buildings.map((x) => x.id);
+    const m = kind === 'pdf'
+      ? await savePdf(`${safeFileName(project.name)} - building summary.pdf`, buildingSummaryHtml(project, ids), { pageSize: 'A4' })
+      : await saveBinary(`${safeFileName(project.name)} - building summary.xlsx`, await workbookBytes(buildingSummaryWorkbook(project, ids)), 'Excel', 'xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    if (m) onStatus(m);
+  };
   const types = roomTypesOf(info);
   const sum = useMemo(() => (b ? summarizeBuilding(info, b) : undefined), [info, b]);
   const checks = useMemo(() => dbChecks(project), [project]);
+  const designed = useMemo(() => {
+    if (!b) return { kw: 0, dbs: 0, flats: 0 };
+    const fl = floorLoads(project, b.id);
+    return { kw: fl.reduce((a, x) => a + x.connectedKw, 0), dbs: new Set(fl.flatMap((x) => x.dbs)).size, flats: unitLoads(project, b.id).length };
+  }, [project, b]);
 
   const setB = (patch: Partial<ProjectBuilding>) => b && set({ ...info, buildings: info.buildings.map((x) => (x.id === b.id ? { ...x, ...patch } : x)) });
   const setLevel = (id: string, patch: Partial<BuildingLevel>) => b && setB({ levels: b.levels.map((l) => (l.id === id ? { ...l, ...patch } : l)) });
@@ -93,6 +112,10 @@ export default function BuildingView({ project, onChange, onStatus }: { project:
         <button className="chip" onClick={addBuilding}>+ Building</button>
         {b && <button className="chip" onClick={() => setPaste('')} title="Paste the architect's area schedule from Excel">Paste rooms from Excel</button>}
         <button className="chip" onClick={() => setShowTypes(!showTypes)}>Room types</button>
+        {b && <button className="chip" onClick={() => setDialog('services')} title="Lifts, pumps, fans, façade lighting, EV chargers…">Common services…</button>}
+        {b && <button className="chip primary" onClick={() => setDialog('generate')} title="DBs and load schedules from the rooms and flats">Generate DBs…</button>}
+        {b && <button className="chip" onClick={() => exportSummary('pdf')}>Summary PDF</button>}
+        {b && <button className="chip" onClick={() => exportSummary('xlsx')}>Summary Excel</button>}
       </>}
     >
       {!b ? (
@@ -110,6 +133,16 @@ export default function BuildingView({ project, onChange, onStatus }: { project:
               <label>GFA (m²)<Cell value={b.gfaM2} onSet={(v) => setB({ gfaM2: v })} placeholder={sum ? f0(sum.gfaFromLevels) : ''} width={110} /></label>
               <label>Built-up area (m²)<Cell value={b.buaM2} onSet={(v) => setB({ buaM2: v })} placeholder={sum ? `= GFA ${f0(sum.gfaM2)}` : ''} width={110} /></label>
             </div>
+            <div className="bi-grid bi-riser">
+              <label title="The board the building's DBs and services are fed from">Riser fed from
+                <select className="bi-sel" value={b.riser?.fromBoardId ?? ''} onChange={(e) => setB({ riser: { ...b.riser, fromBoardId: e.target.value || undefined } })}>
+                  <option value="">—</option>{project.boards.filter((x) => (x.kind ?? (x.upstreamId ? 'DB' : 'MDB')) !== 'DB').map((x) => <option key={x.id} value={x.id}>{x.id}</option>)}
+                </select>
+              </label>
+              <label title="Cable route at the source: board to the riser (m)">Board → riser (m)<Cell value={b.riser?.horizontalM} onSet={(v) => setB({ riser: { ...b.riser, horizontalM: v } })} placeholder="15" width={80} /></label>
+              <label title="On each floor: riser to the DB (m)">Riser → DB (m)<Cell value={b.riser?.perDbM} onSet={(v) => setB({ riser: { ...b.riser, perDbM: v } })} placeholder="10" width={80} /></label>
+              <button className="chip" style={{ alignSelf: 'end' }} title="Incomer length = board → riser + floor level + riser → DB, for the generated DBs" onClick={() => { const r = applyRiserLengths(project, b.id); onChange(r.project); onStatus(r.changed ? `${r.changed} incomer lengths updated from the riser — Run (F5)` : 'Incomer lengths already match the riser'); }}>Apply riser lengths</button>
+            </div>
             {sum && (
               <div className="bi-kpis">
                 <span><b>{sum.description || '—'}</b> <span className="m">{sum.floors} floors{sum.basements ? ` (${sum.basements} below ground)` : ''}</span></span>
@@ -117,6 +150,7 @@ export default function BuildingView({ project, onChange, onStatus }: { project:
                 <span>Height <b>{f1(sum.heightM)} m</b></span>
                 <span>Rooms <b>{f0(sum.roomsM2)} m²</b></span>
                 <span>Load <b>{f0(sum.connectedKw)} kW</b> connected · <b>{f0(sum.demandKw)} kW</b> demand{sum.gfaM2 ? <span className="m"> · {f1((sum.demandKw * 1000) / sum.gfaM2)} W/m² GFA</span> : null}</span>
+                {designed.dbs > 0 && <span title="Total of the DBs designed for this building's floors and flats">Designed <b>{f0(designed.kw)} kW</b> connected <span className="m">on {designed.dbs} DBs{designed.flats ? ` · ${designed.flats} flats` : ''}</span></span>}
               </div>
             )}
             <button className="linkish bad" style={{ marginLeft: 0, alignSelf: 'flex-start' }} onClick={() => {
@@ -128,7 +162,7 @@ export default function BuildingView({ project, onChange, onStatus }: { project:
 
           <h3 className="section-title flush">Levels <span className="m">(bottom to top)</span></h3>
           <table className="bi-table">
-            <thead><tr><th /><th>Level</th><th>Kind</th><th>Floors</th><th>Floor height (m)</th><th>Gross area / floor (m²)</th><th>Level (m)</th><th>Rooms</th><th>Rooms area</th><th>Demand</th><th /></tr></thead>
+            <thead><tr><th /><th>Level</th><th>Kind</th><th>Floors</th><th>Floor height (m)</th><th>Gross area / floor (m²)</th><th>Level (m)</th><th>Rooms</th><th>Flats / floor</th><th>Rooms area</th><th>Demand</th><th /></tr></thead>
             <tbody>
               {sum?.levels.map((li, i) => {
                 const l = li.level;
@@ -149,6 +183,7 @@ export default function BuildingView({ project, onChange, onStatus }: { project:
                     <td><Cell value={l.grossM2} onSet={(v) => setLevel(l.id, { grossM2: v })} width={90} /></td>
                     <td className="m">{li.elevationM >= 0 ? '+' : ''}{f1(li.elevationM)}{li.count > 1 ? ` … +${f1(li.elevationM + l.heightM * (li.count - 1))}` : ''}</td>
                     <td><button className="linkish" style={{ marginLeft: 0 }} onClick={() => setLevelFilter(levelFilter === l.id ? '' : l.id)}>{info.rooms.filter((r) => r.levelId === l.id).length}</button></td>
+                    <td><button className="linkish" style={{ marginLeft: 0 }} onClick={() => setUnitsFor(l.id)} title="Flats / tenants on each of these floors">{l.units?.length ? l.units.map((u) => `${u.count} × ${info.unitTypes?.find((t) => t.id === u.unitTypeId)?.name ?? '?'}`).join(', ') : '+ flats'}</button></td>
                     <td>{li.roomsM2 ? `${f0(li.roomsM2)} m²` : '—'}</td>
                     <td>{li.demandKw ? <>{f0(li.demandKw)} kW{li.count > 1 ? <span className="m"> ({f1(li.perFloorDemandKw)}/floor)</span> : null}</> : '—'}</td>
                     <td><button className="icon-btn" title="Remove the level and its rooms" onClick={() => {
@@ -207,6 +242,11 @@ export default function BuildingView({ project, onChange, onStatus }: { project:
             </tbody>
           </table>
           <div className="bi-actions"><button className="chip" onClick={addRoom}>+ Room</button></div>
+
+          <UnitTypesCard info={info} onChange={set} />
+
+          <h3 className="section-title flush">Load density <span className="m">— per floor, rooms against benchmarks, flats</span></h3>
+          <DensityPanel project={project} b={b} />
         </>
       )}
 
@@ -259,10 +299,15 @@ export default function BuildingView({ project, onChange, onStatus }: { project:
               ))}
             </tbody>
           </table>
+          <h4 style={{ margin: '12px 0 6px' }}>Load schedule rules <span className="m">— used by Generate DBs and the density check</span></h4>
+          <RoomRulesTable types={types} onChange={setTypes} />
           {!info.roomTypes && <p className="m">The {DEFAULT_ROOM_TYPES.length} starting types are placeholders, not authority figures — edit them for your practice and “Save as my library”.</p>}
         </section>
       )}
 
+      {dialog === 'generate' && b && <GenerateDialog project={project} b={b} onClose={() => setDialog(null)} onDone={(p, m) => { onChange(p); onStatus(m); setDialog(null); }} />}
+      {dialog === 'services' && b && <ServicesDialog project={project} b={b} onClose={() => setDialog(null)} onDone={(p, m) => { onChange(p); onStatus(m); setDialog(null); }} />}
+      {unitsFor && b && <LevelUnitsDialog info={info} b={b} levelId={unitsFor} onClose={() => setUnitsFor(null)} onSave={(u) => { setLevel(unitsFor, { units: u.length ? u : undefined }); setUnitsFor(null); }} />}
       {paste !== null && (
         <div className="modal-backdrop" onClick={() => setPaste(null)}>
           <div className="modal" style={{ maxWidth: 680 }} onClick={(e) => e.stopPropagation()}>

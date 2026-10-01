@@ -21,7 +21,11 @@ export const DEFAULT_ROOM_TYPES: RoomType[] = [
   { id: 'gym', label: 'Gym / amenity', wPerM2: 80, demandFactor: 0.8, lux: 300 },
   { id: 'parking', label: 'Car park', wPerM2: 10, demandFactor: 0.9, lux: 75 },
   { id: 'plant', label: 'Plant / electrical room', wPerM2: 20, demandFactor: 0.8, lux: 300 },
-  { id: 'store', label: 'Store', wPerM2: 15, demandFactor: 0.8, lux: 150 }
+  { id: 'store', label: 'Store', wPerM2: 15, demandFactor: 0.8, lux: 150 },
+  { id: 'living', label: 'Flat — living / dining', wPerM2: 150, demandFactor: 0.7, lux: 150 },
+  { id: 'bedroom', label: 'Flat — bedroom', wPerM2: 140, demandFactor: 0.7, lux: 100 },
+  { id: 'kitchen', label: 'Flat — kitchen', wPerM2: 350, demandFactor: 0.6, lux: 300 },
+  { id: 'bathroom', label: 'Flat — bathroom', wPerM2: 300, demandFactor: 0.6, lux: 150 }
 ];
 
 export const LEVEL_KINDS: { value: LevelKind; label: string; short: string }[] = [

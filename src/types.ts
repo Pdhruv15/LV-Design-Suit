@@ -163,7 +163,9 @@ export interface Feeder {
   cpcMm2?: number; // protective (earth) conductor size; default per IEC 60364-5-54 Table 54.2
   componentId?: string; // made from a user component (edits to the component update it)
   componentValues?: Record<string, number>; // this copy's values of the component's inputs
-  standbyUnit?: boolean; // a standby unit (e.g. standby pump): not in the TCL (duty)
+  standbyUnit?: boolean;
+  /** Made by Building → Generate DBs (room or unit key); regenerating replaces it. */
+  fromRoom?: string; // a standby unit (e.g. standby pump): not in the TCL (duty)
   essential?: boolean; // supplied by the standby generator (fire pump defaults to essential)
   // DB load schedule fields (final circuits entered from the load schedule)
   phase?: Phase; // R / Y / B single-phase circuit, or RYB 3-phase
@@ -233,6 +235,8 @@ export interface Board {
     irSetting?: number; // main breaker long-time setting, × In (e.g. 0.85)
     ctRatio?: string; // main meter CT, e.g. "2400/5A" (else from the setting)
   };
+  /** Made by Building → Generate DBs: building / floor / unit key. */
+  generated?: string;
   /** Substation this main board's transformer is in (transformer summary form). */
   substation?: string;
   /** Demand factor of this transformer on the summary form (else the project's). */
@@ -322,6 +326,8 @@ export interface BuildingLevel {
   heightM: number; // floor to floor
   grossM2?: number; // gross floor area of one floor
   count?: number; // identical floors (typical), default 1
+  /** Flats / tenants on each of these floors: unit type and how many per floor. */
+  units?: { unitTypeId: string; count: number }[];
 }
 
 export interface ProjectBuilding {
@@ -332,6 +338,8 @@ export interface ProjectBuilding {
   buaM2?: number; // built-up area (DEWA forms); the GFA when absent
   gfaM2?: number; // typed in; else the sum of the levels
   levels: BuildingLevel[]; // bottom to top
+  /** Riser: where the DBs are fed from and the cable route, for the incomer lengths. */
+  riser?: { fromBoardId?: string; horizontalM?: number; perDbM?: number };
 }
 
 export interface RoomType {
@@ -340,6 +348,31 @@ export interface RoomType {
   wPerM2: number; // connected load density
   demandFactor: number;
   lux?: number;
+  /** How the load schedule is generated for rooms of this type. */
+  rules?: RoomRules;
+  /** Lighting power density limit (W/m²), e.g. ASHRAE 90.1 — flagged when exceeded. */
+  lpdMax?: number;
+  /** Typical total W/m² (density check benchmark). */
+  benchWPerM2?: number;
+}
+
+/** Generation rules of a room type: points from the area, fixed points per room. */
+export interface RoomRules {
+  ltgM2PerPoint?: number; // one lighting point per … m²
+  s13M2PerPoint?: number; // one 13 A socket per … m²
+  acM2PerUnit?: number; // one split A/C per … m² (0 = none)
+  acKwPerUnit?: number; // electrical kW of each A/C unit
+  wh?: number; // water heaters per room
+  cooker?: number;
+  exfan?: number; // exhaust fans per room
+}
+
+/** A flat / tenant layout, placed on levels as many times as needed. */
+export interface UnitType {
+  id: string;
+  name: string; // e.g. "2BR apartment"
+  rooms: { name: string; type: string; areaM2: number }[];
+  meter?: MeterType; // kWh meter on the unit's incomer (default by size)
 }
 
 export interface BuildingRoom {
@@ -357,6 +390,7 @@ export interface BuildingInfo {
   buildings: ProjectBuilding[];
   rooms: BuildingRoom[];
   roomTypes?: RoomType[]; // the project's copy; defaults when absent
+  unitTypes?: UnitType[];
 }
 
 export interface ProjectParams {
