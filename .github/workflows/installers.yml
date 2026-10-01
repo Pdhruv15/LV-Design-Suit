@@ -37,7 +37,16 @@ jobs:
       - run: npm test
       - run: npm run build
       - name: Package
-        run: npx electron-builder ${{ matrix.target }} --publish never
+        # Retried: electron-builder downloads its tools (NSIS, signing) from
+        # GitHub, and a one-off network timeout shouldn't fail the build.
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            npx electron-builder ${{ matrix.target }} --publish never && exit 0
+            echo "Packaging failed (attempt $attempt of 3) — retrying in 30 s"
+            sleep 30
+          done
+          exit 1
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false' # not code-signed yet
       - uses: actions/upload-artifact@v7
