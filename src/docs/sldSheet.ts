@@ -59,7 +59,7 @@ export function titleBlockOf(project: Project, date = new Date().toISOString().s
 /** Print-ready HTML for one sheet (the PDF export renders it). svg is the
  * diagram as standalone SVG markup. */
 /** One sheet of a set: number, title, position and its own title block values. */
-export interface SheetInfo { no: string; title: string; count: number; index: number; status?: string; rev?: string; date?: string; drawnBy?: string; checkedBy?: string; approvedBy?: string; scale?: string }
+export interface SheetInfo { no: string; title: string; count: number; index: number; status?: string; rev?: string; date?: string; drawnBy?: string; checkedBy?: string; approvedBy?: string; scale?: string; history?: { id: string; date: string; description: string }[] }
 
 export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNullable<DrawingInfo['sheet']> = 'A3', one?: SheetInfo): string {
   const { w, h } = SHEET_MM[sheet];
@@ -72,6 +72,7 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
     if (one.checkedBy) t.checkedBy = one.checkedBy;
     if (one.approvedBy) t.approvedBy = one.approvedBy;
     if (one.scale) t.scale = one.scale;
+    if (one.history?.length) t.history = one.history.slice(-4).reverse();
   }
   const status = one?.status ?? '';
   const extra: Record<string, string> = one

@@ -5,7 +5,7 @@ import type { CalcRun } from '../../calc/runs';
 import { evaluateProject } from '../../calc/electrical';
 import { buildAnnotations, SHEET_LAYERS } from '../../diagram/annotations';
 import { printableSvg } from '../../diagram/exportSvg';
-import { autoSize, registerHtml, sheetProject, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
+import { autoSize, registerHtml, sheetProject, sheetRev, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
 import { buildSldSheetHtml, type SheetInfo } from '../../docs/sldSheet';
 import { mergePdfs } from '../../docs/mergePdf';
 import { currentRevision, revisionStamp } from '../../model/revisions';
@@ -55,7 +55,8 @@ export async function renderSheet(project: Project, set: DrawingSet, s: DrawingS
 /** Title block values of sheet i of the set. */
 export const sheetInfo = (set: DrawingSet, s: DrawingSheet, i: number): SheetInfo => ({
   no: s.number, title: s.title, count: set.sheets.length, index: i + 1, status: s.status || set.status || undefined,
-  rev: s.rev || undefined, date: s.date || undefined, drawnBy: s.drawnBy || undefined, checkedBy: s.checkedBy || undefined, approvedBy: s.approvedBy || undefined, scale: s.scale || undefined
+  rev: s.rev || undefined, date: s.date || undefined, drawnBy: s.drawnBy || undefined, checkedBy: s.checkedBy || undefined, approvedBy: s.approvedBy || undefined, scale: s.scale || undefined,
+  history: s.history?.map((h) => ({ id: h.rev, date: h.date, description: h.description }))
 });
 
 /** The finished sheet (frame, drawing, title block) as HTML, with its size. */
@@ -68,7 +69,7 @@ export async function sheetHtml(project: Project, set: DrawingSet, s: DrawingShe
 }
 
 /** Every sheet as one PDF (register first, when on) or a PDF per sheet. */
-export async function exportDrawingSet(project: Project, set: DrawingSet, run: CalcRun | undefined, each: boolean, onStatus: (m: string) => void, only?: string[]): Promise<void> {
+export async function exportDrawingSet(project: Project, set: DrawingSet, run: CalcRun | undefined, each: boolean, onStatus: (m: string) => void, only?: string[], withRegister = !only): Promise<void> {
   try {
     const rev = currentRevision(project);
     const pages: { html: string; size: SheetSize; s: DrawingSheet }[] = [];
@@ -85,21 +86,26 @@ export async function exportDrawingSet(project: Project, set: DrawingSet, run: C
       return;
     }
     const parts: Uint8Array[] = [];
-    if (set.register && !only) parts.push(await toBytes({ html: registerHtml(project, registerRows(set, pages.map((p) => [p.s.id, p.size] as [string, string])), rev?.id ?? '—', rev?.date ?? new Date().toISOString().slice(0, 10)), cssPages: true }));
+    const reg = set.register && withRegister;
+    if (reg) {
+      const sizes = pages.map((p) => [p.s.id, p.size] as [string, string]);
+      const rows = registerRows(only ? { ...set, sheets: set.sheets.filter((s) => only.includes(s.id)) } : set, sizes, rev?.id);
+      parts.push(await toBytes({ html: registerHtml(project, rows, rev?.id ?? '—', rev?.date ?? new Date().toISOString().slice(0, 10), set.issues, project.drawing?.company ?? project.info?.consultant ?? ''), cssPages: true }));
+    }
     for (const p of pages) parts.push(await toBytes({ html: p.html, cssPages: true }));
-    const titles = [...(set.register && !only ? ['Drawing register'] : []), ...pages.map((p) => `${p.s.number}  ${p.s.title}`)];
+    const titles = [...(reg ? ['Drawing register'] : []), ...pages.map((p) => `${p.s.number}  ${p.s.title}`)];
     const bytes = await mergePdfs(parts, `${project.name} · SLD set · ${revisionStamp(project)}`, titles);
     const m = await saveBinary(`${safeFileName(`${project.name} SLD drawing set`)}.pdf`, bytes, 'PDF', 'pdf', 'application/pdf');
-    if (m) onStatus(`${m} — ${pages.length} sheets${set.register && !only ? ' + register' : ''}`);
+    if (m) onStatus(`${m} — ${pages.length} sheets${reg ? ' + register' : ''}`);
   } catch (e) {
     onStatus(`Export failed: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 
 /** Register rows with each sheet's own revision, date and status. */
-export const registerRows = (set: DrawingSet, sizes: [string, string][] = []) => {
+export const registerRows = (set: DrawingSet, sizes: [string, string][] = [], projectRev?: string) => {
   const m = new Map(sizes);
-  return set.sheets.map((s) => ({ number: s.number, title: s.title, size: m.get(s.id) ?? (s.size === 'auto' ? 'Auto' : s.size), rev: s.rev, date: s.date, status: s.status || set.status }));
+  return set.sheets.map((s) => ({ number: s.number, title: s.title, size: m.get(s.id) ?? (s.size === 'auto' ? 'Auto' : s.size), rev: sheetRev(s, projectRev) || undefined, date: s.date || s.history?.[s.history.length - 1]?.date, status: s.status || set.status }));
 };
 
 /** The finished sheet, scaled to fit the dialog. */
