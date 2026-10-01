@@ -2,6 +2,7 @@ import { DEFAULT_CABLE_TYPE, type Feeder, type Project } from '../types';
 import { cableTypeDef, cableTypeOf } from './cableTypes';
 import { defaultCpcMm2, cpcOf } from '../calc/cableTable';
 import { runsOf } from '../calc/electrical';
+import { catalog } from '../database/catalog';
 
 /** Cable reference numbers: one standard list of cable build-ups (IEC
  * sizes, copper XLPE/SWA/PVC with its G/Y earth conductor) with fixed
@@ -31,13 +32,21 @@ export function cableBuildText(c: CableBuild): string {
   return c.ecc ? `${main} + 1C ${c.ecc}mm² Cu/PVC G/Y AS ECC` : main;
 }
 
-/** The standard list: 4C 300 … 2.5, 3C 50 … 10, 2C 35 … 4 (each with its
- * IEC 60364-5-54 earth conductor). Numbers start at 1 and never change. */
-export const STANDARD_CABLES: CableRef[] = [
-  ...MULTI_4C.map((csa) => ({ runs: 1, cores: 4, csa, type: SWA, ecc: defaultCpcMm2(csa) })),
-  ...MULTI_3C.map((csa) => ({ runs: 1, cores: 3, csa, type: SWA, ecc: defaultCpcMm2(csa) })),
-  ...MULTI_2C.map((csa) => ({ runs: 1, cores: 2, csa, type: SWA, ecc: defaultCpcMm2(csa) }))
-].map((c, i) => ({ ref: i + 1, key: cableKey(c), text: cableBuildText(c), standard: true }));
+/** The built-in list (written into CableSchedule.xlsx when it's created):
+ * 4C 300 … 2.5, 3C 50 … 10, 2C 35 … 4 with the IEC 60364-5-54 earth
+ * conductor, then the DEWA-accepted alternative 4C 150 + 70.
+ * The workbook, once it has rows, is the list. */
+const iec = (cores: number) => (csa: number): CableBuild => ({ runs: 1, cores, csa, type: SWA, ecc: defaultCpcMm2(csa) });
+export const BUILT_IN_CABLES: { ref: number; build: CableBuild; note?: string }[] = [
+  ...[...MULTI_4C.map(iec(4)), ...MULTI_3C.map(iec(3)), ...MULTI_2C.map(iec(2))].map((build, i) => ({ ref: i + 1, build, note: 'IEC 60364-5-54 ECC' })),
+  { ref: 27, build: { runs: 1, cores: 4, csa: 150, type: SWA, ecc: 70 }, note: 'DEWA accepted ECC' }
+];
+const BUILT_IN_REFS: CableRef[] = BUILT_IN_CABLES.map((c) => ({ ref: c.ref, key: cableKey(c.build), text: cableBuildText(c.build), standard: true }));
+
+/** The standard list: CableSchedule.xlsx, else the built-in one. */
+export const standardCables = (): CableRef[] => (catalog().cableRefs?.length ? catalog().cableRefs : BUILT_IN_REFS);
+/** @deprecated use standardCables() (the database may replace it). */
+export const STANDARD_CABLES = BUILT_IN_REFS;
 
 /** A feeder's cable as a build-up: fire-rated and the default armoured
  * types count as the standard construction. */
@@ -49,7 +58,12 @@ export function feederBuild(project: Project, f: Feeder): CableBuild {
 }
 
 /** Every reference: the standard list, then the project's own (persisted). */
-export const allCableRefs = (p: Project): CableRef[] => [...STANDARD_CABLES, ...(p.cableRefs ?? [])];
+export function allCableRefs(p: Project): CableRef[] {
+  const std = standardCables();
+  const keys = new Set(std.map((r) => r.key)), nums = new Set(std.map((r) => r.ref));
+  // The project's own numbers, unless the database now has that cable or that number.
+  return [...std, ...(p.cableRefs ?? []).filter((r) => !keys.has(r.key) && !nums.has(r.ref))];
+}
 
 /** Cable types used in the project that have no number yet, numbered from
  * the next free number. Returns the project unchanged when all have one. */

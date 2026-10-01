@@ -20,7 +20,8 @@ const USED_FOR: Record<string, string> = {
   roomTypes: 'Room types and generation rules for Building information (new projects).',
   unitTypes: 'Flat / tenant layouts (Building → Flats / tenants → From library).',
   prices: 'BOQ price lists (BOQ → Use a saved price list).',
-  rules: 'Authority / company rules: minimum PF, motor start drop, points per circuit, meters, watts per point.'
+  rules: 'Authority / company rules: minimum PF, motor start drop, points per circuit, meters, watts per point.',
+  cableSchedule: 'Cable reference numbers: the CABLE SCHEDULE legend on the SLD sheets and the Ref column of the cable schedule. Edit and save — the drawings follow.'
 };
 
 const sig = (r: Row, cols: Col[]) => cols.map((c) => String(r[c.key] ?? '')).join('|');

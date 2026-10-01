@@ -21,9 +21,10 @@ export interface Catalog {
   unitTypes: UnitType[];
   priceLists: PriceList[];
   rules: Record<string, number>;
+  cableRefs: import('../model/cableRefs').CableRef[]; // CableSchedule.xlsx (blank = built-in list)
 }
 
-export const EMPTY_CATALOG: Catalog = { transformers: [], generators: [], busbar: [], equipment: [], roomTypes: [], unitTypes: [], priceLists: [], rules: {} };
+export const EMPTY_CATALOG: Catalog = { transformers: [], generators: [], busbar: [], equipment: [], roomTypes: [], unitTypes: [], priceLists: [], rules: {}, cableRefs: [] };
 let current: Catalog = EMPTY_CATALOG;
 export const catalog = () => current;
 export function setCatalog(c: Catalog): void { current = c; }
