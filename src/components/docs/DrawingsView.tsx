@@ -4,7 +4,7 @@ import type { CalcRun } from '../../calc/runs';
 import { LAYER_LABELS, SHEET_LAYERS } from '../../diagram/annotations';
 import { boardsInSupplyOrder } from '../../calc/summary';
 import {
-  autoSheets, filterSheets, sheetHash, issueSheets, moveSheet, nextRev, registerHtml, renumber, setOf, SHEET_STATUSES, sheetNumber, sheetRev, sheetsByCount, SIZES, statusColor, transmittalHtml,
+  addRiserSheet, autoSheets, drawable, filterSheets, sheetHash, issueSheets, moveSheet, nextRev, registerHtml, renumber, setOf, SHEET_STATUSES, sheetNumber, sheetRev, sheetsByCount, SIZES, statusColor, transmittalHtml,
   type DrawingIssue, type DrawingSet, type DrawingSheet, type IssueInput, type SheetFilter, type SheetSize, type SheetSort
 } from '../../model/drawingSet';
 import { currentRevision } from '../../model/revisions';
@@ -161,7 +161,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
             <input className="bi-text dr-search" type="search" placeholder="Search number, title, panel…" value={filter.q ?? ''} onChange={(e) => setFilter({ ...filter, q: e.target.value })} />
             <select className="chip" value={filter.status ?? ''} onChange={(e) => setFilter({ ...filter, status: e.target.value || undefined })}><option value="">All statuses</option>{statuses.map((x) => <option key={x}>{x}</option>)}</select>
             <select className="chip" value={filter.rev ?? ''} onChange={(e) => setFilter({ ...filter, rev: e.target.value || undefined })}><option value="">All revisions</option>{revs.map((x) => <option key={x} value={x}>Rev {x}</option>)}</select>
-            <select className="chip" value={filter.type ?? ''} onChange={(e) => setFilter({ ...filter, type: (e.target.value || undefined) as SheetFilter['type'] })}><option value="">All sheet types</option><option value="sld">SLD sheets</option><option value="db">DB circuit diagrams</option></select>
+            <select className="chip" value={filter.type ?? ''} onChange={(e) => setFilter({ ...filter, type: (e.target.value || undefined) as SheetFilter['type'] })}><option value="">All sheet types</option><option value="sld">SLD sheets</option><option value="db">DB circuit diagrams</option><option value="riser">Riser diagrams</option></select>
             {(filtered || sort.key !== 'order') && <button className="linkish" onClick={() => { setFilter({}); setSort({ key: 'order' }); }}>Clear filters</button>}
             <span className="sp" />
             <span className="m">{visible.length} of {set.sheets.length} sheets</span>
@@ -215,7 +215,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
                         <td><b>{s.number}</b></td>
                         <td>
                           {txt(s.title, (v) => v && setSheet(s.id, { title: v }), '', 260)}
-                          <div className="m dr-panels">{s.kind === 'board' ? `${s.boards[0]} circuit diagram` : s.boards.length ? s.boards.join(', ') : <span className="warn">no panels — Edit to tick them</span>}</div>
+                          <div className="m dr-panels">{s.kind === 'riser' ? `Riser diagram — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'}` : s.kind === 'board' ? `${s.boards[0]} circuit diagram` : s.boards.length ? s.boards.join(', ') : <span className="warn">no panels — Edit to tick them</span>}</div>
                         </td>
                         <td><select className="bi-sel" value={s.size} onChange={(e) => setSheet(s.id, { size: e.target.value as DrawingSheet['size'] })}><option value="auto">Auto</option>{SIZES.map((z) => <option key={z}>{z}</option>)}</select></td>
                         <td><span className="dr-dot" style={{ background: statusColor(st) }} />{st || <span className="m">—</span>}</td>
@@ -223,7 +223,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
                         <td>{s.date || hist[hist.length - 1]?.date || <span className="m">{rev?.date ?? '—'}</span>}</td>
                         <td className="acts">
                           <button className="chip" onClick={() => setEditing(s.id)}>Edit</button>
-                          <button className="chip" disabled={!s.boards.length || !!busy} onClick={() => preview1(s)}>{busy === s.id ? '…' : 'Preview'}</button>
+                          <button className="chip" disabled={!drawable(s) || !!busy} onClick={() => preview1(s)}>{busy === s.id ? '…' : 'Preview'}</button>
                         </td>
                       </tr>
                     );
@@ -240,6 +240,12 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
             <option value="">+ DB circuit diagram sheet…</option>
             {dbs.map((b) => <option key={b.id} value={b.id}>{b.id} — {b.name}</option>)}
           </select>
+          {(project.building?.buildings ?? []).length > 0 && (
+            <select className="chip" value="" onChange={(e) => { const b = project.building!.buildings.find((x) => x.id === e.target.value); if (b) save(addRiserSheet(set, b.id, b.name).set); }}>
+              <option value="">+ Riser diagram sheet…</option>
+              {project.building!.buildings.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          )}
           <span className="m">Tick sheets to change only those; with none ticked, Set / Next revision / Issue apply to every sheet shown.</span>
         </div>
       </>)}
@@ -322,6 +328,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
               <label>First number<input className="bi-text" inputMode="numeric" defaultValue={set.start ?? 1} key={`s${set.start}`} onBlur={(e) => { const n = Math.max(0, Math.round(Number(e.target.value))); if (Number.isFinite(n) && n !== (set.start ?? 1)) setNumbering({ start: n }); }} /></label>
               <label>Digits<select value={set.digits ?? 3} onChange={(e) => setNumbering({ digits: Number(e.target.value) })}>{[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n} ({'0'.repeat(n - 1)}1)</option>)}</select></label>
               <label>Suffix{txt(set.suffix, (v) => setNumbering({ suffix: v || undefined }), 'e.g. -EL')}</label>
+              <label>Riser prefix{txt(set.riserPrefix, (v) => setNumbering({ riserPrefix: v || undefined }), 'E-RSR-')}</label>
             </div>
             <p className="m">Example: <b>{sheetNumber(set, 0)}</b>, {sheetNumber(set, 1)} …</p>
             <label className="row"><input type="checkbox" checked={!!set.manualNumbers} onChange={(e) => save({ ...set, manualNumbers: e.target.checked || undefined })} /> Type numbers by hand (keep them when sheets move)</label>
@@ -473,7 +480,7 @@ function SheetPanel({ sheet: s, set, project, boards, rev, onPatch, onClose, onR
         <div className="dw-panel-foot">
           <button className="chip danger" onClick={() => window.confirm(`Remove ${s.number}?`) && onRemove()}>Remove sheet</button>
           <span className="sp" />
-          <button className="chip" disabled={!s.boards.length || busy} onClick={onPreview}>{busy ? '…' : 'Preview'}</button>
+          <button className="chip" disabled={!drawable(s) || busy} onClick={onPreview}>{busy ? '…' : 'Preview'}</button>
           <button className="chip primary" onClick={onClose}>Done</button>
         </div>
       </aside>

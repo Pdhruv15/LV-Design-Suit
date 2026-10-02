@@ -1029,3 +1029,13 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .rd-tabs .sp{flex:1}
 .res-drawer .rd-body{max-height:40vh;overflow:auto;padding:0 10px 10px}
 .cards.one{grid-template-columns:1fr}
+/* Riser diagram (same unit for every symbol) */
+.sysdiag .sym-fill{fill:var(--tx)}
+.sysdiag .riser-bus line{stroke:#E8A33B;stroke-width:2.6}
+.sysdiag .riser-floor{stroke:var(--mut);stroke-dasharray:6 6;stroke-width:.8;opacity:.7}
+.sysdiag .riser-standby{stroke-dasharray:5 4}
+.sysdiag.riser text.b{font-size:12px}
+.sysdiag.riser text.m{font-size:10.5px}
+.sysdiag .riser-g{font-size:12px}
+.sysdiag.riser .sym-ln{fill:none;stroke:var(--tx);stroke-width:1.5}
+.sysdiag.riser .sym{stroke:var(--tx)}

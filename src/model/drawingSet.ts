@@ -15,7 +15,8 @@ export interface DrawingSheet {
   id: string;
   number: string; // e.g. E-SLD-002
   title: string; // e.g. SLD — MDB-1
-  kind: 'system' | 'board'; // board = one DB's circuit diagram
+  kind: 'system' | 'board' | 'riser'; // board = one DB's circuit diagram; riser = a building's riser diagram
+  buildingId?: string; // riser sheets
   boards: string[];
   size: 'auto' | SheetSize;
   // Title block of this sheet (blank = the project's, managed in the drawing register)
@@ -62,6 +63,7 @@ export interface DrawingSet {
   start?: number; // first number (default 1)
   digits?: number; // zero padding (default 3)
   suffix?: string; // after the number, e.g. "-EL"
+  riserPrefix?: string; // riser diagram sheets have their own sequence (default E-RSR-)
   status?: string; // default status of every sheet
   issues?: DrawingIssue[]; // transmittals, oldest first
 }
@@ -70,12 +72,27 @@ export const SHEET_STATUSES = ['FOR APPROVAL', 'FOR AUTHORITY SUBMISSION', 'FOR 
 
 export const SIZES: SheetSize[] = ['A4', 'A3', 'A2', 'A1'];
 export const setOf = (p: Project): DrawingSet => p.drawingSet ?? { prefix: 'E-SLD-', sheets: [], register: true };
-export const sheetNumber = (set: DrawingSet, i: number) => `${set.prefix}${String((set.start ?? 1) + i).padStart(set.digits ?? 3, '0')}${set.suffix ?? ''}`;
-/** Numbers in order (prefix, start, digits, suffix); with manual numbers only blanks are filled. */
-export const renumber = (set: DrawingSet, force = false): DrawingSet => ({
-  ...set,
-  sheets: set.sheets.map((s, i) => ({ ...s, number: set.manualNumbers && !force && s.number ? s.number : sheetNumber(set, i) }))
-});
+export const RISER_PREFIX = 'E-RSR-';
+export const sheetNumber = (set: DrawingSet, i: number, prefix = set.prefix) => `${prefix}${String((set.start ?? 1) + i).padStart(set.digits ?? 3, '0')}${set.suffix ?? ''}`;
+/** Numbers in order (prefix, start, digits, suffix); riser sheets count in
+ * their own sequence (E-RSR-001 …). With manual numbers only blanks are filled. */
+export const renumber = (set: DrawingSet, force = false): DrawingSet => {
+  let sld = 0, rsr = 0;
+  return {
+    ...set,
+    sheets: set.sheets.map((s) => {
+      const n = s.kind === 'riser' ? sheetNumber(set, rsr++, set.riserPrefix ?? RISER_PREFIX) : sheetNumber(set, sld++);
+      return { ...s, number: set.manualNumbers && !force && s.number ? s.number : n };
+    })
+  };
+};
+/** A sheet that has something to draw. */
+export const drawable = (s: DrawingSheet) => (s.kind === 'riser' ? !!s.buildingId : s.boards.length > 0);
+/** A riser diagram sheet for a building. */
+export function addRiserSheet(set: DrawingSet, buildingId: string, buildingName: string): { set: DrawingSet; id: string } {
+  const id = `sh-${Date.now().toString(36)}`;
+  return { id, set: renumber({ ...set, sheets: [...set.sheets, { id, number: '', title: `Riser diagram — ${buildingName}`, kind: 'riser', buildingId, boards: [], size: 'auto' }] }) };
+}
 
 const isDb = (b: Board) => (b.kind ?? (b.upstreamId ? 'DB' : 'MDB')) === 'DB';
 
@@ -247,8 +264,8 @@ export function moveSheet(set: DrawingSet, from: number, to: number): DrawingSet
   return renumber({ ...set, sheets });
 }
 
-export type SheetType = 'sld' | 'db';
-export const sheetType = (s: DrawingSheet): SheetType => (s.kind === 'board' ? 'db' : 'sld');
+export type SheetType = 'sld' | 'db' | 'riser';
+export const sheetType = (s: DrawingSheet): SheetType => (s.kind === 'board' ? 'db' : s.kind === 'riser' ? 'riser' : 'sld');
 export interface SheetFilter { q?: string; status?: string; rev?: string; type?: SheetType | '' }
 export type SheetSort = { key: 'order' | 'number' | 'title' | 'status' | 'rev' | 'date'; desc?: boolean };
 
@@ -309,7 +326,9 @@ export function transmittalHtml(p: Project, issue: DrawingIssue, company = ''): 
 /** Fingerprint of what a sheet draws (its panels, their circuits and the
  * values on them) — compared with the one stored when it was issued. */
 export function sheetHash(p: Project, set: DrawingSet, s: DrawingSheet): string {
-  const d = s.kind === 'board' ? { boards: p.boards.filter((b) => b.id === s.boards[0]), feeders: p.feeders.filter((f) => f.boardId === s.boards[0]) } : sheetProject(p, set, s);
+  const d = s.kind === 'board' ? { boards: p.boards.filter((b) => b.id === s.boards[0]), feeders: p.feeders.filter((f) => f.boardId === s.boards[0]) }
+    : s.kind === 'riser' ? { boards: p.boards.map((b) => [b.id, b.upstreamId, b.level, b.ratedCurrentA, b.sourceKva, b.standby]), feeders: [p.feeders.filter((f) => f.feedsBoardId).map((f) => [f.feedsBoardId, f.cores, f.cableCsaMm2, f.lengthM, f.parallel, f.cableType]), p.busRisers, p.building] }
+    : sheetProject(p, set, s);
   const txt = JSON.stringify([d.boards, d.feeders, s.title, s.size, s.tags, s.notes, s.clouds, s.arrows]);
   let h = 2166136261;
   for (let i = 0; i < txt.length; i++) { h ^= txt.charCodeAt(i); h = Math.imul(h, 16777619); }
@@ -329,7 +348,7 @@ export function sheetChecks(p: Project, set: DrawingSet, failing: { feederId: st
     const db = (b.kind ?? (b.upstreamId ? 'DB' : 'MDB')) === 'DB';
     out.push({ level: db ? 'warn' : 'bad', text: db ? `${b.id} is on no sheet (shown only as an outgoing way “To ${b.id}”)` : `${b.id} is on no sheet`, boardId: b.id });
   }
-  for (const s of set.sheets) if (!s.boards.length) out.push({ level: 'bad', text: `${s.number}: no panels on the sheet`, sheetId: s.id });
+  for (const s of set.sheets) if (!drawable(s)) out.push({ level: 'bad', text: `${s.number}: no panels on the sheet`, sheetId: s.id });
   const d = p.drawing ?? {}, info = p.info ?? {}, pp = p.params ?? {};
   const missing = [
     !(d.company || info.consultant) && 'company / consultant',
