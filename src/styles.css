@@ -1020,3 +1020,12 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .rd-chip{font-size:11px;padding:1px 8px;border-radius:999px;border:1px solid var(--line)}
 .rd-chip.bad{border-color:var(--bad);color:var(--bad)}.rd-chip.warn{border-color:var(--warn);color:var(--warn)}
 .results-src select{width:auto;max-width:260px}
+/* Results tabs under the SLD: always in the window, open on demand */
+.res-drawer{position:sticky;bottom:0;z-index:6;background:var(--bg);border:1px solid var(--line);border-radius:10px 10px 0 0;margin-top:auto;box-shadow:0 -6px 18px rgba(0,0,0,.25)}
+.rd-tabs{display:flex;align-items:center;gap:2px;padding:4px 8px}
+.rd-tabs > button[role=tab]{background:transparent;border:0;border-bottom:2px solid transparent;color:var(--mut);font:inherit;font-size:13px;padding:6px 12px;cursor:pointer}
+.rd-tabs > button[role=tab].on{color:var(--acc);border-bottom-color:var(--acc)}
+.rd-tabs > button[role=tab]:hover{color:var(--tx)}
+.rd-tabs .sp{flex:1}
+.res-drawer .rd-body{max-height:40vh;overflow:auto;padding:0 10px 10px}
+.cards.one{grid-template-columns:1fr}
