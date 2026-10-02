@@ -1,4 +1,5 @@
 import { faultCurrentKA, impedanceToBoard } from '../calc/electrical';
+import { boardLocation } from '../model/levels';
 import { STANDARD_ICU_KA } from '../calc/sizing';
 import { boardsInSupplyOrder } from '../calc/summary';
 import { subtree } from '../calc/pfc';
@@ -128,7 +129,7 @@ export function buildTxSummary(project: Project): TxSummary {
     meters, ctText: ctText(cts),
     header: {
       project: project.name, area: info.area ?? '', completion: info.plannedCompletion ?? '', owner: info.owner ?? '', plotNo: info.plotNo ?? '',
-      consultant: info.consultant ?? '', location: mains[0]?.location ?? ''
+      consultant: info.consultant ?? '', location: mains[0] ? boardLocation(project, mains[0]) : ''
     }
   };
 }

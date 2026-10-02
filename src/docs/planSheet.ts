@@ -1,5 +1,6 @@
 import { areaLoad, usesOf } from '../calc/spacePlan';
-import type { SpaceArea, SpacePlan } from '../types';
+import type { BuildingInfo, SpaceArea, SpacePlan } from '../types';
+import { findFloor, floorList, matchFloor } from '../model/levels';
 import { cellName, parsePositive, STYLE, type SheetEdit, type SheetModel } from './sheet';
 
 /** The space plan's areas as an Excel-style sheet (paste an area schedule
@@ -15,7 +16,9 @@ export interface PlanSheet extends SheetModel {
   rows: (SpaceArea | undefined)[]; // undefined = a blank row for a new area
 }
 
-export function buildPlanSheet(plan: SpacePlan): PlanSheet {
+export function buildPlanSheet(plan: SpacePlan, info?: BuildingInfo): PlanSheet {
+  // Linked areas show the building and level as named in Building information (renames follow).
+  const where = (a: SpaceArea) => { const f = findFloor(info, a.level); return f ? [f.buildingName, f.name] : [a.building, a.floor ?? '']; };
   const uses = usesOf(plan);
   const useLabel = (id: string) => uses.find((u) => u.id === id)?.label ?? id;
   const rows: (SpaceArea | undefined)[] = [...plan.areas, ...Array.from({ length: SPARE_ROWS }, () => undefined)];
@@ -23,7 +26,7 @@ export function buildPlanSheet(plan: SpacePlan): PlanSheet {
     if (!a) return KEYS.map(() => '');
     const l = areaLoad(plan, a);
     return [
-      a.building, a.floor ?? '', a.name, useLabel(a.use), a.areaM2 ?? '',
+      ...where(a), a.name, useLabel(a.use), a.areaM2 ?? '',
       a.wPerM2 ?? '', a.kw ?? '', a.demandFactor ?? '', a.panel ?? '',
       l.connectedKw.toFixed(1), l.demandKw.toFixed(1)
     ];
@@ -71,7 +74,8 @@ export function buildPlanSheet(plan: SpacePlan): PlanSheet {
 }
 
 /** Applies typed / pasted values. Typing in a blank row adds an area. */
-export function applyPlanEdits(plan: SpacePlan, sheet: PlanSheet, edits: SheetEdit[]): { plan: SpacePlan; rejected: string[] } {
+export function applyPlanEdits(plan: SpacePlan, sheet: PlanSheet, edits: SheetEdit[], info?: BuildingInfo): { plan: SpacePlan; rejected: string[] } {
+  const hasLevels = floorList(info).length > 0;
   const uses = usesOf(plan);
   const rejected: string[] = [];
   const areas = [...plan.areas];
@@ -100,8 +104,15 @@ export function applyPlanEdits(plan: SpacePlan, sheet: PlanSheet, edits: SheetEd
       if (x === null) rejected.push(`${cellName(e.x, e.y)}: "${v}" is not ${label}`);
       return x;
     };
-    if (k === 'building') next.building = v;
-    else if (k === 'floor') next.floor = v || undefined;
+    if (k === 'building' || k === 'floor') {
+      if (k === 'building') next.building = v; else next.floor = v || undefined;
+      // One list of levels: a floor must be one of Building information's.
+      if (hasLevels && next.floor) {
+        const f = matchFloor(info, next.building, next.floor);
+        if (f) { next.level = f.ref; next.building = f.buildingName; next.floor = f.name; }
+        else { delete next.level; rejected.push(`${cellName(e.x, e.y)}: "${next.floor}" is not a level of ${next.building || 'the building'} in Building information`); }
+      } else if (k === 'floor' && !v) delete next.level;
+    }
     else if (k === 'name') next.name = v;
     else if (k === 'use') {
       const u = uses.find((x) => x.label.toLowerCase() === v.toLowerCase() || x.id === v.toLowerCase());

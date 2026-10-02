@@ -21,7 +21,7 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated }
   const setPlan = (next: SpacePlan, step = false) => onChange({ ...project, spacePlan: next }, step);
   const s = plan.settings;
   const sum = useMemo(() => summarize(plan), [plan]);
-  const sheet = useMemo(() => buildPlanSheet(plan), [plan]);
+  const sheet = useMemo(() => buildPlanSheet(plan, project.building), [plan, project.building]);
   const [showUses, setShowUses] = useState(false);
   const uses = usesOf(plan);
   const num = (v: string, fallback: number) => (v.trim() === '' || Number.isNaN(+v) ? fallback : +v);
@@ -135,7 +135,7 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated }
         className="plan-areas-grid"
         onStatus={onStatus}
         onEdits={(edits) => {
-          const { plan: next, rejected } = applyPlanEdits(plan, sheet, edits);
+          const { plan: next, rejected } = applyPlanEdits(plan, sheet, edits, project.building);
           if (next !== plan) setPlan(next);
           return { changed: next !== plan, rejected };
         }}
@@ -150,7 +150,9 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated }
               {plan.panels.map((p) => (
                 <tr key={p.id}>
                   <td><b>{p.id}</b></td>
-                  <td><input value={p.building} onChange={(e) => setPanel(p.id, { building: e.target.value })} /></td>
+                  <td>{project.building?.buildings.length
+                    ? <select value={p.building} onChange={(e) => setPanel(p.id, { building: e.target.value })}><option value="">—</option>{project.building.buildings.map((b) => <option key={b.id} value={b.name}>{b.name}</option>)}{p.building && !project.building.buildings.some((b) => b.name === p.building) && <option value={p.building}>{p.building} (not in Building information)</option>}</select>
+                    : <input value={p.building} onChange={(e) => setPanel(p.id, { building: e.target.value })} />}</td>
                   <td>{p.kind}</td>
                   <td><input value={p.location ?? ''} onChange={(e) => setPanel(p.id, { location: e.target.value || undefined })} /></td>
                   <td>

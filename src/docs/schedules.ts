@@ -1,4 +1,5 @@
 import { cableTypeOf } from '../model/cableTypes';
+import { boardLocation } from '../model/levels';
 import { cableRefOf } from '../model/cableRefs';
 import { evaluateFeeder, faultCurrentKA, impedanceToBoard, cableSizeText, runsOf } from '../calc/electrical';
 import { breakerTypeOf, cpcOf } from '../calc/earthing';
@@ -88,14 +89,14 @@ export function equipmentSchedule(project: Project): Schedule {
     if (!b.upstreamId && b.sourceKva) {
       rows.push([
         `TX-${b.id}`, `Transformer for ${b.id}`, 'Distribution transformer', `${b.sourceKva} kVA, ${b.sourceImpedancePct ?? '—'}% Z`,
-        n(faultCurrentKA(impedanceToBoard(project, b.id), project.voltageV), 1), '', '', b.location ?? '', '', '', 'Utility 11 kV', ''
+        n(faultCurrentKA(impedanceToBoard(project, b.id), project.voltageV), 1), '', '', boardLocation(project, b), '', '', 'Utility 11 kV', ''
       ]);
     }
     const s = boardSummary(project, b);
     rows.push([
       b.id, b.name, BOARD_KINDS.find((k) => k.value === (b.kind ?? (b.upstreamId ? 'DB' : 'MDB')))?.label ?? '',
       b.ratedCurrentA ? `${b.ratedCurrentA} A` : '', n(s.faultKA, 1), b.busbarMaterial ?? '', b.ipRating ?? '',
-      b.location ?? '', b.manufacturer ?? '', b.model ?? '', b.upstreamId ?? (b.sourceKva ? `TX-${b.id}` : ''), b.spd ? `SPD ${b.spd}` : ''
+      boardLocation(project, b), b.manufacturer ?? '', b.model ?? '', b.upstreamId ?? (b.sourceKva ? `TX-${b.id}` : ''), b.spd ? `SPD ${b.spd}` : ''
     ]);
   }
   return { headers, rows };

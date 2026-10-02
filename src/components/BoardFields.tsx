@@ -1,10 +1,12 @@
-import { BOARD_KINDS, RELAY_TYPES, SPD_TYPES, type Board } from '../types';
+import { BOARD_KINDS, RELAY_TYPES, SPD_TYPES, type Board, type BuildingInfo } from '../types';
+import { findFloor, floorList, levelKey } from '../model/levels';
 import { DEFAULT_TRANSFORMER_XR } from '../calc/electrical';
 
 /** Editable board fields, shared by the properties panel (applied as you
  * type) and the double-click edit dialog (applied on Save).
  * 'general': equipment data; 'source': transformer data (main boards). */
-export default function BoardFields({ board, onChange, section }: { board: Board; onChange: (b: Board) => void; section: 'general' | 'source' }) {
+export default function BoardFields({ board, onChange, section, building }: { board: Board; onChange: (b: Board) => void; section: 'general' | 'source'; building?: BuildingInfo }) {
+  const floors = floorList(building);
   const isMain = !board.upstreamId;
   function set<K extends keyof Board>(key: K, value: Board[K]) {
     onChange({ ...board, [key]: value });
@@ -136,7 +138,19 @@ export default function BoardFields({ board, onChange, section }: { board: Board
         </select>
       </label>
       <label>IP rating{text('ipRating', 'e.g. IP42')}</label>
-      <label>Location{text('location')}</label>
+      <label title="The floor, from Building information — the one list of levels used everywhere (SLD summary box, riser diagram, schedules)">Level
+        {floors.length ? (
+          <select value={board.level && findFloor(building, board.level) ? levelKey(board.level) : ''} onChange={(e) => set('level', floors.find((f) => f.key === e.target.value)?.ref)}>
+            <option value="">— not set —</option>
+            {(building?.buildings ?? []).map((bd) => (
+              <optgroup key={bd.id} label={bd.name}>
+                {floors.filter((f) => f.buildingId === bd.id).slice().reverse().map((f) => <option key={f.key} value={f.key}>{f.name}{f.elevationM ? ` (${f.elevationM >= 0 ? '+' : ''}${f.elevationM.toFixed(2)})` : ''}</option>)}
+              </optgroup>
+            ))}
+          </select>
+        ) : <span className="m">Add levels in Building information</span>}
+      </label>
+      <label>Room / place{text('location', 'e.g. Elec. room 3.01')}</label>
       <label>Manufacturer{text('manufacturer')}</label>
       <label>Model{text('model')}</label>
     </div>

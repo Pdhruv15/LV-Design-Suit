@@ -1,4 +1,5 @@
 import { boardTotals } from '../calc/summary';
+import { boardLocation } from '../model/levels';
 import { cables } from '../calc/cableTable';
 import { builtUpAreaOf } from '../calc/building';
 import { breakerTypeOf, cpcOf } from '../calc/earthing';
@@ -258,7 +259,7 @@ export function buildMdSheet(project: Project, boardId: string): MdSheet {
       consultant: info.consultant ?? '',
       plotNo: info.plotNo ?? '',
       boardLine: `${board.id} (FED FROM ${upstream ? upstream.id : board.supply?.fedFrom ?? 'DEWA'})`,
-      location: board.location ?? '',
+      location: boardLocation(project, board),
       connectedTo: [`${board.kind ?? (upstream ? 'SMDB' : 'MDB')} CONNECTED TO: ${supplyName}`, ...(kids.length ? [`DB's CONNECTED TO: ${board.id}`] : [])],
       demandFactor: df,
       maxDemandKw: sum(total) * df,

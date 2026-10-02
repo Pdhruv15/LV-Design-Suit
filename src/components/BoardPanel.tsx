@@ -52,7 +52,7 @@ export default function BoardPanel({
           ))}
         </div>
 
-        {tab === 'general' && <BoardFields board={board} onChange={onChange} section="general" />}
+        {tab === 'general' && <BoardFields board={board} onChange={onChange} section="general" building={project.building} />}
 
         {tab === 'electrical' && (
           <>

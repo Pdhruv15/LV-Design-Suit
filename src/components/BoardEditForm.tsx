@@ -35,7 +35,7 @@ export default function BoardEditForm({
       <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
         <h3>Edit board: {board.id}</h3>
         <p className="m">{isMain ? 'Main board, supplied by the transformer.' : `Supplied from ${board.upstreamId}.`} {feeders} outgoing feeder(s).</p>
-        <BoardFields board={draft} onChange={setDraft} section="general" />
+        <BoardFields board={draft} onChange={setDraft} section="general" building={project.building} />
         {isMain && (
           <>
             <h4 className="modal-sub">Transformer</h4>

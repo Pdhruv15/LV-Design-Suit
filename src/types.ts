@@ -203,7 +203,8 @@ export interface Board {
   ratedCurrentA?: number; // busbar / main device rating, used for board loading
   busbarMaterial?: 'copper' | 'aluminium';
   ipRating?: string;
-  location?: string;
+  location?: string; // room / place, e.g. "Elec. room 3.01" (the level is `level`)
+  level?: import('./model/levels').LevelRef; // the floor, from Building information
   manufacturer?: string;
   model?: string;
   /** Standby generator feeding this board through an ATS: everything on
@@ -420,6 +421,7 @@ export interface SpaceArea {
   id: string;
   building: string;
   floor?: string;
+  level?: import('./model/levels').LevelRef; // linked to Building information (floor/building follow it)
   name: string;
   use: string; // SpaceUse id
   areaM2?: number;

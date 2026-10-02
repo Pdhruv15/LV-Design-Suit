@@ -2,6 +2,7 @@ import type { Board, Feeder, Project } from '../types';
 import { boardsInSupplyOrder, boardTotals } from '../calc/summary';
 import { subtree } from '../calc/pfc';
 import { SHEET_MM } from '../docs/sldSheet';
+import { boardsWithoutLevel } from './levels';
 
 /** The SLD as a set of sheets. Each sheet shows the panels ticked for it
  * (DBs as a box with their circuit count and kW — their final circuits are
@@ -338,6 +339,8 @@ export function sheetChecks(p: Project, set: DrawingSet, failing: { feederId: st
   ].filter(Boolean);
   if (missing.length) out.push({ level: 'warn', text: `Title block: ${missing.join(', ')} not filled in` });
   for (const s of set.sheets) if (s.issuedHash && s.issuedHash !== sheetHash(p, set, s)) out.push({ level: 'warn', text: `${s.number} changed since it was issued (Rev ${s.rev ?? '—'}) — issue a new revision`, sheetId: s.id });
+  const noLevel = boardsWithoutLevel(p);
+  if (noLevel.length) out.push({ level: 'warn', text: `${noLevel.length} panel(s) have no level (Building information): ${noLevel.slice(0, 6).map((b) => b.id).join(', ')}${noLevel.length > 6 ? ' …' : ''}`, boardId: noLevel[0].id });
   const onSheets = failing.filter((f) => drawn.has(f.boardId));
   const bad = onSheets.filter((f) => f.status === 'fail').length, warn = onSheets.filter((f) => f.status === 'warn').length;
   if (bad) out.push({ level: 'bad', text: `${bad} circuit(s) fail a check (cable, breaker or voltage drop) — they print in red` });

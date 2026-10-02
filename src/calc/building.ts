@@ -239,7 +239,7 @@ export function spaceAreasFromRooms(info: BuildingInfo, plan: SpacePlan): SpaceP
     const l = b?.levels.find((x) => x.id === r.levelId);
     const load = roomLoad(info, r);
     return {
-      id: `room-${r.id}`, building: b?.name ?? '', floor: l ? `${l.name}${countOf(l) > 1 ? ` (×${countOf(l)})` : ''}` : undefined,
+      id: `room-${r.id}`, building: b?.name ?? '', floor: l ? `${l.name}${countOf(l) > 1 ? ` (×${countOf(l)})` : ''}` : undefined, ...(b && l ? { level: { building: b.id, level: l.id } } : {}),
       name: `${r.name}${load.total > 1 ? ` ×${load.total}` : ''}`, use: r.type, areaM2: Math.round(load.areaM2 * 10) / 10, panel: keep.get(`room-${r.id}`)
     };
   });

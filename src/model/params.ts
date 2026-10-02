@@ -1,4 +1,5 @@
 import type { Project, ProjectParams } from '../types';
+import { boardLocation } from './levels';
 import { currentRevision } from './revisions';
 import { systemSummary, boardTotals, boardSummary } from '../calc/summary';
 import { builtUpAreaOf } from '../calc/building';
@@ -78,7 +79,7 @@ function boardValue(p: Project, id: string, prop: string): string | undefined {
     case 'loadingpct': return s.loadingPct !== undefined ? f(s.loadingPct) : '';
     case 'ratinga': return b.ratedCurrentA ? String(b.ratedCurrentA) : '';
     case 'name': return b.name;
-    case 'location': return b.location ?? '';
+    case 'location': return boardLocation(p, b);
     case 'kva': return b.sourceKva ? String(b.sourceKva) : '';
     default: return undefined;
   }

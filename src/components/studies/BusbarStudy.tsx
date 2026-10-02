@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { boardLocation } from '../../model/levels';
 import type { Project } from '../../types';
 import { boardsInSupplyOrder } from '../../calc/summary';
 import { MATERIAL_LABEL, riserFromBuilding, newRiser, sizeRiser, TYPICAL_BUSBAR_DATA, type BusbarData, type BusbarType, type BusMaterial, type BusRiser, type RiserFloor, type RiserResult } from '../../calc/busbar';
@@ -51,7 +52,7 @@ export default function BusbarStudy({ project, onChange, onStatus }: { project: 
     if (!riser?.sourceBoardId) return;
     const below = boards.filter((b) => b.upstreamId === riser.sourceBoardId);
     if (!below.length) { onStatus?.(`${riser.sourceBoardId} feeds no boards — enter the floors’ loads`); return; }
-    setRiser({ floors: below.map((b, i) => ({ id: `F${i + 1}`, name: b.location || b.name || b.id, boardId: b.id })) });
+    setRiser({ floors: below.map((b, i) => ({ id: `F${i + 1}`, name: boardLocation(project, b) || b.name || b.id, boardId: b.id })) });
     onStatus?.(`One tap-off per board fed from ${riser.sourceBoardId} (${below.length}), with their demand`);
   };
   const setData = (m: BusMaterial, rows: BusbarType[]) => onChange({ ...project, busbarData: { ...data, [m]: [...rows].sort((a, b) => a.ratingA - b.ratingA) } });
