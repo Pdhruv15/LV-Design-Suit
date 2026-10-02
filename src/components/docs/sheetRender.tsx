@@ -5,7 +5,7 @@ import type { CalcRun } from '../../calc/runs';
 import { evaluateProject } from '../../calc/electrical';
 import { buildAnnotations, SHEET_LAYERS } from '../../diagram/annotations';
 import { printableSvg } from '../../diagram/exportSvg';
-import { autoSize, drawable, registerHtml, sheetProject, sheetRev, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
+import { autoSize, drawable, LEGEND_RESERVE_MM, MIN_MM_PER_PX, registerHtml, scaleOn, sheetProject, sheetRev, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
 import { buildSldSheetHtml, type SheetInfo } from '../../docs/sldSheet';
 import { buildSheetDxf } from '../../docs/sheetDxf';
 import { buildRegisterWorkbook } from '../../docs/registerWorkbook';
@@ -42,7 +42,8 @@ export async function renderSheet(project: Project, set: DrawingSet, s: DrawingS
     if (s.kind === 'board') {
       const b = project.boards.find((x) => x.id === s.boards[0]);
       if (!b) return undefined;
-      const results = (run?.results ?? evaluateProject(project)).filter((r) => r.feeder.boardId === b.id);
+      // Always the current design (a stored run may be older than the last edit).
+      const results = evaluateProject(project).filter((r) => r.feeder.boardId === b.id);
       flushSync(() => root.render(<div className="sld-print"><SingleLineDiagram board={b} voltageV={project.voltageV} results={results} selected={null} onSelect={noop} /></div>));
       await new Promise((r) => requestAnimationFrame(() => r(null)));
       const svg = host.querySelector<SVGSVGElement>('svg');
@@ -50,10 +51,14 @@ export async function renderSheet(project: Project, set: DrawingSet, s: DrawingS
       const [, , w, h] = (svg.getAttribute('viewBox') ?? '0 0 1000 345').split(' ').map(Number);
       return { svg: printableSvg(svg, w, h), w, h };
     }
+    // Calculate the whole network (upstream voltage drop and source impedance
+    // included), then draw only this sheet's panels with those results.
     const drawing = sheetProject(project, set, s);
-    const results = evaluateProject(drawing);
+    const full = evaluateProject(project);
+    const onSheet = new Set(drawing.feeders.map((f) => f.id));
+    const results = full.filter((r) => onSheet.has(r.feeder.id));
     flushSync(() => root.render(
-      <SystemDiagram project={drawing} calcProject={drawing} results={results} annotations={buildAnnotations(drawing, results)} layers={s.tags ?? set.tags ?? SHEET_LAYERS} cableRefs={cableRefs} hideLegend clouds={s.clouds} arrows={s.arrows}
+      <SystemDiagram project={drawing} calcProject={drawing} results={results} annotations={buildAnnotations(project, full)} layers={s.tags ?? set.tags ?? SHEET_LAYERS} cableRefs={cableRefs} hideLegend clouds={s.clouds} arrows={s.arrows}
         selectedFeederId={null} selectedBoardId={null} onSelectFeeder={noop} onSelectBoard={noop} />
     ));
     await new Promise((r) => requestAnimationFrame(() => r(null)));
@@ -111,10 +116,7 @@ async function riserLegendOf(project: Project, buildingId: string): Promise<stri
  * chosen, or in Auto when the cable text would print smaller than ≈ 2.3 mm
  * (a large SLD squeezed onto the paper). */
 export const REF_BELOW_MM_PER_PX = 0.25;
-function sheetScale(size: SheetSize, w: number, h: number) {
-  const m = SHEET_MM[size];
-  return Math.min((m.w - 36) / w, (m.h - 68) / h);
-}
+const reserveOf = (s: DrawingSheet) => (s.kind === 'board' ? 0 : LEGEND_RESERVE_MM);
 
 /** The finished sheet (frame, drawing, title block) as HTML, with its size.
  * withLegend: show the CABLE SCHEDULE even if this sheet itself has full
@@ -124,15 +126,16 @@ export async function sheetHtml(project: Project, set: DrawingSet, s: DrawingShe
   let refs = mode === 'ref' && s.kind === 'system';
   let r = await renderSheet(project, set, s, run, refs);
   if (!r) return undefined;
-  const a = autoSize(r.w, r.h);
+  const a = autoSize(r.w, r.h, reserveOf(s));
   const size = s.size === 'auto' ? a.size : s.size;
-  if (mode === 'auto' && s.kind === 'system' && (!a.fits || sheetScale(size, r.w, r.h) < REF_BELOW_MM_PER_PX)) {
+  if (mode === 'auto' && s.kind === 'system' && (!a.fits || scaleOn(size, r.w, r.h, reserveOf(s)) < REF_BELOW_MM_PER_PX)) {
     refs = true;
     r = (await renderSheet(project, set, s, run, true)) ?? r;
   }
   const legendSvg = s.kind === 'system' ? await legendOf(sheetProject(project, set, s)) : s.kind === 'riser' && s.buildingId ? await riserLegendOf(project, s.buildingId) : '';
   const html = sheetHtmlFrom(project, set, s, r.svg, size, refs || withLegend, legendSvg);
-  return { html, size, fits: a.fits || s.size !== 'auto', refs, svg: r.svg, legendSvg };
+  // Readable on the paper actually used (a chosen A3 can be too small too).
+  return { html, size, fits: scaleOn(size, r.w, r.h, reserveOf(s)) >= MIN_MM_PER_PX, refs, svg: r.svg, legendSvg };
 }
 
 /** Sheet HTML from a drawn SVG (legend: every cable number used in the set). */
@@ -153,12 +156,11 @@ export function fullSheetInfo(project: Project, set: DrawingSet, s: DrawingSheet
 /** The sheets as DXF files (real paper size in mm, frame, title block,
  * legend column, layers): one file, or a ZIP of all when several. */
 export async function dxfFiles(project: Project, set: DrawingSet, run: CalcRun | undefined, only?: string[]): Promise<{ name: string; data: string }[]> {
-  const pages: { s: DrawingSheet; svg: string; size: SheetSize; refs: boolean; legendSvg: string }[] = [];
-  for (const s of set.sheets) {
-    if (!drawable(s) || (only && !only.includes(s.id))) continue;
-    const r = await sheetHtml(project, set, s, run);
-    if (r) pages.push({ s, svg: r.svg, size: r.size, refs: r.refs, legendSvg: r.legendSvg });
-  }
+  return dxfOf(project, set, await prepareSheets(project, set, run, only));
+}
+
+/** DXF files of prepared sheets (same cable-schedule rule as the PDFs). */
+function dxfOf(project: Project, set: DrawingSet, pages: PreparedSheet[]): { name: string; data: string }[] {
   const anyRefs = pages.some((p) => p.refs);
   return pages.map((p) => ({
     name: `${safeFileName(`${p.s.number}${p.s.rev || sheetRev(p.s) ? `_Rev${p.s.rev || sheetRev(p.s)}` : ''}`)}.dxf`,
@@ -189,20 +191,18 @@ export async function exportSheetsDxf(project: Project, set: DrawingSet, run: Ca
 export async function exportEverythingZip(project: Project, set: DrawingSet, run: CalcRun | undefined, onStatus: (m: string) => void): Promise<void> {
   try {
     const zip = new JSZip();
-    const dxf = await dxfFiles(project, set, run);
+    const pages = await prepareSheets(project, set, run);
+    const dxf = dxfOf(project, set, pages);
     for (const f of dxf) zip.file(`DXF/${f.name}`, f.data);
     const toBytes = window.lvds?.files?.pdfBytes;
     if (toBytes) {
       const parts: Uint8Array[] = [], titles: string[] = [];
       const rev = currentRevision(project);
       if (set.register) { parts.push(await toBytes({ html: registerHtml(project, registerRows(set, [], rev?.id), rev?.id ?? '—', rev?.date ?? new Date().toISOString().slice(0, 10), set.issues, project.drawing?.company ?? project.info?.consultant ?? ''), cssPages: true })); titles.push('Drawing register'); }
-      for (const s of set.sheets) {
-        if (!drawable(s)) continue;
-        const r = await sheetHtml(project, set, s, run);
-        if (!r) continue;
-        const one = await toBytes({ html: r.html, cssPages: true });
-        parts.push(one); titles.push(`${s.number}  ${s.title}`);
-        zip.file(`PDF/${safeFileName(`${s.number}${s.rev ? `_Rev${s.rev}` : ''}`)}.pdf`, one);
+      for (const p of pages) {
+        const one = await toBytes({ html: p.html, cssPages: true });
+        parts.push(one); titles.push(`${p.s.number}  ${p.s.title}`);
+        zip.file(`PDF/${safeFileName(`${p.s.number}${p.s.rev ? `_Rev${p.s.rev}` : ''}`)}.pdf`, one);
       }
       zip.file(`${safeFileName(`${project.name} drawing set`)}.pdf`, await mergePdfs(parts, `${project.name} · drawings · ${revisionStamp(project)}`, titles));
     }
@@ -215,17 +215,25 @@ export async function exportEverythingZip(project: Project, set: DrawingSet, run
 }
 
 /** Every sheet as one PDF (register first, when on) or a PDF per sheet. */
+export interface PreparedSheet { s: DrawingSheet; html: string; size: SheetSize; fits: boolean; refs: boolean; svg: string; legendSvg: string }
+/** The sheets as they print, for every export (one PDF, PDF per sheet, DXF,
+ * ZIP): drawn from the current design, and when any sheet uses cable
+ * numbers the CABLE SCHEDULE goes on every SLD sheet. */
+export async function prepareSheets(project: Project, set: DrawingSet, run?: CalcRun, only?: string[]): Promise<PreparedSheet[]> {
+  const pages: PreparedSheet[] = [];
+  for (const s of set.sheets) {
+    if (!drawable(s) || (only && !only.includes(s.id))) continue;
+    const r = await sheetHtml(project, set, s, run);
+    if (r) pages.push({ s, ...r });
+  }
+  if (pages.some((p) => p.refs)) for (const p of pages) if (!p.refs && p.s.kind === 'system') p.html = sheetHtmlFrom(project, set, p.s, p.svg, p.size, true, p.legendSvg);
+  return pages;
+}
+
 export async function exportDrawingSet(project: Project, set: DrawingSet, run: CalcRun | undefined, each: boolean, onStatus: (m: string) => void, only?: string[], withRegister = !only): Promise<void> {
   try {
     const rev = currentRevision(project);
-    const pages: { html: string; size: SheetSize; s: DrawingSheet; refs: boolean; svg: string; legendSvg: string }[] = [];
-    for (const s of set.sheets) {
-      if (!drawable(s) || (only && !only.includes(s.id))) continue;
-      const r = await sheetHtml(project, set, s, run);
-      if (r) pages.push({ s, size: r.size, html: r.html, refs: r.refs, svg: r.svg, legendSvg: r.legendSvg });
-    }
-    // One sheet uses cable numbers: the CABLE SCHEDULE goes on every sheet.
-    if (pages.some((p) => p.refs)) for (const p of pages) if (!p.refs) p.html = sheetHtmlFrom(project, set, p.s, p.svg, p.size, true, p.legendSvg);
+    const pages = await prepareSheets(project, set, run, only);
     const toBytes = window.lvds?.files?.pdfBytes;
     if (each || !toBytes) {
       let n = 0;

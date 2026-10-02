@@ -174,14 +174,20 @@ export function sheetProject(p: Project, set: DrawingSet, sheet: DrawingSheet): 
 /** Smallest sheet on which the drawing stays readable (text ≥ ≈ 2 mm):
  * drawing area = sheet − frame (30 × 20 mm) − title block band (48 mm). */
 export const MIN_MM_PER_PX = 0.2;
-export function autoSize(widthPx: number, heightPx: number): { size: SheetSize; scale: number; fits: boolean } {
+/** Drawing scale (mm per px) on a paper size; reserveW = width taken by the
+ * legend column (mm). */
+export function scaleOn(size: SheetSize, widthPx: number, heightPx: number, reserveW = 0): number {
+  const { w, h } = SHEET_MM[size];
+  return Math.min((w - 36 - reserveW) / widthPx, (h - 20 - 48) / heightPx);
+}
+/** Room kept for the legend column (legend, cable schedule, abbreviations). */
+export const LEGEND_RESERVE_MM = 80;
+export function autoSize(widthPx: number, heightPx: number, reserveW = 0): { size: SheetSize; scale: number; fits: boolean } {
   for (const size of SIZES) {
-    const { w, h } = SHEET_MM[size];
-    const scale = Math.min((w - 36) / widthPx, (h - 20 - 48) / heightPx);
+    const scale = scaleOn(size, widthPx, heightPx, reserveW);
     if (scale >= MIN_MM_PER_PX) return { size, scale, fits: true };
   }
-  const { w, h } = SHEET_MM.A1;
-  return { size: 'A1', scale: Math.min((w - 36) / widthPx, (h - 68) / heightPx), fits: false };
+  return { size: 'A1', scale: scaleOn('A1', widthPx, heightPx, reserveW), fits: false };
 }
 
 /** The drawing register (cover page of the set): project details, every
