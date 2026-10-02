@@ -68,6 +68,12 @@ export function cables(): CableSpec[] {
 export function setCables(rows: CableSpec[] | null): void {
   active = rows && rows.length ? [...rows].sort((a, b) => a.csaMm2 - b.csaMm2) : REFERENCE_CABLE_TABLE;
 }
+/** True when the calculations use the app's built-in reference cable values
+ * (approximations — replace with manufacturer data via Cables.xlsx). */
+export const usingReferenceCables = () => active === REFERENCE_CABLE_TABLE;
+export const cablesSource = () => (usingReferenceCables() ? 'app reference values (approximate, not manufacturer data)' : 'Cables.xlsx (LV Database)');
+/** Notice printed on outputs made with the reference values. */
+export const REFERENCE_DATA_NOTICE = 'Cable data: app reference values (approximate, not manufacturer-verified). Replace them in Cables.xlsx before relying on these results.';
 
 export function getCable(csaMm2: number): CableSpec {
   // A project may use a size the database doesn't list; fall back to the

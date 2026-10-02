@@ -214,7 +214,7 @@ export default function App() {
     const r = runCalculations(project);
     setRun(r);
     const fails = r.results.filter((x) => x.status === 'bad').length;
-    setStatus(`Calculated ${r.results.length} feeders in ${Math.max(1, Math.round(r.ms))} ms — ${fails ? `${fails} failing` : 'all passing'}`);
+    setStatus(`Calculated ${r.results.length} feeders in ${Math.max(1, Math.round(r.ms))} ms — ${fails ? `${fails} failing` : 'all within the calculated limits'}`);
   };
   const allResults = useMemo(() => {
     const live = new Map(project.feeders.map((f) => [f.id, f]));
@@ -976,7 +976,7 @@ export default function App() {
                       onClick={() => setResTab((t) => { const v = t === k ? null : k; try { localStorage.setItem('lvds.resTab', v ?? ''); } catch { /* ignore */ } return v; })}>{label}</button>
                   ))}
                   <span className="sp" />
-                  {(() => { const bad = allResults.filter((r) => r.status === 'bad').length, warn = allResults.filter((r) => r.status === 'warn').length; return <>{bad > 0 && <span className="rd-chip bad">{bad} fail</span>}{warn > 0 && <span className="rd-chip warn">{warn} to check</span>}{!bad && !warn && <span className="rd-chip">all pass</span>}</>; })()}
+                  {(() => { const bad = allResults.filter((r) => r.status === 'bad').length, warn = allResults.filter((r) => r.status === 'warn').length; return <>{bad > 0 && <span className="rd-chip bad">{bad} fail</span>}{warn > 0 && <span className="rd-chip warn">{warn} to check</span>}{!bad && !warn && <span className="rd-chip">all within limits</span>}</>; })()}
                   {resTab && <button className="icon-btn" title="Close" onClick={() => { setResTab(null); try { localStorage.setItem('lvds.resTab', ''); } catch { /* ignore */ } }}>✕</button>}
                 </div>
                 {resTab && (

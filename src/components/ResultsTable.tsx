@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { STATUS_TEXT } from '../calc/statusText';
 import type { FeederResult } from '../calc/electrical';
 
 type TabKey = 'vd' | 'load' | 'sc' | 'prot';
@@ -48,7 +49,7 @@ export default function ResultsTable({
   }
 
   function statusCell(s: 'ok' | 'warn' | 'bad') {
-    const label = s === 'ok' ? 'Pass' : s === 'warn' ? 'Warning' : 'Fail';
+    const label = STATUS_TEXT[s];
     return <td className={s}>{label}</td>;
   }
 

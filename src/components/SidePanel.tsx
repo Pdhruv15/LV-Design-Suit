@@ -1,4 +1,5 @@
 import type { FeederResult } from '../calc/electrical';
+import { STATUS_TEXT } from '../calc/statusText';
 
 export default function SidePanel({ results, selected }: { results: FeederResult[]; selected: string | null }) {
   const r = results.find((r) => r.feeder.id === selected) ?? results[0];
@@ -19,7 +20,7 @@ export default function SidePanel({ results, selected }: { results: FeederResult
         <div className="pn">
           <h3>
             Feeder: {r.feeder.id}
-            <span className={`pill ${r.status}`}>{r.status === 'ok' ? 'Pass' : r.status === 'warn' ? 'Warning' : 'Fail'}</span>
+            <span className={`pill ${r.status}`}>{STATUS_TEXT[r.status]}</span>
           </h3>
           <dl className="kv">
             <dt>Board</dt>

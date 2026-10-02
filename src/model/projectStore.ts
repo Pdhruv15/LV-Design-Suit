@@ -53,7 +53,14 @@ export async function listProjects(): Promise<ProjectMeta[]> {
 
 export async function loadProject(file: string): Promise<Project> {
   const b = bridge();
-  if (b) return b.projects.load(file);
+  if (b) {
+    const p = (await b.projects.load(file)) as Project & { _restoredFromBackup?: boolean };
+    if (p._restoredFromBackup) {
+      delete p._restoredFromBackup;
+      window.alert(`${file} was damaged (for example by a crash or a sync during saving). The last good version (${file}.bak) was opened instead — check it and save.`);
+    }
+    return p;
+  }
   const s = localStorage.getItem(fileKey(file));
   if (!s) throw new Error(`${file} is not in this browser`);
   return JSON.parse(s) as Project;

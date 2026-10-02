@@ -1019,7 +1019,9 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .res-drawer > .rd-body{padding:0 10px 10px}
 .rd-chip{font-size:11px;padding:1px 8px;border-radius:999px;border:1px solid var(--line)}
 .rd-chip.bad{border-color:var(--bad);color:var(--bad)}.rd-chip.warn{border-color:var(--warn);color:var(--warn)}
-.results-src select{width:auto;max-width:260px}
+.results-src{display:inline-flex;align-items:center;gap:6px}
+.results-src select.chip{width:auto;max-width:260px;padding:5px 26px 5px 10px;border-radius:6px;color:var(--tx);background-color:var(--p2);cursor:pointer}
+.results-src select.chip:disabled{opacity:.6;cursor:default}
 /* Results tabs under the SLD: always in the window, open on demand */
 .res-drawer{position:sticky;bottom:0;z-index:6;background:var(--bg);border:1px solid var(--line);border-radius:10px 10px 0 0;margin-top:auto;box-shadow:0 -6px 18px rgba(0,0,0,.25)}
 .rd-tabs{display:flex;align-items:center;gap:2px;padding:4px 8px}
