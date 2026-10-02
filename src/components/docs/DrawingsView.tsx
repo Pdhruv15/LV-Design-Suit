@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Project, ProjectInfo, ProjectParams } from '../../types';
 import type { CalcRun } from '../../calc/runs';
 import { LAYER_LABELS, SHEET_LAYERS } from '../../diagram/annotations';
@@ -64,7 +64,10 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
   const revs = [...new Set(set.sheets.map((s) => sheetRev(s, rev?.id)).filter(Boolean))].sort();
   const statuses = [...new Set([...SHEET_STATUSES, ...set.sheets.map((s) => s.status || set.status || '').filter(Boolean)])];
   const chosen = set.sheets.filter((s) => selected.has(s.id));
-  const targets = chosen.length ? chosen : visible;
+  // What Set / Next revision / Issue act on: the ticked sheets, or every sheet shown.
+  const [scope, setScope] = useState<'selected' | 'shown'>('shown');
+  useEffect(() => { setScope(chosen.length ? 'selected' : 'shown'); }, [chosen.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+  const targets = scope === 'selected' && chosen.length ? chosen : visible;
   const toggle = (id: string) => setSelected((x) => { const n = new Set(x); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const allOn = visible.length > 0 && visible.every((s) => selected.has(s.id));
   const setModeKeep = (m: 'table' | 'grid') => { setMode(m); try { localStorage.setItem('lvds.drMode', m); } catch { /* ignore */ } };
@@ -109,15 +112,27 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
     try { const r = await sheetHtml(project, set, s, run); if (r) setPreview({ no: s.number, html: r.html, size: r.size, fits: r.fits }); } finally { setBusy(''); }
   }
 
+  // Sheet creation choices with what each would make (worked out, not created).
+  const creation = useMemo(() => {
+    if (set.sheets.length) return [];
+    const withDb = (x: DrawingSet) => (dbSheets ? autoSheets(project, 'perMdb', true, set.prefix).sheets.filter((s) => s.kind === 'board') : []).reduce((acc, s) => ({ ...acc, sheets: [...acc.sheets, s] }), x);
+    return [
+      { key: 'split', title: 'Split by panels', about: 'Fills each sheet with up to the number of panels below, in supply order, keeping a branch together where it fits. Best for authority submissions.', set: renumber(withDb(sheetsByCount(project, perSheet, set.prefix))) },
+      { key: 'mdb', title: 'One sheet per MDB', about: 'Each main board with everything it feeds; an overview sheet when there are several MDBs.', set: autoSheets(project, 'perMdb', dbSheets, set.prefix) },
+      { key: 'smdb', title: 'Overview + one per SMDB', about: 'An overview of the main boards and sub-mains, then a sheet per SMDB / MCC with its DBs.', set: autoSheets(project, 'perSmdb', dbSheets, set.prefix) }
+    ];
+  }, [set.sheets.length, project, perSheet, dbSheets, set.prefix]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const editSheet = set.sheets.find((s) => s.id === editing);
   const none = !set.sheets.length;
 
   return (
     <Page
       title="Drawings — SLD sheets"
-      intro="Every SLD sheet in one place: what's on it, its number, status and revision, the title block, and issues to the authority or client."
+      intro="Create, organize, revise and export your SLD drawing set."
       actions={
         <div className="dw-export">
+          {none && <span className="m dw-hint">Create sheets to enable export</span>}
           <button className="chip primary" disabled={!!busy || none} onClick={() => exportSet(false)}>{busy === 'set' ? 'Building…' : 'Export set (one PDF)'}</button>
           <button className="chip" disabled={none} onClick={() => setExportOpen(!exportOpen)} aria-expanded={exportOpen}>More exports ▾</button>
           {exportOpen && (
@@ -146,13 +161,22 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
       {tab === 'sheets' && (<>
         {none ? (
           <section className="card dw-empty">
-            <b>No sheets yet.</b> Make them automatically:
-            <div className="ds-tools">
-              <button className="chip primary" onClick={() => replaceSet(sheetsByCount(project, perSheet, set.prefix))}>Split by panels ({perSheet} per sheet)</button>
-              <button className="chip" onClick={() => replaceSet(autoSheets(project, 'perMdb', false, set.prefix))}>One sheet per MDB</button>
-              <button className="chip" onClick={() => replaceSet(autoSheets(project, 'perSmdb', false, set.prefix))}>Overview + one per SMDB</button>
-              <button className="linkish" onClick={() => setTab('layout')}>More options in Layout…</button>
+            <h3>Create your drawing sheets</h3>
+            <p className="m">Choose how to split the SLD into sheets — you can rename, reorder, add or remove sheets afterwards.</p>
+            <div className="dw-options">
+              {creation.map((o) => (
+                <div key={o.key} className="dw-option">
+                  <b>{o.title}</b>
+                  <p className="m">{o.about}</p>
+                  {o.key === 'split' && (
+                    <label className="row">Panels per sheet <input className="bi-text" style={{ width: 52 }} type="number" min={1} max={60} value={perSheet} onChange={(e) => setPerSheet(Math.max(1, Math.min(60, Number(e.target.value) || 1)))} /></label>
+                  )}
+                  <div className="dw-preview"><b>Creates {o.set.sheets.length} sheet{o.set.sheets.length === 1 ? '' : 's'}</b>{o.set.sheets.length > 0 && <span className="m"> · {o.set.sheets.slice(0, 3).map((x) => x.title.replace(/^SLD — /, '')).join(' · ')}{o.set.sheets.length > 3 ? ' …' : ''}</span>}</div>
+                  <button className="chip primary" disabled={!o.set.sheets.length} onClick={() => replaceSet(o.set)}>Create sheets</button>
+                </div>
+              ))}
             </div>
+            <label className="row"><input type="checkbox" checked={dbSheets} onChange={(e) => setDbSheets(e.target.checked)} /> Also add a circuit diagram sheet for every DB{dbs.length ? ` (+${dbs.length})` : ''}</label>
           </section>
         ) : (<>
           <div className="dr-tools">
@@ -170,7 +194,11 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
           </div>
 
           <div className={`dr-bulk${chosen.length ? ' on' : ''}`}>
-            <b>{chosen.length ? `${chosen.length} selected` : filtered ? `All ${visible.length} shown` : 'All sheets'}</b>
+            <span className="m">Apply to</span>
+            <div className="seg" role="radiogroup" aria-label="Apply to">
+              <button role="radio" aria-checked={scope === 'selected' && chosen.length > 0} className={scope === 'selected' && chosen.length ? 'on' : ''} disabled={!chosen.length} onClick={() => setScope('selected')} title={chosen.length ? '' : 'Tick sheets in the list first'}>Selected ({chosen.length})</button>
+              <button role="radio" aria-checked={!(scope === 'selected' && chosen.length)} className={!(scope === 'selected' && chosen.length) ? 'on' : ''} onClick={() => setScope('shown')}>All shown ({visible.length})</button>
+            </div>
             <select className="chip" value={bulk.key} onChange={(e) => setBulk({ key: e.target.value as Col, value: '' })}>
               <option value="status">Status</option><option value="rev">Revision</option><option value="date">Date</option><option value="drawnBy">Drawn by</option><option value="checkedBy">Checked by</option><option value="approvedBy">Approved by</option><option value="scale">Scale</option>
             </select>
@@ -237,18 +265,18 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
           )}
         </>)}
         <div className="ds-tools" style={{ marginTop: 8 }}>
-          <button className="chip" onClick={() => add('system')}>+ Sheet</button>
+          <button className="chip" onClick={() => add('system')}>Add blank sheet</button>
           <select className="chip" value="" onChange={(e) => e.target.value && add('board', e.target.value)}>
-            <option value="">+ DB circuit diagram sheet…</option>
+            <option value="">Add DB circuit diagram…</option>
             {dbs.map((b) => <option key={b.id} value={b.id}>{b.id} — {b.name}</option>)}
           </select>
           {(project.building?.buildings ?? []).length > 0 && (
             <select className="chip" value="" onChange={(e) => { const b = project.building!.buildings.find((x) => x.id === e.target.value); if (b) save(addRiserSheet(set, b.id, b.name).set); }}>
-              <option value="">+ Riser diagram sheet…</option>
+              <option value="">Add riser diagram…</option>
               {project.building!.buildings.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
           )}
-          <span className="m">Tick sheets to change only those; with none ticked, Set / Next revision / Issue apply to every sheet shown.</span>
+          {!none && <span className="m">Tick sheets to work on just those — the bar above shows what Set, Next revision and Issue will change.</span>}
         </div>
       </>)}
 

@@ -1046,3 +1046,11 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .sysdiag .riser-g{font-size:12px}
 .sysdiag.riser .sym-ln{fill:none;stroke:var(--tx);stroke-width:1.5}
 .sysdiag.riser .sym{stroke:var(--tx)}
+/* Drawings: creating the sheets */
+.dw-empty h3{margin:0 0 2px}
+.dw-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin:10px 0}
+.dw-option{display:flex;flex-direction:column;gap:6px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--p2)}
+.dw-option p{margin:0;font-size:12px;flex:1}
+.dw-option .chip.primary{align-self:flex-start}
+.dw-preview{font-size:12px}
+.dw-hint{align-self:center;font-size:12px}
