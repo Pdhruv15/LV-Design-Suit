@@ -1,4 +1,5 @@
 import { cableTypeOf } from '../model/cableTypes';
+import { STATUS_TEXT } from '../calc/statusText';
 import { boardLocation } from '../model/levels';
 import { cableRefOf } from '../model/cableRefs';
 import { evaluateFeeder, faultCurrentKA, impedanceToBoard, cableSizeText, runsOf } from '../calc/electrical';
@@ -46,7 +47,7 @@ export function dbSchedule(project: Project, boardIds?: string[]): Schedule {
         f.feedsBoardId ? '' : n(f.loadKw, 1), f.feedsBoardId ? '' : f.demandFactor,
         f.feedsBoardId ? '' : n(f.loadKw * f.demandFactor, 1), f.feedsBoardId ? '' : f.powerFactor, n(r.ib),
         `${f.breakerRatingA} A ${breakerTypeOf(f)}`, poles(f), f.breakerIcuKa, cableText(project, f), f.lengthM,
-        n(r.vdTotalPct, 2), r.status === 'ok' ? 'Pass' : r.status === 'warn' ? 'Check' : 'Fail', accessoriesText(f)
+        n(r.vdTotalPct, 2), STATUS_TEXT[r.status], accessoriesText(f)
       ]);
     });
     const s = boardSummary(project, b);
@@ -74,7 +75,7 @@ export function cableSchedule(project: Project): Schedule {
         return [
           `C-${f.id}`, f.boardId, f.feedsBoardId ?? f.name, (() => { const c = cableRefOf(project, f); return `${c.ref}${c.fireRated ? ' *' : ''}`; })(), cableTypeOf(project, f).label, cableSizeText(f),
           cpcOf(f), f.lengthM, f.trayRoute ?? '', n(r.ib), f.breakerRatingA, n(r.ampacity), n(r.vdPct, 2), n(r.vdTotalPct, 2),
-          r.status === 'ok' ? 'Pass' : r.status === 'warn' ? 'Check' : 'Fail'
+          STATUS_TEXT[r.status]
         ];
       })
   );

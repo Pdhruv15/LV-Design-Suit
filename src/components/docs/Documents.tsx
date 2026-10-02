@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { statusOfText } from '../../calc/statusText';
 import type { Project } from '../../types';
 import { cableSchedule, dbSchedule, equipmentSchedule, type Schedule } from '../../docs/schedules';
 import { buildReportHtml } from '../../docs/report';
@@ -7,7 +8,7 @@ import { FocusChip, Page } from '../ui';
 import { subtree } from '../../calc/pfc';
 
 function ScheduleTable({ schedule }: { schedule: Schedule }) {
-  const cls = (v: string | number) => (v === 'Pass' ? 'ok' : v === 'Check' ? 'warn' : v === 'Fail' ? 'bad' : undefined);
+  const cls = (v: string | number) => statusOfText(v);
   return (
     <table className="schedule">
       <thead>

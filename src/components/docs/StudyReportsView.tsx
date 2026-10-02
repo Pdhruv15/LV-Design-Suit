@@ -247,7 +247,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
                 <input type="checkbox" checked={setup.studies.includes(s.key)} onChange={() => toggleStudy(s.key)} />
                 <span>
                   <b>{s.label}</b>
-                  {sec && sec.statuses.length > 0 && <em className={bad ? 'bad' : warn ? 'warn' : 'ok'}>{bad ? `${bad} fail` : warn ? `${warn} check` : 'all pass'}</em>}
+                  {sec && sec.statuses.length > 0 && <em className={bad ? 'bad' : warn ? 'warn' : 'ok'}>{bad ? `${bad} fail` : warn ? `${warn} check` : 'all within limits'}</em>}
                   <small>{s.description}{s.sld ? '' : ' (tables only)'}</small>
                 </span>
               </label>

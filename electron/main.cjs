@@ -43,8 +43,19 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      sandbox: true
     }
+  });
+
+  // The app never navigates away or opens windows of its own: links to the
+  // web open in the system browser, anything else is refused.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https:\/\//i.test(url)) shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  win.webContents.on('will-navigate', (e, url) => {
+    if (url !== win.webContents.getURL()) e.preventDefault();
   });
 
   // The app asks before closing with unsaved changes (beforeunload);
@@ -138,23 +149,51 @@ ipcMain.handle('projects:list', () => {
     .sort((a, b) => b.updatedAt - a.updatedAt);
 });
 
+/** A project file inside the projects folder: a plain .json name, never a
+ * path that leads outside it (e.g. "../x"). */
+function projectPath(folder, file) {
+  if (typeof file !== 'string' || !/^[^\\/:*?"<>|]+\.json$/i.test(file) || file.startsWith('.')) throw new Error(`Not a project file name: ${file}`);
+  const full = path.resolve(folder, file);
+  if (path.dirname(full) !== path.resolve(folder)) throw new Error(`Outside the projects folder: ${file}`);
+  return full;
+}
+
+/** Writes a file safely: to a temporary file first, flushed to disk, then
+ * renamed over the old one (a crash or a sync mid-write never leaves a
+ * half-written file). The previous version is kept as name.json.bak. */
+function writeFileSafe(full, text, keepBackup = true) {
+  const tmp = `${full}.tmp-${process.pid}-${Date.now()}`;
+  const fd = fs.openSync(tmp, 'w');
+  try { fs.writeFileSync(fd, text, 'utf-8'); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+  if (keepBackup && fs.existsSync(full)) { try { fs.copyFileSync(full, `${full}.bak`); } catch {} }
+  fs.renameSync(tmp, full);
+}
+
 ipcMain.handle('projects:load', (_evt, file) => {
-  const folder = ensureProjectsFolder();
-  const full = path.join(folder, file);
-  return JSON.parse(fs.readFileSync(full, 'utf-8'));
+  const full = projectPath(ensureProjectsFolder(), file);
+  const text = fs.readFileSync(full, 'utf-8');
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    // A damaged file: offer the last good version kept beside it.
+    const bak = `${full}.bak`;
+    if (fs.existsSync(bak)) {
+      const p = JSON.parse(fs.readFileSync(bak, 'utf-8'));
+      return { ...p, _restoredFromBackup: true };
+    }
+    throw new Error(`${file} is damaged and could not be read (${e.message}).`);
+  }
 });
 
 ipcMain.handle('projects:save', (_evt, { file, data }) => {
   const folder = ensureProjectsFolder();
   const safeFile = file || `${slugify(data.name || 'untitled')}-${Date.now()}.json`;
-  const full = path.join(folder, safeFile);
-  fs.writeFileSync(full, JSON.stringify(data, null, 2), 'utf-8');
+  writeFileSafe(projectPath(folder, safeFile), JSON.stringify(data, null, 2));
   return { file: safeFile };
 });
 
 ipcMain.handle('projects:delete', (_evt, file) => {
-  const folder = ensureProjectsFolder();
-  fs.unlinkSync(path.join(folder, file));
+  fs.unlinkSync(projectPath(ensureProjectsFolder(), file));
   return true;
 });
 
@@ -162,7 +201,7 @@ ipcMain.handle('projects:delete', (_evt, file) => {
 const recoveryPath = path.join(app.getPath('userData'), 'recovery.json');
 ipcMain.handle('recovery:write', (_evt, r) => {
   fs.mkdirSync(path.dirname(recoveryPath), { recursive: true });
-  fs.writeFileSync(recoveryPath, JSON.stringify(r), 'utf-8');
+  writeFileSafe(recoveryPath, JSON.stringify(r), false);
   return true;
 });
 ipcMain.handle('recovery:read', () => {

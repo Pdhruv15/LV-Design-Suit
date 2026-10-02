@@ -321,7 +321,7 @@ function PublishDialog({ project, run, onClose, onChange, onStatus, onOpen }: { 
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 640 }} onClick={(e) => e.stopPropagation()}>
         <h3>Publish the drawings</h3>
-        <p className="m">{set.sheets.length} sheet(s). {crowded === null ? 'Checking sheet sizes…' : all.length ? `${bad} problem(s), ${all.length - bad} warning(s):` : 'All checks passed.'}</p>
+        <p className="m">{set.sheets.length} sheet(s). {crowded === null ? 'Checking sheet sizes…' : all.length ? `${bad} problem(s), ${all.length - bad} warning(s):` : 'No issues found by the checks — engineering review still required.'}</p>
         <ul className="pub-checks">
           {all.map((c, i) => (
             <li key={i} className={c.level}>

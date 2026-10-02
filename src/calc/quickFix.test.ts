@@ -31,3 +31,15 @@ describe('quick fixes: unprotected cable', () => {
     expect(brk!.patch.breakerRatingA!).toBeGreaterThanOrEqual(r0.ib);
   });
 });
+
+describe('engines get the same cable data', async () => {
+  const { engineCableData } = await import('../engines/external');
+  const { cables } = await import('./cableTable');
+  it('sends the active cable table and the temperature factor', () => {
+    const d = engineCableData({ ...sampleProject, vdTempC: 90 });
+    expect(d.cables).toHaveLength(cables().length);
+    expect(d.cables[0]).toEqual([cables()[0].csaMm2, cables()[0].rOhmPerKm20C, cables()[0].xOhmPerKm, cables()[0].ampacityA]);
+    expect(d.rFactor).toBeCloseTo(1 + 0.00393 * 70, 5);
+    expect(engineCableData(sampleProject).rFactor).toBe(1.2);
+  });
+});

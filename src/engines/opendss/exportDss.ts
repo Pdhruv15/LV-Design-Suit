@@ -1,4 +1,5 @@
-import { DEFAULT_TRANSFORMER_XR, boardDemandKw, rOperatingOhmPerKm, runsOf } from '../../calc/electrical';
+import { DEFAULT_TRANSFORMER_XR, boardDemandKw, resistanceFactor, rOperatingOhmPerKm, runsOf } from '../../calc/electrical';
+import { cablesSource } from '../../calc/cableTable';
 import { getCable } from '../../calc/cableTable';
 import type { Feeder, Project } from '../../types';
 
@@ -44,7 +45,7 @@ export function exportDss(project: Project): DssExport {
     `! Modelling assumptions (same as the built-in engine):`,
     `!  - Stiff upstream MV network (${STIFF_SOURCE_MVA} MVA) at a nominal ${MV_KV} kV.`,
     `!  - Transformer %Z split into R/X by the board's X/R ratio (default ${DEFAULT_TRANSFORMER_XR}).`,
-    `!  - Cable R at operating temperature = 1.2 x R20 (IEC 60228); cable capacitance ignored.`,
+    `!  - Cable R at operating temperature = ${resistanceFactor(project.vdTempC).toFixed(3)} x R20 (${project.vdTempC === undefined ? 'standard factor 1.2' : `copper at ${project.vdTempC} °C`}); cable data: ${cablesSource()}; capacitance ignored.`,
     `!  - Zero-sequence cable data is a placeholder (R0/X0 = R1/X1). Replace it`,
     `!    before relying on single-phase / earth-fault results.`,
     `!  - 2-core circuits are single-phase: phase + neutral loop modelled as one`,
@@ -86,7 +87,7 @@ export function exportDss(project: Project): DssExport {
     const name = lineCodeName(f.cableCsaMm2, single, runs);
     if (codes.has(name)) continue;
     const k = single ? 2 : 1; // single-phase: go + return conductor
-    const r = (rOperatingOhmPerKm(f.cableCsaMm2) * k) / runs; // parallel runs
+    const r = (rOperatingOhmPerKm(f.cableCsaMm2, project.vdTempC) * k) / runs; // parallel runs
     const x = (getCable(f.cableCsaMm2).xOhmPerKm * k) / runs;
     codes.set(
       name,

@@ -21,8 +21,9 @@ MV_KV = 11.0
 STIFF_SOURCE_MVA = 100000.0
 DEFAULT_TRANSFORMER_XR = 5.0
 
-# Must match src/calc/cableTable.ts and the 1.2 operating-temperature factor
-# in src/calc/electrical.ts, so every engine sees the same cable data.
+# Fallback only: the app sends the cable table it is using (Cables.xlsx or
+# its reference values) and the resistance factor for the chosen conductor
+# temperature with every request, so both engines see the same data.
 CABLES = {
     1.5: (12.1, 0.1, 26), 2.5: (7.41, 0.1, 36), 4: (4.61, 0.09, 47), 6: (3.08, 0.09, 60),
     10: (1.83, 0.09, 80), 16: (1.15, 0.085, 105), 25: (0.727, 0.085, 138), 35: (0.524, 0.08, 168),
@@ -143,7 +144,9 @@ def run_opendss(project, script):
 # pandapower - load flow + IEC 60909 short circuit
 # --------------------------------------------------------------------------
 
-def run_pandapower(project):
+def run_pandapower(project, cables=None, r_factor=None):
+    table = {float(c[0]): (c[1], c[2], c[3]) for c in cables} if cables else CABLES
+    rf = r_factor if r_factor else R_OPERATING_FACTOR
     import pandapower as pp
     import pandapower.shortcircuit as sc
 
@@ -174,12 +177,16 @@ def run_pandapower(project):
         if f["boardId"] not in bus:
             messages.append(f"Feeder {f['id']} is on unknown board {f['boardId']} and was skipped.")
             continue
-        r20, x, amps = CABLES[f["cableCsaMm2"]]
+        spec = table.get(float(f["cableCsaMm2"]))
+        if spec is None:
+            messages.append(f"Feeder {f['id']}: no cable data for {f['cableCsaMm2']} mm2 and was skipped.")
+            continue
+        r20, x, amps = spec
         end = bus[f["feedsBoardId"]] if f.get("feedsBoardId") else pp.create_bus(net, vn_kv=kv, name=f"ld_{f['id']}")
         end_bus_of[f["id"]] = end
         line_of[f["id"]] = pp.create_line_from_parameters(
             net, from_bus=bus[f["boardId"]], to_bus=end, length_km=f["lengthM"] / 1000.0,
-            r_ohm_per_km=r20 * R_OPERATING_FACTOR, x_ohm_per_km=x, c_nf_per_km=0.0,
+            r_ohm_per_km=r20 * rf, x_ohm_per_km=x, c_nf_per_km=0.0,
             max_i_ka=amps / 1000.0, parallel=max(1, int(f.get("parallel") or 1)), name=f["id"])
         if f["cores"] == 2:
             single_phase.append(f["id"])
@@ -239,7 +246,7 @@ def main():
         elif engine == "opendss":
             res = run_opendss(req["project"], req["dss"])
         elif engine == "pandapower":
-            res = run_pandapower(req["project"])
+            res = run_pandapower(req["project"], req.get("cables"), req.get("rFactor"))
         else:
             res = {"error": f"Unknown engine: {engine}"}
     except Exception as e:  # noqa: BLE001 — every failure goes back to the app as JSON

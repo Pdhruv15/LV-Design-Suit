@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
+import { STATUS_TEXT } from '../calc/statusText';
 import type { Status } from '../calc/electrical';
 
-export const STATUS_LABEL: Record<Status, string> = { ok: 'Pass', warn: 'Check', bad: 'Fail' };
+export const STATUS_LABEL: Record<Status, string> = STATUS_TEXT;
 
 export function StatusCell({ status, children }: { status: Status; children?: ReactNode }) {
   return <td className={status}>{children ?? STATUS_LABEL[status]}</td>;

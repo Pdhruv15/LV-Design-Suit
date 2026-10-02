@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { STATUS_TEXT } from '../calc/statusText';
 import { componentLabel } from '../model/components';
 import type { DrawingInfo, Project } from '../types';
 import { cableTypeOf, CABLE_TYPE_DEFS, labelCode, needsFireRated } from '../model/cableTypes';
@@ -1160,7 +1161,7 @@ export default function SystemDiagram({
         const fixes = onFixFeeder && r.status !== 'ok' ? quickFixes(calcProject ?? project, f) : [];
         return (
           <div className={`hover-card ${r.status}`} style={{ left, top, width: W }} {...keep}>
-            <div className="hc-head"><b>{f.id}</b> <span className="m">{f.name}</span><span className={`hc-st ${r.status}`}>{r.status === 'ok' ? 'Pass' : r.status === 'warn' ? 'Check' : 'Fail'}</span></div>
+            <div className="hc-head"><b>{f.id}</b> <span className="m">{f.name}</span><span className={`hc-st ${r.status}`}>{STATUS_TEXT[r.status]}</span></div>
             <dl className="hc-kv">
               <dt>Cable</dt><dd>{runsOf(f) > 1 ? `${runsOf(f)}× ` : ''}{f.cores}C {f.cableCsaMm2} mm² · {f.lengthM} m</dd>
               <dt>Ib / In / Iz</dt><dd className={r.protectionStatus === 'bad' || r.ampacityStatus === 'bad' ? 'bad' : ''}>{r.ib.toFixed(0)} / {f.breakerRatingA} / {r.ampacity.toFixed(0)} A</dd>

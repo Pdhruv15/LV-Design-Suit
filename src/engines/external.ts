@@ -1,6 +1,16 @@
 import { exportDss } from './opendss/exportDss';
 import type { CalcEngine, EngineProbe, StudyResults } from './types';
 import type { Project } from '../types';
+import { cables } from '../calc/cableTable';
+import { resistanceFactor } from '../calc/electrical';
+
+/** The cable data the app is using (Cables.xlsx or the reference table) and
+ * the resistance factor for the project's conductor temperature: sent with
+ * every engine run so the comparison uses exactly the same data. */
+export const engineCableData = (project: Project) => ({
+  cables: cables().map((c) => [c.csaMm2, c.rOhmPerKm20C, c.xOhmPerKm, c.ampacityA] as [number, number, number, number]),
+  rFactor: resistanceFactor(project.vdTempC)
+});
 
 const hasBridge = () => typeof window !== 'undefined' && !!window.lvds?.engines;
 
@@ -14,7 +24,7 @@ export function probeEngines(refresh = false): Promise<EngineProbe | { error: st
   return probeCache;
 }
 
-function pythonEngine(id: string, name: string, buildRequest: (p: Project) => { engine: string; project: Project; dss?: string }): CalcEngine {
+function pythonEngine(id: string, name: string, buildRequest: (p: Project) => { engine: string; project: Project; dss?: string; cables?: [number, number, number, number][]; rFactor?: number }): CalcEngine {
   return {
     id,
     name,
@@ -41,5 +51,6 @@ export const openDssEngine = pythonEngine('opendss', 'OpenDSS', (project) => ({
 /** pandapower: Newton-Raphson load flow + IEC 60909 short circuit. */
 export const pandapowerEngine = pythonEngine('pandapower', 'pandapower (IEC 60909)', (project) => ({
   engine: 'pandapower',
-  project
+  project,
+  ...engineCableData(project)
 }));
