@@ -38,7 +38,7 @@ export async function renderSheet(project: Project, set: DrawingSet, s: DrawingS
     const drawing = sheetProject(project, set, s);
     const results = evaluateProject(drawing);
     flushSync(() => root.render(
-      <SystemDiagram project={drawing} calcProject={drawing} results={results} annotations={buildAnnotations(drawing, results)} layers={set.tags ?? SHEET_LAYERS} cableRefs={cableRefs} hideLegend
+      <SystemDiagram project={drawing} calcProject={drawing} results={results} annotations={buildAnnotations(drawing, results)} layers={s.tags ?? set.tags ?? SHEET_LAYERS} cableRefs={cableRefs} hideLegend clouds={s.clouds}
         selectedFeederId={null} selectedBoardId={null} onSelectFeeder={noop} onSelectBoard={noop} />
     ));
     await new Promise((r) => requestAnimationFrame(() => r(null)));
@@ -57,7 +57,8 @@ export async function renderSheet(project: Project, set: DrawingSet, s: DrawingS
 export const sheetInfo = (set: DrawingSet, s: DrawingSheet, i: number): SheetInfo => ({
   no: s.number, title: s.title, count: set.sheets.length, index: i + 1, status: s.status || set.status || undefined,
   rev: s.rev || undefined, date: s.date || undefined, drawnBy: s.drawnBy || undefined, checkedBy: s.checkedBy || undefined, approvedBy: s.approvedBy || undefined, scale: s.scale || undefined,
-  history: s.history?.map((h) => ({ id: h.rev, date: h.date, description: h.description }))
+  history: s.history?.map((h) => ({ id: h.rev, date: h.date, description: h.description })),
+  notes: s.notes?.filter((n) => n.trim())
 });
 
 /** The symbol legend of what's drawn on this sheet, as printable SVG. */
@@ -88,7 +89,7 @@ function sheetScale(size: SheetSize, w: number, h: number) {
  * withLegend: show the CABLE SCHEDULE even if this sheet itself has full
  * cable text (another sheet of the set uses numbers). */
 export async function sheetHtml(project: Project, set: DrawingSet, s: DrawingSheet, run?: CalcRun, withLegend = false): Promise<{ html: string; size: SheetSize; fits: boolean; refs: boolean; svg: string; legendSvg: string } | undefined> {
-  const mode = project.drawing?.cableLabels ?? 'auto';
+  const mode = s.cableLabels ?? project.drawing?.cableLabels ?? 'auto';
   let refs = mode === 'ref' && s.kind === 'system';
   let r = await renderSheet(project, set, s, run, refs);
   if (!r) return undefined;

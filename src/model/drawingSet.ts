@@ -27,7 +27,15 @@ export interface DrawingSheet {
   scale?: string; // default NTS
   remarks?: string; // register only
   history?: SheetRev[]; // this sheet's issued revisions, oldest first
+  // This sheet only (blank = the set's / project's):
+  cableLabels?: 'auto' | 'ref' | 'full';
+  tags?: import('../diagram/annotations').ResultLayers; // values printed (a "view": e.g. fault levels sheet)
+  notes?: string[]; // notes on this sheet only
+  clouds?: SheetCloud[]; // revision clouds around panels
+  issuedHash?: string; // what was drawn when last issued (to flag changes since)
 }
+/** A revision cloud around panels on one sheet, with its revision triangle. */
+export interface SheetCloud { boards: string[]; rev: string }
 /** One issued revision of a sheet (printed in its title block revision table). */
 export interface SheetRev { rev: string; date: string; description: string; issueId?: string }
 /** One issue of drawings (a transmittal): which sheets, at which revision, why. */
@@ -209,7 +217,7 @@ export interface IssueInput { date: string; purpose: string; description: string
 /** Issues the chosen sheets: each moves to its next revision (when bump),
  * takes the date and purpose as its status, records the revision in its
  * history, and the set records a transmittal. */
-export function issueSheets(set: DrawingSet, ids: string[], o: IssueInput, projectRev?: string): { set: DrawingSet; issue: DrawingIssue } {
+export function issueSheets(set: DrawingSet, ids: string[], o: IssueInput, projectRev?: string, hashOf?: (s: DrawingSheet) => string): { set: DrawingSet; issue: DrawingIssue } {
   const n = (set.issues ?? []).length + 1;
   const id = `T-${String(n).padStart(3, '0')}`;
   const chosen = new Set(ids);
@@ -217,7 +225,7 @@ export function issueSheets(set: DrawingSet, ids: string[], o: IssueInput, proje
     if (!chosen.has(s.id)) return s;
     const cur = sheetRev(s, projectRev);
     const rev = o.bump && (s.history?.length || s.rev) ? nextRev(cur) : (cur || 'A');
-    return { ...s, rev, date: o.date, status: o.purpose || s.status, history: [...(s.history ?? []), { rev, date: o.date, description: o.description || o.purpose, issueId: id }] };
+    return { ...s, rev, date: o.date, status: o.purpose || s.status, issuedHash: hashOf?.(s), history: [...(s.history ?? []), { rev, date: o.date, description: o.description || o.purpose, issueId: id }] };
   });
   const issue: DrawingIssue = {
     id, date: o.date, purpose: o.purpose, description: o.description, to: o.to || undefined,
@@ -292,4 +300,63 @@ export function transmittalHtml(p: Project, issue: DrawingIssue, company = ''): 
   <p class="m">${issue.sheets.length} drawing(s).</p>
   <div class="sign"><div>Issued by</div><div>Received by (name, signature, date)</div></div>
   </body></html>`;
+}
+
+/** Fingerprint of what a sheet draws (its panels, their circuits and the
+ * values on them) — compared with the one stored when it was issued. */
+export function sheetHash(p: Project, set: DrawingSet, s: DrawingSheet): string {
+  const d = s.kind === 'board' ? { boards: p.boards.filter((b) => b.id === s.boards[0]), feeders: p.feeders.filter((f) => f.boardId === s.boards[0]) } : sheetProject(p, set, s);
+  const txt = JSON.stringify([d.boards, d.feeders, s.title, s.size, s.tags, s.notes, s.clouds]);
+  let h = 2166136261;
+  for (let i = 0; i < txt.length; i++) { h ^= txt.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0).toString(36);
+}
+
+export interface SheetCheck { level: 'bad' | 'warn'; text: string; sheetId?: string; boardId?: string }
+
+/** Before publishing: panels on no sheet, empty sheets, missing title
+ * block details, sheets changed since their last issue, failing circuits.
+ * (Crowded sheets are found when the sheets are drawn.) */
+export function sheetChecks(p: Project, set: DrawingSet, failing: { feederId: string; boardId: string; status: string }[] = []): SheetCheck[] {
+  const out: SheetCheck[] = [];
+  if (!set.sheets.length) return [{ level: 'bad', text: 'No sheets yet — add one with + or Split by panels.' }];
+  const drawn = new Set(set.sheets.filter((s) => s.kind === 'system').flatMap((s) => s.boards));
+  for (const b of p.boards) if (!drawn.has(b.id)) {
+    const db = (b.kind ?? (b.upstreamId ? 'DB' : 'MDB')) === 'DB';
+    out.push({ level: db ? 'warn' : 'bad', text: db ? `${b.id} is on no sheet (shown only as an outgoing way “To ${b.id}”)` : `${b.id} is on no sheet`, boardId: b.id });
+  }
+  for (const s of set.sheets) if (!s.boards.length) out.push({ level: 'bad', text: `${s.number}: no panels on the sheet`, sheetId: s.id });
+  const d = p.drawing ?? {}, info = p.info ?? {}, pp = p.params ?? {};
+  const missing = [
+    !(d.company || info.consultant) && 'company / consultant',
+    !info.owner && 'owner / client',
+    !(pp.drawnBy || d.drawnBy || set.sheets.every((s) => s.drawnBy)) && 'drawn by',
+    !(pp.checkedBy || d.checkedBy || set.sheets.every((s) => s.checkedBy)) && 'checked by'
+  ].filter(Boolean);
+  if (missing.length) out.push({ level: 'warn', text: `Title block: ${missing.join(', ')} not filled in` });
+  for (const s of set.sheets) if (s.issuedHash && s.issuedHash !== sheetHash(p, set, s)) out.push({ level: 'warn', text: `${s.number} changed since it was issued (Rev ${s.rev ?? '—'}) — issue a new revision`, sheetId: s.id });
+  const onSheets = failing.filter((f) => drawn.has(f.boardId));
+  const bad = onSheets.filter((f) => f.status === 'fail').length, warn = onSheets.filter((f) => f.status === 'warn').length;
+  if (bad) out.push({ level: 'bad', text: `${bad} circuit(s) fail a check (cable, breaker or voltage drop) — they print in red` });
+  if (warn) out.push({ level: 'warn', text: `${warn} circuit(s) need checking` });
+  return out;
+}
+
+/** Sheet templates: paper size, cable text, values printed, notes, status,
+ * scale — applied to new or existing sheets. Kept on this computer and in
+ * the database Library.json. */
+export interface SheetTemplate { id: string; name: string; size: DrawingSheet['size']; cableLabels?: DrawingSheet['cableLabels']; tags?: DrawingSheet['tags']; notes?: string[]; status?: string; scale?: string }
+const TPL = 'lvds.sheetTemplates';
+export function loadSheetTemplates(): SheetTemplate[] { try { return JSON.parse(localStorage.getItem(TPL) ?? '[]'); } catch { return []; } }
+export function saveSheetTemplates(list: SheetTemplate[]): void {
+  try { localStorage.setItem(TPL, JSON.stringify(list)); } catch { /* storage blocked */ }
+  void import('../database/librarySync').then((m) => m.pushLibrary());
+}
+export const templateFromSheet = (s: DrawingSheet, name: string): SheetTemplate => ({ id: `st-${Date.now().toString(36)}`, name, size: s.size, cableLabels: s.cableLabels, tags: s.tags, notes: s.notes, status: s.status, scale: s.scale });
+export const applyTemplate = (s: DrawingSheet, t: SheetTemplate): DrawingSheet => ({ ...s, size: t.size, cableLabels: t.cableLabels, tags: t.tags, notes: t.notes, status: t.status ?? s.status, scale: t.scale ?? s.scale });
+
+/** A new system sheet with these panels (e.g. a selected panel and its branch). */
+export function addSheet(set: DrawingSet, boards: string[], title: string): { set: DrawingSet; id: string } {
+  const id = `sh-${Date.now().toString(36)}`;
+  return { id, set: renumber({ ...set, sheets: [...set.sheets, { id, number: '', title, kind: 'system', boards, size: 'auto' }] }) };
 }

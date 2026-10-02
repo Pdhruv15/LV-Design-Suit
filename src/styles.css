@@ -285,7 +285,7 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 .rev-fields s{color:var(--bad);opacity:.8}
 .md-rev{margin-left:10px;color:var(--acc);font-weight:600}
 /* ---- SLD editor: equipment library and drop targets ---- */
-.sld-edit{display:flex;gap:10px;align-items:stretch;min-width:0}
+.sld-edit{display:flex;flex-wrap:wrap;gap:10px;align-items:stretch;min-width:0}
 .sld-edit .sysdiag{flex:1;min-width:0}
 .palette{width:156px;flex:none;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px;max-height:70vh;overflow:auto}
 .palette.closed{width:auto;padding:6px;background:none;border:0}
@@ -938,3 +938,40 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .cable-ref-c{fill:var(--panel,#fff);stroke:#d33;stroke-width:1}
 .cable-ref-t{font-size:8.5px;font-weight:700;fill:currentColor}
 .sld-print .cable-ref-c,.sheet .cable-ref-c{fill:#fff}
+/* Sheet outlines on the design canvas, revision clouds on sheets */
+.sysdiag .sheet-outline rect{fill:none;stroke-width:1.6;stroke-dasharray:10 6;opacity:.85}
+.sysdiag .sheet-outline text{font-size:12px;font-weight:700}
+.sysdiag .sheet-outline{cursor:pointer}
+.sysdiag .rev-cloud path{fill:none;stroke:#d33;stroke-width:1.4}
+.sysdiag .rev-cloud .rev-tri{fill:var(--panel,#fff)}
+/* SLD tabs: Design + one tab per drawing sheet */
+.sheet-tabs{display:flex;align-items:center;gap:2px;flex-wrap:wrap;padding:4px 6px;border-top:1px solid var(--line);background:var(--p2,transparent);position:relative;flex:0 0 100%}
+.st-tab{border:1px solid transparent;background:transparent;color:inherit;font:inherit;font-size:12px;padding:4px 12px;border-radius:6px 6px 0 0;cursor:pointer;display:inline-flex;align-items:center;gap:2px}
+.st-tab:hover{background:color-mix(in srgb,var(--acc,#2563eb) 10%,transparent)}
+.st-tab.on{background:var(--panel,#fff);border-color:var(--line);border-bottom-color:var(--panel,#fff);font-weight:700}
+.st-add{position:relative}
+.st-menu-up{top:auto;bottom:calc(100% + 4px);left:0;right:auto}
+.st-outline{font-size:12px}
+.st-cover{position:fixed;inset:0;z-index:40}
+.st-ctx{position:fixed;z-index:41;right:auto;top:auto}
+.st-sub{display:flex;flex-wrap:wrap;gap:2px;padding:4px 10px;font-size:12px}
+.st-sub button{padding:2px 6px;font-size:11px}
+.dw-menu .danger{color:var(--bad,#c21f32)}
+.sheet-ws{display:flex;flex-direction:column;min-height:560px;flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.sheet-bar{display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--line)}
+.chip-lite{font-size:11px;padding:1px 8px;border-radius:999px;border:1px solid var(--line)}
+.sheet-body{flex:1;display:flex;min-height:0}
+.sheet-page{flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:12px;background:color-mix(in srgb,var(--bg,#000) 70%,#888 30%);min-height:520px}
+.sheet-paper{box-shadow:0 4px 18px rgba(0,0,0,.35);background:#fff;overflow:hidden;flex:none}
+.sheet-side{width:290px;flex:none;overflow:auto;border-left:1px solid var(--line);padding:8px 10px;font-size:13px}
+.sheet-side details{border-bottom:1px solid var(--line);padding:6px 0}
+.sheet-side summary{cursor:pointer;font-weight:700;margin-bottom:6px}
+.sheet-side .form-kv{grid-template-columns:1fr}
+.sheet-notes{width:100%;font:inherit;font-size:12px;background:transparent;color:inherit;border:1px solid var(--line);border-radius:6px;padding:6px}
+.sheet-ws.side .sheet-design{flex:1;min-width:0;overflow:hidden;border-right:1px solid var(--line)}
+.sheet-ws.side .sheet-page{flex:1}
+.pub-checks{list-style:none;padding:0;margin:8px 0;max-height:320px;overflow:auto}
+.pub-checks li{display:flex;gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid var(--line)}
+.pub-checks li.bad span{color:var(--bad,#c21f32);font-weight:700}
+.pub-checks li.warn span{color:var(--warn,#a86500);font-weight:700}
+.sld-edit:has(> .sheet-ws:not(.side)) > .palette{display:none}
