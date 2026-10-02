@@ -9,6 +9,7 @@
     "dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "build": "tsc -b && vite build",
     "dist": "npm run build && electron-builder",
+    "dist:mac": "npm run build && electron-builder --mac dmg:arm64",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
