@@ -7,6 +7,10 @@ import { buildAnnotations, SHEET_LAYERS } from '../../diagram/annotations';
 import { printableSvg } from '../../diagram/exportSvg';
 import { autoSize, drawable, registerHtml, sheetProject, sheetRev, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
 import { buildSldSheetHtml, type SheetInfo } from '../../docs/sldSheet';
+import { buildSheetDxf } from '../../docs/sheetDxf';
+import { buildRegisterWorkbook } from '../../docs/registerWorkbook';
+import { workbookBytes } from '../../docs/formWorkbook';
+import JSZip from 'jszip';
 import { mergePdfs } from '../../docs/mergePdf';
 import { currentRevision, revisionStamp } from '../../model/revisions';
 import { cableRefsUsed } from '../../model/cableRefs';
@@ -133,12 +137,81 @@ export async function sheetHtml(project: Project, set: DrawingSet, s: DrawingShe
 
 /** Sheet HTML from a drawn SVG (legend: every cable number used in the set). */
 export function sheetHtmlFrom(project: Project, set: DrawingSet, s: DrawingSheet, svg: string, size: SheetSize, legend: boolean, legendSvg = ''): string {
-  const info = { ...sheetInfo(set, s, set.sheets.indexOf(s)), legendSvg };
+  return buildSldSheetHtml(project, svg, size, fullSheetInfo(project, set, s, legend, legendSvg));
+}
+
+/** Title block values, legend and cable schedule of one sheet (PDF and DXF). */
+export function fullSheetInfo(project: Project, set: DrawingSet, s: DrawingSheet, legend: boolean, legendSvg = ''): SheetInfo {
+  const info: SheetInfo = { ...sheetInfo(set, s, set.sheets.indexOf(s)), legendSvg };
   if (legend) {
     const boards = new Set(set.sheets.flatMap((x) => (x.kind === 'system' ? x.boards : [])));
     info.cables = cableRefsUsed(project, project.feeders.filter((f) => boards.has(f.boardId)));
   }
-  return buildSldSheetHtml(project, svg, size, info);
+  return info;
+}
+
+/** The sheets as DXF files (real paper size in mm, frame, title block,
+ * legend column, layers): one file, or a ZIP of all when several. */
+export async function dxfFiles(project: Project, set: DrawingSet, run: CalcRun | undefined, only?: string[]): Promise<{ name: string; data: string }[]> {
+  const pages: { s: DrawingSheet; svg: string; size: SheetSize; refs: boolean; legendSvg: string }[] = [];
+  for (const s of set.sheets) {
+    if (!drawable(s) || (only && !only.includes(s.id))) continue;
+    const r = await sheetHtml(project, set, s, run);
+    if (r) pages.push({ s, svg: r.svg, size: r.size, refs: r.refs, legendSvg: r.legendSvg });
+  }
+  const anyRefs = pages.some((p) => p.refs);
+  return pages.map((p) => ({
+    name: `${safeFileName(`${p.s.number}${p.s.rev || sheetRev(p.s) ? `_Rev${p.s.rev || sheetRev(p.s)}` : ''}`)}.dxf`,
+    data: buildSheetDxf(project, p.svg, p.size, fullSheetInfo(project, set, p.s, anyRefs && p.s.kind === 'system', p.legendSvg))
+  }));
+}
+
+export async function exportSheetsDxf(project: Project, set: DrawingSet, run: CalcRun | undefined, onStatus: (m: string) => void, only?: string[]): Promise<void> {
+  try {
+    const files = await dxfFiles(project, set, run, only);
+    if (!files.length) { onStatus('No sheets to export'); return; }
+    if (files.length === 1) {
+      const m = await saveBinary(files[0].name, new TextEncoder().encode(files[0].data), 'DXF', 'dxf', 'application/dxf');
+      if (m) onStatus(m);
+      return;
+    }
+    const zip = new JSZip();
+    for (const f of files) zip.file(f.name, f.data);
+    const m = await saveBinary(`${safeFileName(`${project.name} drawings DXF`)}.zip`, await zip.generateAsync({ type: 'uint8array' }), 'ZIP', 'zip', 'application/zip');
+    if (m) onStatus(`${m} — ${files.length} DXF sheets`);
+  } catch (e) {
+    onStatus(`DXF export failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+/** Everything for a submission in one ZIP: the set as one PDF (desktop),
+ * a DXF per sheet, and the drawing register (Excel). */
+export async function exportEverythingZip(project: Project, set: DrawingSet, run: CalcRun | undefined, onStatus: (m: string) => void): Promise<void> {
+  try {
+    const zip = new JSZip();
+    const dxf = await dxfFiles(project, set, run);
+    for (const f of dxf) zip.file(`DXF/${f.name}`, f.data);
+    const toBytes = window.lvds?.files?.pdfBytes;
+    if (toBytes) {
+      const parts: Uint8Array[] = [], titles: string[] = [];
+      const rev = currentRevision(project);
+      if (set.register) { parts.push(await toBytes({ html: registerHtml(project, registerRows(set, [], rev?.id), rev?.id ?? '—', rev?.date ?? new Date().toISOString().slice(0, 10), set.issues, project.drawing?.company ?? project.info?.consultant ?? ''), cssPages: true })); titles.push('Drawing register'); }
+      for (const s of set.sheets) {
+        if (!drawable(s)) continue;
+        const r = await sheetHtml(project, set, s, run);
+        if (!r) continue;
+        const one = await toBytes({ html: r.html, cssPages: true });
+        parts.push(one); titles.push(`${s.number}  ${s.title}`);
+        zip.file(`PDF/${safeFileName(`${s.number}${s.rev ? `_Rev${s.rev}` : ''}`)}.pdf`, one);
+      }
+      zip.file(`${safeFileName(`${project.name} drawing set`)}.pdf`, await mergePdfs(parts, `${project.name} · drawings · ${revisionStamp(project)}`, titles));
+    }
+    zip.file(`${safeFileName(`${project.name} drawing register`)}.xlsx`, await workbookBytes(buildRegisterWorkbook(project, set)));
+    const m = await saveBinary(`${safeFileName(`${project.name} drawings`)}.zip`, await zip.generateAsync({ type: 'uint8array' }), 'ZIP', 'zip', 'application/zip');
+    if (m) onStatus(`${m} — ${dxf.length} DXF${toBytes ? ' + PDFs' : ' (PDFs need the desktop app)'} + register`);
+  } catch (e) {
+    onStatus(`Export failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
 }
 
 /** Every sheet as one PDF (register first, when on) or a PDF per sheet. */

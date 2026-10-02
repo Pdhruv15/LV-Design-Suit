@@ -119,7 +119,7 @@ export function pathPoints(d: string): [number, number][][] {
 const layerOf = (el: Element): string => {
   const cls = `${el.getAttribute('class') ?? ''} ${el.parentElement?.getAttribute('class') ?? ''}`;
   if (el.tagName === 'text') return /\bres\b/.test(cls) ? 'RESULT' : 'TEXT';
-  if (/\bbus\b/.test(el.getAttribute('class') ?? '')) return 'BUSBAR';
+  if (/\bbus\b/.test(el.getAttribute('class') ?? '') || /\briser-bus\b/.test(cls)) return 'BUSBAR';
   if (/\bln\b/.test(el.getAttribute('class') ?? '')) return 'CABLE';
   return 'SYMBOL';
 };
@@ -157,6 +157,15 @@ export function svgToDxf(svgMarkup: string, height: number): DxfPrimitive[] {
         out.push({ type: 'circle', layer, x, y, r: num('r') * Math.hypot(mm[0], mm[1]) });
         break;
       }
+      case 'polygon':
+      case 'polyline': {
+        if (noStroke && el.tagName === 'polyline') break;
+        const pts = (el.getAttribute('points') ?? '').trim().split(/[\s,]+/).map(Number);
+        const run: [number, number][] = [];
+        for (let i = 0; i + 1 < pts.length; i += 2) run.push(flip(apply(mm, pts[i], pts[i + 1])));
+        if (run.length > 1) out.push({ type: 'polyline', layer, points: run, closed: el.tagName === 'polygon' });
+        break;
+      }
       case 'path': {
         if (noStroke) break;
         for (const run of pathPoints(el.getAttribute('d') ?? '')) out.push({ type: 'polyline', layer, points: run.map(([a, b]) => flip(apply(mm, a, b))) });
@@ -167,7 +176,9 @@ export function svgToDxf(svgMarkup: string, height: number): DxfPrimitive[] {
         const size = Number(style.match(/font-size:\s*([\d.]+)/)?.[1] ?? 11);
         const anchor = style.match(/text-anchor:\s*(\w+)/)?.[1];
         const [x, y] = flip(apply(mm, num('x'), num('y')));
-        out.push({ type: 'text', layer, x, y, height: size * 0.72, text, align: anchor === 'middle' ? 'center' : anchor === 'end' ? 'right' : 'left' });
+        const scale = Math.hypot(mm[0], mm[1]) || 1;
+        const rot = -Math.atan2(mm[1], mm[0]) * 180 / Math.PI; // SVG y is down, DXF y is up
+        out.push({ type: 'text', layer, x, y, height: size * 0.72 * scale, text, align: anchor === 'middle' ? 'center' : anchor === 'end' ? 'right' : 'left', ...(Math.abs(rot) > 0.5 ? { rotation: rot } : {}) });
         return; // tspans are part of the text
       }
     }

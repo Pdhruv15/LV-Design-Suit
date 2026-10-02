@@ -23,13 +23,13 @@ const n = (v: number) => (Math.abs(v) < 1e-9 ? '0' : v.toFixed(4).replace(/\.?0+
 /** DXF text can't hold newlines; R12 is not Unicode, so keep printable ASCII
  * and spell out the few symbols the diagram uses. */
 export const dxfText = (s: string) =>
-  s.replace(/²/g, '2').replace(/[×]/g, 'x').replace(/[·•]/g, '-').replace(/[–—]/g, '-').replace(/[″]/g, '"').replace(/Δ/g, 'd')
+  s.replace(/²/g, '2').replace(/[×]/g, 'x').replace(/[·•]/g, '-').replace(/[–—−]/g, '-').replace(/±/g, '+/-').replace(/[″]/g, '"').replace(/Δ/g, 'd')
     .replace(/[≥]/g, '>=').replace(/[≤]/g, '<=').replace(/[\r\n]+/g, ' ').replace(/[^\x20-\x7e]/g, '');
 
-export function toDxf(items: DxfPrimitive[]): string {
+export function toDxf(items: DxfPrimitive[], layerColours: Record<string, number> = DXF_LAYERS): string {
   const out: string[] = [];
   const g = (code: number, value: string | number) => out.push(String(code), typeof value === 'number' ? n(value) : value);
-  const layers = [...new Set([...Object.keys(DXF_LAYERS), ...items.map((i) => i.layer)])];
+  const layers = [...new Set([...Object.keys(layerColours), ...items.map((i) => i.layer)])];
   const xs = items.flatMap((i) => (i.type === 'polyline' ? i.points.map((p) => p[0]) : i.type === 'line' ? [i.x1, i.x2] : [i.x]));
   const ys = items.flatMap((i) => (i.type === 'polyline' ? i.points.map((p) => p[1]) : i.type === 'line' ? [i.y1, i.y2] : [i.y]));
 
@@ -44,7 +44,7 @@ export function toDxf(items: DxfPrimitive[]): string {
   g(0, 'LTYPE'); g(2, 'CONTINUOUS'); g(70, 0); g(3, 'Solid line'); g(72, 65); g(73, 0); g(40, 0);
   g(0, 'ENDTAB');
   g(0, 'TABLE'); g(2, 'LAYER'); g(70, layers.length);
-  for (const l of layers) { g(0, 'LAYER'); g(2, l); g(70, 0); g(62, DXF_LAYERS[l] ?? 7); g(6, 'CONTINUOUS'); }
+  for (const l of layers) { g(0, 'LAYER'); g(2, l); g(70, 0); g(62, layerColours[l] ?? 7); g(6, 'CONTINUOUS'); }
   g(0, 'ENDTAB');
   g(0, 'ENDSEC');
 
