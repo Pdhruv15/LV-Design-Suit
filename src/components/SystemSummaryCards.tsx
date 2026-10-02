@@ -12,7 +12,8 @@ export default function SystemSummaryCards({
   selectedBoardId,
   onSelectBoard,
   annotations,
-  sourceLabel
+  sourceLabel,
+  only
 }: {
   project: Project;
   /** When set, bus voltages and fault levels come from these (e.g. an engine run). */
@@ -20,6 +21,8 @@ export default function SystemSummaryCards({
   sourceLabel?: string;
   selectedBoardId: string | null;
   onSelectBoard: (id: string) => void;
+  /** Just one of the two cards (the results tabs under the SLD). */
+  only?: 'summary' | 'buses';
 }) {
   const sys = useMemo(() => systemSummary(project), [project]);
   const boards = useMemo(() => boardsInSupplyOrder(project).map((b) => boardSummary(project, b)), [project]);
@@ -32,8 +35,8 @@ export default function SystemSummaryCards({
   const status = sys.transformerLoadingStatus ?? 'ok';
 
   return (
-    <div className="cards">
-      <section className="card">
+    <div className={`cards${only ? ' one' : ''}`}>
+      {only !== 'buses' && <section className="card">
         <h4>System summary</h4>
         <div className="summary">
           <svg width="124" height="112" viewBox="0 0 124 112" aria-label={`Transformer loading ${pct.toFixed(0)} percent`}>
@@ -68,9 +71,9 @@ export default function SystemSummaryCards({
             )}
           </dl>
         </div>
-      </section>
+      </section>}
 
-      <section className="card">
+      {only !== 'summary' && <section className="card">
         <h4>Bus voltages and board loading</h4>
         <table className="compact">
           <thead>
@@ -106,7 +109,7 @@ export default function SystemSummaryCards({
           {sourceLabel ??
             'Built-in estimate: voltage measured from the main busbar (transformer regulation not included). Choose a load-flow engine above the diagram and run the simulation for full results.'}
         </p>
-      </section>
+      </section>}
     </div>
   );
 }

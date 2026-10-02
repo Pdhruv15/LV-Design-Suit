@@ -108,7 +108,7 @@ export default function App() {
   const [sheetTab, setSheetTab] = useState<string | null>(null);
   const [sheetOutlinesOn, setSheetOutlinesOn] = useState(false);
   // Results under the SLD: open / closed (remembered); a row click centres the drawing on it.
-  const [resOpen, setResOpen] = useState(() => { try { return localStorage.getItem('lvds.resOpen') !== '0'; } catch { return true; } });
+  const [resTab, setResTab] = useState<'summary' | 'buses' | 'feeders' | null>(() => { try { const v = localStorage.getItem('lvds.resTab'); return v === 'summary' || v === 'buses' || v === 'feeders' ? v : null; } catch { return null; } });
   const [sldFocus, setSldFocus] = useState<{ kind: 'board' | 'feeder'; id: string; n: number } | undefined>();
   // A cable type new to the project gets the next free reference number (kept).
   useEffect(() => { history.patch(withCableRefs); }, [project.feeders, project.cableRefs]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -969,23 +969,30 @@ export default function App() {
                   <SingleLineDiagram board={board} voltageV={project.voltageV} results={boardResults} selected={selected} onSelect={selectFeeder} />
                 )}
               </section>
-              <section className="res-drawer">
-                <div className="rd-head" onClick={() => setResOpen((v) => { try { localStorage.setItem('lvds.resOpen', v ? '0' : '1'); } catch { /* ignore */ } return !v; })}>
-                  <span>{resOpen ? '▾' : '▸'}</span><b>Results</b>
+              <section className={`res-drawer${resTab ? ' open' : ''}`}>
+                <div className="rd-tabs" role="tablist" aria-label="Results">
+                  {([['summary', 'System summary'], ['buses', 'Bus voltages & loading'], ['feeders', `Feeders on ${board.id}`]] as const).map(([k, label]) => (
+                    <button key={k} role="tab" aria-selected={resTab === k} className={resTab === k ? 'on' : ''}
+                      onClick={() => setResTab((t) => { const v = t === k ? null : k; try { localStorage.setItem('lvds.resTab', v ?? ''); } catch { /* ignore */ } return v; })}>{label}</button>
+                  ))}
+                  <span className="sp" />
                   {(() => { const bad = allResults.filter((r) => r.status === 'bad').length, warn = allResults.filter((r) => r.status === 'warn').length; return <>{bad > 0 && <span className="rd-chip bad">{bad} fail</span>}{warn > 0 && <span className="rd-chip warn">{warn} to check</span>}{!bad && !warn && <span className="rd-chip">all pass</span>}</>; })()}
-                  <span className="m">Click a row to find it on the drawing</span>
+                  {resTab && <button className="icon-btn" title="Close" onClick={() => { setResTab(null); try { localStorage.setItem('lvds.resTab', ''); } catch { /* ignore */ } }}>✕</button>}
                 </div>
-                {resOpen && (
+                {resTab && (
                   <div className="rd-body">
-              <SystemSummaryCards
-                project={calcProject}
-                selectedBoardId={panel === 'board' ? board.id : null}
-                onSelectBoard={(id) => { selectBoard(id); setSldFocus({ kind: 'board', id, n: Date.now() }); }}
-                annotations={engineFresh ? annotations : undefined}
-                sourceLabel={engineFresh ? `${EXTERNAL_ENGINES.find((e) => e.id === resultSource)?.name} load flow: voltages include the transformer's own drop; fault levels from the engine's fault study.` : undefined}
-              />
-              <h3 className="section-title">Feeders on {board.id}</h3>
-              <ResultsTable results={boardResults} vdLimitPct={project.vdLimitPct} selected={selected} onSelect={(id) => { selectFeeder(id); setSldFocus({ kind: 'feeder', id, n: Date.now() }); }} />
+                    {resTab !== 'feeders' ? (
+                      <SystemSummaryCards
+                        only={resTab}
+                        project={calcProject}
+                        selectedBoardId={panel === 'board' ? board.id : null}
+                        onSelectBoard={(id) => { selectBoard(id); setSldFocus({ kind: 'board', id, n: Date.now() }); }}
+                        annotations={engineFresh ? annotations : undefined}
+                        sourceLabel={engineFresh ? `${EXTERNAL_ENGINES.find((e) => e.id === resultSource)?.name} load flow: voltages include the transformer's own drop; fault levels from the engine's fault study.` : undefined}
+                      />
+                    ) : (
+                      <ResultsTable results={boardResults} vdLimitPct={project.vdLimitPct} selected={selected} onSelect={(id) => { selectFeeder(id); setSldFocus({ kind: 'feeder', id, n: Date.now() }); }} />
+                    )}
                   </div>
                 )}
               </section>
