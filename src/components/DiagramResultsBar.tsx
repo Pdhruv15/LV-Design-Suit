@@ -63,9 +63,9 @@ export default function DiagramResultsBar({
         )}
       </MenuButton>
       {supplyLabel && <button className="chip supply-pick active" onClick={() => onSupply('normal')} title="Back to normal supply">{supplyLabel} ✕</button>}
-      <label className="m results-src" title={note?.text}>
+      <label className="results-src" title={note?.text}>
         <span className="res-dot" style={{ background: dot }} />
-        <select value={supply === 'generator' ? 'builtin' : source} disabled={supply === 'generator'} onChange={(e) => onSource(e.target.value)} aria-label="Results from">
+        <select className="chip" value={supply === 'generator' ? 'builtin' : source} disabled={supply === 'generator'} onChange={(e) => onSource(e.target.value)} aria-label="Results from">
           <option value="builtin">Results: built-in (instant)</option>
           {EXTERNAL_ENGINES.map((e) => <option key={e.id} value={e.id}>Results: {e.name} load flow</option>)}
         </select>
