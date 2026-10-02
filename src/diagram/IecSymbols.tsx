@@ -143,14 +143,14 @@ export function legendEntries(project: Project): LegendEntry[] {
   ));
   const main = (b: { upstreamId?: string }) => !b.upstreamId;
   if (project.boards.some((b) => b.instruments ?? main(b))) {
-    add('am', 'Ammeter (A) / voltmeter (V) with selector switch (S/S)', (x, y) => (
+    add('am', 'Ammeter (A) / voltmeter (V), selector S/S', (x, y) => (
       <g className="iec"><rect x={x - 17} y={y - 7} width="14" height="14" className="sym" /><text x={x - 10} y={y + 4} textAnchor="middle" className="iec-t b">A</text><rect x={x + 3} y={y - 7} width="14" height="14" className="sym" /><text x={x + 10} y={y + 4} textAnchor="middle" className="iec-t b">V</text></g>
     ));
     add('lamps', 'Indicating lamps R, Y, B', (x, y) => (
       <g className="iec">{['R', 'Y', 'B'].map((p, i) => <g key={p}><circle cx={x - 13 + i * 13} cy={y} r="5.5" className="sym" /><text x={x - 13 + i * 13} y={y + 3} textAnchor="middle" className="iec-t s">{p}</text></g>)}</g>
     ));
   }
-  if (project.boards.some((b) => b.earthing?.show ?? main(b))) add('pit', 'Earth pit: electrode with inspection pit and cover', (x, y) => (
+  if (project.boards.some((b) => b.earthing?.show ?? main(b))) add('pit', 'Earth pit with inspection cover', (x, y) => (
     <g className="iec"><rect x={x - 7} y={y - 11} width="14" height="9" className="sym" /><line x1={x} y1={y - 6} x2={x} y2={y + 6} className="ln" /><path d={`M${x - 7} ${y + 6} h14 M${x - 4.5} ${y + 9} h9 M${x - 2} ${y + 12} h4`} className="ln" /></g>
   ));
   if (drawn.some((f) => f.kwhMeter)) add('kwh', 'kWh meter', (x, y) => (
@@ -161,10 +161,10 @@ export function legendEntries(project: Project): LegendEntry[] {
     <g className="iec"><rect x={x - 6} y={y - 9} width="12" height="14" className="sym" /><path d={`M${x + 2} ${y - 7} l-3 5 h3 l-3 5`} className="sym-ln" /><path d={`M${x - 6} ${y + 8} h12 M${x - 4} ${y + 11} h8`} className="ln" /></g>
   ));
   if (types.has('motor') || types.has('fire-pump')) add('m', 'Motor (FP = fire pump)', (x, y) => <LoadSym x={x} y={y} type="motor" />);
-  if (types.has('lighting')) add('lamp', 'Lighting', (x, y) => <LoadSym x={x} y={y + 4} type="lighting" />);
-  if (types.has('sockets')) add('so', 'Socket outlets', (x, y) => <LoadSym x={x} y={y + 4} type="sockets" />);
+  if (types.has('lighting')) add('lamp', 'Lighting', (x, y) => <LoadSym x={x} y={y + 5} type="lighting" />);
+  if (types.has('sockets')) add('so', 'Socket outlets', (x, y) => <LoadSym x={x} y={y + 7} type="sockets" />);
   if (types.has('capacitor')) add('cap', 'Capacitor bank', (x, y) => <LoadSym x={x} y={y + 2} type="capacitor" />);
-  if (types.has('pv')) add('pv', 'Solar PV / generation', (x, y) => <LoadSym x={x} y={y} type="pv" />);
+  if (types.has('pv')) add('pv', 'Solar PV / generation', (x, y) => <LoadSym x={x} y={y + 6} type="pv" />);
   const EQUIP: [LoadType, string][] = [['hvac', 'HVAC equipment (AC)'], ['ev', 'EV charger (EV)'], ['it', 'IT / data (IT)'], ['general', 'Other load (L)']];
   for (const [t, label] of EQUIP) if (types.has(t)) add(`eq-${t}`, label, (x, y) => <LoadSym x={x} y={y} type={t} />);
   return out;
@@ -172,3 +172,8 @@ export function legendEntries(project: Project): LegendEntry[] {
 
 export const LEGEND_W = 250;
 export const LEGEND_ROW = 30;
+/** Symbol column centre and label start inside the legend box. */
+export const LEGEND_SYM_X = 34;
+export const LEGEND_TEXT_X = 64;
+/** Legend box width: fits the longest label (≈ 6 px per character). */
+export const legendWidth = (entries: LegendEntry[]) => Math.max(LEGEND_W, Math.ceil(LEGEND_TEXT_X + 14 + Math.max(0, ...entries.map((e) => e.label.length)) * 6.1));

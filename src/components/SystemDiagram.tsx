@@ -3,7 +3,7 @@ import { componentLabel } from '../model/components';
 import type { DrawingInfo, Project } from '../types';
 import { cableTypeOf, CABLE_TYPE_DEFS, labelCode, needsFireRated } from '../model/cableTypes';
 import { cableRefOf } from '../model/cableRefs';
-import { LEGEND_ROW, LEGEND_W, legendEntries, LoadSym, polesText, SwitchSym, switchKindOf } from '../diagram/IecSymbols';
+import { LEGEND_ROW, LEGEND_SYM_X, LEGEND_TEXT_X, legendEntries, legendWidth, LoadSym, polesText, SwitchSym, switchKindOf } from '../diagram/IecSymbols';
 import type { FeederResult, Status } from '../calc/electrical';
 import { boardSummary, loadTypeOf } from '../calc/summary';
 import { boardPhaseKw } from '../calc/loadSchedule';
@@ -79,7 +79,8 @@ export default function SystemDiagram({
   tool = 'select',
   annotations,
   layers,
-  cableRefs = false,
+  cableRefs: cableRefsProp,
+  hideLegend = false,
   onEditFeeder,
   onEditBoard,
   onOpenSchedule,
@@ -111,6 +112,8 @@ export default function SystemDiagram({
   layers?: ResultLayers;
   /** Cable text as a reference number (legend: CABLE SCHEDULE) and the size only. */
   cableRefs?: boolean;
+  /** Leave the symbol legend out (drawing sheets put it in their legend column). */
+  hideLegend?: boolean;
   onEditFeeder?: (id: string) => void;
   onEditBoard?: (id: string) => void;
   /** Opens a DB's load schedule (double-click on the DB's circuit summary). */
@@ -210,8 +213,11 @@ export default function SystemDiagram({
   };
 
   // The symbol legend sits to the right of the network, inside the drawing (so it exports).
-  const legend = useMemo(() => (iec && (project.drawing?.legend ?? true) ? legendEntries(calcProject ?? project) : []), [iec, project, calcProject]);
-  const W = layout.width + (legend.length ? LEGEND_W + 30 : 0);
+  const legend = useMemo(() => (iec && !hideLegend && (project.drawing?.legend ?? true) ? legendEntries(calcProject ?? project) : []), [iec, hideLegend, project, calcProject]);
+  // Cable text as reference numbers: on the drawing sheets when chosen there, on screen with Always numbers.
+  const cableRefs = cableRefsProp ?? project.drawing?.cableLabels === 'ref';
+  const legendW = legendWidth(legend);
+  const W = layout.width + (legend.length ? legendW + 30 : 0);
   const H = Math.max(layout.height, legend.length ? 80 + legend.length * LEGEND_ROW : 0);
   const full: ViewBox = { x: 0, y: 0, w: W, h: H };
   const [vb, setVb] = useState<ViewBox>(full);
@@ -418,6 +424,7 @@ export default function SystemDiagram({
       <div className="sysdiag-tools" role="toolbar" aria-label="Diagram zoom">
         {onDrawing && <button className="chip" onClick={() => onDrawing({ symbols: iec ? 'simple' : 'iec' })} title={iec ? 'IEC 60617 symbols — switch to simple icons' : 'Simple icons — switch to IEC 60617 symbols'}>{iec ? 'IEC' : 'Icons'}</button>}
         {onDrawing && <button className={`chip${dewa ? ' on' : ''}`} onClick={() => onDrawing({ sldStyle: dewa ? 'standard' : undefined })} title="DEWA submission style: a frame around each panel with its summary (LOC, TCL, DF, MDL), way numbers and DEWA wording">DEWA</button>}
+        {onDrawing && <button className={`chip${project.drawing?.cableLabels === 'ref' ? ' on' : ''}`} onClick={() => onDrawing({ cableLabels: project.drawing?.cableLabels === 'ref' ? undefined : 'ref' })} title="Cable text as reference numbers (CABLE SCHEDULE legend). Off: full description on screen; drawing sheets switch to numbers by themselves when crowded.">Cable no.</button>}
         {onDrawing && iec && <button className={`chip${legend.length ? ' on' : ''}`} onClick={() => onDrawing({ legend: !(project.drawing?.legend ?? true) })} title="Symbol legend beside the drawing (printed on the exports)">Legend</button>}
         <button className="chip" onClick={nextGrid} title="Grid: lines, dots or none">{grid === 'lines' ? '▦' : grid === 'dots' ? '⁙' : '□'}</button>
         <button className="chip" onClick={() => zoom(1 / 1.25)} aria-label="Zoom in">+</button>
@@ -667,9 +674,9 @@ export default function SystemDiagram({
               </text>
               {cableRefs && (() => { const r = cableRefOf(project, f); return (
                 <g className="cable-ref"><title>{`Cable ${r.ref}: ${r.text}`}</title>
-                  <circle cx={n.x + 15} cy={y + (dewa ? 70 : 65)} r="7.5" className="cable-ref-c" />
-                  <text x={n.x + 15} y={y + (dewa ? 73 : 68)} textAnchor="middle" className="cable-ref-t">{r.ref}</text>
-                  <text x={n.x + 26} y={y + (dewa ? 73 : 68)} className="acc-t" style={{ fontSize: 8 }}>{f.lengthM}m</text>
+                  <circle cx={n.x - 13} cy={y + (dewa ? 64 : 49)} r="7.5" className="cable-ref-c" />
+                  <text x={n.x - 13} y={y + (dewa ? 67 : 52)} textAnchor="middle" className="cable-ref-t">{r.ref}</text>
+                  <text x={n.x + 7} y={y + (dewa ? 68 : 63)} className="acc-t" style={{ fontSize: 8 }}>{f.lengthM}m</text>
                 </g>); })()}
               {dewa && !cableRefs && <text className="acc-t" style={{ fontSize: 9 }} x={n.x + 7} y={y + 67}>{cableTypeOf(project, f).armoured ? `+1C ${cpcOf(f)}mm² ECC · ` : ''}{f.lengthM}m</text>}
               {/* Accessories on the feeder, top to bottom: earth leakage (its
@@ -958,13 +965,13 @@ export default function SystemDiagram({
         })}
         {legend.length > 0 && (
           <g className="legend" transform={`translate(${layout.width + 10} 30)`}>
-            <rect x="0" y="0" width={LEGEND_W} height={46 + legend.length * LEGEND_ROW} rx="4" className="legend-box" />
+            <rect x="0" y="0" width={legendW} height={46 + legend.length * LEGEND_ROW} rx="4" className="legend-box" />
             <text x="12" y="22" className="b">LEGEND</text>
-            <line x1="0" y1="32" x2={LEGEND_W} y2="32" className="ln" />
+            <line x1="0" y1="32" x2={legendW} y2="32" className="ln" />
             {legend.map((e, i) => (
               <g key={e.key}>
-                {e.draw(28, 32 + 20 + i * LEGEND_ROW)}
-                <text x="52" y={32 + 24 + i * LEGEND_ROW} className="legend-t">{e.label}</text>
+                {e.draw(LEGEND_SYM_X, 32 + 20 + i * LEGEND_ROW)}
+                <text x={LEGEND_TEXT_X} y={32 + 24 + i * LEGEND_ROW} className="legend-t">{e.label}</text>
               </g>
             ))}
           </g>
@@ -1042,6 +1049,31 @@ export default function SystemDiagram({
           </div>
         </form>
       )}
+    </div>
+  );
+}
+
+/** The symbol legend on its own (the drawing sheets' legend column). */
+export function LegendSvg({ project }: { project: Project }) {
+  const legend = legendEntries(project);
+  if (!legend.length) return null;
+  const h = 46 + legend.length * LEGEND_ROW;
+  const W = legendWidth(legend);
+  return (
+    <div className="sysdiag">
+      <svg viewBox={`0 0 ${W} ${h}`} width={W} height={h} data-w={W} data-h={h}>
+        <g className="legend">
+          <rect x="0" y="0" width={W} height={h} rx="4" className="legend-box" />
+          <text x="12" y="22" className="b">LEGEND</text>
+          <line x1="0" y1="32" x2={W} y2="32" className="ln" />
+          {legend.map((e, i) => (
+            <g key={e.key}>
+              {e.draw(LEGEND_SYM_X, 32 + 20 + i * LEGEND_ROW)}
+              <text x={LEGEND_TEXT_X} y={32 + 24 + i * LEGEND_ROW} className="legend-t">{e.label}</text>
+            </g>
+          ))}
+        </g>
+      </svg>
     </div>
   );
 }

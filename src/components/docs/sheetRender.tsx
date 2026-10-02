@@ -12,7 +12,7 @@ import { currentRevision, revisionStamp } from '../../model/revisions';
 import { cableRefsUsed } from '../../model/cableRefs';
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
 import { SHEET_MM } from '../../docs/sldSheet';
-import SystemDiagram from '../SystemDiagram';
+import SystemDiagram, { LegendSvg } from '../SystemDiagram';
 import SingleLineDiagram from '../SingleLineDiagram';
 
 const noop = () => {};
@@ -38,7 +38,7 @@ export async function renderSheet(project: Project, set: DrawingSet, s: DrawingS
     const drawing = sheetProject(project, set, s);
     const results = evaluateProject(drawing);
     flushSync(() => root.render(
-      <SystemDiagram project={drawing} calcProject={drawing} results={results} annotations={buildAnnotations(drawing, results)} layers={set.tags ?? SHEET_LAYERS} cableRefs={cableRefs}
+      <SystemDiagram project={drawing} calcProject={drawing} results={results} annotations={buildAnnotations(drawing, results)} layers={set.tags ?? SHEET_LAYERS} cableRefs={cableRefs} hideLegend
         selectedFeederId={null} selectedBoardId={null} onSelectFeeder={noop} onSelectBoard={noop} />
     ));
     await new Promise((r) => requestAnimationFrame(() => r(null)));
@@ -60,6 +60,21 @@ export const sheetInfo = (set: DrawingSet, s: DrawingSheet, i: number): SheetInf
   history: s.history?.map((h) => ({ id: h.rev, date: h.date, description: h.description }))
 });
 
+/** The symbol legend of what's drawn on this sheet, as printable SVG. */
+async function legendOf(drawing: Project): Promise<string> {
+  if (drawing.drawing?.symbols === 'simple' || drawing.drawing?.legend === false) return '';
+  const host = document.createElement('div');
+  host.style.cssText = 'position:fixed;left:-30000px;top:0;pointer-events:none';
+  document.body.appendChild(host);
+  const root = createRoot(host);
+  try {
+    flushSync(() => root.render(<LegendSvg project={drawing} />));
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    const svg = host.querySelector<SVGSVGElement>('svg');
+    return svg ? printableSvg(svg, Number(svg.dataset.w), Number(svg.dataset.h)) : '';
+  } finally { root.unmount(); host.remove(); }
+}
+
 /** Cable text on a sheet: reference numbers (legend: CABLE SCHEDULE) when
  * chosen, or in Auto when the cable text would print smaller than ≈ 2.3 mm
  * (a large SLD squeezed onto the paper). */
@@ -72,7 +87,7 @@ function sheetScale(size: SheetSize, w: number, h: number) {
 /** The finished sheet (frame, drawing, title block) as HTML, with its size.
  * withLegend: show the CABLE SCHEDULE even if this sheet itself has full
  * cable text (another sheet of the set uses numbers). */
-export async function sheetHtml(project: Project, set: DrawingSet, s: DrawingSheet, run?: CalcRun, withLegend = false): Promise<{ html: string; size: SheetSize; fits: boolean; refs: boolean; svg: string } | undefined> {
+export async function sheetHtml(project: Project, set: DrawingSet, s: DrawingSheet, run?: CalcRun, withLegend = false): Promise<{ html: string; size: SheetSize; fits: boolean; refs: boolean; svg: string; legendSvg: string } | undefined> {
   const mode = project.drawing?.cableLabels ?? 'auto';
   let refs = mode === 'ref' && s.kind === 'system';
   let r = await renderSheet(project, set, s, run, refs);
@@ -83,13 +98,14 @@ export async function sheetHtml(project: Project, set: DrawingSet, s: DrawingShe
     refs = true;
     r = (await renderSheet(project, set, s, run, true)) ?? r;
   }
-  const html = sheetHtmlFrom(project, set, s, r.svg, size, refs || withLegend);
-  return { html, size, fits: a.fits || s.size !== 'auto', refs, svg: r.svg };
+  const legendSvg = s.kind === 'system' ? await legendOf(sheetProject(project, set, s)) : '';
+  const html = sheetHtmlFrom(project, set, s, r.svg, size, refs || withLegend, legendSvg);
+  return { html, size, fits: a.fits || s.size !== 'auto', refs, svg: r.svg, legendSvg };
 }
 
 /** Sheet HTML from a drawn SVG (legend: every cable number used in the set). */
-export function sheetHtmlFrom(project: Project, set: DrawingSet, s: DrawingSheet, svg: string, size: SheetSize, legend: boolean): string {
-  const info = sheetInfo(set, s, set.sheets.indexOf(s));
+export function sheetHtmlFrom(project: Project, set: DrawingSet, s: DrawingSheet, svg: string, size: SheetSize, legend: boolean, legendSvg = ''): string {
+  const info = { ...sheetInfo(set, s, set.sheets.indexOf(s)), legendSvg };
   if (legend) {
     const boards = new Set(set.sheets.flatMap((x) => (x.kind === 'system' ? x.boards : [])));
     info.cables = cableRefsUsed(project, project.feeders.filter((f) => boards.has(f.boardId)));
@@ -101,14 +117,14 @@ export function sheetHtmlFrom(project: Project, set: DrawingSet, s: DrawingSheet
 export async function exportDrawingSet(project: Project, set: DrawingSet, run: CalcRun | undefined, each: boolean, onStatus: (m: string) => void, only?: string[], withRegister = !only): Promise<void> {
   try {
     const rev = currentRevision(project);
-    const pages: { html: string; size: SheetSize; s: DrawingSheet; refs: boolean; svg: string }[] = [];
+    const pages: { html: string; size: SheetSize; s: DrawingSheet; refs: boolean; svg: string; legendSvg: string }[] = [];
     for (const s of set.sheets) {
       if (!s.boards.length || (only && !only.includes(s.id))) continue;
       const r = await sheetHtml(project, set, s, run);
-      if (r) pages.push({ s, size: r.size, html: r.html, refs: r.refs, svg: r.svg });
+      if (r) pages.push({ s, size: r.size, html: r.html, refs: r.refs, svg: r.svg, legendSvg: r.legendSvg });
     }
     // One sheet uses cable numbers: the CABLE SCHEDULE goes on every sheet.
-    if (pages.some((p) => p.refs)) for (const p of pages) if (!p.refs) p.html = sheetHtmlFrom(project, set, p.s, p.svg, p.size, true);
+    if (pages.some((p) => p.refs)) for (const p of pages) if (!p.refs) p.html = sheetHtmlFrom(project, set, p.s, p.svg, p.size, true, p.legendSvg);
     const toBytes = window.lvds?.files?.pdfBytes;
     if (each || !toBytes) {
       let n = 0;
