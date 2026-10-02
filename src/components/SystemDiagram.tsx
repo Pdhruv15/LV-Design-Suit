@@ -6,6 +6,7 @@ import { cableRefOf } from '../model/cableRefs';
 import { LEGEND_ROW, LEGEND_SYM_X, LEGEND_TEXT_X, legendEntries, legendWidth, LoadSym, polesText, SwitchSym, switchKindOf } from '../diagram/IecSymbols';
 import type { FeederResult, Status } from '../calc/electrical';
 import { boardSummary, loadTypeOf } from '../calc/summary';
+import { failReasons, quickFixes } from '../calc/quickFix';
 import { boardPhaseKw } from '../calc/loadSchedule';
 import { DEWA_EXTRA_Y, LEAF_W, layoutSystem } from '../diagram/layout';
 import { panelSummary } from '../docs/mdSheet';
@@ -85,6 +86,8 @@ export default function SystemDiagram({
   clouds,
   onOutline,
   onMoveToSheet,
+  focus,
+  onFixFeeder,
   arrows,
   onEditFeeder,
   onEditBoard,
@@ -126,6 +129,10 @@ export default function SystemDiagram({
   onOutline?: (sheetId: string) => void;
   /** A panel dragged into another sheet's outline. */
   onMoveToSheet?: (boardId: string, sheetId: string) => void;
+  /** Centre the view on this panel or circuit (n changes on every request). */
+  focus?: { kind: 'board' | 'feeder'; id: string; n: number };
+  /** Apply a quick fix from a circuit's hover card. */
+  onFixFeeder?: (id: string, patch: Partial<Feeder>, label: string) => void;
   /** Callouts with leader arrows (drawing sheets). */
   arrows?: { target: string; text: string; dir: 'ne' | 'nw' | 'se' | 'sw'; len?: number }[];
   onEditFeeder?: (id: string) => void;
@@ -256,6 +263,27 @@ export default function SystemDiagram({
   const H = Math.max(layout.height, legend.length ? 80 + legend.length * LEGEND_ROW : 0);
   const full: ViewBox = { x: 0, y: 0, w: W, h: H };
   const [vb, setVb] = useState<ViewBox>(full);
+  // Centre on a panel or circuit picked in the results below the drawing.
+  useEffect(() => {
+    if (!focus) return;
+    const pt = focus.kind === 'board'
+      ? layout.boards.find((n) => n.board.id === focus.id) && (() => { const n = layout.boards.find((m) => m.board.id === focus.id)!; return { x: n.x, y: n.busY - 30 }; })()
+      : layout.feeders.find((n) => n.feeder.id === focus.id) && (() => { const n = layout.feeders.find((m) => m.feeder.id === focus.id)!; return { x: n.x, y: n.busY + 40 }; })();
+    if (!pt) return;
+    setVb((v) => { const w = Math.min(v.w, 1400), h = (w / v.w) * v.h; return { x: pt.x - w / 2, y: pt.y - h / 2, w, h }; });
+  }, [focus?.n]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Hover card: a circuit's or panel's results, with quick fixes for a failing circuit.
+  const [card, setCard] = useState<{ kind: 'board' | 'feeder'; id: string; x: number; y: number } | null>(null);
+  const hideCard = useRef<ReturnType<typeof setTimeout>>();
+  const showCard = (kind: 'board' | 'feeder', id: string) => (e: React.MouseEvent) => {
+    if (pick.current || drag.current?.moved) return;
+    clearTimeout(hideCard.current);
+    const r = svgRef.current?.parentElement?.getBoundingClientRect();
+    if (!r) return;
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    setCard((c) => (c && c.id === id && c.kind === kind ? c : { kind, id, x, y }));
+  };
+  const leaveCard = () => { clearTimeout(hideCard.current); hideCard.current = setTimeout(() => setCard(null), 300); };
   // Grid (lines like CAD, dots, or none) and canvas height: this viewer's preferences.
   const [grid, setGrid] = useState<GridStyle>(() => {
     try { const g = localStorage.getItem('sld.grid'); return g === 'dots' || g === 'off' ? g : 'lines'; } catch { return 'lines'; }
@@ -669,6 +697,8 @@ export default function SystemDiagram({
             <g
               key={f.id}
               className={`fd ${sel ? 'sel' : ''}${dropCls(`fd:${f.id}`)}${off(f.boardId) ? ' off' : ''}`}
+              onMouseEnter={showCard('feeder', f.id)}
+              onMouseLeave={leaveCard}
               {...dnd({ type: 'feeder', feederId: f.id }, `fd:${f.id}`)}
               data-drop={`fd:${f.id}`}
               onPointerDown={startPick(n.childBoardId ? { kind: 'board', id: n.childBoardId } : { kind: 'feeder', id: f.id }, n.childBoardId ?? f.name ?? f.id)}
@@ -806,6 +836,8 @@ export default function SystemDiagram({
             <g
               key={b.id}
               className={`bd ${sel ? 'sel' : ''}${dropCls(`bus:${b.id}`)}${off(b.id) ? ' off' : ''}`}
+              onMouseEnter={showCard('board', b.id)}
+              onMouseLeave={leaveCard}
               {...dnd({ type: 'bus', boardId: b.id }, `bus:${b.id}`)}
               data-drop={`bus:${b.id}`}
               onPointerDown={startPick({ kind: 'board', id: b.id }, b.id)}
@@ -1095,6 +1127,58 @@ export default function SystemDiagram({
         </div>
       )}
       {moving && <div className="move-ghost" style={{ left: moving.x + 14, top: moving.y + 10 }}>Move {moving.label}{hover ? '' : ' — drop on a busbar or feeder'}</div>}
+      {card && !moving && !cableEdit && (() => {
+        const W = 270;
+        const host = svgRef.current?.parentElement?.getBoundingClientRect();
+        const left = Math.max(4, Math.min(card.x + 16, (host?.width ?? 800) - W - 4));
+        const top = Math.max(4, Math.min(card.y + 14, (host?.height ?? 600) - 230));
+        const keep = { onMouseEnter: () => clearTimeout(hideCard.current), onMouseLeave: leaveCard };
+        if (card.kind === 'board') {
+          const b = project.boards.find((x) => x.id === card.id);
+          if (!b) return null;
+          const sm = boardSummary(calcProject ?? project, b);
+          const a = annotations?.boards[b.id];
+          const vp = a?.voltagePct ?? sm.voltagePct;
+          return (
+            <div className="hover-card" style={{ left, top, width: W }} {...keep}>
+              <div className="hc-head"><b>{b.id}</b> <span className="m">{b.kind ?? (b.upstreamId ? 'DB' : 'MDB')}{b.ratedCurrentA ? ` · ${b.ratedCurrentA} A` : ''}</span></div>
+              <dl className="hc-kv">
+                <dt>Voltage</dt><dd className={a?.voltageStatus ?? ''}>{((project.voltageV * vp) / 100).toFixed(0)} V ({vp.toFixed(1)} %)</dd>
+                <dt>Fault level Ik″</dt><dd>{(a?.faultKA ?? sm.faultKA).toFixed(1)} kA</dd>
+                <dt>Demand</dt><dd>{sm.demandKw.toFixed(1)} kW · {sm.currentA.toFixed(0)} A</dd>
+                <dt>Loading</dt><dd className={sm.loadingStatus ?? ''}>{sm.loadingPct === undefined ? 'no rating' : `${sm.loadingPct.toFixed(0)} %`}</dd>
+                <dt>TCL × DF = MDL</dt><dd>{(() => { const p = panelSummary(project, b); return `${p.tclKw.toFixed(1)} × ${p.df.toFixed(2)} = ${p.mdlKw.toFixed(1)} kW`; })()}</dd>
+              </dl>
+            </div>
+          );
+        }
+        const f = project.feeders.find((x) => x.id === card.id);
+        const r = f && byFeeder.get(f.id);
+        if (!f || !r) return null;
+        const reasons = r.status === 'ok' ? [] : failReasons(calcProject ?? project, r);
+        const fixes = onFixFeeder && r.status !== 'ok' ? quickFixes(calcProject ?? project, f) : [];
+        return (
+          <div className={`hover-card ${r.status}`} style={{ left, top, width: W }} {...keep}>
+            <div className="hc-head"><b>{f.id}</b> <span className="m">{f.name}</span><span className={`hc-st ${r.status}`}>{r.status === 'ok' ? 'Pass' : r.status === 'warn' ? 'Check' : 'Fail'}</span></div>
+            <dl className="hc-kv">
+              <dt>Cable</dt><dd>{runsOf(f) > 1 ? `${runsOf(f)}× ` : ''}{f.cores}C {f.cableCsaMm2} mm² · {f.lengthM} m</dd>
+              <dt>Ib / In / Iz</dt><dd className={r.protectionStatus === 'bad' || r.ampacityStatus === 'bad' ? 'bad' : ''}>{r.ib.toFixed(0)} / {f.breakerRatingA} / {r.ampacity.toFixed(0)} A</dd>
+              <dt>Voltage drop</dt><dd className={r.vdStatus}>{r.vdPct.toFixed(2)} % cable · {r.vdTotalPct.toFixed(2)} % total</dd>
+              <dt>Fault / Icu</dt><dd className={r.icuStatus === 'bad' ? 'bad' : ''}>{r.breakerFaultKA.toFixed(1)} kA / {f.breakerIcuKa} kA</dd>
+            </dl>
+            {reasons.length > 0 && <ul className="hc-why">{reasons.map((t) => <li key={t}>{t}</li>)}</ul>}
+            {fixes.length > 0 && (
+              <div className="hc-fix">
+                <span className="m">Quick fix:</span>
+                {fixes.map((x) => (
+                  <button key={x.label} className={`chip ${x.after.status}`} title={`After: Vd ${x.after.vdTotalPct.toFixed(2)} %, Iz ${x.after.ampacity.toFixed(0)} A — ${x.after.status === 'ok' ? 'passes' : 'still to check'}`}
+                    onClick={() => { onFixFeeder!(f.id, x.patch, x.label); setCard(null); }}>{x.label}</button>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
       {cableEdit && (
         <form
           className="cable-edit"

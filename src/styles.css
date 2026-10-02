@@ -978,3 +978,45 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .sysdiag .sheet-outline.over rect{stroke-width:3.5;stroke-dasharray:none;fill:color-mix(in srgb,var(--acc,#2563eb) 8%,transparent)}
 .sysdiag .callout-head{fill:var(--tx,#000)}
 .sysdiag .callout-t{font-size:11px}
+/* SLD hover card with quick fixes */
+.hover-card{position:absolute;z-index:25;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.35);padding:8px 10px;font-size:12px;pointer-events:auto}
+.hover-card.bad{border-color:var(--bad)}.hover-card.warn{border-color:var(--warn)}
+.hc-head{display:flex;gap:6px;align-items:baseline;margin-bottom:4px}
+.hc-head .m{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hc-st{font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;color:#fff}
+.hc-st.ok{background:var(--ok)}.hc-st.warn{background:var(--warn)}.hc-st.bad{background:var(--bad)}
+.hc-kv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin:0}
+.hc-kv dt{color:var(--mut)}.hc-kv dd{margin:0;text-align:right}
+.hc-kv dd.bad{color:var(--bad)}.hc-kv dd.warn{color:var(--warn)}
+.hc-why{margin:6px 0 0;padding-left:16px;color:var(--bad)}
+.hc-fix{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:6px;padding-top:6px;border-top:1px solid var(--line)}
+.hc-fix .chip{font-size:11px;padding:2px 8px}
+.hc-fix .chip.ok{border-color:var(--ok)}
+/* Results tables: value bars against the limit */
+.bar-cell{white-space:nowrap}
+.vbar{display:inline-block;width:46px;height:6px;border-radius:3px;background:var(--line);margin-right:8px;vertical-align:middle;overflow:hidden}
+.vbar span{display:block;height:100%;border-radius:3px}
+.vbar .ok{background:var(--ok)}.vbar .warn{background:var(--warn)}.vbar .bad{background:var(--bad)}
+.tabs .sp{flex:1}.rt-filter{font-size:12px;align-self:center;padding:0 8px}
+/* Compact SLD toolbar */
+.menu-btn{position:relative;display:inline-block}
+.menu-pop{position:absolute;top:calc(100% + 4px);z-index:30;min-width:230px;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.3);padding:6px;display:flex;flex-direction:column;gap:2px}
+.menu-pop.left{left:0}.menu-pop.right{right:0}
+.menu-pop > button{background:transparent;border:0;color:inherit;font:inherit;text-align:left;padding:6px 10px;border-radius:6px;cursor:pointer}
+.menu-pop > button:hover:not(:disabled){background:color-mix(in srgb,var(--acc) 12%,transparent)}
+.menu-pop > button:disabled{opacity:.5;cursor:default}
+.menu-pop .mp-h{font-size:11px;text-transform:uppercase;color:var(--mut);padding:6px 10px 2px}
+.menu-pop label{padding:3px 10px;display:flex;gap:6px;align-items:center}
+.menu-pop select{width:100%}
+.menu-pop hr{border:0;border-top:1px solid var(--line);margin:4px 0}
+.sld-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.sld-bar .sp{flex:1}
+.res-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+/* Results drawer under the SLD */
+.res-drawer{border:1px solid var(--line);border-radius:10px;margin-top:10px}
+.res-drawer > .rd-head{display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;user-select:none}
+.res-drawer > .rd-head b{font-size:14px}
+.res-drawer > .rd-body{padding:0 10px 10px}
+.rd-chip{font-size:11px;padding:1px 8px;border-radius:999px;border:1px solid var(--line)}
+.rd-chip.bad{border-color:var(--bad);color:var(--bad)}.rd-chip.warn{border-color:var(--warn);color:var(--warn)}
+.results-src select{width:auto;max-width:260px}
