@@ -78,7 +78,7 @@ export function riserLayout(project: Project, buildingId: string): RiserLayout {
   for (const r of risers) for (const f of r.floors) if (f.boardId && inBuilding.has(f.boardId)) onBus.set(f.boardId, r.id);
 
   const nodes: RiserNode[] = [], buses: RiserBus[] = [], links: RiserLink[] = [], sources: RiserSource[] = [], ats: { x: number; y: number }[] = [];
-  let cursor = LEFT + 3.6 * U; // room for the transformer / generator left of the first main board
+  let cursor = LEFT + 4.4 * U; // room for the transformer / generator left of the first main board
   // Typical groups: boards on a collapsed row with the same parent are drawn once, "×n".
   const placed = new Set<string>();
 
@@ -140,8 +140,8 @@ export function riserLayout(project: Project, buildingId: string): RiserLayout {
     cursor += COL_W;
     const n = place(root, x);
     if (root.sourceKva) {
-      sources.push({ kind: 'tx', x: x - 2.6 * U, y: n.y, title: `TX-${root.id}`, sub: `${root.sourceKva} kVA` });
-      links.push({ points: [[x - 2.1 * U, n.y], [x - 0.8 * U, n.y]], label: '', labelAt: [0, 0], vertical: false });
+      sources.push({ kind: 'tx', x: x - 3.4 * U, y: n.y, title: `TX-${root.id}`, sub: `${root.sourceKva} kVA` });
+      links.push({ points: [[x - 2.9 * U, n.y], [x - 0.8 * U, n.y]], label: '', labelAt: [0, 0], vertical: false });
       used.add('tx');
     }
     if (root.standby) {

@@ -11,7 +11,7 @@ import {
 } from '../../model/drawingSet';
 import { currentRevision } from '../../model/revisions';
 import { SHEET_MM } from '../../docs/sldSheet';
-import { exportDrawingSet, sheetHtml } from '../docs/sheetRender';
+import { exportDrawingSet, exportEverythingZip, exportSheetsDxf, sheetHtml } from '../docs/sheetRender';
 import { IssueDialog } from '../docs/DrawingsView';
 
 /** Colours of the sheet outlines on the design canvas. */
@@ -50,6 +50,7 @@ export function SheetTabs({ project, active, selectedBoardId, outlinesOn, onActi
     if (what === 'del' && window.confirm(`Delete ${s.number}?`)) { save(renumber({ ...set, sheets: set.sheets.filter((x) => x.id !== id) })); if (active === id) onActive(null); }
     if (what === 'left' || what === 'right') { const j = what === 'left' ? i - 1 : i + 1; if (j < 0 || j >= set.sheets.length) return; const sheets = [...set.sheets]; [sheets[i], sheets[j]] = [sheets[j], sheets[i]]; save(renumber({ ...set, sheets })); }
     if (what === 'pdf') void exportDrawingSet(project, set, run, false, onStatus, [id], false);
+    if (what === 'dxf') void exportSheetsDxf(project, set, run, onStatus, [id]);
     if (SHEET_STATUSES.includes(what)) save({ ...set, sheets: set.sheets.map((x) => (x.id === id ? { ...x, status: what } : x)) });
     if (what === 'nextrev') save({ ...set, sheets: set.sheets.map((x) => (x.id === id ? { ...x, rev: nextRev(sheetRev(x, currentRevision(project)?.id)) } : x)) });
   };
@@ -100,6 +101,7 @@ export function SheetTabs({ project, active, selectedBoardId, outlinesOn, onActi
             <button onClick={() => act('nextrev', menu.id)}>Next revision</button>
             <div className="st-sub">Status: {SHEET_STATUSES.slice(0, 5).map((x) => <button key={x} onClick={() => act(x, menu.id)} style={{ color: statusColor(x) }}>{x.replace('FOR ', '')}</button>)}</div>
             <button onClick={() => act('pdf', menu.id)}>Export this sheet (PDF)</button>
+            <button onClick={() => act('dxf', menu.id)}>Export this sheet (DXF)</button>
             <button className="danger" onClick={() => act('del', menu.id)}>Delete</button>
           </div>
         </>
@@ -331,6 +333,8 @@ function PublishDialog({ project, run, onClose, onChange, onStatus, onOpen }: { 
         <div className="modal-actions">
           <button className="chip" onClick={onClose}>Close</button>
           <span className="sp" />
+          <button className="chip" disabled={!!busy || !set.sheets.length} onClick={async () => { setBusy('dxf'); try { await exportSheetsDxf(project, set, run, onStatus); } finally { setBusy(''); } }}>{busy === 'dxf' ? 'Building…' : 'DXF per sheet'}</button>
+          <button className="chip" disabled={!!busy || !set.sheets.length} onClick={async () => { setBusy('zip'); try { await exportEverythingZip(project, set, run, onStatus); } finally { setBusy(''); } }}>{busy === 'zip' ? 'Building…' : 'Everything (ZIP)'}</button>
           <button className="chip" disabled={!!busy || !set.sheets.length} onClick={async () => { setBusy('set'); try { await exportDrawingSet(project, set, run, false, onStatus); } finally { setBusy(''); } }}>{busy === 'set' ? 'Building…' : 'Export set (one PDF)'}</button>
           <button className="chip primary" disabled={!set.sheets.length} onClick={() => setIssuing(true)}>Issue all sheets…</button>
         </div>

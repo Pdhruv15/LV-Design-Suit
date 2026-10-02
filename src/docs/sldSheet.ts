@@ -57,6 +57,22 @@ export function titleBlockOf(project: Project, date = new Date().toISOString().s
   };
 }
 
+/** The title block of one sheet of a set (the project's, with the sheet's own values). */
+export function sheetTitleBlock(project: Project, one?: SheetInfo): TitleBlock {
+  const t = titleBlockOf(project);
+  if (one) {
+    t.number = one.no; t.title = one.title;
+    if (one.rev) t.revision = one.rev;
+    if (one.date) t.date = one.date;
+    if (one.drawnBy) t.drawnBy = one.drawnBy;
+    if (one.checkedBy) t.checkedBy = one.checkedBy;
+    if (one.approvedBy) t.approvedBy = one.approvedBy;
+    if (one.scale) t.scale = one.scale;
+    if (one.history?.length) t.history = one.history.slice(-4).reverse();
+  }
+  return t;
+}
+
 /** Print-ready HTML for one sheet (the PDF export renders it). svg is the
  * diagram as standalone SVG markup. */
 /** One sheet of a set: number, title, position and its own title block values. */
@@ -70,17 +86,7 @@ export interface SheetInfo { no: string; title: string; count: number; index: nu
 
 export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNullable<DrawingInfo['sheet']> = 'A3', one?: SheetInfo): string {
   const { w, h } = SHEET_MM[sheet];
-  const t = titleBlockOf(project);
-  if (one) {
-    t.number = one.no; t.title = one.title;
-    if (one.rev) t.revision = one.rev;
-    if (one.date) t.date = one.date;
-    if (one.drawnBy) t.drawnBy = one.drawnBy;
-    if (one.checkedBy) t.checkedBy = one.checkedBy;
-    if (one.approvedBy) t.approvedBy = one.approvedBy;
-    if (one.scale) t.scale = one.scale;
-    if (one.history?.length) t.history = one.history.slice(-4).reverse();
-  }
+  const t = sheetTitleBlock(project, one);
   const status = one?.status ?? '';
   const extra: Record<string, string> = one
     ? { SheetNo: one.no, SheetTitle: one.title, SheetCount: String(one.count), SheetIndex: String(one.index), SheetSize: sheet, DrawingNo: one.no, DrawingTitle: one.title, Status: status, Scale: t.scale,

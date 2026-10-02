@@ -12,7 +12,7 @@ import { loadTemplateLibrary } from '../../model/titleBlock';
 import { workbookBytes } from '../../docs/formWorkbook';
 import { buildRegisterWorkbook, buildTransmittalWorkbook } from '../../docs/registerWorkbook';
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
-import { exportDrawingSet, registerRows, sheetHtml, SheetPreview } from './sheetRender';
+import { exportDrawingSet, exportEverythingZip, exportSheetsDxf, registerRows, sheetHtml, SheetPreview } from './sheetRender';
 import SheetGrid from './SheetGrid';
 import { Page } from '../ui';
 import type { MainView } from '../../views';
@@ -123,6 +123,8 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
           {exportOpen && (
             <div className="dw-menu" onMouseLeave={() => setExportOpen(false)}>
               <button onClick={() => exportSet(true)}>PDF per sheet</button>
+              <button onClick={() => run1('set', () => exportSheetsDxf(project, set, run, onStatus, chosen.length ? chosen.map((s) => s.id) : undefined))}>DXF per sheet{chosen.length ? ` (${chosen.length} selected)` : ' (ZIP)'}</button>
+              <button onClick={() => run1('set', () => exportEverythingZip(project, set, run, onStatus))}>Everything as ZIP (PDF + DXF + register)</button>
               <button onClick={exportRegisterXlsx}>Drawing register (Excel)</button>
               <button onClick={exportRegisterPdf}>Drawing register (PDF)</button>
               {chosen.length > 0 && <button onClick={() => exportSet(false, chosen.map((s) => s.id))}>Selected sheets only ({chosen.length})</button>}
