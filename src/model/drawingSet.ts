@@ -33,7 +33,10 @@ export interface DrawingSheet {
   notes?: string[]; // notes on this sheet only
   clouds?: SheetCloud[]; // revision clouds around panels
   issuedHash?: string; // what was drawn when last issued (to flag changes since)
+  arrows?: SheetArrow[]; // callouts with a leader arrow, on this sheet only
 }
+/** A callout: text with a leader arrow pointing at a panel or a circuit. */
+export interface SheetArrow { target: string; text: string; dir: 'ne' | 'nw' | 'se' | 'sw'; len?: number } // target: board id, or "f:" + feeder id
 /** A revision cloud around panels on one sheet, with its revision triangle. */
 export interface SheetCloud { boards: string[]; rev: string }
 /** One issued revision of a sheet (printed in its title block revision table). */
@@ -306,7 +309,7 @@ export function transmittalHtml(p: Project, issue: DrawingIssue, company = ''): 
  * values on them) — compared with the one stored when it was issued. */
 export function sheetHash(p: Project, set: DrawingSet, s: DrawingSheet): string {
   const d = s.kind === 'board' ? { boards: p.boards.filter((b) => b.id === s.boards[0]), feeders: p.feeders.filter((f) => f.boardId === s.boards[0]) } : sheetProject(p, set, s);
-  const txt = JSON.stringify([d.boards, d.feeders, s.title, s.size, s.tags, s.notes, s.clouds]);
+  const txt = JSON.stringify([d.boards, d.feeders, s.title, s.size, s.tags, s.notes, s.clouds, s.arrows]);
   let h = 2166136261;
   for (let i = 0; i < txt.length; i++) { h ^= txt.charCodeAt(i); h = Math.imul(h, 16777619); }
   return (h >>> 0).toString(36);
@@ -359,4 +362,17 @@ export const applyTemplate = (s: DrawingSheet, t: SheetTemplate): DrawingSheet =
 export function addSheet(set: DrawingSet, boards: string[], title: string): { set: DrawingSet; id: string } {
   const id = `sh-${Date.now().toString(36)}`;
   return { id, set: renumber({ ...set, sheets: [...set.sheets, { id, number: '', title, kind: 'system', boards, size: 'auto' }] }) };
+}
+
+/** Moves a panel to another sheet (Design: drag it into that sheet's
+ * outline): off every other SLD sheet, onto this one in supply order. */
+export function movePanelToSheet(set: DrawingSet, boardId: string, sheetId: string, supplyOrder: string[]): DrawingSet {
+  return {
+    ...set,
+    sheets: set.sheets.map((s) => {
+      if (s.kind !== 'system') return s;
+      if (s.id === sheetId) return s.boards.includes(boardId) ? s : { ...s, boards: supplyOrder.filter((id) => id === boardId || s.boards.includes(id)) };
+      return s.boards.includes(boardId) ? { ...s, boards: s.boards.filter((b) => b !== boardId) } : s;
+    })
+  };
 }

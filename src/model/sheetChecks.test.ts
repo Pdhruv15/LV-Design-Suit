@@ -27,3 +27,16 @@ describe('publishing checks', () => {
     expect([applied.size, applied.cableLabels, applied.notes]).toEqual(['A2', 'ref', ['N1']]);
   });
 });
+
+describe('drag a panel to another sheet', async () => {
+  const { movePanelToSheet, sheetsByCount: split } = await import('./drawingSet');
+  const { boardsInSupplyOrder } = await import('../calc/summary');
+  it('takes it off its sheet and puts it on the target in supply order', () => {
+    const set = split(sampleProject, 3);
+    const from = set.sheets[0], to = set.sheets[set.sheets.length - 1];
+    const b = from.boards[from.boards.length - 1];
+    const next = movePanelToSheet(set, b, to.id, boardsInSupplyOrder(sampleProject).map((x) => x.id));
+    expect(next.sheets[0].boards).not.toContain(b);
+    expect(next.sheets[next.sheets.length - 1].boards).toContain(b);
+  });
+});

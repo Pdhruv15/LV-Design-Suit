@@ -84,6 +84,8 @@ export default function SystemDiagram({
   outlines,
   clouds,
   onOutline,
+  onMoveToSheet,
+  arrows,
   onEditFeeder,
   onEditBoard,
   onOpenSchedule,
@@ -122,6 +124,10 @@ export default function SystemDiagram({
   /** Revision clouds around panels (drawing sheets). */
   clouds?: { boards: string[]; rev: string }[];
   onOutline?: (sheetId: string) => void;
+  /** A panel dragged into another sheet's outline. */
+  onMoveToSheet?: (boardId: string, sheetId: string) => void;
+  /** Callouts with leader arrows (drawing sheets). */
+  arrows?: { target: string; text: string; dir: 'ne' | 'nw' | 'se' | 'sw'; len?: number }[];
   onEditFeeder?: (id: string) => void;
   onEditBoard?: (id: string) => void;
   /** Opens a DB's load schedule (double-click on the DB's circuit summary). */
@@ -198,6 +204,17 @@ export default function SystemDiagram({
     const y2 = Math.max(...ns.map((n) => n.busY + (n.terminal ? 10 : 120))) + pad;
     return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
   };
+  /** The sheet outline under a screen point (the smallest one), for dropping a panel on a sheet. */
+  const outlineAt = (cx: number, cy: number): string | undefined => {
+    const svg = svgRef.current, ctm = svg?.getScreenCTM();
+    if (!svg || !ctm || !outlines?.length) return undefined;
+    const pt = svg.createSVGPoint(); pt.x = cx; pt.y = cy;
+    const p = pt.matrixTransform(ctm.inverse());
+    const hits = outlines.map((o, i) => ({ o, r: boardsBox(o.boards, 8 + (i % 3) * 6) })).filter((h) => h.r && p.x >= h.r.x && p.x <= h.r.x + h.r.w && p.y >= h.r.y && p.y <= h.r.y + h.r.h);
+    hits.sort((a, b) => a.r!.w * a.r!.h - b.r!.w * b.r!.h);
+    return hits[0]?.o.id;
+  };
+  const [overOutline, setOverOutline] = useState<string | null>(null);
   // Way numbers along each busbar (DEWA style).
   const wayNo = useMemo(() => { const m = new Map<string, number>(), c = new Map<string, number>(); for (const n of [...layout.feeders].sort((a, b) => a.x - b.x)) { const k = (c.get(n.feeder.boardId) ?? 0) + 1; c.set(n.feeder.boardId, k); m.set(n.feeder.id, k); } return m; }, [layout]);
   const byFeeder = useMemo(() => new Map(results.map((r) => [r.feeder.id, r])), [results]);
@@ -346,6 +363,8 @@ export default function SystemDiagram({
       const t = targetAt(e.clientX, e.clientY);
       const ok = t && canMove(project, pk.item, t.target) ? t.key : null;
       if (ok !== hover) setHover(ok);
+      const ol = !ok && pk.item.kind === 'board' && onMoveToSheet ? outlineAt(e.clientX, e.clientY) ?? null : null;
+      if (ol !== overOutline) setOverOutline(ol);
       const r = svg.parentElement!.getBoundingClientRect();
       setMoving({ label: pk.label, x: e.clientX - r.left, y: e.clientY - r.top });
       return;
@@ -370,6 +389,8 @@ export default function SystemDiagram({
       setMoving(null);
       setHover(null);
       if (t && canMove(project, pk.item, t.target)) onMoveItem?.(pk.item, t.target);
+      else if (pk.item.kind === 'board' && onMoveToSheet) { const sh = outlineAt(e.clientX, e.clientY); if (sh) onMoveToSheet(pk.item.id, sh); }
+      setOverOutline(null);
     }
     // Keep the flag until the click event has fired, so a drag isn't a click.
     setTimeout(() => (drag.current = null), 0);
@@ -998,7 +1019,7 @@ export default function SystemDiagram({
           const r = boardsBox(o.boards, 8 + (i % 3) * 6);
           if (!r) return null;
           return (
-            <g key={o.id} className="sheet-outline" onClick={(e) => { if (!onOutline) return; e.stopPropagation(); onOutline(o.id); }}>
+            <g key={o.id} className={`sheet-outline${overOutline === o.id ? ' over' : ''}`} onClick={(e) => { if (!onOutline) return; e.stopPropagation(); onOutline(o.id); }}>
               <title>{`${o.label} — click to open the sheet`}</title>
               <rect x={r.x} y={r.y} width={r.w} height={r.h} rx="10" style={{ stroke: o.color }} />
               <text x={r.x + 8} y={r.y + 16} style={{ fill: o.color }}>{o.label}</text>
@@ -1013,6 +1034,30 @@ export default function SystemDiagram({
               <path d={cloudPath(r.x, r.y, r.w, r.h)} />
               <path d={`M${r.x + r.w - 6} ${r.y - 4} l12 -20 l12 20 z`} className="rev-tri" />
               <text x={r.x + r.w + 6} y={r.y - 9} textAnchor="middle" className="b">{c.rev}</text>
+            </g>
+          );
+        })}
+        {(arrows ?? []).map((a, i) => {
+          let ax: number | undefined, ay: number | undefined;
+          if (a.target.startsWith('f:')) {
+            const fn = layout.feeders.find((n) => n.feeder.id === a.target.slice(2));
+            if (fn) { ax = fn.x; ay = fn.busY + 46; }
+          } else {
+            const bn = layout.boards.find((n) => n.board.id === a.target);
+            if (bn) { ax = bn.x + (a.dir.endsWith('e') ? 62 : -62); ay = bn.busY - 40; }
+          }
+          if (ax === undefined || ay === undefined) return null;
+          const L = a.len ?? 80;
+          const tx = ax + (a.dir.endsWith('e') ? L : -L), ty = ay + (a.dir.startsWith('n') ? -L * 0.7 : L * 0.7);
+          const ang = Math.atan2(ay - ty, ax - tx);
+          const head = (d: number) => `${ax! - 9 * Math.cos(ang + d)},${ay! - 9 * Math.sin(ang + d)}`;
+          const right = a.dir.endsWith('e');
+          return (
+            <g key={i} className="callout">
+              <line x1={tx} y1={ty} x2={ax} y2={ay} className="ln" />
+              <polygon points={`${ax},${ay} ${head(0.4)} ${head(-0.4)}`} className="callout-head" />
+              <line x1={tx} y1={ty} x2={tx + (right ? 10 : -10)} y2={ty} className="ln" />
+              <text x={tx + (right ? 14 : -14)} y={ty + 4} textAnchor={right ? 'start' : 'end'} className="b callout-t">{a.text}</text>
             </g>
           );
         })}
