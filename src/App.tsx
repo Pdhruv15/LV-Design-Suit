@@ -60,6 +60,7 @@ import Ribbon, { type BomCommand, tabForView, type DiagramTool, type RibbonTab }
 import ProjectSettings from './components/ProjectSettings';
 import type { BoardTab } from './components/BoardPanel';
 import BoardEditForm from './components/BoardEditForm';
+import MenuButton from './components/MenuButton';
 import DiagramResultsBar, { type ResultSource } from './components/DiagramResultsBar';
 import { buildAnnotations, DEFAULT_LAYERS, type ResultLayers } from './diagram/annotations';
 import { EXTERNAL_ENGINES } from './engines';
@@ -106,6 +107,9 @@ export default function App() {
   // SLD tabs: null = Design (the working canvas), else a drawing sheet.
   const [sheetTab, setSheetTab] = useState<string | null>(null);
   const [sheetOutlinesOn, setSheetOutlinesOn] = useState(false);
+  // Results under the SLD: open / closed (remembered); a row click centres the drawing on it.
+  const [resOpen, setResOpen] = useState(() => { try { return localStorage.getItem('lvds.resOpen') !== '0'; } catch { return true; } });
+  const [sldFocus, setSldFocus] = useState<{ kind: 'board' | 'feeder'; id: string; n: number } | undefined>();
   // A cable type new to the project gets the next free reference number (kept).
   useEffect(() => { history.patch(withCableRefs); }, [project.feeders, project.cableRefs]); // eslint-disable-line react-hooks/exhaustive-deps
   const [currentFile, setCurrentFile] = useState<string | undefined>(undefined);
@@ -829,53 +833,72 @@ export default function App() {
                       Board: {board.id}
                     </button>
                   </div>
-                  <div>
-                    <button className="chip" onClick={() => openAddFeeder({})}>+ Add feeder to {board.id}</button>
-                    <button className="chip" onClick={() => setShowBoardForm(true)}>+ Add board</button>
+                  <div className="sld-bar">
+                    <MenuButton label="+ Add" title="Add a feeder, a board, or paste a copied board">
+                      {(close) => (
+                        <>
+                          <button onClick={() => { close(); openAddFeeder({}); }}>Feeder on {board.id}</button>
+                          <button onClick={() => { close(); setShowBoardForm(true); }}>Board</button>
+                          {copiedBoard && project.boards.some((b) => b.id === copiedBoard) && <button onClick={() => { close(); setPasteTarget(board.id); }}>Paste {copiedBoard} on {board.id} (⌘V)</button>}
+                        </>
+                      )}
+                    </MenuButton>
                     {panel === 'board' && board && (
-                      <select
-                        className="chip"
-                        value=""
-                        title={`Set the cable type of every outgoing cable of ${board.id} (not its load schedule circuits)`}
-                        onChange={(e) => {
-                          const t = e.target.value;
-                          if (!t) return;
-                          const ids = project.feeders.filter((f) => f.boardId === board.id && !isScheduleCircuit(f)).map((f) => f.id);
-                          setProject((p) => ({ ...p, feeders: p.feeders.map((f) => (ids.includes(f.id) ? { ...f, cableType: t === 'auto' ? undefined : t } : f)) }), { step: true });
-                          setStatus(`${ids.length} cable${ids.length === 1 ? '' : 's'} from ${board.id}: ${t === 'auto' ? 'automatic type (fire-rated for life safety)' : cableTypeDef(t).label}`);
-                        }}
-                      >
-                        <option value="">Cable type for all of {board.id}…</option>
-                        <option value="auto">Automatic (fire-rated for life safety)</option>
-                        {CABLE_TYPE_DEFS.filter((d) => d.value !== 'XLPE/SWA/PVC').map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
-                      </select>
+                      <MenuButton label={board.id} title={`${board.id}: copy, cable type of its outgoing cables`}>
+                        {(close) => (
+                          <>
+                            <button onClick={() => { close(); setEditBoardId(board.id); }}>Edit {board.id}…</button>
+                            <button onClick={() => { close(); copyBoard(board.id); }}>Copy with sub-boards (⌘C)</button>
+                            <div className="mp-h">Cable type for all outgoing cables</div>
+                            <label>
+                              <select value="" onChange={(e) => {
+                                const t = e.target.value;
+                                if (!t) return;
+                                close();
+                                const ids = project.feeders.filter((f) => f.boardId === board.id && !isScheduleCircuit(f)).map((f) => f.id);
+                                setProject((p) => ({ ...p, feeders: p.feeders.map((f) => (ids.includes(f.id) ? { ...f, cableType: t === 'auto' ? undefined : t } : f)) }), { step: true });
+                                setStatus(`${ids.length} cable${ids.length === 1 ? '' : 's'} from ${board.id}: ${t === 'auto' ? 'automatic type (fire-rated for life safety)' : cableTypeDef(t).label}`);
+                              }}>
+                                <option value="">Choose…</option>
+                                <option value="auto">Automatic (fire-rated for life safety)</option>
+                                {CABLE_TYPE_DEFS.filter((d) => d.value !== 'XLPE/SWA/PVC').map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+                              </select>
+                            </label>
+                          </>
+                        )}
+                      </MenuButton>
                     )}
-                    {panel === 'board' && board && <button className="chip" onClick={() => copyBoard(board.id)} title="Copy this board with its sub-boards, feeders and load schedule circuits (⌘C)">Copy {board.id}</button>}
-                    {panel === 'board' && board && copiedBoard && project.boards.some((b) => b.id === copiedBoard) && (
-                      <button className="chip" onClick={() => setPasteTarget(board.id)} title={`Paste ${copiedBoard} on ${board.id}'s busbar (⌘V)`}>Paste {copiedBoard} here</button>
+                    {selectedFeeder && panel === 'feeder' && (
+                      <MenuButton label={selectedFeeder.id} title={`${selectedFeeder.id}: edit, save as preset`}>
+                        {(close) => (
+                          <>
+                            <button onClick={() => { close(); setShowFeederForm('edit'); }}>Edit {selectedFeeder.id}…</button>
+                            <button onClick={() => { close(); saveAsPreset(selectedFeeder); }} title="Save this way (breaker, RCD, meter, isolator and its load or sub-board) as a preset to drag onto any busbar">Save as preset</button>
+                          </>
+                        )}
+                      </MenuButton>
                     )}
-                    {diagramMode === 'system' && <button className="chip" onClick={() => setShowExport(true)} title="PDF sheet with title block, DXF for CAD, or SVG">Export drawing…</button>}
-                    {selectedFeeder && panel === 'feeder' && <button className="chip" onClick={() => setShowFeederForm('edit')}>Edit {selectedFeeder.id}</button>}
-                    {selectedFeeder && panel === 'feeder' && <button className="chip" onClick={() => saveAsPreset(selectedFeeder)} title="Save this way (breaker, RCD, meter, isolator and its load or sub-board) as a preset to drag onto any busbar">Save as preset</button>}
+                    {diagramMode === 'system' && (
+                      <DiagramResultsBar
+                        layers={layers}
+                        onLayers={setLayers}
+                        source={resultSource}
+                        onSource={(s) => { setResultSource(s); setSimError(''); }}
+                        onRun={runSimulation}
+                        running={simRunning}
+                        note={resultsNote}
+                        colorBy={colorBy}
+                        onColorBy={setColorBy}
+                        supply={onGenerator ? 'generator' : outageId ? `outage:${outageId}` : 'normal'}
+                        onSupply={setSupply}
+                        hasGenerator={hasGenerator}
+                        outages={tiedRoots}
+                      />
+                    )}
+                    <span className="sp" />
+                    {diagramMode === 'system' && <button className="chip" onClick={() => setShowExport(true)} title="PDF sheet with title block, DXF for CAD, or SVG">Export…</button>}
                   </div>
                 </div>
-                {diagramMode === 'system' && (
-                  <DiagramResultsBar
-                    layers={layers}
-                    onLayers={setLayers}
-                    source={resultSource}
-                    onSource={(s) => { setResultSource(s); setSimError(''); }}
-                    onRun={runSimulation}
-                    running={simRunning}
-                    note={resultsNote}
-                    colorBy={colorBy}
-                    onColorBy={setColorBy}
-                    supply={onGenerator ? 'generator' : outageId ? `outage:${outageId}` : 'normal'}
-                    onSupply={setSupply}
-                    hasGenerator={hasGenerator}
-                    outages={tiedRoots}
-                  />
-                )}
                 {diagramMode === 'system' ? (
                   <div className={`sld-edit${sldFull ? ' full' : ''}`}>
                   <EquipmentPalette onHint={setStatus} library={libraryEntries(db.loads)} presets={userPresets} qty={dropQty} onQty={setDropQty}
@@ -909,6 +932,12 @@ export default function App() {
                     onToggleFullScreen={() => setSldFull((v) => !v)}
                     outlines={sheetOutlinesOn ? sheetOutlines(project) : undefined}
                     onOutline={setSheetTab}
+                    focus={sldFocus}
+                    onFixFeeder={(id, patch, label) => {
+                      setProject((p) => ({ ...p, feeders: p.feeders.map((f) => (f.id === id ? { ...f, ...patch } : f)) }), { step: true });
+                      selectFeeder(id);
+                      setStatus(`${id}: ${label} (undo with ⌘Z)`);
+                    }}
                     onMoveToSheet={sheetOutlinesOn ? (boardId, sheetId) => {
                       const set = setOf(project);
                       setProject({ ...project, drawingSet: movePanelToSheet(set, boardId, sheetId, boardsInSupplyOrder(project).map((b) => b.id)) }, { step: true });
@@ -940,15 +969,26 @@ export default function App() {
                   <SingleLineDiagram board={board} voltageV={project.voltageV} results={boardResults} selected={selected} onSelect={selectFeeder} />
                 )}
               </section>
+              <section className="res-drawer">
+                <div className="rd-head" onClick={() => setResOpen((v) => { try { localStorage.setItem('lvds.resOpen', v ? '0' : '1'); } catch { /* ignore */ } return !v; })}>
+                  <span>{resOpen ? '▾' : '▸'}</span><b>Results</b>
+                  {(() => { const bad = allResults.filter((r) => r.status === 'bad').length, warn = allResults.filter((r) => r.status === 'warn').length; return <>{bad > 0 && <span className="rd-chip bad">{bad} fail</span>}{warn > 0 && <span className="rd-chip warn">{warn} to check</span>}{!bad && !warn && <span className="rd-chip">all pass</span>}</>; })()}
+                  <span className="m">Click a row to find it on the drawing</span>
+                </div>
+                {resOpen && (
+                  <div className="rd-body">
               <SystemSummaryCards
                 project={calcProject}
                 selectedBoardId={panel === 'board' ? board.id : null}
-                onSelectBoard={selectBoard}
+                onSelectBoard={(id) => { selectBoard(id); setSldFocus({ kind: 'board', id, n: Date.now() }); }}
                 annotations={engineFresh ? annotations : undefined}
                 sourceLabel={engineFresh ? `${EXTERNAL_ENGINES.find((e) => e.id === resultSource)?.name} load flow: voltages include the transformer's own drop; fault levels from the engine's fault study.` : undefined}
               />
               <h3 className="section-title">Feeders on {board.id}</h3>
-              <ResultsTable results={boardResults} vdLimitPct={project.vdLimitPct} selected={selected} onSelect={selectFeeder} />
+              <ResultsTable results={boardResults} vdLimitPct={project.vdLimitPct} selected={selected} onSelect={(id) => { selectFeeder(id); setSldFocus({ kind: 'feeder', id, n: Date.now() }); }} />
+                  </div>
+                )}
+              </section>
             </main>
 
             <aside className="side">

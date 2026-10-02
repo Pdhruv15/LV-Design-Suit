@@ -22,11 +22,22 @@ export default function ResultsTable({
   onSelect: (id: string) => void;
 }) {
   const [tab, setTab] = useState<TabKey>('vd');
+  const [problemsOnly, setProblemsOnly] = useState(false);
+  const statusOf = (r: FeederResult): 'ok' | 'warn' | 'bad' => tab === 'vd' ? r.vdStatus : tab === 'sc' ? r.icuStatus : tab === 'prot' ? r.protectionStatus : r.loadingPct > 100 ? 'bad' : r.loadingPct > 85 ? 'warn' : 'ok';
+  const rank = { bad: 0, warn: 1, ok: 2 };
+  // Problems first (stable: same order as the board within each group).
+  const shown = results.map((r, i) => ({ r, i })).filter(({ r }) => !problemsOnly || statusOf(r) !== 'ok')
+    .sort((a, b) => rank[statusOf(a.r)] - rank[statusOf(b.r)] || a.i - b.i).map(({ r }) => r);
+  const problems = results.filter((r) => statusOf(r) !== 'ok').length;
+  /** A value with a bar against its limit (e.g. Vd 2.38 of 4.0 → 60 %). */
+  const bar = (text: string, value: number, max: number, st: 'ok' | 'warn' | 'bad') => (
+    <td className="bar-cell"><span className="vbar"><span className={st} style={{ width: `${Math.min(100, Math.max(2, (value / max) * 100))}%` }} /></span>{text}</td>
+  );
 
   const headers: Record<TabKey, string[]> = {
     vd: ['Circuit', 'Cable', 'Length', 'Ib (A)', 'Vd feeder (%)', 'Vd upstream (%)', 'Vd total (%)', 'Limit', 'Status'],
     load: ['Board', 'Connected (kW)', 'Demand factor', 'Max demand (kW)', 'Current (A)', 'Breaker loading', 'Status'],
-    sc: ['Circuit', 'Ik″ at breaker (kA)', 'Breaker Icu (kA)', 'Margin (kA)', 'Ik″ at cable end (kA)', 'Status'],
+    sc: ['Circuit', 'Ik″ at breaker (kA)', 'Ik″ of Icu (kA)', 'Margin (kA)', 'Ik″ at cable end (kA)', 'Status'],
     prot: ['Circuit', 'Ib (A)', 'Breaker In (A)', 'Cable Iz (A)', 'Ib ≤ In ≤ Iz', 'Status']
   };
 
@@ -53,7 +64,7 @@ export default function ResultsTable({
             <td>{r.ib.toFixed(0)}</td>
             <td>{r.vdPct.toFixed(2)}</td>
             <td>{r.vdUpstreamPct.toFixed(2)}</td>
-            <td>{r.vdTotalPct.toFixed(2)}</td>
+            {bar(r.vdTotalPct.toFixed(2), r.vdTotalPct, vdLimitPct, r.vdStatus)}
             <td>{vdLimitPct.toFixed(1)}</td>
             {statusCell(r.vdStatus)}
           </>
@@ -66,7 +77,7 @@ export default function ResultsTable({
             <td>{f.demandFactor.toFixed(2)}</td>
             <td>{(f.loadKw * f.demandFactor).toFixed(0)}</td>
             <td>{r.ib.toFixed(0)}</td>
-            <td>{r.loadingPct.toFixed(0)}%</td>
+            {bar(`${r.loadingPct.toFixed(0)}%`, r.loadingPct, 100, r.loadingPct > 100 ? 'bad' : r.loadingPct > 85 ? 'warn' : 'ok')}
             {statusCell(r.loadingPct > 100 ? 'bad' : r.loadingPct > 85 ? 'warn' : 'ok')}
           </>
         );
@@ -75,7 +86,7 @@ export default function ResultsTable({
           <>
             <td>{f.id}</td>
             <td>{r.breakerFaultKA.toFixed(1)}</td>
-            <td>{f.breakerIcuKa}</td>
+            {bar(`${r.breakerFaultKA.toFixed(1)} of ${f.breakerIcuKa}`, r.breakerFaultKA, f.breakerIcuKa, r.icuStatus)}
             <td>{(f.breakerIcuKa - r.breakerFaultKA).toFixed(1)}</td>
             <td>{r.endFaultKA.toFixed(1)}</td>
             {statusCell(r.icuStatus)}
@@ -103,6 +114,8 @@ export default function ResultsTable({
             {t.label}
           </button>
         ))}
+        <span className="sp" />
+        <label className="row m rt-filter"><input type="checkbox" checked={problemsOnly} onChange={(e) => setProblemsOnly(e.target.checked)} /> Problems only ({problems})</label>
       </div>
       <div className="tw">
         <table>
@@ -114,7 +127,8 @@ export default function ResultsTable({
             </tr>
           </thead>
           <tbody>
-            {results.map((r) => (
+            {!shown.length && <tr><td colSpan={headers[tab].length} className="m">No problems on this board.</td></tr>}
+            {shown.map((r) => (
               <tr key={r.feeder.id} className={selected === r.feeder.id ? 'sel' : ''} onClick={() => onSelect(r.feeder.id)}>
                 {row(r)}
               </tr>
