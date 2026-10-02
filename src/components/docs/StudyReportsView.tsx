@@ -90,6 +90,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
   const [busy, setBusy] = useState('');
   const [presetName, setPresetName] = useState('');
   const [issuesOnly, setIssuesOnly] = useState(false);
+  const [tabPicked, setTab] = useState<'boards' | 'studies' | 'output' | 'sld' | 'contents'>('boards');
   const presets = project.studyReportPresets ?? [];
   const title = setup.title || defaultTitle(setup.studies);
   const depth = (id: string) => {
@@ -197,6 +198,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
     onStatus(`Saved "${name}"`);
   }
 
+  const tab = (tabPicked === 'sld' && !(previewKey && setup.sld && run)) || (tabPicked === 'contents' && !sections.length) ? 'studies' : tabPicked;
   const text = (k: 'title' | 'docNo' | 'preparedBy' | 'checkedBy', label: string, placeholder = '') => (
     <label>{label}<input key={`${k}-${setup[k] ?? ''}`} defaultValue={setup[k] ?? ''} placeholder={placeholder} onBlur={(e) => e.target.value.trim() !== (setup[k] ?? '') && set({ [k]: e.target.value.trim() || undefined })} /></label>
   );
@@ -219,9 +221,22 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
     >
       {stale.length > 0 && <StaleBanner stale={stale} onRun={onRun} what="the report" />}
 
-      <div className="sr-grid">
-        <section className="sr-box">
-          <h4>1 · Boards</h4>
+      <div className="tabs sr-tabs" role="tablist">
+        {([
+          ['boards', '1 · Boards', noBoards ? 'none ticked' : mode === 'all' ? 'whole installation' : `${scope.ids.size} board(s)`],
+          ['studies', '2 · Studies', `${setup.studies.length} of ${STUDIES.length}`],
+          ['output', '3 · Output', setup.separate && sections.length > 1 ? `${sections.length} PDFs` : 'PDF'],
+          ...(previewKey && setup.sld && run ? [['sld', 'SLD preview', '']] : []),
+          ...(sections.length ? [['contents', 'Report contents', `${sections.length} section(s)`]] : [])
+        ] as [typeof tabPicked, string, string][]).map(([k, label, sub]) => (
+          <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>
+            {label}{sub && <span className={`m sr-tab-sub${k === 'boards' && noBoards ? ' warn' : ''}`}> · {sub}</span>}
+          </button>
+        ))}
+      </div>
+
+      <div className="sr-pane">
+        {tab === 'boards' && <section className="sr-box">
           <div className="seg sr-mode" role="radiogroup" aria-label="Report scope">
             <button role="radio" aria-checked={mode === 'all'} className={mode === 'all' ? 'on' : ''} onClick={() => set({ mode: 'all' })}>Whole installation</button>
             <button role="radio" aria-checked={mode === 'selected'} className={mode === 'selected' ? 'on' : ''} onClick={() => set({ mode: 'selected' })}>Selected boards</button>
@@ -251,10 +266,9 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
           </div>}
           <p className={noBoards ? 'warn' : 'm'}>{noBoards ? 'No board ticked — tick at least one board, or choose Whole installation.' : `In the report: ${scopeText(calc, scope)}`}</p>
           <p className="m">{scope.feeders.length + scope.incomers.length} circuits{scope.finals.length ? ` + ${scope.finals.length} final circuits (cable and earthing studies)` : ''}.</p>
-        </section>
+        </section>}
 
-        <section className="sr-box">
-          <h4>2 · Studies</h4>
+        {tab === 'studies' && <section className="sr-box sr-studies">
           {STUDIES.map((s) => {
             const sec = sections.find((x) => x.key === s.key);
             const bad = sec?.statuses.filter((x) => x === 'bad').length ?? 0;
@@ -271,15 +285,15 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
                       {bad > 0 && <span className="bad"> · {bad} exceed</span>}
                     </em>
                   )}
-                  <small>{s.description}{s.sld ? '' : ' (tables only)'}</small>
+                  <small>{s.description}{s.sld || s.description.includes('(tables only)') ? '' : ' (tables only)'}</small>
                 </span>
               </label>
             );
           })}
-        </section>
+          {!setup.studies.length && <p className="m">Tick at least one study.</p>}
+        </section>}
 
-        <section className="sr-box">
-          <h4>3 · Output</h4>
+        {tab === 'output' && <section className="sr-box">
           <label className="sr-check"><input type="checkbox" checked={setup.sld} onChange={(e) => set({ sld: e.target.checked })} /> SLD of the chosen boards with each study's results (A3 page)</label>
           <label className="sr-check"><input type="checkbox" checked={setup.separate} onChange={(e) => set({ separate: e.target.checked })} /> A separate PDF for each study</label>
           <div className="sr-fields">
@@ -309,13 +323,12 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
             <input value={presetName} placeholder="Name, e.g. Building A — short circuit" onChange={(e) => setPresetName(e.target.value)} />
             <button className="chip" onClick={savePreset}>Save set</button>
           </div>
-        </section>
+        </section>}
       </div>
 
-      {previewKey && setup.sld && run && (
+      {tab === 'sld' && previewKey && setup.sld && run && (
         <>
           <h3 className="section-title">
-            SLD preview
             {setup.studies.filter((k) => studyInfo(k).sld).map((k) => (
               <button key={k} className={`chip${k === previewKey ? ' primary' : ''}`} onClick={() => setPreview(k)}>{studyInfo(k).label}</button>
             ))}
@@ -338,9 +351,9 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
         </>
       )}
 
-      {sections.length > 0 && (
+      {tab === 'contents' && sections.length > 0 && (
         <>
-          <h3 className="section-title">Report contents <label className="row m sr-issues"><input type="checkbox" checked={issuesOnly} onChange={(e) => setIssuesOnly(e.target.checked)} /> Issues only</label></h3>
+          <h3 className="section-title"><label className="row m sr-issues"><input type="checkbox" checked={issuesOnly} onChange={(e) => setIssuesOnly(e.target.checked)} /> Issues only</label></h3>
           <div className="sr-contents">
             {sections.map((s, i) => (
               <details key={s.key} open={i === 0}>
@@ -364,7 +377,6 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
           </div>
         </>
       )}
-      {!setup.studies.length && <p className="m">Tick at least one study.</p>}
     </Page>
   );
 }
