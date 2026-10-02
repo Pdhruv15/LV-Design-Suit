@@ -38,7 +38,7 @@ export async function renderSheet(project: Project, set: DrawingSet, s: DrawingS
     const drawing = sheetProject(project, set, s);
     const results = evaluateProject(drawing);
     flushSync(() => root.render(
-      <SystemDiagram project={drawing} calcProject={drawing} results={results} annotations={buildAnnotations(drawing, results)} layers={s.tags ?? set.tags ?? SHEET_LAYERS} cableRefs={cableRefs} hideLegend clouds={s.clouds}
+      <SystemDiagram project={drawing} calcProject={drawing} results={results} annotations={buildAnnotations(drawing, results)} layers={s.tags ?? set.tags ?? SHEET_LAYERS} cableRefs={cableRefs} hideLegend clouds={s.clouds} arrows={s.arrows}
         selectedFeederId={null} selectedBoardId={null} onSelectFeeder={noop} onSelectBoard={noop} />
     ));
     await new Promise((r) => requestAnimationFrame(() => r(null)));

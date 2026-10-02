@@ -975,3 +975,6 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .pub-checks li.bad span{color:var(--bad,#c21f32);font-weight:700}
 .pub-checks li.warn span{color:var(--warn,#a86500);font-weight:700}
 .sld-edit:has(> .sheet-ws:not(.side)) > .palette{display:none}
+.sysdiag .sheet-outline.over rect{stroke-width:3.5;stroke-dasharray:none;fill:color-mix(in srgb,var(--acc,#2563eb) 8%,transparent)}
+.sysdiag .callout-head{fill:var(--tx,#000)}
+.sysdiag .callout-t{font-size:11px}

@@ -36,7 +36,8 @@ import TitleBlockDesigner from './components/docs/TitleBlockDesigner';
 import DrawingsView from './components/docs/DrawingsView';
 import { withCableRefs } from './model/cableRefs';
 import { SheetTabs, SheetWorkspace, sheetOutlines } from './components/sld/SheetWorkspace';
-import { setOf } from './model/drawingSet';
+import { movePanelToSheet, setOf } from './model/drawingSet';
+import { boardsInSupplyOrder } from './calc/summary';
 import ComponentEditor from './components/ComponentEditor';
 import { componentPreset, newComponent, syncComponent, type UserComponent } from './model/components';
 import { CableScheduleView, DbScheduleView, EquipmentScheduleView, ReportView } from './components/docs/Documents';
@@ -908,6 +909,11 @@ export default function App() {
                     onToggleFullScreen={() => setSldFull((v) => !v)}
                     outlines={sheetOutlinesOn ? sheetOutlines(project) : undefined}
                     onOutline={setSheetTab}
+                    onMoveToSheet={sheetOutlinesOn ? (boardId, sheetId) => {
+                      const set = setOf(project);
+                      setProject({ ...project, drawingSet: movePanelToSheet(set, boardId, sheetId, boardsInSupplyOrder(project).map((b) => b.id)) }, { step: true });
+                      setStatus(`${boardId} moved to ${set.sheets.find((x) => x.id === sheetId)?.number}`);
+                    } : undefined}
                     onDrawing={(d) => setProject((p) => ({ ...p, drawing: { ...p.drawing, ...d } }))}
                     onRemoveTie={(id) => {
                       if (!window.confirm(`Remove bus coupler ${id}?`)) return;

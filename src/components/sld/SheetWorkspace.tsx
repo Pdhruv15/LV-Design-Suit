@@ -124,7 +124,7 @@ export function SheetWorkspace({ project, run, sheetId, design, onChange, onStat
   const patch = (p: Partial<DrawingSheet>) => s && save({ ...set, sheets: set.sheets.map((x) => (x.id === s.id ? { ...x, ...p } : x)) });
 
   // Redraw the page when the design or this sheet changes (debounced).
-  const key = useMemo(() => (s ? sheetHash(project, set, s) + JSON.stringify([s.size, s.cableLabels, s.status, s.rev, s.number, project.drawing, project.info, set.sheets.length]) : ''), [project, set, s]);
+  const key = useMemo(() => (s ? sheetHash(project, set, s) + JSON.stringify([s.arrows, s.size, s.cableLabels, s.status, s.rev, s.number, project.drawing, project.info, set.sheets.length]) : ''), [project, set, s]);
   useEffect(() => {
     if (!s || !s.boards.length) { setPage(null); return; }
     let stop = false;
@@ -224,6 +224,12 @@ export function SheetWorkspace({ project, run, sheetId, design, onChange, onStat
               <CloudAdd boards={s.boards} rev={nextRev(sheetRev(s, rev?.id))} onAdd={(c) => patch({ clouds: [...(s.clouds ?? []), c] })} />
             </details>
           )}
+          <details><summary>Arrows and callouts ({(s.arrows ?? []).length})</summary>
+            {(s.arrows ?? []).map((a, i) => (
+              <div key={i} className="row">→ {a.target.replace(/^f:/, '')}: “{a.text}” <button className="icon-btn" title="Remove" onClick={() => patch({ arrows: (s.arrows ?? []).filter((_, k) => k !== i) })}>✕</button></div>
+            ))}
+            <ArrowAdd project={project} boards={s.boards} onAdd={(a) => patch({ arrows: [...(s.arrows ?? []), a] })} />
+          </details>
           <details><summary>Template</summary>
             <div className="ds-tools">
               <select className="chip" value="" onChange={(e) => { const t = templates.find((x) => x.id === e.target.value); if (t) { save({ ...set, sheets: set.sheets.map((x) => (x.id === s.id ? applyTemplate(x, t) : x)) }); onStatus(`Template “${t.name}” applied`); } }}>
@@ -238,6 +244,26 @@ export function SheetWorkspace({ project, run, sheetId, design, onChange, onStat
         </aside>
       </div>
       {publish && <PublishDialog project={project} run={run} onClose={() => setPublish(false)} onChange={onChange} onStatus={onStatus} onOpen={(id) => { setPublish(false); onActive(id); }} />}
+    </div>
+  );
+}
+
+function ArrowAdd({ project, boards, onAdd }: { project: Project; boards: string[]; onAdd: (a: { target: string; text: string; dir: 'ne' | 'nw' | 'se' | 'sw'; len?: number }) => void }) {
+  const [target, setTarget] = useState(boards[0] ?? '');
+  const [text, setText] = useState('');
+  const [dir, setDir] = useState<'ne' | 'nw' | 'se' | 'sw'>('ne');
+  const [len, setLen] = useState(80);
+  const circuits = project.feeders.filter((f) => boards.includes(f.boardId));
+  return (
+    <div className="cloud-add form-kv">
+      <label>Points at<select value={target} onChange={(e) => setTarget(e.target.value)}>
+        <optgroup label="Panels">{boards.map((b) => <option key={b} value={b}>{b}</option>)}</optgroup>
+        <optgroup label="Circuits (cable)">{circuits.map((f) => <option key={f.id} value={`f:${f.id}`}>{f.boardId} · {f.name || f.id}</option>)}</optgroup>
+      </select></label>
+      <label>Text<input className="bi-text" value={text} placeholder="e.g. Existing — not in scope" onChange={(e) => setText(e.target.value)} /></label>
+      <label>Direction<select value={dir} onChange={(e) => setDir(e.target.value as typeof dir)}><option value="ne">Up right ↗</option><option value="nw">Up left ↖</option><option value="se">Down right ↘</option><option value="sw">Down left ↙</option></select></label>
+      <label>Length<input className="bi-text" type="number" min={30} max={300} value={len} onChange={(e) => setLen(Number(e.target.value) || 80)} /></label>
+      <button className="chip" disabled={!target || !text.trim()} onClick={() => { onAdd({ target, text: text.trim(), dir, len }); setText(''); }}>Add arrow</button>
     </div>
   );
 }
