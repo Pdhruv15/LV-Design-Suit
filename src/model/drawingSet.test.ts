@@ -70,3 +70,21 @@ describe('drawing register', () => {
     expect(renumber(manual, true).sheets[0].number).toBe('EL-0101-SLD');
   });
 });
+
+describe('sheet exports use the whole network', async () => {
+  const { sampleProject } = await import('../data/sampleProject');
+  const { evaluateProject } = await import('../calc/electrical');
+  const { sheetProject, sheetsByCount, autoSize, scaleOn, LEGEND_RESERVE_MM } = await import('./drawingSet');
+  it('a sheet without its upstream panels would lose the upstream voltage drop on its own', () => {
+    const set = sheetsByCount(sampleProject, 2);
+    const down = set.sheets.find((s) => !s.boards.includes(sampleProject.boards.find((b) => !b.upstreamId)!.id))!;
+    const part = evaluateProject(sheetProject(sampleProject, set, down));
+    const full = new Map(evaluateProject(sampleProject).map((r) => [r.feeder.id, r]));
+    const f = part.find((r) => full.get(r.feeder.id)!.vdUpstreamPct > 0)!;
+    expect(f.vdUpstreamPct).toBeLessThan(full.get(f.feeder.id)!.vdUpstreamPct); // why sheets now take the full calculation
+  });
+  it('sizes for the legend column and checks a chosen paper', () => {
+    expect(scaleOn('A3', 1800, 700, LEGEND_RESERVE_MM)).toBeLessThan(scaleOn('A3', 1800, 700));
+    expect(autoSize(1800, 700, LEGEND_RESERVE_MM).size).not.toBe('A4');
+  });
+});
