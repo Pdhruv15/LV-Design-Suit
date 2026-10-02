@@ -185,6 +185,8 @@ export interface Feeder {
   capSteps?: number; // capacitor bank: number of steps
   detunedPct?: number; // capacitor bank: detuning reactor, % (e.g. 7)
   trayRoute?: string; // cable tray routes the cable runs on, in order, e.g. "A-B-C"
+  /** The board was moved to another source: the route changed, so the length needs checking. */
+  lengthToCheck?: boolean;
   feedsBoardId?: string; // if set, this feeder is the incomer to a downstream board —
   // its loadKw/demandFactor are ignored and its current is derived from that
   // board's total demand instead
