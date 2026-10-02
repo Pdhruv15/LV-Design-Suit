@@ -22,6 +22,9 @@ interface Tool {
   disabled?: boolean;
   /** Highlight: something needs this (e.g. Run with out-of-date results). */
   stale?: boolean;
+  /** Opens a page (lighter highlight when it's the page shown); tools such
+   * as Select / Pan get the solid highlight. */
+  page?: boolean;
 }
 
 export interface RibbonActions {
@@ -31,6 +34,10 @@ export interface RibbonActions {
   onTool: (t: DiagramTool) => void;
   boardId: string;
   selectedFeederId: string | null;
+  /** What Edit / Delete / Properties act on. */
+  selection: { kind: 'board' | 'feeder'; id: string } | null;
+  /** The main board whose transformer the Transformer button opens. */
+  transformerBoardId?: string;
   onAddFeeder: (preset: Partial<Feeder>) => void;
   onAddBoard: () => void;
   onTransformer: () => void;
@@ -63,6 +70,12 @@ export interface RibbonActions {
   hasRevisions: boolean;
 }
 
+/** Group captions under the ribbon groups (same order as the groups). */
+const CAPTIONS: Partial<Record<RibbonTab, string[]>> = {
+  home: ['Project', 'Diagram & history', 'Setup'],
+  design: ['History', 'Canvas', 'Boards & planning', 'Equipment', 'Selection']
+};
+
 const TABS: { id: RibbonTab; label: string; icon: Icon }[] = [
   { id: 'home', label: 'Home', icon: House },
   { id: 'design', label: 'Design', icon: CircuitBoard },
@@ -92,13 +105,17 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   useEffect(() => {
     if (!moreOpen) return;
     const close = (e: MouseEvent) => !moreRef.current?.contains(e.target as Node) && setMoreOpen(false);
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setMoreOpen(false);
     document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
+    document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', esc); };
   }, [moreOpen]);
 
   const go = (v: MainView) => () => a.onView(v);
   const addTo = `to ${a.boardId}`;
-  const view = (v: MainView, label: string, icon: Icon, title: string): Tool => ({ label, icon, title, onClick: go(v), active: a.view === v });
+  const view = (v: MainView, label: string, icon: Icon, title: string): Tool => ({ label, icon, title, onClick: go(v), active: a.view === v, page: true });
+  const sel = a.selection;
+  const selName = sel ? `${sel.kind === 'board' ? 'board' : 'feeder'} ${sel.id}` : '';
 
   const groups: Record<RibbonTab, Tool[][]> = {
     home: [
@@ -132,31 +149,31 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'Redo', icon: Redo2, title: 'Redo (⇧⌘Z / Ctrl+Y)', onClick: a.onRedo, disabled: !a.canRedo }
       ],
       [
-        { label: 'SLD', icon: Network, title: 'Single line diagram', onClick: go('design'), active: a.view === 'design' },
-        { label: 'Select', icon: MousePointer2, title: 'Click boards and loads to select them', onClick: () => { a.onView('design'); a.onTool('select'); }, active: a.view === 'design' && a.tool === 'select' },
-        { label: 'Pan', icon: Hand, title: 'Drag to move around the diagram without selecting', onClick: () => { a.onView('design'); a.onTool('pan'); }, active: a.view === 'design' && a.tool === 'pan' }
+        { label: 'SLD', icon: Network, title: 'Single line diagram', onClick: go('design'), active: a.view === 'design', page: true },
+        { label: 'Select', icon: MousePointer2, title: 'Select tool — click boards and loads to select them (V)', onClick: () => { a.onView('design'); a.onTool('select'); }, active: a.view === 'design' && a.tool === 'select' },
+        { label: 'Pan', icon: Hand, title: 'Pan tool — drag to move around the diagram without selecting (H)', onClick: () => { a.onView('design'); a.onTool('pan'); }, active: a.view === 'design' && a.tool === 'pan' }
       ],
       [
-        { label: 'Transformer', icon: Waves, title: 'Transformer data (main board → Electrical)', onClick: a.onTransformer },
-        { label: 'Bus', icon: Minus, title: 'Add a board (busbar) fed from an existing board', onClick: a.onAddBoard },
-        { label: 'Switchgear', icon: Server, title: `Board properties of ${a.boardId}`, onClick: a.onBoardProperties },
-        { label: 'Schedule', icon: Table2, title: `Load distribution schedule of ${a.boardId}`, onClick: go('load-schedule'), active: a.view === 'load-schedule' },
+        { label: 'Add board', icon: Minus, title: `Add a board (busbar) fed from ${a.boardId || 'an existing board'}`, onClick: a.onAddBoard },
+        { label: 'Board properties', icon: Server, title: a.boardId ? `Properties of ${a.boardId}` : 'Select a board first', onClick: a.onBoardProperties, disabled: !a.boardId },
+        { label: 'Transformer', icon: Waves, title: a.transformerBoardId ? `Transformer data of ${a.transformerBoardId} (the main board supplying ${a.boardId})` : 'No main board', onClick: a.onTransformer, disabled: !a.transformerBoardId },
+        { label: 'Schedule', icon: Table2, title: `Load distribution schedule of ${a.boardId}`, onClick: go('load-schedule'), active: a.view === 'load-schedule', page: true },
         view('building', 'Building', Building2, 'Building information: GFA, levels, typical floors, rooms and room types'),
-        { label: 'Space plan', icon: LayoutGrid, title: 'Space planning: areas → panels → transformers → RMUs', onClick: go('space-planning'), active: a.view === 'space-planning' },
-        { label: 'Substation area', icon: Building2, title: 'Minimum substation, RMU and LV room areas (Dubai Municipality DM-D-013)', onClick: go('substation-area'), active: a.view === 'substation-area' }
+        { label: 'Space plan', icon: LayoutGrid, title: 'Space planning: areas → panels → transformers → RMUs', onClick: go('space-planning'), active: a.view === 'space-planning', page: true },
+        { label: 'Substation area', icon: Building2, title: 'Minimum substation, RMU and LV room areas (Dubai Municipality DM-D-013)', onClick: go('substation-area'), active: a.view === 'substation-area', page: true }
       ],
       [
         { label: 'Cable', icon: Cable, title: `Add a feeder cable ${addTo}`, onClick: () => a.onAddFeeder({}) },
         { label: 'Load', icon: Zap, title: `Add a load ${addTo}`, onClick: () => a.onAddFeeder({ loadType: 'general' }) },
         { label: 'Motor', icon: Cog, title: `Add a motor ${addTo}`, onClick: () => a.onAddFeeder({ loadType: 'motor', powerFactor: 0.86, demandFactor: 1 }) },
-        { label: 'Generator', icon: Sun, title: `Add PV / generation ${addTo}`, onClick: () => a.onAddFeeder({ loadType: 'pv', generation: true, powerFactor: 1, demandFactor: 1 }) },
+        { label: 'Solar PV', icon: Sun, title: `Add solar PV / generation ${addTo}`, onClick: () => a.onAddFeeder({ loadType: 'pv', generation: true, powerFactor: 1, demandFactor: 1 }) },
         { label: 'EV', icon: Car, title: `Add EV charging ${addTo}`, onClick: () => a.onAddFeeder({ loadType: 'ev', powerFactor: 0.98 }) },
-        { label: 'Capacitor', icon: BatteryCharging, title: 'Size capacitor banks (power factor correction)', onClick: go('pfc') }
+        { label: 'Capacitor', icon: BatteryCharging, title: 'Size capacitor banks (power factor correction)', onClick: go('pfc'), page: true }
       ],
       [
-        { label: 'Protection', icon: ShieldCheck, title: 'Protection coordination study', onClick: go('coordination') },
-        { label: 'Edit', icon: Pencil, title: a.selectedFeederId ? `Edit ${a.selectedFeederId}` : 'Select a load or feeder first', onClick: a.onEditSelected, disabled: !a.selectedFeederId },
-        { label: 'Delete', icon: Trash2, title: a.selectedFeederId ? `Delete ${a.selectedFeederId}` : 'Select a load or feeder first', onClick: a.onDeleteSelected, disabled: !a.selectedFeederId }
+        { label: 'Edit', icon: Pencil, title: sel ? `Edit ${selName}` : 'Select a board or feeder first', onClick: a.onEditSelected, disabled: !sel },
+        { label: 'Delete', icon: Trash2, title: sel ? `Delete ${selName}${sel.kind === 'board' ? ' and everything fed from it' : ''} (Delete key)` : 'Select a board or feeder first', onClick: a.onDeleteSelected, disabled: !sel },
+        { label: 'Protection', icon: ShieldCheck, title: 'Protection coordination study', onClick: go('coordination'), page: true }
       ]
     ],
     calculate: [
@@ -227,8 +244,17 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   return (
     <div className="ribbon">
       <div className="ribbon-tabs" role="tablist" aria-label="Ribbon">
-        {TABS.map(({ id, label, icon: I }) => (
-          <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => onTab(id)}>
+        {TABS.map(({ id, label, icon: I }, ti) => (
+          <button key={id} role="tab" aria-selected={tab === id} tabIndex={tab === id ? 0 : -1} className={tab === id ? 'on' : ''} onClick={() => onTab(id)}
+            onKeyDown={(e) => {
+              // Arrow keys move between tabs; Home / End to the first / last.
+              const k = e.key === 'ArrowRight' ? ti + 1 : e.key === 'ArrowLeft' ? ti - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? TABS.length - 1 : null;
+              if (k === null) return;
+              e.preventDefault();
+              const next = TABS[(k + TABS.length) % TABS.length];
+              onTab(next.id);
+              (e.currentTarget.parentElement?.children[(k + TABS.length) % TABS.length] as HTMLElement | undefined)?.focus();
+            }}>
             <I size={16} strokeWidth={1.8} />
             {label}
           </button>
@@ -236,15 +262,25 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       </div>
       <div className="ribbon-tools" role="toolbar" aria-label={`${TABS.find((t) => t.id === tab)?.label} tools`}>
         {groups[tab].map((group, gi) => (
-          <div key={gi} className="ribbon-group">
-            {group.map(({ label, icon: I, title, onClick, active, disabled, stale }) => (
-              <button key={label} className={`${active ? 'on' : ''}${stale ? ' stale' : ''}`} title={title} aria-pressed={active} disabled={disabled} onClick={onClick}>
-                <I size={20} strokeWidth={1.6} />
-                <span>{label}</span>
-              </button>
-            ))}
+          <div key={gi} className="ribbon-group" role="group" aria-label={CAPTIONS[tab]?.[gi]}>
+            <div className="ribbon-group-btns">
+              {group.map(({ label, icon: I, title, onClick, active, disabled, stale, page }) => (
+                <button key={label} className={`${active ? (page ? 'page-on' : 'on') : ''}${stale ? ' stale' : ''}`} title={title} aria-pressed={page ? undefined : active} aria-current={page && active ? 'page' : undefined} disabled={disabled} onClick={onClick}>
+                  <I size={20} strokeWidth={1.6} />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+            {CAPTIONS[tab]?.[gi] && <div className="ribbon-caption">{CAPTIONS[tab]![gi]}</div>}
           </div>
         ))}
+        {tab === 'design' && (
+          <div className="ribbon-selected" title="Edit, Delete and Properties act on this">
+            <span className="m">Selected</span>
+            <b>{sel ? sel.id : '—'}</b>
+            {sel && <span className="m">{sel.kind === 'board' ? 'board' : 'feeder'}</span>}
+          </div>
+        )}
         {tab === 'home' && a.recent.length > 0 && (
           <div className="ribbon-group more" ref={moreRef}>
             <button

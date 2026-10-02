@@ -536,8 +536,14 @@ export default function App() {
     setShowFeederForm('new');
   }
 
+  /** The main board (with the transformer) that supplies the selected board. */
+  const mainOfSelected = () => {
+    let b: Board | undefined = board;
+    for (let i = 0; b?.upstreamId && i < 50; i++) { const up: string = b.upstreamId; b = project.boards.find((x) => x.id === up); }
+    return b ?? project.boards.find((x) => !x.upstreamId);
+  };
   function openTransformer() {
-    const main = project.boards.find((b) => !b.upstreamId);
+    const main = mainOfSelected();
     if (!main) return;
     setView('design');
     selectBoard(main.id);
@@ -545,7 +551,8 @@ export default function App() {
   }
 
   function confirmDeleteSelected() {
-    if (selectedFeeder && window.confirm(`Delete feeder ${selectedFeeder.id}?`)) deleteFeeder(selectedFeeder.id);
+    if (panel === 'feeder' && selectedFeeder) { if (window.confirm(`Delete feeder ${selectedFeeder.id}?`)) deleteFeeder(selectedFeeder.id); return; }
+    if (board && window.confirm(`Delete ${board.id} and everything fed from it?`)) removeBoard(board.id);
   }
 
   function editFeeder(id: string) {
@@ -701,6 +708,10 @@ export default function App() {
       } else if ((e.key === 'Delete' || e.key === 'Backspace') && view === 'design' && !!t?.closest('.sysdiag')) {
         e.preventDefault();
         deleteSelection();
+      } else if (!mod && !e.altKey && view === 'design' && (e.key === 'v' || e.key === 'V')) {
+        setTool('select'); // V: select tool
+      } else if (!mod && !e.altKey && view === 'design' && (e.key === 'h' || e.key === 'H')) {
+        setTool('pan'); // H: pan tool
       }
     };
     window.addEventListener('keydown', onKey);
@@ -771,11 +782,13 @@ export default function App() {
           onTool: setTool,
           boardId: board?.id ?? '',
           selectedFeederId: panel === 'feeder' ? selected : null,
+          selection: panel === 'feeder' && selected ? { kind: 'feeder', id: selected } : board ? { kind: 'board', id: board.id } : null,
+          transformerBoardId: mainOfSelected()?.id,
           onAddFeeder: openAddFeeder,
           onAddBoard: () => setShowBoardForm(true),
           onTransformer: openTransformer,
           onBoardProperties: () => { setView('design'); if (board) selectBoard(board.id); setBoardTab('general'); },
-          onEditSelected: () => { setView('design'); setShowFeederForm('edit'); },
+          onEditSelected: () => { setView('design'); if (panel === 'feeder' && selectedFeeder) setShowFeederForm('edit'); else if (board) setEditBoardId(board.id); },
           onDeleteSelected: confirmDeleteSelected,
           onExportDss: exportOpenDss,
           onSettings: () => setShowSettings(true),
