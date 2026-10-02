@@ -6,7 +6,7 @@ import { boardsInSupplyOrder } from '../../calc/summary';
 import { subtree } from '../../calc/pfc';
 import { evaluateProject } from '../../calc/electrical';
 import {
-  addSheet, applyTemplate, issueSheets, loadSheetTemplates, nextRev, renumber, saveSheetTemplates, setOf, SHEET_STATUSES, sheetChecks, sheetHash, sheetRev, sheetsByCount, SIZES, statusColor, templateFromSheet,
+  addRiserSheet, addSheet, applyTemplate, drawable, issueSheets, loadSheetTemplates, nextRev, renumber, saveSheetTemplates, setOf, SHEET_STATUSES, sheetChecks, sheetHash, sheetRev, sheetsByCount, SIZES, statusColor, templateFromSheet,
   type DrawingSet, type DrawingSheet, type SheetCheck, type SheetSize
 } from '../../model/drawingSet';
 import { currentRevision } from '../../model/revisions';
@@ -79,6 +79,9 @@ export function SheetTabs({ project, active, selectedBoardId, outlinesOn, onActi
           <div className="dw-menu st-menu-up">
             <button onClick={newFromSelection}>Selected panel and its branch{selectedBoardId ? ` (${selectedBoardId})` : ''}</button>
             <button onClick={() => { close(); const r = addSheet(set, [], `SLD — sheet ${set.sheets.length + 1}`); save(r.set); onActive(r.id); }}>Empty sheet (tick panels)</button>
+            {(project.building?.buildings ?? []).map((b) => (
+              <button key={b.id} onClick={() => { close(); const r = addRiserSheet(set, b.id, b.name); save(r.set); onActive(r.id); }}>Riser diagram — {b.name}</button>
+            ))}
             <button onClick={() => { close(); const n = Number(window.prompt('Panels per sheet', '10')); if (!n) return; if (set.sheets.length && !window.confirm('Replace all sheets?')) return; save({ ...sheetsByCount(project, n, set.prefix), register: set.register, tags: set.tags, status: set.status, issues: set.issues }); }}>Split all panels into sheets…</button>
           </div>
         )}
@@ -126,7 +129,7 @@ export function SheetWorkspace({ project, run, sheetId, design, onChange, onStat
   // Redraw the page when the design or this sheet changes (debounced).
   const key = useMemo(() => (s ? sheetHash(project, set, s) + JSON.stringify([s.arrows, s.size, s.cableLabels, s.status, s.rev, s.number, project.drawing, project.info, set.sheets.length]) : ''), [project, set, s]);
   useEffect(() => {
-    if (!s || !s.boards.length) { setPage(null); return; }
+    if (!s || !drawable(s)) { setPage(null); return; }
     let stop = false;
     const t = setTimeout(async () => {
       setBusy(true);
@@ -170,7 +173,7 @@ export function SheetWorkspace({ project, run, sheetId, design, onChange, onStat
       <div className="sheet-body">
         {side && <div className="sheet-design">{design}</div>}
         <div className="sheet-page" ref={host}>
-          {!s.boards.length ? <p className="m">Tick the panels for this sheet on the right.</p> : page ? (
+          {!drawable(s) ? <p className="m">Tick the panels for this sheet on the right.</p> : page ? (
             <div style={{ width: pxW * scale, height: pxH * scale }} className="sheet-paper">
               <iframe title={s.number} srcDoc={page.html} sandbox="" style={{ width: pxW, height: pxH, transform: `scale(${scale})`, transformOrigin: '0 0', border: 0, background: '#fff' }} />
             </div>
@@ -188,6 +191,14 @@ export function SheetWorkspace({ project, run, sheetId, design, onChange, onStat
               </select></label>
             </div>
           </details>
+          {s.kind === 'riser' && (
+            <details open><summary>Building</summary>
+              <select value={s.buildingId ?? ''} onChange={(e) => patch({ buildingId: e.target.value })}>
+                {(project.building?.buildings ?? []).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+              <p className="m">Each panel is drawn on its Level (panel properties). Levels and floor heights come from Building information.</p>
+            </details>
+          )}
           {s.kind === 'system' && (
             <details open><summary>Panels on this sheet ({s.boards.length})</summary>
               <div className="ds-pick">
@@ -293,7 +304,7 @@ function PublishDialog({ project, run, onClose, onChange, onStatus, onOpen }: { 
     (async () => {
       const out: SheetCheck[] = [];
       for (const s of set.sheets) {
-        if (!s.boards.length) continue;
+        if (!drawable(s)) continue;
         const r = await sheetHtml(project, set, s, run).catch(() => undefined);
         if (r && !r.fits) out.push({ level: 'warn', text: `${s.number} is crowded even on A1 — split it`, sheetId: s.id });
       }

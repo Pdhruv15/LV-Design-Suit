@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Project } from '../../types';
 import type { CalcRun } from '../../calc/runs';
-import { sheetRev, statusColor, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
+import { drawable, sheetRev, statusColor, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
 import { SHEET_MM } from '../../docs/sldSheet';
 import { sheetHtml } from './sheetRender';
 
@@ -37,7 +37,7 @@ export default function SheetGrid({ project, set, sheets, run, selected, canDrag
     (async () => {
       for (const s of sheets) {
         if (stop) return;
-        if (thumbs[s.id] || !s.boards.length) continue;
+        if (thumbs[s.id] || !drawable(s)) continue;
         const r = await sheetHtml(live.current, set, s, run).catch(() => undefined);
         if (stop) return;
         if (r) setThumbs((t) => ({ ...t, [s.id]: { html: r.html, size: r.size } }));
@@ -74,7 +74,7 @@ export default function SheetGrid({ project, set, sheets, run, selected, canDrag
               <div className="sg-thumb" style={{ height: mm.h * 3.78 * scale }} onClick={() => t && onPreview(s, t)} title={t ? 'Open the preview' : ''}>
                 {t
                   ? <iframe title={s.number} srcDoc={t.html} sandbox="" tabIndex={-1} style={{ width: mm.w * 3.78, height: mm.h * 3.78, transform: `scale(${scale})` }} />
-                  : <span className="m">{s.boards.length ? 'Drawing…' : 'No panels'}</span>}
+                  : <span className="m">{drawable(s) ? 'Drawing…' : 'No panels'}</span>}
                 <span className="sg-badge" style={{ background: statusColor(status) }}>{status || 'NO STATUS'}</span>
                 {t && <span className="sg-size">{t.size}</span>}
               </div>

@@ -5,7 +5,7 @@ import type { CalcRun } from '../../calc/runs';
 import { evaluateProject } from '../../calc/electrical';
 import { buildAnnotations, SHEET_LAYERS } from '../../diagram/annotations';
 import { printableSvg } from '../../diagram/exportSvg';
-import { autoSize, registerHtml, sheetProject, sheetRev, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
+import { autoSize, drawable, registerHtml, sheetProject, sheetRev, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
 import { buildSldSheetHtml, type SheetInfo } from '../../docs/sldSheet';
 import { mergePdfs } from '../../docs/mergePdf';
 import { currentRevision, revisionStamp } from '../../model/revisions';
@@ -13,6 +13,8 @@ import { cableRefsUsed } from '../../model/cableRefs';
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
 import { SHEET_MM } from '../../docs/sldSheet';
 import SystemDiagram, { LegendSvg } from '../SystemDiagram';
+import RiserDiagram, { RiserLegendSvg } from '../../diagram/RiserDiagram';
+import { riserLayout } from '../../diagram/riserLayout';
 import SingleLineDiagram from '../SingleLineDiagram';
 
 const noop = () => {};
@@ -24,6 +26,15 @@ export async function renderSheet(project: Project, set: DrawingSet, s: DrawingS
   document.body.appendChild(host);
   const root = createRoot(host);
   try {
+    if (s.kind === 'riser') {
+      if (!s.buildingId) return undefined;
+      flushSync(() => root.render(<RiserDiagram project={project} buildingId={s.buildingId!} />));
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+      const svg = host.querySelector<SVGSVGElement>('.sysdiag svg');
+      if (!svg) return undefined;
+      const w = Number(svg.dataset.w), h = Number(svg.dataset.h);
+      return { svg: printableSvg(svg, w, h), w, h };
+    }
     if (s.kind === 'board') {
       const b = project.boards.find((x) => x.id === s.boards[0]);
       if (!b) return undefined;
@@ -76,6 +87,22 @@ async function legendOf(drawing: Project): Promise<string> {
   } finally { root.unmount(); host.remove(); }
 }
 
+/** The riser symbols used on a building's riser sheet, as printable SVG. */
+async function riserLegendOf(project: Project, buildingId: string): Promise<string> {
+  const used = riserLayout(project, buildingId).used;
+  if (!used.size) return '';
+  const host = document.createElement('div');
+  host.style.cssText = 'position:fixed;left:-30000px;top:0;pointer-events:none';
+  document.body.appendChild(host);
+  const root = createRoot(host);
+  try {
+    flushSync(() => root.render(<RiserLegendSvg used={used} />));
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    const svg = host.querySelector<SVGSVGElement>('svg');
+    return svg ? printableSvg(svg, Number(svg.dataset.w), Number(svg.dataset.h)) : '';
+  } finally { root.unmount(); host.remove(); }
+}
+
 /** Cable text on a sheet: reference numbers (legend: CABLE SCHEDULE) when
  * chosen, or in Auto when the cable text would print smaller than ≈ 2.3 mm
  * (a large SLD squeezed onto the paper). */
@@ -99,7 +126,7 @@ export async function sheetHtml(project: Project, set: DrawingSet, s: DrawingShe
     refs = true;
     r = (await renderSheet(project, set, s, run, true)) ?? r;
   }
-  const legendSvg = s.kind === 'system' ? await legendOf(sheetProject(project, set, s)) : '';
+  const legendSvg = s.kind === 'system' ? await legendOf(sheetProject(project, set, s)) : s.kind === 'riser' && s.buildingId ? await riserLegendOf(project, s.buildingId) : '';
   const html = sheetHtmlFrom(project, set, s, r.svg, size, refs || withLegend, legendSvg);
   return { html, size, fits: a.fits || s.size !== 'auto', refs, svg: r.svg, legendSvg };
 }
@@ -120,7 +147,7 @@ export async function exportDrawingSet(project: Project, set: DrawingSet, run: C
     const rev = currentRevision(project);
     const pages: { html: string; size: SheetSize; s: DrawingSheet; refs: boolean; svg: string; legendSvg: string }[] = [];
     for (const s of set.sheets) {
-      if (!s.boards.length || (only && !only.includes(s.id))) continue;
+      if (!drawable(s) || (only && !only.includes(s.id))) continue;
       const r = await sheetHtml(project, set, s, run);
       if (r) pages.push({ s, size: r.size, html: r.html, refs: r.refs, svg: r.svg, legendSvg: r.legendSvg });
     }
