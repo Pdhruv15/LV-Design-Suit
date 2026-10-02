@@ -76,10 +76,15 @@ export interface Scope {
   all: boolean;
 }
 
-export function scopeOf(project: Project, setup: Pick<StudyReportSetup, 'boards' | 'downstream'>): Scope {
+/** Whole installation or the selected boards (older reports: all when none chosen). */
+export const scopeMode = (setup: Pick<StudyReportSetup, 'boards' | 'mode'>): 'all' | 'selected' => setup.mode ?? (setup.boards.length ? 'selected' : 'all');
+/** Chosen boards that no longer exist (e.g. a saved set after a rename). */
+export const missingBoards = (project: Project, boards: string[]) => boards.filter((id) => !project.boards.some((b) => b.id === id));
+
+export function scopeOf(project: Project, setup: Pick<StudyReportSetup, 'boards' | 'downstream' | 'mode'>): Scope {
   const known = new Set(project.boards.map((b) => b.id));
   const chosen = setup.boards.filter((id) => known.has(id));
-  const ids = new Set<string>(chosen.length ? chosen : project.boards.map((b) => b.id));
+  const ids = new Set<string>(scopeMode(setup) === 'all' ? project.boards.map((b) => b.id) : chosen);
   if (setup.downstream) {
     let grew = true;
     while (grew) {
@@ -95,7 +100,7 @@ export function scopeOf(project: Project, setup: Pick<StudyReportSetup, 'boards'
     feeders: inScope.filter((f) => !isScheduleCircuit(f)),
     finals: inScope.filter(isScheduleCircuit),
     incomers: roots.map((r) => project.feeders.find((f) => f.feedsBoardId === r.id && f.boardId === r.upstreamId)).filter((f): f is Feeder => !!f),
-    all: ids.size === project.boards.length
+    all: ids.size === project.boards.length && project.boards.length > 0
   };
 }
 

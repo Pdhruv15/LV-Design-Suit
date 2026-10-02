@@ -7,7 +7,7 @@ import { boardsInSupplyOrder } from '../../calc/summary';
 import { buildAnnotations } from '../../diagram/annotations';
 import { printableSvg } from '../../diagram/exportSvg';
 import {
-  buildSection, buildStudyReportHtml, buildStudyWorkbook, defaultTitle, drawingProject, scopeOf, scopeText, setupOf, STUDIES, studyInfo, type CalcData, type Section
+  buildSection, buildStudyReportHtml, missingBoards, scopeMode, buildStudyWorkbook, defaultTitle, drawingProject, scopeOf, scopeText, setupOf, STUDIES, studyInfo, type CalcData, type Section
 } from '../../docs/studyReport';
 import { workbookBytes } from '../../docs/formWorkbook';
 import { buildStudyDocx, docxBytes } from '../../docs/studyWord';
@@ -22,6 +22,8 @@ import SystemDiagram from '../SystemDiagram';
 import { Page, StaleBanner } from '../ui';
 
 const noop = () => {};
+/** A table row with a status cell that is a warning or worse. */
+const isIssue = (r: unknown[]) => r.some((c) => typeof c === 'object' && c !== null && ((c as { s?: string }).s === 'bad' || (c as { s?: string }).s === 'warn'));
 
 /** Draws the scope's SLD off-screen with a study's labels and colours, and
  * returns it as printable SVG. */
@@ -76,7 +78,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
   const set = (patch: Partial<StudyReportSetup>) => onChange({ ...project, studyReport: { ...setup, ...patch } });
   const calc = run?.project ?? project;
   const boards = boardsInSupplyOrder(project);
-  const scope = useMemo(() => scopeOf(calc, setup), [calc, setup.boards, setup.downstream]); // eslint-disable-line react-hooks/exhaustive-deps
+  const scope = useMemo(() => scopeOf(calc, setup), [calc, setup.boards, setup.downstream, setup.mode]); // eslint-disable-line react-hooks/exhaustive-deps
   const data: CalcData | undefined = run && { project: run.project, results: run.results, earthing: run.earthing, selectivity: run.selectivity };
   const sections: Section[] = useMemo(
     () => (data ? setup.studies.map((k) => buildSection(k, data, scope)) : []),
@@ -87,6 +89,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
   const drawing = useMemo(() => drawingProject(calc, scope), [calc, scope]);
   const [busy, setBusy] = useState('');
   const [presetName, setPresetName] = useState('');
+  const [issuesOnly, setIssuesOnly] = useState(false);
   const presets = project.studyReportPresets ?? [];
   const title = setup.title || defaultTitle(setup.studies);
   const depth = (id: string) => {
@@ -98,7 +101,10 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
   const chosen = new Set(setup.boards);
   const toggleBoard = (id: string) => set({ boards: chosen.has(id) ? setup.boards.filter((x) => x !== id) : [...setup.boards, id] });
   const toggleStudy = (k: StudyReportKind) => set({ studies: setup.studies.includes(k) ? setup.studies.filter((x) => x !== k) : STUDIES.map((s) => s.key).filter((x) => x === k || setup.studies.includes(x)) });
-  const blocked = !run || stale.length > 0;
+  const mode = scopeMode(setup);
+  const noBoards = scope.boards.length === 0;
+  const blocked = !run || stale.length > 0 || noBoards;
+  const blockedWhy = !run ? 'Run the calculations first (F5)' : stale.length ? 'Results are out of date — Run (F5)' : noBoards ? 'Tick at least one board, or choose Whole installation' : undefined;
 
   async function exportPdf() {
     if (!data || !sections.length) return;
@@ -135,6 +141,8 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
       const bytes = await workbookBytes(buildStudyWorkbook(calc, scope, sections, { title, docNo: setup.docNo, preparedBy: setup.preparedBy, checkedBy: setup.checkedBy }));
       const m = await saveBinary(`${safeFileName(`${project.name} ${title}`)}.xlsx`, bytes, 'Excel workbook', 'xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       if (m) onStatus(m);
+    } catch (e) {
+      onStatus(`Excel export failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy('');
     }
@@ -196,13 +204,14 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
   return (
     <Page
       title="Study reports"
-      intro="Reports for a submission: choose the boards (the whole installation, or e.g. one MDB and what it feeds) and the studies, then export. The calculations always cover the whole network — a board's fault level and voltage depend on everything above it — and the report shows only the part you chose, with its own SLD for each study."
+      intro="Reports for a submission: choose the scope (whole installation or selected boards) and the studies, then export. Calculations always cover the whole network; the report shows only the part you chose."
       actions={
         <>
-          <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportExcel}>{busy === 'xlsx' ? 'Exporting…' : 'Excel'}</button>
-          <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportWord} title="Editable Word report (.docx)">{busy === 'docx' ? 'Exporting…' : 'Word'}</button>
-          <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportPack} title="One PDF: project summary + this report with SLDs + the load schedule of every DB in scope, page-numbered">{busy === 'pack' ? 'Building…' : 'Submission PDF (all-in-one)'}</button>
-          <button className="chip primary" disabled={blocked || !sections.length || !!busy} onClick={exportPdf} title={blocked ? 'Run the calculations first (F5)' : undefined}>
+          {blockedWhy && <span className="m sr-why">{blockedWhy}</span>}
+          <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportExcel} title={blockedWhy ?? 'Excel: the result tables of each study (no SLDs, no method text)'}>{busy === 'xlsx' ? 'Exporting…' : 'Excel'}</button>
+          <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportWord} title={blockedWhy ?? 'Word (.docx): editable report — method, summary and tables (no SLDs)'}>{busy === 'docx' ? 'Exporting…' : 'Word'}</button>
+          <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportPack} title={blockedWhy ?? 'One PDF: project summary + this report with SLDs + the load schedule of every DB in scope, page-numbered'}>{busy === 'pack' ? 'Building…' : 'Submission PDF (all-in-one)'}</button>
+          <button className="chip primary" disabled={blocked || !sections.length || !!busy} onClick={exportPdf} title={blockedWhy ?? `PDF: method, summary and tables of each study${setup.sld ? ', with an SLD of the chosen boards showing its results' : ''}`}>
             {busy === 'pdf' ? 'Exporting…' : setup.separate && sections.length > 1 ? `Export ${sections.length} PDFs` : 'Export PDF'}
           </button>
         </>
@@ -213,17 +222,25 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
       <div className="sr-grid">
         <section className="sr-box">
           <h4>1 · Boards</h4>
-          <div className="sr-quick">
-            <button className="chip" onClick={() => set({ boards: [] })}>Whole installation</button>
-            {boards.filter((b) => !b.upstreamId).length > 1 && boards.filter((b) => !b.upstreamId).map((b) => (
-              <button key={b.id} className="chip" onClick={() => set({ boards: [b.id], downstream: true })}>{b.id} only</button>
-            ))}
+          <div className="seg sr-mode" role="radiogroup" aria-label="Report scope">
+            <button role="radio" aria-checked={mode === 'all'} className={mode === 'all' ? 'on' : ''} onClick={() => set({ mode: 'all' })}>Whole installation</button>
+            <button role="radio" aria-checked={mode === 'selected'} className={mode === 'selected' ? 'on' : ''} onClick={() => set({ mode: 'selected' })}>Selected boards</button>
           </div>
-          <label className="sr-check"><input type="checkbox" checked={setup.downstream} onChange={(e) => set({ downstream: e.target.checked })} /> Include everything below the chosen boards</label>
-          <div className="sr-tree">
+          {boards.filter((b) => !b.upstreamId).length > 1 && (
+            <div className="sr-quick">
+              {boards.filter((b) => !b.upstreamId).map((b) => (
+                <button key={b.id} className="chip" onClick={() => set({ mode: 'selected', boards: [b.id], downstream: true })}>{b.id} and downstream</button>
+              ))}
+            </div>
+          )}
+          {mode === 'selected' && <label className="sr-check"><input type="checkbox" checked={setup.downstream} onChange={(e) => set({ downstream: e.target.checked })} /> Include everything below the chosen boards</label>}
+          {mode === 'selected' && missingBoards(project, setup.boards).length > 0 && (
+            <p className="warn">{missingBoards(project, setup.boards).length} chosen board(s) no longer exist: {missingBoards(project, setup.boards).join(', ')}. <button className="linkish" onClick={() => set({ boards: setup.boards.filter((id) => project.boards.some((b) => b.id === id)) })}>Remove them</button></p>
+          )}
+          {mode === 'selected' && <div className="sr-tree">
             {boards.map((b) => {
               const inScope = scope.ids.has(b.id);
-              const implied = inScope && !chosen.has(b.id) && setup.boards.length > 0;
+              const implied = inScope && !chosen.has(b.id);
               return (
                 <label key={b.id} style={{ paddingLeft: depth(b.id) * 16 }} className={implied ? 'implied' : ''}>
                   <input type="checkbox" checked={chosen.has(b.id) || implied} onChange={() => toggleBoard(b.id)} disabled={implied} />
@@ -231,8 +248,8 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
                 </label>
               );
             })}
-          </div>
-          <p className="m">{setup.boards.length ? `In the report: ${scopeText(calc, scope)}` : `No board ticked — the whole installation (${scope.boards.length} boards).`}</p>
+          </div>}
+          <p className={noBoards ? 'warn' : 'm'}>{noBoards ? 'No board ticked — tick at least one board, or choose Whole installation.' : `In the report: ${scopeText(calc, scope)}`}</p>
           <p className="m">{scope.feeders.length + scope.incomers.length} circuits{scope.finals.length ? ` + ${scope.finals.length} final circuits (cable and earthing studies)` : ''}.</p>
         </section>
 
@@ -247,7 +264,13 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
                 <input type="checkbox" checked={setup.studies.includes(s.key)} onChange={() => toggleStudy(s.key)} />
                 <span>
                   <b>{s.label}</b>
-                  {sec && sec.statuses.length > 0 && <em className={bad ? 'bad' : warn ? 'warn' : 'ok'}>{bad ? `${bad} fail` : warn ? `${warn} check` : 'all within limits'}</em>}
+                  {sec && sec.statuses.length > 0 && (
+                    <em className="sr-counts">
+                      <span className="ok">{sec.statuses.length - bad - warn} within limits</span>
+                      {warn > 0 && <span className="warn"> · {warn} check</span>}
+                      {bad > 0 && <span className="bad"> · {bad} exceed</span>}
+                    </em>
+                  )}
                   <small>{s.description}{s.sld ? '' : ' (tables only)'}</small>
                 </span>
               </label>
@@ -269,7 +292,14 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
           <div className="sr-presets">
             {presets.map((p) => (
               <span key={p.id} className="sr-preset">
-                <button className="chip" title={`${p.studies.map((k) => studyInfo(k).label).join(', ')} — ${p.boards.length ? p.boards.join(', ') : 'all boards'}`} onClick={() => { const { id: _i, name: _n, ...rest } = p; set(rest); onStatus(`Loaded "${p.name}"`); }}>{p.name}</button>
+                <button className="chip" title={`${p.studies.map((k) => studyInfo(k).label).join(', ')} — ${(p.mode ?? (p.boards.length ? 'selected' : 'all')) === 'all' ? 'whole installation' : p.boards.join(', ')}`} onClick={() => {
+                  const { id: _i, name: _n, ...rest } = p;
+                  const gone = missingBoards(project, rest.boards);
+                  const kept = rest.boards.filter((id) => !gone.includes(id));
+                  // A set made for chosen boards stays a "selected boards" report — never silently the whole installation.
+                  set({ ...rest, mode: rest.mode ?? (rest.boards.length ? 'selected' : 'all'), boards: kept });
+                  onStatus(gone.length ? `Loaded "${p.name}" — ${gone.length} board(s) no longer exist and were left out: ${gone.join(', ')}${kept.length ? '' : '. Tick the boards again.'}` : `Loaded "${p.name}"`);
+                }}>{p.name}</button>
                 <button className="icon-btn" title={`Delete "${p.name}"`} onClick={() => onChange({ ...project, studyReportPresets: presets.filter((x) => x.id !== p.id) })}>✕</button>
               </span>
             ))}
@@ -310,7 +340,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
 
       {sections.length > 0 && (
         <>
-          <h3 className="section-title">Report contents</h3>
+          <h3 className="section-title">Report contents <label className="row m sr-issues"><input type="checkbox" checked={issuesOnly} onChange={(e) => setIssuesOnly(e.target.checked)} /> Issues only</label></h3>
           <div className="sr-contents">
             {sections.map((s, i) => (
               <details key={s.key} open={i === 0}>
@@ -321,8 +351,9 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
                     <table className="schedule">
                       <thead><tr>{t.headers.map((h) => <th key={h}>{h}</th>)}</tr></thead>
                       <tbody>
-                        {t.rows.slice(0, 40).map((r, y) => <tr key={y}>{r.map((c, x) => (typeof c === 'object' ? <td key={x} className={c.s}>{c.v}</td> : <td key={x}>{c}</td>))}</tr>)}
-                        {t.rows.length > 40 && <tr><td colSpan={t.headers.length} className="m">… {t.rows.length - 40} more rows in the export</td></tr>}
+                        {(issuesOnly ? t.rows.filter(isIssue) : t.rows).slice(0, 40).map((r, y) => <tr key={y}>{r.map((c, x) => (typeof c === 'object' ? <td key={x} className={c.s}>{c.v}</td> : <td key={x}>{c}</td>))}</tr>)}
+                        {(issuesOnly ? t.rows.filter(isIssue) : t.rows).length > 40 && <tr><td colSpan={t.headers.length} className="m">Showing 40 of {(issuesOnly ? t.rows.filter(isIssue) : t.rows).length} rows here — every row is in the exports.</td></tr>}
+                        {issuesOnly && t.rows.length > 0 && !t.rows.some(isIssue) && <tr><td colSpan={t.headers.length} className="m">No issues in this table</td></tr>}
                         {!t.rows.length && <tr><td colSpan={t.headers.length} className="m">Nothing in scope</td></tr>}
                       </tbody>
                     </table>
