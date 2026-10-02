@@ -140,7 +140,7 @@ export function generateBuildingDbs(project: Project, buildingId: string, source
     const exists = p.boards.find((x) => x.id === spec.id);
     const acKw = Math.max(0, ...spec.rooms.map((r) => rulesOf(r.type).acKwPerUnit ?? 0)) || 2.5;
     const watts = { ...genPointWatts(), sac: acKw * 1000, ...exists?.pointWatts };
-    const board: Board = { ...(exists ?? { id: spec.id, name: spec.name, kind: 'DB', upstreamId: sourceBoardId }), location: spec.location, pointWatts: watts, generated: `${b.id}:${spec.unit ?? spec.floor.tag}` };
+    const board: Board = { ...(exists ?? { id: spec.id, name: spec.name, kind: 'DB', upstreamId: sourceBoardId }), location: exists?.location ?? spec.location, level: { building: b.id, level: spec.floor.level.id, ...(spec.floor.index ? { index: spec.floor.index } : {}) }, pointWatts: watts, generated: `${b.id}:${spec.unit ?? spec.floor.tag}` };
     if (!exists) {
       p = { ...p, boards: [...p.boards, board] };
     } else {

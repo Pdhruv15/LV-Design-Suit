@@ -1,4 +1,5 @@
 import { evaluateFeeder, type Status } from '../calc/electrical';
+import { boardLocation } from '../model/levels';
 import { breakerTypeOf, cpcOf } from '../calc/earthing';
 import { boardPhaseKw, circuitCategory, circuitRef, circuitWatts, elcbGroups, imbalancePct, minWireMm2, pointColumns, pointWattsFor, scheduleCircuits } from '../calc/loadSchedule';
 import type { Project } from '../types';
@@ -80,7 +81,7 @@ export function buildLoadScheduleHtml(project: Project, boardId: string): string
     <div><p>PROJECT: VILLA / BUILDING: <b>${esc(project.name)}</b></p><p>DB No.: <b>${esc(board.id)}</b> — ${esc(board.name)}</p>
       <p>FED FROM: MDB / SMDB: <b>${esc(board.upstreamId ?? '—')}</b> / METER ENCLOSURE</p></div>
     <div class="c"><h1>LOAD DISTRIBUTION SCHEDULE</h1><p>( 3 - Phase, ${project.voltageV} V )</p></div>
-    <div class="r"><p>LOCATION OF DB: <b>${esc(board.location ?? '')}</b></p></div>
+    <div class="r"><p>LOCATION OF DB: <b>${esc(boardLocation(project, board))}</b></p></div>
   </div>
   <table>
     <thead>

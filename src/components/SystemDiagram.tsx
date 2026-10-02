@@ -7,6 +7,7 @@ import { LEGEND_ROW, LEGEND_SYM_X, LEGEND_TEXT_X, legendEntries, legendWidth, Lo
 import type { FeederResult, Status } from '../calc/electrical';
 import { boardSummary, loadTypeOf } from '../calc/summary';
 import { failReasons, quickFixes } from '../calc/quickFix';
+import { boardLocation } from '../model/levels';
 import { boardPhaseKw } from '../calc/loadSchedule';
 import { DEWA_EXTRA_Y, LEAF_W, layoutSystem } from '../diagram/layout';
 import { panelSummary } from '../docs/mdSheet';
@@ -946,7 +947,7 @@ export default function SystemDiagram({
                 // Summary box: name, LOC, TCL, DF, MDL = TCL × DF (the panel's own DF).
                 const sm = panelSummary(project, b);
                 const bx = n.x + 12, by = n.terminal ? n.busY - 150 : n.busY - 160;
-                const lines = [`LOC : ${trunc(b.location || '—', 14)}`, `TCL : ${sm.tclKw.toFixed(2)} kW`, `DF : ${sm.df.toFixed(2)}`, `MDL : ${sm.mdlKw.toFixed(2)} kW`];
+                const lines = [`LOC : ${trunc(boardLocation(project, b) || '—', 16)}`, `TCL : ${sm.tclKw.toFixed(2)} kW`, `DF : ${sm.df.toFixed(2)}`, `MDL : ${sm.mdlKw.toFixed(2)} kW`];
                 return (
                   <g className="panel-sum">
                     <title>{`${b.id}: TCL ${sm.tclKw.toFixed(2)} kW × DF ${sm.df.toFixed(2)} = MDL ${sm.mdlKw.toFixed(2)} kW`}</title>
