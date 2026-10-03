@@ -111,11 +111,20 @@ export function motor(outputKw: number, voltageV: number, phases: Phases, pf: nu
   return { flc, inputKw, inputKva: inputKw / Math.max(pf, 0.01), startA: flc * mult, multiple: mult, hp: outputKw / HP_KW };
 }
 
-/** Capacitor kvar to raise the power factor: P · (tan φ1 − tan φ2). */
-export function pfCorrection(kw: number, pfNow: number, pfTarget: number) {
-  const tan = (pf: number) => Math.tan(Math.acos(Math.min(1, Math.max(0.01, pf))));
-  const kvar = Math.max(0, kw * (tan(pfNow) - tan(pfTarget)));
-  return { kvar, kvaBefore: kw / pfNow, kvaAfter: kw / pfTarget, reductionPct: (1 - pfNow / pfTarget) * 100 };
+export interface PfCorrection { kvar: number; kvaBefore: number; kvaAfter: number; reductionPct: number; pfAchieved: number; needed: boolean; invalid?: string }
+
+/** Capacitor kvar to raise a lagging power factor: P · (tan φ1 − tan φ2),
+ * ideal continuous kvar. Already at or above the target: no capacitor and
+ * nothing changes (the target is a request, not the result). */
+export function pfCorrection(kw: number, pfNow: number, pfTarget: number): PfCorrection {
+  const bad = (invalid: string): PfCorrection => ({ kvar: NaN, kvaBefore: NaN, kvaAfter: NaN, reductionPct: NaN, pfAchieved: NaN, needed: false, invalid });
+  if (![kw, pfNow, pfTarget].every(Number.isFinite)) return bad('Enter numbers');
+  if (!(kw > 0)) return bad('Active power must be above 0');
+  if (!(pfNow > 0 && pfNow <= 1) || !(pfTarget > 0 && pfTarget <= 1)) return bad('Power factors must be above 0 and at most 1');
+  const kvaBefore = kw / pfNow;
+  if (pfNow >= pfTarget) return { kvar: 0, kvaBefore, kvaAfter: kvaBefore, reductionPct: 0, pfAchieved: pfNow, needed: false };
+  const tan = (pf: number) => Math.sqrt(1 - pf * pf) / pf;
+  return { kvar: kw * (tan(pfNow) - tan(pfTarget)), kvaBefore, kvaAfter: kw / pfTarget, reductionPct: (1 - pfNow / pfTarget) * 100, pfAchieved: pfTarget, needed: true };
 }
 
 /** Fault level at the end of a cable, from the fault at its start. */

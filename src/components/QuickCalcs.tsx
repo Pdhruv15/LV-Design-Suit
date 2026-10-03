@@ -127,7 +127,7 @@ export default function QuickCalcs({ project }: { project: Project }) {
 
   // 8 · PF correction
   const [p, setP, resetP] = useInputs('pfc', { kw: '500', now: '0.8', target: '0.95' });
-  const pRes = ok(num(p.kw), num(p.now), num(p.target)) && num(p.now)! > 0 && num(p.target)! > 0 ? pfCorrection(num(p.kw)!, num(p.now)!, num(p.target)!) : undefined;
+  const pRes = ok(num(p.kw), num(p.now), num(p.target)) ? pfCorrection(num(p.kw)!, num(p.now)!, num(p.target)!) : undefined;
 
   // 9 · Fault at cable end
   const [f, setF, resetF] = useInputs('fault', { src: 'tx', kva: '1000', z: '5', ka: '25', v: V3, csa: '95', runs: '1', l: '50' });
@@ -240,7 +240,11 @@ export default function QuickCalcs({ project }: { project: Project }) {
         </Card>
 
         <Card title="Power factor correction" onReset={resetP} formula="kVAr = P · (tan φ1 − tan φ2)"
-          result={pRes ? <><Out main label="Capacitor bank" value={fmt(pRes.kvar, 1)} unit="kVAr" /><Out label="kVA before → after" value={`${fmt(pRes.kvaBefore, 0)} → ${fmt(pRes.kvaAfter, 0)}`} unit="kVA" /><Out label="kVA reduced by" value={fmt(pRes.reductionPct, 1)} unit="%" /></> : <Warn>Enter kW and both power factors.</Warn>}>
+          result={!pRes ? <Warn>Enter kW and both power factors.</Warn>
+            : pRes.invalid ? <Warn>{pRes.invalid}.</Warn>
+              : pRes.needed
+                ? <><Out main label="Capacitor bank" value={fmt(pRes.kvar, 1)} unit="kVAr" /><Out label="kVA before → after" value={`${fmt(pRes.kvaBefore, 0)} → ${fmt(pRes.kvaAfter, 0)}`} unit="kVA" /><Out label="kVA reduced by" value={fmt(pRes.reductionPct, 1)} unit="%" /></>
+                : <><Out main label="Capacitor bank" value="0" unit="kVAr" /><Out label="kVA (unchanged)" value={fmt(pRes.kvaBefore, 0)} unit="kVA" /><p className="qc-ok">PF {fmt(pRes.pfAchieved, 3)} already meets the {fmt(num(p.target)!, 3)} target — no capacitor needed.</p></>}>
           <Field label="Active power" v={p} k="kw" set={setP} unit="kW" />
           <Field label="Present PF" v={p} k="now" set={setP} width={60} />
           <Field label="Target PF" v={p} k="target" set={setP} width={60} />
