@@ -85,3 +85,46 @@ describe('building summary sheet', async () => {
     expect(buildingSummaryWorkbook(r, ['T1']).worksheets.length).toBe(1);
   });
 });
+
+describe('ENG-001: room load breakdown (lighting / sockets & other power / AC)', () => {
+  it('one 20 m² room: 2 × 100 W lighting, 2 × 500 W sockets, 1 × 3,000 W split AC, 1 × 0 exhaust fan', () => {
+    const small: Project = { ...p, building: { ...p.building!, rooms: p.building!.rooms.map((x) => (x.id === 'R1' ? { ...x, areaM2: 20 } : x)) } };
+    const g = generateBuildingDbs(small, 'T1', 'MDB-1').project;
+    const lobby = roomDensities(g, 'T1').find((d) => d.name === 'Lobby')!;
+    const board = g.boards.find((b) => b.id === lobby.db)!;
+    const template = g.feeders.find((f) => f.fromRoom === lobby.key)!;
+    const circuit = (id: string, points: Project['feeders'][number]['points']) => ({ ...template, id, points });
+    const q: Project = {
+      ...g,
+      boards: g.boards.map((b) => (b.id === board.id ? { ...b, pointWatts: { ...b.pointWatts, ltg: 100, s13: 500, sac: 3000, exfan: 0 } } : b)),
+      feeders: [
+        ...g.feeders.filter((f) => f.fromRoom !== lobby.key),
+        circuit('T-LTG', { ltg: 2, exfan: 1 }), circuit('T-SKT', { s13: 2 }), circuit('T-AC', { sac: 1 })
+      ]
+    };
+    const d = roomDensities(q, 'T1').find((x) => x.key === lobby.key)!;
+    expect(d.areaM2).toBe(20);
+    expect(d.lightingW).toBe(200);
+    expect(d.powerW).toBe(1000);
+    expect(d.acW).toBe(3000);
+    expect(d.totalW).toBe(4200);
+    expect(d.lightingW + d.powerW + d.acW).toBe(d.totalW);
+    expect(d.lpd).toBe(10);
+    expect(d.wPerM2).toBe(210);
+  });
+  it('exhaust and ceiling fans are other power, not lighting density', () => {
+    const g = generateBuildingDbs(p, 'T1', 'MDB-1').project;
+    const lobby = roomDensities(g, 'T1').find((d) => d.name === 'Lobby')!;
+    const board = g.boards.find((b) => b.id === lobby.db)!;
+    const template = g.feeders.find((f) => f.fromRoom === lobby.key)!;
+    const q: Project = {
+      ...g,
+      boards: g.boards.map((b) => (b.id === board.id ? { ...b, pointWatts: { ...b.pointWatts, ltg: 100, exfan: 50, cfan: 80 } } : b)),
+      feeders: [...g.feeders.filter((f) => f.fromRoom !== lobby.key), { ...template, id: 'T-F', points: { ltg: 1, exfan: 2, cfan: 1 } }]
+    };
+    const d = roomDensities(q, 'T1').find((x) => x.key === lobby.key)!;
+    expect(d.lightingW).toBe(100);
+    expect(d.powerW).toBe(180);
+    expect(d.acW).toBe(0);
+  });
+});

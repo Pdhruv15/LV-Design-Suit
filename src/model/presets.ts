@@ -210,7 +210,7 @@ export function applyPreset(project: Project, p: FeederPreset, boardId: string):
   if (p.breakerRatingA && p.breakerRatingA !== sized.breakerRatingA) {
     // A fixed breaker rating: the cable must carry it (Iz ≥ In) within the voltage drop budget.
     const budget = project.vdLimitPct * 0.85 - upstreamVoltageDropPct(project, boardId);
-    const csa = selectCable(designCurrentA(f, project), f.lengthM, project.voltageV, f.cores, f.powerFactor, project.ambientC, budget, rating);
+    const csa = selectCable(designCurrentA(f, project), f.lengthM, project.voltageV, f.cores, f.powerFactor, project.ambientC, budget, rating, project.vdTempC);
     if (csa) f = { ...f, cableCsaMm2: csa, parallel: undefined, cpcMm2: undefined };
   }
   return {
