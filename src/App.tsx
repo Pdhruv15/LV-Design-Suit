@@ -85,7 +85,7 @@ import { saveText } from './util/files';
 import SldExportDialog from './components/SldExportDialog';
 import PasteBoardDialog from './components/PasteBoardDialog';
 import EnclosureSizing from './components/EnclosureSizing';
-import BuildHierarchyDialog from './components/BuildHierarchyDialog';
+import PanelsPage from './components/PanelsPage';
 import DiscriminationPanel from './components/DiscriminationPanel';
 import { discriminationChain } from './calc/protection';
 import { pasteBoard } from './model/copyBoard';
@@ -162,7 +162,6 @@ export default function App() {
   // Copy / paste of a board with everything below it.
   const [copiedBoard, setCopiedBoard] = useState<string | null>(null);
   const [pasteTarget, setPasteTarget] = useState<string | null>(null);
-  const [showHierarchy, setShowHierarchy] = useState(false);
   const [createdPanelIds, setCreatedPanelIds] = useState<string[]>([]);
   // Study pages filtered to a board and the boards below it (panel tree).
   const [focus, setFocus] = useState<string | null>(null);
@@ -826,7 +825,6 @@ export default function App() {
           transformerBoardId: mainOfSelected()?.id,
           onAddFeeder: openAddFeeder,
           onAddBoard: (preset) => { setBoardPreset(preset); setShowBoardForm(true); },
-          onBuildHierarchy: () => setShowHierarchy(true),
           onTransformer: openTransformer,
           onBoardProperties: () => { setView('design'); if (board) selectBoard(board.id); setBoardTab('general'); },
           onEditSelected: () => { setView('design'); if (panel === 'feeder' && selectedFeeder) setShowFeederForm('edit'); else if (board) setEditBoardId(board.id); },
@@ -1149,6 +1147,8 @@ export default function App() {
             )}
             {view === 'study-reports' && <StudyReportsView project={project} me={{ preparedBy: signature(prefs.profile), checkedBy: prefs.profile.checkedBy }} run={run} stale={stale} onRun={runNow} onChange={setProject} onStatus={setStatus} />}
             {view === 'calculators' && <QuickCalcs project={project} />}
+            {view === 'panels' && <PanelsPage project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onBuilding={() => setView('building')}
+              onCreated={(next, m, added) => { setProject(next, { step: true }); setCreatedPanelIds(added); setStatus(m); }} />}
             {view === 'enclosure' && <EnclosureSizing key={board?.id} project={project} boardId={board?.id} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'substation-area' && <SubstationAreaView project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />}
             {view === 'ups' && <UpsStudy project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />}
@@ -1230,17 +1230,6 @@ export default function App() {
           />
         );
       })()}
-      {showHierarchy && <BuildHierarchyDialog project={project} onClose={() => setShowHierarchy(false)}
-        onBuilding={() => { setShowHierarchy(false); setView('building'); }}
-        onCreate={(next, m) => {
-          const previous = new Set(project.boards.map((b) => b.id));
-          const added = next.boards.filter((b) => !previous.has(b.id));
-          setProject(next, { step: true });
-          setCreatedPanelIds(added.map((b) => b.id));
-          setStatus(m); setShowHierarchy(false); setView('design'); setDiagramMode('system'); setSelected(null); setBoardTab('general');
-          const first = added[0];
-          if (first) { selectBoard(first.id); setSldFocus({ kind: 'board', id: first.id, n: Date.now() }); }
-        }} />}
       {pasteTarget && copiedBoard && project.boards.some((b) => b.id === copiedBoard) && (
         <PasteBoardDialog
           project={project}

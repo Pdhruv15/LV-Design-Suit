@@ -28,6 +28,15 @@ const MAX_PANELS = 20000;
 const whole = (n: number, min: number, max: number) => Number.isInteger(n) && n >= min && n <= max;
 /** Contiguous, deterministic distribution. Remainders go to the first
  * groups; totals are never rounded up or multiplied implicitly. */
+/** Incremental names continue after the highest existing number of that type (DB-100 → DB-101),
+ * padded like the existing names or the batch size (01…10, 001…100; at least two digits). */
+function sequence(project: Project, type: string, total: number) {
+  const re = new RegExp(`^${type}-(\\d+)$`);
+  let last = 0, width = 2;
+  for (const b of project.boards) { const m = re.exec(b.id); if (m) { last = Math.max(last, Number(m[1])); width = Math.max(width, m[1].length); } }
+  width = Math.max(width, String(last + total).length);
+  return (n: number) => String(last + n).padStart(width, '0');
+}
 const spread = (count: number, groups: number) => Array.from({ length: groups }, (_, i) => Math.floor(count / groups) + (i < count % groups ? 1 : 0));
 
 function uniqueTag(base: string, taken: Set<string>): string {
@@ -71,7 +80,8 @@ export function planBatchHierarchy(project: Project, spec: BatchHierarchySpec, e
     const createCount = spec.mdbs.create;
     if (!whole(createCount, 1, 20)) bad('New MDB quantity must be a whole number from 1 to 20.');
     if (checks.some((c) => c.level === 'bad')) return empty();
-    mdbIds = Array.from({ length: createCount }, (_, i) => tag(createCount > 1 ? `MDB-${String(i + 1).padStart(2, '0')}` : 'MDB'));
+    const mdbSeq = sequence(project, 'MDB', createCount);
+    mdbIds = Array.from({ length: createCount }, (_, i) => tag(createCount > 1 || project.boards.some((b) => /^MDB(-\d+)?$/.test(b.id)) ? `MDB-${mdbSeq(i + 1)}` : 'MDB'));
     boards.push(...mdbIds.map((id): Board => ({ id, name: id, kind: 'MDB' })));
     checks.push({ level: 'warn', text: `${mdbIds.length} new MDBs: supply still to assign.` });
   } else {
@@ -93,11 +103,12 @@ export function planBatchHierarchy(project: Project, spec: BatchHierarchySpec, e
   const groups: { floor?: Floor; mdbId: string; count: number }[] = spec.mode === 'floors'
     ? assignment.map((a, i) => ({ ...a, count: spec.smdb.basis === 'floor' ? spec.smdb.count : groupCounts[i] }))
     : mdbIds.map((mdbId, i) => ({ mdbId, count: groupCounts[i] }));
+  const smdbSeq = sequence(project, 'SMDB', smdbTotal), dbSeq = sequence(project, 'DB', dbTotal);
   const groupBoards: Board[][] = [];
   let smdbN = 0;
   for (const g of groups) {
     const children = Array.from({ length: g.count }, (_, i): Board => {
-      const id = tag(g.floor ? panelName('SMDB', levelRef(g.floor.tag), i + 1, g.count) : `SMDB-${String(++smdbN).padStart(2, '0')}`);
+      const id = tag(g.floor ? panelName('SMDB', levelRef(g.floor.tag), i + 1, g.count) : `SMDB-${smdbSeq(++smdbN)}`);
       return { id, name: id, kind: 'SMDB', upstreamId: g.mdbId, ...(g.floor ? { level: g.floor.ref } : {}) };
     });
     boards.push(...children); groupBoards.push(children);
@@ -118,7 +129,7 @@ export function planBatchHierarchy(project: Project, spec: BatchHierarchySpec, e
     let floorDbN = 0;
     for (let p = 0; p < (parents.length || 1); p++) {
       for (let d = 0; d < (counts[p] ?? 0); d++) {
-        const id = tag(g.floor ? panelName('DB', levelRef(g.floor.tag), ++floorDbN, dbOnFloor) : `DB-${String(++dbN).padStart(2, '0')}`);
+        const id = tag(g.floor ? panelName('DB', levelRef(g.floor.tag), ++floorDbN, dbOnFloor) : `DB-${dbSeq(++dbN)}`);
         boards.push({ id, name: id, kind: 'DB', upstreamId: parents[p]?.id ?? g.mdbId, ...(g.floor ? { level: g.floor.ref } : {}) });
       }
     }
