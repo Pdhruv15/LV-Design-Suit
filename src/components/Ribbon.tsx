@@ -83,7 +83,7 @@ const CAPTIONS: Partial<Record<RibbonTab, string[]>> = {
 const ADD_BOARD: { kind: BoardKind; ratingA: number }[] = [{ kind: 'DB', ratingA: 63 }, { kind: 'SMDB', ratingA: 250 }, { kind: 'MCC', ratingA: 400 }, { kind: 'EMDB', ratingA: 400 }];
 
 const TABS: { id: RibbonTab; label: string; icon: Icon }[] = [
-  { id: 'home', label: 'Home', icon: House },
+  { id: 'home', label: 'Project', icon: House },
   { id: 'design', label: 'Design', icon: CircuitBoard },
   { id: 'calculate', label: 'Calculate', icon: Calculator },
   { id: 'simulate', label: 'Simulate', icon: Activity },
@@ -148,7 +148,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'Redo', icon: Redo2, title: 'Redo (⇧⌘Z / Ctrl+Y)', onClick: a.onRedo, disabled: !a.canRedo }
       ],
       [
-        view('dashboard', 'Dashboard', LayoutDashboard, 'The project at a glance: load, transformers, generators, panels, area, power density, checks'),
+        view('dashboard', 'Overview', LayoutDashboard, 'Overview of this project: next actions, key figures and what is outstanding — load, transformers, generators, panels, area, power density, checks'),
         view('building', 'Building', Building2, 'Building information: GFA, levels, typical floors, rooms and room types'),
         { label: 'Project settings', icon: Scale, title: 'Voltage, ambient, voltage-drop limit, sizing targets, submission form details', onClick: a.onSettings },
         view('parameters', 'Parameters', Braces, '{Parameters}: designed / checked by, submission date, your own values — used in title blocks, notes and labels'),

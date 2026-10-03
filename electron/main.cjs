@@ -192,6 +192,20 @@ ipcMain.handle('projects:save', (_evt, { file, data }) => {
   return { file: safeFile };
 });
 
+/** Open project…: pick a .json project anywhere. Inside the projects folder
+ * it opens as that file; elsewhere its content opens as a new, unsaved
+ * project (Save then keeps it in the projects folder). */
+ipcMain.handle('projects:pick', async () => {
+  const folder = ensureProjectsFolder();
+  const result = await dialog.showOpenDialog(win, { title: 'Open project', defaultPath: folder, filters: [{ name: 'LV Design Studio project', extensions: ['json'] }], properties: ['openFile'] });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  const full = result.filePaths[0];
+  if (path.dirname(path.resolve(full)) === path.resolve(folder)) return { file: path.basename(full) };
+  const data = JSON.parse(fs.readFileSync(full, 'utf-8'));
+  if (!data || !Array.isArray(data.boards)) throw new Error(`${path.basename(full)} is not an LV Design Studio project.`);
+  return { data, from: full };
+});
+
 ipcMain.handle('projects:delete', (_evt, file) => {
   fs.unlinkSync(projectPath(ensureProjectsFolder(), file));
   return true;

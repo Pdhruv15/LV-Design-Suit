@@ -13,6 +13,7 @@ declare global {
         load: (file: string) => Promise<import('./types').Project>;
         save: (file: string | undefined, data: import('./types').Project) => Promise<{ file: string }>;
         delete: (file: string) => Promise<boolean>;
+        pick: () => Promise<{ file?: string; data?: unknown; from?: string } | null>;
       };
       /** Recovery copy of unsaved work (missing in older desktop builds). */
       recovery?: {

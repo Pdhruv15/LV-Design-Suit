@@ -58,6 +58,8 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
   const fails = d.studies.reduce((a, s) => a + s.fail, 0);
   const checks = d.studies.reduce((a, s) => a + s.check, 0);
   const passes = d.studies.reduce((a, s) => a + s.pass, 0);
+  const fresh = project.feeders.filter((f) => !f.feedsBoardId).length < 3; // a new, nearly empty project: lead with the checklist
+
 
   async function exportPdf() {
     setBusy(true);
@@ -71,7 +73,7 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
 
   return (
     <Page
-      title="Project dashboard"
+      title="Overview"
       actions={<>
         {stale.length > 0 && <button className="chip" onClick={onRun}>Run (F5)</button>}
         <button className="chip primary" disabled={busy} onClick={exportPdf}>1-page PDF summary</button>
@@ -90,13 +92,38 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
         </div>
       </section>
 
-      <div className="dash-tiles">
-        <Tile label="Connected load (TCL)" value={`${f0(d.connectedKw)} kW`} sub={<>{d.byType.length} load types</>} onClick={() => onGo({ view: 'load-schedule' })} />
+      <div className="dash-actions">
+        <button className="chip primary" onClick={() => onOpen?.('design')}>Continue design</button>
+        <button className={`chip${stale.length || !run ? ' stale' : ''}`} onClick={onRun} title="Run the network studies (F5)">Run calculations{stale.length ? ` · ${stale.length} out of date` : ''}</button>
+        <button className="chip" onClick={() => onOpen?.('study-reports')}>Study reports</button>
+        <button className="chip" onClick={() => onOpen?.('drawings')}>Drawings</button>
+        <span className="sp" />
+        <span className={`m dash-state ${saved ? 'ok' : 'warn'}`}>{saved ? '✓ Saved' : '● Not saved'}</span>
+        <span className={`m dash-state ${!run || stale.length ? 'warn' : 'ok'}`}>{!run ? 'Calculations not run' : stale.length ? 'Results out of date' : `✓ Calculated ${new Date(run.at).toLocaleTimeString()}`}</span>
+      </div>
+
+      {fresh && (() => {
+        const items = startChecklist(project, run, stale, saved);
+        if (items.every((x) => x.done) || !onOpen) return null;
+        return <section className="card dash-start"><h4>Start here <span className="m">— tick off as you go · Project → Help for the full guide</span></h4><Checklist items={items} onGo={onOpen} compact /></section>;
+      })()}
+      <div className="dash-tiles key">
         <Tile label="Maximum demand" value={`${f0(d.demandKw)} kW`} sub={<>{f0(d.demandKva)} kVA · PF {d.pf.toFixed(2)}</>} />
         <Tile label="Transformers" value={d.transformers.length ? sizesText(d.transformers.map((t) => t.kva)) : 'None'}
           sub={d.transformers.length ? <>{f0((d.demandKva / Math.max(1, d.transformerKva)) * 100)} % loaded · {d.substations} substation{d.substations > 1 ? 's' : ''}</> : 'Set on the main board'} onClick={() => onGo({ view: 'sizing' })} />
         <Tile label="Generators" value={d.generators.length ? sizesText(d.generators.map((g) => g.kva)) : 'None'}
           sub={d.generatorLoadingPct !== undefined ? <>{f0(d.generatorLoadingPct)} % loaded</> : 'Standby: on a board with an ATS'} onClick={() => onGo({ view: 'sizing' })} />
+        <Tile label="Studies" value={run ? (d.stale.length ? 'Out of date' : fails ? `${fails} fail` : checks ? `${checks} to check` : 'All pass') : 'Not run'}
+          sub={run ? <>{passes} pass · {checks} check · {fails} fail{stale.length ? ' · out of date' : ''}</> : 'Press Run (F5)'} onClick={stale.length || !run ? onRun : () => onGo({ view: 'report' })} />
+        <Tile label="Outstanding" value={d.todo.length ? `${d.todo.filter((t) => t.status === 'bad').length} to fix · ${d.todo.filter((t) => t.status !== 'bad').length} to check` : 'Nothing'} sub={d.todo[0]?.text ?? 'All clear'} onClick={() => document.getElementById('dash-todo')?.scrollIntoView({ behavior: 'smooth' })} />
+      </div>
+      {!fresh && (() => {
+        const items = startChecklist(project, run, stale, saved);
+        if (items.every((x) => x.done) || !onOpen) return null;
+        return <section className="card dash-start"><h4>Start here <span className="m">— tick off as you go · Project → Help for the full guide</span></h4><Checklist items={items} onGo={onOpen} compact /></section>;
+      })()}
+      <div className="dash-tiles more">
+        <Tile label="Connected load (TCL)" value={`${f0(d.connectedKw)} kW`} sub={<>{d.byType.length} load types</>} onClick={() => onGo({ view: 'load-schedule' })} />
         <Tile label="Panels" value={String(d.panels.total)} sub={d.panels.byKind.map((k) => `${k.n} ${k.label}`).join(' · ')} />
         <Tile label="Total area" value={d.area ? `${f0(d.area.gfaM2)} m²` : '—'}
           sub={d.area ? <>{d.area.source === 'building' ? `GFA · ${d.area.floors} floors${d.area.buildings > 1 ? ` · ${d.area.buildings} buildings` : ''}` : d.area.source === 'forms' ? 'built-up area (forms)' : 'space plan areas'}</> : 'Add it in Building information'}
@@ -104,15 +131,8 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
         <Tile label="Power density" value={d.density ? `${f1(d.density.connected)} W/m²` : '—'} sub={d.density ? <>connected · {f1(d.density.demand)} W/m² demand</> : 'Needs the area'} />
         <Tile label="Capacitors" value={d.capacitorKvar ? `${f0(d.capacitorKvar)} kvar` : 'None'} sub={<>PF {d.pf.toFixed(2)} with them</>} onClick={() => onGo({ view: 'pfc' })} />
         <Tile label="Cables" value={lengthText(d.cableM)} sub={<>{d.cableRuns} cables{d.extras.length ? ` · ${d.extras.join(' · ')}` : ''}</>} onClick={() => onGo({ view: 'cable-schedule' })} />
-        <Tile label="Studies" value={run ? (d.stale.length ? 'Out of date' : fails ? `${fails} fail` : checks ? `${checks} to check` : 'All pass') : 'Not run'}
-          sub={run ? <>{passes} pass · {checks} check · {fails} fail{stale.length ? ' · out of date' : ''}</> : 'Press Run (F5)'} onClick={stale.length || !run ? onRun : () => onGo({ view: 'report' })} />
       </div>
 
-      {(() => {
-        const items = startChecklist(project, run, stale, saved);
-        if (items.every((x) => x.done) || !onOpen) return null;
-        return <section className="card dash-start"><h4>Start here <span className="m">— tick off as you go · Home → Help for the full guide</span></h4><Checklist items={items} onGo={onOpen} compact /></section>;
-      })()}
       <div className="dash-grid">
         <section className="card">
           <h4>Load by type <span className="m">(maximum demand)</span></h4>
@@ -139,7 +159,7 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
           <Bars bars={d.perArea.bars} empty="Add levels and rooms in Building information to see the load per level." />
         </section>
         <section className="card">
-          <h4>To do <span className="m">({d.todo.length})</span></h4>
+          <h4 id="dash-todo">To do <span className="m">({d.todo.length})</span></h4>
           {!d.todo.length ? <p className="ok">✓ Nothing outstanding.</p> : (
             <ul className="dash-todo">
               {d.todo.slice(0, 14).map((t, k) => (

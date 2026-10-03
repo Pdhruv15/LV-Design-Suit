@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FolderOpen, Copy, Trash2, Plus, Search } from 'lucide-react';
+import { FolderOpen, Copy, Trash2, Plus, Search, ArrowRight } from 'lucide-react';
 import { PROJECT_STATUSES, type ProjectStatus } from '../types';
 import { whenText, type ProjectMeta } from '../model/projectStore';
 import { Page } from './ui';
@@ -9,7 +9,7 @@ const statusLabel = (s?: ProjectStatus) => PROJECT_STATUSES.find((x) => x.value 
 /** All saved projects: recent ones first as cards, then a searchable table
  * with where each job is (status), client, plot, revision and who saved it
  * last. Open, duplicate, delete, change status. */
-export default function ProjectsDashboard({ list, recent, currentFile, currentName, dirty, folder, desktop, onOpen, onNew, onDuplicate, onDelete, onStatus, onChooseFolder }: {
+export default function ProjectsDashboard({ list, recent, currentFile, currentName, dirty, folder, desktop, onOpen, onNew, onDuplicate, onDelete, onStatus, onChooseFolder, onPick, onContinue }: {
   list: ProjectMeta[];
   recent: string[];
   currentFile?: string;
@@ -23,6 +23,10 @@ export default function ProjectsDashboard({ list, recent, currentFile, currentNa
   onDelete: (file: string) => void;
   onStatus: (file: string, s: ProjectStatus) => void;
   onChooseFolder: () => void;
+  /** Open project… (desktop file picker; browser: jump to the list). */
+  onPick: () => void;
+  /** Back to the project open now (its Overview). */
+  onContinue: () => void;
 }) {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState<'' | ProjectStatus>('');
@@ -34,17 +38,29 @@ export default function ProjectsDashboard({ list, recent, currentFile, currentNa
     (!words || [m.name, m.owner, m.plotNo, m.area, m.updatedBy, m.file].filter(Boolean).join(' ').toLowerCase().includes(words)));
   const counts = PROJECT_STATUSES.map((s) => ({ ...s, n: list.filter((m) => (m.status ?? 'design') === s.value).length })).filter((s) => s.n);
 
+  // Continue: the project open now, else the most recent one.
+  const last = currentFile ? byFile.get(currentFile) : recentCards[0];
+  const continueName = currentFile || dirty ? currentName : last?.name;
+  const continueAct = currentFile || dirty ? onContinue : last ? () => onOpen(last.file) : undefined;
+
   return (
     <Page
       title="Projects"
-      actions={<button className="chip primary" onClick={onNew}><Plus size={14} /> New project</button>}
       intro={<>
         {desktop
           ? <>Saved in <button className="linkish" style={{ marginLeft: 0 }} onClick={onChooseFolder} title="Choose another folder, e.g. a Google Drive or OneDrive folder">{folder || 'the projects folder'}</button>.</>
           : 'Web version: projects are saved in this browser. Use the desktop app to save them as files in a folder.'}
-        {' '}Open now: <b>{currentName}</b>{!currentFile && ' (not saved yet)'}{dirty && currentFile && ' — unsaved changes'}.
       </>}
     >
+      <div className="home-actions">
+        <button className="home-act primary" onClick={onNew}><Plus size={22} /><b>New project</b><span>Start from your profile's defaults</span></button>
+        <button className="home-act" onClick={onPick}><FolderOpen size={22} /><b>Open project…</b><span>{desktop ? 'Choose a project file' : 'Pick from all projects below'}</span></button>
+        <button className="home-act" onClick={continueAct} disabled={!continueAct}>
+          <ArrowRight size={22} /><b>Continue{continueName ? ` ${continueName}` : ''}</b>
+          <span>{!continueAct ? 'No recent project yet' : currentFile || dirty ? `Open now${dirty ? ' · unsaved changes' : ''}${!currentFile ? ' · not saved yet' : ''}` : `Last opened ${whenText(last!.updatedAt)}`}</span>
+        </button>
+      </div>
+
       {recentCards.length > 0 && (
         <>
           <h4 className="projects-h">Recent</h4>
@@ -61,6 +77,7 @@ export default function ProjectsDashboard({ list, recent, currentFile, currentNa
         </>
       )}
 
+      <h4 className="projects-h" id="all-projects">All projects</h4>
       <div className="projects-tools">
         <label className="search"><Search size={14} /><input type="search" placeholder="Search name, client, plot, engineer…" value={q} onChange={(e) => setQ(e.target.value)} /></label>
         <select value={status} onChange={(e) => setStatus(e.target.value as '' | ProjectStatus)}>

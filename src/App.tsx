@@ -1,3 +1,4 @@
+import { pickProject } from './model/projectStore';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Feeder, Board, Project, newProject } from './types';
 import { sampleProject } from './data/sampleProject';
@@ -403,8 +404,21 @@ export default function App() {
     setView('dashboard'); // a project opens on its dashboard
   }
 
+  /** Open project…: the desktop file picker; in the browser, the list below. */
+  async function pickAndOpen() {
+    if (!hasBridge) { document.getElementById('all-projects')?.scrollIntoView({ behavior: 'smooth' }); return; }
+    try {
+      const r = await pickProject();
+      if (!r) return;
+      if (r.file) return openProject(r.file);
+      if (r.data) guard('opening another project', () => { loadIntoApp(r.data!, undefined, `Opened ${r.data!.name} from ${r.from} — Save keeps it in the projects folder`); clearRecovery(); });
+    } catch (e) {
+      setStatus(`Could not open the project: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
   function openProject(file: string) {
-    if (file === currentFile && !dirty) { if (view === 'projects') setView('design'); return; }
+    if (file === currentFile && !dirty) { setView('dashboard'); return; } // the project's Overview, like any opened project
     guard('opening another project', async () => {
       try {
         const p = await loadProject(file);
@@ -745,20 +759,29 @@ export default function App() {
   const navRecent = [...recent.map((f) => projectList.find((m) => m.file === f)).filter((m): m is ProjectMeta => !!m), ...projectList]
     .filter((m, i, a) => a.indexOf(m) === i).slice(0, 5);
 
+  const home = view === 'projects';
+  // The panel tree where clicking a board does something; not on Projects, Overview, Help or settings pages.
+  const showTree = !['projects', 'dashboard', 'help', 'parameters', 'titleblock', 'database', 'calculators'].includes(view);
+
   return (
-    <div className="app-root">
+    <div className={`app-root${home ? ' home' : ''}`}>
       <div className="top">
         <div className="brand">
           LV Design Studio
           <small>Low-voltage power design suite</small>
         </div>
         <div className="crumb">
-          <button className="linkish" style={{ marginLeft: 0, color: 'inherit' }} onClick={() => setView('projects')} title="All projects">Projects</button> / <b>{project.name}</b>
-          {dirty && <span className="dirty-dot" title={currentFile ? 'Unsaved changes — Ctrl+S / ⌘S to save' : 'Not saved yet — Ctrl+S / ⌘S to save'}>●</span>}
+          {home ? <b>Projects</b> : <>
+            <button className="linkish" style={{ marginLeft: 0, color: 'inherit' }} onClick={() => setView('projects')} title="All projects">Projects</button> / <button className="linkish crumb-project" style={{ marginLeft: 0, color: 'inherit' }} onClick={() => setView('dashboard')} title={`${project.name} — Overview`}><b>{project.name}</b></button>
+            {' / '}{view === 'dashboard' ? <b>Overview</b> : <button className="linkish" style={{ marginLeft: 0, color: 'inherit' }} onClick={() => setView('dashboard')} title="This project's overview">Overview</button>}
+          </>}
+          {!home && dirty && <span className="dirty-dot" title={currentFile ? 'Unsaved changes — Ctrl+S / ⌘S to save' : 'Not saved yet — Ctrl+S / ⌘S to save'}>●</span>}
           {status && <span className="saved">{status}</span>}
         </div>
         <div className="sp" />
-        <button className="chip" onClick={() => saveProject()} title="Save (Ctrl+S / ⌘S) — New, Open and Save as are on the Home tab">Save{dirty ? ' ●' : ''}</button>
+        {home
+          ? <button className="chip" onClick={() => setView('help')} title="Help">Help</button>
+          : <button className="chip" onClick={() => saveProject()} title="Save (Ctrl+S / ⌘S) — New, Open and Save as are on the Project tab">Save{dirty ? ' ●' : ''}</button>}
         <button className="chip user-chip" onClick={() => setShowPrefs(true)} title={prefs.profile.name ? `${signature(prefs.profile)} — profile & preferences` : 'Set up your profile: name, designation, company, logo and design defaults'}>
           <span className="av">{initialsOf(prefs.profile.name)}</span>{prefs.profile.name ? prefs.profile.name.split(/\s+/)[0] : 'Profile'}
         </button>
@@ -771,7 +794,7 @@ export default function App() {
         </div>
       )}
 
-      <Ribbon
+      {!home && <Ribbon
         tab={ribbonTab}
         onTab={setRibbonTab}
         a={{
@@ -812,10 +835,10 @@ export default function App() {
           onOpenRecent: openProject,
           dbIssues: db.issues.length
         }}
-      />
+      />}
 
       <div className="app">
-        <PanelTree
+        {!showTree ? <span /> : <PanelTree
           project={project}
           results={allResults}
           view={view}
@@ -840,7 +863,7 @@ export default function App() {
             onReorder: (id, dir) => setProject(reorderBoard(project, id, dir), { step: true }),
             onLengthChecked: (id) => setProject({ ...project, feeders: project.feeders.map((f) => (f.feedsBoardId === id ? { ...f, lengthToCheck: undefined } : f)) }, { step: true })
           }}
-        />
+        />}
 
         {view === 'design' && board ? (
           <>
@@ -1129,6 +1152,8 @@ export default function App() {
                 onDelete={deleteFile}
                 onStatus={setFileStatus}
                 onChooseFolder={chooseFolder}
+                onPick={pickAndOpen}
+                onContinue={() => setView('dashboard')}
               />
             )}
             {view === 'boq' && (
@@ -1141,7 +1166,7 @@ export default function App() {
         )}
       </div>
 
-      <div className="foot">
+      {!home && <div className="foot">
         <span>Base: {project.voltageV} V, 3-phase, {project.frequencyHz} Hz</span>
         <span>Ambient: {project.ambientC} °C</span>
         <span>Vd limit: {project.vdLimitPct}%</span>
@@ -1154,7 +1179,7 @@ export default function App() {
           Auto-run: {autoRun ? 'on' : 'off'}
         </button>
         <span>{hasBridge ? `Projects folder: ${projectsFolder}` : 'Web version — projects are saved in this browser'}</span>
-      </div>
+      </div>}
 
       {showFeederForm && board && (
         <FeederForm

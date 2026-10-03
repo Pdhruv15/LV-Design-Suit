@@ -1096,3 +1096,21 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .tree-move-list button{all:unset;cursor:pointer;padding:4px 6px;border-radius:4px;font-size:12.5px}
 .tree-move-list button:hover:not(:disabled){background:color-mix(in srgb,var(--ok) 15%,transparent)}
 .tree-move-list button:disabled{opacity:.45;cursor:not-allowed}
+
+/* Projects home: the three main actions */
+.home-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:6px 0 18px}
+.home-act{display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:12px;align-items:center;text-align:left;padding:16px 18px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--tx);cursor:pointer;font:inherit}
+.home-act svg{grid-row:span 2;color:var(--acc)}
+.home-act b{font-size:15px}
+.home-act span{color:var(--mut);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.home-act:hover:not(:disabled){border-color:var(--acc)}
+.home-act.primary{background:color-mix(in srgb,var(--acc) 16%,var(--panel));border-color:color-mix(in srgb,var(--acc) 50%,var(--line))}
+.home-act:disabled{opacity:.55;cursor:default}
+.top .home-links{display:flex;gap:6px}
+
+/* Overview: next actions, key figures first */
+.dash-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 12px}
+.dash-actions .chip{padding:7px 14px}
+.dash-state.ok{color:var(--ok)}.dash-state.warn{color:var(--warn)}
+.dash-tiles.more{margin-top:10px;opacity:.92}
+.dash-tiles.more .dash-value{font-size:17px}
