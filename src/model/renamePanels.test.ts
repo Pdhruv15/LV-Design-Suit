@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { applyHierarchy } from './hierarchy';
 import { planBatchHierarchy } from './hierarchyBuilder';
 import { floorList } from './levels';
-import { renameByLevel, renamePanels, renameProblems } from './renamePanels';
+import { proposeNumbers, renameByLevel, renamePanels, renameProblems } from './renamePanels';
 import { runCalculations } from '../calc/runs';
 import type { Project } from '../types';
 
@@ -54,6 +54,22 @@ describe('quick create and rename by level', () => {
     const ids = p.boards.map((b) => b.id);
     expect(ids).toEqual(expect.arrayContaining(['MDB-06', 'SMDB-11', 'SMDB-12', 'DB-101', 'DB-110']));
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('naming schedule: renumber a role in a chosen order, incremental or by level, then apply everywhere', () => {
+    let p = quick(tower(), 1, 1, 4); // DB-01 … DB-04 under SMDB-01
+    // order: DB-04 first, then DB-02; the rest after in current order; start at 10
+    const inc = proposeNumbers(p, 'DB', 'incremental', 10, { 'DB-04': 1, 'DB-02': 2 });
+    expect(inc.names).toEqual({ 'DB-04': 'DB-10', 'DB-02': 'DB-11', 'DB-01': 'DB-12', 'DB-03': 'DB-13' });
+    const next = renamePanels(p, Object.entries(inc.names).map(([from, to]) => ({ from, to })));
+    expect(next.boards.filter((b) => b.kind === 'DB').map((b) => b.id).sort()).toEqual(['DB-10', 'DB-11', 'DB-12', 'DB-13']);
+    expect(next.feeders.filter((f) => f.feedsBoardId?.startsWith('DB-')).map((f) => f.id).sort()).toEqual(['INC-DB-10', 'INC-DB-11', 'INC-DB-12', 'INC-DB-13']);
+    const L2 = floorList(p.building).find((f) => f.tag === 'L02')!;
+    p = { ...p, boards: p.boards.map((b) => (['DB-01', 'DB-02'].includes(b.id) ? { ...b, level: L2.ref } : b.id === 'DB-03' ? { ...b, level: floorList(p.building).find((f) => f.tag === 'L05')!.ref } : b)) };
+    const lv = proposeNumbers(p, 'DB', 'level', 1, { 'DB-02': 1 });
+    expect(lv.names).toEqual({ 'DB-02': 'DB-L2-01', 'DB-01': 'DB-L2-02', 'DB-03': 'DB-L5' });
+    expect(lv.withoutLevel).toBe(1);
+    expect(proposeNumbers(quick(tower(), 1, 0, 1), 'DB', 'incremental').names).toEqual({ 'DB-01': 'DB' });
   });
 
   it('clashes and empty names are refused', () => {

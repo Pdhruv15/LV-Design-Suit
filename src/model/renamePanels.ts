@@ -97,3 +97,32 @@ export function renamePanels(project: Project, pairs: { from: string; to: string
     })
   };
 }
+
+/** Proposed names for every panel of one role (by roleOf), in the order given by `order`
+ * (No. per board id; missing = after, in current natural order).
+ * incremental: PREFIX-01, -02 … from `start` (a single panel starting at 1 is just PREFIX);
+ * level: PREFIX-L2, or PREFIX-L2-01 … when the level has more than one; no level = unchanged. */
+export function proposeNumbers(project: Project, role: string, scheme: 'incremental' | 'level', start = 1, order: Record<string, number> = {}): { names: Record<string, string>; withoutLevel: number } {
+  const nat = new Intl.Collator('en', { numeric: true });
+  const list = project.boards.filter((b) => roleOf(project, b) === role);
+  const key = (b: Board) => (Number.isFinite(order[b.id]) ? order[b.id] : Infinity);
+  const sorted = [...list].sort((x, y) => key(x) - key(y) || nat.compare(x.id, y.id));
+  const prefix = prefixOf(project, role);
+  const names: Record<string, string> = {};
+  let withoutLevel = 0;
+  if (scheme === 'incremental') {
+    const first = Math.max(0, start);
+    const width = Math.max(2, String(first + sorted.length - 1).length);
+    sorted.forEach((b, i) => { names[b.id] = sorted.length === 1 && first === 1 ? prefix : `${prefix}-${String(first + i).padStart(width, '0')}`; });
+  } else {
+    const byLevel = new Map<string, Board[]>();
+    for (const b of sorted) {
+      const f = findFloor(project.building, b.level);
+      if (!f) { withoutLevel++; continue; }
+      const l = `${levelRef(f.tag)}|${f.buildingId}`;
+      (byLevel.get(l) ?? byLevel.set(l, []).get(l)!).push(b);
+    }
+    for (const [l, bs] of byLevel) bs.forEach((b, i) => { names[b.id] = panelName(prefix, l.split('|')[0], i + 1, bs.length); });
+  }
+  return { names, withoutLevel };
+}
