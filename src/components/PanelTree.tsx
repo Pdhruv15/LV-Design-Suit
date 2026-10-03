@@ -45,7 +45,7 @@ const worst = (xs: Status[]): Status | undefined => (xs.includes('bad') ? 'bad' 
  * board's status and loading. The page you're on decides what a click does
  * (select on the SLD, open its schedule, filter a study…); double-click
  * opens it on the SLD; right-click for the board menu. */
-export default function PanelTree({ project, results, activeId, focusId, view, onPick, onOpen, menu, copiedId }: {
+export default function PanelTree({ project, results, activeId, focusId, view, onPick, onOpen, menu, copiedId, highlightedIds, onClearHighlights }: {
   project: Project;
   results: FeederResult[];
   /** The board the page is on (highlighted). */
@@ -57,6 +57,8 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
   onOpen: (id: string) => void;
   menu: TreeMenuActions;
   copiedId?: string | null;
+  highlightedIds?: string[];
+  onClearHighlights?: () => void;
 }) {
   const [hidden, setHidden] = useStored('tree.hidden', false);
   const [collapsed, setCollapsed] = useStored<string[]>('tree.collapsed', []);
@@ -67,6 +69,26 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
   const [drag, setDrag] = useState<{ id: string; over?: string; why?: string } | null>(null);
   const [moveFor, setMoveFor] = useState<string | null>(null);
   const [moveQ, setMoveQ] = useState('');
+
+  // Reveal the newly created batch even if this tree was hidden, filtered
+  // or collapsed. References in the draft have already been validated.
+  useEffect(() => {
+    if (!highlightedIds?.length) return;
+    const byId = new Map(project.boards.map((b) => [b.id, b]));
+    const reveal = new Set<string>();
+    for (const id of highlightedIds) {
+      let current = byId.get(id);
+      while (current && !reveal.has(current.id)) {
+        reveal.add(current.id); current = current.upstreamId ? byId.get(current.upstreamId) : undefined;
+      }
+    }
+    setHidden(false); setQ(''); setCollapsed(collapsed.filter((id) => !reveal.has(id)));
+  }, [highlightedIds]); // Only a new batch changes the user's tree preferences.
+  const presentIds = useMemo(() => new Set(project.boards.map((b) => b.id)), [project.boards]);
+  const highlighted = new Set(highlightedIds?.filter((id) => presentIds.has(id)));
+  useEffect(() => {
+    if (highlightedIds?.length && !hidden) ref.current?.querySelector('.batch-new.on')?.scrollIntoView({ block: 'nearest' });
+  }, [highlightedIds, hidden]);
 
   // Children in the order their incomers sit on the parent's busbar.
   const children = useMemo(() => {
@@ -143,7 +165,7 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
     const open = !!shown || !collapsed.includes(b.id);
     const i = info.get(b.id);
     const over = drag?.over === b.id;
-    const cls = ['tree-row', b.id === activeId ? 'on' : '', b.id === focusId ? 'focus' : '', b.id === copiedId ? 'copied' : '', drag?.id === b.id ? 'dragging' : '', over ? (drag?.why ? 'drop-no' : 'drop-ok') : ''].join(' ');
+    const cls = ['tree-row', highlighted.has(b.id) ? 'batch-new' : '', b.id === activeId ? 'on' : '', b.id === focusId ? 'focus' : '', b.id === copiedId ? 'copied' : '', drag?.id === b.id ? 'dragging' : '', over ? (drag?.why ? 'drop-no' : 'drop-ok') : ''].join(' ');
     const check = incomerOf(project, b.id)?.lengthToCheck;
     return (
       <div key={b.id} role="treeitem" aria-expanded={kids.length ? open : undefined} aria-selected={b.id === activeId}>
@@ -166,6 +188,7 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
           </button>
           <span className={`tree-dot ${i?.status ?? ''}`} />
           <span className="tree-id">{b.id}</span>
+          {highlighted.has(b.id) && <span className="tree-new">New</span>}
           {!b.upstreamId && b.sourceKva ? <span className="tree-tx" title={`${b.sourceKva} kVA transformer`}><Waves size={11} />{b.sourceKva}</span> : null}
           {b.standby ? <span className="tree-tx" title={`${b.standby.kva} kVA standby generator (ATS)`}><Power size={11} /></span> : null}
           {check ? <span className="tree-check" title="Moved to another source — check the incomer cable length">len?</span> : null}
@@ -206,6 +229,7 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
         <button className="icon-btn" title="Hide the panel tree" onClick={() => setHidden(true)}><PanelLeftClose size={14} /></button>
       </div>
       <input className="tree-search" type="search" placeholder="Find a board…" value={q} onChange={(e) => setQ(e.target.value)} />
+      {highlighted.size > 0 && <div className="tree-batch">{highlighted.size} new panels<span className="sp" />{onClearHighlights && <button className="chip" onClick={onClearHighlights}>Clear</button>}</div>}
       <div className="tree-body" role="tree" tabIndex={0} onKeyDown={onKey} aria-label="Panels — Tab / Shift+Tab to indent or outdent, Alt+↑↓ to reorder">
         {roots.map((b) => node(b, 0))}
         {shown && shown.size === 0 && <p className="m tree-tip">No board matches.</p>}
