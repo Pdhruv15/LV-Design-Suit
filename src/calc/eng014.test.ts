@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { sizeUps } from './ups';
+import { sizeUps, UPS_DEFAULTS, type UpsSystem } from './ups';
 import { buildUpsReportHtml } from '../docs/upsSolarReport';
-import { ups } from './eng013.test';
+
+const ups = (w: number, extra: Partial<UpsSystem> = {}, pf = 1): UpsSystem => ({
+  ...UPS_DEFAULTS, id: 'T', name: 'T', loads: [{ id: 'L', name: 'Load', qty: 1, w, pf }], growthPct: 0, maxLoadingPct: 100, outputPf: 0.8, autonomyMin: 5, ...extra
+});
 
 /** ENG-014: the UPS battery-bus DC breaker is never clamped to the largest listed rating. */
 const p = sampleProject;
