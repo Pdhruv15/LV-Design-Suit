@@ -101,7 +101,7 @@ ${section('Feeder calculations', `<p>${counts(results.map((r) => r.status))}</p>
 
 ${section('Earthing — fault loop impedance and disconnection', `<p>${counts(earthing.map((r) => r.status))}</p>${(() => { const m = [...new Set(earthing.map((r) => r.sourceMissing).filter(Boolean))]; return m.length ? `<p class="bad">Not verified — ${esc(m.join('; '))}. Ze is not assumed 0; Zs shown is a minimum and If a maximum for those circuits.</p>` : ''; })()}` + table(
     ['Circuit', 'CPC (mm²)', 'Zs (Ω)', 'Max Zs (Ω)', 'If (A)', 'Ia (A)', 'Required (s)', 'Disconnection', 'CPC min, each (mm²)', 'Status'],
-    earthing.map((r) => [esc(r.feeder.id), String(r.cpcMm2), esc(loopFigures(r).zs), r.maxZsOhm.toFixed(4), esc(loopFigures(r).fault), f(r.tripA), String(r.requiredS),
+    earthing.map((r) => [esc(r.feeder.id), String(r.cpcMm2), esc(loopFigures(r).zs), r.maxZsOhm.toFixed(4), esc(loopFigures(r).fault), f(r.tripA), `${r.requiredS}${r.requiredBasis.startsWith('Project rule') ? ' (project rule)' : ''}${r.basisSupported ? '' : ' (not verified)'}`,
       `<td class="${r.disconnection}">${esc(disconnectionLabel(r))}</td>`,
       `<td class="${r.adiabatic}">${Number.isFinite(r.adiabaticMinMm2) ? r.adiabaticMinMm2.toFixed(1) : '—'}${r.runs > 1 ? ` <span class="m">(${r.runs} runs, ${r.cpcCurrentA.toFixed(0)} A each${r.adiabatic === 'warn' ? ', assumed equal sharing — not verified for a fault within one run' : ''})</span>` : ''}</td>`, st(r.status)])
   ))}

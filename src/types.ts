@@ -180,6 +180,10 @@ export interface Feeder {
   device?: SwitchDevice; // ACB / MCCB / ISOL column; default from the breaker type
   cableType?: string; // e.g. "XLPE/PVC/SWA" (default)
   kwhMeter?: MeterType; // kWh meter on this feeder: 1-PH / 3-PH direct, or CT-operated
+  /** What the final circuit supplies, for the earth-fault disconnection time: socket-outlets (any), or
+   * fixed equipment only. Unset: socket-outlet points on the circuit say 'sockets'; otherwise unknown,
+   * treated as sockets (the stricter case). The load type alone never makes it 'fixed'. */
+  circuitPurpose?: 'sockets' | 'fixed';
   rcdMa?: number; // earth leakage protection (RCD / ELCB / RCBO) on this feeder, IΔn in mA
   localIsolator?: boolean; // isolator at the equipment end (e.g. AC unit, pump)
   capSteps?: number; // capacitor bank: number of steps
@@ -264,6 +268,9 @@ export interface Project {
   frequencyHz: number;
   ambientC: number;
   vdLimitPct: number;
+  /** Project / authority rule stricter than IEC 60364-4-41: every final circuit up to 63 A disconnects
+   * in 0.4 s, fixed equipment too. Shown as an override wherever the required time is shown. */
+  strictFinalDisconnection?: boolean;
   vdTempC?: number; // conductor temperature for voltage drop (°C); blank = R20 × 1.2
   vdFinalCircuits?: boolean; // voltage drop page: include each DB's worst final circuit // allowable voltage drop, e.g. 4.0 per DEWA/IEC
   vdSelection?: string[]; // feeder ids chosen for the voltage drop calculation
