@@ -11,6 +11,7 @@ import { buildLoadScheduleHtml, loadScheduleCsv, loadScheduleRows } from '../../
 import { addCircuit, balancePhases, deleteCircuit, refreshBoard, updateCircuit, type CircuitPatch } from '../../model/schedule';
 import { saveBinary, saveCsv, savePdf, safeFileName } from '../../util/files';
 import { buildFormWorkbook, workbookBytes, type WorkbookScope } from '../../docs/formWorkbook';
+import { workbookHtml } from '../../docs/sheetPdf';
 import { Page, STATUS_LABEL } from '../ui';
 import { applySheetEdits, buildDbSheet } from '../../docs/dbSheet';
 import { cellKey } from '../grid/excelGrid';
@@ -86,6 +87,19 @@ export default function LoadScheduleView({
     }
   }
 
+  /** The same form as PDF, printed from the Excel layout (MD, TCL summary, risers). */
+  async function exportFormPdf(scope: WorkbookScope, name: string) {
+    setExporting(true);
+    try {
+      const m = await savePdf(`${safeFileName(name)}.pdf`, workbookHtml(project, buildFormWorkbook(project, scope), name), { pageSize: 'A4', landscape: true, cssPages: true });
+      if (m) onStatus(m);
+    } catch (e) {
+      onStatus(`PDF export failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const setBoard = (patch: Partial<Board>, resize = false) => {
     const p = { ...project, boards: project.boards.map((b) => (b.id === board.id ? { ...b, ...patch } : b)) };
     onChange(resize ? refreshBoard(p, board.id) : p);
@@ -114,6 +128,10 @@ export default function LoadScheduleView({
             onClick={() => exportExcel(form === 'riser' ? { forms: ['riser'] } : form === 'tx' ? { forms: ['tx'] } : { boardIds: [board.id], forms: [form] }, form === 'riser' ? `${project.name} bus bar risers` : form === 'tx' ? `${project.name} TCL summary at transformer level` : `${project.name} ${board.id} ${form === 'md' ? 'connected load MD' : 'load schedule'}`)}>
             Export Excel
           </button>
+          {form !== 'db' && <button className="chip" disabled={exporting} title="This form as PDF — the same layout as the Excel"
+            onClick={() => exportFormPdf(form === 'riser' ? { forms: ['riser'] } : form === 'tx' ? { forms: ['tx'] } : { boardIds: [board.id], forms: ['md'] }, form === 'riser' ? `${project.name} bus bar risers` : form === 'tx' ? `${project.name} TCL summary at transformer level` : `${project.name} ${board.id} connected load MD`)}>
+            Export PDF
+          </button>}
           <button className="chip" disabled={exporting} title="Every form of the project in one workbook: load summary, MDB / SMDB / MCC forms, then every DB schedule"
             onClick={() => exportExcel({}, `${project.name} submission forms`)}>
             {exporting ? 'Exporting…' : 'Submission pack (Excel)'}

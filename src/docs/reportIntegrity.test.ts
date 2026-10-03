@@ -162,3 +162,25 @@ describe('revision comparison records design changes', () => {
     expect(fields({ ...p0, ...q } as Project)).toContain(label);
   });
 });
+
+import { buildFormWorkbook } from './formWorkbook';
+import { scheduleHtml, workbookHtml } from './sheetPdf';
+import { cableSchedule } from './schedules';
+
+describe('PDF of the authority forms and schedules', () => {
+  it('MD form and TCL summary print the same cells as the Excel, with merges', () => {
+    const wb = buildFormWorkbook(p0, { boardIds: [main.id], forms: ['md'] });
+    const html = workbookHtml(p0, wb, 'MD');
+    const ws = wb.worksheets[0];
+    const someText = [...Array(ws.rowCount)].flatMap((_, r) => [...Array(ws.columnCount)].map((__, c) => ws.getRow(r + 1).getCell(c + 1).value)).find((v) => typeof v === 'string' && v.length > 4) as string;
+    expect(html).toContain(someText.replace(/&/g, '&amp;').split('\n')[0]);
+    expect(html).toMatch(/colspan="\d+"/);
+    const tx = workbookHtml(p0, buildFormWorkbook(p0, { forms: ['tx'] }), 'TCL');
+    expect(tx).toMatch(/<table class="form">/);
+  });
+  it('cable schedule PDF has every row', () => {
+    const s = cableSchedule(p0);
+    const html = scheduleHtml(p0, s, 'Cable schedule');
+    expect((html.match(/<tr/g) ?? []).length).toBe(s.rows.length + 1);
+  });
+});
