@@ -190,7 +190,11 @@ export function TransformerGeneratorStudy({ project, onChange, onStatus }: { pro
           </div>
           <dl className="kv">
             <dt>Running demand</dt><dd>{f0(gen.demandKw)} kW · {f0(gen.demandKva)} kVA</dd>
-            <dt>For the running load</dt><dd>{f0(gen.demandKva)} ÷ {(s.generatorMaxLoadingPct / 100).toFixed(2)} = {f0(gen.runningDesignKva)} kVA</dd>
+            <dt>For the running load</dt>
+            <dd className={gen.governing === 'kW' ? 'warn' : ''}>
+              kVA: {f0(gen.demandKva)} ÷ {(s.generatorMaxLoadingPct / 100).toFixed(2)} = {f0(gen.demandKva / (s.generatorMaxLoadingPct / 100))} kVA · kW: {f0(gen.demandKw)} ÷ (0.8 × {(s.generatorMaxLoadingPct / 100).toFixed(2)}) = {f0(gen.demandKw / (0.8 * s.generatorMaxLoadingPct / 100))} kVA
+              <div className="m">{gen.governing === 'kW' ? 'The kW sets the size — the set’s rated kW (0.8 × kVA) must carry the running kW' : gen.governing === 'kVA' ? 'The kVA sets the size' : 'The motor start sets the size'}</div>
+            </dd>
             {gen.motor && (
               <>
                 <dt>Largest motor, started last</dt>
@@ -200,14 +204,14 @@ export function TransformerGeneratorStudy({ project, onChange, onStatus }: { pro
               </>
             )}
             <dt>Recommended</dt>
-            <dd><b>{gen.recommendedKva ? `${gen.recommendedKva} kVA / ${f0(gen.recommendedKw!)} kW (0.8 PF)` : 'Tick the boards on the generator'}</b>
+            <dd className={gen.noFit ? 'bad' : ''}><b>{gen.recommendedKva ? `${gen.recommendedKva} kVA / ${f0(gen.recommendedKw!)} kW (rated at 0.8 PF)` : gen.noFit ? `No standard set fits — ${f0(Math.max(gen.runningDesignKva, gen.startDesignKva))} kVA needed (${gen.governing}); use sets in parallel or split the essential load` : 'Tick the boards on the generator'}</b>
               {gen.motor?.dipPct !== undefined && <div className="m">dip ≈ {f1(gen.motor.dipPct)} % when {gen.motor.feeder.id} starts</div>}
             </dd>
-            {gen.softStartKva && <><dt>With a soft starter</dt><dd className="ok">{gen.softStartKva} kVA would do — soft starter / star-delta on {gen.motor!.feeder.id}</dd></>}
+            {gen.softStartKva && <><dt>With a soft starter</dt><dd className="ok">{gen.softStartKva} kVA would do — soft starter / star-delta on {gen.motor!.feeder.id} (still meets the running kVA and kW)</dd></>}
             {gen.flcA && <><dt>Full-load current · ATS</dt><dd>{f0(gen.flcA)} A · {gen.atsA} A ATS / breaker</dd></>}
             <dt>Installed</dt>
-            <dd className={gen.installedKva && gen.recommendedKva && gen.installedKva < gen.recommendedKva ? 'bad' : ''}>
-              {gen.installedKva ? `${gen.installedKva} kVA` : 'None on the SLD'}
+            <dd className={gen.installedOk === false ? 'bad' : ''}>
+              {gen.installedKva ? `${gen.installedKva} kVA / ${f0(gen.installedKva * 0.8)} kW${gen.installedOk === false ? ' — too small' : ''}` : 'None on the SLD'}
               {standbyBoards.length === 1 && gen.recommendedKva && gen.installedKva !== gen.recommendedKva && <button className="chip" style={{ marginLeft: 8 }} onClick={applyGen}>Set {gen.recommendedKva} kVA on {standbyBoards[0].id}</button>}
             </dd>
           </dl>
