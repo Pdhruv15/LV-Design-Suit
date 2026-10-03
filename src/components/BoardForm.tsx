@@ -6,8 +6,11 @@ export default function BoardForm({
   project,
   parentBoardId,
   onSave,
-  onClose
+  onClose,
+  preset
 }: {
+  /** Start as this board type and rating (Add board ▾). */
+  preset?: { kind: BoardKind; ratingA: number };
   project: Project;
   parentBoardId: string;
   onSave: (board: Board, incomer: Feeder) => void;
@@ -16,13 +19,13 @@ export default function BoardForm({
   const [boardId, setBoardId] = useState('');
   const [boardName, setBoardName] = useState('');
   const [upstreamId, setUpstreamId] = useState(parentBoardId);
-  const [kind, setKind] = useState<BoardKind>('DB');
-  const [ratedCurrentA, setRatedCurrentA] = useState(250);
+  const [kind, setKind] = useState<BoardKind>(preset?.kind ?? 'DB');
+  const [ratedCurrentA, setRatedCurrentA] = useState(preset?.ratingA ?? 250);
   const [incomerId, setIncomerId] = useState('');
   const [lengthM, setLengthM] = useState(30);
   const [cableCsaMm2, setCableCsaMm2] = useState(95);
   const [cores, setCores] = useState<2 | 3 | 4>(4);
-  const [breakerRatingA, setBreakerRatingA] = useState(250);
+  const [breakerRatingA, setBreakerRatingA] = useState(preset?.ratingA ?? 250);
   const [breakerIcuKa, setBreakerIcuKa] = useState(36);
 
   function submit(e: React.FormEvent) {

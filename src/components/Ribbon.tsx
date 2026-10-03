@@ -1,17 +1,18 @@
+import { AddBoardIcon, BoardPropsIcon, TransformerIcon, TxGenSizingIcon } from './icons/elecIcons';
 import { useEffect, useRef, useState } from 'react';
 import {
   Activity, BatteryCharging, Building2, Cable, Calculator, ClipboardCheck, Car, CircuitBoard, Cog, Ellipsis, FileDown, FileSpreadsheet, FileText,
   Gauge, Hand, LayoutGrid, ListTree, Minus, MousePointer2, Pencil, Receipt, Scale, Server, Settings2, ShieldCheck, Sun,
   Database, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Waves, Zap, type LucideIcon, BatteryFull
 } from 'lucide-react';
-import type { Feeder } from '../types';
+import type { BoardKind, Feeder } from '../types';
 import type { MainView } from '../views';
 
 export type BomCommand = 'boq' | 'changes' | 'circuits' | 'excel' | 'pdf' | 'summary-pdf' | 'rates-sheet' | 'import' | 'save-list' | 'add-item' | 'add-section' | 'extras' | 'wastage' | 'markup';
 export type RibbonTab = 'home' | 'design' | 'calculate' | 'simulate' | 'reports' | 'cost' | 'standards';
 export type DiagramTool = 'select' | 'pan';
 
-type Icon = LucideIcon;
+type Icon = LucideIcon | ((p: { size?: number; strokeWidth?: number }) => JSX.Element);
 
 interface Tool {
   label: string;
@@ -25,6 +26,8 @@ interface Tool {
   /** Opens a page (lighter highlight when it's the page shown); tools such
    * as Select / Pan get the solid highlight. */
   page?: boolean;
+  /** Split button: the ▾ part offers these. */
+  menu?: { label: string; title: string; onClick: () => void }[];
 }
 
 export interface RibbonActions {
@@ -39,7 +42,8 @@ export interface RibbonActions {
   /** The main board whose transformer the Transformer button opens. */
   transformerBoardId?: string;
   onAddFeeder: (preset: Partial<Feeder>) => void;
-  onAddBoard: () => void;
+  /** Add a board; with a kind and rating, the form starts with them. */
+  onAddBoard: (preset?: { kind: BoardKind; ratingA: number }) => void;
   onTransformer: () => void;
   onBoardProperties: () => void;
   onEditSelected: () => void;
@@ -76,6 +80,8 @@ const CAPTIONS: Partial<Record<RibbonTab, string[]>> = {
   design: ['History', 'Canvas', 'Boards & planning', 'Equipment', 'Selection']
 };
 
+const ADD_BOARD: { kind: BoardKind; ratingA: number }[] = [{ kind: 'DB', ratingA: 63 }, { kind: 'SMDB', ratingA: 250 }, { kind: 'MCC', ratingA: 400 }, { kind: 'EMDB', ratingA: 400 }];
+
 const TABS: { id: RibbonTab; label: string; icon: Icon }[] = [
   { id: 'home', label: 'Home', icon: House },
   { id: 'design', label: 'Design', icon: CircuitBoard },
@@ -101,6 +107,16 @@ export function tabForView(v: MainView): RibbonTab {
 export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: RibbonTab) => void; a: RibbonActions }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [menuLeft, setMenuLeft] = useState(0);
+  const [splitOpen, setSplitOpen] = useState<string | null>(null);
+  const [splitAt, setSplitAt] = useState({ x: 0, y: 0 });
+  useEffect(() => {
+    if (!splitOpen) return;
+    const close = () => setSplitOpen(null);
+    window.addEventListener('mousedown', close);
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && close();
+    window.addEventListener('keydown', esc);
+    return () => { window.removeEventListener('mousedown', close); window.removeEventListener('keydown', esc); };
+  }, [splitOpen]);
   const moreRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!moreOpen) return;
@@ -154,9 +170,10 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'Pan', icon: Hand, title: 'Pan tool — drag to move around the diagram without selecting (H)', onClick: () => { a.onView('design'); a.onTool('pan'); }, active: a.view === 'design' && a.tool === 'pan' }
       ],
       [
-        { label: 'Add board', icon: Minus, title: `Add a board (busbar) fed from ${a.boardId || 'an existing board'}`, onClick: a.onAddBoard },
-        { label: 'Board properties', icon: Server, title: a.boardId ? `Properties of ${a.boardId}` : 'Select a board first', onClick: a.onBoardProperties, disabled: !a.boardId },
-        { label: 'Transformer', icon: Waves, title: a.transformerBoardId ? `Transformer data of ${a.transformerBoardId} (the main board supplying ${a.boardId})` : 'No main board', onClick: a.onTransformer, disabled: !a.transformerBoardId },
+        { label: 'Add board', icon: AddBoardIcon, title: `Add a board fed from ${a.boardId || 'an existing board'} — ▾ for a DB, SMDB, MCC or EMDB with its usual rating`, onClick: () => a.onAddBoard(),
+          menu: ADD_BOARD.map((x) => ({ label: `${x.kind} · ${x.ratingA} A`, title: `Add a ${x.kind} rated ${x.ratingA} A fed from ${a.boardId || 'the selected board'}`, onClick: () => a.onAddBoard(x) })) },
+        { label: 'Board properties', icon: BoardPropsIcon, title: a.boardId ? `Board properties — ${a.boardId}` : 'Board properties — select a board first', onClick: a.onBoardProperties, disabled: !a.boardId },
+        { label: 'Transformer data', icon: TransformerIcon, title: a.transformerBoardId ? `Transformer data of ${a.transformerBoardId} (the main board supplying ${a.boardId})` : 'No main board', onClick: a.onTransformer, disabled: !a.transformerBoardId },
         { label: 'Schedule', icon: Table2, title: `Load distribution schedule of ${a.boardId}`, onClick: go('load-schedule'), active: a.view === 'load-schedule', page: true },
         view('building', 'Building', Building2, 'Building information: GFA, levels, typical floors, rooms and room types'),
         { label: 'Space plan', icon: LayoutGrid, title: 'Space planning: areas → panels → transformers → RMUs', onClick: go('space-planning'), active: a.view === 'space-planning', page: true },
@@ -185,7 +202,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         view('selection', 'Selection', ListTree, 'Breaker and cable selection')
       ],
       [
-        view('sizing', 'Transformer / Gen', Waves, 'Transformer and generator sizing'),
+        view('sizing', 'Tx & Gen sizing', TxGenSizingIcon, 'Transformer and generator sizing: size list, duty / standby, generator boards and motor start'),
         view('pfc', 'Power factor', BatteryCharging, 'Power factor correction'),
         view('busbar', 'Busbar riser', AlignVerticalSpaceAround, 'Busbar trunking risers for high-rise buildings: rating (Cu / Al), area, voltage drop per floor, size and weight')
       ],
@@ -264,12 +281,27 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         {groups[tab].map((group, gi) => (
           <div key={gi} className="ribbon-group" role="group" aria-label={CAPTIONS[tab]?.[gi]}>
             <div className="ribbon-group-btns">
-              {group.map(({ label, icon: I, title, onClick, active, disabled, stale, page }) => (
-                <button key={label} className={`${active ? (page ? 'page-on' : 'on') : ''}${stale ? ' stale' : ''}`} title={title} aria-pressed={page ? undefined : active} aria-current={page && active ? 'page' : undefined} disabled={disabled} onClick={onClick}>
-                  <I size={20} strokeWidth={1.6} />
-                  <span>{label}</span>
-                </button>
-              ))}
+              {group.map(({ label, icon: I, title, onClick, active, disabled, stale, page, menu }) => {
+                const btn = (
+                  <button key={label} className={`${active ? (page ? 'page-on' : 'on') : ''}${stale ? ' stale' : ''}`} title={title} aria-pressed={page ? undefined : active} aria-current={page && active ? 'page' : undefined} disabled={disabled} onClick={onClick}>
+                    <I size={20} strokeWidth={1.6} />
+                    <span>{label}</span>
+                  </button>
+                );
+                if (!menu) return btn;
+                return (
+                  <span key={label} className="ribbon-split">
+                    {btn}
+                    <button className="ribbon-split-arrow" title={`${label}: choose a type`} aria-haspopup="menu" aria-expanded={splitOpen === label} disabled={disabled}
+                      onClick={(e) => { e.stopPropagation(); const r = (e.currentTarget.parentElement ?? e.currentTarget).getBoundingClientRect(); setSplitAt({ x: r.left, y: r.bottom + 2 }); setSplitOpen(splitOpen === label ? null : label); }}>▾</button>
+                    {splitOpen === label && (
+                      <div className="ribbon-split-menu" role="menu" style={{ left: splitAt.x, top: splitAt.y }} onMouseDown={(e) => e.stopPropagation()}>
+                        {menu.map((m) => <button key={m.label} role="menuitem" title={m.title} onClick={() => { setSplitOpen(null); m.onClick(); }}>{m.label}</button>)}
+                      </div>
+                    )}
+                  </span>
+                );
+              })}
             </div>
             {CAPTIONS[tab]?.[gi] && <div className="ribbon-caption">{CAPTIONS[tab]![gi]}</div>}
           </div>
