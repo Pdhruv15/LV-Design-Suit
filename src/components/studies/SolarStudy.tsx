@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import type { Feeder, Project } from '../../types';
-import { INVERTER_KW, PV_DEFAULTS, sizePv, type PvInverter, type PvMode, type PvPanel, type PvSystem } from '../../calc/solar';
-import { applyRecommendation, recommend } from '../../calc/sizing';
+import type { Project } from '../../types';
+import { INVERTER_KW, PV_DEFAULTS, acConnection, sizePv, type PvInverter, type PvMode, type PvPanel, type PvSystem } from '../../calc/solar';
+import { pvToSld } from '../../model/pvFeeder';
 import { boardsInSupplyOrder } from '../../calc/summary';
 import { buildPvReportHtml } from '../../docs/upsSolarReport';
 import { safeFileName, savePdf } from '../../util/files';
@@ -33,16 +33,11 @@ export default function SolarStudy({ project, onChange, onStatus }: {
   const [busy, setBusy] = useState(false);
 
   function addToSld() {
-    if (!target || !r.inverters) return;
-    const base: Feeder = existing ?? {
-      id: pvId, boardId: target, name: 'Solar PV inverters', loadKw: 0, demandFactor: 1, powerFactor: 1,
-      lengthM: 30, cableCsaMm2: 16, cores: 4, breakerRatingA: 100, breakerIcuKa: 25, loadType: 'pv', generation: true
-    };
-    const f0_: Feeder = { ...base, loadKw: acKw, generation: true, loadType: 'pv', powerFactor: 1, name: `Solar PV ${r.inverters} × ${s.inverter.acKw} kW (${f1(r.kwp)} kWp)` };
-    const p0 = { ...project, feeders: existing ? project.feeders.map((f) => (f.id === pvId ? f0_ : f)) : [...project.feeders, f0_] };
-    const sized = applyRecommendation(f0_, recommend(p0, f0_, 'optimise'));
-    onChange({ ...p0, pv: { ...s, boardId: target }, feeders: p0.feeders.map((f) => (f.id === pvId ? sized : f)) }, true);
-    onStatus(`${existing ? 'Updated' : 'Added'} ${pvId} on ${target}: ${f1(acKw)} kW, ${sized.breakerRatingA} A, ${sized.cores}C × ${sized.cableCsaMm2} mm² — press Run (F5)`);
+    const res = pvToSld(project, s, r, target);
+    if (!res) return;
+    const sized = res.feeder;
+    onChange(res.project, true);
+    onStatus(`${res.existing ? 'Updated' : 'Added'} ${pvId} on ${target}: ${f1(acKw)} kW ${s.inverter.phases === 1 ? `one-phase${sized.phase ? ` on ${sized.phase}` : ' (phase not set)'}` : 'three-phase'}, ${sized.breakerRatingA} A, ${sized.cores}C × ${sized.cableCsaMm2} mm² — press Run (F5)`);
   }
   async function exportPdf() {
     setBusy(true);
@@ -119,6 +114,14 @@ export default function SolarStudy({ project, onChange, onStatus }: {
               <option value={3}>3-phase</option><option value={1}>1-phase</option>
             </select>
           </label>
+          {s.inverter.phases === 1 && (
+            <label className="nf" title="Which phase the one-phase connection uses. Not set: the generation is spread evenly over R / Y / B in the board's phase totals.">
+              <span>Connected to</span>
+              <select value={s.acPhase ?? ''} onChange={(e) => set({ acPhase: (e.target.value || undefined) as PvSystem['acPhase'] })}>
+                <option value="">Phase not set</option><option value="R">R</option><option value="Y">Y</option><option value="B">B</option>
+              </select>
+            </label>
+          )}
           <NumField label="Max DC voltage" unit="V" value={s.inverter.maxDcV} min={100} onSet={(v) => setInv({ maxDcV: v ?? 1100 })} />
           <NumField label="MPPT min" unit="V" value={s.inverter.mpptMinV} min={10} onSet={(v) => setInv({ mpptMinV: v ?? 200 })} />
           <NumField label="MPPT max" unit="V" value={s.inverter.mpptMaxV} min={10} onSet={(v) => setInv({ mpptMaxV: v ?? 1000 })} />
@@ -134,7 +137,7 @@ export default function SolarStudy({ project, onChange, onStatus }: {
         <div><span>Area</span><b>{f0(r.arrayAreaM2)} m² of panels</b><small>≈ {f0(r.roofNeededM2)} m² of roof at {s.roofUsePct} % use</small></div>
         <div><span>Energy</span><b>{f0(r.dailyKwh)} kWh/day · {f0(r.annualKwh / 1000)} MWh/yr</b><small>{f0(r.specificYield)} kWh/kWp · PR {f1(r.prPct)} %</small></div>
         <div><span>Savings / CO₂</span><b>{r.savings !== undefined ? `${f0(r.savings)} per year` : '—'}</b><small>{f1(r.co2Tonnes)} t CO₂ avoided per year</small></div>
-        <div><span>AC connection</span><b>{f0(r.acCurrentA)} A · {r.acBreakerA} A breaker</b><small>{s.inverter.phases}-phase, {project.voltageV} V</small></div>
+        <div><span>AC connection</span><b>{f0(r.acCurrentA)} A · {r.acBreakerA} A breaker</b><small>{acConnection(s, project.voltageV).text}{s.inverter.phases === 1 && r.inverters > 1 ? ` · ${r.inverters} inverters counted together on one phase connection` : ''}</small></div>
       </div>
 
       <h3 className="section-title">String design check</h3>
