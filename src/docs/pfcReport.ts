@@ -37,21 +37,23 @@ export function pfcReportHtml(project: Project, input: PfcCalcInput, r: PfcCalcR
   .big { font-size: 15px; font-weight: 700; } .warn { color: #a86500; } .keep { break-inside: avoid; } code { font-family: Menlo, Consolas, monospace; font-size: 10px; }
   </style></head><body>
   <header>${logo}<div><h1>Power factor correction${input.title ? ` — ${esc(input.title)}` : ''}</h1><div class="m">${esc(project.name)} · ${esc(revisionStamp(project))} · ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</div></div></header>
-  <p class="big">Capacitor bank ${r.bankKvar ? `${r.bankKvar} kvar = ${r.steps} × ${r.stepKvar} kvar${r.detunedPct ? `, ${r.detunedPct} % detuned` : ''} — PF ${r.pf1.toFixed(2)} → ${r.pf2.toFixed(3)}` : 'not needed'}</p>
+  <p class="big">Capacitor bank ${r.bankKvar ? `${r.bankKvar} kvar installed = ${r.steps} × ${r.stepKvar} kvar${r.detunedPct ? `, ${r.detunedPct} % detuned` : ''} — at this load ${r.activeSteps} step${r.activeSteps === 1 ? '' : 's'} (${r.activeKvar} kvar) switched in: PF ${r.pf1.toFixed(2)} → ${r.pf2.toFixed(3)}` : 'not needed'}</p>
+  ${r.bankKvar && !r.targetReached ? `<p class="warn"><b>Target ${r.targetPf} not achievable with ${r.stepKvar} kvar steps without going leading.</b>${r.suggestedStepKvar ? ` A ${r.suggestedStepKvar} kvar step would reach it (the configured step is unchanged here).` : ''}</p>` : ''}
   <h2>Input data</h2><table><tbody>${inputs.map(([k, v]) => `<tr><th class="k">${esc(k)}</th><td>${v}</td></tr>`).join('')}</tbody></table>
-  <h2>Method</h2><p>${r.derivation.map((d) => `<code>${esc(d)}</code>`).join('<br>')}<br><code>Bank: next standard size in whole ${r.stepKvar} kvar steps = ${r.bankKvar} kvar → Q2 = Q1 − Qc = ${f(r.q2)} kvar, PF2 = P ÷ √(P² + Q2²) = ${r.pf2.toFixed(3)}</code></p>
+  <h2>Method</h2><p>${r.derivation.map((d) => `<code>${esc(d)}</code>`).join('<br>')}<br><code>Bank: next standard size in whole ${r.stepKvar} kvar steps = ${r.bankKvar} kvar installed; the relay switches whole steps — the fewest that reach the target without going leading (else the most that stay lagging): ${r.activeSteps} × ${r.stepKvar} = ${r.activeKvar} kvar → Q2 = Q1 − ${r.activeKvar} = ${f(r.q2)} kvar, PF2 = P ÷ √(P² + Q2²) = ${r.pf2.toFixed(3)}. All after-values below are for this switching state.</code></p>
   <div class="keep"><h2>Power triangle — before (red) and after (green), to scale</h2><div class="grid"><div>${powerTriangleSvg(r)}</div><div>${phasorSvg(r, input.voltageV)}</div></div></div>
   <div class="keep"><h2>Before and after</h2><table><thead><tr><th></th><th class="n">Before</th><th class="n">After</th></tr></thead><tbody>${rows.map(([k, a, b]) => `<tr><td>${esc(k)}</td><td class="n">${a}</td><td class="n">${b}</td></tr>`).join('')}</tbody></table>
   <p>kVA released <b>${f(r.releasedKva)} kVA</b> · current down <b>${f(r.currentReductionPct, 0)} %</b> · I²R losses down <b>${f(r.lossReductionPct, 0)} %</b>${r.lossSavedKw !== undefined ? ` (${f(r.lossSavedKw, 2)} kW)` : ''}</p></div>
   <div class="keep"><h2>Bank selection</h2><table><tbody>
     <tr><th class="k">Required</th><td>${f(r.requiredKvar)} kvar</td></tr>
-    <tr><th class="k">Selected</th><td>${r.bankKvar} kvar, automatic, ${r.steps} steps × ${r.stepKvar} kvar, with power factor relay (CT on the incomer)</td></tr>
+    <tr><th class="k">Selected (installed)</th><td>${r.bankKvar} kvar, automatic, ${r.steps} steps × ${r.stepKvar} kvar, with power factor relay (CT on the incomer)</td></tr>
+    <tr><th class="k">Switched in at this load</th><td>${r.activeSteps} step${r.activeSteps === 1 ? '' : 's'} = ${r.activeKvar} kvar → PF ${r.pf2.toFixed(3)}${r.bankKvar && !r.targetReached ? ' — <span class="warn">target not reached</span>' : ''}</td></tr>
     <tr><th class="k">Detuning</th><td>${esc(r.detuneReason)}</td></tr>
     <tr><th class="k">Capacitor rated voltage</th><td>${r.capVoltageV} V</td></tr>
     <tr><th class="k">Bank current</th><td>${f(r.bankCurrentA, 0)} A</td></tr>
     <tr><th class="k">Breaker</th><td>${r.breakerA ? `${r.breakerA} A MCCB (≥ 1.43 × bank current, IEC 60831)` : '—'}</td></tr>
   </tbody></table></div>
-  <h2>Other targets</h2><table><thead><tr><th>Target PF</th><th class="n">Required kvar</th><th class="n">Standard bank</th></tr></thead><tbody>${r.compare.map((c) => `<tr><td>${c.pf.toFixed(2)}</td><td class="n">${f(c.kvar)}</td><td class="n">${c.bank}</td></tr>`).join('')}</tbody></table>
+  <h2>Other targets</h2><table><thead><tr><th>Target PF</th><th class="n">Required kvar</th><th class="n">Standard bank</th><th class="n">Switched in · PF achieved with ${r.stepKvar} kvar steps</th></tr></thead><tbody>${r.compare.map((c) => `<tr><td>${c.pf.toFixed(2)}</td><td class="n">${f(c.kvar)}</td><td class="n">${c.bank}</td><td class="n">${c.activeKvar} kvar · ${c.achievedPf.toFixed(3)}${c.reached ? '' : ' <span class="warn">(not reached)</span>'}</td></tr>`).join('')}</tbody></table>
   ${r.warnings.length ? `<h2>Notes</h2><ul>${r.warnings.map((w) => `<li class="warn">${esc(w)}</li>`).join('')}</ul>` : ''}
   <p class="m">Minimum power factor required: ${rule('pfMinimum').toFixed(2)}. Detuning recommendations are indicative — confirm with a harmonic survey where VFDs, UPS or large LED loads are present.</p>
   </body></html>`;

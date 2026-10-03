@@ -35,7 +35,7 @@ export default function PfcCalculator({ project, onChange, onStatus }: { project
     while (project.feeders.some((f) => f.id === `${board}-PFC${n}`)) n++;
     const f = capacitorFeeder(project, board, `${board}-PFC${n}`, `Capacitor bank ${r.bankKvar} kvar`, r.bankKvar, r.steps, r.detunedPct);
     onChange({ ...project, feeders: [...project.feeders, f] });
-    onStatus(`Added ${f.id}: ${r.bankKvar} kvar, ${r.steps} steps${r.detunedPct ? `, ${r.detunedPct} % detuned` : ''} on ${board} — Run (F5)`);
+    onStatus(`Added ${f.id}: ${r.bankKvar} kvar installed, ${r.steps} × ${r.stepKvar} kvar${r.detunedPct ? `, ${r.detunedPct} % detuned` : ''} on ${board}${r.targetReached ? '' : ` — note: these steps don't reach PF ${r.targetPf} at the entered load`} — Run (F5)`);
   }
 
   return (
@@ -79,8 +79,8 @@ export default function PfcCalculator({ project, onChange, onStatus }: { project
       <div className="pfcc-out">
         {r.p <= 0 ? <section className="card"><p className="m">Enter the {input.mode === 'bill' ? 'kWh, kvarh and hours from the bill' : input.mode === 'loads' ? 'loads' : 'measured values'} on the left — the bank, diagrams and report appear here.</p></section> : <>
         <div className="vd-cards">
-          <div className="dash-tile"><span className="dash-label">Power factor</span><span className="dash-value"><span className={r.pf1 < input.targetPf ? 'warn' : 'ok'}>{r.pf1.toFixed(2)}</span> → <span className="ok">{r.pf2.toFixed(3)}</span></span><span className="dash-sub">target {input.targetPf}</span></div>
-          <div className="dash-tile"><span className="dash-label">Capacitor bank</span><span className="dash-value">{r.bankKvar ? `${r.bankKvar} kvar` : 'None'}</span><span className="dash-sub">{r.bankKvar ? `${r.steps} × ${r.stepKvar} kvar${r.detunedPct ? ` · ${r.detunedPct} % detuned` : ''} · need ${f1(r.requiredKvar)}` : 'already at target'}</span></div>
+          <div className="dash-tile"><span className="dash-label">Power factor</span><span className="dash-value"><span className={r.pf1 < input.targetPf ? 'warn' : 'ok'}>{r.pf1.toFixed(2)}</span> → <span className={r.pf2 >= input.targetPf - 1e-9 ? 'ok' : 'warn'}>{r.pf2.toFixed(3)}</span></span><span className="dash-sub">target {input.targetPf}</span></div>
+          <div className="dash-tile"><span className="dash-label">Capacitor bank</span><span className="dash-value">{r.bankKvar ? `${r.bankKvar} kvar` : 'None'}</span><span className={`dash-sub${r.bankKvar && !r.targetReached ? ' warn' : ''}`}>{r.bankKvar ? `installed ${r.steps} × ${r.stepKvar} kvar · ${r.activeSteps} switched in (${r.activeKvar} kvar)${r.targetReached ? '' : ' · target not reachable'}${r.detunedPct ? ` · ${r.detunedPct} % detuned` : ''} · need ${f1(r.requiredKvar)}` : 'already at target'}</span></div>
           <div className="dash-tile"><span className="dash-label">Load</span><span className="dash-value">{f0(r.p)} kW</span><span className="dash-sub">{f0(r.s1)} → {f0(r.s2)} kVA · frees {f0(r.releasedKva)} kVA</span></div>
           <div className="dash-tile"><span className="dash-label">Current</span><span className="dash-value">{f0(r.i1)} → {f0(r.i2)} A</span><span className="dash-sub">−{f0(r.currentReductionPct)} % · losses −{f0(r.lossReductionPct)} %{r.lossSavedKw !== undefined ? ` (${r.lossSavedKw.toFixed(2)} kW)` : ''}</span></div>
           {r.transformer && <div className="dash-tile"><span className="dash-label">Transformer</span><span className="dash-value">{f0(r.transformer.before)} → {f0(r.transformer.after)} %</span><span className="dash-sub">of {r.transformer.kva} kVA</span></div>}
@@ -95,7 +95,7 @@ export default function PfcCalculator({ project, onChange, onStatus }: { project
           <div className="pfc-kpi">
             <span>{r.detuneReason}</span>
             <span>Capacitors rated <b>{r.capVoltageV} V</b> · bank current <b>{f0(r.bankCurrentA)} A</b>{r.breakerA ? <> · breaker <b>{r.breakerA} A</b> MCCB</> : null}</span>
-            <span className="m">Other targets: {r.compare.map((c) => `PF ${c.pf.toFixed(2)} → ${c.bank} kvar`).join(' · ')}</span>
+            <span className="m">Other targets (with {r.stepKvar} kvar steps): {r.compare.map((c) => `PF ${c.pf.toFixed(2)} → ${c.bank} kvar${c.reached ? '' : ` (gives ${c.achievedPf.toFixed(3)}, not reached)`}`).join(' · ')}</span>
           </div>
           <details><summary>Method</summary>{r.derivation.map((d) => <div key={d}><code>{d}</code></div>)}</details>
           <div className="pfc-actions">
@@ -103,7 +103,7 @@ export default function PfcCalculator({ project, onChange, onStatus }: { project
             {project.boards.length > 0 && <>
               <span className="sp" />
               <label className="row">Add to the design on <select className="bi-sel" value={board} onChange={(e) => setBoard(e.target.value)}>{project.boards.map((b) => <option key={b.id} value={b.id}>{b.id}</option>)}</select></label>
-              <button className="chip" disabled={!r.bankKvar} onClick={toDesign}>Add bank</button>
+              <button className="chip" disabled={!r.bankKvar} onClick={toDesign} title={r.bankKvar && !r.targetReached ? `Adds the ${r.bankKvar} kvar bank as a design option — with ${r.stepKvar} kvar steps it does not reach PF ${r.targetPf} at this load` : undefined}>Add bank{r.bankKvar && !r.targetReached ? ' (target not reached)' : ''}</button>
             </>}
           </div>
         </section>

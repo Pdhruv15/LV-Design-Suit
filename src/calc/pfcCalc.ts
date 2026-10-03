@@ -37,16 +37,37 @@ const SQRT3 = Math.sqrt(3);
 const tan = (pf: number) => Math.tan(Math.acos(Math.min(Math.max(pf, 0.05), 1)));
 const STANDARD_BANKS = [25, 50, 75, 100, 125, 150, 175, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800, 900, 1000, 1200];
 
+/** The switching state at this load: k whole steps (0…steps). The fewest steps that reach the target with
+ * Q ≥ 0 (no leading); if none does, the most steps that keep Q ≥ 0 (the best non-leading PF). */
+export function operatingState(p: number, q1: number, steps: number, step: number, target: number): { k: number; reached: boolean } {
+  const pfAt = (k: number) => { const q = q1 - k * step; const s = Math.hypot(p, q); return { q, pf: s > 0 ? p / s : 1 }; };
+  for (let k = 0; k <= steps; k++) { const x = pfAt(k); if (x.q >= -1e-9 && x.pf >= target - 1e-9) return { k, reached: true }; }
+  let best = 0;
+  for (let k = 0; k <= steps; k++) if (pfAt(k).q >= -1e-9) best = k;
+  return { k: best, reached: false };
+}
+
+/** A smaller standard step that has a whole number of steps between the need and Q1 (reaches the target, not leading). */
+function suggestStep(q1: number, need: number, step: number): number | undefined {
+  return [50, 40, 30, 25, 20, 15, 12.5, 10, 7.5, 5, 2.5].filter((s) => s < step).find((s) => Math.ceil(need / s - 1e-9) * s <= q1 + 1e-9);
+}
+
 export interface PfcCalcResult {
   p: number; q1: number; s1: number; pf1: number; phi1Deg: number; i1: number;
   targetPf: number; q2Target: number; requiredKvar: number;
   bankKvar: number; steps: number; stepKvar: number;
+  /** The operating state the after-values come from: whole steps switched in (no leading at this load). */
+  activeSteps: number; activeKvar: number;
+  /** That state reaches the target PF; else the best non-leading state is shown and the target is not reached. */
+  targetReached: boolean;
+  /** A smaller step that would reach the target without going leading (a suggestion only). */
+  suggestedStepKvar?: number;
   q2: number; s2: number; pf2: number; phi2Deg: number; i2: number;
   releasedKva: number; currentReductionPct: number; lossReductionPct: number; lossSavedKw?: number;
   detunedPct: 0 | 7 | 14; detuneReason: string; capVoltageV: number; bankCurrentA: number; breakerA?: number;
   stepTable: { steps: number; kvar: number; pf: number; kva: number; a: number }[];
   transformer?: { kva: number; before: number; after: number };
-  compare: { pf: number; kvar: number; bank: number }[];
+  compare: { pf: number; kvar: number; bank: number; activeKvar: number; achievedPf: number; reached: boolean }[];
   derivation: string[]; // how P and Q were found, for the report
   warnings: string[];
 }
@@ -86,9 +107,16 @@ export function calcPfc(i: PfcCalcInput): PfcCalcResult {
   const std = STANDARD_BANKS.find((b) => b >= requiredKvar - 1e-6 && b % step === 0) ?? Math.ceil(requiredKvar / step) * step;
   const bankKvar = requiredKvar > 0 ? std : 0;
   const steps = bankKvar ? Math.round(bankKvar / step) : 0;
-  // Never over-correct to leading at full load: the bank is limited to Q1.
-  const q2 = q1 - Math.min(bankKvar, q1);
-  if (bankKvar > q1) warnings.push(`The standard bank (${bankKvar} kvar) is more than the load's ${q1.toFixed(0)} kvar — automatic steps keep it from going leading`);
+  // The bank switches whole steps. Operating policy (automatic PF relay, no leading): the fewest steps
+  // that reach the target with Q ≥ 0; if none does, the most steps that stay non-leading.
+  const op = operatingState(p, q1, steps, step, target);
+  const activeSteps = op.k, activeKvar = activeSteps * step, targetReached = op.reached;
+  const q2 = q1 - activeKvar;
+  const suggestedStepKvar = !targetReached && requiredKvar > 0 ? suggestStep(q1, requiredKvar, step) : undefined;
+  if (!targetReached && requiredKvar > 0) {
+    warnings.push(`Target ${target} not achievable with ${step} kvar steps without going leading: ${activeSteps ? `${activeSteps} of ${steps} step${steps > 1 ? 's' : ''} (${activeKvar} kvar) switched in gives PF ${(p / Math.hypot(p, q2)).toFixed(3)}` : `the ${step} kvar step stays off (switching it in would give ${(q1 - step).toFixed(1)} kvar, leading), so nothing changes`}.${suggestedStepKvar ? ` A ${suggestedStepKvar} kvar step would reach it.` : ''}`);
+  }
+  if (bankKvar > activeKvar && targetReached) warnings.push(`At this load ${activeSteps} of ${steps} steps (${activeKvar} of ${bankKvar} kvar) are switched in; the rest is spare for higher load`);
   const s2 = Math.hypot(p, q2);
   const pf2 = s2 > 0 ? p / s2 : 1;
   const i1 = I(s1), i2 = I(s2);
@@ -121,8 +149,17 @@ export function calcPfc(i: PfcCalcInput): PfcCalcResult {
     lossSavedKw: i.lossesKw !== undefined ? (i.lossesKw * lossReductionPct) / 100 : undefined,
     detunedPct, detuneReason, capVoltageV: capV, bankCurrentA, breakerA, stepTable,
     transformer: t ? { kva: t, before: (s1 / t) * 100, after: (s2 / t) * 100 } : undefined,
-    compare: [0.9, 0.95, 0.98, 1].map((pf) => { const k = Math.max(0, q1 - p * tan(pf)); return { pf, kvar: k, bank: k > 0 ? STANDARD_BANKS.find((b) => b >= k - 1e-6 && b % step === 0) ?? Math.ceil(k / step) * step : 0 }; }),
-    derivation: [...how, `Qc = P × (tan φ1 − tan φ2) = ${p.toFixed(1)} × (${tan(pf1).toFixed(3)} − ${tan(target).toFixed(3)}) = ${requiredKvar.toFixed(1)} kvar`],
+    compare: [0.9, 0.95, 0.98, 1].map((pf) => {
+      const k = Math.max(0, q1 - p * tan(pf));
+      const bank = k > 0 ? STANDARD_BANKS.find((b) => b >= k - 1e-6 && b % step === 0) ?? Math.ceil(k / step) * step : 0;
+      const o = operatingState(p, q1, Math.round(bank / step), step, pf);
+      const qa = q1 - o.k * step;
+      return { pf, kvar: k, bank, activeKvar: o.k * step, achievedPf: Math.hypot(p, qa) > 0 ? p / Math.hypot(p, qa) : 1, reached: k <= 0 || o.reached };
+    }),
+    activeSteps, activeKvar, targetReached, suggestedStepKvar,
+    derivation: [...how, `Qc = P × (tan φ1 − tan φ2) = ${p.toFixed(1)} × (${tan(pf1).toFixed(3)} − ${tan(target).toFixed(3)}) = ${requiredKvar.toFixed(1)} kvar`,
+      `Installed ${bankKvar} kvar = ${steps} × ${step} kvar; switched in at this load: ${activeSteps} step${activeSteps === 1 ? '' : 's'} = ${activeKvar} kvar (fewest steps reaching the target without going leading${targetReached ? '' : ' — target not reached'})`,
+      `Q2 = Q1 − switched kvar = ${q1.toFixed(1)} − ${activeKvar} = ${q2.toFixed(1)} kvar → PF2 = P ÷ √(P² + Q2²)`],
     warnings
   };
 }
@@ -157,16 +194,16 @@ export function powerTriangleSvg(r: PfcCalcResult): string {
   <line x1="${px}" y1="${oy}" x2="${px}" y2="${Y(r.q1)}" stroke="${BEFORE}" stroke-width="2" stroke-dasharray="5 3"/>
   <text x="${(ox + px) / 2 - 8}" y="${(oy + Y(r.q1)) / 2 - 8}" text-anchor="end" fill="${BEFORE}" font-weight="700">S1 = ${n0(r.s1)} kVA</text>
   <text x="${px - 6}" y="${Y(r.q1) - 6}" text-anchor="end" fill="${BEFORE}">Q1 = ${n0(r.q1)} kvar</text>
-  ${r.bankKvar > 0 ? `
+  ${r.activeKvar > 0 ? `
   <line x1="${ox}" y1="${oy}" x2="${px}" y2="${Y(r.q2)}" stroke="${AFTER}" stroke-width="2.5" marker-end="url(#ar-a)"/>
   <text x="${(ox + px) / 2 + 10}" y="${(oy + Y(r.q2)) / 2 + 18}" fill="${AFTER}" font-weight="700">S2 = ${n0(r.s2)} kVA</text>
   <line x1="${px + 26}" y1="${Y(r.q1)}" x2="${px + 26}" y2="${Y(r.q2)}" stroke="${CAP}" stroke-width="3" marker-end="url(#ar-c)"/>
-  <text x="${px + 34}" y="${(Y(r.q1) + Y(r.q2)) / 2 + 4}" fill="${CAP}" font-weight="700">Qc = ${n0(Math.min(r.bankKvar, r.q1))} kvar</text>
+  <text x="${px + 34}" y="${(Y(r.q1) + Y(r.q2)) / 2 + 4}" fill="${CAP}" font-weight="700">Qc = ${n0(r.activeKvar)} kvar (${r.activeSteps} × ${n0(r.stepKvar)})</text>
   <text x="${px - 6}" y="${Y(r.q2) - 6}" text-anchor="end" fill="${AFTER}">Q2 = ${n0(r.q2)} kvar</text>
   ${arc(r.phi2Deg, 46, AFTER)}` : ''}
   ${arc(r.phi1Deg, 34, BEFORE)}
   ${angleLabels(r, ox, oy, px - ox)}
-  <text x="${ox}" y="${H - 6}" font-size="12"><tspan fill="${BEFORE}" font-weight="700">φ1 = ${r.phi1Deg.toFixed(1)}°</tspan><tspan fill="currentColor"> · PF ${r.pf1.toFixed(3)} (before)</tspan>${r.bankKvar > 0 ? `<tspan fill="currentColor">   </tspan><tspan fill="${AFTER}" font-weight="700">φ2 = ${r.phi2Deg.toFixed(1)}°</tspan><tspan fill="currentColor"> · PF ${r.pf2.toFixed(3)} (after)</tspan>` : ''}</text>
+  <text x="${ox}" y="${H - 6}" font-size="12"><tspan fill="${BEFORE}" font-weight="700">φ1 = ${r.phi1Deg.toFixed(1)}°</tspan><tspan fill="currentColor"> · PF ${r.pf1.toFixed(3)} (before)</tspan>${r.activeKvar > 0 ? `<tspan fill="currentColor">   </tspan><tspan fill="${AFTER}" font-weight="700">φ2 = ${r.phi2Deg.toFixed(1)}°</tspan><tspan fill="currentColor"> · PF ${r.pf2.toFixed(3)} (after)</tspan>` : ''}</text>
   </svg>`;
 }
 
@@ -183,7 +220,7 @@ function angleLabels(r: PfcCalcResult, ox: number, oy: number, pLen: number): st
     const x = ox + rad * Math.cos(mid), y = oy - rad * Math.sin(mid);
     return `<text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="middle" fill="${color}" font-weight="700" font-size="12">${text}</text>`;
   };
-  const after = r.bankKvar > 0;
+  const after = r.activeKvar > 0;
   return (after ? at(0, r.phi2Deg, 62, 'φ2', AFTER) : '') + at(after ? r.phi2Deg : 0, r.phi1Deg, 50, 'φ1', BEFORE);
 }
 
@@ -198,7 +235,7 @@ export function phasorSvg(r: PfcCalcResult, voltageV: number): string {
   <text x="${cx + L + 18}" y="${cy - 8}" text-anchor="end" fill="currentColor" font-weight="700">V ${voltageV} V</text>
   <line x1="${cx}" y1="${cy}" x2="${b1x}" y2="${b1y}" stroke="${BEFORE}" stroke-width="2.5" marker-end="url(#ar-b)"/>
   <text x="${Math.min(b1x + 6, W - 70)}" y="${b1y + 16}" fill="${BEFORE}" font-weight="700">I1 ${n0(r.i1)} A</text>
-  ${r.bankKvar > 0 ? `<line x1="${cx}" y1="${cy}" x2="${a1x}" y2="${a1y}" stroke="${AFTER}" stroke-width="2.5" marker-end="url(#ar-a)"/>
+  ${r.activeKvar > 0 ? `<line x1="${cx}" y1="${cy}" x2="${a1x}" y2="${a1y}" stroke="${AFTER}" stroke-width="2.5" marker-end="url(#ar-a)"/>
   <text x="${a1x + 6}" y="${a1y - 4}" fill="${AFTER}" font-weight="700">I2 ${n0(r.i2)} A</text>` : ''}
   <text x="${cx}" y="${H - 8}" fill="currentColor" opacity=".7" font-size="11">I lags V by φ; the bank pulls it in and down.</text>
   </svg>`;
@@ -227,5 +264,5 @@ export function stepsSvg(r: PfcCalcResult): string {
 export function triangleFrom(p: number, pf1: number, pf2: number, target: number): PfcCalcResult {
   const q1 = p * tan(pf1), q2 = p * tan(pf2);
   const r = calcPfc({ ...PFC_CALC_DEFAULT, mode: 'kw-pf', kw: p, pf: pf1, targetPf: target });
-  return { ...r, q1, s1: Math.hypot(p, q1), pf1, phi1Deg: (Math.acos(pf1) * 180) / Math.PI, q2, s2: Math.hypot(p, q2), pf2, phi2Deg: (Math.acos(pf2) * 180) / Math.PI, bankKvar: Math.max(0, q1 - q2) };
+  return { ...r, q1, s1: Math.hypot(p, q1), pf1, phi1Deg: (Math.acos(pf1) * 180) / Math.PI, q2, s2: Math.hypot(p, q2), pf2, phi2Deg: (Math.acos(pf2) * 180) / Math.PI, bankKvar: Math.max(0, q1 - q2), activeKvar: Math.max(0, q1 - q2), activeSteps: 1 };
 }
