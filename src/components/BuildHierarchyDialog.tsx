@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { Board, Project } from '../types';
 import { evenAssignment, levelRef, planHierarchy, type HierarchySpec } from '../model/hierarchy';
 import { floorList } from '../model/levels';
+import BranchPanel from './BranchPanel';
 
 const ROWS = 400; // rows drawn at once in the panel table (search narrows it)
 
@@ -31,6 +32,7 @@ export default function BuildHierarchyDialog({ project, onCreate, onClose }: {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [picked, setPicked] = useState<string | null>(null);
+  const [mode, setMode] = useState<'floors' | 'repeat' | 'assemblies'>('floors');
 
   const chosen = floors.slice(Math.min(from, to), Math.max(from, to) + 1);
   const mdbCount = source === 'create' ? createN : existing.length;
@@ -68,7 +70,11 @@ export default function BuildHierarchyDialog({ project, onCreate, onClose }: {
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal bh" onClick={(e) => e.stopPropagation()}>
-        <h3>Build panel hierarchy</h3>
+        <div className="row" style={{ gap: 10 }}>
+          <h3 style={{ margin: 0 }}>Build panel hierarchy</h3>
+          <div className="seg">{([['floors', 'Typical floors'], ['repeat', 'Repeat branch'], ['assemblies', 'Assemblies']] as const).map(([k, l]) => <button key={k} className={mode === k ? 'on' : ''} onClick={() => setMode(k)}>{l}</button>)}</div>
+        </div>
+        {mode !== 'floors' ? <BranchPanel mode={mode} project={project} onCreate={onCreate} onClose={onClose} /> : <>
         <p className="m">MDBs, SMDBs on each floor and DBs under each SMDB, from the levels in Building information. Names: type – level – number (SMDB-L1, SMDB-L2-02). Structure only — incomers are placeholders until sized.</p>
         {!buildings.length ? (
           <p className="warn">Add the building and its levels in Building information first — the floors come from there.</p>
@@ -146,6 +152,7 @@ export default function BuildHierarchyDialog({ project, onCreate, onClose }: {
           <button className="chip" onClick={onClose}>Cancel</button>
           <button className="chip primary" disabled={!plan.ok || !plan.boards.length} onClick={create}>Create hierarchy</button>
         </div>
+        </>}
       </div>
     </div>
   );
