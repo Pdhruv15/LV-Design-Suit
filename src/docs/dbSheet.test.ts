@@ -42,7 +42,7 @@ describe('DB load schedule sheet', () => {
     expect(sheet.data[y][col(sheet, 'wpu')]).toBe('6000');
     const ph = boardPhaseKw(sampleProject, 'DB-GF1');
     expect(sheet.totals[col(sheet, 'R')]).toBe(ph.R.toFixed(2));
-    expect(sheet.cableText).toBe('CABLE SIZE: 4Cx35 Sqmm CU/XLPE/SWA/PVC + 1C 16 Sqmm CU. PVC ECC');
+    expect(sheet.cableText).toMatch(/^CABLE SIZE: 4C 35mm² Cu XLPE\/SWA\/PVC \+ 1C 16mm² Cu\/PVC G\/Y AS ECC, \d+ m$/); // as on the cable schedule
   });
 
   it('locks calculated cells; empty ways accept only room, points and remarks', () => {

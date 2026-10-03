@@ -93,3 +93,34 @@ describe('the main calculation report sizes like the study pages', () => {
     if (gen.recommendedKva) expect(html).toContain(`recommended ${gen.recommendedKva} kVA`);
   });
 });
+
+import { incomerCableText, incomerLabel, loadScheduleCsv, loadScheduleRows, buildLoadScheduleHtml } from './loadScheduleDoc';
+
+describe('DB load schedule totals and incomer', () => {
+  const db = { id: 'DB1', name: 'DB1', upstreamId: main.id, pointWatts: { ltg: 100 } } as unknown as Project['boards'][number];
+  const inc = { id: 'I1', boardId: main.id, name: 'Incomer', feedsBoardId: 'DB1', loadKw: 0, demandFactor: 1, powerFactor: 0.9, lengthM: 30, cableCsaMm2: 16, cores: 2, breakerRatingA: 63, breakerIcuKa: 25, parallel: 2, cableType: 'FR BS 8491' };
+  const c1 = { id: 'C1', boardId: 'DB1', name: 'Lights', loadKw: 1, demandFactor: 0.5, powerFactor: 0.9, lengthM: 20, cableCsaMm2: 1.5, cores: 2, breakerRatingA: 10, breakerIcuKa: 6, phase: 'R', way: 1, loadType: 'lighting', points: { ltg: 10 } };
+  const p = { ...p0, boards: [...p0.boards, db], feeders: [...p0.feeders, inc, c1] } as unknown as Project;
+
+  it('connected total matches the rows; maximum demand is labelled separately', () => {
+    const r = loadScheduleRows(p, 'DB1');
+    expect(r.connectedW.R).toBe(1000);
+    expect(r.phaseW.R).toBeCloseTo(0.5);
+    const html = buildLoadScheduleHtml(p, 'DB1');
+    expect(html).toMatch(/TOTAL CONNECTED LOAD \(W\)/);
+    expect(html).toMatch(/MAXIMUM DEMAND \(W\) — after demand factors/);
+    const csv = loadScheduleCsv(p, 'DB1').rows.map((x) => x[6]);
+    expect(csv).toContain('TOTAL CONNECTED');
+    expect(csv).toContain('MAXIMUM DEMAND');
+  });
+
+  it('incomer text follows the feeder: poles, parallel runs, construction', () => {
+    const b = p.boards.find((x) => x.id === 'DB1')!;
+    const f = p.feeders.find((x) => x.id === 'I1')!;
+    expect(incomerLabel(b, f)).toMatch(/SP\+N$/);
+    expect(incomerLabel(b, f)).not.toMatch(/TP/);
+    const t = incomerCableText(p, f);
+    expect(t).toMatch(/^CABLE SIZE: 2x2C 16mm²/);
+    expect(t).toMatch(/\(fire rated\), 30 m$/); // as on the cable schedule: base build-up + fire-rated mark
+  });
+});
