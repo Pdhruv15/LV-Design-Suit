@@ -78,13 +78,15 @@ export default function ContainmentCalculator({ project, onChange, onStatus }: {
       <div className="pfcc-out">
         {!r.count ? <section className="card"><p className="m">Add cables on the left — the containment, its cross-section and the report appear here.</p></section> : <>
           <div className="vd-cards">
-            <div className="dash-tile"><span className="dash-label">{CONTAINMENT_LABEL[t]}</span><span className="dash-value">{r.size}</span><span className="dash-sub">{r.fillPct ? `fill ${f0(r.fillPct)} %` : ''}{r.sparePct !== undefined ? ` · spare ${f0(r.sparePct)} %` : ''}</span></div>
+            <div className="dash-tile"><span className="dash-label">{CONTAINMENT_LABEL[t]}</span><span className={`dash-value ${r.status === 'fail' ? 'bad' : ''}`}>{r.size}</span><span className="dash-sub">{r.fillPct ? `fill ${f0(r.fillPct)} %` : ''}{r.sparePct !== undefined ? ` · spare ${f0(r.sparePct)} %` : ''}</span></div>
             <div className="dash-tile"><span className="dash-label">Cables</span><span className="dash-value">{r.count}</span><span className="dash-sub">Σ OD {f0(r.sumOdMm)} mm · area {f0(r.areaMm2)} mm²</span></div>
             <div className="dash-tile"><span className="dash-label">Weight</span><span className="dash-value">{f0(r.kgPerM)} kg/m</span><span className="dash-sub">for the supports</span></div>
             {r.groupFactor !== undefined && <div className="dash-tile"><span className="dash-label">Grouping factor</span><span className="dash-value">{f2(r.groupFactor)}</span><span className="dash-sub">IEC 60364-5-52 B.52.20</span></div>}
             {r.soil && <div className="dash-tile"><span className="dash-label">Derating</span><span className={`dash-value ${r.status === 'warn' ? 'warn' : ''}`}>× {f2(r.soil.total)}</span><span className="dash-sub">ground {f2(r.soil.temp)} · soil {f2(r.soil.resistivity)} · group {f2(r.soil.group)}</span></div>}
           </div>
-          <section className="card"><h4>Cross-section <span className="m">— to scale</span></h4><div className="pfcc-svg" dangerouslySetInnerHTML={{ __html: svg }} /></section>
+          {r.status === 'fail'
+            ? <section className="card"><h4>Does not fit</h4><p className="qc-bad">{r.noFit}</p><p className="m">No cross-section is drawn for containment that can't take the cables.</p></section>
+            : <section className="card"><h4>Cross-section <span className="m">— to scale</span></h4><div className="pfcc-svg" dangerouslySetInnerHTML={{ __html: svg }} /></section>}
           <section className="card">
             <h4>Cables</h4>
             <table className="bi-table compact">
