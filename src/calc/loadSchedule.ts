@@ -1,3 +1,4 @@
+import { memoized, networkOf } from './network';
 import { switchedOnBoard } from './capSwitching';
 import { DEFAULT_POINT_WATTS, LIGHTING_POINTS, POINT_TYPES, pointTemplateOf, settingsOf, type Board, type Feeder, type LoadType, type Phase, type PointType, type Project } from '../types';
 
@@ -108,15 +109,19 @@ export function dominantLoadType(f: Feeder, board: Board | undefined): LoadType 
  * and standby units are treated exactly as boardPhaseKw treats them (counted like loads). */
 export type PhasePQ = Record<'R' | 'Y' | 'B', { p: number; q: number }>;
 export function boardPhasePQ(project: Project, boardId: string, seen = new Set<string>()): PhasePQ {
-  const out: PhasePQ = { R: { p: 0, q: 0 }, Y: { p: 0, q: 0 }, B: { p: 0, q: 0 } };
-  if (seen.has(boardId)) return out;
+  if (seen.has(boardId)) return { R: { p: 0, q: 0 }, Y: { p: 0, q: 0 }, B: { p: 0, q: 0 } };
   seen.add(boardId);
+  return memoized(project, `phasePQ:${boardId}`, () => boardPhasePQOf(project, boardId, seen));
+}
+
+function boardPhasePQOf(project: Project, boardId: string, seen: Set<string>): PhasePQ {
+  const out: PhasePQ = { R: { p: 0, q: 0 }, Y: { p: 0, q: 0 }, B: { p: 0, q: 0 } };
   const put = (f: Feeder, p: number, q: number) => {
     if (f.cores === 2 && f.phase && f.phase !== 'RYB') { out[f.phase].p += p; out[f.phase].q += q; return; }
     for (const ph of ['R', 'Y', 'B'] as const) { out[ph].p += p / 3; out[ph].q += q / 3; }
   };
   const caps: Feeder[] = [];
-  for (const f of project.feeders.filter((x) => x.boardId === boardId)) {
+  for (const f of networkOf(project)?.feedersByBoard.get(boardId) ?? project.feeders.filter((x) => x.boardId === boardId)) {
     if (f.feedsBoardId) {
       const sub = boardPhasePQ(project, f.feedsBoardId, seen);
       for (const ph of ['R', 'Y', 'B'] as const) { out[ph].p += sub[ph].p; out[ph].q += sub[ph].q; }

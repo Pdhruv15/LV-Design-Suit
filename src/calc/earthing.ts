@@ -1,3 +1,4 @@
+import { withNetwork } from './network';
 import { cables, cpcOf, defaultCpcMm2, getCable } from './cableTable';
 import { DEFAULT_TRANSFORMER_XR, rOperatingOhmPerKm, runsOf, transformerImpedance, zMagnitude, type Impedance, type Status } from './electrical';
 import { elcbGroups, isScheduleCircuit } from './loadSchedule';
@@ -248,5 +249,5 @@ export function rcdOf(project: Project, f: Feeder): number | undefined {
 }
 
 export function evaluateEarthingAll(project: Project): EarthingResult[] {
-  return project.feeders.map((f) => evaluateEarthing(project, f));
+  return withNetwork(project, () => project.feeders.map((f) => evaluateEarthing(project, f)));
 }
