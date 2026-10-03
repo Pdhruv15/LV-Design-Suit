@@ -105,11 +105,23 @@ const nextStd = (list: number[], v: number) => list.find((x) => x >= v - 1e-9);
 export interface RiserFloorResult {
   floor: RiserFloor;
   kw: number; // each
+  kvar: number; // each, signed (negative = leading, from a board-linked floor)
   kva: number;
   currentA: number; // each tap-off
   tapOffA?: number;
   heightM: number; // riser length from its foot to this tap-off
   vdPct: number; // from the source board to this tap-off (riser only)
+}
+
+export interface RiserSection {
+  label: string;
+  kind: 'concentrated' | 'distributed';
+  lengthM: number;
+  p: number; // kW carried (after diversity)
+  q: number; // kvar carried, signed
+  currentA: number;
+  vdPct: number; // this section only: 100 × 1000 × L × (R·P + X·Q) ÷ U²
+  floor?: string;
 }
 
 export interface RiserResult {
@@ -132,6 +144,9 @@ export interface RiserResult {
   faultKa?: number;
   icwOk?: boolean;
   floors: RiserFloorResult[];
+  /** The feed and each riser section with the (diversified) P and signed Q it carries and its own drop
+   * (ENG-011) — one evaluator for the page, the floor rows, the VD study and the reports. */
+  sections: RiserSection[];
   vdTopPct: number;
   lengthM: number; // feed + vertical
   elements: number;
@@ -149,7 +164,7 @@ export function sizeRiser(project: Project, r: BusRiser, data: BusbarData = proj
     let kw = f.kw ?? 0, kvar = kw * Math.tan(Math.acos(pfOf(f.pf)));
     if (f.boardId && project.boards.some((b) => b.id === f.boardId)) {
       const t = boardTotals(project, f.boardId);
-      kw = t.demandKw; kvar = Math.max(0, t.demandKvar);
+      kw = t.demandKw; kvar = t.demandKvar; // signed: a leading board keeps its negative kvar
     }
     return { f, count, kw, kvar };
   });
@@ -175,31 +190,37 @@ export function sizeRiser(project: Project, r: BusRiser, data: BusbarData = proj
     : undefined;
   const fault = faultKa !== undefined && Number.isFinite(faultKa) ? faultKa : undefined;
 
-  // Voltage drop, floor by floor: each riser section carries the (diversified)
-  // current of the tap-offs above it.
-  const sinφ = Math.sin(Math.acos(pf));
-  const zPerM = type ? (type.rMohmPerM * pf + type.xMohmPerM * sinφ) / 1000 : 0; // Ω/m
-  const vd = (amps: number, m: number) => (SQRT3 * amps * zPerM * m / project.voltageV) * 100;
-  const levels: { x: typeof floors[number]; level: number }[] = [];
+  // Voltage drop, section by section (balanced, first order): each section carries the diversified
+  // P and signed Q of the tap-offs above it — summed before the apparent power, so floors with
+  // different PFs are combined correctly. ΔV% = 100 × 1000 × L × (R·P + X·Q) ÷ U² (R, X in Ω/m).
+  const R = type ? type.rMohmPerM / 1000 : 0, X = type ? type.xMohmPerM / 1000 : 0;
+  const drop = (m: number, kw: number, kvar: number) => (100 * 1000 * m * (R * kw + X * kvar)) / (project.voltageV * project.voltageV);
+  const levels: { x: typeof floors[number]; level: number; name: string }[] = [];
   let level = r.offsetFloors;
-  for (const x of floors) for (let k = 0; k < x.count; k++) levels.push({ x, level: level++ });
+  for (const x of floors) for (let k = 0; k < x.count; k++) levels.push({ x, level: level++, name: x.count > 1 ? `${x.f.name} (${k + 1})` : x.f.name });
   const heights = levels.map((l) => l.level * r.floorHeightM);
-  let vdAcc = vd(designA, r.feedM); // horizontal feed carries it all
-  let prevH = 0;
-  const vdAt: number[] = [];
+  const sections: RiserSection[] = [];
+  const section = (label: string, kind: RiserSection['kind'], lengthM: number, from: number, floor?: string) => {
+    const pp = levels.slice(from).reduce((a, y) => a + y.x.kw, 0) * diversity;
+    const qq = levels.slice(from).reduce((a, y) => a + y.x.kvar, 0) * diversity;
+    sections.push({ label, kind, lengthM, p: pp, q: qq, currentA: I(Math.hypot(pp, qq)), vdPct: drop(lengthM, pp, qq), floor });
+  };
+  section(`Feed: ${r.sourceBoardId ?? 'board'} → riser foot`, 'concentrated', r.feedM, 0);
+  let prevH = 0, prevName = 'riser foot';
   levels.forEach((l, i) => {
-    const above = levels.slice(i).reduce((s, y) => s + Math.hypot(y.x.kw, y.x.kvar), 0) * diversity;
-    vdAcc += vd(I(above), heights[i] - prevH);
-    prevH = heights[i];
-    vdAt.push(vdAcc);
+    section(`${prevName} → ${l.name}`, i === 0 ? 'concentrated' : 'distributed', heights[i] - prevH, i, l.name);
+    prevH = heights[i]; prevName = l.name;
   });
+  let vdAcc = 0;
+  const cumAt = sections.map((x) => (vdAcc += x.vdPct));
+  const vdAt = cumAt.slice(1); // at each tap-off (riser only: feed + vertical)
   const floorResults: RiserFloorResult[] = floors.map((x) => {
     const idx = levels.findIndex((l) => l.x === x);
     const lastIdx = idx + x.count - 1;
     const kva = Math.hypot(x.kw, x.kvar);
     const a = I(kva);
     return {
-      floor: x.f, kw: x.kw, kva, currentA: a, tapOffA: nextStd(TAPOFF_A, a / 0.85),
+      floor: x.f, kw: x.kw, kvar: x.kvar, kva, currentA: a, tapOffA: nextStd(TAPOFF_A, a / 0.85),
       heightM: heights[lastIdx] ?? 0, vdPct: vdAt[lastIdx] ?? 0
     };
   });
@@ -216,7 +237,7 @@ export function sizeRiser(project: Project, r: BusRiser, data: BusbarData = proj
     currentDensity: type ? designA / type.csaMm2 : undefined,
     feederBreakerA: inA,
     faultKa: fault, icwOk: fault !== undefined && type ? type.icwKa >= fault : undefined,
-    floors: floorResults, vdTopPct: vdAt[vdAt.length - 1] ?? 0,
+    floors: floorResults, sections, vdTopPct: vdAt[vdAt.length - 1] ?? 0,
     lengthM, elements: Math.ceil(lengthM / Math.max(0.5, r.elementM)), weightKg: type ? type.kgPerM * lengthM : undefined,
     notes
   };
@@ -259,6 +280,8 @@ export interface RiserVdSegment {
   vdPct: number;
   cumPct: number; // source to the end of this section (incl. upstream)
   floor?: string; // tap-off at the end of the section
+  p?: number; // kW and signed kvar carried (diversified)
+  q?: number;
 }
 export interface RiserVd {
   riser: BusRiser;
@@ -286,28 +309,15 @@ export function riserVd(project: Project, r: BusRiser): RiserVd {
   const sinφ = Math.sin(Math.acos(s.pf));
   const z = s.type ? (s.type.rMohmPerM * s.pf + s.type.xMohmPerM * sinφ) / 1000 : 0;
   const vd = (a: number, m: number) => (SQRT3 * a * z * m / project.voltageV) * 100;
-  const I = (kva: number) => (kva * 1000) / (SQRT3 * project.voltageV);
-  // Tap-offs from the bottom up, with each one's (diversified) load.
-  const taps: { name: string; h: number; kva: number }[] = [];
-  let level = r.offsetFloors;
-  for (const fr of s.floors) {
-    const count = Math.max(1, Math.round(fr.floor.count ?? 1));
-    for (let k = 0; k < count; k++) taps.push({ name: count > 1 ? `${fr.floor.name} (${k + 1})` : fr.floor.name, h: level++ * r.floorHeightM, kva: fr.kva * s.diversity });
-  }
+  // The sections and their drops come from sizeRiser (each section's own P and Q); here they are
+  // added to the drop upstream of the feeding board.
+  const taps = s.sections.slice(1).map((x, i) => ({ name: x.floor ?? '', h: s.sections.slice(1, i + 2).reduce((a, y) => a + y.lengthM, 0) }));
   const segments: RiserVdSegment[] = [];
   let cum = upstreamPct;
-  const push = (label: string, kind: RiserVdSegment['kind'], lengthM: number, currentA: number, floor?: string) => {
-    const v = vd(currentA, lengthM);
-    cum += v;
-    segments.push({ label, kind, lengthM, currentA, vdPct: v, cumPct: cum, floor });
-  };
-  push(`Feed: ${r.sourceBoardId ?? 'board'} → riser foot`, 'concentrated', r.feedM, s.designA);
-  let prevH = 0, prevName = 'riser foot';
-  taps.forEach((t, i) => {
-    const above = taps.slice(i).reduce((a, x) => a + x.kva, 0);
-    push(`${prevName} → ${t.name}`, i === 0 ? 'concentrated' : 'distributed', t.h - prevH, i === 0 ? s.designA : I(above), t.name);
-    prevH = t.h; prevName = t.name;
-  });
+  for (const x of s.sections) {
+    cum += x.vdPct;
+    segments.push({ label: x.label, kind: x.kind, lengthM: x.lengthM, currentA: x.currentA, vdPct: x.vdPct, cumPct: cum, floor: x.floor, p: x.p, q: x.q });
+  }
   const first = taps[0]?.h ?? 0, last = taps[taps.length - 1]?.h ?? 0;
   const concentratedM = r.feedM + first, distributedM = last - first;
   const uniformTopPct = upstreamPct + vd(s.designA, concentratedM) + vd(s.designA, distributedM / 2);
