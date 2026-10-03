@@ -1054,3 +1054,11 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .dw-option .chip.primary{align-self:flex-start}
 .dw-preview{font-size:12px}
 .dw-hint{align-self:center;font-size:12px}
+
+/* Ribbon split button (Add board ▾) */
+.ribbon-split{position:relative;display:inline-flex;align-items:stretch}
+.ribbon-split > button:first-child{padding-right:4px}
+.ribbon-split-arrow{min-width:0 !important;padding:0 4px !important;font-size:11px;align-self:center;height:28px}
+.ribbon-split-menu{position:fixed;z-index:200;min-width:140px;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);padding:4px;display:grid}
+.ribbon-split-menu button{all:unset;cursor:pointer;padding:6px 10px;border-radius:5px;font-size:12.5px;white-space:nowrap}
+.ribbon-split-menu button:hover,.ribbon-split-menu button:focus-visible{background:color-mix(in srgb,var(--acc) 18%,transparent)}

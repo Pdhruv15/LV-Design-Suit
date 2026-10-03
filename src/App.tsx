@@ -90,7 +90,7 @@ import PreferencesDialog from './components/PreferencesDialog';
 import PanelTree from './components/PanelTree';
 import ProjectsDashboard from './components/ProjectsDashboard';
 import { NameDialog, UnsavedDialog } from './components/FileDialogs';
-import type { ProjectStatus } from './types';
+import type { BoardKind, ProjectStatus } from './types';
 type DiagramMode = 'system' | 'board';
 
 /** Pages that show network study results (they follow the last run). */
@@ -196,6 +196,7 @@ export default function App() {
   };
   const [showFeederForm, setShowFeederForm] = useState<'new' | 'edit' | null>(null);
   const [showBoardForm, setShowBoardForm] = useState(false);
+  const [boardPreset, setBoardPreset] = useState<{ kind: BoardKind; ratingA: number } | undefined>();
   const [diagramMode, setDiagramMode] = useState<DiagramMode>('system');
   const [panel, setPanel] = useState<'feeder' | 'board'>('board');
 
@@ -785,7 +786,7 @@ export default function App() {
           selection: panel === 'feeder' && selected ? { kind: 'feeder', id: selected } : board ? { kind: 'board', id: board.id } : null,
           transformerBoardId: mainOfSelected()?.id,
           onAddFeeder: openAddFeeder,
-          onAddBoard: () => setShowBoardForm(true),
+          onAddBoard: (preset) => { setBoardPreset(preset); setShowBoardForm(true); },
           onTransformer: openTransformer,
           onBoardProperties: () => { setView('design'); if (board) selectBoard(board.id); setBoardTab('general'); },
           onEditSelected: () => { setView('design'); if (panel === 'feeder' && selectedFeeder) setShowFeederForm('edit'); else if (board) setEditBoardId(board.id); },
@@ -823,7 +824,7 @@ export default function App() {
           onPick={pickBoard}
           onOpen={(id) => { setView('design'); selectBoard(id); }}
           menu={{
-            onAddBoard: (id) => { setActiveBoardId(id); setShowBoardForm(true); },
+            onAddBoard: (id) => { setActiveBoardId(id); setBoardPreset(undefined); setShowBoardForm(true); },
             onAddFeeder: (id) => { setActiveBoardId(id); openAddFeeder({}); },
             onProperties: (id) => { setView('design'); selectBoard(id); setBoardTab('general'); },
             onSchedule: (id) => { setActiveBoardId(id); setView('load-schedule'); },
@@ -1248,7 +1249,7 @@ export default function App() {
         />
       )}
       {showBoardForm && board && (
-        <BoardForm project={project} parentBoardId={board.id} onSave={addBoard} onClose={() => setShowBoardForm(false)} />
+        <BoardForm project={project} parentBoardId={board.id} preset={boardPreset} onSave={addBoard} onClose={() => { setShowBoardForm(false); setBoardPreset(undefined); }} />
       )}
     </div>
   );
