@@ -174,7 +174,9 @@ export default function QuickCalcs({ project }: { project: Project }) {
         </Card>
 
         <Card title="Power from current" onReset={resetB} formula={b.ph === '3' ? 'S = √3 · V · I;  P = S · PF;  Q = √(S² − P²)' : 'S = V · I;  P = S · PF;  Q = √(S² − P²)'}
-          result={<><Out main label="Apparent" value={fmt(bP.kva)} unit="kVA" /><Out label="Active" value={fmt(bP.kw)} unit="kW" /><Out label="Reactive" value={fmt(bP.kvar)} unit="kVAr" /></>}>
+          result={bP.invalid && Number.isFinite(num(b.i) ?? NaN) && Number.isFinite(num(b.v) ?? NaN)
+            ? <Warn>{bP.invalid}.</Warn>
+            : <><Out main label="Apparent" value={fmt(bP.kva)} unit="kVA" /><Out label="Active" value={fmt(bP.kw)} unit="kW" /><Out label="Reactive" value={fmt(bP.kvar)} unit="kVAr" /></>}>
           <Field label="Current" v={b} k="i" set={setB} unit="A" />
           <Pick label="Supply" value={b.ph} options={PHASES} onChange={(x) => { setB('ph', x); setB('v', phaseV(x, project)); }} />
           <Field label={b.ph === '3' ? 'Voltage (L-L)' : 'Voltage (L-N)'} v={b} k="v" set={setB} unit="V" />
@@ -182,9 +184,9 @@ export default function QuickCalcs({ project }: { project: Project }) {
         </Card>
 
         <Card title="kW ↔ kVA ↔ kVAr" onReset={resetC} formula="kVA² = kW² + kVAr²;  PF = kW ÷ kVA"
-          result={cT && Number.isFinite(cT.kva)
+          result={cT && !cT.invalid
             ? <><Out main label="kW" value={fmt(cT.kw)} /><Out main label="kVA" value={fmt(cT.kva)} /><Out label="kVAr" value={fmt(cT.kvar)} /><Out label="Power factor" value={fmt(cT.pf, 3)} /></>
-            : <Warn>Enter two values that fit together (kW ≤ kVA, PF 0–1).</Warn>}>
+            : <Warn>{cT?.invalid ? `${cT.invalid}. ` : ''}Enter two values that fit together (kW ≤ kVA, kVAr ≤ kVA, PF 0–1).</Warn>}>
           <Pick label="You know" value={c.known} options={[['kw-pf', 'kW and PF'], ['kva-pf', 'kVA and PF'], ['kw-kva', 'kW and kVA'], ['kw-kvar', 'kW and kVAr'], ['kva-kvar', 'kVA and kVAr']]} onChange={(x) => setC('known', x)} />
           <Field label={cx} v={c} k="x" set={setC} />
           <Field label={cy} v={c} k="y" set={setC} width={70} />
