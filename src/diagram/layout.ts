@@ -52,8 +52,11 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
   const rootY = ROOT_BUS_Y + extraY;
   const levelH = LEVEL_H + extraY;
   const byId = new Map(project.boards.map((b) => [b.id, b]));
-  const scheduled = (boardId: string) => project.feeders.filter((f) => f.boardId === boardId && isScheduleCircuit(f));
-  const children = (boardId: string) => project.feeders.filter((f) => f.boardId === boardId && !isScheduleCircuit(f));
+  // Feeders of each board, split once (the layout asks for them many times).
+  const sched = new Map<string, Feeder[]>(), kids = new Map<string, Feeder[]>();
+  for (const f of project.feeders) { const m = isScheduleCircuit(f) ? sched : kids; (m.get(f.boardId) ?? m.set(f.boardId, []).get(f.boardId)!).push(f); }
+  const scheduled = (boardId: string) => sched.get(boardId) ?? [];
+  const children = (boardId: string) => kids.get(boardId) ?? [];
   const subBoard = (f: Feeder) => (f.feedsBoardId ? byId.get(f.feedsBoardId) : undefined);
 
   const unitsCache = new Map<string, number>();

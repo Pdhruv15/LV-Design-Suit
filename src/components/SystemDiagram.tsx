@@ -1,3 +1,4 @@
+import { withNetwork } from '../calc/network';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { STATUS_TEXT } from '../calc/statusText';
 import { componentLabel } from '../model/components';
@@ -92,6 +93,7 @@ export default function SystemDiagram({
   onFixFeeder,
   arrows,
   fromSheet,
+  cull = false,
   onEditFeeder,
   onEditBoard,
   onOpenSchedule,
@@ -140,6 +142,9 @@ export default function SystemDiagram({
   arrows?: { target: string; text: string; dir: 'ne' | 'nw' | 'se' | 'sw'; len?: number }[];
   /** Drawing sheets: the sheet number of the board feeding each panel drawn from another sheet. */
   fromSheet?: Record<string, string>;
+  /** Draw only the boards and circuits in view (plus a margin) — for the interactive SLD on large
+   * projects. Exports and sheets leave it off so everything is drawn. */
+  cull?: boolean;
   onEditFeeder?: (id: string) => void;
   onEditBoard?: (id: string) => void;
   /** Opens a DB's load schedule (double-click on the DB's circuit summary). */
@@ -230,15 +235,19 @@ export default function SystemDiagram({
   // Way numbers along each busbar (DEWA style).
   const wayNo = useMemo(() => { const m = new Map<string, number>(), c = new Map<string, number>(); for (const n of [...layout.feeders].sort((a, b) => a.x - b.x)) { const k = (c.get(n.feeder.boardId) ?? 0) + 1; c.set(n.feeder.boardId, k); m.set(n.feeder.id, k); } return m; }, [layout]);
   const byFeeder = useMemo(() => new Map(results.map((r) => [r.feeder.id, r])), [results]);
+  const feedersOn = useMemo(() => { const m = new Map<string, Feeder[]>(); for (const f of project.feeders) (m.get(f.boardId) ?? m.set(f.boardId, []).get(f.boardId)!).push(f); return m; }, [project.feeders]);
   // Board loading and voltage come from the network that is running: the
   // generator scenario in generator mode.
   const running = scenario?.project ?? calcProject ?? project;
-  const summaries = useMemo(
-    () => new Map(project.boards.map((b) => {
-      const src = scenario?.project ?? calcProject ?? project;
-      const calc = src.boards.find((x) => x.id === b.id);
-      return [b.id, calc ? boardSummary(src, calc) : boardSummary(project, b)];
-    })),
+  // One network index for all the panel summaries (totals, fault level, voltage reuse the same walks).
+  const summaries = useMemo(() => {
+    const src = scenario?.project ?? calcProject ?? project;
+    const srcById = new Map(src.boards.map((x) => [x.id, x]));
+    return withNetwork(src, () => new Map(project.boards.map((b) => {
+      const calc = srcById.get(b.id);
+      return [b.id, calc ? boardSummary(src, calc) : withNetwork(project, () => boardSummary(project, b))];
+    })));
+  },
     [project, calcProject, scenario]
   );
   const off = (boardId: string) => !!scenario && !scenario.energized.has(boardId);
@@ -268,6 +277,8 @@ export default function SystemDiagram({
   const H = Math.max(layout.height, legend.length ? 80 + legend.length * LEGEND_ROW : 0);
   const full: ViewBox = { x: 0, y: 0, w: W, h: H };
   const [vb, setVb] = useState<ViewBox>(full);
+  // Visible span (drawing units) with a margin of half a screen each side, so panning shows no gaps.
+  const viewX1 = vb.x - Math.max(vb.w * 0.5, 400), viewX2 = vb.x + vb.w * 1.5 + 400;
   // Hover card: a circuit's or panel's results, with quick fixes for a failing circuit.
   const [card, setCard] = useState<{ kind: 'board' | 'feeder'; id: string; x: number; y: number } | null>(null);
   const hideCard = useRef<ReturnType<typeof setTimeout>>();
@@ -691,6 +702,7 @@ export default function SystemDiagram({
 
         {/* Feeders: breaker, cable, then a load or a drop to a sub-board */}
         {layout.feeders.map((n) => {
+          if (cull && (n.x < viewX1 || n.x > viewX2)) return null;
           const f = n.feeder;
           const r = byFeeder.get(f.id);
           const status = r?.status ?? 'ok';
@@ -823,9 +835,10 @@ export default function SystemDiagram({
 
         {/* Boards: box on the incoming line, then the busbar */}
         {layout.boards.map((n) => {
+          if (cull && (n.busX2 < viewX1 || n.busX1 > viewX2)) return null;
           const b = n.board;
           const s = summaries.get(b.id)!;
-          const status = worst([s.loadingStatus, ...project.feeders.filter((f) => f.boardId === b.id).map((f) => byFeeder.get(f.id)?.status)]);
+          const status = worst([s.loadingStatus, ...(feedersOn.get(b.id) ?? []).map((f) => byFeeder.get(f.id)?.status)]);
           const sel = b.id === selectedBoardId;
           const kw = n.circuits.reduce((sum, f) => sum + f.loadKw * f.demandFactor, 0);
           const ph = boardPhaseKw({ ...project, feeders: n.circuits }, b.id);
