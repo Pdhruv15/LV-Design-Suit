@@ -5,7 +5,7 @@ import type { CalcRun } from '../../calc/runs';
 import { evaluateProject } from '../../calc/electrical';
 import { buildAnnotations, SHEET_LAYERS } from '../../diagram/annotations';
 import { printableSvg } from '../../diagram/exportSvg';
-import { autoSize, drawable, LEGEND_RESERVE_MM, MIN_MM_PER_PX, registerHtml, scaleOn, sheetProject, sheetRev, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
+import { autoSize, drawable, LEGEND_RESERVE_MM, MIN_MM_PER_PX, fromSheetLabels, registerHtml, scaleOn, sheetProject, sheetRev, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
 import { buildSldSheetHtml, type SheetInfo } from '../../docs/sldSheet';
 import { buildSheetDxf } from '../../docs/sheetDxf';
 import { buildRegisterWorkbook } from '../../docs/registerWorkbook';
@@ -58,7 +58,7 @@ export async function renderSheet(project: Project, set: DrawingSet, s: DrawingS
     const onSheet = new Set(drawing.feeders.map((f) => f.id));
     const results = full.filter((r) => onSheet.has(r.feeder.id));
     flushSync(() => root.render(
-      <SystemDiagram project={drawing} calcProject={drawing} results={results} annotations={buildAnnotations(project, full)} layers={s.tags ?? set.tags ?? SHEET_LAYERS} cableRefs={cableRefs} hideLegend clouds={s.clouds} arrows={s.arrows}
+      <SystemDiagram project={drawing} calcProject={drawing} results={results} annotations={buildAnnotations(project, full)} layers={s.tags ?? set.tags ?? SHEET_LAYERS} cableRefs={cableRefs} hideLegend clouds={s.clouds} arrows={s.arrows} fromSheet={fromSheetLabels(project, set, s)}
         selectedFeederId={null} selectedBoardId={null} onSelectFeeder={noop} onSelectBoard={noop} />
     ));
     await new Promise((r) => requestAnimationFrame(() => r(null)));

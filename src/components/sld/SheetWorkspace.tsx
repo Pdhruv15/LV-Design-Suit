@@ -7,7 +7,8 @@ import { subtree } from '../../calc/pfc';
 import { evaluateProject } from '../../calc/electrical';
 import {
   addRiserSheet, addSheet, applyTemplate, drawable, issueSheets, loadSheetTemplates, nextRev, renumber, saveSheetTemplates, setOf, SHEET_STATUSES, sheetChecks, sheetHash, sheetRev, sheetsByCount, SIZES, statusColor, templateFromSheet,
-  type DrawingSet, type DrawingSheet, type SheetCheck, type SheetSize
+  type DrawingSet, type DrawingSheet, type SheetCheck, type SheetSize,
+  sheetRefs, type SheetRef
 } from '../../model/drawingSet';
 import { currentRevision } from '../../model/revisions';
 import { SHEET_MM } from '../../docs/sldSheet';
@@ -165,6 +166,16 @@ export function SheetWorkspace({ project, run, sheetId, design, onChange, onStat
         <b>{s.number}</b> <span className="m">{s.title}</span>
         {page && <span className="chip-lite">{page.size}{page.refs ? ' · cable numbers' : ''}{!page.fits ? ' · crowded' : ''}</span>}
         {busy && <span className="m">Updating…</span>}
+        {(() => {
+          const { outgoing, incoming } = sheetRefs(project, set, s);
+          const chip = (r: SheetRef, dir: 'From' | 'To') => (
+            <button key={`${dir}-${r.boardId}-${r.feederId ?? ''}`} className={`chip${r.sheet ? '' : ' bad-btn'}`} disabled={!r.sheet || r.sheet.id === s.id}
+              title={r.sheet ? `Open ${r.sheet.number} — ${r.sheet.title}` : `${r.boardId} is on no sheet — add it to a sheet`} onClick={() => r.sheet && onActive(r.sheet.id)}>
+              {dir === 'From' ? '←' : '→'} {dir} {r.boardId}{r.sheet ? ` · ${r.sheet.number}` : ' · no sheet'}
+            </button>
+          );
+          return incoming.length + outgoing.length ? <span className="sheet-refs">{incoming.map((r) => chip(r, 'From'))}{outgoing.map((r) => chip(r, 'To'))}</span> : null;
+        })()}
         <span className="sp" />
         <button className="icon-btn" title="Zoom out" onClick={() => setZoom(Math.max(0.15, (zoom === 'fit' ? fit : zoom) / 1.25))}>−</button>
         <button className="chip" onClick={() => setZoom('fit')}>{zoom === 'fit' ? 'Fit' : `${Math.round(scale * 100)} %`}</button>

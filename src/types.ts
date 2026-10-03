@@ -485,7 +485,7 @@ export interface DmSubstationRoom {
 }
 
 /** A submission report for chosen studies on chosen boards. */
-export type StudyReportKind = 'sc' | 'lf' | 'cable' | 'earth' | 'disc' | 'sizing' | 'pfc' | 'busbar' | 'schedules';
+export type StudyReportKind = 'sc' | 'lf' | 'cable' | 'earth' | 'disc' | 'phase' | 'sizing' | 'pfc' | 'busbar' | 'schedules';
 
 export interface StudyReportSetup {
   boards: string[]; // selected boards

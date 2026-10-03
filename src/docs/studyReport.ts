@@ -5,6 +5,7 @@ import { STATUS_TEXT, statusOfText } from '../calc/statusText';
 import type { FeederResult, Status } from '../calc/electrical';
 import { cableSizeText } from '../calc/electrical';
 import type { EarthingResult } from '../calc/earthing';
+import { phaseBalance, PHASE_UNBALANCE_CHECK_PCT } from '../calc/phaseBalance';
 import { breakerTypeOf, cpcOf, disconnectionLabel, loopFigures } from '../calc/earthing';
 import type { SelectivityResult } from '../calc/protection';
 import { isScheduleCircuit } from '../calc/loadSchedule';
@@ -51,6 +52,7 @@ export const STUDIES: StudyInfo[] = [
   { key: 'earth', label: 'Earth fault loop', title: 'Earth fault loop impedance and disconnection', description: 'Zs, earth fault current, disconnection time and protective conductor size',
     sld: { layers: NO_LAYERS, colorBy: 'earth', note: 'Zs against the largest Zs that disconnects in time' } },
   { key: 'disc', label: 'Discrimination', title: 'Protection discrimination study', description: 'Selectivity between each breaker and the one above it', sld: undefined },
+  { key: 'phase', label: 'Phase balance', title: 'Phase balance', description: 'Demand current on R / Y / B at every board, estimated neutral current and current unbalance; single-phase circuits without a phase flagged', sld: undefined },
   { key: 'sizing', label: 'Transformer & generator', title: 'Transformer and standby generator sizing', description: 'Transformer per main board (size, loading, fault level, main breaker) and the standby generator from the boards on it', sld: undefined },
   { key: 'busbar', label: 'Busbar risers', title: 'Busbar trunking risers', description: 'Busway rating (copper / aluminium), conductor area, voltage drop per floor, short-circuit withstand, size and weight (tables only)', sld: undefined },
   { key: 'pfc', label: 'Power factor correction', title: 'Power factor correction', description: 'Capacitor banks as planned (central / group / individual): kvar, steps, detuning, breaker and cable, PF before and after', sld: undefined },
@@ -253,6 +255,28 @@ export function buildSection(key: StudyReportKind, data: CalcData, scope: Scope)
         title: 'Earth fault loop', headers: ['Circuit', 'Board', 'Breaker', 'CPC (mm²)', 'Zs (Ω)', 'Max Zs (Ω)', 'If (A)', 'Ia (A)', 'Required (s)', 'Disconnection', 'CPC min, each (mm²)', 'Result'],
         rows: es.map((e) => [tag(e.feeder), e.feeder.boardId, `${e.feeder.breakerRatingA} A ${breakerTypeOf(e.feeder)}`, e.cpcMm2, loopFigures(e).zs, n(e.maxZsOhm, 4), loopFigures(e).fault, n(e.tripA, 0), `${e.requiredS}${e.requiredBasis.startsWith('Project rule') ? ' (project rule)' : ''}${e.basisSupported ? '' : ' (not verified)'}`,
           { v: disconnectionLabel(e), s: e.disconnection }, { v: `${n(e.adiabaticMinMm2, 1)}${e.runs > 1 ? ` (${e.runs} runs, ${n(e.cpcCurrentA, 0)} A each${e.adiabatic === 'warn' ? ', assumed sharing' : ''})` : ''}`, s: e.adiabatic }, S(e.status)])
+      }]
+    };
+  }
+
+  if (key === 'phase') {
+    const pb = scope.boards.map((b) => phaseBalance(p, b.id));
+    const statuses = pb.map((x) => x.status);
+    const unassigned = [...new Map(pb.flatMap((x) => x.unassigned).map((f) => [f.id, f])).values()];
+    return {
+      key, title: info.title, statuses,
+      method: [
+        'Demand kW and kvar per phase (each load\'s demand factor and power factor), downstream boards included: single-phase circuits on their labelled phase R / Y / B; 3-phase loads spread evenly.',
+        `Phase current I = S ÷ U0 at nominal voltage (U0 = ${n(p.voltageV / Math.sqrt(3), 0)} V). Neutral current = phasor sum of the three phase currents, phases 120° apart, at fundamental frequency — triplen harmonics (e.g. from LED drivers and IT loads) add to the neutral and are not included.`,
+        `Current unbalance = largest deviation from the average phase current ÷ the average. Flagged above ${PHASE_UNBALANCE_CHECK_PCT} % (app default, not a standard's limit).`,
+        'Limits of this check: demand-based at nominal voltage — not an unbalanced load flow; no voltage unbalance, no neutral voltage, no phase-specific voltage drop. Single-phase circuits with no phase set are spread evenly, which hides their unbalance; they are listed.'
+      ],
+      summary: [{ label: 'Boards checked', value: tally(statuses), status: worst(statuses) },
+        ...(unassigned.length ? [{ label: 'Single-phase circuits without a phase', value: `${unassigned.length} (${unassigned.slice(0, 8).map((f) => f.id).join(', ')}${unassigned.length > 8 ? ' …' : ''}) — spread evenly, unbalance may be understated`, status: 'warn' as const }] : [])],
+      tables: [{
+        title: 'Phase balance at each board (demand)', headers: ['Board', 'R (A)', 'Y (A)', 'B (A)', 'R / Y / B (kW)', 'Neutral (A)', 'Unbalance', 'No phase set', 'Result'],
+        rows: pb.map((x) => [x.boardId, n(x.currentA.R, 1), n(x.currentA.Y, 1), n(x.currentA.B, 1), `${n(x.kw.R, 1)} / ${n(x.kw.Y, 1)} / ${n(x.kw.B, 1)}`, n(x.neutralA, 1),
+          { v: `${n(x.unbalancePct, 1)} %`, s: x.unbalancePct > PHASE_UNBALANCE_CHECK_PCT + 1e-9 ? 'warn' : 'ok' }, x.unassigned.length ? { v: x.unassigned.length, s: 'warn' } : 0, S(x.status)])
       }]
     };
   }
