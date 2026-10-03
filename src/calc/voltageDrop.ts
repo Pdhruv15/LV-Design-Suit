@@ -78,6 +78,7 @@ export function vdRow(project: Project, f: Feeder): VdRow {
   const upstreamPct = upstreamVoltageDropPct(project, f.boardId);
   const totalPct = upstreamPct + vdPct;
   const limitPct = project.vdLimitPct;
+  const startPct = isMotor(f) ? upstreamPct + vdPct * starterInfo(starterOf(f)).multiple : undefined;
   return {
     feeder: f,
     from,
@@ -95,11 +96,12 @@ export function vdRow(project: Project, f: Feeder): VdRow {
     upstreamPct,
     totalPct,
     limitPct,
-    status: totalPct > limitPct ? 'bad' : totalPct > limitPct * 0.85 ? 'warn' : 'ok',
+    // A motor whose drop while starting exceeds its limit fails, even when the running drop is fine.
+    status: totalPct > limitPct || (startPct !== undefined && startPct > motorStartVdLimit()) ? 'bad' : totalPct > limitPct * 0.85 ? 'warn' : 'ok',
     rOhmPerKm,
     xOhmPerKm,
     finalCircuit: isScheduleCircuit(f) || undefined,
-    startPct: isMotor(f) ? upstreamPct + vdPct * starterInfo(starterOf(f)).multiple : undefined
+    startPct
   };
 }
 

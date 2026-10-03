@@ -4,23 +4,27 @@ import { cableSizeText } from '../calc/electrical';
 import { esc, REPORT_CSS } from './report';
 import type { Project } from '../types';
 import type { RiserVd } from '../calc/busbar';
+import { motorStartVdLimit } from '../calc/voltageDrop';
 import { resistanceFactor } from '../calc/electrical';
 
 export const VD_HEADERS = [
   'Ref', 'From panel', 'To', 'Type', 'Load (kW)', 'PF', 'Ib (A)', 'Phase', 'Cable (Cu)', 'Length (m)',
-  'mV/A/m', 'Vd (V)', 'Vd (%)', 'Upstream (%)', 'Total Vd (%)', 'Limit (%)', 'Result', 'Remarks'
+  'mV/A/m', 'Vd (V)', 'Vd (%)', 'Upstream (%)', 'Total Vd (%)', 'Limit (%)', 'Motor start (%)', 'Result', 'Remarks'
 ];
 
 const n = (v: number, d: number) => v.toFixed(d);
 
 export const cableText = (r: VdRow) => cableSizeText(r.feeder);
 
+/** Motors: drop while starting against its own limit, e.g. "11.6 / 10 — exceeds". */
+export const startText = (r: VdRow) => (r.startPct === undefined ? '' : `${n(r.startPct, 1)} / ${motorStartVdLimit()}${r.startPct > motorStartVdLimit() ? ' — exceeds' : ''}`);
+
 /** One row of the table as text, in VD_HEADERS order. */
 export function vdCells(r: VdRow): string[] {
   return [
     r.feeder.id, r.from.id, r.toName, r.toType, n(r.loadKw, 1), n(r.pf, 2), n(r.ib, 1), r.threePhase ? '3-ph' : '1-ph',
     cableText(r), n(r.feeder.lengthM, 0), n(r.mvPerAm, 3), n(r.vdV, 2), n(r.vdPct, 2), n(r.upstreamPct, 2),
-    n(r.totalPct, 2), n(r.limitPct, 1), STATUS_TEXT[r.status], r.feeder.remarks ?? ''
+    n(r.totalPct, 2), n(r.limitPct, 1), startText(r), STATUS_TEXT[r.status], r.feeder.remarks ?? ''
   ];
 }
 
@@ -59,9 +63,9 @@ export function buildVdReportHtml(project: Project, rows: VdRow[], scope: string
 ${body || '<p class="note">No cables selected.</p>'}
 ${risers.map((v) => `<h2>Busbar riser ${esc(v.riser.name)} — from ${esc(v.riser.sourceBoardId ?? '—')}</h2>
 <p class="sub">Design current ${v.designA.toFixed(0)} A · z = ${(v.zOhmPerM * 1000).toFixed(3)} mΩ/m · concentrated length ${v.concentratedM.toFixed(1)} m (full current) · distributed length ${v.distributedM.toFixed(1)} m · upstream ${v.upstreamPct.toFixed(2)} %<br>
-Top tap-off: floor by floor <b class="${v.status}">${v.exactTopPct.toFixed(2)} %</b> · uniformly distributed load check ΔV = √3 · I · z · (Lc + Ld/2): ${v.uniformTopPct.toFixed(2)} %</p>
+${v.noType ? `<b class="bad">Not calculated — no busbar size in the data carries ${v.designA.toFixed(0)} A. ${STATUS_TEXT.bad}.</b>` : `Top tap-off: floor by floor <b class="${v.status}">${v.exactTopPct.toFixed(2)} %</b> · uniformly distributed load check ΔV = √3 · I · z · (Lc + Ld/2): ${v.uniformTopPct.toFixed(2)} %`}</p>
 <table><thead><tr><th>Section</th><th>Part</th><th>Length (m)</th><th>Current (A)</th><th>Vd (%)</th><th>Total at end (%)</th><th>Result</th></tr></thead><tbody>
-${v.segments.map((g) => { const st = g.cumPct > v.limitPct ? 'bad' : g.cumPct > v.limitPct * 0.85 ? 'warn' : 'ok'; return `<tr><td>${esc(g.label)}</td><td>${g.kind}</td><td>${g.lengthM.toFixed(1)}</td><td>${g.currentA.toFixed(0)}</td><td>${g.vdPct.toFixed(3)}</td><td>${g.cumPct.toFixed(2)}</td><td class="${st}">${STATUS_TEXT[st]}</td></tr>`; }).join('')}
+${v.noType ? '' : v.segments.map((g) => { const st = g.cumPct > v.limitPct ? 'bad' : g.cumPct > v.limitPct * 0.85 ? 'warn' : 'ok'; return `<tr><td>${esc(g.label)}</td><td>${g.kind}</td><td>${g.lengthM.toFixed(1)}</td><td>${g.currentA.toFixed(0)}</td><td>${g.vdPct.toFixed(3)}</td><td>${g.cumPct.toFixed(2)}</td><td class="${st}">${STATUS_TEXT[st]}</td></tr>`; }).join('')}
 </tbody></table>`).join('')}
 </body></html>`;
 }
