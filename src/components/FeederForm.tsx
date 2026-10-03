@@ -15,7 +15,7 @@ function libraryLoadType(item: LibraryLoad): LoadType | undefined {
   return item.category ? 'general' : undefined;
 }
 import { cables } from '../calc/cableTable';
-import { designCurrentA, selectCable, upstreamVoltageDropPct, voltageDropPct } from '../calc/electrical';
+import { designCurrentA, incomerBasis, selectCable, upstreamVoltageDropPct, vdEvaluator, voltageDropPct } from '../calc/electrical';
 
 type FeederTab = 'general' | 'cable' | 'protection' | 'metering';
 const FEEDER_TABS: [FeederTab, string][] = [['general', 'General & load'], ['cable', 'Cable'], ['protection', 'Protection'], ['metering', 'Metering']];
@@ -76,7 +76,7 @@ export default function FeederForm({
     const ib = designCurrentA(f, project);
     const upstream = upstreamVoltageDropPct(project, f.boardId);
     const budget = project.vdLimitPct - upstream;
-    const size = selectCable(ib, f.lengthM, project.voltageV, f.cores, f.powerFactor, project.ambientC, budget, f.breakerRatingA, project.vdTempC);
+    const size = selectCable(ib, f.lengthM, project.voltageV, f.cores, f.powerFactor, project.ambientC, budget, f.breakerRatingA, project.vdTempC, vdEvaluator(f, project));
     const budgetNote = upstream > 0 ? ` (${upstream.toFixed(2)}% already used upstream, ${budget.toFixed(2)}% left)` : '';
     if (size) {
       set('cableCsaMm2', size);
@@ -154,7 +154,9 @@ export default function FeederForm({
             <label>Connected load (kW)<input type="number" step="0.1" value={f.loadKw} onChange={(e) => set('loadKw', +e.target.value)} /></label>
           )}
           <label>Demand factor<input type="number" step="0.01" min="0" max="1" value={f.demandFactor} onChange={(e) => set('demandFactor', +e.target.value)} /></label>
-          <label>Power factor<input type="number" step="0.01" min="0" max="1" value={f.powerFactor} onChange={(e) => set('powerFactor', +e.target.value)} /></label>
+          {f.feedsBoardId && project.boards.some((b) => b.id === f.feedsBoardId)
+            ? <label title="An incomer's PF comes from the loads below it (P and Q per phase); the stored value is not used">Power factor<input value={`${incomerBasis(f, project).current.pf.toFixed(3)} (from the loads below)`} readOnly /></label>
+            : <label>Power factor<input type="number" step="0.01" min="0" max="1" value={f.powerFactor} onChange={(e) => set('powerFactor', +e.target.value)} /></label>}
           {(f.loadType === 'motor' || f.loadType === 'fire-pump') && (
             <label>Motor starter
               <select value={f.starter ?? 'DOL'} onChange={(e) => set('starter', e.target.value as Feeder['starter'])}>

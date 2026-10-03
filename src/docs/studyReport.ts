@@ -14,6 +14,7 @@ import { planPfc, pfcPlanOf, STRATEGY_LABEL } from '../calc/pfc';
 import { sizeGeneratorByBoards, sizeTransformers, txGenPlanOf, type TxRow } from '../calc/txGen';
 import { MATERIAL_LABEL, sizeRiser } from '../calc/busbar';
 import { motorStartVdLimit, vdRow, type VdRow } from '../calc/voltageDrop';
+import { incomerBasis } from '../calc/electrical';
 import { GENERATOR_XD_TRANSIENT_PCT, MOTOR_START_DIP_LIMIT_PCT } from '../calc/motor';
 import type { ResultLayers } from '../diagram/annotations';
 import type { ColorBy } from '../diagram/heatmap';
@@ -204,7 +205,7 @@ export function buildSection(key: StudyReportKind, data: CalcData, scope: Scope)
         { title: 'Busbars', headers: ['Board', 'Connected (kW)', 'Demand (kW)', 'Demand (kVA)', 'PF', 'Current (A)', 'Rating (A)', 'Loading', 'Voltage (V)', '% of nominal'],
           rows: sums.map((s) => [s.board.id, n(s.connectedKw, 1), n(s.demandKw, 1), n(s.demandKva, 1), n(s.powerFactor, 2), n(s.currentA, 0), s.board.ratedCurrentA ?? '—', s.loadingPct === undefined ? '—' : { v: `${n(s.loadingPct, 0)} %`, s: s.loadingStatus ?? 'ok' }, n(s.voltageV, 1), n(s.voltagePct, 2)]) },
         { title: 'Feeders', headers: ['Circuit', 'From', 'To', 'Cable', 'Length (m)', 'Ib (A)', 'PF', 'ΔV cable (%)', 'ΔV total (%)', 'Result'],
-          rows: rs.map((r) => [tag(r.feeder), r.feeder.boardId, to(r.feeder), cableSizeText(r.feeder), r.feeder.lengthM, n(r.ib, 1), r.feeder.feedsBoardId ? '—' : n(r.feeder.powerFactor, 2), n(r.vdPct, 2), n(r.vdTotalPct, 2), S(r.vdStatus)]) },
+          rows: rs.map((r) => [tag(r.feeder), r.feeder.boardId, to(r.feeder), cableSizeText(r.feeder), r.feeder.lengthM, n(r.ib, 1), r.feeder.feedsBoardId ? n(incomerBasis(r.feeder, p).current.pf, 2) : n(r.feeder.powerFactor, 2), n(r.vdPct, 2), n(r.vdTotalPct, 2), S(r.vdStatus)]) },
         ...(starts.length ? [{ title: `Motor starting — limit ${motorStartVdLimit()} % source to motor`, headers: ['Circuit', 'From', 'Motor', 'Running ΔV total (%)', 'Starting ΔV total (%)', 'Limit (%)', 'Result'],
           rows: starts.map((r) => [tag(r.feeder), r.from.id, r.toType, n(r.totalPct, 2), n(r.startPct!, 1), motorStartVdLimit(), S(startStatus(r))]) }] : [])
       ]

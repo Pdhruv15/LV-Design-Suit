@@ -99,6 +99,35 @@ export function dominantLoadType(f: Feeder, board: Board | undefined): LoadType 
   }
 }
 
+/** Demand real and reactive power (kW, kvar) on each phase of a board, including everything
+ * downstream (ENG-005). Each load's demand factor is applied once and its kvar comes from its own
+ * PF; capacitor banks give negative kvar; incomers add the board they feed (their own loadKw / PF
+ * are placeholders, not loads). Phase allocation as boardPhaseKw: labelled single-phase circuits
+ * on their phase, three-phase and older unlabelled single-phase feeders spread evenly. Generation
+ * and standby units are treated exactly as boardPhaseKw treats them (counted like loads). */
+export type PhasePQ = Record<'R' | 'Y' | 'B', { p: number; q: number }>;
+export function boardPhasePQ(project: Project, boardId: string, seen = new Set<string>()): PhasePQ {
+  const out: PhasePQ = { R: { p: 0, q: 0 }, Y: { p: 0, q: 0 }, B: { p: 0, q: 0 } };
+  if (seen.has(boardId)) return out;
+  seen.add(boardId);
+  const put = (f: Feeder, p: number, q: number) => {
+    if (f.cores === 2 && f.phase && f.phase !== 'RYB') { out[f.phase].p += p; out[f.phase].q += q; return; }
+    for (const ph of ['R', 'Y', 'B'] as const) { out[ph].p += p / 3; out[ph].q += q / 3; }
+  };
+  for (const f of project.feeders.filter((x) => x.boardId === boardId)) {
+    if (f.feedsBoardId) {
+      const sub = boardPhasePQ(project, f.feedsBoardId, seen);
+      for (const ph of ['R', 'Y', 'B'] as const) { out[ph].p += sub[ph].p; out[ph].q += sub[ph].q; }
+      continue;
+    }
+    if (f.kvar) { put(f, f.loadKw * f.demandFactor, -f.kvar); continue; }
+    const kw = f.loadKw * f.demandFactor;
+    const pf = Math.min(Math.max(f.powerFactor, 0.01), 1);
+    put(f, kw, kw * Math.tan(Math.acos(pf)));
+  }
+  return out;
+}
+
 /** Demand kW on each phase of a board, including everything downstream.
  * Single-phase circuits load their own phase; 3-phase circuits, and older
  * single-phase feeders with no phase set, are spread evenly. */

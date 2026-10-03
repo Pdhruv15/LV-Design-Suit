@@ -24,7 +24,7 @@ export function vdCells(r: VdRow): string[] {
   return [
     r.feeder.id, r.from.id, r.toName, r.toType, n(r.loadKw, 1), n(r.pf, 2), n(r.ib, 1), r.threePhase ? '3-ph' : '1-ph',
     cableText(r), n(r.feeder.lengthM, 0), n(r.mvPerAm, 3), n(r.vdV, 2), n(r.vdPct, 2), n(r.upstreamPct, 2),
-    n(r.totalPct, 2), n(r.limitPct, 1), startText(r), STATUS_TEXT[r.status], r.feeder.remarks ?? ''
+    n(r.totalPct, 2), n(r.limitPct, 1), startText(r), STATUS_TEXT[r.status], [r.vdBasis && r.vdBasis.phase !== r.vdBasis.currentPhase ? `Vd on phase ${r.vdBasis.phase}: ${n(r.vdBasis.a, 1)} A at PF ${n(r.vdBasis.pf, 3)}${r.vdBasis.leading ? ' leading' : ''} (Ib on ${r.vdBasis.currentPhase})` : '', r.feeder.remarks ?? ''].filter(Boolean).join('; ')
   ];
 }
 

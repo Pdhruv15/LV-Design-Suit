@@ -1,7 +1,7 @@
 import { ambientCorrectionFactor, cables, getCable } from './cableTable';
 import { trayGrouping } from './cableTray';
 import type { Board, Feeder, Project } from '../types';
-import { boardPhaseKw } from './loadSchedule';
+import { boardPhasePQ, type PhasePQ } from './loadSchedule';
 
 const SQRT3 = Math.sqrt(3);
 
@@ -60,17 +60,58 @@ export function boardDemandKw(project: Project, boardId: string): number {
  * phase: I = max(P_phase) ÷ (U0 · cos φ), which equals the balanced 3-phase
  * formula when the board's phases are balanced. */
 export function designCurrentA(feeder: Feeder, project: Project): number {
+  if (feeder.feedsBoardId) return incomerBasis(feeder, project).current.a;
   const u0 = project.voltageV / SQRT3;
-  if (feeder.feedsBoardId) {
-    const p = boardPhaseKw(project, feeder.feedsBoardId);
-    return (Math.max(p.R, p.Y, p.B) * 1000) / (u0 * feeder.powerFactor);
-  }
   // Capacitor bank: I = Q ÷ (√3 · U), from its kvar rating.
   if (feeder.kvar) return (feeder.kvar * 1000) / (SQRT3 * project.voltageV);
   const demandKw = feeder.loadKw * feeder.demandFactor;
   return feeder.cores >= 3
     ? (demandKw * 1000) / (SQRT3 * project.voltageV * feeder.powerFactor)
     : (demandKw * 1000) / (u0 * feeder.powerFactor);
+}
+
+/** One phase's current and power factor (sin φ signed: negative when the phase is capacitive). */
+export interface PhaseBasis { phase: 'R' | 'Y' | 'B'; a: number; pf: number; sin: number; p: number; q: number }
+
+/** An incomer's electrical basis, from the downstream board's real and reactive power per phase
+ * (ENG-005) — not from the incomer's stored PF. Current: the phase with the largest apparent
+ * power, I = S_phase ÷ U0. Voltage drop: the phase with the largest first-order conductor drop
+ * L × (R·P + X·Q) ÷ (U0 · runs), chosen on its own (it can differ from the current phase).
+ * This is a phase-conductor approximation, not a neutral-displacement / unbalanced load flow. */
+export function incomerBasis(feeder: Feeder, project: Project, csaMm2 = feeder.cableCsaMm2, runs = runsOf(feeder)): { phases: PhasePQ; current: PhaseBasis; vd: PhaseBasis & { pct: number }; totalP: number; totalQ: number } {
+  const u0 = project.voltageV / SQRT3;
+  const phases = boardPhasePQ(project, feeder.feedsBoardId!);
+  const basis = (ph: 'R' | 'Y' | 'B'): PhaseBasis => {
+    const { p, q } = phases[ph];
+    const s = Math.hypot(p, q);
+    return { phase: ph, a: (s * 1000) / u0, pf: s > 0 ? p / s : 1, sin: s > 0 ? q / s : 0, p, q };
+  };
+  const all = (['R', 'Y', 'B'] as const).map(basis);
+  const current = all.reduce((m, x) => (x.a > m.a ? x : m), all[0]);
+  const r = rOperatingOhmPerKm(csaMm2, project.vdTempC), x = getCable(csaMm2).xOhmPerKm;
+  let vd: PhaseBasis & { pct: number };
+  if (feeder.cores >= 3) {
+    // Each phase conductor: ΔV = L × (R·Ip + X·Iq) ÷ runs, against U0 (equals √3·I·Z ÷ U when balanced).
+    const pct = (b: PhaseBasis) => ((feeder.lengthM / 1000) * (r * (b.p * 1000) / u0 + x * (b.q * 1000) / u0) / runs / u0) * 100;
+    vd = all.map((b) => ({ ...b, pct: pct(b) })).reduce((m, b) => (b.pct > m.pct ? b : m));
+  } else {
+    // Single-phase supply: the phase + neutral loop (2·I·Z) against U0, on the current phase.
+    vd = { ...current, pct: ((2 * current.a * (feeder.lengthM / 1000) * (r * current.pf + x * current.sin)) / runs / u0) * 100 };
+  }
+  const totalP = all.reduce((a, b) => a + b.p, 0), totalQ = all.reduce((a, b) => a + b.q, 0);
+  return { phases, current, vd, totalP, totalQ };
+}
+
+/** The voltage-drop evaluator for cable selection: an incomer's downstream P / Q basis; undefined for
+ * other feeders (their Ib and cos φ are used, as before). */
+export const vdEvaluator = (feeder: Feeder, project: Project): ((csaMm2: number, runs: number) => number) | undefined =>
+  feeder.feedsBoardId ? (csa, runs) => feederVdPctAt(feeder, project, csa, runs) : undefined;
+
+/** Voltage drop (%) of a feeder at a given cable size and runs, on the same basis as voltageDropPct —
+ * used for the actual cable and for every candidate size (Fix / Optimise, suggestions). */
+export function feederVdPctAt(feeder: Feeder, project: Project, csaMm2: number, runs: number): number {
+  if (feeder.feedsBoardId) return incomerBasis(feeder, project, csaMm2, runs).vd.pct;
+  return vdPctFor(designCurrentA(feeder, project), csaMm2, feeder.lengthM, feeder.cores, feeder.powerFactor, project.voltageV, runs, project.vdTempC);
 }
 
 /** Cable current rating after ambient temperature and grouping derating.
@@ -101,7 +142,7 @@ function vdPctFor(ib: number, csaMm2: number, lengthM: number, cores: 2 | 3 | 4,
 
 /** Voltage drop in percent over this feeder's own cable run only. */
 export function voltageDropPct(feeder: Feeder, project: Project): number {
-  return vdPctFor(designCurrentA(feeder, project), feeder.cableCsaMm2, feeder.lengthM, feeder.cores, feeder.powerFactor, project.voltageV, runsOf(feeder), project.vdTempC);
+  return feederVdPctAt(feeder, project, feeder.cableCsaMm2, runsOf(feeder));
 }
 
 function findIncomer(project: Project, board: Board): Feeder | undefined {
@@ -135,9 +176,11 @@ export function selectCable(
   vdBudgetPct: number,
   breakerRatingA = 0,
   /** Conductor temperature for the voltage drop (the project's vdTempC); blank = R20 × 1.2. */
-  tempC?: number
+  tempC?: number,
+  /** The feeder's own voltage-drop evaluator (an incomer's downstream P / Q basis). */
+  vdAt?: (csaMm2: number, runs: number) => number
 ): number | null {
-  return selectCableRuns(ib, lengthM, systemVoltageV, cores, cosPhi, ambientC, vdBudgetPct, breakerRatingA, 1, undefined, tempC)?.csaMm2 ?? null;
+  return selectCableRuns(ib, lengthM, systemVoltageV, cores, cosPhi, ambientC, vdBudgetPct, breakerRatingA, 1, undefined, tempC, vdAt)?.csaMm2 ?? null;
 }
 
 /** Like selectCable, but when no single cable fits, tries 2, 3… runs in
@@ -155,7 +198,9 @@ export function selectCableRuns(
   maxRuns = 4,
   trayFactor?: number,
   /** Conductor temperature for the voltage drop (the project's vdTempC), as the displayed drop uses; blank = R20 × 1.2. */
-  tempC?: number
+  tempC?: number,
+  /** The feeder's own voltage-drop evaluator (an incomer's downstream P / Q basis); default: Ib and cos φ at tempC. */
+  vdAt?: (csaMm2: number, runs: number) => number
 ): { csaMm2: number; runs: number } | null {
   const requiredIz = Math.max(ib, breakerRatingA);
   for (let runs = 1; runs <= maxRuns; runs++) {
@@ -163,7 +208,7 @@ export function selectCableRuns(
       if (runs > 1 && c.csaMm2 < 50) continue;
       const iz = c.ampacityA * ambientCorrectionFactor(ambientC) * runs * (trayFactor ?? groupFactor(runs));
       if (iz < requiredIz) continue;
-      if (vdPctFor(ib, c.csaMm2, lengthM, cores, cosPhi, systemVoltageV, runs, tempC) <= vdBudgetPct) return { csaMm2: c.csaMm2, runs };
+      if ((vdAt ? vdAt(c.csaMm2, runs) : vdPctFor(ib, c.csaMm2, lengthM, cores, cosPhi, systemVoltageV, runs, tempC)) <= vdBudgetPct) return { csaMm2: c.csaMm2, runs };
     }
   }
   return null;
