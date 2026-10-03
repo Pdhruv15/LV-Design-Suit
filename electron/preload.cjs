@@ -10,7 +10,8 @@ contextBridge.exposeInMainWorld('lvds', {
     list: () => ipcRenderer.invoke('projects:list'),
     load: (file) => ipcRenderer.invoke('projects:load', file),
     save: (file, data) => ipcRenderer.invoke('projects:save', { file, data }),
-    delete: (file) => ipcRenderer.invoke('projects:delete', file)
+    delete: (file) => ipcRenderer.invoke('projects:delete', file),
+    pick: () => ipcRenderer.invoke('projects:pick')
   },
   recovery: {
     write: (r) => ipcRenderer.invoke('recovery:write', r),

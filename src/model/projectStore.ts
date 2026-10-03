@@ -148,3 +148,12 @@ export function whenText(ms: number, now = Date.now()): string {
   if (days < 7) return `${days} days ago`;
   return new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
+
+/** Open project… (desktop): a file picker. Returns a file in the projects
+ * folder, or the content of a project from elsewhere; null when cancelled
+ * or in the browser (where projects are only the list). */
+export async function pickProject(): Promise<{ file?: string; data?: Project; from?: string } | null> {
+  const b = bridge();
+  if (!b) return null;
+  return (await b.projects.pick()) as { file?: string; data?: Project; from?: string } | null;
+}
