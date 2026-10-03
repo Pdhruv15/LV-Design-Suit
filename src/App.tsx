@@ -84,6 +84,7 @@ import { CABLE_TYPE_DEFS, cableTypeDef } from './model/cableTypes';
 import { saveText } from './util/files';
 import SldExportDialog from './components/SldExportDialog';
 import PasteBoardDialog from './components/PasteBoardDialog';
+import EnclosureSizing from './components/EnclosureSizing';
 import DiscriminationPanel from './components/DiscriminationPanel';
 import { discriminationChain } from './calc/protection';
 import { pasteBoard } from './model/copyBoard';
@@ -1055,7 +1056,7 @@ export default function App() {
 
             <aside className="side">
               {panel === 'board' ? (
-                <BoardPanel project={calcProject} board={board} results={allResults} onChange={updateBoard} onSelectFeeder={selectFeeder} tab={boardTab} onTab={setBoardTab} />
+                <BoardPanel project={calcProject} board={board} results={allResults} onChange={updateBoard} onSelectFeeder={selectFeeder} tab={boardTab} onTab={setBoardTab} onEnclosure={() => setView('enclosure')} />
               ) : (
                 <>
                   <SidePanel results={boardResults} selected={selected} />
@@ -1140,6 +1141,7 @@ export default function App() {
             )}
             {view === 'study-reports' && <StudyReportsView project={project} me={{ preparedBy: signature(prefs.profile), checkedBy: prefs.profile.checkedBy }} run={run} stale={stale} onRun={runNow} onChange={setProject} onStatus={setStatus} />}
             {view === 'calculators' && <QuickCalcs project={project} />}
+            {view === 'enclosure' && <EnclosureSizing key={board?.id} project={project} boardId={board?.id} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'substation-area' && <SubstationAreaView project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />}
             {view === 'ups' && <UpsStudy project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />}
             {view === 'solar' && <SolarStudy project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />}
