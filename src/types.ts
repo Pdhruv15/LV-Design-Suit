@@ -246,6 +246,8 @@ export interface Board {
   };
   /** Made by Building → Generate DBs: building / floor / unit key. */
   generated?: string;
+  /** Enclosure chosen in Design → Enclosure sizing: a frozen copy with the catalogue revision used. */
+  enclosure?: import('./calc/enclosure').EnclosureSelection;
   /** Substation this main board's transformer is in (transformer summary form). */
   substation?: string;
   /** Demand factor of this transformer on the summary form (else the project's). */

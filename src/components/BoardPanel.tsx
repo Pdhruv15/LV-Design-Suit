@@ -19,13 +19,16 @@ export default function BoardPanel({
   onChange,
   onSelectFeeder,
   tab: tabProp,
-  onTab
+  onTab,
+  onEnclosure
 }: {
   project: Project;
   board: Board;
   results: FeederResult[];
   onChange: (b: Board) => void;
   onSelectFeeder: (id: string) => void;
+  /** Opens Design → Enclosure sizing for this board. */
+  onEnclosure?: () => void;
   /** Optional controlled tab (the ribbon's Transformer button opens Electrical). */
   tab?: Tab;
   onTab?: (t: Tab) => void;
@@ -53,6 +56,11 @@ export default function BoardPanel({
         </div>
 
         {tab === 'general' && <BoardFields board={board} onChange={onChange} section="general" building={project.building} />}
+        {tab === 'general' && (
+          <p className="m enc-link">Enclosure: {board.enclosure ? <b>{board.enclosure.range} {board.enclosure.config.ref}{board.enclosure.dims ? ` · H${board.enclosure.dims.h} × W${board.enclosure.dims.w} × D${board.enclosure.dims.d} mm` : ''}</b> : 'not sized'}
+            {board.enclosure && <span> ({board.enclosure.supplier} rev. {board.enclosure.revision}{board.enclosure.confirmNeeded ? ', supplier to confirm' : ''})</span>}
+            {onEnclosure && <> <button className="chip" onClick={onEnclosure}>Enclosure sizing…</button></>}</p>
+        )}
 
         {tab === 'electrical' && (
           <>

@@ -3,8 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Activity, BatteryCharging, Building2, Cable, Calculator, ClipboardCheck, Car, CircuitBoard, Cog, Ellipsis, FileDown, FileSpreadsheet, FileText,
   Gauge, Hand, LayoutGrid, ListTree, Minus, MousePointer2, Pencil, Receipt, Scale, Server, Settings2, ShieldCheck, Sun,
-  Database, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Waves, Zap, type LucideIcon, BatteryFull
-} from 'lucide-react';
+  Database, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Waves, Zap, type LucideIcon, BatteryFull, Box } from 'lucide-react';
 import type { BoardKind, Feeder } from '../types';
 import type { MainView } from '../views';
 
@@ -97,7 +96,7 @@ const TABS: { id: RibbonTab; label: string; icon: Icon }[] = [
  * done from the left menu. */
 export function tabForView(v: MainView): RibbonTab {
   if (v === 'projects' || v === 'dashboard' || v === 'help' || v === 'parameters' || v === 'titleblock') return 'home';
-  if (v === 'building' || v === 'design' || v === 'load-schedule' || v === 'space-planning' || v === 'substation-area') return 'design';
+  if (v === 'building' || v === 'design' || v === 'load-schedule' || v === 'space-planning' || v === 'substation-area' || v === 'enclosure') return 'design';
   if (v === 'engines') return 'simulate';
   if (['calculators', 'voltage-drop', 'earthing', 'coordination', 'selection', 'sizing', 'pfc', 'busbar', 'ups', 'solar'].includes(v)) return 'calculate';
   if (v === 'boq') return 'cost';
@@ -179,6 +178,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'Schedule', icon: Table2, title: `Load distribution schedule of ${a.boardId}`, onClick: go('load-schedule'), active: a.view === 'load-schedule', page: true },
         view('building', 'Building', Building2, 'Building information: GFA, levels, typical floors, rooms and room types'),
         { label: 'Space plan', icon: LayoutGrid, title: 'Space planning: areas → panels → transformers → RMUs', onClick: go('space-planning'), active: a.view === 'space-planning', page: true },
+        { label: 'Enclosure sizing', icon: Box, title: 'Enclosure sizing: the board\'s physical space (modules) from a supplier catalogue — candidates, dimensioned preview', onClick: go('enclosure'), active: a.view === 'enclosure', page: true },
         { label: 'Substation area', icon: Building2, title: 'Minimum substation, RMU and LV room areas (Dubai Municipality DM-D-013)', onClick: go('substation-area'), active: a.view === 'substation-area', page: true }
       ],
       [
