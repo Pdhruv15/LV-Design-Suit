@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "update-app": "bash scripts/update-app.sh"
+    "update-app": "bash scripts/update-app.sh",
+    "bench": "vitest run -c tests/performance/vitest.config.ts"
   },
   "dependencies": {
     "docx": "^9.8.1",
