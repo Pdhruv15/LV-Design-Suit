@@ -37,6 +37,7 @@
   },
   "build": {
     "appId": "com.lvdesignstudio.app",
+    "icon": "build/icon.png",
     "files": [
       "dist/**/*",
       "electron/**/*"
