@@ -168,7 +168,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
   async function exportPack() {
     const toBytes = window.lvds?.files?.pdfBytes;
     if (!data || !sections.length) return;
-    if (!toBytes) { onStatus('The all-in-one PDF needs the desktop app (restart it after updating)'); return; }
+    if (!toBytes) { onStatus('The all-in-one Submission PDF is made by the desktop app — download it, or use Export PDF here (opens the print dialog)'); return; }
     setBusy('pack');
     try {
       const slds: Partial<Record<StudyReportKind, string>> = {};
@@ -212,7 +212,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
           {blockedWhy && <span className="m sr-why">{blockedWhy}</span>}
           <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportExcel} title={blockedWhy ?? 'Excel: the result tables of each study (no SLDs, no method text)'}>{busy === 'xlsx' ? 'Exporting…' : 'Excel'}</button>
           <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportWord} title={blockedWhy ?? 'Word (.docx): editable report — method, summary and tables (no SLDs)'}>{busy === 'docx' ? 'Exporting…' : 'Word'}</button>
-          <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportPack} title={blockedWhy ?? 'One PDF: project summary + this report with SLDs + the load schedule of every DB in scope, page-numbered'}>{busy === 'pack' ? 'Building…' : 'Submission PDF (all-in-one)'}</button>
+          <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportPack} title={blockedWhy ?? 'One PDF: project summary + this report with SLDs + the load schedule of every DB in scope, page-numbered'}>{busy === 'pack' ? 'Building…' : window.lvds?.files?.pdfBytes ? 'Submission PDF (all-in-one)' : 'Submission PDF · desktop app'}</button>
           <button className="chip primary" disabled={blocked || !sections.length || !!busy} onClick={exportPdf} title={blockedWhy ?? `PDF: method, summary and tables of each study${setup.sld ? ', with an SLD of the chosen boards showing its results' : ''}`}>
             {busy === 'pdf' ? 'Exporting…' : setup.separate && sections.length > 1 ? `Export ${sections.length} PDFs` : 'Export PDF'}
           </button>
