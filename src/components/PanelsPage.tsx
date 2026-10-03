@@ -4,14 +4,15 @@ import { Page } from './ui';
 import { applyHierarchy } from '../model/hierarchy';
 import { planBatchHierarchy, type BatchHierarchySpec } from '../model/hierarchyBuilder';
 import { findFloor, floorLabel, floorList } from '../model/levels';
-import { kindOf, renameByLevel, renamePanels, renameProblems } from '../model/renamePanels';
+import { kindOf, proposeNumbers, renameByLevel, renamePanels, renameProblems } from '../model/renamePanels';
 import { boardAndDescendants } from '../model/edit';
 import { namesOf, PANEL_ROLES, planEmergency, prefixOf, roleOf, type PanelRole } from '../model/emergency';
+import { levelRef } from '../model/hierarchy';
 import BuildHierarchyDialog from './BuildHierarchyDialog';
 import BranchPanel from './BranchPanel';
 
-type Tab = 'quick' | 'list' | 'floors' | 'repeat' | 'templates';
-const TABS: [Tab, string][] = [['quick', 'Quick create'], ['list', 'Panel list'], ['floors', 'Typical floors'], ['repeat', 'Repeat group'], ['templates', 'Templates']];
+type Tab = 'quick' | 'list' | 'naming' | 'floors' | 'repeat' | 'templates';
+const TABS: [Tab, string][] = [['quick', 'Quick create'], ['list', 'Panel list'], ['naming', 'Naming'], ['floors', 'Typical floors'], ['repeat', 'Repeat group'], ['templates', 'Templates']];
 const ROWS = 300; // panel list rows drawn at once; search narrows it
 
 /** Design → Panels: create panels quickly by count (levels later), then edit
@@ -34,6 +35,7 @@ export default function PanelsPage({ project, onChange, onCreated, onStatus, onB
     <Page title="Panels" intro="Create panels by count first, push them to the SLD and load schedules, then add levels, locations and connections later in Panel list. Names stay incremental (MDB-01, SMDB-01, DB-001) until a panel has a level; Rename by level then applies type – level – number (SMDB-L1, DB-L3-07).">
       <div className="seg pp-tabs">{TABS.map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}</div>
       {tab === 'quick' && <QuickCreate project={project} onCreate={created} onList={() => setTab('list')} onChange={onChange} />}
+      {tab === 'naming' && <NamingTab project={project} onChange={onChange} onStatus={onStatus} />}
       {tab === 'list' && <PanelList project={project} onChange={onChange} onStatus={onStatus} onBuilding={onBuilding} />}
       {tab === 'floors' && <BuildHierarchyDialog embedded project={project} onCreate={created} onClose={() => setTab('quick')} onBuilding={onBuilding} />}
       {(tab === 'repeat' || tab === 'templates') && <div className="bh"><BranchPanel key={tab} mode={tab === 'repeat' ? 'repeat' : 'assemblies'} project={project} onCreate={created} onClose={() => setTab('quick')} /></div>}
@@ -74,7 +76,6 @@ function QuickCreate({ project, onCreate, onList, onChange }: { project: Project
   const normalOk = normalCount === 0 || plan.ok;
   const canCreate = (normalCount > 0 || emg) && normalOk && (!emg || !!ePlan?.ok) && (plan.boards.length + (ePlan?.boards.length ?? 0)) > 0;
   const total = (normalCount > 0 && plan.ok ? plan.boards.length : 0) + (ePlan?.boards.length ?? 0);
-  const setPrefix = (role: PanelRole, v: string) => onChange({ ...project, panelPrefixes: { ...project.panelPrefixes, [role]: v || undefined } });
   const kids = useMemo(() => { const m = new Map<string, Board[]>(); for (const b of plan.boards) if (b.upstreamId) (m.get(b.upstreamId) ?? m.set(b.upstreamId, []).get(b.upstreamId)!).push(b); return m; }, [plan]);
   const count = (k: string) => plan.boards.filter((b) => b.kind === k).length;
   const range = (k: string) => { const ids = plan.boards.filter((b) => b.kind === k).map((b) => b.id); return ids.length ? (ids.length > 1 ? `${ids[0]} … ${ids[ids.length - 1]}` : ids[0]) : '—'; };
@@ -115,13 +116,7 @@ function QuickCreate({ project, onCreate, onList, onChange }: { project: Project
               <label>{prefixOf(project, 'EDB')}s (total)<input className="bi-num" style={{ width: 70 }} inputMode="numeric" value={eDb} onChange={(e) => setEDb(e.target.value)} /></label>
             </div>
           </>}
-          <details className="pp-names">
-            <summary>Naming table</summary>
-            <p className="m">Prefix for each panel role — used for new panels and by Rename by level. Blank = the role name.</p>
-            <table className="bi-table compact"><tbody>{PANEL_ROLES.map((r) => (
-              <tr key={r.role}><td>{r.label}</td><td><input className="bi-text" style={{ width: 90 }} value={project.panelPrefixes?.[r.role] ?? ''} placeholder={r.role} onChange={(e) => setPrefix(r.role, e.target.value.replace(/\s+/g, '').toUpperCase())} /></td></tr>
-            ))}</tbody></table>
-          </details>
+          <p className="m">Name prefixes come from the <b>Naming</b> tab.</p>
         </section>
 
         <section className="card">
@@ -255,3 +250,98 @@ function PanelList({ project, onChange, onStatus, onBuilding }: { project: Proje
   );
 }
 
+
+const EMERGENCY_ROLES = new Set(['EMDB', 'ESMDB', 'EDB']);
+
+/** Naming: the prefix table and a schedule of every panel name, grouped by role. Edit names directly,
+ * or set the order (No.) and renumber a role — incremental (EDB-01…) or by level (EDB-L2-01).
+ * Nothing changes until Apply; then every reference follows (SLD, load schedules, sheets, reports). */
+function NamingTab({ project, onChange, onStatus }: { project: Project; onChange: (p: Project) => void; onStatus: (m: string) => void }) {
+  const nat = useMemo(() => new Intl.Collator('en', { numeric: true }), []);
+  const [group, setGroup] = useState<'all' | 'normal' | 'emergency'>('all');
+  const [role, setRole] = useState<string>('');
+  const [names, setNames] = useState<Record<string, string>>({}); // board id → new name (pending)
+  const [order, setOrder] = useState<Record<string, string>>({}); // board id → No. typed
+  const [start, setStart] = useState('1');
+  const [scheme, setScheme] = useState<'incremental' | 'level'>('incremental');
+  const roleById = useMemo(() => new Map(project.boards.map((b) => [b.id, roleOf(project, b)])), [project]);
+  const roles = [...new Set(project.boards.map((b) => roleById.get(b.id)!))].sort((a, b) => PANEL_ROLES.findIndex((x) => x.role === a) - PANEL_ROLES.findIndex((x) => x.role === b));
+  const rows = project.boards
+    .filter((b) => { const r = roleById.get(b.id)!; return (group === 'all' || (group === 'emergency') === EMERGENCY_ROLES.has(r)) && (!role || r === role); })
+    .sort((a, b) => (roleById.get(a.id)! === roleById.get(b.id)! ? nat.compare(a.id, b.id) : PANEL_ROLES.findIndex((x) => x.role === roleById.get(a.id)) - PANEL_ROLES.findIndex((x) => x.role === roleById.get(b.id))));
+  const levelOf = (b: Board) => { const f = findFloor(project.building, b.level); return f ? levelRef(f.tag) : ''; };
+  const pending = Object.entries(names).filter(([id, to]) => to.trim() && to.trim() !== id).map(([from, to]) => ({ from, to: to.trim() }));
+  const problems = renameProblems(project, pending);
+  const setPrefix = (r: PanelRole, v: string) => onChange({ ...project, panelPrefixes: { ...project.panelPrefixes, [r]: v || undefined } });
+
+  /** Renumber one role in the order given by No. (blank: current order) — incremental or by level. */
+  function renumber() {
+    if (!role) return;
+    const { names: proposed, withoutLevel } = proposeNumbers(project, role, scheme, Math.floor(Number(start) || 1), Object.fromEntries(Object.entries(order).filter(([, v]) => v.trim()).map(([k, v]) => [k, Number(v)])));
+    setNames({ ...names, ...proposed });
+    if (withoutLevel) onStatus(`${withoutLevel} ${role} panel(s) have no level — they keep their names (set levels in Panel list)`);
+  }
+  function apply() {
+    if (!pending.length || problems.length) return;
+    onChange(renamePanels(project, pending));
+    onStatus(`Renamed ${pending.length} panel(s) — SLD, load schedules, feeders, sheets and reports updated`);
+    setNames({}); setOrder({});
+  }
+
+  return (
+    <>
+      <div className="pp-cols pp-naming">
+        <section className="card">
+          <h4>Naming table</h4>
+          <p className="m">Prefix for each panel role — used for new panels, renumbering and Rename by level. Blank = the role name.</p>
+          <table className="bi-table compact"><tbody>{PANEL_ROLES.map((r) => (
+            <tr key={r.role}><td>{r.label}</td><td><input className="bi-text" style={{ width: 90 }} value={project.panelPrefixes?.[r.role] ?? ''} placeholder={r.role} onChange={(e) => setPrefix(r.role, e.target.value.replace(/\s+/g, '').toUpperCase())} /></td></tr>
+          ))}</tbody></table>
+          <h4>Renumber</h4>
+          <div className="form-kv">
+            <label>Panels<select value={role} onChange={(e) => setRole(e.target.value)}><option value="">Choose a role…</option>{roles.map((r) => <option key={r} value={r}>{r} — {project.boards.filter((b) => roleById.get(b.id) === r).length}</option>)}</select></label>
+            <label>Scheme<select value={scheme} onChange={(e) => setScheme(e.target.value as 'incremental' | 'level')}><option value="incremental">Incremental ({role ? prefixOf(project, role) : 'PREFIX'}-01, -02 …)</option><option value="level">By level ({role ? prefixOf(project, role) : 'PREFIX'}-L2-01 …)</option></select></label>
+            {scheme === 'incremental' && <label>Start at<input className="bi-num" style={{ width: 70 }} inputMode="numeric" value={start} onChange={(e) => setStart(e.target.value)} /></label>}
+          </div>
+          <p className="m">Order: the <b>No.</b> column (blank = current order). Proposed names appear in the schedule — nothing changes until Apply.</p>
+          <button className="chip" disabled={!role} onClick={renumber}>Renumber {role || ''}</button>
+        </section>
+
+        <section className="card pp-wide">
+          <div className="pp-bar">
+            <div className="seg">{([['all', 'All'], ['normal', 'Normal'], ['emergency', 'Emergency']] as const).map(([k, l]) => <button key={k} className={group === k ? 'on' : ''} onClick={() => setGroup(k)}>{l}</button>)}</div>
+            <select className="bi-sel" value={role} onChange={(e) => setRole(e.target.value)}><option value="">All roles</option>{roles.map((r) => <option key={r} value={r}>{r}</option>)}</select>
+            <span className="m">{rows.length} panels{pending.length ? ` · ${pending.length} name change(s) pending` : ''}</span>
+          </div>
+          <div className="pp-table">
+            <table className="bi-table compact">
+              <thead><tr><th>No.</th><th>Role</th><th>Name now</th><th>New name</th><th>Level</th><th>Fed from</th></tr></thead>
+              <tbody>{rows.slice(0, 500).map((b) => {
+                const to = names[b.id];
+                const changed = to !== undefined && to.trim() !== b.id;
+                return (
+                  <tr key={b.id} className={changed ? 'on' : ''}>
+                    <td><input className="bi-num" style={{ width: 46 }} inputMode="numeric" value={order[b.id] ?? ''} placeholder="—" onChange={(e) => setOrder({ ...order, [b.id]: e.target.value })} /></td>
+                    <td>{roleById.get(b.id)}</td>
+                    <td>{b.id}</td>
+                    <td><input className="bi-text" style={{ width: 130 }} value={to ?? b.id} onChange={(e) => setNames({ ...names, [b.id]: e.target.value })} /></td>
+                    <td>{levelOf(b) || <span className="m">—</span>}</td>
+                    <td>{b.upstreamId ?? <span className="m">supply</span>}</td>
+                  </tr>
+                );
+              })}</tbody>
+            </table>
+          </div>
+          {rows.length > 500 && <p className="m">Showing 500 of {rows.length} — choose a role to narrow.</p>}
+          {problems.map((x) => <p key={x} className="bad">{x}</p>)}
+        </section>
+      </div>
+      <div className="modal-actions pp-foot">
+        <span className="m">Apply renames every reference: SLD, load schedules, feeders and circuits, sheets, reports · one Undo</span>
+        <span className="sp" />
+        <button className="chip" disabled={!pending.length && !Object.keys(order).length} onClick={() => { setNames({}); setOrder({}); }}>Discard</button>
+        <button className="chip primary" disabled={!pending.length || problems.length > 0} onClick={apply}>Apply {pending.length} name change{pending.length === 1 ? '' : 's'}</button>
+      </div>
+    </>
+  );
+}
