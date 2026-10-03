@@ -1,7 +1,7 @@
 import { selectCable } from '../calc/electrical';
-import { applyRecommendation, generatorForBoard, recommend, sizePfc, upsForBoard } from '../calc/sizing';
+import { applyRecommendation, generatorForBoard, generatorChoiceForBoard, recommend, sizePfc, upsForBoard } from '../calc/sizing';
 import type { LibraryLoad } from '../database/database';
-import { BOARD_KINDS, type Board, type BoardKind, type Feeder, type LoadType, type Project, type StarterType } from '../types';
+import { BOARD_KINDS, settingsOf, type Board, type BoardKind, type Feeder, type LoadType, type Project, type StarterType } from '../types';
 import { isMotor, STARTERS } from '../calc/motor';
 import { applyPreset, canDropPreset, type FeederPreset } from './presets';
 
@@ -278,6 +278,11 @@ export function applyDrop(project: Project, item: PaletteItem, target: DropTarge
     const b = project.boards.find((x) => x.id === target.boardId)!;
     if (b.standby) return { project, select: { type: 'board', id: b.id }, message: `${b.id} already has a ${b.standby.kva} kVA standby generator — change it in the board's properties` };
     const kva = generatorForBoard(project, b.id);
+    if (kva === undefined) {
+      // Load on the board but no standard set carries it (kVA and kW at the loading limit): add nothing.
+      const c = generatorChoiceForBoard(project, b.id);
+      return { project, select: { type: 'board', id: b.id }, message: `No standard generator fits ${b.id}: it needs ${Math.round(c.requiredKva)} kVA (${c.governing} at ${settingsOf(project).generatorMaxLoadingPct} % loading), above the largest set — split the essential load or use sets in parallel` };
+    }
     return {
       project: { ...project, boards: project.boards.map((x) => (x.id === b.id ? { ...x, standby: { kva } } : x)) },
       select: { type: 'board', id: b.id },

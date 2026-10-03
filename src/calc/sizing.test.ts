@@ -57,7 +57,9 @@ describe('generator sizing', () => {
     expect(g.essential.map((f) => f.id)).toEqual(['FP', 'LTG']);
     const q = 55 * Math.tan(Math.acos(0.86));
     expect(g.demandKva).toBeCloseTo(Math.hypot(75, q), 6);
-    expect(g.designKva).toBeCloseTo(g.demandKva / 0.8, 6);
+    // Running rating: max(kVA ÷ 0.8, kW ÷ (0.8 × 0.8)) — here the 75 kW governs (ENG-003).
+    expect(g.designKva).toBeCloseTo(Math.max(g.demandKva / 0.8, 75 / 0.64), 6);
+    expect(g.governing).toBe('kW');
     expect(g.recommendedKva).toBe(125);
     expect(g.largestMotor?.feeder.id).toBe('FP');
     expect(g.largestMotor?.startingKva).toBeCloseTo((6 * 55) / 0.86, 6); // direct on line by default

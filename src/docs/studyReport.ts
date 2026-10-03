@@ -308,8 +308,8 @@ export function buildSection(key: StudyReportKind, data: CalcData, scope: Scope)
     // A generator demand above the largest standard set is a failure, never left out.
     const genNeeded = gen.demandKw > 0 || gen.recommendedKva !== undefined;
     const genTooBig = genNeeded && gen.recommendedKva === undefined;
-    const genStatus: Status | undefined = !genNeeded ? undefined : genTooBig ? 'bad' : !gen.installedKva ? 'ok' : gen.installedKva >= gen.recommendedKva! ? 'ok' : 'bad';
-    const genSize = genTooBig ? `${n(Math.max(gen.runningDesignKva, gen.startDesignKva), 0)} kVA needed — above the largest standard set` : `${gen.recommendedKva} kVA / ${n(gen.recommendedKw ?? 0, 0)} kW`;
+    const genStatus: Status | undefined = !genNeeded ? undefined : genTooBig || gen.installedOk === false ? 'bad' : 'ok';
+    const genSize = genTooBig ? `${n(Math.max(gen.runningDesignKva, gen.startDesignKva), 0)} kVA needed (${gen.governing}) — above the largest standard set` : `${gen.recommendedKva} kVA / ${n(gen.recommendedKw ?? 0, 0)} kW`;
     const genScope = scope.all ? '' : ' (sized for the whole installation — the generator is shared)';
     const statuses = [...tx.map(txStatus), ...(genStatus ? [genStatus] : [])];
     const pfcTaken = tx.some((r) => r.pfcKvar > 0);
@@ -319,7 +319,7 @@ export function buildSection(key: StudyReportKind, data: CalcData, scope: Scope)
         `Transformer per main board: maximum demand${pfcTaken ? ' (after the planned power factor correction)' : ''} × (1 + ${set.futureGrowthPct} % growth) ÷ ${set.transformerMaxLoadingPct} % design loading, next ${plan.sizeList === 'dewa' ? 'DEWA standard size (500 / 1000 / 1500 kVA)' : 'IEC standard size'}.`,
         'For that size: full-load current and main breaker, LV fault level (typical IEC 60076-5 impedance, infinite MV source), voltage regulation at the design demand.',
         `Bus couplers: with one transformer out, the other carries both boards up to ${plan.emergencyLoadingPct} % of its rating. Duty / standby: two transformers, each for the whole load.`,
-        `Standby generator from the boards on it (share of each), plus circuits marked essential: demand ÷ ${set.generatorMaxLoadingPct} % loading, or larger if the largest motor, started last, would dip the voltage over ${MOTOR_START_DIP_LIMIT_PCT} % (X′d ${GENERATOR_XD_TRANSIENT_PCT} %).`
+        `Standby generator from the boards on it (share of each), plus circuits marked essential. The set must carry the running kVA and the running kW at ${set.generatorMaxLoadingPct} % loading: rating ≥ max(kVA ÷ ${set.generatorMaxLoadingPct / 100}, kW ÷ (0.8 × ${set.generatorMaxLoadingPct / 100})), with rated kW = 0.8 × rated kVA unless the Generators list gives the set's kW; or larger if the largest motor, started last, would dip the voltage over ${MOTOR_START_DIP_LIMIT_PCT} % (X′d ${GENERATOR_XD_TRANSIENT_PCT} %).`
       ],
       summary: [
         { label: 'Items checked', value: tally(statuses), status: statuses.length ? worst(statuses) : undefined },
@@ -343,7 +343,7 @@ export function buildSection(key: StudyReportKind, data: CalcData, scope: Scope)
           { title: 'Standby generator — size', headers: ['Item', 'Value'],
             rows: [
               ['Running demand', `${n(gen.demandKw, 0)} kW · ${n(gen.demandKva, 0)} kVA`],
-              ['For the running load', `${n(gen.runningDesignKva, 0)} kVA`],
+              ['For the running load', `${n(gen.runningDesignKva, 0)} kVA — ${gen.governing === 'kW' ? 'set by the kW (rated kW = 0.8 × kVA)' : gen.governing === 'kVA' ? 'set by the kVA' : 'running; the motor start sets the size'}`],
               ...(gen.motor ? [
                 ['Largest motor start', `${gen.motor.feeder.id}: ${n(gen.motor.startingKva, 0)} kVA starting with ${n(gen.motor.baseKva, 0)} kVA already running`],
                 ['For the motor start', `${n(gen.startDesignKva, 0)} kVA (dip ${n(gen.motor.dipPct ?? 0, 1)} % on the recommended set)`]
@@ -352,7 +352,7 @@ export function buildSection(key: StudyReportKind, data: CalcData, scope: Scope)
               ['Result', S(genStatus!)],
               ...(gen.softStartKva ? [['With a soft starter on the largest motor', `${gen.softStartKva} kVA`]] : []),
               ['Full-load current · ATS / breaker', gen.flcA !== undefined ? `${n(gen.flcA, 0)} A · ${gen.atsA ?? '—'} A` : '—'],
-              ['Installed', gen.installedKva ? `${gen.installedKva} kVA` : '—']
+              ['Installed', gen.installedKva ? `${gen.installedKva} kVA / ${n(gen.installedKva * 0.8, 0)} kW${gen.installedOk === false ? ' — too small' : ''}` : '—']
             ] }
         ] : [])
       ]
