@@ -142,3 +142,23 @@ describe('BOQ PDF discloses how it was priced', () => {
     expect(buildBoqHtml(p0, bom)).toMatch(/class="flag">NO RATE/);
   });
 });
+
+import { diffProjects, snapshotOf } from '../model/revisions';
+
+describe('revision comparison records design changes', () => {
+  const fields = (q: Project) => diffProjects(snapshotOf(p0), snapshotOf(q)).changes.flatMap((c) => c.fields.map((f) => f.field));
+  const f0 = p0.feeders[0];
+  it.each([
+    ['Parallel runs', { feeders: p0.feeders.map((f) => (f === f0 ? { ...f, parallel: 2 } : f)) }],
+    ['Tray route', { feeders: p0.feeders.map((f) => (f === f0 ? { ...f, trayRoute: 'A-B' } : f)) }],
+    ['Instantaneous (× In)', { feeders: p0.feeders.map((f) => (f === f0 ? { ...f, breakerImMultiple: 5 } : f)) }],
+    ['Essential (generator)', { feeders: p0.feeders.map((f) => (f === f0 ? { ...f, essential: true } : f)) }],
+    ['Standby generator', { boards: p0.boards.map((b, i) => (i ? b : { ...b, standby: { kva: 500 } })) }],
+    ['Transformer & generator plan', { txGen: { sizeList: 'iec' } }],
+    ['Cable temperature for voltage drop (°C)', { vdTempC: 90 }],
+    ['Busbar risers', { busRisers: [] as never[] }],
+    ['Solar PV', { pv: {} as never }]
+  ] as [string, Partial<Project>][])('%s', (label, q) => {
+    expect(fields({ ...p0, ...q } as Project)).toContain(label);
+  });
+});

@@ -86,19 +86,30 @@ const FEEDER_FIELDS: [keyof Feeder, string][] = [
   ['name', 'Name'], ['room', 'Room'], ['points', 'Points'], ['loadKw', 'Load (kW)'], ['demandFactor', 'Demand factor'],
   ['powerFactor', 'PF'], ['breakerRatingA', 'Breaker (A)'], ['breakerType', 'Breaker type'], ['breakerIcuKa', 'Breaking capacity (kA)'],
   ['device', 'Device'], ['cableCsaMm2', 'Cable (mm²)'], ['cores', 'Cores'], ['cableType', 'Cable type'], ['cpcMm2', 'ECC (mm²)'],
-  ['lengthM', 'Length (m)'], ['phase', 'Phase'], ['way', 'Way'], ['kwhMeter', 'kWh meter'], ['feedsBoardId', 'Feeds'], ['remarks', 'Remarks']
+  ['lengthM', 'Length (m)'], ['parallel', 'Parallel runs'], ['trayRoute', 'Tray route'], ['breakerImMultiple', 'Instantaneous (× In)'],
+  ['rcdMa', 'RCD (mA)'], ['essential', 'Essential (generator)'], ['standbyUnit', 'Standby unit'], ['kvar', 'Capacitor (kvar)'], ['starter', 'Starter'],
+  ['loadType', 'Load type'], ['phase', 'Phase'], ['way', 'Way'], ['kwhMeter', 'kWh meter'], ['feedsBoardId', 'Feeds'], ['remarks', 'Remarks']
 ];
 
 const BOARD_FIELDS: [keyof Board, string][] = [
   ['name', 'Name'], ['kind', 'Type'], ['upstreamId', 'Fed from'], ['ratedCurrentA', 'Rating (A)'], ['sourceKva', 'Transformer (kVA)'],
   ['sourceImpedancePct', 'Transformer Z (%)'], ['location', 'Location'], ['pointWatts', 'WATT / UNIT'], ['elcbGroupSize', 'Circuits per ELCB'],
-  ['elcbSensitivityMa', 'ELCB sensitivity'], ['supply', 'Incoming supply']
+  ['elcbSensitivityMa', 'ELCB sensitivity'], ['supply', 'Incoming supply'], ['standby', 'Standby generator'], ['level', 'Level'],
+  ['sourceXr', 'Transformer X/R'], ['vectorGroup', 'Vector group'], ['protection', 'Incomer protection'], ['upsKva', 'UPS (kVA)']
 ];
 
 const PROJECT_FIELDS: [keyof Snapshot, string][] = [
   ['name', 'Project name'], ['voltageV', 'Voltage (V)'], ['ambientC', 'Ambient (°C)'], ['vdLimitPct', 'VD limit (%)'],
-  ['pointTemplate', 'Schedule columns'], ['info', 'Form details'], ['studySettings', 'Design settings']
+  ['pointTemplate', 'Schedule columns'], ['info', 'Form details'], ['studySettings', 'Design settings'], ['vdTempC', 'Cable temperature for voltage drop (°C)'],
+  ['txGen', 'Transformer & generator plan'], ['pfc', 'Power factor correction plan']
 ];
+
+/** Larger data sets: reported as changed (with a count where it helps), not field by field. */
+const DATA_SETS: [keyof Snapshot, string][] = [
+  ['building', 'Building information (levels, rooms)'], ['trays', 'Cable trays'], ['busRisers', 'Busbar risers'], ['busbarData', 'Busbar data'],
+  ['ties', 'Bus couplers'], ['pv', 'Solar PV'], ['substations', 'Substation rooms']
+];
+const sizeOf = (v: unknown) => (Array.isArray(v) ? `${v.length} item(s)` : v === undefined || v === null ? '—' : 'set');
 
 /** Plain text for a field value; objects list their non-empty entries. */
 function show(v: unknown): string {
@@ -131,6 +142,10 @@ const feederLabel = (f: Feeder) => {
 export function diffProjects(before: Snapshot, after: Snapshot): Diff {
   const changes: Change[] = [];
   const p = fieldChanges(before, after, PROJECT_FIELDS);
+  for (const [k, label] of DATA_SETS) {
+    const a = (before as Record<string, unknown>)[k as string], b = (after as Record<string, unknown>)[k as string];
+    if (JSON.stringify(a ?? null) !== JSON.stringify(b ?? null)) p.push({ field: label, from: sizeOf(a), to: a === undefined ? sizeOf(b) : `changed${Array.isArray(b) ? ` (${b.length} item(s))` : ''}` });
+  }
   if (p.length) changes.push({ kind: 'changed', what: 'project', id: 'project', label: 'Project', fields: p });
 
   const bBefore = new Map(before.boards.map((b) => [b.id, b]));
