@@ -146,7 +146,9 @@ export function sizeTransformers(project: Project, plan: TxGenPlan = txGenPlanOf
     return {
       board: b, demandKw: p, demandKvar: q, pfcKvar: cap, demandKva, pf, designKva, n1: plan.n1.includes(b.id), split,
       recommendedKva, installedKva, loadingPct: installedKva ? (demandKva / installedKva) * 100 : undefined,
-      adequate: installedKva ? installedKva * split >= designKva - 1e-6 : undefined,
+      // The installed source (one rating on the main board) against the design demand. The split is a
+      // proposal for new transformers, never a count of installed ones.
+      adequate: installedKva ? installedKva >= designKva - 1e-6 : undefined,
       checks: checkKva ? transformerChecks(project, b, checkKva, demandKva / split, pf, checkKva === installedKva && b.sourceImpedancePct ? b.sourceImpedancePct : typicalImpedancePct(checkKva)) : undefined,
       outage, breakdown: breakdown.sort((x, y) => y.kva - x.kva)
     };
