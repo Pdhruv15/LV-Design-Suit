@@ -73,8 +73,27 @@ export interface ContainmentResult {
   soil?: { temp: number; resistivity: number; group: number; total: number; ductMm?: number; rows?: number; cols?: number; depthM: number };
   laid: number[]; // diameters, largest first
   notes: string[];
-  status: 'ok' | 'warn';
+  /** 'fail' = no standard size fits (see noFit); nothing is recommended. */
+  status: 'ok' | 'warn' | 'fail';
+  noFit?: string;
+  /** Trunking / conduit: the whole cables (diameters) in each run. */
+  allocation?: number[][];
 }
+
+/** Whole cables into n runs, largest first, each into the emptiest run it
+ * fits (a cable is never split). Undefined when any cable has no room. */
+function allocate(laid: number[], n: number, fits: (run: number[], d: number) => boolean): number[][] | undefined {
+  const runs: number[][] = Array.from({ length: n }, () => []);
+  const area = (run: number[]) => run.reduce((s, d) => s + d * d, 0);
+  for (const d of laid) {
+    const run = runs.filter((r) => fits(r, d)).sort((a, b) => area(a) - area(b))[0];
+    if (!run) return undefined;
+    run.push(d);
+  }
+  return runs;
+}
+const circle = (d: number) => (Math.PI * d * d) / 4;
+const runArea = (run: number[]) => run.reduce((s, d) => s + circle(d), 0);
 
 export function calcContainment(i: ContainmentInput): ContainmentResult {
   const lines: ContainmentLine[] = i.cables.filter((c) => c.qty > 0 && (c.odMm || c.csaMm2)).map((c) => {
@@ -106,26 +125,42 @@ export function calcContainment(i: ContainmentInput): ContainmentResult {
 
   if (i.type === 'trunking') {
     const limit = i.fillPct || 45;
-    const need = (areaMm2 * spare) / (limit / 100);
-    const pick = (n: number) => TRUNKING_SIZES.find(([w, h]) => w * h >= need / n && h >= laid[0]);
-    let runs = 1, s = pick(1);
-    while (!s && runs < 6) s = pick(++runs);
-    s ??= TRUNKING_SIZES[TRUNKING_SIZES.length - 1];
     notes.push(`Space factor ${limit} % of the trunking's area (BS 7671 / IET On-Site Guide: 45 %)`);
-    const fillPct = (areaMm2 / (s[0] * s[1] * runs)) * 100;
-    return { ...base, size: `${runs > 1 ? `${runs} × ` : ''}${s[0]} × ${s[1]} mm`, widthMm: s[0], heightMm: s[1], runs, fillPct, sparePct: (limit / fillPct - 1) * 100, status: 'ok' };
+    const [maxW, maxH] = TRUNKING_SIZES[TRUNKING_SIZES.length - 1];
+    if (laid[0] > maxH || laid[0] > maxW) return noFit(base, `The ${laid[0].toFixed(0)} mm cable is larger than the biggest trunking (${maxW} × ${maxH} mm) — parallel runs can't split one cable; use tray or ladder`);
+    // Each run: every cable fits its height and width, and its own cables ≤ the space factor (with spare).
+    for (let runs = 1; runs <= 6; runs++) {
+      for (const [w, h] of TRUNKING_SIZES) {
+        const cap = (w * h * limit) / 100;
+        const alloc = allocate(laid, runs, (run, d) => d <= h && d <= w && (runArea(run) + circle(d)) * spare <= cap + 1e-9);
+        if (!alloc || alloc.some((r) => !r.length)) continue;
+        const fillPct = Math.max(...alloc.map((r) => (runArea(r) / (w * h)) * 100));
+        if (runs > 1) notes.push(`${runs} runs, cables allocated whole: ${alloc.map((r) => r.length).join(' + ')} cables; the fill shown is the fullest run`);
+        return { ...base, size: `${runs > 1 ? `${runs} × ` : ''}${w} × ${h} mm`, widthMm: w, heightMm: h, runs, fillPct, sparePct: (limit / fillPct - 1) * 100, allocation: alloc, status: 'ok' };
+      }
+    }
+    return noFit(base, `No arrangement of up to 6 runs of standard trunking (to ${maxW} × ${maxH} mm) keeps every run within ${limit} % — use tray or ladder`);
   }
 
   if (i.type === 'conduit') {
-    const limit = i.conduitFillPct ?? (count === 1 ? 53 : count === 2 ? 31 : 40);
-    const fits = (id: number, n: number) => (areaMm2 / n) / ((Math.PI * id * id) / 4) <= limit / 100 && id >= laid[0] * 1.1;
-    let runs = 1, s = CONDUIT_SIZES.find(([, id]) => fits(id, 1));
-    while (!s && runs < 10) { runs++; s = CONDUIT_SIZES.find(([, id]) => fits(id, runs)); }
-    s ??= CONDUIT_SIZES[CONDUIT_SIZES.length - 1];
-    notes.push(`Fill limit ${limit} % (1 cable 53 %, 2 cables 31 %, 3 or more 40 % — IEC / NEC practice); bends reduce it further`);
-    if (runs > 1) notes.push(`Too many cables for one ${CONDUIT_SIZES[CONDUIT_SIZES.length - 1][0]} mm conduit: ${runs} conduits`);
-    const fillPct = (areaMm2 / runs / ((Math.PI * s[1] * s[1]) / 4)) * 100;
-    return { ...base, size: `${runs > 1 ? `${runs} × ` : ''}Ø ${s[0]} mm conduit`, widthMm: s[1], heightMm: s[1], runs, fillPct, status: fillPct > limit ? 'warn' : 'ok' };
+    const rule = (n: number) => i.conduitFillPct ?? (n === 1 ? 53 : n === 2 ? 31 : 40);
+    notes.push(i.conduitFillPct !== undefined
+      ? `Fill limit ${i.conduitFillPct} % (entered) in each conduit; bends reduce it further`
+      : 'Fill limit by the cables in each conduit: 1 cable 53 %, 2 cables 31 %, 3 or more 40 % (IEC / NEC practice); bends reduce it further');
+    const [maxNom, maxId] = CONDUIT_SIZES[CONDUIT_SIZES.length - 1];
+    if (maxId < laid[0] * 1.1) return noFit(base, `The ${laid[0].toFixed(0)} mm cable needs a bore of at least ${(laid[0] * 1.1).toFixed(0)} mm; the largest conduit (Ø ${maxNom} mm) has ${maxId} mm — parallel conduits can't split one cable`);
+    // Each conduit: every cable through the bore with 10 % clearance, and its own cable count's fill rule.
+    for (let runs = 1; runs <= Math.min(10, count); runs++) {
+      for (const [nom, id] of CONDUIT_SIZES) {
+        const ok = (run: number[]) => run.every((d) => id >= d * 1.1) && runArea(run) / circle(id) <= rule(run.length) / 100 + 1e-9;
+        const alloc = allocate(laid, runs, (run, d) => ok([...run, d]));
+        if (!alloc || alloc.some((r) => !r.length) || !alloc.every(ok)) continue;
+        const fills = alloc.map((r) => (runArea(r) / circle(id)) * 100);
+        if (runs > 1) notes.push(`${runs} conduits, cables allocated whole: ${alloc.map((r, k) => `${r.length} (${fills[k].toFixed(0)} % of ${rule(r.length)} %)`).join(', ')}`);
+        return { ...base, size: `${runs > 1 ? `${runs} × ` : ''}Ø ${nom} mm conduit`, widthMm: id, heightMm: id, runs, fillPct: Math.max(...fills), allocation: alloc, status: 'ok' };
+      }
+    }
+    return noFit(base, `No arrangement of up to 10 standard conduits (to Ø ${maxNom} mm) keeps every conduit within its fill limit — use trunking or tray`);
   }
 
   // Buried: a trench with the cables in one layer, or one cable per duct.
@@ -152,21 +187,25 @@ export function calcContainment(i: ContainmentInput): ContainmentResult {
   return { ...base, size: `${ducts} × Ø ${ductMm} mm duct bank`, widthMm, heightMm, runs: ducts, fillPct: 0, soil: { temp, resistivity, group, total, ductMm, rows, cols, depthM: i.burialDepthM }, status: total < 0.6 ? 'warn' : 'ok' };
 }
 
+function noFit(base: Omit<ContainmentResult, 'size' | 'widthMm' | 'heightMm' | 'runs' | 'fillPct' | 'status'>, reason: string): ContainmentResult {
+  return { ...base, notes: [...base.notes, reason], size: 'No standard size fits', widthMm: 0, heightMm: 0, runs: 0, fillPct: 0, status: 'fail', noFit: reason };
+}
+
 /** Cross-section to scale (SVG markup), the same on screen and in the report. */
 export function containmentSvg(r: ContainmentResult, i: ContainmentInput, width = 520): string {
   const C = '#2a78d6', S = 'currentColor';
-  if (!r.count) return '';
+  if (!r.count || r.status === 'fail') return ''; // nothing drawn for containment that doesn't fit
   if (r.type === 'conduit') {
     const id = r.widthMm, k = Math.min(160 / id, 6), R = (id * k) / 2, cx = R + 20, cy = R + 20;
     const circles: string[] = [];
     let ring = 0, placed = 0;
-    for (const d of r.laid.slice(0, Math.ceil(r.laid.length / r.runs))) {
+    for (const d of r.allocation?.[0] ?? r.laid) {
       const rr = (d * k) / 2;
       const a = placed * 2.4, dist = placed === 0 ? 0 : Math.min(R - rr, rr * 1.9 * (1 + ring * 0.6));
       circles.push(`<circle cx="${cx + dist * Math.cos(a)}" cy="${cy + dist * Math.sin(a)}" r="${rr}" fill="${C}" fill-opacity=".35" stroke="${C}"/>`);
       placed++; if (placed % 6 === 0) ring++;
     }
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${cx * 2 + 120} ${cy * 2}" font-family="Arial" font-size="12"><circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${S}" stroke-width="2"/>${circles.join('')}<text x="${cx * 2 + 10}" y="${cy}" fill="${S}">Ø ${r.widthMm} mm ID</text><text x="${cx * 2 + 10}" y="${cy + 16}" fill="${S}" opacity=".7">fill ${r.fillPct.toFixed(0)} %</text></svg>`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${cx * 2 + 120} ${cy * 2}" font-family="Arial" font-size="12"><circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${S}" stroke-width="2"/>${circles.join('')}<text x="${cx * 2 + 10}" y="${cy}" fill="${S}">Ø ${r.widthMm} mm ID</text><text x="${cx * 2 + 10}" y="${cy + 16}" fill="${S}" opacity=".7">fill ${r.fillPct.toFixed(0)} %${r.runs > 1 ? ` · conduit 1 of ${r.runs}` : ''}</text></svg>`;
   }
   if (r.type === 'ducts' && r.soil) {
     const { rows = 1, cols = 1, ductMm = 100 } = r.soil;
@@ -188,7 +227,7 @@ export function containmentSvg(r: ContainmentResult, i: ContainmentInput, width 
   const circles: string[] = [];
   const rowsMax = r.type === 'trunking' ? Math.max(1, Math.floor(r.heightMm / (r.laid[0] || 1))) : 1;
   let row = 0;
-  for (const d of r.laid.slice(0, per)) {
+  for (const d of r.type === 'trunking' && r.allocation ? r.allocation[0] : r.laid.slice(0, per)) {
     const rr = (d * k) / 2;
     if (x + 2 * rr > w * k) { if (row + 1 < rowsMax) { row++; x = 0; } else break; }
     circles.push(`<circle cx="${20 + x + rr}" cy="${20 + H - rr - row * 2 * rr}" r="${rr}" fill="${C}" fill-opacity=".35" stroke="${C}"/>`);

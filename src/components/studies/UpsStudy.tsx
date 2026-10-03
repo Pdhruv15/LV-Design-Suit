@@ -154,11 +154,12 @@ function UpsCard({ project, s, upsBoardIds, onPatch, onRemove, onApply }: {
       <div className="plan-cards">
         <div><span>Load{board ? ` (${board.id} demand)` : ''}</span><b>{f1(r.loadKva)} kVA · {f1(r.loadKw)} kW</b><small>with growth, at {s.maxLoadingPct} %: {f1(r.designKva)} kVA · {f1(r.designKw)} kW</small></div>
         <div><span>UPS rating</span><b className={r.upsKva ? '' : 'bad'}>{r.upsKva ? `${r.upsKva} kVA · ${f1(r.upsKw!)} kW` : `> ${STANDARD_UPS_KVA[STANDARD_UPS_KVA.length - 1]} kVA`}</b><small>{r.loadingPct !== undefined ? `${f0(r.loadingPct)} % loaded today (${r.loadingBy} limit) · ${f0(r.loadingKvaPct!)} % of kVA · ${f0(r.loadingKwPct!)} % of kW` : ''}</small></div>
-        <div><span>Battery</span><b>{r.blockAh ? `${r.strings > 1 ? `${r.strings} × ` : ''}${r.blocksPerString} × ${s.blockV} V ${r.blockAh} Ah` : '—'}</b><small>{r.totalBlocks} {s.chem === 'vrla' ? 'blocks' : 'modules'} · {f1(r.energyKwh)} kWh · needs {f1(r.requiredAh)} Ah</small></div>
+        <div><span>Battery{r.busMismatch ? ` — ${+r.stringV.toFixed(2)} V string, not ${s.dcVoltage} V` : ''}</span><b className={r.busMismatch ? 'bad' : ''}>{r.busMismatch ? 'Not valid: ' : ''}{r.blockAh ? `${r.strings > 1 ? `${r.strings} × ` : ''}${r.blocksPerString} × ${s.blockV} V ${r.blockAh} Ah` : '—'}</b><small>{r.totalBlocks} {s.chem === 'vrla' ? 'blocks' : 'modules'} · {f1(r.energyKwh)} kWh · needs {f1(r.requiredAh)} Ah</small></div>
         <div><span>Backup with this battery</span><b className={r.runtimeMin !== undefined && r.runtimeMin >= s.autonomyMin ? 'ok' : 'bad'}>{r.runtimeMin !== undefined ? `${f0(r.runtimeMin)} min` : '—'}</b><small>required {s.autonomyMin} min</small></div>
         <div><span>DC side</span><b>{f0(r.dcCurrentMaxA)} A max</b><small className={r.dcBreakerNoFit ? 'bad' : ''}>{f1(r.dcKw)} kW from the battery · {r.dcBreakerNoFit ? `No suitable DC breaker in the list — ${f0(r.dcBreakerRequiredA)} A needed, largest ${r.dcBreakerMaxA} A` : r.dcBreakerA ? `battery-bus DC breaker ${r.dcBreakerA} A` : 'no DC breaker (no load)'}</small></div>
       </div>
       {r.notes.length > 0 && <p className="m">{r.notes.join(' · ')}</p>}
+      {r.busMismatch && <div><button className="chip" onClick={() => onPatch({ dcVoltage: +r.stringV.toFixed(2) }, true)} title="Only if the UPS, charger and BMS accept this voltage — check the manufacturer's data">Set the DC bus to {+r.stringV.toFixed(2)} V ({r.blocksPerString} × {s.blockV} V)</button></div>}
       {board && r.upsKva && board.upsKva !== r.upsKva && (
         <div><button className="chip" onClick={() => onApply(r.upsKva!)}>Set {board.id} to {r.upsKva} kVA on the SLD{board.upsKva ? ` (now ${board.upsKva} kVA)` : ''}</button></div>
       )}

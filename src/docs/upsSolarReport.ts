@@ -41,11 +41,13 @@ export function buildUpsReportHtml(project: Project, systems: UpsSystem[]): stri
         ['Type', s.chem === 'vrla' ? `VRLA lead-acid, end voltage ${s.endCellV ?? 1.75} V/cell` : 'Lithium-ion (LFP)'],
         ['Backup time', `${s.autonomyMin} min`],
         ['DC power from the battery', `${n(r.dcKw, 2)} kW = load kW with growth ÷ ${s.inverterEff}`],
-        ['DC bus', `${s.dcVoltage} V = ${r.blocksPerString} × ${s.blockV} V`],
+        ...(r.busMismatch
+          ? [['DC bus (requested)', `${s.dcVoltage} V`], ['Battery string (actual)', `<b class="bad">${r.blocksPerString} × ${s.blockV} V = ${n(r.stringV, 1)} V ≠ ${s.dcVoltage} V — configuration not valid; figures below are for the ${n(r.stringV, 1)} V string, UPS compatibility not verified</b>`]] as [string, string][]
+          : [['DC bus', `${s.dcVoltage} V = ${r.blocksPerString} × ${s.blockV} V`]] as [string, string][]),
         ['Capacity at this rate', `${n(r.rate * 100, 0)} % of C10 (${s.rateCapacityPct ? 'manufacturer' : 'typical'})`],
         ['Factors', `ageing ${s.ageing} · temperature ${s.tempFactor} · design margin ${s.designMargin}`],
-        ['Required capacity (C10)', `${n(r.requiredAh)} Ah = P × t ÷ V ÷ rate × factors`],
-        ['Selected battery', r.blockAh ? `<b>${r.strings > 1 ? `${r.strings} strings × ` : ''}${r.blocksPerString} × ${s.blockV} V ${r.blockAh} Ah</b> — ${r.totalBlocks} ${s.chem === 'vrla' ? 'blocks' : 'modules'}, ${n(r.energyKwh)} kWh` : '<span class="bad">No block size fits</span>'],
+        ['Required capacity (C10)', `${n(r.requiredAh)} Ah = P × t ÷ ${n(r.stringV, 1)} V (string) ÷ rate × factors`],
+        ['Selected battery', r.busMismatch && r.blockAh ? `<span class="bad">Not valid (DC bus mismatch)</span> — candidate ${r.strings > 1 ? `${r.strings} strings × ` : ''}${r.blocksPerString} × ${s.blockV} V ${r.blockAh} Ah, ${n(r.energyKwh)} kWh at ${n(r.stringV, 1)} V` : r.blockAh ? `<b>${r.strings > 1 ? `${r.strings} strings × ` : ''}${r.blocksPerString} × ${s.blockV} V ${r.blockAh} Ah</b> — ${r.totalBlocks} ${s.chem === 'vrla' ? 'blocks' : 'modules'}, ${n(r.energyKwh)} kWh` : '<span class="bad">No block size fits</span>'],
         ['Backup with this battery', r.runtimeMin !== undefined ? `<span class="${r.runtimeMin >= s.autonomyMin ? 'ok' : 'bad'}">${n(r.runtimeMin, 0)} min</span>` : '—'],
         ['Maximum DC current / battery-bus DC breaker', `${n(r.dcCurrentMaxA, 0)} A (end of discharge, all strings) / ${r.dcBreakerNoFit ? `<b class="bad">No suitable DC breaker in the list — ${n(r.dcBreakerRequiredA, 0)} A needed (1.25 × I), largest listed ${r.dcBreakerMaxA} A</b>` : r.dcBreakerA ? `${r.dcBreakerA} A (≥ 1.25 × I; confirm DC voltage, poles and breaking capacity)` : '—'}`]
       ])}

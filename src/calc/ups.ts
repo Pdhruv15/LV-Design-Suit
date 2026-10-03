@@ -8,7 +8,7 @@ import type { Project } from '../types';
  * must cover both the kVA and the kW (kVA × its output power factor).
  * Battery (constant power, IEEE 485 / 1184 practice):
  *   P_dc = load kW ÷ inverter efficiency
- *   Ah (C10) = P_dc × t ÷ (V_dc,nominal) ÷ capacity-at-rate
+ *   Ah (C10) = P_dc × t ÷ (V_string = blocks × block V) ÷ capacity-at-rate
  *              × ageing × temperature × design margin
  * where capacity-at-rate is the share of the C10 capacity a battery can
  * deliver over the backup time (short discharges give much less). The
@@ -100,6 +100,11 @@ export interface UpsResult {
   loadingBy: 'kVA' | 'kW' | undefined;
   dcKw: number; // battery discharge power
   blocksPerString: number;
+  /** Nominal voltage of the series string actually built (blocks × block V) — the basis of every battery figure. */
+  stringV: number;
+  /** The string doesn't make the requested DC bus (dcVoltage): the battery figures are for stringV and the
+   * configuration is not valid until the bus or block voltage is changed. */
+  busMismatch: string | undefined;
   rate: number; // capacity at the backup time, share of C10
   requiredAh: number; // C10, all strings together
   strings: number;
@@ -160,9 +165,15 @@ export function sizeUps(project: Project, s: UpsSystem): UpsResult {
   // Battery sized for the load with growth (not the UPS rating).
   const dcKw = (kw * g) / Math.max(0.5, s.inverterEff);
   const blocksPerString = Math.max(1, Math.round(s.dcVoltage / s.blockV));
+  // Series voltages add: the string is what's built, the bus is what's requested — they must agree.
+  const stringV = blocksPerString * s.blockV;
+  const busMismatch = Math.abs(stringV - s.dcVoltage) > 1e-6 * Math.max(1, s.dcVoltage)
+    ? `${blocksPerString} × ${s.blockV} V = ${+stringV.toFixed(2)} V, not the ${s.dcVoltage} V DC bus — no whole number of ${s.blockV} V ${s.chem === 'vrla' ? 'blocks' : 'modules'} makes ${s.dcVoltage} V. Change the DC bus or the ${s.chem === 'vrla' ? 'block' : 'module'} voltage; figures below are for the ${+stringV.toFixed(2)} V string and its UPS compatibility is not verified.`
+    : undefined;
+  if (busMismatch) notes.push(busMismatch);
   const rate = s.rateCapacityPct ? s.rateCapacityPct / 100 : capacityAtRate(s.chem, s.autonomyMin);
   const h = s.autonomyMin / 60;
-  const requiredAh = ((dcKw * 1000 * h) / s.dcVoltage / Math.max(0.05, rate)) * s.ageing * s.tempFactor * s.designMargin;
+  const requiredAh = ((dcKw * 1000 * h) / stringV / Math.max(0.05, rate)) * s.ageing * s.tempFactor * s.designMargin;
   const sizes = [...(s.blockAhOptions ?? (s.chem === 'vrla' ? VRLA_BLOCK_AH : LI_MODULE_AH))].sort((a, b) => a - b);
   let strings = 1;
   let blockAh = sizes.find((a) => a >= requiredAh);
@@ -173,9 +184,9 @@ export function sizeUps(project: Project, s: UpsSystem): UpsResult {
   if (!blockAh) notes.push('More than 8 strings — use a larger block or a higher DC voltage');
   if (strings > 1) notes.push(`${strings} strings in parallel`);
   const installedAh = (blockAh ?? 0) * strings;
-  const energyKwh = (installedAh * s.dcVoltage) / 1000;
+  const energyKwh = (installedAh * stringV) / 1000;
   // End of discharge: VRLA at the end-cell voltage; Li-ion ≈ 2.8 V of 3.2 V per cell.
-  const vEnd = s.chem === 'vrla' ? (s.dcVoltage / 2) * (s.endCellV ?? 1.75) : s.dcVoltage * (2.8 / 3.2);
+  const vEnd = s.chem === 'vrla' ? (stringV / 2) * (s.endCellV ?? 1.75) : stringV * (2.8 / 3.2);
   const dcCurrentMaxA = (dcKw * 1000) / vEnd;
   // Aggregate battery-bus protection (all strings together), app policy ≥ 1.25 × the end-of-discharge
   // current. Per-string protection is a separate check. A rating only covers current — DC voltage,
@@ -191,18 +202,17 @@ export function sizeUps(project: Project, s: UpsSystem): UpsResult {
     let t = s.autonomyMin;
     for (let i = 0; i < 20; i++) {
       const r = s.rateCapacityPct ? s.rateCapacityPct / 100 : capacityAtRate(s.chem, t);
-      t = ((installedAh * s.dcVoltage * r) / (s.ageing * s.tempFactor * s.designMargin) / (dcKw * 1000)) * 60;
+      t = ((installedAh * stringV * r) / (s.ageing * s.tempFactor * s.designMargin) / (dcKw * 1000)) * 60;
     }
     runtimeMin = t;
   }
   if (s.chem === 'vrla' && s.autonomyMin < 5) notes.push('VRLA capacity below 5 minutes is very rate-dependent — check the manufacturer\'s table');
-  if (Math.abs(blocksPerString * s.blockV - s.dcVoltage) > 0.5) notes.push(`${blocksPerString} × ${s.blockV} V = ${blocksPerString * s.blockV} V, not exactly ${s.dcVoltage} V`);
 
   return {
     loadKva: kva, loadKw: kw, designKva, designKw,
     upsKva, upsKw: upsKva ? upsKva * s.outputPf : undefined,
     ...loadingOf(kva, kw, upsKva, upsKva ? upsKva * s.outputPf : undefined),
-    dcKw, blocksPerString, rate, requiredAh, strings, blockAh,
+    dcKw, blocksPerString, stringV, busMismatch, rate, requiredAh, strings, blockAh,
     totalBlocks: blockAh ? blocksPerString * strings : 0,
     energyKwh, dcCurrentMaxA, dcBreakerA, dcBreakerRequiredA, dcBreakerMaxA, dcBreakerNoFit, runtimeMin, notes
   };

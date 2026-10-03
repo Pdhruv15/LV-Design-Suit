@@ -26,23 +26,47 @@ export function currentFromPower(value: number, unit: PowerUnit, phases: Phases,
 /** Power drawn at a current: apparent, active and reactive. */
 export function powerFromCurrent(currentA: number, phases: Phases, voltageV: number, pf = 1) {
   const kva = ((phases === 3 ? SQRT3 : 1) * voltageV * currentA) / 1000;
+  if (kva === 0 && pf >= 0 && pf <= 1) return { kw: 0, kva: 0, kvar: 0, pf }; // no current: no power
   return triangle({ kva, pf });
 }
 
-/** Power triangle from any two of kW, kVA, kVAr, power factor. */
-export function triangle(k: { kw?: number; kva?: number; kvar?: number; pf?: number }): { kw: number; kva: number; kvar: number; pf: number } {
-  let { kw, kva, kvar, pf } = k;
-  if (pf !== undefined) pf = Math.min(1, Math.max(0, pf));
-  if (kva === undefined) {
-    if (kw !== undefined && pf) kva = kw / pf;
-    else if (kw !== undefined && kvar !== undefined) kva = Math.hypot(kw, kvar);
-    else if (kvar !== undefined && pf !== undefined && pf < 1) kva = kvar / Math.sqrt(1 - pf * pf);
+/** Relative tolerance for round-off when a side equals the hypotenuse (P = S or Q = S). */
+export const TRIANGLE_TOL = 1e-9;
+export interface Triangle { kw: number; kva: number; kvar: number; pf: number; /** Why the inputs don't form a triangle (all values NaN). */ invalid?: string }
+const bad = (invalid: string): Triangle => ({ kw: NaN, kva: NaN, kvar: NaN, pf: NaN, invalid });
+
+/** Power triangle from two of kW, kVA, kVAr, power factor (magnitudes,
+ * lagging or leading alike). Inputs that can't form a triangle — kW or kVAr
+ * above kVA, PF outside 0–1, too little information — are rejected with the
+ * reason, never clamped into a result. */
+export function triangle(k: { kw?: number; kva?: number; kvar?: number; pf?: number }): Triangle {
+  const given = Object.entries(k).filter(([, v]) => v !== undefined) as [string, number][];
+  if (given.length !== 2) return bad('Enter exactly two values');
+  if (given.some(([, v]) => !Number.isFinite(v))) return bad('Enter numbers');
+  if (given.some(([, v]) => v < 0)) return bad('Enter magnitudes (0 or more); leading or lagging is not set here');
+  const { kw, kva, kvar, pf } = k;
+  if (pf !== undefined && pf > 1) return bad('Power factor cannot be above 1');
+  const over = (side: number, s: number) => side > s * (1 + TRIANGLE_TOL) + 1e-12;
+  const leg = (s: number, side: number) => Math.sqrt(Math.max(0, s * s - side * side)); // ≥ 0 only after the over() check
+  const done = (P: number, S: number, Q: number): Triangle => ({ kw: P, kva: S, kvar: Q, pf: S > 0 ? Math.min(1, P / S) : NaN });
+  if (kva !== undefined) {
+    if (kva === 0) return bad('kVA is 0 — no power factor');
+    if (pf !== undefined) return done(kva * pf, kva, kva * Math.sqrt(1 - pf * pf));
+    if (kw !== undefined) return over(kw, kva) ? bad('kW cannot be more than kVA (|P| ≤ S)') : done(kw, kva, leg(kva, kw));
+    return over(kvar!, kva) ? bad('kVAr cannot be more than kVA (|Q| ≤ S)') : done(leg(kva, kvar!), kva, kvar!);
   }
-  if (kva === undefined) return { kw: NaN, kva: NaN, kvar: NaN, pf: NaN };
-  if (kw === undefined) kw = pf !== undefined ? kva * pf : kvar !== undefined ? Math.sqrt(Math.max(0, kva * kva - kvar * kvar)) : NaN;
-  if (pf === undefined) pf = kva > 0 ? kw / kva : NaN;
-  if (kvar === undefined) kvar = Math.sqrt(Math.max(0, kva * kva - kw * kw));
-  return { kw, kva, kvar, pf };
+  if (kw !== undefined && kvar !== undefined) return kw === 0 && kvar === 0 ? bad('kW and kVAr are both 0') : done(kw, Math.hypot(kw, kvar), kvar);
+  if (kw !== undefined && pf !== undefined) {
+    if (pf === 0) return bad(kw === 0 ? 'kW 0 at PF 0 — the kVA is not defined; enter kVA or kVAr' : 'kW above 0 at PF 0 is contradictory');
+    return kw === 0 ? bad('kW is 0 — enter kVA or kVAr') : done(kw, kw / pf, (kw / pf) * Math.sqrt(1 - pf * pf));
+  }
+  if (kvar !== undefined && pf !== undefined) {
+    if (pf === 1) return bad(kvar === 0 ? 'kVAr 0 at PF 1 — the kVA is not defined; enter kW or kVA' : 'kVAr above 0 at PF 1 is contradictory');
+    if (kvar === 0) return bad('kVAr is 0 — enter kW or kVA');
+    const S = kvar / Math.sqrt(1 - pf * pf);
+    return done(S * pf, S, kvar);
+  }
+  return bad('Enter two values');
 }
 
 /** Voltage drop of a cable run (same formula as the network studies):
@@ -87,11 +111,20 @@ export function motor(outputKw: number, voltageV: number, phases: Phases, pf: nu
   return { flc, inputKw, inputKva: inputKw / Math.max(pf, 0.01), startA: flc * mult, multiple: mult, hp: outputKw / HP_KW };
 }
 
-/** Capacitor kvar to raise the power factor: P · (tan φ1 − tan φ2). */
-export function pfCorrection(kw: number, pfNow: number, pfTarget: number) {
-  const tan = (pf: number) => Math.tan(Math.acos(Math.min(1, Math.max(0.01, pf))));
-  const kvar = Math.max(0, kw * (tan(pfNow) - tan(pfTarget)));
-  return { kvar, kvaBefore: kw / pfNow, kvaAfter: kw / pfTarget, reductionPct: (1 - pfNow / pfTarget) * 100 };
+export interface PfCorrection { kvar: number; kvaBefore: number; kvaAfter: number; reductionPct: number; pfAchieved: number; needed: boolean; invalid?: string }
+
+/** Capacitor kvar to raise a lagging power factor: P · (tan φ1 − tan φ2),
+ * ideal continuous kvar. Already at or above the target: no capacitor and
+ * nothing changes (the target is a request, not the result). */
+export function pfCorrection(kw: number, pfNow: number, pfTarget: number): PfCorrection {
+  const bad = (invalid: string): PfCorrection => ({ kvar: NaN, kvaBefore: NaN, kvaAfter: NaN, reductionPct: NaN, pfAchieved: NaN, needed: false, invalid });
+  if (![kw, pfNow, pfTarget].every(Number.isFinite)) return bad('Enter numbers');
+  if (!(kw > 0)) return bad('Active power must be above 0');
+  if (!(pfNow > 0 && pfNow <= 1) || !(pfTarget > 0 && pfTarget <= 1)) return bad('Power factors must be above 0 and at most 1');
+  const kvaBefore = kw / pfNow;
+  if (pfNow >= pfTarget) return { kvar: 0, kvaBefore, kvaAfter: kvaBefore, reductionPct: 0, pfAchieved: pfNow, needed: false };
+  const tan = (pf: number) => Math.sqrt(1 - pf * pf) / pf;
+  return { kvar: kw * (tan(pfNow) - tan(pfTarget)), kvaBefore, kvaAfter: kw / pfTarget, reductionPct: (1 - pfNow / pfTarget) * 100, pfAchieved: pfTarget, needed: true };
 }
 
 /** Fault level at the end of a cable, from the fault at its start. */
