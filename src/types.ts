@@ -479,7 +479,10 @@ export interface DmSubstationRoom {
 export type StudyReportKind = 'sc' | 'lf' | 'cable' | 'earth' | 'disc' | 'sizing' | 'pfc' | 'busbar' | 'schedules';
 
 export interface StudyReportSetup {
-  boards: string[]; // selected boards (empty = all)
+  boards: string[]; // selected boards
+  /** Whole installation, or only the selected boards (none ticked = nothing,
+   * never a silent switch to everything). Older reports: all when no boards. */
+  mode?: 'all' | 'selected';
   downstream: boolean; // include everything below the selected boards
   studies: StudyReportKind[];
   sld: boolean; // an SLD of the scope with each study's results
