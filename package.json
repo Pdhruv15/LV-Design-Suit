@@ -13,7 +13,8 @@
     "dist:mac": "npm run build && electron-builder --mac dmg:arm64",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "update-app": "bash scripts/update-app.sh"
   },
   "dependencies": {
     "docx": "^9.8.1",
