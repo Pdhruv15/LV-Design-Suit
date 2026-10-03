@@ -1,3 +1,4 @@
+import { networkOf, withNetwork } from './network';
 import { evaluateFeeder, type Status } from './electrical';
 import { breakerTypeOf, instantaneousTripA } from './earthing';
 import type { Feeder, Project } from '../types';
@@ -83,9 +84,12 @@ export function discriminationChain(project: Project, f: Feeder): SelectivityRes
  *    otherwise partial up to that threshold (the manufacturer's selectivity
  *    tables may still show total selectivity through energy limitation). */
 export function evaluateSelectivity(project: Project): SelectivityResult[] {
-  const out: SelectivityResult[] = [];
-  for (const up of project.feeders.filter((f) => f.feedsBoardId)) {
-    for (const down of project.feeders.filter((f) => f.boardId === up.feedsBoardId)) out.push(selectivityPair(project, up, down));
-  }
-  return out;
+  return withNetwork(project, () => {
+    const out: SelectivityResult[] = [];
+    const ix = networkOf(project)!;
+    for (const up of project.feeders.filter((f) => f.feedsBoardId)) {
+      for (const down of ix.feedersByBoard.get(up.feedsBoardId!) ?? []) out.push(selectivityPair(project, up, down));
+    }
+    return out;
+  });
 }

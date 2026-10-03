@@ -1,6 +1,7 @@
 import { faultCurrentKA, impedanceToBoard, upstreamVoltageDropPct, type Status } from './electrical';
 import { settingsOf, type Board, type Feeder, type LoadType, type Project } from '../types';
 import { switchedOnBoard } from './capSwitching';
+import { memoized, networkOf } from './network';
 
 const SQRT3 = Math.sqrt(3);
 
@@ -32,7 +33,11 @@ function add(a: PowerTotals, b: PowerTotals): PowerTotals {
 export function boardTotals(project: Project, boardId: string, seen = new Set<string>()): PowerTotals {
   if (seen.has(boardId)) return ZERO;
   seen.add(boardId);
-  const own = project.feeders.filter((f) => f.boardId === boardId);
+  return memoized(project, `totals:${boardId}`, () => boardTotalsOf(project, boardId, seen));
+}
+
+function boardTotalsOf(project: Project, boardId: string, seen: Set<string>): PowerTotals {
+  const own = networkOf(project)?.feedersByBoard.get(boardId) ?? project.feeders.filter((f) => f.boardId === boardId);
   const caps = own.filter((f) => f.kvar && !f.feedsBoardId);
   const base = own.filter((f) => !caps.includes(f)).reduce((acc, f) => {
     if (f.feedsBoardId) return add(acc, boardTotals(project, f.feedsBoardId, seen));

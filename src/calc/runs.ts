@@ -1,3 +1,4 @@
+import { withNetwork } from './network';
 import { evaluateProject, type FeederResult } from './electrical';
 import { evaluateEarthingAll, type EarthingResult } from './earthing';
 import { evaluateSelectivity, type SelectivityResult } from './protection';
@@ -72,9 +73,8 @@ export interface CalcRun {
 
 export function runCalculations(project: Project, now = Date.now()): CalcRun {
   const t0 = performance.now();
-  const results = evaluateProject(project);
-  const earthing = evaluateEarthingAll(project);
-  const selectivity = evaluateSelectivity(project);
+  // One network index for the whole run: every study reuses the same walks of the board tree.
+  const { results, earthing, selectivity } = withNetwork(project, () => ({ results: evaluateProject(project), earthing: evaluateEarthingAll(project), selectivity: evaluateSelectivity(project) }));
   const fingerprints = Object.fromEntries(STUDY_KEYS.map((k) => [k, fingerprint(project, k)])) as Record<StudyKey, string>;
   return { project, fingerprints, results, earthing, selectivity, at: now, ms: performance.now() - t0 };
 }

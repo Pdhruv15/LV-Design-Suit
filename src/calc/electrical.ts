@@ -1,3 +1,4 @@
+import { memoized, networkOf, withNetwork } from './network';
 import { ambientCorrectionFactor, cables, getCable } from './cableTable';
 import { trayGrouping } from './cableTray';
 import type { Board, Feeder, Project } from '../types';
@@ -146,6 +147,8 @@ export function voltageDropPct(feeder: Feeder, project: Project): number {
 }
 
 function findIncomer(project: Project, board: Board): Feeder | undefined {
+  const ix = networkOf(project);
+  if (ix) return ix.incomerOf.get(board.id);
   return project.feeders.find((f) => f.boardId === board.upstreamId && f.feedsBoardId === board.id);
 }
 
@@ -154,12 +157,16 @@ function findIncomer(project: Project, board: Board): Feeder | undefined {
  * board. DEWA/IEC limits apply to the total source-to-load drop, so this
  * is added to each feeder's own drop before comparing with the limit. */
 export function upstreamVoltageDropPct(project: Project, boardId: string, seen = new Set<string>()): number {
-  const board = project.boards.find((b) => b.id === boardId);
+  const board = networkOf(project)?.boardById.get(boardId) ?? project.boards.find((b) => b.id === boardId);
   if (!board?.upstreamId || seen.has(boardId)) return 0;
   seen.add(boardId);
+  return memoized(project, `vdUp:${boardId}`, () => upstreamVdOf(project, board, seen));
+}
+
+function upstreamVdOf(project: Project, board: Board, seen: Set<string>): number {
   const incomer = findIncomer(project, board);
   const own = incomer ? voltageDropPct(incomer, project) : 0;
-  return own + upstreamVoltageDropPct(project, board.upstreamId, seen);
+  return own + upstreamVoltageDropPct(project, board.upstreamId!, seen);
 }
 
 /** Picks the smallest standard cable size whose derated ampacity covers both
@@ -234,10 +241,15 @@ export function cableImpedance(csaMm2: number, lengthM: number, runs = 1): Imped
  * busbar, walking up the board hierarchy: main board -> transformer only;
  * any downstream board -> its parent's impedance plus its incomer cable. */
 export function impedanceToBoard(project: Project, boardId: string, seen = new Set<string>()): Impedance {
-  const board = project.boards.find((b) => b.id === boardId);
+  const board = networkOf(project)?.boardById.get(boardId) ?? project.boards.find((b) => b.id === boardId);
   const fallback = { r: 0, x: 0.01 };
   if (!board || seen.has(boardId)) return fallback;
   seen.add(boardId);
+  return memoized(project, `zUp:${boardId}`, () => impedanceToBoardOf(project, board, seen));
+}
+
+function impedanceToBoardOf(project: Project, board: Board, seen: Set<string>): Impedance {
+  const fallback = { r: 0, x: 0.01 };
 
   if (!board.upstreamId) {
     return board.sourceKva && board.sourceImpedancePct
@@ -247,7 +259,7 @@ export function impedanceToBoard(project: Project, boardId: string, seen = new S
 
   const incomer = findIncomer(project, board);
   const incomerZ = incomer ? cableImpedance(incomer.cableCsaMm2, incomer.lengthM, runsOf(incomer)) : { r: 0, x: 0 };
-  return addZ(impedanceToBoard(project, board.upstreamId, seen), incomerZ);
+  return addZ(impedanceToBoard(project, board.upstreamId!, seen), incomerZ);
 }
 
 /** Prospective symmetrical 3-phase fault current (kA rms) for a given
@@ -289,6 +301,17 @@ export interface FeederResult {
 }
 
 export function evaluateFeeder(project: Project, feeder: Feeder): FeederResult {
+  // Within a run, each feeder is evaluated once (discrimination reuses it); only for this exact feeder object.
+  const ix = networkOf(project);
+  if (!ix) return evaluateFeederOf(project, feeder);
+  const hit = ix.memo.get(`feeder:${feeder.id}`) as { feeder: Feeder; r: FeederResult } | undefined;
+  if (hit?.feeder === feeder) return hit.r;
+  const r = evaluateFeederOf(project, feeder);
+  ix.memo.set(`feeder:${feeder.id}`, { feeder, r });
+  return r;
+}
+
+function evaluateFeederOf(project: Project, feeder: Feeder): FeederResult {
   const ib = designCurrentA(feeder, project);
   const tray = trayFactorOf(project, feeder);
   const ampacity = deratedAmpacityA(feeder.cableCsaMm2, project.ambientC, runsOf(feeder), tray?.factor);
@@ -322,5 +345,5 @@ export function evaluateFeeder(project: Project, feeder: Feeder): FeederResult {
 }
 
 export function evaluateProject(project: Project): FeederResult[] {
-  return project.feeders.map((f) => evaluateFeeder(project, f));
+  return withNetwork(project, () => project.feeders.map((f) => evaluateFeeder(project, f)));
 }
