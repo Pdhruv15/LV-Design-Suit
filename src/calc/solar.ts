@@ -17,6 +17,9 @@ export interface PvPanel {
   iscA: number;
   impA: number;
   betaVocPct: number; // Voc temperature coefficient, %/°C (negative)
+  /** Vmp temperature coefficient, %/°C (negative), from the panel datasheet. Blank (older projects, the
+   * generic panel): the MPPT checks use VMP_COEFF_ESTIMATE_PCT and are marked estimated, not verified. */
+  betaVmpPct?: number;
   gammaPmaxPct: number; // Pmax temperature coefficient, %/°C (negative)
   noctC: number;
   lengthM: number;
@@ -78,6 +81,10 @@ export const DEFAULT_PANEL: PvPanel = {
 export const DEFAULT_INVERTER: PvInverter = {
   name: 'String inverter (generic)', acKw: 50, maxDcV: 1100, mpptMinV: 200, mpptMaxV: 1000, mppts: 4, maxInputA: 40, efficiencyPct: 98.2, phases: 3
 };
+/** Generic Vmp temperature coefficient used only when the datasheet value is missing: a typical value for
+ * crystalline-silicon modules (an assumption, not a manufacturer figure). The Voc coefficient is not used for Vmp. */
+export const VMP_COEFF_ESTIMATE_PCT = -0.4;
+
 export const INVERTER_KW = [3, 5, 6, 8, 10, 12, 15, 17, 20, 25, 30, 36, 40, 50, 60, 75, 100, 110, 125, 150, 185, 215, 250, 330];
 
 // Dubai defaults: ≈ 5.8 kWh/m²/day on a fixed south-facing tilt, 48 °C design maximum.
@@ -97,6 +104,9 @@ export interface PvResult {
   vocColdV: number;
   vmpHotV: number;
   vmpColdV: number;
+  /** The Vmp coefficient used and where it came from: the datasheet, or the generic estimate. */
+  vmpCoeffPct: number;
+  vmpBasis: 'datasheet' | 'estimated';
   maxPerString: number;
   minPerString: number;
   perString: number;
@@ -147,10 +157,16 @@ export function sizePv(s: PvSystem, voltageV = 400): PvResult {
 
   // String voltages at the temperature extremes.
   const tCellMax = s.tMaxC + ((p.noctC - 20) / 800) * 1000;
+  // Linear temperature approximation, each voltage with its own coefficient: Voc with the Voc
+  // coefficient (maximum DC voltage), Vmp with the Vmp coefficient (MPPT window).
   const beta = p.betaVocPct / 100;
+  const vmpBasis: PvResult['vmpBasis'] = p.betaVmpPct !== undefined && Number.isFinite(p.betaVmpPct) ? 'datasheet' : 'estimated';
+  const vmpCoeffPct = vmpBasis === 'datasheet' ? p.betaVmpPct! : VMP_COEFF_ESTIMATE_PCT;
+  const betaVmp = vmpCoeffPct / 100;
   const vocCold = p.vocV * (1 + beta * (s.tMinC - 25));
-  const vmpHot = p.vmpV * (1 + beta * (tCellMax - 25));
-  const vmpCold = p.vmpV * (1 + beta * (s.tMinC - 25));
+  const vmpHot = p.vmpV * (1 + betaVmp * (tCellMax - 25));
+  const vmpCold = p.vmpV * (1 + betaVmp * (s.tMinC - 25));
+  if (vmpBasis === 'estimated') warn(`MPPT window not verified: no Vmp temperature coefficient for the panel — estimated at ${VMP_COEFF_ESTIMATE_PCT} %/°C (typical crystalline silicon). Enter the datasheet value.`);
   const maxPerString = Math.floor(Math.min(inv.maxDcV / vocCold, inv.mpptMaxV / vmpCold));
   const minPerString = Math.ceil(inv.mpptMinV / vmpHot);
   if (minPerString > maxPerString) bad('No string length fits this inverter — check the panel and inverter voltages');
@@ -194,7 +210,7 @@ export function sizePv(s: PvSystem, voltageV = 400): PvResult {
 
   return {
     panels, kwp, arrayAreaM2: panels * panelArea, roofNeededM2: (panels * panelArea) / (s.roofUsePct / 100),
-    tCellMaxC: tCellMax, vocColdV: vocCold, vmpHotV: vmpHot, vmpColdV: vmpCold,
+    tCellMaxC: tCellMax, vocColdV: vocCold, vmpHotV: vmpHot, vmpColdV: vmpCold, vmpCoeffPct, vmpBasis,
     maxPerString, minPerString, perString, strings, inverters, inverterKw: inv.acKw, stringsPerMppt, mpptCurrentA, dcAcRatio: ratio,
     tempLossPct: tempLoss * 100, prPct: pr * 100, dailyKwh, annualKwh, specificYield: kwp ? annualKwh / kwp : 0,
     savings: s.tariff !== undefined ? annualKwh * s.tariff : undefined, co2Tonnes: (annualKwh * s.gridKgPerKwh) / 1000,
