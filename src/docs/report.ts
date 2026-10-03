@@ -2,7 +2,7 @@ import { evaluateProject, type Status } from '../calc/electrical';
 import { REFERENCE_DATA_NOTICE, usingReferenceCables } from '../calc/cableTable';
 import { CALC_DISCLAIMER } from '../calc/statusText';
 import { STATUS_TEXT, statusOfText } from '../calc/statusText';
-import { evaluateEarthingAll, breakerTypeOf } from '../calc/earthing';
+import { evaluateEarthingAll, breakerTypeOf, disconnectionLabel, loopFigures } from '../calc/earthing';
 import { evaluateSelectivity } from '../calc/protection';
 import { boardSummary, boardsInSupplyOrder, systemSummary } from '../calc/summary';
 import { settingsOf } from '../calc/sizing';
@@ -99,11 +99,11 @@ ${section('Feeder calculations', `<p>${counts(results.map((r) => r.status))}</p>
       st(r.protectionStatus), r.vdTotalPct.toFixed(2), st(r.vdStatus), f(r.breakerFaultKA, 1), String(r.feeder.breakerIcuKa), st(r.icuStatus), st(r.status)])
   ))}
 
-${section('Earthing — fault loop impedance and disconnection', `<p>${counts(earthing.map((r) => r.status))}</p>` + table(
+${section('Earthing — fault loop impedance and disconnection', `<p>${counts(earthing.map((r) => r.status))}</p>${(() => { const m = [...new Set(earthing.map((r) => r.sourceMissing).filter(Boolean))]; return m.length ? `<p class="bad">Not verified — ${esc(m.join('; '))}. Ze is not assumed 0; Zs shown is a minimum and If a maximum for those circuits.</p>` : ''; })()}` + table(
     ['Circuit', 'CPC (mm²)', 'Zs (Ω)', 'Max Zs (Ω)', 'If (A)', 'Ia (A)', 'Required (s)', 'Disconnection', 'CPC min, each (mm²)', 'Status'],
-    earthing.map((r) => [esc(r.feeder.id), String(r.cpcMm2), r.zsOhm.toFixed(4), r.maxZsOhm.toFixed(4), f(r.faultA), f(r.tripA), String(r.requiredS),
-      `<td class="${r.disconnection}">${r.disconnection === 'ok' ? '&lt; 0.1 s' : r.disconnection === 'warn' ? 'Thermal — check curve' : 'Too slow'}</td>`,
-      `<td class="${r.adiabatic}">${r.adiabaticMinMm2.toFixed(1)}${r.runs > 1 ? ` <span class="m">(${r.runs} runs, ${r.cpcCurrentA.toFixed(0)} A each${r.adiabatic === 'warn' ? ', assumed equal sharing — not verified for a fault within one run' : ''})</span>` : ''}</td>`, st(r.status)])
+    earthing.map((r) => [esc(r.feeder.id), String(r.cpcMm2), esc(loopFigures(r).zs), r.maxZsOhm.toFixed(4), esc(loopFigures(r).fault), f(r.tripA), String(r.requiredS),
+      `<td class="${r.disconnection}">${esc(disconnectionLabel(r))}</td>`,
+      `<td class="${r.adiabatic}">${Number.isFinite(r.adiabaticMinMm2) ? r.adiabaticMinMm2.toFixed(1) : '—'}${r.runs > 1 ? ` <span class="m">(${r.runs} runs, ${r.cpcCurrentA.toFixed(0)} A each${r.adiabatic === 'warn' ? ', assumed equal sharing — not verified for a fault within one run' : ''})</span>` : ''}</td>`, st(r.status)])
   ))}
 
 ${section('Protection coordination', selectivity.length ? `<p>${counts(selectivity.map((r) => r.status))}</p>` + table(

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { Project } from '../../types';
-import { evaluateEarthingAll, breakerTypeOf, C_MIN, K_CPC_XLPE_CU } from '../../calc/earthing';
+import { evaluateEarthingAll, breakerTypeOf, C_MIN, disconnectionLabel, K_CPC_XLPE_CU, loopFigures } from '../../calc/earthing';
 import { FocusChip, Page, StatusCell, StatusCounts } from '../ui';
 import { subtree } from '../../calc/pfc';
 
@@ -31,20 +31,21 @@ export default function EarthingStudy({ project, onSelectFeeder, focus, onClearF
         <tbody>
           {results.map((r) => {
             const f = r.feeder;
+            const lf = loopFigures(r);
             return (
               <tr key={f.id} onClick={() => onSelectFeeder(f.id)}>
                 <td>{f.id}</td>
                 <td>{f.boardId}</td>
                 <td>{f.breakerRatingA} A {breakerTypeOf(f)}</td>
                 <td>{f.cableCsaMm2} / {r.cpcMm2}</td>
-                <td>{r.zeOhm.toFixed(4)}</td>
-                <td className={r.zsOhm > r.maxZsOhm ? r.disconnection : ''}>{r.zsOhm.toFixed(4)}</td>
+                <td title={r.sourceMissing}>{lf.ze}</td>
+                <td className={r.zsOhm > r.maxZsOhm ? r.disconnection : ''}>{lf.zs}</td>
                 <td>{r.maxZsOhm.toFixed(4)}</td>
-                <td>{r.faultA.toFixed(0)}</td>
+                <td>{lf.fault}</td>
                 <td>{r.tripA.toFixed(0)}</td>
                 <td>{r.requiredS} s</td>
                 <StatusCell status={r.disconnection}>
-                  {r.disconnection === 'ok' ? '< 0.1 s' : r.disconnection === 'warn' ? 'Thermal — check curve' : 'Too slow'}
+                  <span title={r.sourceMissing}>{disconnectionLabel(r)}</span>
                 </StatusCell>
                 <StatusCell status={r.adiabatic}><span title={r.adiabaticNote}>{r.adiabaticMinMm2.toFixed(1)}{r.runs > 1 ? <span className="m"> ({r.runs} runs, {r.cpcCurrentA.toFixed(0)} A each{r.adiabatic === 'warn' ? ', assumed sharing' : ''})</span> : null}</span></StatusCell>
                 <StatusCell status={r.status} />
@@ -53,6 +54,7 @@ export default function EarthingStudy({ project, onSelectFeeder, focus, onClearF
           })}
         </tbody>
       </table>
+      {(() => { const m = [...new Set(results.map((r) => r.sourceMissing).filter(Boolean))]; return m.length ? <p className="bad">Not verified — {m.join('; ')}. Ze isn't assumed to be 0: enter the source data so the loop is complete. Zs shown is a minimum and If a maximum for those circuits.</p> : null; })()}
     </Page>
   );
 }
