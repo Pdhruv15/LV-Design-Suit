@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
 import type { Project } from '../types';
 import type { BomItem } from '../calc/bom';
-import type { BomChange, PriceList, PricedBom } from '../model/priceList';
+import { pricingBasis, type BomChange, type PriceList, type PricedBom } from '../model/priceList';
 import { revisionStamp } from '../model/revisions';
 
 /** The BOQ as an Excel workbook in tender format: a summary sheet, the
@@ -56,8 +56,9 @@ export function buildBoqWorkbook(project: Project, bom: PricedBom, list?: PriceL
   line('Total', bom.total, true);
   sum.getColumn(3).numFmt = MONEY;
   r++;
-  sum.getCell(r++, 2).value = `Rates: ${list ? `${list.name}, ${list.date}` : 'typical built-in rates (cables and breakers only)'}`;
-  if (bom.missing) sum.getCell(r++, 2).value = `${bom.missing} item(s) have no rate yet — shown with an empty rate on the bill.`;
+  sum.getCell(r++, 2).value = 'Pricing basis';
+  sum.getCell(r - 1, 2).font = { bold: true };
+  for (const l of pricingBasis(bom, list).lines) sum.getCell(r++, 2).value = l;
   sum.getCell(r++, 2).value = 'Quantities from the design as it is; to be checked before tender.';
 
   // Bill
@@ -162,6 +163,7 @@ const m2 = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, 
 /** The BOQ as a printable page (PDF): header with logo, summary, and — unless
  * summaryOnly — the full bill with section totals. */
 export function buildBoqHtml(project: Project, bom: PricedBom, list?: PriceList, summaryOnly = false): string {
+  const basis = pricingBasis(bom, list);
   const cur = list?.currency ?? 'AED';
   const logo = project.drawing?.logo?.startsWith('data:image/') ? `<img class="logo" src="${escH(project.drawing.logo)}" alt="">` : '';
   const summary = `<table class="t"><thead><tr><th>Section</th><th>Description</th><th class="n">Amount (${escH(cur)})</th></tr></thead><tbody>
@@ -171,7 +173,7 @@ export function buildBoqHtml(project: Project, bom: PricedBom, list?: PriceList,
     ${bom.discount ? `<tr><td></td><td>Discount</td><td class="n">−${m2(bom.discount)}</td></tr>` : ''}
     <tr class="b"><td></td><td>Total</td><td class="n">${escH(cur)} ${m2(bom.total)}</td></tr></tbody></table>`;
   const bill = summaryOnly ? '' : `<h2>Bill of quantities</h2><table class="t"><thead><tr><th>Item</th><th>Description</th><th>Unit</th><th class="n">Qty</th><th class="n">Supply</th><th class="n">Install</th><th class="n">Amount</th></tr></thead><tbody>
-    ${bom.sections.map((s) => `<tr class="sec"><td>${escH(s.section)}</td><td colspan="6">${escH(s.title.toUpperCase())}</td></tr>${s.items.map((it, i) => `<tr><td>${s.section}.${i + 1}</td><td>${escH(it.description)}${it.note ? ` <span class="m">(${escH(it.note)})</span>` : ''}</td><td>${escH(it.unit)}</td><td class="n">${it.qty}</td><td class="n">${it.source === 'excluded' || it.rate === undefined ? '' : m2(it.rate)}</td><td class="n">${it.labour ? m2(it.labour) : ''}</td><td class="n">${it.source === 'excluded' ? 'By others' : it.amount ? m2(it.amount) : ''}</td></tr>`).join('')}<tr class="b"><td></td><td colspan="5">Total section ${escH(s.section)} carried to summary</td><td class="n">${m2(s.amount)}</td></tr>`).join('')}
+    ${bom.sections.map((s) => `<tr class="sec"><td>${escH(s.section)}</td><td colspan="6">${escH(s.title.toUpperCase())}</td></tr>${s.items.map((it, i) => `<tr><td>${s.section}.${i + 1}</td><td>${escH(it.description)}${it.note ? ` <span class="m">(${escH(it.note)})</span>` : ''}${it.source === 'typical' ? ' <span class="flag">typical rate</span>' : ''}${it.designQty !== undefined ? ` <span class="flag">qty changed (design ${it.designQty})${it.changed ? ' — design moved, review' : ''}</span>` : ''}</td><td>${escH(it.unit)}</td><td class="n">${it.qty}</td><td class="n">${it.source === 'excluded' || it.rate === undefined ? '' : m2(it.rate)}</td><td class="n">${it.labour ? m2(it.labour) : ''}</td><td class="n">${it.source === 'excluded' ? 'By others' : it.amount ? m2(it.amount) : '<span class="flag">NO RATE</span>'}</td></tr>`).join('')}<tr class="b"><td></td><td colspan="5">Total section ${escH(s.section)} carried to summary</td><td class="n">${m2(s.amount)}</td></tr>`).join('')}
     </tbody></table>`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>${escH(project.name)} — BOQ</title><style>
     @page { size: A4; margin: 12mm; } body { font: 9.5px/1.35 Arial, sans-serif; color: #111; margin: 0; }
@@ -181,8 +183,11 @@ export function buildBoqHtml(project: Project, bom: PricedBom, list?: PriceList,
     .t { width: 100%; border-collapse: collapse; } .t th, .t td { border: 0.2mm solid #999; padding: 2px 4px; vertical-align: top; }
     .t th { background: #1d4f8f; color: #fff; text-align: left; } .n { text-align: right; white-space: nowrap; }
     .sec td { background: #dbe7f7; font-weight: 700; } .b td { font-weight: 700; } thead { display: table-header-group; } tr { break-inside: avoid; }
+  .basis{border:1px solid #999;border-radius:4px;padding:5px 9px;margin:6px 0 10px;font-size:10px}.basis.warn{border-color:#b45309;background:#fef3c7}.basis ul{margin:3px 0 0 16px;padding:0}.basis p{margin:3px 0 0}
+  .flag{font-size:8.5px;font-weight:600;color:#9a3412;white-space:nowrap}
   </style></head><body>
-  <header>${logo}<div><h1>${escH(project.name)}</h1><div class="m">Bill of quantities · ${escH(revisionStamp(project))}${project.info?.owner ? ` · ${escH(project.info.owner)}` : ''}</div></div><span class="sp"></span><div class="m">Rates: ${list ? `${escH(list.name)}, ${escH(list.date)}` : 'typical'}</div></header>
+  <header>${logo}<div><h1>${escH(project.name)}</h1><div class="m">Bill of quantities · ${escH(revisionStamp(project))}${project.info?.owner ? ` · ${escH(project.info.owner)}` : ''}</div></div><span class="sp"></span><div class="m">Rates: ${list ? `${escH(list.name)}, ${escH(list.date)}${basis.typical ? ` + ${basis.typical} at typical rates` : ''}` : 'typical built-in rates (illustrative)'}</div></header>
+  <div class="basis${basis.missing || basis.typical || basis.designMoved ? ' warn' : ''}"><b>Pricing basis</b><ul>${basis.lines.map((l) => `<li>${escH(l)}</li>`).join('')}</ul>${summaryOnly && (basis.missing || basis.typical) ? '<p>Items without a list rate are named in the full BOQ.</p>' : ''}</div>
   <h2>Summary</h2>${summary}${bill}
   </body></html>`;
 }

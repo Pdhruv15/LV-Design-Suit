@@ -3,6 +3,7 @@ import { statusOfText } from '../../calc/statusText';
 import type { Project } from '../../types';
 import { cableSchedule, dbSchedule, equipmentSchedule, type Schedule } from '../../docs/schedules';
 import { buildReportHtml } from '../../docs/report';
+import { scheduleHtml } from '../../docs/sheetPdf';
 import { saveCsv, savePdf, safeFileName } from '../../util/files';
 import { FocusChip, Page } from '../ui';
 import { subtree } from '../../calc/pfc';
@@ -27,11 +28,16 @@ function ScheduleTable({ schedule }: { schedule: Schedule }) {
 
 type Status = (msg: string) => void;
 
-function ExportCsvButton({ name, schedule, onStatus }: { name: string; schedule: Schedule; onStatus: Status }) {
+function ExportCsvButton({ name, schedule, onStatus, project }: { name: string; schedule: Schedule; onStatus: Status; project?: Project }) {
   return (
-    <button className="chip" onClick={async () => { const m = await saveCsv(name, schedule.headers, schedule.rows); if (m) onStatus(m); }}>
-      Export CSV (Excel)
-    </button>
+    <>
+      <button className="chip" onClick={async () => { const m = await saveCsv(name, schedule.headers, schedule.rows); if (m) onStatus(m); }}>
+        Export CSV (Excel)
+      </button>
+      {project && <button className="chip" onClick={async () => { const m = await savePdf(`${safeFileName(name)}.pdf`, scheduleHtml(project, schedule, name), { pageSize: 'A4', landscape: true, cssPages: true }); if (m) onStatus(m); }}>
+        Export PDF
+      </button>}
+    </>
   );
 }
 
@@ -50,7 +56,7 @@ export function DbScheduleView({ project, onStatus, board, onBoard }: { project:
             <option value="">All boards</option>
             {project.boards.map((b) => <option key={b.id} value={b.id}>{b.id}</option>)}
           </select>
-          <ExportCsvButton name={`${project.name} DB schedule${boardId ? ` ${boardId}` : ''}`} schedule={schedule} onStatus={onStatus} />
+          <ExportCsvButton project={project} name={`${project.name} DB schedule${boardId ? ` ${boardId}` : ''}`} schedule={schedule} onStatus={onStatus} />
         </>
       }
     >
@@ -67,7 +73,7 @@ export function CableScheduleView({ project, onStatus, focus, onClearFocus }: { 
     return { ...s, rows: s.rows.filter((r) => ids.has(String(r[1]))) };
   }, [project, focus]);
   return (
-    <Page title="Cable schedule" actions={<><FocusChip id={focus} onClear={onClearFocus} /><ExportCsvButton name={`${project.name} cable schedule${focus ? ` ${focus}` : ''}`} schedule={schedule} onStatus={onStatus} /></>}>
+    <Page title="Cable schedule" actions={<><FocusChip id={focus} onClear={onClearFocus} /><ExportCsvButton project={project} name={`${project.name} cable schedule${focus ? ` ${focus}` : ''}`} schedule={schedule} onStatus={onStatus} /></>}>
       <ScheduleTable schedule={schedule} />
     </Page>
   );
@@ -79,7 +85,7 @@ export function EquipmentScheduleView({ project, onStatus }: { project: Project;
     <Page
       title="Equipment schedule"
       intro="Transformers and boards. Edit board equipment data in the board's properties panel (select the board in the diagram)."
-      actions={<ExportCsvButton name={`${project.name} equipment schedule`} schedule={schedule} onStatus={onStatus} />}
+      actions={<ExportCsvButton project={project} name={`${project.name} equipment schedule`} schedule={schedule} onStatus={onStatus} />}
     >
       <ScheduleTable schedule={schedule} />
     </Page>

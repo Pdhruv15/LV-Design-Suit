@@ -93,3 +93,94 @@ describe('the main calculation report sizes like the study pages', () => {
     if (gen.recommendedKva) expect(html).toContain(`recommended ${gen.recommendedKva} kVA`);
   });
 });
+
+import { incomerCableText, incomerLabel, loadScheduleCsv, loadScheduleRows, buildLoadScheduleHtml } from './loadScheduleDoc';
+
+describe('DB load schedule totals and incomer', () => {
+  const db = { id: 'DB1', name: 'DB1', upstreamId: main.id, pointWatts: { ltg: 100 } } as unknown as Project['boards'][number];
+  const inc = { id: 'I1', boardId: main.id, name: 'Incomer', feedsBoardId: 'DB1', loadKw: 0, demandFactor: 1, powerFactor: 0.9, lengthM: 30, cableCsaMm2: 16, cores: 2, breakerRatingA: 63, breakerIcuKa: 25, parallel: 2, cableType: 'FR BS 8491' };
+  const c1 = { id: 'C1', boardId: 'DB1', name: 'Lights', loadKw: 1, demandFactor: 0.5, powerFactor: 0.9, lengthM: 20, cableCsaMm2: 1.5, cores: 2, breakerRatingA: 10, breakerIcuKa: 6, phase: 'R', way: 1, loadType: 'lighting', points: { ltg: 10 } };
+  const p = { ...p0, boards: [...p0.boards, db], feeders: [...p0.feeders, inc, c1] } as unknown as Project;
+
+  it('connected total matches the rows; maximum demand is labelled separately', () => {
+    const r = loadScheduleRows(p, 'DB1');
+    expect(r.connectedW.R).toBe(1000);
+    expect(r.phaseW.R).toBeCloseTo(0.5);
+    const html = buildLoadScheduleHtml(p, 'DB1');
+    expect(html).toMatch(/TOTAL CONNECTED LOAD \(W\)/);
+    expect(html).toMatch(/MAXIMUM DEMAND \(W\) — after demand factors/);
+    const csv = loadScheduleCsv(p, 'DB1').rows.map((x) => x[6]);
+    expect(csv).toContain('TOTAL CONNECTED');
+    expect(csv).toContain('MAXIMUM DEMAND');
+  });
+
+  it('incomer text follows the feeder: poles, parallel runs, construction', () => {
+    const b = p.boards.find((x) => x.id === 'DB1')!;
+    const f = p.feeders.find((x) => x.id === 'I1')!;
+    expect(incomerLabel(b, f)).toMatch(/SP\+N$/);
+    expect(incomerLabel(b, f)).not.toMatch(/TP/);
+    const t = incomerCableText(p, f);
+    expect(t).toMatch(/^CABLE SIZE: 2x2C 16mm²/);
+    expect(t).toMatch(/\(fire rated\), 30 m$/); // as on the cable schedule: base build-up + fire-rated mark
+  });
+});
+
+import { buildBom } from '../calc/bom';
+import { priceBom } from '../model/priceList';
+import { buildBoqHtml } from './boqWorkbook';
+
+describe('BOQ PDF discloses how it was priced', () => {
+  const bom = priceBom(buildBom(p0));
+  it('full and summary PDFs both state typical-rate and unpriced items', () => {
+    expect(bom.missing).toBeGreaterThan(0); // no list: only cables and breakers have typical rates
+    for (const summaryOnly of [false, true]) {
+      const html = buildBoqHtml(p0, bom, undefined, summaryOnly);
+      expect(html).toMatch(/Pricing basis/);
+      expect(html).toMatch(/NO RATE and are not in the total — the total is incomplete/);
+      expect(html).toMatch(/built-in typical rates/);
+    }
+    expect(buildBoqHtml(p0, bom)).toMatch(/class="flag">NO RATE/);
+  });
+});
+
+import { diffProjects, snapshotOf } from '../model/revisions';
+
+describe('revision comparison records design changes', () => {
+  const fields = (q: Project) => diffProjects(snapshotOf(p0), snapshotOf(q)).changes.flatMap((c) => c.fields.map((f) => f.field));
+  const f0 = p0.feeders[0];
+  it.each([
+    ['Parallel runs', { feeders: p0.feeders.map((f) => (f === f0 ? { ...f, parallel: 2 } : f)) }],
+    ['Tray route', { feeders: p0.feeders.map((f) => (f === f0 ? { ...f, trayRoute: 'A-B' } : f)) }],
+    ['Instantaneous (× In)', { feeders: p0.feeders.map((f) => (f === f0 ? { ...f, breakerImMultiple: 5 } : f)) }],
+    ['Essential (generator)', { feeders: p0.feeders.map((f) => (f === f0 ? { ...f, essential: true } : f)) }],
+    ['Standby generator', { boards: p0.boards.map((b, i) => (i ? b : { ...b, standby: { kva: 500 } })) }],
+    ['Transformer & generator plan', { txGen: { sizeList: 'iec' } }],
+    ['Cable temperature for voltage drop (°C)', { vdTempC: 90 }],
+    ['Busbar risers', { busRisers: [] as never[] }],
+    ['Solar PV', { pv: {} as never }]
+  ] as [string, Partial<Project>][])('%s', (label, q) => {
+    expect(fields({ ...p0, ...q } as Project)).toContain(label);
+  });
+});
+
+import { buildFormWorkbook } from './formWorkbook';
+import { scheduleHtml, workbookHtml } from './sheetPdf';
+import { cableSchedule } from './schedules';
+
+describe('PDF of the authority forms and schedules', () => {
+  it('MD form and TCL summary print the same cells as the Excel, with merges', () => {
+    const wb = buildFormWorkbook(p0, { boardIds: [main.id], forms: ['md'] });
+    const html = workbookHtml(p0, wb, 'MD');
+    const ws = wb.worksheets[0];
+    const someText = [...Array(ws.rowCount)].flatMap((_, r) => [...Array(ws.columnCount)].map((__, c) => ws.getRow(r + 1).getCell(c + 1).value)).find((v) => typeof v === 'string' && v.length > 4) as string;
+    expect(html).toContain(someText.replace(/&/g, '&amp;').split('\n')[0]);
+    expect(html).toMatch(/colspan="\d+"/);
+    const tx = workbookHtml(p0, buildFormWorkbook(p0, { forms: ['tx'] }), 'TCL');
+    expect(tx).toMatch(/<table class="form">/);
+  });
+  it('cable schedule PDF has every row', () => {
+    const s = cableSchedule(p0);
+    const html = scheduleHtml(p0, s, 'Cable schedule');
+    expect((html.match(/<tr/g) ?? []).length).toBe(s.rows.length + 1);
+  });
+});

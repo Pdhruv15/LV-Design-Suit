@@ -4,7 +4,7 @@ import { pointColumns, pointWattsFor, SINGLE_PHASES } from '../calc/loadSchedule
 import { breakerRatings } from '../calc/sizing';
 import { addCircuit, refreshBoard, updateCircuit, type CircuitPatch } from '../model/schedule';
 import type { Board, Feeder, Phase, PointType, Project } from '../types';
-import { loadScheduleRows } from './loadScheduleDoc';
+import { incomerCableText, loadScheduleRows } from './loadScheduleDoc';
 import { cellName, colName, parseCount, parsePositive, STYLE, statusColor, type SheetEdit, type SheetModel } from './sheet';
 
 export { colName, type SheetEdit };
@@ -131,6 +131,7 @@ export function buildDbSheet(project: Project, boardId: string): DbSheet {
     return line;
   });
 
+  // DEWA form: a DB's incomer is its isolator; poles from the supply (SP for a 2-core supply).
   const incomerText = incomer
     ? `${incomer.breakerRatingA}A ${incomer.cores >= 3 ? 'TP' : 'SP'} ${board.kind === 'DB' || !board.kind ? 'ISOLATOR' : breakerTypeOf(incomer)}`
     : board.ratedCurrentA ? `${board.ratedCurrentA}A` : '';
@@ -154,15 +155,13 @@ export function buildDbSheet(project: Project, boardId: string): DbSheet {
   }
 
   const totals = cols.map(() => '');
-  totals[at('wpu')] = 'TOTAL (kW)';
+  totals[at('wpu')] = 'MAX. DEMAND (kW)';
   totals[at('R')] = fmtKw(phaseW.R * 1000);
   totals[at('Y')] = fmtKw(phaseW.Y * 1000);
   totals[at('B')] = fmtKw(phaseW.B * 1000);
   totals[at('remarks')] = fmtKw((phaseW.R + phaseW.Y + phaseW.B) * 1000);
 
-  const cableText = incomer
-    ? `CABLE SIZE: ${incomer.cores}Cx${incomer.cableCsaMm2} Sqmm CU/XLPE/SWA/PVC + 1C ${cpcOf(incomer)} Sqmm CU. PVC ECC`
-    : 'CABLE SIZE: —';
+  const cableText = incomerCableText(project, incomer);
 
   const groups = [
     { title: '', colspan: at('room') + 1 },

@@ -2,13 +2,29 @@ import { evaluateFeeder, type Status } from '../calc/electrical';
 import { boardLocation } from '../model/levels';
 import { breakerTypeOf, cpcOf } from '../calc/earthing';
 import { boardPhaseKw, circuitCategory, circuitRef, circuitWatts, elcbGroups, imbalancePct, minWireMm2, pointColumns, pointWattsFor, scheduleCircuits } from '../calc/loadSchedule';
-import type { Project } from '../types';
+import type { Board, Feeder, Project } from '../types';
+import { polesOf } from '../calc/bom';
+import { cableTypeOf } from '../model/cableTypes';
+import { cableBuildText, feederBuild } from '../model/cableRefs';
 
 const esc = (v: unknown) =>
   String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 /** Rows of the DEWA-style load distribution schedule for one DB, shared by
  * the PDF and the CSV export. */
+/** The incomer as printed: rating, device and poles from the feeder (SP+N for a 2-core supply, TP+N for 4-core). */
+export function incomerLabel(board: Board, incomer: Feeder | undefined): string {
+  if (!incomer) return board.ratedCurrentA ? `${board.ratedCurrentA} A` : '';
+  return `${incomer.breakerRatingA} A ${breakerTypeOf(incomer)} ${polesOf(incomer)}`;
+}
+
+/** The incoming cable as on the cable schedule: parallel runs, construction (fire-rated / LSZH) and ECC. */
+export function incomerCableText(project: Project, incomer: Feeder | undefined): string {
+  if (!incomer) return 'CABLE SIZE: —';
+  const fr = cableTypeOf(project, incomer).fireRated ? ' (fire rated)' : '';
+  return `CABLE SIZE: ${cableBuildText(feederBuild(project, incomer))}${fr}, ${incomer.lengthM} m`;
+}
+
 export function loadScheduleRows(project: Project, boardId: string) {
   const board = project.boards.find((b) => b.id === boardId)!;
   const circuits = scheduleCircuits(project, boardId);
@@ -16,7 +32,7 @@ export function loadScheduleRows(project: Project, boardId: string) {
   const groups = elcbGroups(project, board);
   const groupOf = new Map(groups.flatMap((g) => g.circuits.map((c) => [c.id, g] as const)));
   const rows = circuits.map((f, i) => {
-    const w = circuitWatts(f, board);
+    const w = circuitWatts(f, board) || 0; // an unknown point type counts as 0, never NaN
     const ph = { R: '', Y: '', B: '' } as Record<'R' | 'Y' | 'B', string | number>;
     if (f.phase === 'RYB') (['R', 'Y', 'B'] as const).forEach((p) => (ph[p] = Math.round(w / 3)));
     else if (f.phase) ph[f.phase] = Math.round(w);
@@ -27,18 +43,23 @@ export function loadScheduleRows(project: Project, boardId: string) {
     const status: Status = calc === 'bad' ? 'bad' : belowMin ? 'warn' : calc;
     return { f, sl: i + 1, ref: circuitRef(f)!, watts: w, ph, group: groupOf.get(f.id), category: circuitCategory(f), minWire, belowMin, status };
   });
+  // Connected: the watts printed on the rows. Demand: after demand factors, with every outgoing way (sub-boards and equipment not on this schedule too).
+  const connectedW = { R: 0, Y: 0, B: 0 };
+  for (const r of rows) for (const ph of ['R', 'Y', 'B'] as const) connectedW[ph] += Number(r.ph[ph]) || 0;
+  const scheduled = new Set(circuits.map((f) => f.id));
+  const others = project.feeders.filter((f) => f.boardId === boardId && !scheduled.has(f.id));
   const phaseW = boardPhaseKw(project, boardId);
-  return { board, incomer, groups, rows, phaseW, imbalance: imbalancePct(phaseW) };
+  return { board, incomer, groups, rows, phaseW, connectedW, others, imbalance: imbalancePct(phaseW) };
 }
 
 /** Print-ready HTML reproducing the DEWA "Load Distribution Schedule"
  * form for a 3-phase DB with R/Y/B circuit references. */
 export function buildLoadScheduleHtml(project: Project, boardId: string): string {
-  const { board, incomer, rows, phaseW, imbalance } = loadScheduleRows(project, boardId);
+  const { board, incomer, rows, phaseW, connectedW, others, imbalance } = loadScheduleRows(project, boardId);
   const watts = pointWattsFor(board);
   const columns = pointColumns(project, board);
   const pointCols = columns.map((t) => t.value);
-  const incomerText = incomer ? `${incomer.breakerRatingA} A ${breakerTypeOf(incomer)} TP&amp;N` : board.ratedCurrentA ? `${board.ratedCurrentA} A` : '';
+  const incomerText = esc(incomerLabel(board, incomer));
   const kw = (v: number) => (v * 1000).toFixed(0);
 
   // ELCB cells span their group's rows.
@@ -61,9 +82,7 @@ export function buildLoadScheduleHtml(project: Project, boardId: string): string
     </tr>`)
     .join('');
 
-  const cable = incomer
-    ? `CABLE SIZE: 1 × ${incomer.cores}C × ${incomer.cableCsaMm2} mm² CU/XLPE/SWA/PVC + 1 × 1C × ${cpcOf(incomer)} mm² CU PVC ECC, ${incomer.lengthM} m`
-    : 'CABLE SIZE: —';
+  const cable = esc(incomerCableText(project, incomer));
 
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(board.id)} load schedule</title><style>
     @page { size: A4 landscape; margin: 10mm; }
@@ -98,9 +117,12 @@ export function buildLoadScheduleHtml(project: Project, boardId: string): string
       <tr><td colspan="8" class="l"><b>WATT / UNIT</b></td>${pointCols.map((t) => `<td>${watts[t] || ''}</td>`).join('')}<td class="shade" colspan="3"></td><td></td></tr>
     </thead>
     <tbody>${body}
-      <tr class="total"><td colspan="${8 + pointCols.length}" style="text-align:right">TOTAL (W)</td>
+      <tr class="total"><td colspan="${8 + pointCols.length}" style="text-align:right">TOTAL CONNECTED LOAD (W) — the circuits above</td>
+        <td class="shade">${connectedW.R.toFixed(0)}</td><td class="shade">${connectedW.Y.toFixed(0)}</td><td class="shade">${connectedW.B.toFixed(0)}</td>
+        <td class="l">${(connectedW.R + connectedW.Y + connectedW.B).toFixed(0)} W</td></tr>
+      <tr class="total"><td colspan="${8 + pointCols.length}" style="text-align:right">MAXIMUM DEMAND (W) — after demand factors${others.length ? `, incl. ${others.length} other way(s) not listed: ${esc(others.map((f) => f.feedsBoardId ?? f.id).join(', '))}` : ''}</td>
         <td class="shade">${kw(phaseW.R)}</td><td class="shade">${kw(phaseW.Y)}</td><td class="shade">${kw(phaseW.B)}</td>
-        <td class="l">Imbalance ${imbalance.toFixed(0)} %</td></tr>
+        <td class="l">${kw(phaseW.R + phaseW.Y + phaseW.B)} W · imbalance ${imbalance.toFixed(0)} %</td></tr>
     </tbody>
   </table>
   <div class="foot">
@@ -113,7 +135,7 @@ export function buildLoadScheduleHtml(project: Project, boardId: string): string
 
 /** Same schedule as CSV (Excel). */
 export function loadScheduleCsv(project: Project, boardId: string): { headers: string[]; rows: (string | number)[][] } {
-  const { board, rows, phaseW } = loadScheduleRows(project, boardId);
+  const { board, rows, phaseW, connectedW, others } = loadScheduleRows(project, boardId);
   const watts = pointWattsFor(board);
   const columns = pointColumns(project, board);
   const pointCols = columns.map((t) => t.value);
@@ -125,6 +147,8 @@ export function loadScheduleCsv(project: Project, boardId: string): { headers: s
       ...pointCols.map((t) => r.f.points?.[t] ?? ''), r.ph.R, r.ph.Y, r.ph.B, r.f.remarks ?? ''
     ]);
   }
-  out.push(['', '', '', '', '', '', 'TOTAL', ...pointCols.map(() => ''), Math.round(phaseW.R * 1000), Math.round(phaseW.Y * 1000), Math.round(phaseW.B * 1000), '']);
+  out.push(['', '', '', '', '', '', 'TOTAL CONNECTED', ...pointCols.map(() => ''), Math.round(connectedW.R), Math.round(connectedW.Y), Math.round(connectedW.B), 'circuits above']);
+  out.push(['', '', '', '', '', '', 'MAXIMUM DEMAND', ...pointCols.map(() => ''), Math.round(phaseW.R * 1000), Math.round(phaseW.Y * 1000), Math.round(phaseW.B * 1000),
+    `after demand factors${others.length ? `; incl. ${others.length} other way(s) not listed` : ''}`]);
   return { headers, rows: out };
 }

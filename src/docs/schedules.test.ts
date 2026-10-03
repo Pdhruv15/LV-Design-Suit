@@ -69,6 +69,6 @@ describe('DEWA load distribution schedule', () => {
     expect(html).toContain('WATT / UNIT');
     expect(html).toContain('ELCB-1');
     const csv = loadScheduleCsv(sampleProject, 'DB-GF1');
-    expect(csv.rows).toHaveLength(21 + 2); // watt/unit row + circuits + total
+    expect(csv.rows).toHaveLength(21 + 3); // watt/unit row + circuits + connected total + maximum demand
   });
 });

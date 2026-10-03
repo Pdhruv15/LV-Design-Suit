@@ -160,3 +160,25 @@ export function compareBom(before: BomItem[], after: BomItem[], list?: PriceList
   }
   return out.sort((p, q) => p.section.localeCompare(q.section) || Math.abs(q.cost) - Math.abs(p.cost));
 }
+
+/** How the BOQ total is made up, for the reader of the PDF / Excel:
+ * items priced from the list, at the built-in typical rates, with no rate
+ * (left out of the total), by others, and quantities you changed. */
+export interface PricingBasis { list: number; typical: number; missing: number; manual: number; excluded: number; qtyChanged: number; designMoved: number; lines: string[] }
+export function pricingBasis(bom: PricedBom, list?: PriceList): PricingBasis {
+  const n = (f: (x: PricedItem) => boolean) => bom.items.filter(f).length;
+  const b = {
+    list: n((x) => x.source === 'list'), typical: n((x) => x.source === 'typical'), missing: bom.missing,
+    manual: n((x) => x.source === 'manual' && !(x.rate === undefined && !x.labour)), excluded: n((x) => x.source === 'excluded'),
+    qtyChanged: n((x) => x.designQty !== undefined), designMoved: bom.changed
+  };
+  const lines = [
+    list ? `${b.list} item(s) priced from ${list.name}${list.date ? ` (${list.date})` : ''}.` : 'No price list selected.',
+    ...(b.typical ? [`${b.typical} item(s) at built-in typical rates — illustrative, replace with quoted rates.`] : []),
+    ...(b.manual ? [`${b.manual} item(s) with rates entered by hand.`] : []),
+    ...(b.missing ? [`${b.missing} item(s) have NO RATE and are not in the total — the total is incomplete.`] : []),
+    ...(b.excluded ? [`${b.excluded} item(s) by others (not in the total).`] : []),
+    ...(b.qtyChanged ? [`${b.qtyChanged} quantity(ies) changed from the design${b.designMoved ? `; ${b.designMoved} of them where the design has moved since — review` : ''}.`] : [])
+  ];
+  return { ...b, lines };
+}
