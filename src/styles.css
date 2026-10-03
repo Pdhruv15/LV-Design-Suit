@@ -624,7 +624,7 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 /* Panel tree (left) */
 .tree{position:relative;border-right:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0;min-width:0}
 .tree.closed{width:34px;align-items:center;padding-top:8px}
-.tree-head{display:flex;align-items:center;gap:4px;padding:8px 8px 4px}
+.tree-head{display:flex;flex-wrap:wrap;align-items:center;gap:2px 4px;padding:8px 8px 4px;min-width:0;overflow:hidden}
 .tree-head .m{font-size:11px}
 .tree-search{margin:2px 8px 6px;background:var(--p2);border:1px solid var(--line);border-radius:6px;padding:5px 8px;color:var(--tx);font:inherit;font-size:12.5px}
 .tree-body{flex:1;overflow:auto;padding:0 4px 8px}
@@ -1157,3 +1157,4 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .bh-asm{display:flex;flex-direction:column;gap:2px;max-height:30vh;overflow:auto}
 .bh-asm .bh-row{white-space:normal;align-items:flex-start}
 .bh-floors{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:2px 10px;max-height:22vh;overflow:auto}
+.enc-w{display:inline-flex;gap:4px;align-items:center}

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { Project } from '../types';
 import { selectionFrom, sizeEnclosure, type Candidate, type EnclosureCatalogue, type Mounting, type SizingInput } from '../calc/enclosure';
-import { allCatalogues, neededDevices, scheduleModules, validateCatalogue } from '../model/enclosureLibrary';
+import { allCatalogues, loadDevices, neededDevices, saveDevices, scheduleModules, validateCatalogue, type NeededDevice } from '../model/enclosureLibrary';
 import CatalogueManager from './CatalogueManager';
 import { safeFileName, savePdf } from '../util/files';
 import { esc } from '../docs/report';
@@ -57,7 +57,18 @@ export default function EnclosureSizing({ project, boardId, onChange, onStatus }
   const cat = catalogues.find((c) => c.id === catId) ?? catalogues[0];
   const catBad = validateCatalogue(cat).filter((x) => x.level === 'bad');
   // From schedule: the board's physical devices, widths only from device records.
-  const needed = useMemo(() => (method === 'schedule' ? neededDevices(project, panel) : []), [method, project, panel, manager]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [devRev, setDevRev] = useState(0); // bumps when a device record is added here
+  const [widths, setWidths] = useState<Record<string, string>>({});
+  const needed = useMemo(() => (method === 'schedule' ? neededDevices(project, panel) : []), [method, project, panel, manager, devRev]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** A width typed for an unmapped device becomes a device record (this type, poles and rating) — the user's figure, not a guess. */
+  const addWidth = (d: NeededDevice) => {
+    const w = Number(widths[d.key]);
+    if (!(w > 0)) return;
+    saveDevices([...loadDevices(), { id: `dv-${Date.now().toString(36)}`, manufacturer: 'Enter manufacturer', model: d.key, kind: d.kind, poles: d.poles, ratingMinA: d.ratingA, ratingMaxA: d.ratingA, modules: w, note: `Added from ${panel}'s schedule` }]);
+    setWidths({ ...widths, [d.key]: '' });
+    setDevRev((n) => n + 1);
+    onStatus(`Device record added: ${d.key} = ${w} module${w === 1 ? '' : 's'} — set the manufacturer and model in Catalogue manager → Device dimensions`);
+  };
   const fromSchedule = scheduleModules(needed);
   const incomerA = project.feeders.find((f) => f.feedsBoardId === panel)?.breakerRatingA;
   const input: SizingInput = method === 'schedule'
@@ -120,12 +131,21 @@ export default function EnclosureSizing({ project, boardId, onChange, onStatus }
               {!needed.length && <p className="warn">{panel} has no circuits or incomer to list.</p>}
               <table className="bi-table compact">
                 <thead><tr><th>Device</th><th>Qty</th><th>Width</th></tr></thead>
-                <tbody>{needed.map((d) => <tr key={d.key}><td>{d.key}<br /><span className="m">{d.what}</span></td><td>{d.count}</td><td className={d.device ? '' : 'warn'}>{d.device ? `${d.device.modules} × ${d.count} = ${d.device.modules * d.count}` : 'needs dimensions'}<br /><span className="m">{d.device ? `${d.device.manufacturer} ${d.device.model}` : ''}</span></td></tr>)}</tbody>
+                <tbody>{needed.map((d) => <tr key={d.key}><td>{d.key}<br /><span className="m">{d.what}</span></td><td>{d.count}</td><td className={d.device ? '' : 'warn'}>{d.device ? <>{d.device.modules} × {d.count} = {d.device.modules * d.count}<br /><span className="m">{d.device.manufacturer} {d.device.model}</span></> : (
+                  <span className="enc-w" title="Width of ONE device in 18 mm modules, from the manufacturer's data — saved as a device record">
+                    <input className="bi-num" style={{ width: 44 }} inputMode="decimal" placeholder="width" value={widths[d.key] ?? ''} onChange={(e) => setWidths({ ...widths, [d.key]: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && addWidth(d)} />
+                    <button className="chip" disabled={!(Number(widths[d.key]) > 0)} onClick={() => addWidth(d)}>Save</button>
+                  </span>
+                )}</td></tr>)}</tbody>
               </table>
               {fromSchedule.unmapped.length > 0 && <p className="warn">{fromSchedule.unmapped.length} device type(s) have no dimension record — add them in Catalogue manager → Device dimensions. Widths are not guessed from poles.</p>}
             </div>
           )}
           <div className="form-kv">
+            {method === 'schedule' && <>
+              <label>Equipment space<span className={incomplete ? 'warn' : ''}><b>{input.equipmentModules} modules</b> from {needed.filter((d) => d.device).reduce((n, d) => n + d.count, 0)} of {needed.reduce((n, d) => n + d.count, 0)} devices{fromSchedule.unmapped.length ? ` — ${fromSchedule.unmapped.length} type(s) need a width` : ''}</span></label>
+              <label>ELCB count<span><b>{input.elcbCount}</b> from the ELCB groups{incomerA !== undefined ? ` · incomer ${incomerA} A` : ''}</span></label>
+            </>}
             {method === 'manual' && <label>Equipment space (incomer, devices, accessories)<span className="pfcc-in"><input className="bi-num" style={{ width: 70 }} inputMode="numeric" value={input.equipmentModules} onChange={setNum('equipmentModules')} /><span className="m">modules</span></span></label>}
             <label>Future spare space<span className="pfcc-in"><input className="bi-num" style={{ width: 70 }} inputMode="numeric" value={input.spareModules} onChange={setNum('spareModules')} /><span className="m">modules</span></span></label>
             {method === 'manual' && <label>ELCB count<input className="bi-num" inputMode="numeric" value={input.elcbCount} onChange={setNum('elcbCount')} /></label>}
@@ -156,6 +176,7 @@ export default function EnclosureSizing({ project, boardId, onChange, onStatus }
 
         <section className="card">
           <h4>Catalogue matches</h4>
+          {incomplete && <p className="warn">Partial count — {fromSchedule.unmapped.length} device type(s) without a width are not included, so these results are not a fit yet.</p>}
           <table className="bi-table compact">
             <thead><tr><th>Size</th><th>Usable</th><th>Spare left</th><th>Result</th></tr></thead>
             <tbody>{shown.filter((c) => c.result !== 'not-listed').map((c) => {
