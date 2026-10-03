@@ -1,6 +1,10 @@
 import { useMemo, useState } from 'react';
 import type { Project } from '../types';
-import { BUILTIN_CATALOGUES, selectionFrom, sizeEnclosure, type Candidate, type EnclosureCatalogue, type Mounting, type SizingInput } from '../calc/enclosure';
+import { selectionFrom, sizeEnclosure, type Candidate, type EnclosureCatalogue, type Mounting, type SizingInput } from '../calc/enclosure';
+import { allCatalogues, neededDevices, scheduleModules, validateCatalogue } from '../model/enclosureLibrary';
+import CatalogueManager from './CatalogueManager';
+import { safeFileName, savePdf } from '../util/files';
+import { esc } from '../docs/report';
 import { Page } from './ui';
 
 const RESULT: Record<Candidate['result'], string> = { fits: 'Fits', 'too-small': 'Too small', 'not-listed': 'Not in chart', confirm: 'Confirm with supplier' };
@@ -44,51 +48,96 @@ function preview(cat: EnclosureCatalogue, c: Candidate | undefined, i: SizingInp
 export default function EnclosureSizing({ project, boardId, onChange, onStatus }: { project: Project; boardId?: string; onChange: (p: Project) => void; onStatus: (m: string) => void }) {
   const [panel, setPanel] = useState(boardId ?? project.boards.find((b) => !b.upstreamId)?.id ?? '');
   const saved = project.boards.find((b) => b.id === panel)?.enclosure;
-  const [catId, setCatId] = useState(saved?.catalogueId ?? BUILTIN_CATALOGUES[0].id);
+  const [catalogues, setCatalogues] = useState(() => allCatalogues());
+  const [manager, setManager] = useState(false);
+  const [method, setMethod] = useState<'manual' | 'schedule'>('manual');
+  const [catId, setCatId] = useState(saved?.catalogueId ?? catalogues[0].id);
   const [mounting, setMounting] = useState<Mounting>(saved?.mounting ?? 'surface');
-  const [input, setInput] = useState<SizingInput>(saved?.input ?? { equipmentModules: 64, spareModules: 8, elcbCount: 10 });
-  const cat = BUILTIN_CATALOGUES.find((c) => c.id === catId) ?? BUILTIN_CATALOGUES[0];
-  const r = useMemo(() => sizeEnclosure(cat, input, mounting), [cat, input, mounting]);
+  const [manual, setInput] = useState<SizingInput>(saved?.input ?? { equipmentModules: 64, spareModules: 8, elcbCount: 10 });
+  const cat = catalogues.find((c) => c.id === catId) ?? catalogues[0];
+  const catBad = validateCatalogue(cat).filter((x) => x.level === 'bad');
+  // From schedule: the board's physical devices, widths only from device records.
+  const needed = useMemo(() => (method === 'schedule' ? neededDevices(project, panel) : []), [method, project, panel, manager]); // eslint-disable-line react-hooks/exhaustive-deps
+  const fromSchedule = scheduleModules(needed);
+  const incomerA = project.feeders.find((f) => f.feedsBoardId === panel)?.breakerRatingA;
+  const input: SizingInput = method === 'schedule'
+    ? { equipmentModules: fromSchedule.modules, spareModules: manual.spareModules, elcbCount: fromSchedule.elcb, ...(incomerA !== undefined ? { incomerA } : {}) }
+    : manual;
+  const incomplete = method === 'schedule' && (fromSchedule.unmapped.length > 0 || !needed.length);
+  const r = useMemo(() => sizeEnclosure(cat, input, mounting), [cat, JSON.stringify(input), mounting]); // eslint-disable-line react-hooks/exhaustive-deps
   const [pick, setPick] = useState<string | null>(null);
   const shown = r.candidates.filter((c) => c.result !== 'not-listed' || r.candidates.every((x) => x.result === 'not-listed'));
   const chosen = shown.find((c) => `${c.config.id}/${c.rule.id}` === pick) ?? shown.find((c) => c.result === 'fits' || c.result === 'confirm');
   const svg = useMemo(() => preview(cat, chosen, input), [cat, chosen, input]);
   const setNum = (k: keyof SizingInput) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const t = e.target.value.trim();
-    if (k === 'incomerA' && t === '') { const { incomerA: _x, ...rest } = input; setInput(rest); return; }
-    const n = Number(t); if (Number.isFinite(n)) setInput({ ...input, [k]: n });
+    if (k === 'incomerA' && t === '') { const { incomerA: _x, ...rest } = manual; setInput(rest); return; }
+    const n = Number(t); if (Number.isFinite(n)) setInput({ ...manual, [k]: n });
   };
   const notListed = r.candidates.filter((c) => c.result === 'not-listed').length;
 
   function use() {
-    if (!chosen || chosen.usable === null || chosen.result === 'too-small' || chosen.result === 'not-listed') return;
+    if (!chosen || chosen.usable === null || chosen.result === 'too-small' || chosen.result === 'not-listed' || incomplete || catBad.length) return;
     const sel = selectionFrom(cat, chosen, input, mounting, r.required);
     onChange({ ...project, boards: project.boards.map((b) => (b.id === panel ? { ...b, enclosure: sel } : b)) });
     onStatus(`${panel}: ${cat.range} ${chosen.config.ref}${sel.dims ? `, H${sel.dims.h} × W${sel.dims.w} × D${sel.dims.d} mm` : ''} — ${cat.supplier} rev. ${cat.revision}${sel.confirmNeeded ? ' (supplier confirmation needed)' : ''}`);
   }
 
+  async function exportSheet() {
+    if (!chosen?.dims) return;
+    const d = chosen.dims;
+    const row = (k: string, v: string) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`;
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(panel)} enclosure</title><style>
+    @page { size: A4; margin: 14mm; } body { font: 10.5px/1.45 Arial, sans-serif; color: #111; } h1 { font-size: 16px; margin: 0 0 4px; } h2 { font-size: 12px; color: #1d4f8f; border-bottom: 1px solid #1d4f8f; margin: 12px 0 5px; }
+    table { width: 100%; border-collapse: collapse; } th, td { border: .2mm solid #999; padding: 3px 6px; text-align: left; } th { background: #eef2f7; width: 34%; } thead th { background: #1d4f8f; color: #fff; width: auto; }
+    .warn { color: #a15c00; font-weight: 700; } svg { width: 100%; max-height: 110mm; color: #111; } .m { color: #555; }
+    </style></head><body>
+    <h1>${esc(project.name)} — ${esc(panel)} enclosure size</h1><p class="m">${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} · preliminary space estimate</p>
+    <h2>Selected enclosure</h2><table>${row('Catalogue', `${cat.supplier} — ${cat.range}, rev. ${cat.revision}`)}${row('Source', cat.source)}${row('Size', `${chosen.config.ref}${cat.family === 'modular' ? ` (${chosen.config.rows} rows × ${chosen.config.modulesPerRow} modules)` : ''}`)}${row('Mounting', cat.family === 'modular' ? mounting : 'fabricated')}${row('Dimensions', `H ${d.h} × W ${d.w} × D ${d.d} mm`)}${row('Allowance case', chosen.rule.label)}${chosen.rule.extra ? row('Add to the estimate', chosen.rule.extra) : ''}</table>
+    <h2>Space</h2><table>${row('Method', method === 'schedule' ? 'From the load schedule (device records)' : 'Manual estimate')}${row('Equipment', `${input.equipmentModules} modules`)}${row('Future spare', `${input.spareModules} modules`)}${row('Required', `${r.required} modules`)}${row('Available', `${chosen.config.grossModules} − ${chosen.rule.deductModules} = ${chosen.usable} modules (supplier figure after allowance)`)}${row('Left over', `${chosen.spareAfter} modules`)}${row('ELCB count', String(input.elcbCount))}${input.incomerA !== undefined ? row('Incomer', `${input.incomerA} A`) : ''}</table>
+    ${method === 'schedule' ? `<h2>Devices</h2><table><thead><tr><th>Device</th><th>Qty</th><th>Record</th><th>Modules</th></tr></thead><tbody>${needed.map((x) => `<tr><td>${esc(x.key)} — ${esc(x.what)}</td><td>${x.count}</td><td>${x.device ? esc(`${x.device.manufacturer} ${x.device.model}`) : '<span class="warn">needs dimensions</span>'}</td><td>${x.device ? x.device.modules * x.count : '—'}</td></tr>`).join('')}</tbody></table>` : ''}
+    <h2>Preview (illustrative, not a manufacturing drawing)</h2>${svg}
+    <h2>Other candidates</h2><table><thead><tr><th>Size</th><th>Usable</th><th>Left</th><th>Result</th></tr></thead><tbody>${shown.filter((c) => c.result !== 'not-listed').map((c) => `<tr><td>${esc(c.config.ref)}</td><td>${c.usable}</td><td>${c.spareAfter}</td><td>${esc(RESULT[c.result])}</td></tr>`).join('')}</tbody></table>
+    <p class="warn">Preliminary space fit by module count. Depth, wiring access, busbars, device compatibility and temperature rise (IEC TR 60890) are separate checks${chosen.result === 'confirm' ? '; the supplier must confirm which allowance case governs' : ''}. Supplier review pending.</p>
+    </body></html>`;
+    const m = await savePdf(`${safeFileName(`${project.name} ${panel} enclosure`)}.pdf`, html, { pageSize: 'A4' });
+    if (m) onStatus(m);
+  }
+
   return (
-    <Page title="Enclosure sizing" intro="Physical space of a board from a supplier catalogue: equipment + future spare ≤ the enclosure's usable modules for the case that applies (ELCB count, incomer). Separate from current ratings. A preliminary space fit — depth, wiring access, busbars, compatibility and temperature rise (IEC TR 60890) are separate checks.">
+    <Page title="Enclosure sizing" actions={<><button className="chip" onClick={() => setManager(true)}>Catalogue manager</button> <button className="chip" disabled={!chosen?.dims} onClick={exportSheet}>Export size sheet</button></>} intro="Physical space of a board from a supplier catalogue: equipment + future spare ≤ the enclosure's usable modules for the case that applies (ELCB count, incomer). Separate from current ratings. A preliminary space fit — depth, wiring access, busbars, compatibility and temperature rise (IEC TR 60890) are separate checks.">
       <div className="enc-cols">
         <section className="card">
           <h4>Sizing inputs</h4>
           <div className="form-kv">
             <label>Panel<select value={panel} onChange={(e) => setPanel(e.target.value)}>{project.boards.map((b) => <option key={b.id} value={b.id}>{b.id}{b.enclosure ? ' ✓' : ''}</option>)}</select></label>
-            <label>Catalogue<select value={catId} onChange={(e) => { setCatId(e.target.value); setPick(null); }}>{BUILTIN_CATALOGUES.map((c) => <option key={c.id} value={c.id}>{c.supplier} — {c.range} (rev. {c.revision})</option>)}</select></label>
+            <label>Catalogue<select value={catId} onChange={(e) => { setCatId(e.target.value); setPick(null); }}>{catalogues.map((c) => <option key={c.id} value={c.id}>{c.supplier} — {c.range} (rev. {c.revision})</option>)}</select></label>
             {cat.family === 'modular' && <label>Mounting<select value={mounting} onChange={(e) => setMounting(e.target.value as Mounting)}><option value="surface">Surface</option><option value="flush">Flush</option></select></label>}
           </div>
-          <div className="seg"><button disabled title="Next batch: the device list from the load schedule, with each device's real module width">From schedule</button><button className="on">Manual</button></div>
+          <div className="seg"><button className={method === 'schedule' ? 'on' : ''} onClick={() => setMethod('schedule')} title="The board's devices from its load schedule, each with its real module width from the device records">From schedule</button><button className={method === 'manual' ? 'on' : ''} onClick={() => setMethod('manual')}>Manual</button></div>
+          {method === 'schedule' && (
+            <div className="enc-devs">
+              {!needed.length && <p className="warn">{panel} has no circuits or incomer to list.</p>}
+              <table className="bi-table compact">
+                <thead><tr><th>Device</th><th>Qty</th><th>Width</th></tr></thead>
+                <tbody>{needed.map((d) => <tr key={d.key}><td>{d.key}<br /><span className="m">{d.what}</span></td><td>{d.count}</td><td className={d.device ? '' : 'warn'}>{d.device ? `${d.device.modules} × ${d.count} = ${d.device.modules * d.count}` : 'needs dimensions'}<br /><span className="m">{d.device ? `${d.device.manufacturer} ${d.device.model}` : ''}</span></td></tr>)}</tbody>
+              </table>
+              {fromSchedule.unmapped.length > 0 && <p className="warn">{fromSchedule.unmapped.length} device type(s) have no dimension record — add them in Catalogue manager → Device dimensions. Widths are not guessed from poles.</p>}
+            </div>
+          )}
           <div className="form-kv">
-            <label>Equipment space (incomer, devices, accessories)<span className="pfcc-in"><input className="bi-num" style={{ width: 70 }} inputMode="numeric" value={input.equipmentModules} onChange={setNum('equipmentModules')} /><span className="m">modules</span></span></label>
+            {method === 'manual' && <label>Equipment space (incomer, devices, accessories)<span className="pfcc-in"><input className="bi-num" style={{ width: 70 }} inputMode="numeric" value={input.equipmentModules} onChange={setNum('equipmentModules')} /><span className="m">modules</span></span></label>}
             <label>Future spare space<span className="pfcc-in"><input className="bi-num" style={{ width: 70 }} inputMode="numeric" value={input.spareModules} onChange={setNum('spareModules')} /><span className="m">modules</span></span></label>
-            <label>ELCB count<input className="bi-num" inputMode="numeric" value={input.elcbCount} onChange={setNum('elcbCount')} /></label>
-            {cat.rules.some((x) => x.incomerMaxA !== undefined) && <label>Incomer<span className="pfcc-in"><input className="bi-num" style={{ width: 70 }} inputMode="numeric" value={input.incomerA ?? ''} placeholder="A" onChange={setNum('incomerA')} /><span className="m">A</span></span></label>}
+            {method === 'manual' && <label>ELCB count<input className="bi-num" inputMode="numeric" value={input.elcbCount} onChange={setNum('elcbCount')} /></label>}
+            {method === 'manual' && cat.rules.some((x) => x.incomerMaxA !== undefined) && <label>Incomer<span className="pfcc-in"><input className="bi-num" style={{ width: 70 }} inputMode="numeric" value={input.incomerA ?? ''} placeholder="A" onChange={setNum('incomerA')} /><span className="m">A</span></span></label>}
           </div>
           <p className="m">Use each device's real module width — pole or circuit counts don't give the physical width.</p>
           <div className="enc-result">
             <b>Calculation</b>
             {r.invalid ? <p className="bad">{r.invalid}</p> : <>
-              <div>Required: {input.equipmentModules} + {input.spareModules} = <b>{r.required} modules</b></div>
+              <div>Required: {input.equipmentModules} + {input.spareModules} = <b>{r.required} modules</b>{method === 'schedule' ? ` · ${input.elcbCount} ELCB${incomerA ? ` · incomer ${incomerA} A` : ''} from the schedule` : ''}</div>
+              {incomplete && <p className="warn">Incomplete: devices without a width are not counted — the enclosure can't be chosen until they are.</p>}
+              {catBad.length > 0 && <p className="bad">This catalogue has errors (Catalogue manager): {catBad[0].text}</p>}
               {r.rules.map((x) => <div key={x.id} className="m">Case: {x.label} (already off the chart's usable figures)</div>)}
               {chosen && chosen.usable !== null && <div>Available: {chosen.config.grossModules} − {chosen.rule.deductModules} = <b>{chosen.usable} modules</b> · {chosen.spareAfter! >= 0 ? `${chosen.spareAfter} left` : `${-chosen.spareAfter!} short`}</div>}
               {r.why && <p className="warn">{r.why}</p>}
@@ -128,8 +177,9 @@ export default function EnclosureSizing({ project, boardId, onChange, onStatus }
       <div className="modal-actions enc-foot">
         <span className="warn">Preliminary space estimate · depth, wiring, busbar and thermal checks pending · supplier review pending</span>
         <span className="sp" />
-        <button className="chip primary" disabled={!panel || !chosen || chosen.result === 'too-small' || chosen.result === 'not-listed' || !!r.invalid} onClick={use} title={chosen?.result === 'confirm' ? 'Saved with "supplier to confirm" — the chart\'s cases overlap here' : undefined}>Use for {panel || 'this panel'}{chosen?.result === 'confirm' ? ' (supplier to confirm)' : ''}</button>
+        <button className="chip primary" disabled={!panel || !chosen || chosen.result === 'too-small' || chosen.result === 'not-listed' || !!r.invalid || incomplete || catBad.length > 0} onClick={use} title={chosen?.result === 'confirm' ? 'Saved with "supplier to confirm" — the chart\'s cases overlap here' : undefined}>Use for {panel || 'this panel'}{chosen?.result === 'confirm' ? ' (supplier to confirm)' : ''}</button>
       </div>
+      {manager && <CatalogueManager onStatus={onStatus} onClose={() => { setManager(false); const next = allCatalogues(); setCatalogues(next); if (!next.some((c) => c.id === catId)) setCatId(next[0].id); }} />}
     </Page>
   );
 }
