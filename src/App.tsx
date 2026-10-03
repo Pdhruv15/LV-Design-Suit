@@ -85,6 +85,7 @@ import { saveText } from './util/files';
 import SldExportDialog from './components/SldExportDialog';
 import PasteBoardDialog from './components/PasteBoardDialog';
 import EnclosureSizing from './components/EnclosureSizing';
+import BuildHierarchyDialog from './components/BuildHierarchyDialog';
 import DiscriminationPanel from './components/DiscriminationPanel';
 import { discriminationChain } from './calc/protection';
 import { pasteBoard } from './model/copyBoard';
@@ -161,6 +162,7 @@ export default function App() {
   // Copy / paste of a board with everything below it.
   const [copiedBoard, setCopiedBoard] = useState<string | null>(null);
   const [pasteTarget, setPasteTarget] = useState<string | null>(null);
+  const [showHierarchy, setShowHierarchy] = useState(false);
   // Study pages filtered to a board and the boards below it (panel tree).
   const [focus, setFocus] = useState<string | null>(null);
   const [dbScheduleAll, setDbScheduleAll] = useState(true);
@@ -822,6 +824,7 @@ export default function App() {
           transformerBoardId: mainOfSelected()?.id,
           onAddFeeder: openAddFeeder,
           onAddBoard: (preset) => { setBoardPreset(preset); setShowBoardForm(true); },
+          onBuildHierarchy: () => setShowHierarchy(true),
           onTransformer: openTransformer,
           onBoardProperties: () => { setView('design'); if (board) selectBoard(board.id); setBoardTab('general'); },
           onEditSelected: () => { setView('design'); if (panel === 'feeder' && selectedFeeder) setShowFeederForm('edit'); else if (board) setEditBoardId(board.id); },
@@ -1222,6 +1225,7 @@ export default function App() {
           />
         );
       })()}
+      {showHierarchy && <BuildHierarchyDialog project={project} onClose={() => setShowHierarchy(false)} onCreate={(next, m) => { setProject(next, { step: true }); setStatus(m); setShowHierarchy(false); }} />}
       {pasteTarget && copiedBoard && project.boards.some((b) => b.id === copiedBoard) && (
         <PasteBoardDialog
           project={project}
