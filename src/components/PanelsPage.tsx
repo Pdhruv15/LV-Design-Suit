@@ -6,6 +6,7 @@ import { planBatchHierarchy, type BatchHierarchySpec } from '../model/hierarchyB
 import { findFloor, floorLabel, floorList } from '../model/levels';
 import { kindOf, renameByLevel, renamePanels, renameProblems } from '../model/renamePanels';
 import { boardAndDescendants } from '../model/edit';
+import { namesOf, PANEL_ROLES, planEmergency, prefixOf, roleOf, type PanelRole } from '../model/emergency';
 import BuildHierarchyDialog from './BuildHierarchyDialog';
 import BranchPanel from './BranchPanel';
 
@@ -32,7 +33,7 @@ export default function PanelsPage({ project, onChange, onCreated, onStatus, onB
   return (
     <Page title="Panels" intro="Create panels by count first, push them to the SLD and load schedules, then add levels, locations and connections later in Panel list. Names stay incremental (MDB-01, SMDB-01, DB-001) until a panel has a level; Rename by level then applies type – level – number (SMDB-L1, DB-L3-07).">
       <div className="seg pp-tabs">{TABS.map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}</div>
-      {tab === 'quick' && <QuickCreate project={project} onCreate={created} onList={() => setTab('list')} />}
+      {tab === 'quick' && <QuickCreate project={project} onCreate={created} onList={() => setTab('list')} onChange={onChange} />}
       {tab === 'list' && <PanelList project={project} onChange={onChange} onStatus={onStatus} onBuilding={onBuilding} />}
       {tab === 'floors' && <BuildHierarchyDialog embedded project={project} onCreate={created} onClose={() => setTab('quick')} onBuilding={onBuilding} />}
       {(tab === 'repeat' || tab === 'templates') && <div className="bh"><BranchPanel key={tab} mode={tab === 'repeat' ? 'repeat' : 'assemblies'} project={project} onCreate={created} onClose={() => setTab('quick')} /></div>}
@@ -41,7 +42,7 @@ export default function PanelsPage({ project, onChange, onCreated, onStatus, onB
 }
 
 /** Counts only: MDBs, SMDBs and DBs as totals, spread evenly, no levels needed. */
-function QuickCreate({ project, onCreate, onList }: { project: Project; onCreate: (next: Project, message: string) => void; onList: () => void }) {
+function QuickCreate({ project, onCreate, onList, onChange }: { project: Project; onCreate: (next: Project, message: string) => void; onList: () => void; onChange: (p: Project) => void }) {
   const mains = project.boards.filter((b) => !b.upstreamId);
   const [source, setSource] = useState<'create' | 'existing'>('create');
   const [mdb, setMdb] = useState('1');
@@ -50,12 +51,30 @@ function QuickCreate({ project, onCreate, onList }: { project: Project; onCreate
   const [db, setDb] = useState('10');
   const [incomers, setIncomers] = useState(true);
   const [done, setDone] = useState('');
+  // Emergency panel: EMDB on an ATS (mains from a normal panel + standby generator), optional sub-panels.
+  const [emg, setEmg] = useState(false);
+  const [eCount, setECount] = useState('1');
+  const [eMains, setEMains] = useState('');
+  const [eKva, setEKva] = useState('');
+  const [eSub, setESub] = useState('0');
+  const [eDb, setEDb] = useState('0');
   const num = (v: string) => (v.trim() === '' ? NaN : Number(v));
   const spec: BatchHierarchySpec = {
     mode: 'quantity', mdbs: source === 'create' ? { create: num(mdb) } : { existing },
-    smdb: { count: num(smdb), basis: 'total' }, db: { count: num(db), basis: 'total' }, incomers
+    smdb: { count: num(smdb), basis: 'total' }, db: { count: num(db), basis: 'total' }, incomers, names: namesOf(project)
   };
+  const normalCount = (source === 'create' ? num(mdb) || 0 : 0) + (num(smdb) || 0) + (num(db) || 0);
   const plan = useMemo(() => planBatchHierarchy(project, spec), [project, JSON.stringify(spec)]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The normal batch first; the emergency panel is then fed from any normal panel, including new ones.
+  const afterNormal = useMemo(() => (plan.ok && plan.boards.length ? applyHierarchy(project, plan) : project), [project, plan]);
+  const mainsChoices = afterNormal.boards.filter((b) => roleOf(afterNormal, b) === 'MDB' || roleOf(afterNormal, b) === 'SMDB');
+  const mainsFrom = mainsChoices.some((b) => b.id === eMains) ? eMains : mainsChoices[0]?.id ?? '';
+  const ePlan = useMemo(() => (emg ? planEmergency(afterNormal, { count: num(eCount), mainsFrom, generatorKva: eKva.trim() ? num(eKva) : undefined, esmdb: num(eSub), edb: num(eDb), incomers }) : undefined),
+    [emg, afterNormal, eCount, mainsFrom, eKva, eSub, eDb, incomers]); // eslint-disable-line react-hooks/exhaustive-deps
+  const normalOk = normalCount === 0 || plan.ok;
+  const canCreate = (normalCount > 0 || emg) && normalOk && (!emg || !!ePlan?.ok) && (plan.boards.length + (ePlan?.boards.length ?? 0)) > 0;
+  const total = (normalCount > 0 && plan.ok ? plan.boards.length : 0) + (ePlan?.boards.length ?? 0);
+  const setPrefix = (role: PanelRole, v: string) => onChange({ ...project, panelPrefixes: { ...project.panelPrefixes, [role]: v || undefined } });
   const kids = useMemo(() => { const m = new Map<string, Board[]>(); for (const b of plan.boards) if (b.upstreamId) (m.get(b.upstreamId) ?? m.set(b.upstreamId, []).get(b.upstreamId)!).push(b); return m; }, [plan]);
   const count = (k: string) => plan.boards.filter((b) => b.kind === k).length;
   const range = (k: string) => { const ids = plan.boards.filter((b) => b.kind === k).map((b) => b.id); return ids.length ? (ids.length > 1 ? `${ids[0]} … ${ids[ids.length - 1]}` : ids[0]) : '—'; };
@@ -63,10 +82,11 @@ function QuickCreate({ project, onCreate, onList }: { project: Project; onCreate
   const smdbIds = plan.boards.filter((b) => b.kind === 'SMDB').map((b) => b.id);
 
   function create() {
-    if (!plan.ok) return;
-    const next = applyHierarchy(project, plan);
-    onCreate(next, `Created ${plan.boards.length} panels and ${plan.feeders.length} incomers (sizing pending) — add levels in Panel list. One Undo removes this batch.`);
-    setDone(`Created ${plan.boards.length} panels: ${range('MDB')}, ${range('SMDB')}, ${range('DB')}.`);
+    if (!canCreate) return;
+    const next = ePlan ? { ...afterNormal, boards: [...afterNormal.boards, ...ePlan.boards], feeders: [...afterNormal.feeders, ...ePlan.feeders] } : afterNormal;
+    const feeders = (normalCount > 0 ? plan.feeders.length : 0) + (ePlan?.feeders.length ?? 0);
+    onCreate(next, `Created ${total} panels and ${feeders} incomers (sizing pending) — add levels in Panel list. One Undo removes this batch.`);
+    setDone(`Created ${total} panels${normalCount > 0 ? `: ${range('MDB')}, ${range('SMDB')}, ${range('DB')}` : ''}${ePlan ? `; emergency ${ePlan.boards.map((b) => b.id).join(', ')}` : ''}.`);
   }
 
   return (
@@ -83,7 +103,25 @@ function QuickCreate({ project, onCreate, onList }: { project: Project; onCreate
             <label>DBs (total)<input className="bi-num" style={{ width: 70 }} inputMode="numeric" value={db} onChange={(e) => setDb(e.target.value)} /></label>
           </div>
           <label className="row"><input type="checkbox" checked={incomers} onChange={(e) => setIncomers(e.target.checked)} /> Create incomer feeders (placeholders, sizing pending)</label>
-          <p className="m">Spread evenly: SMDBs over the MDBs, DBs over the SMDBs (or the MDBs when there are no SMDBs). Names are incremental until levels are set.</p>
+          <p className="m">Spread evenly: SMDBs over the MDBs, DBs over the SMDBs (or the MDBs when there are no SMDBs). Names are incremental until levels are set. Set a count to 0 to skip it.</p>
+          <label className="row"><input type="checkbox" checked={emg} onChange={(e) => setEmg(e.target.checked)} /> <b>Emergency panel (ATS)</b></label>
+          {emg && <>
+            <p className="m">DEWA practice: one dedicated emergency panel with a dual supply through an ATS — mains from a normal panel, standby from the generator. Everything on and below it counts as essential load.</p>
+            <div className="form-kv">
+              <label>{prefixOf(project, 'EMDB')}s<input className="bi-num" style={{ width: 70 }} inputMode="numeric" value={eCount} onChange={(e) => setECount(e.target.value)} /></label>
+              <label>ATS mains from<select value={mainsFrom} onChange={(e) => setEMains(e.target.value)}>{mainsChoices.map((b) => <option key={b.id} value={b.id}>{b.id}</option>)}</select></label>
+              <label>Standby generator<span className="pfcc-in"><input className="bi-num" style={{ width: 70 }} inputMode="decimal" value={eKva} placeholder="kVA" onChange={(e) => setEKva(e.target.value)} /><span className="m">kVA (blank: later)</span></span></label>
+              <label>{prefixOf(project, 'ESMDB')}s (total)<input className="bi-num" style={{ width: 70 }} inputMode="numeric" value={eSub} onChange={(e) => setESub(e.target.value)} /></label>
+              <label>{prefixOf(project, 'EDB')}s (total)<input className="bi-num" style={{ width: 70 }} inputMode="numeric" value={eDb} onChange={(e) => setEDb(e.target.value)} /></label>
+            </div>
+          </>}
+          <details className="pp-names">
+            <summary>Naming table</summary>
+            <p className="m">Prefix for each panel role — used for new panels and by Rename by level. Blank = the role name.</p>
+            <table className="bi-table compact"><tbody>{PANEL_ROLES.map((r) => (
+              <tr key={r.role}><td>{r.label}</td><td><input className="bi-text" style={{ width: 90 }} value={project.panelPrefixes?.[r.role] ?? ''} placeholder={r.role} onChange={(e) => setPrefix(r.role, e.target.value.replace(/\s+/g, '').toUpperCase())} /></td></tr>
+            ))}</tbody></table>
+          </details>
         </section>
 
         <section className="card">
@@ -108,14 +146,15 @@ function QuickCreate({ project, onCreate, onList }: { project: Project; onCreate
 
         <section className="card">
           <h4>Checks</h4>
-          <ul className="bh-checks">{plan.checks.map((c, i) => <li key={`${i}-${c.text}`} className={c.level}>{c.level === 'ok' ? '✓' : c.level === 'warn' ? '!' : '✕'} {c.text}</li>)}</ul>
+          <ul className="bh-checks">{[...(normalCount > 0 ? plan.checks : []), ...(ePlan?.checks ?? [])].map((c, i) => <li key={`${i}-${c.text}`} className={c.level}>{c.level === 'ok' ? '✓' : c.level === 'warn' ? '!' : '✕'} {c.text}</li>)}</ul>
+          {ePlan?.ok && <><h4>Emergency</h4><p className="m">{ePlan.boards.map((b) => `${b.id}${b.upstreamId ? ` ← ${b.upstreamId}` : ''}`).join(' · ')}</p></>}
           {done && <p className="ok">{done} <button className="chip" onClick={onList}>Add levels in Panel list</button></p>}
         </section>
       </div>
       <div className="modal-actions pp-foot">
         <span className="m">Appears in the panel tree, SLD and load schedules at once · one Undo removes the batch</span>
         <span className="sp" />
-        <button className="chip primary" disabled={!plan.ok || !plan.boards.length} onClick={create}>Create {plan.boards.length} panels</button>
+        <button className="chip primary" disabled={!canCreate} onClick={create}>Create {total} panels</button>
       </div>
     </>
   );

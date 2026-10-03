@@ -1202,3 +1202,4 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .pp-table tr.on td{background:var(--p2)}
 .bh-embedded .bh-stage{max-height:none}
 @media (max-width:1100px){.pp-cols{grid-template-columns:1fr}}
+.pp-names summary{cursor:pointer}

@@ -275,6 +275,8 @@ export interface Project {
   /** Project / authority rule stricter than IEC 60364-4-41: every final circuit up to 63 A disconnects
    * in 0.4 s, fixed equipment too. Shown as an override wherever the required time is shown. */
   strictFinalDisconnection?: boolean;
+  /** Panel naming table: prefix per panel role (default the role itself, e.g. EDB). */
+  panelPrefixes?: Partial<Record<import('./model/emergency').PanelRole, string>>;
   vdTempC?: number; // conductor temperature for voltage drop (°C); blank = R20 × 1.2
   vdFinalCircuits?: boolean; // voltage drop page: include each DB's worst final circuit // allowable voltage drop, e.g. 4.0 per DEWA/IEC
   vdSelection?: string[]; // feeder ids chosen for the voltage drop calculation

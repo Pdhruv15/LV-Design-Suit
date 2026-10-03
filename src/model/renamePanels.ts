@@ -1,6 +1,7 @@
 import type { Board, Project } from '../types';
 import { findFloor } from './levels';
 import { levelRef, panelName } from './hierarchy';
+import { prefixOf, roleOf } from './emergency';
 
 /** Rename panels everywhere they are referenced, and "rename by level":
  * type – level – number (SMDB-L1, DB-L3-07). Panels without a level keep
@@ -21,7 +22,8 @@ export function renameByLevel(project: Project, only?: Set<string>): { from: str
     if (only && !only.has(b.id)) continue;
     const f = findFloor(project.building, b.level);
     if (!f) continue;
-    const key = `${kindOf(b)}|${levelRef(f.tag)}|${f.buildingId}`;
+    // Prefix from the naming table for the panel's role (EDB for a DB below an EMDB).
+    const key = `${prefixOf(project, roleOf(project, b))}|${levelRef(f.tag)}|${f.buildingId}`;
     (groups.get(key) ?? groups.set(key, []).get(key)!).push(b);
   }
   const out: { from: string; to: string; level: string }[] = [];
