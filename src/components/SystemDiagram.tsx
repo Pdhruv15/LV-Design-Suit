@@ -91,6 +91,7 @@ export default function SystemDiagram({
   focus,
   onFixFeeder,
   arrows,
+  fromSheet,
   onEditFeeder,
   onEditBoard,
   onOpenSchedule,
@@ -137,6 +138,8 @@ export default function SystemDiagram({
   onFixFeeder?: (id: string, patch: Partial<Feeder>, label: string) => void;
   /** Callouts with leader arrows (drawing sheets). */
   arrows?: { target: string; text: string; dir: 'ne' | 'nw' | 'se' | 'sw'; len?: number }[];
+  /** Drawing sheets: the sheet number of the board feeding each panel drawn from another sheet. */
+  fromSheet?: Record<string, string>;
   onEditFeeder?: (id: string) => void;
   onEditBoard?: (id: string) => void;
   /** Opens a DB's load schedule (double-click on the DB's circuit summary). */
@@ -569,7 +572,7 @@ export default function SystemDiagram({
             <g key={`from-${r.board.id}`} className="from-up">
               <path d={`M${r.x - 7} 60 L${r.x} 72 L${r.x + 7} 60`} className="ln" />
               <line x1={r.x} y1="40" x2={r.x} y2={r.busY - 58} className="ln" />
-              <text className="b" x={r.x + 14} y="46">From {r.board.upstreamId}</text>
+              <text className="b" x={r.x + 14} y="46">From {r.board.upstreamId}{fromSheet?.[r.board.id] ? ` — sheet ${fromSheet[r.board.id]}` : ''}</text>
               {inc && <text className="m" x={r.x + 14} y="60">{inc.id}: {cableSizeText(inc)}, {inc.lengthM} m · {inc.breakerRatingA} A</text>}
             </g>
           );

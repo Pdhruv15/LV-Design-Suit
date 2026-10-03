@@ -1119,3 +1119,4 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .web-banner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 14px;background:color-mix(in srgb,var(--acc) 12%,var(--panel));border-bottom:1px solid var(--line);font-size:12.5px}
 .web-banner .chip{display:inline-flex;align-items:center;gap:5px;text-decoration:none}
 .web-ok{color:var(--ok)}
+.sheet-refs{display:inline-flex;gap:4px;flex-wrap:wrap;max-width:50%;overflow:hidden}.sheet-refs .chip{padding:1px 8px;font-size:11px}
