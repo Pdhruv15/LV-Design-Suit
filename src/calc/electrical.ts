@@ -133,9 +133,11 @@ export function selectCable(
   cosPhi: number,
   ambientC: number,
   vdBudgetPct: number,
-  breakerRatingA = 0
+  breakerRatingA = 0,
+  /** Conductor temperature for the voltage drop (the project's vdTempC); blank = R20 × 1.2. */
+  tempC?: number
 ): number | null {
-  return selectCableRuns(ib, lengthM, systemVoltageV, cores, cosPhi, ambientC, vdBudgetPct, breakerRatingA, 1)?.csaMm2 ?? null;
+  return selectCableRuns(ib, lengthM, systemVoltageV, cores, cosPhi, ambientC, vdBudgetPct, breakerRatingA, 1, undefined, tempC)?.csaMm2 ?? null;
 }
 
 /** Like selectCable, but when no single cable fits, tries 2, 3… runs in
@@ -151,7 +153,9 @@ export function selectCableRuns(
   vdBudgetPct: number,
   breakerRatingA = 0,
   maxRuns = 4,
-  trayFactor?: number
+  trayFactor?: number,
+  /** Conductor temperature for the voltage drop (the project's vdTempC), as the displayed drop uses; blank = R20 × 1.2. */
+  tempC?: number
 ): { csaMm2: number; runs: number } | null {
   const requiredIz = Math.max(ib, breakerRatingA);
   for (let runs = 1; runs <= maxRuns; runs++) {
@@ -159,7 +163,7 @@ export function selectCableRuns(
       if (runs > 1 && c.csaMm2 < 50) continue;
       const iz = c.ampacityA * ambientCorrectionFactor(ambientC) * runs * (trayFactor ?? groupFactor(runs));
       if (iz < requiredIz) continue;
-      if (vdPctFor(ib, c.csaMm2, lengthM, cores, cosPhi, systemVoltageV, runs) <= vdBudgetPct) return { csaMm2: c.csaMm2, runs };
+      if (vdPctFor(ib, c.csaMm2, lengthM, cores, cosPhi, systemVoltageV, runs, tempC) <= vdBudgetPct) return { csaMm2: c.csaMm2, runs };
     }
   }
   return null;

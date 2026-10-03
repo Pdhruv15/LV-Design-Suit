@@ -272,7 +272,10 @@ export function roomDensities(project: Project, buildingId: string): RoomDensity
       let lightingW = 0, powerW = 0, acW = 0;
       for (const c of cs) for (const [t, n] of Object.entries(c.points ?? {})) {
         const v = (n ?? 0) * w[t as PointType];
-        if (t === 'ltg') lightingW += v; // fans are not lighting power density else if (t === 'sac' || t === 'wac' || t === 'fcu') acW += v; else powerW += v;
+        // Lighting power density counts lighting points only (fans go to other power).
+        if (t === 'ltg') lightingW += v;
+        else if (t === 'sac' || t === 'wac' || t === 'fcu') acW += v;
+        else powerW += v;
       }
       const totalW = cs.reduce((s, c) => s + circuitWatts(c, board), 0);
       const lpd = r.areaM2 ? lightingW / r.areaM2 : 0;
