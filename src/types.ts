@@ -191,6 +191,8 @@ export interface Feeder {
   trayRoute?: string; // cable tray routes the cable runs on, in order, e.g. "A-B-C"
   /** The board was moved to another source: the route changed, so the length needs checking. */
   lengthToCheck?: boolean;
+  /** Made as a placeholder (e.g. by Build hierarchy): cable and breaker not sized yet. */
+  sizingPending?: boolean;
   feedsBoardId?: string; // if set, this feeder is the incomer to a downstream board —
   // its loadKw/demandFactor are ignored and its current is derived from that
   // board's total demand instead
