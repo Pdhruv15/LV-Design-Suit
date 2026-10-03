@@ -3,7 +3,7 @@
  * LV Database/Library.json beside the workbooks, so they sync through Google
  * Drive to every computer. This computer keeps a working copy. */
 
-export const LIBRARY_KEYS = ['lvds.titleTemplates', 'lvds.components', 'lvds.feederPresets', 'lvds.sldNotes', 'lvds.priceLists', 'lvds.sheetTemplates'] as const;
+export const LIBRARY_KEYS = ['lvds.titleTemplates', 'lvds.components', 'lvds.feederPresets', 'lvds.sldNotes', 'lvds.priceLists', 'lvds.sheetTemplates', 'lvds.assemblies'] as const;
 
 const bridge = () => (typeof window !== 'undefined' ? window.lvds?.database : undefined);
 
