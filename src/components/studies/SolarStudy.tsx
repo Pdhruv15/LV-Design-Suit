@@ -35,6 +35,10 @@ export default function SolarStudy({ project, onChange, onStatus }: {
   function addToSld() {
     const res = pvToSld(project, s, r, target);
     if (!res) return;
+    if (res.unresolved) {
+      onStatus(`Not ${res.existing ? 'updated' : 'added'}: ${pvId} on ${target} can't be sized as one ${f1(acKw)} kW connection — ${res.unresolved}. Configure separate inverter groups / feeders explicitly.`);
+      return;
+    }
     const sized = res.feeder;
     onChange(res.project, true);
     onStatus(`${res.existing ? 'Updated' : 'Added'} ${pvId} on ${target}: ${f1(acKw)} kW ${s.inverter.phases === 1 ? `one-phase${sized.phase ? ` on ${sized.phase}` : ' (phase not set)'}` : 'three-phase'}, ${sized.breakerRatingA} A, ${sized.cores}C × ${sized.cableCsaMm2} mm² — press Run (F5)`);
@@ -144,7 +148,7 @@ export default function SolarStudy({ project, onChange, onStatus }: {
         <div><span>Area</span><b>{f0(r.arrayAreaM2)} m² of panels</b><small>≈ {f0(r.roofNeededM2)} m² of roof at {s.roofUsePct} % use</small></div>
         <div><span>Energy</span><b>{f0(r.dailyKwh)} kWh/day · {f0(r.annualKwh / 1000)} MWh/yr</b><small>{f0(r.specificYield)} kWh/kWp · PR {f1(r.prPct)} %</small></div>
         <div><span>Savings / CO₂</span><b>{r.savings !== undefined ? `${f0(r.savings)} per year` : '—'}</b><small>{f1(r.co2Tonnes)} t CO₂ avoided per year</small></div>
-        <div><span>AC connection</span><b>{f0(r.acCurrentA)} A · {r.acBreakerA} A breaker</b><small>{acConnection(s, project.voltageV).text}{s.inverter.phases === 1 && r.inverters > 1 ? ` · ${r.inverters} inverters counted together on one phase connection` : ''}</small></div>
+        <div><span>AC connection</span><b className={r.acBreakerNoFit ? 'bad' : ''}>{f0(r.acCurrentA)} A · {r.acBreakerNoFit ? 'No suitable breaker in the available list' : r.acBreakerA ? `${r.acBreakerA} A breaker` : 'no breaker (no generation)'}</b>{r.acBreakerNoFit && <small className="bad">needs {f0(r.acBreakerRequiredA)} A (1.25 × I); largest available {r.acBreakerMaxA} A</small>}<small>{acConnection(s, project.voltageV).text}{s.inverter.phases === 1 && r.inverters > 1 ? ` · ${r.inverters} inverters counted together on one phase connection` : ''}</small></div>
       </div>
 
       <h3 className="section-title">String design check</h3>
