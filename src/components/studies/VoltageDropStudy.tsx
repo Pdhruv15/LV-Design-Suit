@@ -6,7 +6,7 @@ import { boardsInSupplyOrder } from '../../calc/summary';
 import { addVdCable, editVdCable, groupByPanel, motorStartVdLimit, suggestCable, vdCandidates, vdFormula, vdPath, vdRow, worstFinalCircuits, type VdEdit, type VdRow } from '../../calc/voltageDrop';
 import { riserVd, type RiserVd } from '../../calc/busbar';
 import { resistanceFactor } from '../../calc/electrical';
-import { buildVdReportHtml, scopeLabel, VD_HEADERS, vdCells } from '../../docs/voltageDropReport';
+import { buildVdReportHtml, scopeLabel, startText, VD_HEADERS, vdCells } from '../../docs/voltageDropReport';
 import { saveCsv, savePdf, safeFileName } from '../../util/files';
 import EditCell from '../EditCell';
 import { Page, StatusCell, StatusCounts } from '../ui';
@@ -170,7 +170,7 @@ export default function VoltageDropStudy({ project, calcProject = project, stale
         <VdCard label="Longest cable" value={longest ? `${longest.feeder.lengthM} m` : '—'} sub={longest ? `${longest.feeder.id} → ${longest.toName} · ${longest.totalPct.toFixed(2)} %` : ''} onClick={longest ? () => setFocusId(longest.feeder.id) : undefined} />
         <VdCard label="Motor starting" value={worstStart ? `${worstStart.startPct!.toFixed(1)} %` : '—'} status={worstStart ? (worstStart.startPct! > motorStartVdLimit() ? 'bad' : 'ok') : undefined}
           sub={worstStart ? `${worstStart.toName} · limit ${motorStartVdLimit()} %` : 'No motors selected'} onClick={worstStart ? () => setFocusId(worstStart.feeder.id) : undefined} />
-        <VdCard label="Busbar risers" value={worstRiser ? `${worstRiser.exactTopPct.toFixed(2)} %` : '—'} status={worstRiser?.status} sub={worstRiser ? `${worstRiser.riser.name} · top tap-off` : 'None in the project'} />
+        <VdCard label="Busbar risers" value={risers.some((r) => r.noType) ? 'Not calculated' : worstRiser ? `${worstRiser.exactTopPct.toFixed(2)} %` : '—'} status={risers.some((r) => r.noType) ? 'bad' : worstRiser?.status} sub={worstRiser ? `${worstRiser.riser.name} · top tap-off` : 'None in the project'} />
       </div>
 
       {focus && path.length > 0 && <VdProfile path={path} limit={project.vdLimitPct} title={`${focus.feeder.id} → ${focus.toName}`} isWorst={focus === worst} />}
@@ -242,7 +242,7 @@ export default function VoltageDropStudy({ project, calcProject = project, stale
                       ) : (
                         <EditCell kind="text" value={r.feeder.name} display={r.toName} title="Equipment name (e.g. AHU-01, isolator) — double-click to edit" onCommit={(v) => edit(r.feeder.id, { name: v || r.feeder.id })} />
                       )}
-                      <td>{r.toType}{r.startPct !== undefined && <div className={`m ${r.startPct > motorStartVdLimit() ? 'bad' : ''}`} title={`Drop while starting (running drop × starting current), limit ${motorStartVdLimit()} %`}>start {r.startPct.toFixed(1)} %</div>}</td>
+                      <td>{r.toType}</td>
                       {fc ? <td>{r.loadKw.toFixed(1)}</td> : loadCell(r)}
                       {fc ? <td>{r.pf.toFixed(2)}</td> : <EditCell kind="number" min={0.1} max={1} value={r.pf} display={r.pf.toFixed(2)} onCommit={(v) => edit(r.feeder.id, { powerFactor: v })} />}
                       <td>{r.ib.toFixed(1)}</td>
@@ -255,6 +255,7 @@ export default function VoltageDropStudy({ project, calcProject = project, stale
                       <td>{r.upstreamPct.toFixed(2)}</td>
                       <td className={r.status}><b>{r.totalPct.toFixed(2)}</b></td>
                       <td>{r.limitPct.toFixed(1)}</td>
+                      <td className={r.startPct !== undefined && r.startPct > motorStartVdLimit() ? 'bad' : ''} title={r.startPct !== undefined ? `Drop while starting (running drop × starting current), limit ${motorStartVdLimit()} %` : undefined}>{startText(r)}</td>
                       <StatusCell status={r.status} />
                       {fc ? <td>{r.feeder.remarks ?? ''}</td> : <EditCell kind="text" value={r.feeder.remarks ?? ''} display={r.feeder.remarks ?? ''} className="vd-remarks" onCommit={(v) => edit(r.feeder.id, { remarks: v })} />}
                       <td>{fix ? <button className="chip vd-fix" title={`${fix.csaMm2} mm² gives ${fix.totalPct.toFixed(2)} % — click to apply (updates the SLD and schedules)`} onClick={(e) => { e.stopPropagation(); edit(r.feeder.id, { cableCsaMm2: fix.csaMm2 }); onStatus(`${r.feeder.id}: ${r.feeder.cableCsaMm2} → ${fix.csaMm2} mm² — Run (F5) to update the results`); }}>→ {fix.csaMm2} mm² <span className="m">{fix.totalPct.toFixed(2)} %</span></button> : r.status !== 'ok' && !fc ? <span className="m" title="Even the largest size fails: add parallel runs or shorten the route">runs / route</span> : null}</td>
@@ -331,7 +332,7 @@ function RiserVdCard({ v }: { v: RiserVd }) {
         <span>Concentrated length <b>{v.concentratedM.toFixed(1)} m</b> <span className="m">(feed + up to the first tap-off, full current)</span></span>
         <span>Distributed length <b>{v.distributedM.toFixed(1)} m</b> <span className="m">(first to last tap-off)</span></span>
         <span>Upstream <b>{v.upstreamPct.toFixed(2)} %</b></span>
-        <span>Top tap-off, floor by floor <b className={v.status}>{v.exactTopPct.toFixed(2)} %</b></span>
+        {v.noType ? <span className="bad">Not calculated — no busbar size in the data carries {v.designA.toFixed(0)} A</span> : <span>Top tap-off, floor by floor <b className={v.status}>{v.exactTopPct.toFixed(2)} %</b></span>}
         <span title="ΔV = √3 · I · z · (Lc + Ld / 2): the load taken as spread evenly along the distributed length">Uniform-load check <b>{v.uniformTopPct.toFixed(2)} %</b> <span className="m">({diff >= 0 ? '+' : ''}{diff.toFixed(2)})</span></span>
       </div>
       <table className="schedule vd-table">

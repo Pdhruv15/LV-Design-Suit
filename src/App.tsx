@@ -88,6 +88,7 @@ import { applyDefaults, applyProfile, initialsOf, loadPrefs, savePrefs, signatur
 import { clearRecovery, deleteProjectFile, inDesktop, listProjects, loadProject, readRecovery, recentFiles, saveProjectFile, touchRecent, whenText, writeRecovery, type ProjectMeta, type Recovery } from './model/projectStore';
 import PreferencesDialog from './components/PreferencesDialog';
 import PanelTree from './components/PanelTree';
+import { moveBoard, moveSummary, reorderBoard } from './model/moveBoard';
 import ProjectsDashboard from './components/ProjectsDashboard';
 import { NameDialog, UnsavedDialog } from './components/FileDialogs';
 import type { ProjectStatus } from './types';
@@ -829,7 +830,14 @@ export default function App() {
             onSchedule: (id) => { setActiveBoardId(id); setView('load-schedule'); },
             onCopy: copyBoard,
             onPaste: (id) => { setActiveBoardId(id); setPasteTarget(id); },
-            onDelete: (id) => { if (window.confirm(`Delete ${id} and everything fed from it?`)) removeBoard(id); }
+            onDelete: (id) => { if (window.confirm(`Delete ${id} and everything fed from it?`)) removeBoard(id); },
+            onMove: (id, to) => {
+              if (!window.confirm(`${moveSummary(project, id, to)}\n\nMove it? (Ctrl+Z undoes.)`)) return;
+              setProject(moveBoard(project, id, to), { step: true });
+              setStatus(`${id} is now supplied from ${to} — check the incomer cable length.`);
+            },
+            onReorder: (id, dir) => setProject(reorderBoard(project, id, dir), { step: true }),
+            onLengthChecked: (id) => setProject({ ...project, feeders: project.feeders.map((f) => (f.feedsBoardId === id ? { ...f, lengthToCheck: undefined } : f)) }, { step: true })
           }}
         />
 

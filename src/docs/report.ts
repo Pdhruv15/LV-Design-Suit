@@ -5,7 +5,10 @@ import { STATUS_TEXT, statusOfText } from '../calc/statusText';
 import { evaluateEarthingAll, breakerTypeOf } from '../calc/earthing';
 import { evaluateSelectivity } from '../calc/protection';
 import { boardSummary, boardsInSupplyOrder, systemSummary } from '../calc/summary';
-import { settingsOf, sizeGenerator, sizePfc, sizeTransformer } from '../calc/sizing';
+import { settingsOf } from '../calc/sizing';
+import { resistanceFactor } from '../calc/electrical';
+import { sizeGeneratorByBoards, sizeTransformers, txGenPlanOf } from '../calc/txGen';
+import { planPfc, STRATEGY_LABEL } from '../calc/pfc';
 import { cableSchedule, dbSchedule, type Schedule } from './schedules';
 import type { Project } from '../types';
 
@@ -47,11 +50,12 @@ export function buildReportHtml(project: Project): string {
   const earthing = evaluateEarthingAll(project);
   const selectivity = evaluateSelectivity(project);
   const sys = systemSummary(project);
-  const tx = sizeTransformer(project);
-  const gen = sizeGenerator(project);
+  // The same sizing as the Transformer & generator and Power factor pages (size list, duty / standby, generator boards, motor start, PFC strategy and steps).
+  const txPlan = txGenPlanOf(project);
+  const tx = sizeTransformers(project, txPlan);
+  const gen = sizeGeneratorByBoards(project, txPlan);
   const settings = settingsOf(project);
-  const mains = project.boards.filter((b) => !b.upstreamId);
-  const pfc = mains.map((b) => sizePfc(project, b.id));
+  const pfcRes = planPfc(project);
   const boards = boardsInSupplyOrder(project).map((b) => boardSummary(project, b));
   const date = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
 
@@ -81,9 +85,9 @@ ${section('System summary', `<div class="grid">
     <div class="kpi"><span>Transformer loading</span><b>${sys.transformerLoadingPct === undefined ? '—' : `${sys.transformerLoadingPct.toFixed(0)} % of ${f(sys.transformerKva)} kVA`}</b></div>
   </div>
   ${table(['Item', 'Result'], [
-    ['Transformer', `Requirement ${f(tx.designKva)} kVA → recommended ${tx.recommendedKva ?? '> 3150'} kVA; installed ${f(tx.installedKva)} kVA — ${tx.adequate ? 'adequate' : 'UNDERSIZED'}`],
-    ['Standby generator', gen.essential.length ? `Essential demand ${f(gen.demandKva)} kVA → recommended ${gen.recommendedKva ?? '> 2500'} kVA (${gen.essential.map((x) => x.id).join(', ')})` : 'No essential loads selected'],
-    ...pfc.map((p) => [`Power factor correction (${p.boardId})`, p.bankKvar ? `${p.bankKvar} kvar bank: PF ${p.pfBefore.toFixed(2)} → ${p.pfAfter.toFixed(3)}, ${f(p.currentBeforeA)} → ${f(p.currentAfterA)} A` : `Not required (PF ${p.pfBefore.toFixed(2)})`])
+    ...tx.map((r) => [`Transformer (${r.board.id})`, `Requirement ${f(r.designKva)} kVA → recommended ${r.recommendedKva ? `${r.split > 1 ? `${r.split} × ` : r.n1 ? '2 × ' : ''}${r.recommendedKva} kVA${r.n1 ? ' (duty / standby)' : ''}` : 'none — above the largest standard size'}; installed ${r.installedKva ? `${f(r.installedKva)} kVA` : '—'} — ${r.adequate === false || !r.recommendedKva ? 'UNDERSIZED / CHECK' : 'adequate'}`]),
+    ['Standby generator', gen.demandKw > 0 || gen.recommendedKva ? `Demand ${f(gen.demandKva)} kVA → recommended ${gen.recommendedKva ? `${gen.recommendedKva} kVA` : `none — ${f(Math.max(gen.runningDesignKva, gen.startDesignKva))} kVA needed, above the largest standard set`}${gen.motor ? ` (largest motor start: ${gen.motor.feeder.id})` : ''}` : 'No boards or essential loads on a generator'],
+    ...pfcRes.mains.map((p) => [`Power factor correction (${p.boardId})`, p.plannedKvar ? `${p.plannedKvar} kvar (${STRATEGY_LABEL[pfcRes.plan.strategy]}, ${pfcRes.plan.stepKvar} kvar steps): PF ${p.pfBefore.toFixed(2)} → ${p.pfAfter.toFixed(3)}, ${f(p.kvaBefore)} → ${f(p.kvaAfter)} kVA` : `Not required (PF ${p.pfBefore.toFixed(2)})`])
   ].map((r) => r.map(esc)))}
   ${table(['Board', 'Voltage (V)', '% nominal', 'Ik″ (kA)', 'Demand (kW)', 'Demand (A)', 'Rating (A)', 'Loading'],
     boards.map((b) => [esc(b.board.id), f(b.voltageV), `${b.voltagePct.toFixed(1)} %`, f(b.faultKA, 1), f(b.demandKw), f(b.currentA),
@@ -115,7 +119,7 @@ ${section('Assumptions and limitations', `<ul>
   <li>Upstream MV network treated as infinite; transformer %Z split into R and X by its X/R ratio (default 5).</li>
   <li>Fault levels use voltage factor c = 1 (maximum) for breaking capacity and c = ${0.95} (minimum) for earth-fault disconnection; loads and generation are neglected.</li>
   <li>Cable ratings: reference ampacities derated for ambient temperature and for grouping (the cable tray route the cable runs on, else its own parallel runs); other installation-method factors are not applied.</li>
-  <li>Cable resistance at operating temperature = 1.2 × R20 (IEC 60228); protective conductor per IEC 60364-5-54 Table 54.2 unless specified.</li>
+  <li>Cable resistance at operating temperature = 1.2 × R20 (IEC 60228)${project.vdTempC === undefined ? '' : `; voltage drop at ${project.vdTempC} °C = R20 × ${resistanceFactor(project.vdTempC).toFixed(3)}`}; protective conductor per IEC 60364-5-54 Table 54.2 unless specified.</li>
   <li>Selectivity is assessed from current thresholds only; confirm with the breaker manufacturer's selectivity tables.</li>
   <li>Busbar voltages are measured from the main board busbar and exclude transformer regulation.</li>
 </ul>

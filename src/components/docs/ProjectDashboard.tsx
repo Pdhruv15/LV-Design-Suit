@@ -104,7 +104,7 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
         <Tile label="Power density" value={d.density ? `${f1(d.density.connected)} W/m²` : '—'} sub={d.density ? <>connected · {f1(d.density.demand)} W/m² demand</> : 'Needs the area'} />
         <Tile label="Capacitors" value={d.capacitorKvar ? `${f0(d.capacitorKvar)} kvar` : 'None'} sub={<>PF {d.pf.toFixed(2)} with them</>} onClick={() => onGo({ view: 'pfc' })} />
         <Tile label="Cables" value={lengthText(d.cableM)} sub={<>{d.cableRuns} cables{d.extras.length ? ` · ${d.extras.join(' · ')}` : ''}</>} onClick={() => onGo({ view: 'cable-schedule' })} />
-        <Tile label="Studies" value={run ? (fails ? `${fails} fail` : checks ? `${checks} to check` : 'All pass') : 'Not run'}
+        <Tile label="Studies" value={run ? (d.stale.length ? 'Out of date' : fails ? `${fails} fail` : checks ? `${checks} to check` : 'All pass') : 'Not run'}
           sub={run ? <>{passes} pass · {checks} check · {fails} fail{stale.length ? ' · out of date' : ''}</> : 'Press Run (F5)'} onClick={stale.length || !run ? onRun : () => onGo({ view: 'report' })} />
       </div>
 

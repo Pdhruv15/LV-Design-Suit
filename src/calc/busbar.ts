@@ -272,6 +272,8 @@ export interface RiserVd {
   uniformTopPct: number; // uniformly distributed load: full current over L/2
   limitPct: number;
   status: 'ok' | 'warn' | 'bad';
+  /** No busbar size carries the load: the drop can't be calculated (shown as failing, never 0 %). */
+  noType?: boolean;
 }
 
 /** Riser voltage drop split into its concentrated length (the feed and the
@@ -313,6 +315,7 @@ export function riserVd(project: Project, r: BusRiser): RiserVd {
   return {
     riser: r, upstreamPct, designA: s.designA, zOhmPerM: z, concentratedM, distributedM, segments,
     exactTopPct: cum, uniformTopPct, limitPct,
-    status: cum > limitPct ? 'bad' : cum > limitPct * 0.85 ? 'warn' : 'ok'
+    status: !s.type || cum > limitPct ? 'bad' : cum > limitPct * 0.85 ? 'warn' : 'ok',
+    noType: !s.type || undefined
   };
 }
