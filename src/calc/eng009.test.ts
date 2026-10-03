@@ -33,7 +33,7 @@ describe('ENG-009: achievable compensation from whole switched steps', () => {
     expect(sug.q2).toBeGreaterThanOrEqual(-1e-9);
     expect(onTable(r).pf).toBeCloseTo(r.pf2, 12);
     const html = pfcReportHtml(sampleProject, { ...PFC_CALC_DEFAULT, mode: 'kw-pf', kw: 10, pf: 0.8, targetPf: 0.95, stepKvar: 25, voltageV: 400 }, r);
-    expect(html).toMatch(/0 steps \(0 kvar\) switched in: PF 0\.80 → 0\.800/);
+    expect(html).toMatch(/0 steps \(0 kvar\) switched in: PF 0\.80 lagging → 0\.800 lagging/);
     expect(html).toMatch(/Target 0\.95 not achievable with 25 kvar steps/);
     expect(html).not.toMatch(/→ 1\.000/);
   });
