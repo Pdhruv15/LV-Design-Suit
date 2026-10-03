@@ -172,7 +172,7 @@ export default function FeederForm({
         {tab === 'cable' && (
           <>
         <div className="grid2">
-          <label>Cable length (m)<input type="number" step="1" value={f.lengthM} onChange={(e) => set('lengthM', +e.target.value)} /></label>
+          <label>Cable length (m)<input type="number" step="1" value={f.lengthM} onChange={(e) => { set('lengthM', +e.target.value); set('lengthToCheck', undefined); }} /></label>
           <label>Cores
             <select value={f.cores} onChange={(e) => set('cores', +e.target.value as 2 | 3 | 4)}>
               <option value={2}>2 (single-phase)</option>
