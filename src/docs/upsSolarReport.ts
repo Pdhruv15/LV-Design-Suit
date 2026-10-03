@@ -1,6 +1,7 @@
 import { sizeUps, type UpsSystem } from '../calc/ups';
 import type { PvResult, PvSystem } from '../calc/solar';
 import { acConnection } from '../calc/solar';
+import { pvConnection } from '../model/pvFeeder';
 import { revisionStamp } from '../model/revisions';
 import type { Project } from '../types';
 import { esc } from './report';
@@ -56,6 +57,8 @@ export function buildUpsReportHtml(project: Project, systems: UpsSystem[]): stri
 }
 
 export function buildPvReportHtml(project: Project, s: PvSystem, r: PvResult): string {
+  const board = s.boardId ?? project.boards.find((b) => !b.upstreamId)?.id ?? project.boards[0]?.id;
+  const conn = board && r.inverters ? pvConnection(project, s, r, board) : undefined;
   const ok = (b: boolean) => `<span class="${b ? 'ok' : 'bad'}">${b ? 'OK' : 'Fail'}</span>`;
   const mppt = (b: boolean) => (r.vmpBasis === 'estimated' ? `<span class="${b ? 'warn' : 'bad'}">${b ? 'OK (estimated)' : 'Fail (estimated)'}</span>` : ok(b));
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(project.name)} — Solar PV sizing</title><style>${CSS}</style></head><body>
@@ -69,7 +72,8 @@ export function buildPvReportHtml(project: Project, s: PvSystem, r: PvResult): s
   <h2>Inverters</h2>${rows([
     ['Inverter', `${esc(s.inverter.name)} — ${s.inverter.acKw} kW, ${s.inverter.phases}-phase, max DC ${s.inverter.maxDcV} V, MPPT ${s.inverter.mpptMinV}–${s.inverter.mpptMaxV} V, ${s.inverter.mppts} MPPTs × ${s.inverter.maxInputA} A`],
     ['Selected', `<b>${r.inverters} × ${s.inverter.acKw} kW = ${n(r.inverters * s.inverter.acKw)} kW AC</b>, DC/AC ${r.dcAcRatio.toFixed(2)}`],
-    ['AC connection', `${n(r.acCurrentA, 0)} A → ${r.acBreakerNoFit ? `<b class="bad">No suitable breaker in the available list — ${n(r.acBreakerRequiredA, 0)} A needed (1.25 × I), largest available ${r.acBreakerMaxA} A</b>` : r.acBreakerA ? `${r.acBreakerA} A breaker` : 'no breaker (no generation)'} (${acConnection(s, project.voltageV).text}${s.inverter.phases === 1 ? `${s.acPhase ? `, phase ${s.acPhase}` : ', phase not set'}${r.inverters > 1 ? `; ${r.inverters} inverters counted together` : ''}` : ''})`]
+    ['AC connection', `${n(r.acCurrentA, 0)} A → ${r.acBreakerNoFit ? `<b class="bad">No suitable breaker in the available list — ${n(r.acBreakerRequiredA, 0)} A needed (1.25 × I), largest available ${r.acBreakerMaxA} A</b>` : r.acBreakerA ? `${r.acBreakerA} A breaker` : 'no breaker (no generation)'} (${acConnection(s, project.voltageV).text}${s.inverter.phases === 1 ? `${s.acPhase ? `, phase ${s.acPhase}` : ', phase not set'}${r.inverters > 1 ? `; ${r.inverters} inverters counted together` : ''}` : ''})`],
+    ...(conn ? [['SLD connection', conn.ok ? esc(conn.text) : `<b class="bad">${esc(conn.text)}</b>`] as [string, string]] : []),
   ])}
   <h2>String design (IEC 62548)</h2>${rows([
     ['Site temperatures', `min ${s.tMinC} °C, max ${s.tMaxC} °C → max cell ${n(r.tCellMaxC, 0)} °C (NOCT ${s.panel.noctC} °C)`],

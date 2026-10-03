@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Project } from '../../types';
 import { INVERTER_KW, PV_DEFAULTS, VMP_COEFF_ESTIMATE_PCT, acConnection, sizePv, type PvInverter, type PvMode, type PvPanel, type PvSystem } from '../../calc/solar';
-import { pvToSld } from '../../model/pvFeeder';
+import { pvConnection, pvToSld } from '../../model/pvFeeder';
 import { boardsInSupplyOrder } from '../../calc/summary';
 import { buildPvReportHtml } from '../../docs/upsSolarReport';
 import { safeFileName, savePdf } from '../../util/files';
@@ -31,6 +31,7 @@ export default function SolarStudy({ project, onChange, onStatus }: {
   const existing = project.feeders.find((f) => f.id === pvId);
   const acKw = r.inverters * s.inverter.acKw;
   const [busy, setBusy] = useState(false);
+  const conn = r.inverters ? pvConnection(project, s, r, target) : undefined;
 
   function addToSld() {
     const res = pvToSld(project, s, r, target);
@@ -148,6 +149,7 @@ export default function SolarStudy({ project, onChange, onStatus }: {
         <div><span>Area</span><b>{f0(r.arrayAreaM2)} m² of panels</b><small>≈ {f0(r.roofNeededM2)} m² of roof at {s.roofUsePct} % use</small></div>
         <div><span>Energy</span><b>{f0(r.dailyKwh)} kWh/day · {f0(r.annualKwh / 1000)} MWh/yr</b><small>{f0(r.specificYield)} kWh/kWp · PR {f1(r.prPct)} %</small></div>
         <div><span>Savings / CO₂</span><b>{r.savings !== undefined ? `${f0(r.savings)} per year` : '—'}</b><small>{f1(r.co2Tonnes)} t CO₂ avoided per year</small></div>
+        {conn && <div><span>SLD connection</span><b className={conn.ok ? '' : 'bad'}>{conn.ok ? 'Can be built' : 'Not as one connection'}</b><small className={conn.ok ? '' : 'bad'}>{conn.text}</small></div>}
         <div><span>AC connection</span><b className={r.acBreakerNoFit ? 'bad' : ''}>{f0(r.acCurrentA)} A · {r.acBreakerNoFit ? 'No suitable breaker in the available list' : r.acBreakerA ? `${r.acBreakerA} A breaker` : 'no breaker (no generation)'}</b>{r.acBreakerNoFit && <small className="bad">needs {f0(r.acBreakerRequiredA)} A (1.25 × I); largest available {r.acBreakerMaxA} A</small>}<small>{acConnection(s, project.voltageV).text}{s.inverter.phases === 1 && r.inverters > 1 ? ` · ${r.inverters} inverters counted together on one phase connection` : ''}</small></div>
       </div>
 
