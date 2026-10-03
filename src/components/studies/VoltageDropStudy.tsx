@@ -244,7 +244,7 @@ export default function VoltageDropStudy({ project, calcProject = project, stale
                       )}
                       <td>{r.toType}</td>
                       {fc ? <td>{r.loadKw.toFixed(1)}</td> : loadCell(r)}
-                      {fc ? <td>{r.pf.toFixed(2)}</td> : <EditCell kind="number" min={0.1} max={1} value={r.pf} display={r.pf.toFixed(2)} onCommit={(v) => edit(r.feeder.id, { powerFactor: v })} />}
+                      {fc ? <td>{r.pf.toFixed(2)}</td> : r.vdBasis ? <td className="m" title={`Derived from the loads below ${r.feeder.feedsBoardId} (P and Q per phase) — not editable. Current on phase ${r.vdBasis.currentPhase}; drop on phase ${r.vdBasis.phase} at PF ${r.vdBasis.pf.toFixed(3)}${r.vdBasis.leading ? ' leading' : ''}.`}>{r.pf.toFixed(2)}</td> : <EditCell kind="number" min={0.1} max={1} value={r.pf} display={r.pf.toFixed(2)} onCommit={(v) => edit(r.feeder.id, { powerFactor: v })} />}
                       <td>{r.ib.toFixed(1)}</td>
                       {fc ? <td>{r.threePhase ? '3-ph' : '1-ph'}</td> : <EditCell kind="select" value={String(r.feeder.cores)} options={PHASES} display={r.threePhase ? '3-ph' : '1-ph'} onCommit={(v) => edit(r.feeder.id, { cores: +v as 2 | 3 | 4 })} />}
                       {fc ? <td>{cableSizeText(r.feeder)}</td> : <EditCell kind="select" value={String(r.feeder.cableCsaMm2)} options={cableSizes} display={cableSizeText(r.feeder)} onCommit={(v) => edit(r.feeder.id, { cableCsaMm2: +v })} />}

@@ -1,6 +1,6 @@
 import { cables, getCable } from './cableTable';
 import { rule } from '../database/catalog';
-import { boardDemandKw, designCurrentA, rOperatingOhmPerKm, runsOf, upstreamVoltageDropPct, type Status } from './electrical';
+import { boardDemandKw, designCurrentA, incomerBasis, rOperatingOhmPerKm, runsOf, upstreamVoltageDropPct, type Status } from './electrical';
 import { isScheduleCircuit, scheduleCircuits } from './loadSchedule';
 import { boardsInSupplyOrder, loadTypeOf } from './summary';
 import { isMotor, starterInfo, starterOf } from './motor';
@@ -40,6 +40,9 @@ export interface VdRow {
   xOhmPerKm: number;
   /** Final circuit on a DB's load schedule (the DB's worst one). */
   finalCircuit?: boolean;
+  /** Incomers: what the drop is derived from — the governing phase's current and PF (signed sin φ), which can
+   * differ from the phase that sets Ib (currentPhase). */
+  vdBasis?: { currentPhase: 'R' | 'Y' | 'B'; phase: 'R' | 'Y' | 'B'; a: number; pf: number; sin: number; leading: boolean };
   /** Motors: total drop while starting (running drop × starting current multiple). */
   startPct?: number;
 }
@@ -63,16 +66,21 @@ export function vdRow(project: Project, f: Feeder): VdRow {
   const from = project.boards.find((b) => b.id === f.boardId) ?? { id: f.boardId, name: f.boardId };
   const toBoard = f.feedsBoardId ? project.boards.find((b) => b.id === f.feedsBoardId) : undefined;
   const ib = designCurrentA(f, project);
-  const pf = f.powerFactor;
-  const sin = Math.sqrt(Math.max(0, 1 - pf * pf));
+  // Incomers: P and Q of everything downstream (not the stored PF). The current and the drop can be
+  // governed by different phases; the drop is derived from its own phase's current and PF.
+  const inc = f.feedsBoardId ? incomerBasis(f, project) : undefined;
+  const pf = inc ? inc.current.pf : f.powerFactor;
+  const vdA = inc ? inc.vd.a : ib;
+  const vdPf = inc ? inc.vd.pf : pf;
+  const sin = inc ? inc.vd.sin : Math.sqrt(Math.max(0, 1 - pf * pf));
   const threePhase = f.cores >= 3;
   // Ω/km equals mV per A per m; 3-phase: √3·Z against the line voltage,
   // single-phase: phase + neutral (2·Z) against the phase voltage.
   const rOhmPerKm = rOperatingOhmPerKm(f.cableCsaMm2, project.vdTempC);
   const xOhmPerKm = getCable(f.cableCsaMm2).xOhmPerKm;
-  const z = (rOhmPerKm * pf + xOhmPerKm * sin) / runsOf(f);
+  const z = (rOhmPerKm * vdPf + xOhmPerKm * sin) / runsOf(f);
   const mvPerAm = (threePhase ? SQRT3 : 2) * z;
-  const vdV = (mvPerAm * ib * f.lengthM) / 1000;
+  const vdV = (mvPerAm * vdA * f.lengthM) / 1000;
   const baseV = threePhase ? project.voltageV : project.voltageV / SQRT3;
   const vdPct = (vdV / baseV) * 100;
   const upstreamPct = upstreamVoltageDropPct(project, f.boardId);
@@ -89,6 +97,7 @@ export function vdRow(project: Project, f: Feeder): VdRow {
     scheduleCircuits: f.feedsBoardId ? scheduleCircuits(project, f.feedsBoardId).length : 0,
     pf,
     ib,
+    vdBasis: inc ? { currentPhase: inc.current.phase, phase: inc.vd.phase, a: vdA, pf: vdPf, sin, leading: sin < -1e-9 } : undefined,
     threePhase,
     mvPerAm,
     vdV,
@@ -144,10 +153,14 @@ export function worstFinalCircuits(project: Project): VdRow[] {
 /** The row's calculation written out, for the page and the report. */
 export function vdFormula(project: Project, r: VdRow): string {
   const runs = runsOf(r.feeder);
-  const sin = Math.sqrt(Math.max(0, 1 - r.pf * r.pf));
+  const b = r.vdBasis;
+  const a = b ? b.a : r.ib, pf = b ? b.pf : r.pf, sin = b ? b.sin : Math.sqrt(Math.max(0, 1 - r.pf * r.pf));
   const k = r.threePhase ? '√3' : '2';
   const base = r.threePhase ? project.voltageV : project.voltageV / SQRT3;
-  return `ΔV = ${k} × Ib × L × (R cosφ + X sinφ)${runs > 1 ? ` ÷ ${runs} runs` : ''} = ${k} × ${r.ib.toFixed(1)} A × ${(r.feeder.lengthM / 1000).toFixed(3)} km × (${r.rOhmPerKm.toFixed(3)} × ${r.pf.toFixed(2)} + ${r.xOhmPerKm.toFixed(3)} × ${sin.toFixed(2)}) Ω/km = ${r.vdV.toFixed(2)} V = ${r.vdPct.toFixed(2)} % of ${base.toFixed(0)} V; + ${r.upstreamPct.toFixed(2)} % upstream = ${r.totalPct.toFixed(2)} %`;
+  const basis = b
+    ? `Incomer, from the downstream P and Q: drop on phase ${b.phase} (${a.toFixed(1)} A, PF ${pf.toFixed(3)}${b.leading ? ' leading' : ''})${b.phase !== b.currentPhase ? `; the current ${r.ib.toFixed(1)} A is on phase ${b.currentPhase}` : ''}. `
+    : '';
+  return `${basis}ΔV = ${k} × I × L × (R cosφ + X sinφ)${runs > 1 ? ` ÷ ${runs} runs` : ''} = ${k} × ${a.toFixed(1)} A × ${(r.feeder.lengthM / 1000).toFixed(3)} km × (${r.rOhmPerKm.toFixed(3)} × ${pf.toFixed(3)} + ${r.xOhmPerKm.toFixed(3)} × ${sin.toFixed(3)}) Ω/km = ${r.vdV.toFixed(2)} V = ${r.vdPct.toFixed(2)} % of ${base.toFixed(0)} V; + ${r.upstreamPct.toFixed(2)} % upstream = ${r.totalPct.toFixed(2)} %`;
 }
 
 /** Rows for the selected cables, in supply order. Ids that no longer exist

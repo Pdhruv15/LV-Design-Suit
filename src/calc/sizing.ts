@@ -1,4 +1,4 @@
-import { deratedAmpacityA, designCurrentA, trayFactorOf, evaluateFeeder, faultCurrentKA, impedanceToBoard, runsOf, selectCableRuns, upstreamVoltageDropPct, voltageDropPct } from './electrical';
+import { vdEvaluator, deratedAmpacityA, designCurrentA, trayFactorOf, evaluateFeeder, faultCurrentKA, impedanceToBoard, runsOf, selectCableRuns, upstreamVoltageDropPct, voltageDropPct } from './electrical';
 import { boardTotals, loadTypeOf, systemSummary } from './summary';
 import { breakerTypeOf } from './earthing';
 import { isMotor, motorStartDipPct, runningKva, startingKva } from './motor';
@@ -236,7 +236,7 @@ export function recommend(project: Project, f: Feeder, mode: SelectionMode = 'fi
   // One run up to 300 mm², then 2–4 runs in parallel (up to 8 for the
   // big feeders above 1000 A, e.g. a transformer's main LV feeders).
   const minCable = breakerRatingA
-    ? selectCableRuns(ib, f.lengthM, project.voltageV, f.cores, f.powerFactor, project.ambientC, budget, breakerRatingA, ib > 1000 ? 8 : 4, trayFactorOf(project, f)?.factor, project.vdTempC) ?? undefined
+    ? selectCableRuns(ib, f.lengthM, project.voltageV, f.cores, f.powerFactor, project.ambientC, budget, breakerRatingA, ib > 1000 ? 8 : 4, trayFactorOf(project, f)?.factor, project.vdTempC, vdEvaluator(f, project)) ?? undefined
     : undefined;
   // 'fix' keeps the cable the feeder has when it already meets both the
   // breaker (Iz ≥ In) and the voltage drop budget.
