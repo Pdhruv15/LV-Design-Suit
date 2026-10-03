@@ -137,8 +137,10 @@ export default function FeederForm({
             <>
               <label>Capacitor bank (kvar)<input inputMode="decimal" value={f.kvar ?? ''} onChange={(e) => set('kvar', e.target.value === '' || Number.isNaN(+e.target.value) ? undefined : +e.target.value)} /></label>
               <label>Steps
-                <select value={f.capSteps ?? 1} onChange={(e) => set('capSteps', +e.target.value > 1 ? +e.target.value : undefined)}>
-                  {[1, 2, 3, 4, 5, 6, 8, 10, 12].map((n) => <option key={n} value={n}>{n === 1 ? 'Fixed (1 step)' : `${n} steps${f.kvar ? ` × ${+(f.kvar / n).toFixed(1)} kvar` : ''}`}</option>)}
+                <select value={f.capSteps ?? 0} onChange={(e) => set('capSteps', +e.target.value >= 1 ? +e.target.value : undefined)}
+                  title="Automatic banks (APFC relay) switch only the steps the load needs and never go leading in the calculations; a fixed capacitor is always on at its full kvar">
+                  <option value={0}>Fixed (always on, no relay)</option>
+                  {[1, 2, 3, 4, 5, 6, 8, 10, 12].map((n) => <option key={n} value={n}>{`${n} step${n > 1 ? 's' : ''}${f.kvar && n > 1 ? ` × ${+(f.kvar / n).toFixed(1)} kvar` : ''} (automatic)`}</option>)}
                 </select>
               </label>
               <label>Detuning reactor
