@@ -14,8 +14,10 @@ const quantityError = (text: string, min: number, max: number) => !Number.isInte
 
 /** Guided, project-local draft: quantities → editable connections → review.
  * The project is changed once, only when the user creates the checked plan. */
-export default function BuildHierarchyDialog({ project, onCreate, onClose, onBuilding }: {
+export default function BuildHierarchyDialog({ project, onCreate, onClose, onBuilding, embedded = false }: {
   project: Project;
+  /** Shown inside the Panels page (Typical floors tab): no pop-up, starts at the quantities step. */
+  embedded?: boolean;
   onCreate: (next: Project, message: string) => void;
   onClose: () => void;
   onBuilding?: () => void;
@@ -24,8 +26,8 @@ export default function BuildHierarchyDialog({ project, onCreate, onClose, onBui
   const buildings = project.building?.buildings ?? [];
   const allFloors = useMemo(() => floorList(project.building), [project.building]);
   const mains = project.boards.filter((b) => !b.upstreamId);
-  const [step, setStep] = useState(0);
-  const [mode, setMode] = useState<Mode>(allFloors.length ? 'floors' : 'quantity');
+  const [step, setStep] = useState(embedded ? 1 : 0);
+  const [mode, setMode] = useState<Mode>(embedded || allFloors.length ? 'floors' : 'quantity');
   const [buildingId, setBuildingId] = useState(buildings[0]?.id ?? '');
   const floors = allFloors.filter((f) => f.buildingId === buildingId);
   const [from, setFrom] = useState(0);
@@ -103,6 +105,7 @@ export default function BuildHierarchyDialog({ project, onCreate, onClose, onBui
     smdb: quantityError(smdb, 0, smdbBasis === 'total' ? 5000 : 50), db: quantityError(db, 0, dbBasis === 'total' ? 5000 : 50) };
 
   useEffect(() => {
+    if (embedded) return; // a page, not a pop-up: no focus trap or Escape
     dialog.current?.focus();
     const key = (event: KeyboardEvent) => {
       if (event.key === 'Escape') { event.preventDefault(); onClose(); }
@@ -113,7 +116,7 @@ export default function BuildHierarchyDialog({ project, onCreate, onClose, onBui
       else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialog.current)) { event.preventDefault(); first?.focus(); }
     };
     window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key);
-  }, [onClose]);
+  }, [onClose, embedded]);
 
   const create = () => {
     if (!plan.ok || !plan.boards.length) return;
@@ -137,11 +140,10 @@ export default function BuildHierarchyDialog({ project, onCreate, onClose, onBui
   </div>;
   const checks = <ul className="bh-checks" aria-label="Hierarchy checks">{plan.checks.map((c, i) => <li key={`${i}-${c.text}`} className={c.level === 'ok' ? 'ok' : c.level === 'warn' ? 'warn' : 'bad'}>{c.level === 'ok' ? '✓' : c.level === 'warn' ? '!' : '✕'} {c.text}</li>)}</ul>;
 
-  return <div className="modal-backdrop">
-    <div ref={dialog} className="modal bh bh-guided" role="dialog" aria-modal="true" aria-labelledby="bh-title" tabIndex={-1}>
-      <header className="bh-heading"><div><h3 id="bh-title">Build panel hierarchy</h3><span className="m">{mode === 'repeat' ? 'Repeat a panel group' : mode === 'assemblies' ? 'Saved templates' : 'Draft the structure, check the connections, then create.'}</span></div><button className="icon-btn" aria-label="Close hierarchy builder" onClick={onClose}><X size={18} /></button></header>
+  const body = <>
+      {!embedded && <header className="bh-heading"><div><h3 id="bh-title">Build panel hierarchy</h3><span className="m">{mode === 'repeat' ? 'Repeat a panel group' : mode === 'assemblies' ? 'Saved templates' : 'Draft the structure, check the connections, then create.'}</span></div><button className="icon-btn" aria-label="Close hierarchy builder" onClick={onClose}><X size={18} /></button></header>}
       {mode === 'repeat' || mode === 'assemblies' ? <><button className="chip bh-back" onClick={() => selectMode(allFloors.length ? 'floors' : 'quantity')}>← Starting point</button><div className="bh-stage"><BranchPanel key={mode} mode={mode} project={project} onCreate={onCreate} onClose={onClose} /></div></> : <>
-        <ol className="bh-steps" aria-label="Hierarchy setup progress">{STEPS.map((label, index) => <li key={label}><button className={step === index ? 'on' : ''} aria-current={step === index ? 'step' : undefined} disabled={index > step} onClick={() => setStep(index)}><span>{index + 1}</span>{label}</button></li>)}</ol>
+        <ol className="bh-steps" aria-label="Hierarchy setup progress">{STEPS.map((label, index) => embedded && index === 0 ? null : <li key={label}><button className={step === index ? 'on' : ''} aria-current={step === index ? 'step' : undefined} disabled={index > step} onClick={() => setStep(index)}><span>{index + 1}</span>{label}</button></li>)}</ol>
         <div className="bh-stage">
           {step === 0 && <>
             <h4>How do you want to start?</h4>
@@ -208,8 +210,10 @@ export default function BuildHierarchyDialog({ project, onCreate, onClose, onBui
             </div>
           </>}
         </div>
-        <footer className="modal-actions bh-actions"><span className="m">{step === 3 ? 'Create once · open on the SLD · Undo removes this batch' : 'The project is unchanged until Create'}</span><span className="sp" /><button className="chip" onClick={onClose}>Cancel</button>{step > 0 && <button className="chip" onClick={() => setStep(step - 1)}>Back</button>}{step < 3 ? <button className="chip primary" disabled={step === 0 ? mode === 'floors' && !floors.length : !(step === 1 ? base.ok : plan.ok)} onClick={() => setStep(step + 1)}>{step === 0 ? 'Next: quantities' : step === 1 ? 'Next: connections' : 'Next: review'}</button> : <button className="chip primary" disabled={!plan.ok || !plan.boards.length} onClick={create}>Create {plan.boards.length} panels</button>}</footer>
+        <footer className="modal-actions bh-actions"><span className="m">{step === 3 ? 'Create once · open on the SLD · Undo removes this batch' : 'The project is unchanged until Create'}</span><span className="sp" />{!embedded && <button className="chip" onClick={onClose}>Cancel</button>}{step > (embedded ? 1 : 0) && <button className="chip" onClick={() => setStep(step - 1)}>Back</button>}{step < 3 ? <button className="chip primary" disabled={step === 0 ? mode === 'floors' && !floors.length : !(step === 1 ? base.ok : plan.ok)} onClick={() => setStep(step + 1)}>{step === 0 ? 'Next: quantities' : step === 1 ? 'Next: connections' : 'Next: review'}</button> : <button className="chip primary" disabled={!plan.ok || !plan.boards.length} onClick={create}>Create {plan.boards.length} panels</button>}</footer>
       </>}
-    </div>
-  </div>;
+    </>;
+  return embedded
+    ? <div ref={dialog} className="bh bh-guided bh-embedded">{body}</div>
+    : <div className="modal-backdrop"><div ref={dialog} className="modal bh bh-guided" role="dialog" aria-modal="true" aria-labelledby="bh-title" tabIndex={-1}>{body}</div></div>;
 }

@@ -43,7 +43,6 @@ export interface RibbonActions {
   onAddFeeder: (preset: Partial<Feeder>) => void;
   /** Add a board; with a kind and rating, the form starts with them. */
   onAddBoard: (preset?: { kind: BoardKind; ratingA: number }) => void;
-  onBuildHierarchy: () => void;
   onTransformer: () => void;
   onBoardProperties: () => void;
   onEditSelected: () => void;
@@ -96,7 +95,7 @@ const TABS: { id: RibbonTab; label: string; icon: Icon }[] = [
  * done from the left menu. */
 export function tabForView(v: MainView): RibbonTab {
   if (v === 'projects' || v === 'dashboard' || v === 'help' || v === 'parameters' || v === 'titleblock') return 'home';
-  if (v === 'building' || v === 'design' || v === 'load-schedule' || v === 'space-planning' || v === 'substation-area' || v === 'enclosure') return 'design';
+  if (v === 'building' || v === 'design' || v === 'load-schedule' || v === 'space-planning' || v === 'substation-area' || v === 'enclosure' || v === 'panels') return 'design';
   if (v === 'engines') return 'simulate';
   if (['calculators', 'voltage-drop', 'earthing', 'coordination', 'selection', 'sizing', 'pfc', 'busbar', 'ups', 'solar'].includes(v)) return 'calculate';
   if (v === 'boq') return 'cost';
@@ -172,7 +171,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       [
         { label: 'Add board', icon: AddBoardIcon, title: `Add a board fed from ${a.boardId || 'an existing board'} — ▾ for a DB, SMDB, MCC or EMDB with its usual rating`, onClick: () => a.onAddBoard(),
           menu: ADD_BOARD.map((x) => ({ label: `${x.kind} · ${x.ratingA} A`, title: `Add a ${x.kind} rated ${x.ratingA} A fed from ${a.boardId || 'the selected board'}`, onClick: () => a.onAddBoard(x) })) },
-        { label: 'Build hierarchy', icon: Network, title: 'Build panels by quantity or typical floors, repeat a panel group or use a saved template — editable preview, one undo', onClick: a.onBuildHierarchy },
+        { label: 'Build hierarchy', icon: Network, title: 'Panels: create by count (levels later), edit levels and connections in one list, rename by level; typical floors, repeat group, templates', onClick: go('panels'), active: a.view === 'panels', page: true },
         { label: 'Board properties', icon: BoardPropsIcon, title: a.boardId ? `Board properties — ${a.boardId}` : 'Board properties — select a board first', onClick: a.onBoardProperties, disabled: !a.boardId },
         { label: 'Transformer data', icon: TransformerIcon, title: a.transformerBoardId ? `Transformer data of ${a.transformerBoardId} (the main board supplying ${a.boardId})` : 'No main board', onClick: a.onTransformer, disabled: !a.transformerBoardId },
         { label: 'Schedule', icon: Table2, title: `Load distribution schedule of ${a.boardId}`, onClick: go('load-schedule'), active: a.view === 'load-schedule', page: true },
