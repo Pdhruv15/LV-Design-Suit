@@ -221,3 +221,51 @@ export function applyPreset(project: Project, p: FeederPreset, boardId: string):
 }
 
 export const boardKindLabel = (k: BoardKind) => BOARD_KINDS.find((b) => b.value === k)?.label ?? k;
+
+// ---- Palette card ----------------------------------------------------------------------
+
+const NB = ' '; // keeps a number and its unit together ("3.5 kW", "300 mA")
+const STARTER_TEXT: Record<StarterType, string> = { DOL: 'DOL', SD: 'Star-delta', SS: 'Soft starter', VFD: 'VFD' };
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+export interface PresetCard {
+  /** Main line: the equipment (or the user's own preset name). */
+  title: string;
+  /** Right: load power or board rating. */
+  value?: string;
+  /** Second line: protection and accessories. */
+  parts: string[];
+  /** Defaults behind the Details button. */
+  details: [string, string][];
+}
+
+/** A preset as a palette card: equipment first, protection underneath.
+ * Built-in presets are named from their load / board; the user's own
+ * presets keep the name they gave them. */
+export function presetCard(p: FeederPreset, ownName = !p.id.startsWith('bi-')): PresetCard {
+  const board = p.kind === 'board';
+  const title = ownName ? p.name : board ? p.boardKind ?? 'Board' : cap(p.loadName ?? p.name);
+  const value = board ? (p.boardRatingA ? `${p.boardRatingA}${NB}A` : undefined) : p.loadKw !== undefined ? `${p.loadKw}${NB}kW` : undefined;
+  const parts = [
+    p.breaker ? `${p.breaker}${p.breakerRatingA && !board ? `${NB}${p.breakerRatingA}${NB}A` : ''}` : '',
+    p.rcdMa ? `RCD${NB}${p.rcdMa}${NB}mA` : '',
+    p.kwhMeter ? (p.kwhMeter === 'CT' ? 'CT meter' : 'kWh meter') : '',
+    p.localIsolator ? 'Isolator' : '',
+    p.starter ? STARTER_TEXT[p.starter] : '',
+    p.cableType ? `${cableTypeDef(p.cableType).code} cable` : '',
+    !board && p.singlePhase ? '1-ph' : ''
+  ].filter(Boolean);
+  const details: [string, string][] = [
+    ...(ownName && !board ? [['Load', `${p.loadName ?? '—'}${value ? ` ${value}` : ''}`] as [string, string]] : []),
+    ...(ownName && board ? [['Board', `${p.boardKind ?? '—'}${value ? ` ${value}` : ''}`] as [string, string]] : []),
+    ...(!board ? [['Phase', p.singlePhase ? 'Single-phase' : '3-phase'] as [string, string]] : []),
+    ...(p.powerFactor !== undefined ? [['PF', String(p.powerFactor)] as [string, string]] : []),
+    ...(p.demandFactor !== undefined ? [['Demand factor', String(p.demandFactor)] as [string, string]] : []),
+    ['Breaker', `${p.breaker ?? 'App’s choice'} · ${p.breakerRatingA ? `${p.breakerRatingA}${NB}A` : 'sized for the load'}${p.icuKa ? ` · ${p.icuKa}${NB}kA` : ''}`],
+    ...(p.lengthM !== undefined ? [['Cable length', `${p.lengthM}${NB}m`] as [string, string]] : []),
+    ['Cable', p.cableType ? cableTypeDef(p.cableType).code : 'Default (fire-rated for life safety)'],
+    ...(p.essential ? [['Supply', 'Essential (on the generator)'] as [string, string]] : []),
+    ...(p.kvar ? [['Capacitor', `${p.kvar}${NB}kvar`] as [string, string]] : [])
+  ];
+  return { title, value, parts, details };
+}

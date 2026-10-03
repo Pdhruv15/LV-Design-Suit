@@ -71,3 +71,15 @@ describe('study reports for part of the network', () => {
     expect(wb.worksheets.map((w) => w.name)).toEqual(['Cover', 'Short circuit', 'Load flow & voltage drop']);
   });
 });
+
+describe('report scope is explicit', () => {
+  it('selected boards with none ticked is empty, not the whole installation', () => {
+    expect(scopeOf(sampleProject, { boards: [], downstream: true, mode: 'selected' }).boards).toHaveLength(0);
+    expect(scopeOf(sampleProject, { boards: [], downstream: true }).all).toBe(true); // older reports
+    expect(scopeOf(sampleProject, { boards: ['GONE'], downstream: true, mode: 'selected' }).boards).toHaveLength(0);
+  });
+  it('lists boards a saved set refers to that no longer exist', async () => {
+    const { missingBoards } = await import('./studyReport');
+    expect(missingBoards(sampleProject, ['MDB-1', 'GONE'])).toEqual(['GONE']);
+  });
+});

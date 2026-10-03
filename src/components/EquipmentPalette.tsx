@@ -1,10 +1,10 @@
 import { useMemo, useRef, useState } from 'react';
 import {
   Activity, CircleDot, Link2, ShieldAlert, ToggleLeft, ZapOff, BatteryCharging, BatteryFull, Star, Cable, Car, Cog, Cpu, Database, Fan, Flame, Gauge, Lightbulb, PanelLeftClose, PanelLeftOpen, Power, Server, ShieldCheck, Snowflake, Sun, Waves, Zap,
-  ChevronDown, ChevronRight, Pencil, Copy, Download, Upload, Plus, type LucideIcon
+  ChevronDown, ChevronRight, Pencil, Copy, Download, Upload, Plus, Plug, Heater, PanelTop, Info, type LucideIcon
 } from 'lucide-react';
 import { dropHint, itemKey, PALETTE, type PaletteEntry, type PaletteItem } from '../model/sldEdit';
-import { BUILT_IN_PRESETS, presetParts, type FeederPreset } from '../model/presets';
+import { BUILT_IN_PRESETS, presetCard, presetParts, type FeederPreset } from '../model/presets';
 import { getDragItem, setDragItem } from '../diagram/dragItem';
 
 const ICON: Record<string, LucideIcon> = {
@@ -14,7 +14,16 @@ const ICON: Record<string, LucideIcon> = {
   'load:pv': Sun, 'load:lighting': Lightbulb, 'load:it': Cpu, 'load:general': Zap,
   'acc:meter': Gauge, 'acc:ct-meter': CircleDot, 'acc:rcd': ShieldAlert, 'acc:isolator': ToggleLeft, 'acc:spd': ZapOff, 'acc:cable-fr': Flame, 'acc:cable-lszh': Cable
 };
-const iconOf = (i: PaletteItem): LucideIcon => (i.kind === 'preset' ? (i.preset.kind === 'board' ? Server : ICON[`load:${i.preset.loadType === 'hvac' ? 'ahu' : i.preset.loadType}`] ?? Zap) : undefined) ?? ICON[itemKey(i)] ?? (i.kind === 'board' ? Server : i.kind === 'device' ? ShieldCheck : i.kind === 'library' ? Database : Zap);
+/** A preset's icon from what it feeds: plug for sockets, heater, snowflake for AC / chillers, fan for AHU / FCU, panel for boards. */
+function presetIcon(p: FeederPreset): LucideIcon {
+  if (p.kind === 'board') return PanelTop;
+  const name = (p.loadName ?? p.name).toLowerCase();
+  if (p.loadType === 'sockets') return Plug;
+  if (/heater/.test(name)) return Heater;
+  if (p.loadType === 'hvac') return /split|chiller|\bac\b|a\/c/.test(name) ? Snowflake : Fan;
+  return ICON[`load:${p.loadType}`] ?? Zap;
+}
+const iconOf = (i: PaletteItem): LucideIcon => (i.kind === 'preset' ? presetIcon(i.preset) : undefined) ?? ICON[itemKey(i)] ?? (i.kind === 'board' ? PanelTop : i.kind === 'device' ? ShieldCheck : i.kind === 'library' ? Database : Zap);
 
 const presetEntry = (p: FeederPreset): PaletteEntry => ({ item: { kind: 'preset', preset: p }, label: p.name, title: `${presetParts(p)} — drop on a busbar; breaker and cable are sized` });
 
@@ -61,6 +70,15 @@ export default function EquipmentPalette({ onHint, library = [], presets = [], c
   const [favs, setFavs] = useStored<string[]>('palette.favs', []);
   const [recent, setRecent] = useStored<string[]>('palette.recent', []);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [details, setDetails] = useState<string | null>(null);
+  const [width, setWidth] = useStored('palette.width', 210);
+  const startResize = (e: React.PointerEvent) => {
+    const x0 = e.clientX, w0 = width;
+    const move = (ev: PointerEvent) => setWidth(Math.max(156, Math.min(320, w0 + ev.clientX - x0)));
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
 
   const groups = useMemo(() => [
     { group: 'Feeder presets', entries: BUILT_IN_PRESETS.map(presetEntry) },
@@ -73,7 +91,7 @@ export default function EquipmentPalette({ onHint, library = [], presets = [], c
   const pick = (keys: string[]) => keys.map((k) => byKey.get(k)).filter((e): e is PaletteEntry => !!e);
   const q = query.trim().toLowerCase();
   const shown = q
-    ? [{ group: `Results for “${query.trim()}”`, entries: groups.flatMap((g) => g.entries).filter((e) => `${e.label} ${e.title}`.toLowerCase().includes(q)).filter((e, i, a) => a.findIndex((x) => itemKey(x.item) === itemKey(e.item)) === i) }]
+    ? [{ group: `Results for “${query.trim()}”`, entries: groups.flatMap((g) => g.entries).filter((e) => `${e.label} ${e.title}${e.item.kind === 'preset' ? ` ${(c => `${c.title} ${c.value ?? ''} ${c.parts.join(' ')}`)(presetCard(e.item.preset))}` : ''}`.replace(/\u00a0/g, ' ').toLowerCase().includes(q)).filter((e, i, a) => a.findIndex((x) => itemKey(x.item) === itemKey(e.item)) === i) }]
     : [
         ...(favs.length ? [{ group: '★ Favourites', entries: pick(favs) }] : []),
         ...(recent.length ? [{ group: 'Recently used', entries: pick(recent) }] : []),
@@ -88,7 +106,8 @@ export default function EquipmentPalette({ onHint, library = [], presets = [], c
     );
   }
   return (
-    <aside className="palette" aria-label="Equipment library">
+    <aside className="palette" aria-label="Equipment library" style={{ width }}>
+      <div className="palette-resize" onPointerDown={startResize} onDoubleClick={() => setWidth(210)} title="Drag to resize (double-click: default width)" />
       <div className="palette-head">
         <b>Equipment</b>
         <button className="icon-btn" onClick={toggle} title="Hide the library"><PanelLeftClose size={15} /></button>
@@ -138,10 +157,11 @@ export default function EquipmentPalette({ onHint, library = [], presets = [], c
                   const key = itemKey(item);
                   const fav = favs.includes(key);
                   const mine = item.kind === 'preset' && presets.some((p) => p.id === item.preset.id);
+                  const card = item.kind === 'preset' ? presetCard(item.preset) : undefined;
                   return (
                     <div
                       key={key}
-                      className="palette-item"
+                      className={`palette-item${card ? ' has-card' : ''}${fav ? ' is-fav' : ''}`}
                       draggable
                       title={title}
                       onDragStart={(e) => {
@@ -158,10 +178,23 @@ export default function EquipmentPalette({ onHint, library = [], presets = [], c
                         if (missed) onHint(dropHint(item));
                       }}
                       onClick={() => onHint(title)}
+                      tabIndex={0}
+                      onKeyDown={(e) => { if (e.key === 'Enter') onHint(title); }}
                     >
-                      <Icon size={16} strokeWidth={1.7} />
-                      <span>{label}</span>
+                      <Icon size={18} strokeWidth={1.7} className="palette-ic" aria-hidden />
+                      {card ? (
+                        <span className="palette-card">
+                          <span className="palette-l1"><span className="palette-name">{card.title}</span>{card.value && <span className="palette-val">{card.value}</span>}</span>
+                          {card.parts.length > 0 && <span className="palette-l2">{card.parts.join(' · ')}</span>}
+                          {details === key && (
+                            <span className="palette-details" onClick={(e) => e.stopPropagation()}>
+                              {card.details.map(([k, v]) => <span key={k}><span className="m">{k}</span> {v}</span>)}
+                            </span>
+                          )}
+                        </span>
+                      ) : <span className="palette-name">{label}</span>}
                       <span className="palette-acts">
+                        {card && <button className={`icon-btn${details === key ? ' on' : ''}`} title="Details: PF, phase, cable length and other defaults" aria-expanded={details === key} onClick={(e) => { e.stopPropagation(); setDetails(details === key ? null : key); }}><Info size={12} /></button>}
                         {item.kind === 'preset' && item.preset.id.startsWith('cmp-') && onEditComponent && (
                           <>
                             <button className="icon-btn" title="Edit this component (updates every copy)" onClick={(e) => { e.stopPropagation(); onEditComponent(item.preset.id.slice(4)); }}><Pencil size={12} /></button>

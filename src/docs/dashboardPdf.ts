@@ -2,10 +2,16 @@ import type { Project } from '../types';
 import { lengthText, sizesText, type DashBar, type Dashboard } from '../calc/dashboard';
 import { revisionStamp } from '../model/revisions';
 import { esc } from './report';
+import { STUDY_LABEL } from '../calc/runs';
 
 /** The project dashboard as a one-page A4 landscape summary (a cover sheet
  * for the client or a submission): project card, headline numbers, load by
  * type, transformer loading, load per level and the to-do list. */
+
+/** Shown whenever results are older than the inputs — never only in the to-do list. */
+const staleBanner = (d: Dashboard) => (!d.studies.length
+  ? '<p class="stale-banner">Calculations not run — the study results on this page are missing.</p>'
+  : d.stale.length ? `<p class="stale-banner">Results out of date${d.runAt ? ` (last run ${new Date(d.runAt).toLocaleString('en-GB')})` : ''}: ${d.stale.map((k) => STUDY_LABEL[k]).join(', ')}. Loads are current; study results are from the last run.</p>` : '');
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const f1 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 1 });
@@ -32,7 +38,7 @@ export function buildDashboardHtml(project: Project, d: Dashboard): string {
     ['Power density', d.density ? `${f1(d.density.connected)} W/m²` : '—', d.density ? `connected · ${f1(d.density.demand)} W/m² demand` : ''],
     ['Capacitors', d.capacitorKvar ? `${f0(d.capacitorKvar)} kvar` : '—', ''],
     ['Cables', lengthText(d.cableM), `${d.cableRuns} cables${d.extras.length ? ` · ${d.extras.join(' · ')}` : ''}`],
-    ['Studies', d.studies.length ? (fails ? `${fails} fail` : checks ? `${checks} to check` : 'All pass') : 'Not run', d.studies.length ? `${passes} pass · ${checks} check · ${fails} fail` : '']
+    ['Studies', !d.studies.length ? 'Not run' : d.stale.length ? 'Out of date' : fails ? `${fails} fail` : checks ? `${checks} to check` : 'All pass', d.studies.length ? `${passes} pass · ${checks} check · ${fails} fail` : '']
   ];
   const meters = d.transformers.length
     ? `<table class="bars">${d.transformers.map((t) => `<tr><td class="bl">${esc(t.boardId)} <span class="m">${t.kva} kVA</span></td><td class="bt"><div class="track"><div class="bf" style="width:${Math.min(100, t.loadingPct).toFixed(1)}%"></div></div><div class="lim" style="left:${t.limitPct}%"></div></td><td class="bv">${f0(t.loadingPct)} %${t.status !== 'ok' ? ` <b class="${t.status}">${t.status === 'bad' ? '✕ over' : '⚠ above limit'}</b>` : ''}</td></tr>`).join('')}</table>`
@@ -67,9 +73,11 @@ export function buildDashboardHtml(project: Project, d: Dashboard): string {
   .todo { margin: 0; padding-left: 0; list-style: none; } .todo li { margin: 2px 0; }
   .ok { color: #13803d; } .warn { color: #a86500; } .bad { color: #c21f32; }
   footer { position: fixed; bottom: 0; left: 0; right: 0; font-size: 7.5px; color: #5b6b82; display: flex; justify-content: space-between; }
+  .stale-banner{border:1.5px solid #b45309;background:#fef3c7;color:#78350f;padding:6px 10px;border-radius:6px;font-weight:600;margin:6px 0}
   </style></head><body>
   <header>${logo}<div><h1>${esc(i.name)}</h1><div class="m">Project summary · ${esc(revisionStamp(project))}</div></div><span class="sp"></span><div class="m">${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</div></header>
   <div class="meta">${meta}</div>
+  ${staleBanner(d)}
   <div class="tiles">${tiles.map(([l, v, s]) => `<div class="tile"><div class="l">${esc(l)}</div><div class="v">${esc(v)}</div><div class="s">${esc(s)}</div></div>`).join('')}</div>
   <div class="grid">
     <section><h2>Load by type (maximum demand)</h2>${bars(d.byType, 'No loads yet.')}</section>
