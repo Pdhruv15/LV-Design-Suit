@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('lvds', {
   settings: {
     get: () => ipcRenderer.invoke('settings:get'),
     chooseProjectsFolder: () => ipcRenderer.invoke('settings:chooseProjectsFolder'),
+    chooseDatabaseFolder: (reset) => ipcRenderer.invoke('settings:chooseDatabaseFolder', reset),
     choosePython: () => ipcRenderer.invoke('settings:choosePython')
   },
   projects: {

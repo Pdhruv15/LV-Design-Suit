@@ -43,6 +43,8 @@ export default function DatabaseView({ db, available, onRefresh, onApplyParamete
   const [draft, setDraft] = useState<Row[] | null>(null); // editing copy
   const [busy, setBusy] = useState(false);
   const [seen, setSeen] = useState(loadSeen);
+  const [dbFolder, setDbFolder] = useState<string | undefined>();
+  useEffect(() => { window.lvds?.settings.get().then((x) => setDbFolder(x.databaseFolder)); }, []);
   const open = (file?: string) => window.lvds?.database.open(file);
   const book = books.find((b) => b.id === tab)!;
   const rawBook = db.raw?.books[tab];
@@ -109,12 +111,14 @@ export default function DatabaseView({ db, available, onRefresh, onApplyParamete
   return (
     <Page
       title="Database"
-      intro={<>Your reusable data lives in Excel workbooks in the <b>{DATABASE_FOLDER}</b> folder inside your projects folder, so Google Drive syncs it to every PC. Edit a workbook in Excel and save, or edit it here — the app makes a backup before it saves. Title blocks, components, presets and notes sync in <b>Library.json</b> in the same folder.</>}
+      intro={<>Your reusable data lives in Excel workbooks in {dbFolder ? <b title={dbFolder}>{dbFolder}</b> : <>the <b>{DATABASE_FOLDER}</b> folder inside your projects folder</>} — put it in a Google Drive folder and every PC gets the changes; the app reloads as soon as a workbook is saved. Edit a workbook in Excel and save, or edit it here — the app makes a backup before it saves. Title blocks, components, presets and notes sync in <b>Library.json</b> in the same folder.</>}
       actions={available && (
         <>
           <span className="m">Last synced {synced}</span>
           <button className="chip" onClick={onRefresh}><RefreshCw size={14} /> Refresh</button>
           <button className="chip" onClick={() => open()}><FolderOpen size={14} /> Open folder</button>
+          <button className="chip" title="Use a folder of your own for the workbooks (e.g. on Google Drive); projects stay where they are" onClick={async () => { await window.lvds?.settings.chooseDatabaseFolder?.(); location.reload(); }}>Database folder…</button>
+          {dbFolder && <button className="chip" title={`Back to ${DATABASE_FOLDER} inside the projects folder`} onClick={async () => { await window.lvds?.settings.chooseDatabaseFolder?.(true); location.reload(); }}>Use projects folder</button>}
         </>
       )}
     >
