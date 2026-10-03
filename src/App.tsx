@@ -969,6 +969,7 @@ export default function App() {
                   {(() => {
                     const diagram = (
                   <SystemDiagram
+                    cull
                     project={project}
                     calcProject={calcProject}
                     stale={staleKeys.length > 0}
