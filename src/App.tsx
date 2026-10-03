@@ -1,4 +1,6 @@
 import { pickProject } from './model/projectStore';
+import { chooseProjectFile, downloadProjectFile } from './util/webApp';
+import WebBanner from './components/WebBanner';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Feeder, Board, Project, newProject } from './types';
 import { sampleProject } from './data/sampleProject';
@@ -406,7 +408,13 @@ export default function App() {
 
   /** Open project…: the desktop file picker; in the browser, the list below. */
   async function pickAndOpen() {
-    if (!hasBridge) { document.getElementById('all-projects')?.scrollIntoView({ behavior: 'smooth' }); return; }
+    if (!hasBridge) {
+      try {
+        const r = await chooseProjectFile();
+        if (r) guard('opening another project', () => loadIntoApp(r.project, undefined, `Opened ${r.name} — saved in this browser when you press Save; Download file keeps a copy on your computer`));
+      } catch (e) { setStatus(`Could not open the file: ${e instanceof Error ? e.message : String(e)}`); }
+      return;
+    }
     try {
       const r = await pickProject();
       if (!r) return;
@@ -782,10 +790,12 @@ export default function App() {
         {home
           ? <button className="chip" onClick={() => setView('help')} title="Help">Help</button>
           : <button className="chip" onClick={() => saveProject()} title="Save (Ctrl+S / ⌘S) — New, Open and Save as are on the Project tab">Save{dirty ? ' ●' : ''}</button>}
+        {!home && !hasBridge && <button className="chip" onClick={() => setStatus(downloadProjectFile(project))} title="Download this project as a file to keep on your computer (opens here or in the desktop app)">Download file</button>}
         <button className="chip user-chip" onClick={() => setShowPrefs(true)} title={prefs.profile.name ? `${signature(prefs.profile)} — profile & preferences` : 'Set up your profile: name, designation, company, logo and design defaults'}>
           <span className="av">{initialsOf(prefs.profile.name)}</span>{prefs.profile.name ? prefs.profile.name.split(/\s+/)[0] : 'Profile'}
         </button>
       </div>
+      {!hasBridge && <WebBanner />}
       {recovery && (
         <div className="recover-bar" role="alert">
           <span>Unsaved work on <b>{recovery.project.name}</b> from {whenText(recovery.at)} was kept when the app closed.</span>
@@ -1154,6 +1164,7 @@ export default function App() {
                 onChooseFolder={chooseFolder}
                 onPick={pickAndOpen}
                 onContinue={() => setView('dashboard')}
+                onSample={() => guard('opening the sample', () => loadIntoApp(JSON.parse(JSON.stringify(sampleProject)), undefined, 'Sample project — explore freely; Save keeps your own copy'))}
               />
             )}
             {view === 'boq' && (

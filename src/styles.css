@@ -1114,3 +1114,8 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .dash-state.ok{color:var(--ok)}.dash-state.warn{color:var(--warn)}
 .dash-tiles.more{margin-top:10px;opacity:.92}
 .dash-tiles.more .dash-value{font-size:17px}
+
+/* Web version strip */
+.web-banner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 14px;background:color-mix(in srgb,var(--acc) 12%,var(--panel));border-bottom:1px solid var(--line);font-size:12.5px}
+.web-banner .chip{display:inline-flex;align-items:center;gap:5px;text-decoration:none}
+.web-ok{color:var(--ok)}

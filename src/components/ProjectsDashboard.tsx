@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FolderOpen, Copy, Trash2, Plus, Search, ArrowRight } from 'lucide-react';
+import { FolderOpen, Copy, Trash2, Plus, Search, ArrowRight, Sparkles } from 'lucide-react';
 import { PROJECT_STATUSES, type ProjectStatus } from '../types';
 import { whenText, type ProjectMeta } from '../model/projectStore';
 import { Page } from './ui';
@@ -9,7 +9,7 @@ const statusLabel = (s?: ProjectStatus) => PROJECT_STATUSES.find((x) => x.value 
 /** All saved projects: recent ones first as cards, then a searchable table
  * with where each job is (status), client, plot, revision and who saved it
  * last. Open, duplicate, delete, change status. */
-export default function ProjectsDashboard({ list, recent, currentFile, currentName, dirty, folder, desktop, onOpen, onNew, onDuplicate, onDelete, onStatus, onChooseFolder, onPick, onContinue }: {
+export default function ProjectsDashboard({ list, recent, currentFile, currentName, dirty, folder, desktop, onOpen, onNew, onDuplicate, onDelete, onStatus, onChooseFolder, onPick, onContinue, onSample }: {
   list: ProjectMeta[];
   recent: string[];
   currentFile?: string;
@@ -27,6 +27,8 @@ export default function ProjectsDashboard({ list, recent, currentFile, currentNa
   onPick: () => void;
   /** Back to the project open now (its Overview). */
   onContinue: () => void;
+  /** Open the sample villa project to look around. */
+  onSample: () => void;
 }) {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState<'' | ProjectStatus>('');
@@ -54,7 +56,8 @@ export default function ProjectsDashboard({ list, recent, currentFile, currentNa
     >
       <div className="home-actions">
         <button className="home-act primary" onClick={onNew}><Plus size={22} /><b>New project</b><span>Start from your profile's defaults</span></button>
-        <button className="home-act" onClick={onPick}><FolderOpen size={22} /><b>Open project…</b><span>{desktop ? 'Choose a project file' : 'Pick from all projects below'}</span></button>
+        <button className="home-act" onClick={onPick}><FolderOpen size={22} /><b>Open project…</b><span>{desktop ? 'Choose a project file' : 'A project file from this computer'}</span></button>
+        <button className="home-act" onClick={onSample}><Sparkles size={22} /><b>Explore sample</b><span>A villa with an MDB, SMDBs and studies</span></button>
         <button className="home-act" onClick={continueAct} disabled={!continueAct}>
           <ArrowRight size={22} /><b>Continue{continueName ? ` ${continueName}` : ''}</b>
           <span>{!continueAct ? 'No recent project yet' : currentFile || dirty ? `Open now${dirty ? ' · unsaved changes' : ''}${!currentFile ? ' · not saved yet' : ''}` : `Last opened ${whenText(last!.updatedAt)}`}</span>
