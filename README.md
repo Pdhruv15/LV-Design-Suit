@@ -164,3 +164,7 @@ header of the exported file.
   (only ambient temperature is modelled right now)
 - Manufacturer breaker curves / selectivity tables (curves are generic now)
 - Exact DEWA panel-schedule template (current DB schedule is a generic layout)
+
+## Licence
+
+LV Design Studio is **source-available** under the [PolyForm Shield License 1.0.0](LICENSE.md): you can use it — including for paid engineering design work — and read and change the code, but you may not sell it, offer it as a paid service, or build a competing product from it. The name "LV Design Studio" and its logo are not licensed. See [NOTICE.md](NOTICE.md).
