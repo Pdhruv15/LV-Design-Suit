@@ -1,3 +1,5 @@
+import { STANDARD_BREAKER_A } from './sizing';
+
 /** Solar PV sizing: number of panels, inverters, string design and yield.
  *
  * Array: by target kWp, by roof area, or by daily energy. String length from
@@ -116,12 +118,21 @@ export interface PvResult {
   co2Tonnes: number;
   // AC connection
   acCurrentA: number; // all inverters
-  acBreakerA: number;
+  /** The AC breaker: the smallest available rating ≥ 1.25 × the AC current. Undefined when the array
+   * has no generation, or when no available rating is large enough (acBreakerNoFit). */
+  acBreakerA?: number;
+  /** Required rating (1.25 × AC current) and the largest available, for the no-fit message. */
+  acBreakerRequiredA: number;
+  acBreakerMaxA: number;
+  acBreakerNoFit: boolean;
   status: 'ok' | 'warn' | 'bad';
   notes: string[];
 }
 
-const BREAKERS = [16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500];
+/** Breakers the AC connection is chosen from: the app's shared list (the same as the general cable and
+ * breaker sizing, from 16 A — up to 4000 A with the built-in list), so the Solar page can't refuse a
+ * rating the SLD sizing would use. Never clamped to the largest: a load above it is reported as no fit. */
+const breakers = () => STANDARD_BREAKER_A.filter((b) => b >= 16);
 
 export function sizePv(s: PvSystem, voltageV = 400): PvResult {
   const p = s.panel;
@@ -189,7 +200,12 @@ export function sizePv(s: PvSystem, voltageV = 400): PvResult {
   const annualKwh = dailyKwh * 365;
   const acKw = inverters * inv.acKw;
   const acCurrentA = inv.phases === 3 ? (acKw * 1000) / (Math.sqrt(3) * voltageV) : (acKw * 1000) / (voltageV / Math.sqrt(3));
-  const acBreakerA = BREAKERS.find((b) => b >= acCurrentA * 1.25) ?? BREAKERS[BREAKERS.length - 1];
+  const list = breakers();
+  const acBreakerRequiredA = acCurrentA * 1.25;
+  const acBreakerMaxA = list[list.length - 1];
+  const acBreakerA = acCurrentA > 0 ? list.find((b) => b >= acBreakerRequiredA - 1e-9) : undefined;
+  const acBreakerNoFit = acCurrentA > 0 && acBreakerA === undefined;
+  if (acBreakerNoFit) bad(`No suitable AC breaker in the available list: ${acBreakerRequiredA.toFixed(0)} A needed (1.25 × ${acCurrentA.toFixed(0)} A), largest available ${acBreakerMaxA} A. One aggregate connection can't be protected — configure separate inverter groups / feeders explicitly.`);
   if (s.mode === 'area' && !panels) bad('The roof area is too small for one string');
 
   return {
@@ -198,6 +214,6 @@ export function sizePv(s: PvSystem, voltageV = 400): PvResult {
     maxPerString, minPerString, perString, strings, inverters, inverterKw: inv.acKw, stringsPerMppt, mpptCurrentA, dcAcRatio: ratio,
     tempLossPct: tempLoss * 100, prPct: pr * 100, dailyKwh, annualKwh, specificYield: kwp ? annualKwh / kwp : 0,
     savings: s.tariff !== undefined ? annualKwh * s.tariff : undefined, co2Tonnes: (annualKwh * s.gridKgPerKwh) / 1000,
-    acCurrentA, acBreakerA, status, notes
+    acCurrentA, acBreakerA, acBreakerRequiredA, acBreakerMaxA, acBreakerNoFit, status, notes
   };
 }
