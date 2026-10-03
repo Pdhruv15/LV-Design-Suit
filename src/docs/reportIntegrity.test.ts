@@ -78,3 +78,18 @@ describe('results are marked out of date when report inputs change', () => {
     expect(html).not.toMatch(/All pass/);
   });
 });
+
+import { buildReportHtml } from './report';
+import { sizeGeneratorByBoards, sizeTransformers } from '../calc/txGen';
+
+describe('the main calculation report sizes like the study pages', () => {
+  it('uses the chosen size list and the generator boards', () => {
+    const p = { ...p0, txGen: { ...(p0.txGen ?? {}), sizeList: 'dewa' } } as Project;
+    const r = runCalculations(p);
+    const html = buildReportHtml(p);
+    const tx = sizeTransformers(p)[0];
+    expect(html).toContain(`recommended ${tx.recommendedKva} kVA`);
+    const gen = sizeGeneratorByBoards(p);
+    if (gen.recommendedKva) expect(html).toContain(`recommended ${gen.recommendedKva} kVA`);
+  });
+});

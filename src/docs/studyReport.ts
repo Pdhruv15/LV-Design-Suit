@@ -238,7 +238,7 @@ export function buildSection(key: StudyReportKind, data: CalcData, scope: Scope)
       key, title: info.title, statuses,
       method: [
         'TN-S system. Earth fault loop impedance Zs = Ze (at the supply board) + (R phase + R cpc) of the circuit, at operating temperature; minimum fault current with c = 0.95.',
-        'Disconnection per IEC 60364-4-41: 0.4 s for final circuits ≤ 32 A, 5 s for distribution circuits; instantaneous tripping when If ≥ Ia. Protective conductor checked by the adiabatic equation (k = 143).'
+        'Disconnection per IEC 60364-4-41 (TN, 230 V): 0.4 s for every final circuit up to 63 A — the conservative reading (the standard sets 63 A for socket-outlet circuits and 32 A for fixed equipment) — and 5 s for distribution circuits; instantaneous tripping when If ≥ Ia. Protective conductor checked by the adiabatic equation (k = 143).'
       ],
       summary: [{ label: 'Circuits checked', value: tally(statuses), status: worst(statuses) }],
       tables: [{
