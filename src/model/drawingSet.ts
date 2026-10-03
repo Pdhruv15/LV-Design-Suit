@@ -151,6 +151,32 @@ export function sheetOfBoard(set: DrawingSet): Map<string, DrawingSheet> {
   return m;
 }
 
+/** Cross-sheet references of a system sheet, both ways: outgoing ways to
+ * panels drawn elsewhere ("To X — sheet N") and panels on this sheet fed
+ * from a panel drawn elsewhere ("From X — sheet N"). `sheet` is undefined
+ * when the other panel is on no sheet (a broken reference). Numbers are read
+ * from the set each time, so renumbering updates every reference. */
+export interface SheetRef { boardId: string; feederId?: string; sheet?: DrawingSheet }
+export function sheetRefs(p: Project, set: DrawingSet, sheet: DrawingSheet): { outgoing: SheetRef[]; incoming: SheetRef[] } {
+  if (sheet.kind !== 'system') return { outgoing: [], incoming: [] };
+  const ids = new Set(sheet.boards);
+  const where = sheetOfBoard(set);
+  const outgoing = p.feeders.filter((f) => ids.has(f.boardId) && f.feedsBoardId && !ids.has(f.feedsBoardId))
+    .map((f) => ({ boardId: f.feedsBoardId!, feederId: f.id, sheet: where.get(f.feedsBoardId!) }));
+  const incoming = p.boards.filter((b) => ids.has(b.id) && b.upstreamId && !ids.has(b.upstreamId))
+    .map((b) => ({ boardId: b.upstreamId!, feederId: p.feeders.find((f) => f.boardId === b.upstreamId && f.feedsBoardId === b.id)?.id, sheet: where.get(b.upstreamId!) }));
+  return { outgoing, incoming };
+}
+
+/** "From X — sheet N" for each panel on this sheet fed from another sheet (keyed by the fed panel). */
+export function fromSheetLabels(p: Project, set: DrawingSet, sheet: DrawingSheet): Record<string, string> {
+  const out: Record<string, string> = {};
+  const ids = new Set(sheet.boards);
+  const where = sheetOfBoard(set);
+  for (const b of p.boards) if (ids.has(b.id) && b.upstreamId && !ids.has(b.upstreamId)) { const o = where.get(b.upstreamId); if (o) out[b.id] = o.number; }
+  return out;
+}
+
 /** The project as drawn on one system sheet: its panels only; a feeder to a
  * panel drawn elsewhere becomes an outgoing way "to X — sheet N". */
 export function sheetProject(p: Project, set: DrawingSet, sheet: DrawingSheet): Project {
@@ -364,6 +390,13 @@ export function sheetChecks(p: Project, set: DrawingSet, failing: { feederId: st
   ].filter(Boolean);
   if (missing.length) out.push({ level: 'warn', text: `Title block: ${missing.join(', ')} not filled in` });
   for (const s of set.sheets) if (s.issuedHash && s.issuedHash !== sheetHash(p, set, s)) out.push({ level: 'warn', text: `${s.number} changed since it was issued (Rev ${s.rev ?? '—'}) — issue a new revision`, sheetId: s.id });
+  // Cross-sheet references that point nowhere. (A panel on an overview and its own sheet is normal;
+  // references go to the first sheet that draws it.)
+  for (const sh of set.sheets) {
+    const { outgoing, incoming } = sheetRefs(p, set, sh);
+    for (const r of outgoing) if (!r.sheet) out.push({ level: 'warn', text: `${sh.number}: “To ${r.boardId}” has no sheet to point to — ${r.boardId} is on no sheet`, sheetId: sh.id, boardId: r.boardId });
+    for (const r of incoming) if (!r.sheet) out.push({ level: 'warn', text: `${sh.number}: “From ${r.boardId}” has no sheet to point to — ${r.boardId} is on no sheet`, sheetId: sh.id, boardId: r.boardId });
+  }
   const noLevel = boardsWithoutLevel(p);
   if (noLevel.length) out.push({ level: 'warn', text: `${noLevel.length} panel(s) have no level (Building information): ${noLevel.slice(0, 6).map((b) => b.id).join(', ')}${noLevel.length > 6 ? ' …' : ''}`, boardId: noLevel[0].id });
   const onSheets = failing.filter((f) => drawn.has(f.boardId));
