@@ -124,3 +124,21 @@ describe('DB load schedule totals and incomer', () => {
     expect(t).toMatch(/\(fire rated\), 30 m$/); // as on the cable schedule: base build-up + fire-rated mark
   });
 });
+
+import { buildBom } from '../calc/bom';
+import { priceBom } from '../model/priceList';
+import { buildBoqHtml } from './boqWorkbook';
+
+describe('BOQ PDF discloses how it was priced', () => {
+  const bom = priceBom(buildBom(p0));
+  it('full and summary PDFs both state typical-rate and unpriced items', () => {
+    expect(bom.missing).toBeGreaterThan(0); // no list: only cables and breakers have typical rates
+    for (const summaryOnly of [false, true]) {
+      const html = buildBoqHtml(p0, bom, undefined, summaryOnly);
+      expect(html).toMatch(/Pricing basis/);
+      expect(html).toMatch(/NO RATE and are not in the total — the total is incomplete/);
+      expect(html).toMatch(/built-in typical rates/);
+    }
+    expect(buildBoqHtml(p0, bom)).toMatch(/class="flag">NO RATE/);
+  });
+});
