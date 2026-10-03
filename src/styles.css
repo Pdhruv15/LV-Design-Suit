@@ -1129,3 +1129,13 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .enc-key .k.eq{background:#2a78d6;opacity:.6;border-style:solid}.enc-key .k.allow{border-color:#c8a000}
 .enc-foot{margin-top:10px}
 .enc-cols .pfcc-svg svg{max-height:420px;width:100%}
+
+.modal.cm{max-width:1300px;width:96vw}
+.cm-cols{display:grid;grid-template-columns:minmax(220px,300px) 1fr;gap:10px;align-items:start}
+.cm-cols .card{display:flex;flex-direction:column;gap:8px;min-width:0}
+.cm-item{padding:5px 8px;border-radius:5px;cursor:pointer}.cm-item:hover,.cm-item.on{background:var(--p2)}.cm-item.on{outline:1px solid var(--acc)}
+.cm-edit fieldset{border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;min-width:0}
+.cm-scroll{overflow:auto;max-height:42vh}.cm-dims{display:inline-flex;gap:2px}
+.enc-devs{max-height:30vh;overflow:auto}
+.bh-checks{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px}.bh-checks .warn{color:var(--warn)}.bh-checks .bad{color:var(--bad)}
+@media (max-width:900px){.cm-cols{grid-template-columns:1fr}}
