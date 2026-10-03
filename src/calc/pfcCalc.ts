@@ -52,6 +52,11 @@ function suggestStep(q1: number, need: number, step: number): number | undefined
   return [50, 40, 30, 25, 20, 15, 12.5, 10, 7.5, 5, 2.5].filter((s) => s < step).find((s) => Math.ceil(need / s - 1e-9) * s <= q1 + 1e-9);
 }
 
+/** A power factor with its direction, e.g. "0.800 lagging" / "0.800 leading" / "1.000". */
+export const pfText = (pf: number, leading: boolean, d = 3) => (pf >= 1 - 1e-9 ? (1).toFixed(d) : `${pf.toFixed(d)} ${leading ? 'leading' : 'lagging'}`);
+/** Signed phase angle from P and Q: atan2(Q, P) — negative when leading. */
+const angleDeg = (p: number, q: number) => (Math.atan2(q, p) * 180) / Math.PI;
+
 export interface PfcCalcResult {
   p: number; q1: number; s1: number; pf1: number; phi1Deg: number; i1: number;
   targetPf: number; q2Target: number; requiredKvar: number;
@@ -63,6 +68,8 @@ export interface PfcCalcResult {
   /** A smaller step that would reach the target without going leading (a suggestion only). */
   suggestedStepKvar?: number;
   q2: number; s2: number; pf2: number; phi2Deg: number; i2: number;
+  /** PF direction from the sign of Q (pf1 / pf2 are magnitudes): Q < 0 = leading (capacitive). */
+  leading1: boolean; leading2: boolean;
   releasedKva: number; currentReductionPct: number; lossReductionPct: number; lossSavedKw?: number;
   detunedPct: 0 | 7 | 14; detuneReason: string; capVoltageV: number; bankCurrentA: number; breakerA?: number;
   stepTable: { steps: number; kvar: number; pf: number; kva: number; a: number }[];
@@ -138,13 +145,15 @@ export function calcPfc(i: PfcCalcInput): PfcCalcResult {
     const s = Math.hypot(p, q);
     return { steps: k, kvar, pf: s > 0 ? (q < 0 ? -p / s : p / s) : 1, kva: s, a: I(s) };
   });
-  if (pf1 >= target) warnings.push(`The power factor is already ${pf1.toFixed(3)} — at or above the target ${target}`);
+  if (q1 < -1e-9) warnings.push(`The load is net leading (capacitive): Q = ${q1.toFixed(1)} kvar, PF ${pf1.toFixed(3)} leading. Capacitors add leading kvar, so none is selected and nothing changes. A leading PF needs a different remedy (e.g. switching existing capacitors off, a shunt reactor) — not designed here.`);
+  else if (pf1 >= target) warnings.push(`The power factor is already ${pf1.toFixed(3)} — at or above the target ${target}`);
+  if (i.mode === 'bill') warnings.push('From a bill, P and Q are averages over the period (net kvarh): they can hide times of leading and lagging operation. Check a switched bank against measured load conditions before relying on it.');
   if (pf1 < rule('pfMinimum')) warnings.push(`PF ${pf1.toFixed(2)} is below the authority's ${rule('pfMinimum').toFixed(2)} minimum (Rules.xlsx)`);
   const t = i.transformerKva;
   return {
-    p, q1, s1, pf1, phi1Deg: (Math.acos(pf1) * 180) / Math.PI, i1,
+    p, q1, s1, pf1, phi1Deg: angleDeg(p, q1), i1, leading1: q1 < -1e-9, leading2: q2 < -1e-9,
     targetPf: target, q2Target, requiredKvar, bankKvar, steps, stepKvar: step,
-    q2, s2, pf2, phi2Deg: (Math.acos(pf2) * 180) / Math.PI, i2,
+    q2, s2, pf2, phi2Deg: angleDeg(p, q2), i2,
     releasedKva: s1 - s2, currentReductionPct: i1 > 0 ? (1 - i2 / i1) * 100 : 0, lossReductionPct,
     lossSavedKw: i.lossesKw !== undefined ? (i.lossesKw * lossReductionPct) / 100 : undefined,
     detunedPct, detuneReason, capVoltageV: capV, bankCurrentA, breakerA, stepTable,
@@ -157,7 +166,7 @@ export function calcPfc(i: PfcCalcInput): PfcCalcResult {
       return { pf, kvar: k, bank, activeKvar: o.k * step, achievedPf: Math.hypot(p, qa) > 0 ? p / Math.hypot(p, qa) : 1, reached: k <= 0 || o.reached };
     }),
     activeSteps, activeKvar, targetReached, suggestedStepKvar,
-    derivation: [...how, `Qc = P × (tan φ1 − tan φ2) = ${p.toFixed(1)} × (${tan(pf1).toFixed(3)} − ${tan(target).toFixed(3)}) = ${requiredKvar.toFixed(1)} kvar`,
+    derivation: [...how, `Qc = P × (tan φ1 − tan φ2) = ${p.toFixed(1)} × (${(p > 0 ? q1 / p : 0).toFixed(3)} − ${tan(target).toFixed(3)}) = ${(p * ((p > 0 ? q1 / p : 0) - tan(target))).toFixed(1)} kvar${requiredKvar > 0 ? '' : ' → none needed (≤ 0)'}`,
       `Installed ${bankKvar} kvar = ${steps} × ${step} kvar; switched in at this load: ${activeSteps} step${activeSteps === 1 ? '' : 's'} = ${activeKvar} kvar (fewest steps reaching the target without going leading${targetReached ? '' : ' — target not reached'})`,
       `Q2 = Q1 − switched kvar = ${q1.toFixed(1)} − ${activeKvar} = ${q2.toFixed(1)} kvar → PF2 = P ÷ √(P² + Q2²)`],
     warnings
@@ -173,14 +182,17 @@ const arrowDefs = `<defs>${[['b', BEFORE], ['a', AFTER], ['c', CAP], ['k', 'curr
 /** Power triangle, before and after on the same axes, to scale: P along the
  * bottom, Q up, S the hypotenuse; the bank's kvar takes Q1 down to Q2. */
 export function powerTriangleSvg(r: PfcCalcResult): string {
-  const W = 560, H = 366, ox = 70, oy = 290;
+  const W = 560, H = 366, ox = 70;
+  // Q up for lagging (positive), down for leading (negative): the origin sits so both fit.
+  const qHi = Math.max(r.q1, r.q2, 0), qLo = Math.min(r.q1, r.q2, 0);
   const sx = (W - ox - 150) / Math.max(r.p, 1);
-  const sy = (oy - 30) / Math.max(r.q1, r.p * 0.2, 1);
+  const sy = (H - 76 - 30) / Math.max(qHi - qLo, r.p * 0.2, 1);
   const k = Math.min(sx, sy); // same scale both ways: angles are true
+  const oy = 30 + qHi * k + (qHi - qLo < r.p * 0.2 ? 0 : 0);
   const X = (v: number) => ox + v * k, Y = (v: number) => oy - v * k;
   const arc = (deg: number, rad: number, color: string) => {
     const a = (deg * Math.PI) / 180;
-    return `<path d="M${ox + rad} ${oy} A${rad} ${rad} 0 0 0 ${ox + rad * Math.cos(a)} ${oy - rad * Math.sin(a)}" fill="none" stroke="${color}" stroke-width="1.5"/>`;
+    return `<path d="M${ox + rad} ${oy} A${rad} ${rad} 0 0 ${deg < 0 ? 1 : 0} ${ox + rad * Math.cos(a)} ${oy - rad * Math.sin(a)}" fill="none" stroke="${color}" stroke-width="1.5"/>`;
   };
   const px = X(r.p);
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" font-family="Arial, sans-serif" font-size="12" style="color:inherit">${arrowDefs}
@@ -188,6 +200,7 @@ export function powerTriangleSvg(r: PfcCalcResult): string {
   <line x1="${ox}" y1="${oy + 10}" x2="${ox}" y2="16" stroke="currentColor" stroke-opacity=".35"/>
   <text x="${W - 22}" y="${oy + 16}" text-anchor="end" fill="currentColor" opacity=".7">P (kW)</text>
   <text x="${ox - 6}" y="14" text-anchor="end" fill="currentColor" opacity=".7">Q (kvar)</text>
+  ${qLo < 0 ? `<text x="${ox + 6}" y="${H - 22}" fill="currentColor" opacity=".7">Q below the axis: leading (capacitive)</text>` : ''}
   <line x1="${ox}" y1="${oy}" x2="${px}" y2="${oy}" stroke="currentColor" stroke-width="3" marker-end="url(#ar-k)"/>
   <text x="${(ox + px) / 2}" y="${oy + 18}" text-anchor="middle" fill="currentColor" font-weight="700">P = ${n0(r.p)} kW</text>
   <line x1="${ox}" y1="${oy}" x2="${px}" y2="${Y(r.q1)}" stroke="${BEFORE}" stroke-width="2.5" marker-end="url(#ar-b)"/>
@@ -203,7 +216,7 @@ export function powerTriangleSvg(r: PfcCalcResult): string {
   ${arc(r.phi2Deg, 46, AFTER)}` : ''}
   ${arc(r.phi1Deg, 34, BEFORE)}
   ${angleLabels(r, ox, oy, px - ox)}
-  <text x="${ox}" y="${H - 6}" font-size="12"><tspan fill="${BEFORE}" font-weight="700">φ1 = ${r.phi1Deg.toFixed(1)}°</tspan><tspan fill="currentColor"> · PF ${r.pf1.toFixed(3)} (before)</tspan>${r.activeKvar > 0 ? `<tspan fill="currentColor">   </tspan><tspan fill="${AFTER}" font-weight="700">φ2 = ${r.phi2Deg.toFixed(1)}°</tspan><tspan fill="currentColor"> · PF ${r.pf2.toFixed(3)} (after)</tspan>` : ''}</text>
+  <text x="${ox}" y="${H - 6}" font-size="12"><tspan fill="${BEFORE}" font-weight="700">φ1 = ${r.phi1Deg.toFixed(1)}°</tspan><tspan fill="currentColor"> · PF ${pfText(r.pf1, r.leading1)} (before)</tspan>${r.activeKvar > 0 ? `<tspan fill="currentColor">   </tspan><tspan fill="${AFTER}" font-weight="700">φ2 = ${r.phi2Deg.toFixed(1)}°</tspan><tspan fill="currentColor"> · PF ${pfText(r.pf2, r.leading2)} (after)</tspan>` : ''}</text>
   </svg>`;
 }
 
@@ -226,8 +239,11 @@ function angleLabels(r: PfcCalcResult, ox: number, oy: number, pLen: number): st
 
 /** Current phasors: V as the reference, I lagging by φ — before and after. */
 export function phasorSvg(r: PfcCalcResult, voltageV: number): string {
-  const W = 320, H = 290, cx = 40, cy = 70, L = 220;
+  const W = 320, H = 290, cx = 40, L = 220;
   const k = L / Math.max(r.i1, 1);
+  // Lagging current is drawn below V, leading above it (signed angle): leave room above for a leading one.
+  const above = Math.max(0, ...[[r.i1, r.phi1Deg], [r.i2, r.phi2Deg]].map(([i, d]) => -i * k * Math.sin((d * Math.PI) / 180)));
+  const cy = Math.max(70, 30 + above);
   const tip = (i: number, deg: number) => [cx + i * k * Math.cos((deg * Math.PI) / 180), cy + i * k * Math.sin((deg * Math.PI) / 180)];
   const [b1x, b1y] = tip(r.i1, r.phi1Deg), [a1x, a1y] = tip(r.i2, r.phi2Deg);
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" font-family="Arial, sans-serif" font-size="12">${arrowDefs}
@@ -237,7 +253,7 @@ export function phasorSvg(r: PfcCalcResult, voltageV: number): string {
   <text x="${Math.min(b1x + 6, W - 70)}" y="${b1y + 16}" fill="${BEFORE}" font-weight="700">I1 ${n0(r.i1)} A</text>
   ${r.activeKvar > 0 ? `<line x1="${cx}" y1="${cy}" x2="${a1x}" y2="${a1y}" stroke="${AFTER}" stroke-width="2.5" marker-end="url(#ar-a)"/>
   <text x="${a1x + 6}" y="${a1y - 4}" fill="${AFTER}" font-weight="700">I2 ${n0(r.i2)} A</text>` : ''}
-  <text x="${cx}" y="${H - 8}" fill="currentColor" opacity=".7" font-size="11">I lags V by φ; the bank pulls it in and down.</text>
+  <text x="${cx}" y="${H - 8}" fill="currentColor" opacity=".7" font-size="11">${r.leading1 ? 'I leads V (drawn above V): the load is capacitive.' : 'I lags V by φ; the bank pulls it in and down.'}</text>
   </svg>`;
 }
 
@@ -264,5 +280,5 @@ export function stepsSvg(r: PfcCalcResult): string {
 export function triangleFrom(p: number, pf1: number, pf2: number, target: number): PfcCalcResult {
   const q1 = p * tan(pf1), q2 = p * tan(pf2);
   const r = calcPfc({ ...PFC_CALC_DEFAULT, mode: 'kw-pf', kw: p, pf: pf1, targetPf: target });
-  return { ...r, q1, s1: Math.hypot(p, q1), pf1, phi1Deg: (Math.acos(pf1) * 180) / Math.PI, q2, s2: Math.hypot(p, q2), pf2, phi2Deg: (Math.acos(pf2) * 180) / Math.PI, bankKvar: Math.max(0, q1 - q2), activeKvar: Math.max(0, q1 - q2), activeSteps: 1 };
+  return { ...r, q1, s1: Math.hypot(p, q1), pf1, phi1Deg: (Math.acos(pf1) * 180) / Math.PI, q2, s2: Math.hypot(p, q2), pf2, phi2Deg: (Math.acos(pf2) * 180) / Math.PI, bankKvar: Math.max(0, q1 - q2), activeKvar: Math.max(0, q1 - q2), activeSteps: 1, leading1: false, leading2: false };
 }
