@@ -106,8 +106,13 @@ export interface UpsResult {
   blockAh: number | undefined;
   totalBlocks: number;
   energyKwh: number; // installed nominal
-  dcCurrentMaxA: number; // at the end of discharge
-  dcBreakerA: number; // ≥ 1.25 × max current
+  dcCurrentMaxA: number; // at the end of discharge, all strings together (the battery bus)
+  /** Battery-bus (aggregate) DC breaker: the smallest listed rating ≥ 1.25 × the maximum current.
+   * Undefined when no listed rating is large enough (dcBreakerNoFit) — never the largest instead. */
+  dcBreakerA: number | undefined;
+  dcBreakerRequiredA: number;
+  dcBreakerMaxA: number;
+  dcBreakerNoFit: boolean;
   runtimeMin: number | undefined; // with the chosen battery
   notes: string[];
 }
@@ -172,7 +177,14 @@ export function sizeUps(project: Project, s: UpsSystem): UpsResult {
   // End of discharge: VRLA at the end-cell voltage; Li-ion ≈ 2.8 V of 3.2 V per cell.
   const vEnd = s.chem === 'vrla' ? (s.dcVoltage / 2) * (s.endCellV ?? 1.75) : s.dcVoltage * (2.8 / 3.2);
   const dcCurrentMaxA = (dcKw * 1000) / vEnd;
-  const dcBreakerA = DC_BREAKERS.find((a) => a >= dcCurrentMaxA * 1.25) ?? DC_BREAKERS[DC_BREAKERS.length - 1];
+  // Aggregate battery-bus protection (all strings together), app policy ≥ 1.25 × the end-of-discharge
+  // current. Per-string protection is a separate check. A rating only covers current — DC voltage,
+  // poles and breaking capacity must be confirmed for the chosen device.
+  const dcBreakerRequiredA = dcCurrentMaxA * 1.25;
+  const dcBreakerMaxA = DC_BREAKERS[DC_BREAKERS.length - 1];
+  const dcBreakerA = dcCurrentMaxA > 0 ? DC_BREAKERS.find((a) => a >= dcBreakerRequiredA - 1e-9) : undefined;
+  const dcBreakerNoFit = dcCurrentMaxA > 0 && dcBreakerA === undefined;
+  if (dcBreakerNoFit) notes.push(`No suitable DC breaker in the list for the battery bus: ${dcBreakerRequiredA.toFixed(0)} A needed (1.25 × ${dcCurrentMaxA.toFixed(0)} A), largest listed ${dcBreakerMaxA} A — choose a DC-rated device for this current (or a different DC arrangement) explicitly.`);
   // Runtime with the chosen battery (same factors, solved for t; rate at that t).
   let runtimeMin: number | undefined;
   if (installedAh > 0 && dcKw > 0) {
@@ -192,6 +204,6 @@ export function sizeUps(project: Project, s: UpsSystem): UpsResult {
     ...loadingOf(kva, kw, upsKva, upsKva ? upsKva * s.outputPf : undefined),
     dcKw, blocksPerString, rate, requiredAh, strings, blockAh,
     totalBlocks: blockAh ? blocksPerString * strings : 0,
-    energyKwh, dcCurrentMaxA, dcBreakerA, runtimeMin, notes
+    energyKwh, dcCurrentMaxA, dcBreakerA, dcBreakerRequiredA, dcBreakerMaxA, dcBreakerNoFit, runtimeMin, notes
   };
 }
