@@ -57,6 +57,16 @@ export interface PvSystem {
   tariff?: number; // per kWh, for savings
   gridKgPerKwh: number; // CO2 factor
   boardId?: string; // where the PV connects on the SLD
+  /** One-phase inverters: the phase they connect to (R / Y / B). Blank = not set — the app then
+   * spreads the generation evenly over R / Y / B in the board's phase totals (no phase is assumed). */
+  acPhase?: 'R' | 'Y' | 'B';
+}
+
+/** The AC connection's voltage: phase-to-neutral for one-phase inverters, line-to-line for three-phase. */
+export function acConnection(pv: Pick<PvSystem, 'inverter'>, systemV: number): { volts: number; text: string } {
+  return pv.inverter.phases === 3
+    ? { volts: systemV, text: `3-phase, ${systemV} V line-to-line` }
+    : { volts: systemV / Math.sqrt(3), text: `1-phase, ${Math.round(systemV / Math.sqrt(3))} V phase-to-neutral` };
 }
 
 // Generic 550 W monocrystalline panel and a generic 3-phase string inverter —

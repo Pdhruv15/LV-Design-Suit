@@ -1,5 +1,6 @@
 import { sizeUps, type UpsSystem } from '../calc/ups';
 import type { PvResult, PvSystem } from '../calc/solar';
+import { acConnection } from '../calc/solar';
 import { revisionStamp } from '../model/revisions';
 import type { Project } from '../types';
 import { esc } from './report';
@@ -67,7 +68,7 @@ export function buildPvReportHtml(project: Project, s: PvSystem, r: PvResult): s
   <h2>Inverters</h2>${rows([
     ['Inverter', `${esc(s.inverter.name)} — ${s.inverter.acKw} kW, ${s.inverter.phases}-phase, max DC ${s.inverter.maxDcV} V, MPPT ${s.inverter.mpptMinV}–${s.inverter.mpptMaxV} V, ${s.inverter.mppts} MPPTs × ${s.inverter.maxInputA} A`],
     ['Selected', `<b>${r.inverters} × ${s.inverter.acKw} kW = ${n(r.inverters * s.inverter.acKw)} kW AC</b>, DC/AC ${r.dcAcRatio.toFixed(2)}`],
-    ['AC connection', `${n(r.acCurrentA, 0)} A → ${r.acBreakerA} A breaker (${project.voltageV} V)`]
+    ['AC connection', `${n(r.acCurrentA, 0)} A → ${r.acBreakerA} A breaker (${acConnection(s, project.voltageV).text}${s.inverter.phases === 1 ? `${s.acPhase ? `, phase ${s.acPhase}` : ', phase not set'}${r.inverters > 1 ? `; ${r.inverters} inverters counted together` : ''}` : ''})`]
   ])}
   <h2>String design (IEC 62548)</h2>${rows([
     ['Site temperatures', `min ${s.tMinC} °C, max ${s.tMaxC} °C → max cell ${n(r.tCellMaxC, 0)} °C (NOCT ${s.panel.noctC} °C)`],
