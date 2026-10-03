@@ -163,6 +163,7 @@ export function buildDashboard(project: Project, run?: CalcRun, stale: StudyKey[
   for (const f of fireRatingIssues(project)) todo.push({ status: 'bad', text: `${f.id} (${f.name}) is life safety but not on fire-rated cable`, go: { view: 'design', feederId: f.id } });
   for (const t of transformers) if (t.status !== 'ok') todo.push({ status: t.status, text: `${t.boardId} transformer ${t.loadingPct.toFixed(0)} % loaded (limit ${t.limitPct} %)`, go: { view: 'sizing' } });
   for (const r of sizeTransformers(project)) if (r.checks?.icuOk === false) todo.push({ status: 'bad', text: `${r.board.id}: a breaker's Icu (${r.checks.minIcuKa} kA) is below the ${r.checks.faultKa.toFixed(1)} kA fault level`, go: { view: 'sizing' } });
+  if (gen && gen.demandKw > 0 && gen.recommendedKva === undefined) todo.push({ status: 'bad', text: `Standby generator: ${Math.max(gen.runningDesignKva, gen.startDesignKva).toFixed(0)} kVA needed — above the largest standard set`, go: { view: 'sizing' } });
   if (gen?.recommendedKva && genKva && genKva < gen.recommendedKva) todo.push({ status: 'bad', text: `Standby generator ${genKva} kVA — ${gen.recommendedKva} kVA needed`, go: { view: 'sizing' } });
   const pfc = planPfc(project);
   for (const m of pfc.mains) if (m.pfBefore < pfc.pfTarget - 1e-6 && m.existingKvar === 0) todo.push({ status: 'warn', text: `${m.boardId} PF ${m.pfBefore.toFixed(2)} — no capacitor bank yet (${m.plannedKvar} kvar planned)`, go: { view: 'pfc' } });

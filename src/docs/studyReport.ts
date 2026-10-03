@@ -13,6 +13,7 @@ import { generatorForBoard, settingsOf, STANDARD_TRANSFORMER_KVA } from '../calc
 import { planPfc, pfcPlanOf, STRATEGY_LABEL } from '../calc/pfc';
 import { sizeGeneratorByBoards, sizeTransformers, txGenPlanOf, type TxRow } from '../calc/txGen';
 import { MATERIAL_LABEL, sizeRiser } from '../calc/busbar';
+import { motorStartVdLimit, vdRow, type VdRow } from '../calc/voltageDrop';
 import { GENERATOR_XD_TRANSIENT_PCT, MOTOR_START_DIP_LIMIT_PCT } from '../calc/motor';
 import type { ResultLayers } from '../diagram/annotations';
 import type { ColorBy } from '../diagram/heatmap';
@@ -177,13 +178,17 @@ export function buildSection(key: StudyReportKind, data: CalcData, scope: Scope)
   if (key === 'lf') {
     const sums = scope.boards.map((b) => boardSummary(p, b));
     const rs = res(circuits);
-    const statuses = [...rs.map((r) => r.vdStatus), ...sums.map((s) => s.loadingStatus).filter((x): x is Status => !!x)];
+    // Motors: the drop while starting has its own limit (running drop × starting current).
+    const starts = circuits.map((f) => vdRow(p, f)).filter((r) => r.startPct !== undefined);
+    const startStatus = (r: VdRow): Status => (r.startPct! > motorStartVdLimit() ? 'bad' : 'ok');
+    const statuses = [...rs.map((r) => r.vdStatus), ...starts.map(startStatus), ...sums.map((s) => s.loadingStatus).filter((x): x is Status => !!x)];
     return {
       key, title: info.title, statuses,
       method: [
         'Balanced 3-phase load flow from the design loads: demand = connected load × demand factor, summed up the network (kW and kVAr separately).',
         `Voltage drop per cable: √3 · I · L · (R cosφ + X sinφ) for 3-phase, 2 · I · L · (…) for single-phase; busbar voltage = nominal minus the drops of the incomers above it. Limit ${p.vdLimitPct} % from the main board to the load.`,
-        'Transformer regulation is not included (busbar voltages are measured from the main LV busbar).'
+        'Transformer regulation is not included (busbar voltages are measured from the main LV busbar).',
+        `Motors: drop while starting = upstream drop + cable drop × the starter's starting-current multiple; limit ${motorStartVdLimit()} %.`
       ],
       summary: [
         { label: 'Total demand of the scope', value: `${n(scope.roots.reduce((a, b) => a + boardSummary(p, b).demandKw, 0), 0)} kW · ${n(scope.roots.reduce((a, b) => a + boardSummary(p, b).demandKva, 0), 0)} kVA` },
@@ -194,7 +199,9 @@ export function buildSection(key: StudyReportKind, data: CalcData, scope: Scope)
         { title: 'Busbars', headers: ['Board', 'Connected (kW)', 'Demand (kW)', 'Demand (kVA)', 'PF', 'Current (A)', 'Rating (A)', 'Loading', 'Voltage (V)', '% of nominal'],
           rows: sums.map((s) => [s.board.id, n(s.connectedKw, 1), n(s.demandKw, 1), n(s.demandKva, 1), n(s.powerFactor, 2), n(s.currentA, 0), s.board.ratedCurrentA ?? '—', s.loadingPct === undefined ? '—' : { v: `${n(s.loadingPct, 0)} %`, s: s.loadingStatus ?? 'ok' }, n(s.voltageV, 1), n(s.voltagePct, 2)]) },
         { title: 'Feeders', headers: ['Circuit', 'From', 'To', 'Cable', 'Length (m)', 'Ib (A)', 'PF', 'ΔV cable (%)', 'ΔV total (%)', 'Result'],
-          rows: rs.map((r) => [tag(r.feeder), r.feeder.boardId, to(r.feeder), cableSizeText(r.feeder), r.feeder.lengthM, n(r.ib, 1), r.feeder.feedsBoardId ? '—' : n(r.feeder.powerFactor, 2), n(r.vdPct, 2), n(r.vdTotalPct, 2), S(r.vdStatus)]) }
+          rows: rs.map((r) => [tag(r.feeder), r.feeder.boardId, to(r.feeder), cableSizeText(r.feeder), r.feeder.lengthM, n(r.ib, 1), r.feeder.feedsBoardId ? '—' : n(r.feeder.powerFactor, 2), n(r.vdPct, 2), n(r.vdTotalPct, 2), S(r.vdStatus)]) },
+        ...(starts.length ? [{ title: `Motor starting — limit ${motorStartVdLimit()} % source to motor`, headers: ['Circuit', 'From', 'Motor', 'Running ΔV total (%)', 'Starting ΔV total (%)', 'Limit (%)', 'Result'],
+          rows: starts.map((r) => [tag(r.feeder), r.from.id, r.toType, n(r.totalPct, 2), n(r.startPct!, 1), motorStartVdLimit(), S(startStatus(r))]) }] : [])
       ]
     };
   }
@@ -293,7 +300,12 @@ export function buildSection(key: StudyReportKind, data: CalcData, scope: Scope)
     const tx = sizeTransformers(p, plan).filter((r) => scope.ids.has(r.board.id));
     const gen = sizeGeneratorByBoards(p, plan);
     const txStatus = (r: TxRow): Status => (r.adequate === false ? 'bad' : r.outage && !r.outage.ok ? 'warn' : r.checks && (r.checks.icuOk === false || r.checks.busbarOk === false) ? 'warn' : 'ok');
-    const genStatus: Status | undefined = gen.recommendedKva === undefined ? undefined : !gen.installedKva ? 'ok' : gen.installedKva >= gen.recommendedKva ? 'ok' : 'bad';
+    // A generator demand above the largest standard set is a failure, never left out.
+    const genNeeded = gen.demandKw > 0 || gen.recommendedKva !== undefined;
+    const genTooBig = genNeeded && gen.recommendedKva === undefined;
+    const genStatus: Status | undefined = !genNeeded ? undefined : genTooBig ? 'bad' : !gen.installedKva ? 'ok' : gen.installedKva >= gen.recommendedKva! ? 'ok' : 'bad';
+    const genSize = genTooBig ? `${n(Math.max(gen.runningDesignKva, gen.startDesignKva), 0)} kVA needed — above the largest standard set` : `${gen.recommendedKva} kVA / ${n(gen.recommendedKw ?? 0, 0)} kW`;
+    const genScope = scope.all ? '' : ' (sized for the whole installation — the generator is shared)';
     const statuses = [...tx.map(txStatus), ...(genStatus ? [genStatus] : [])];
     const pfcTaken = tx.some((r) => r.pfcKvar > 0);
     return {
@@ -307,7 +319,7 @@ export function buildSection(key: StudyReportKind, data: CalcData, scope: Scope)
       summary: [
         { label: 'Items checked', value: tally(statuses), status: statuses.length ? worst(statuses) : undefined },
         ...tx.map((r) => ({ label: `${r.board.id} transformer`, value: r.recommendedKva ? `${r.split > 1 ? `${r.split} × ` : r.n1 ? '2 × ' : ''}${r.recommendedKva} kVA` : '—', status: txStatus(r) })),
-        ...(gen.recommendedKva ? [{ label: 'Standby generator', value: `${gen.recommendedKva} kVA / ${n(gen.recommendedKw!, 0)} kW`, status: genStatus }] : [])
+        ...(genNeeded ? [{ label: `Standby generator${genScope}`, value: genSize, status: genStatus }] : [])
       ],
       tables: [
         { title: 'Transformers', headers: ['Main board', 'Demand (kVA)', 'PF', 'Design (kVA)', 'Recommended', 'Installed · loading', 'FLC · main breaker', 'LV fault (kA) · lowest Icu', 'Regulation', 'Result'],
@@ -319,8 +331,8 @@ export function buildSection(key: StudyReportKind, data: CalcData, scope: Scope)
             r.checks ? `${n(r.checks.regulationPct, 1)} %` : '—', S(txStatus(r))]) },
         ...(tx.some((r) => r.outage) ? [{ title: 'Bus coupler — one transformer out', headers: ['Transformer', 'Also carries', 'Load (kVA)', 'Of its rating', 'Result'],
           rows: tx.filter((r) => r.outage).map((r) => [r.board.id, r.outage!.with, n(r.outage!.kva, 0), r.outage!.pctOfRecommended !== undefined ? `${n(r.outage!.pctOfRecommended, 0)} %` : '—', S(r.outage!.ok ? 'ok' : 'warn')]) }] : []),
-        ...(gen.recommendedKva ? [
-          { title: 'Standby generator — loads', headers: ['Board / circuit', 'Share', 'Demand (kW)', 'Reactive (kvar)'],
+        ...(genNeeded ? [
+          { title: `Standby generator — loads${genScope}`, headers: ['Board / circuit', 'Share', 'Demand (kW)', 'Reactive (kvar)'],
             rows: [...gen.picks.filter((x) => !x.within && x.pct > 0).map((x) => [x.board.id + (x.auto === 'emdb' ? ' (EMDB)' : x.auto === 'standby' ? ' (ATS)' : ''), `${x.pct} %`, n(x.kw, 0), n(x.kvar, 0)]),
               ...gen.circuits.map((f) => [`${f.id} ${f.name} (essential circuit)`, '100 %', n(f.loadKw * f.demandFactor, 0), '—'])] },
           { title: 'Standby generator — size', headers: ['Item', 'Value'],
@@ -331,9 +343,10 @@ export function buildSection(key: StudyReportKind, data: CalcData, scope: Scope)
                 ['Largest motor start', `${gen.motor.feeder.id}: ${n(gen.motor.startingKva, 0)} kVA starting with ${n(gen.motor.baseKva, 0)} kVA already running`],
                 ['For the motor start', `${n(gen.startDesignKva, 0)} kVA (dip ${n(gen.motor.dipPct ?? 0, 1)} % on the recommended set)`]
               ] : []),
-              ['Recommended', `${gen.recommendedKva} kVA / ${n(gen.recommendedKw!, 0)} kW at 0.8 PF`],
+              ['Recommended', genTooBig ? `None — ${genSize}. Consider sets in parallel or splitting the essential load.` : `${gen.recommendedKva} kVA / ${n(gen.recommendedKw!, 0)} kW at 0.8 PF`],
+              ['Result', S(genStatus!)],
               ...(gen.softStartKva ? [['With a soft starter on the largest motor', `${gen.softStartKva} kVA`]] : []),
-              ['Full-load current · ATS / breaker', `${n(gen.flcA!, 0)} A · ${gen.atsA ?? '—'} A`],
+              ['Full-load current · ATS / breaker', gen.flcA !== undefined ? `${n(gen.flcA, 0)} A · ${gen.atsA ?? '—'} A` : '—'],
               ['Installed', gen.installedKva ? `${gen.installedKva} kVA` : '—']
             ] }
         ] : [])
