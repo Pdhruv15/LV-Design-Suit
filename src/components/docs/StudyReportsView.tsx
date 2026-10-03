@@ -112,13 +112,13 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
       if (setup.separate && sections.length > 1) {
         let saved = 0;
         for (const s of sections) {
-          const html = buildStudyReportHtml(calc, scope, [s], { ...meta, title: setup.title ? `${setup.title} — ${s.title}` : s.title }, slds);
+          const html = buildStudyReportHtml(project, scope, [s], { ...meta, title: setup.title ? `${setup.title} — ${s.title}` : s.title }, slds);
           const m = await savePdf(`${base} - ${safeFileName(s.title + scopeTag)}.pdf`, html, { cssPages: true });
           if (m) saved++;
         }
         onStatus(`Saved ${saved} of ${sections.length} study reports`);
       } else {
-        const m = await savePdf(`${base} - ${safeFileName(title + scopeTag)}.pdf`, buildStudyReportHtml(calc, scope, sections, meta, slds), { cssPages: true });
+        const m = await savePdf(`${base} - ${safeFileName(title + scopeTag)}.pdf`, buildStudyReportHtml(project, scope, sections, meta, slds), { cssPages: true });
         if (m) onStatus(m);
       }
     } catch (e) {
@@ -166,8 +166,8 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
       if (setup.sld) for (const s of sections) slds[s.key] = await captureSld(drawing, data, s.key);
       const meta = { title, docNo: setup.docNo, preparedBy: setup.preparedBy, checkedBy: setup.checkedBy };
       const parts: Uint8Array[] = [];
-      parts.push(await toBytes({ html: buildDashboardHtml(calc, buildDashboard(calc, run)), cssPages: true }));
-      parts.push(await toBytes({ html: buildStudyReportHtml(calc, scope, sections, meta, slds), cssPages: true }));
+      parts.push(await toBytes({ html: buildDashboardHtml(project, buildDashboard(project, run)), cssPages: true }));
+      parts.push(await toBytes({ html: buildStudyReportHtml(project, scope, sections, meta, slds), cssPages: true }));
       const dbs = scope.boards.filter((b) => scheduleCircuits(calc, b.id).length);
       for (const b of dbs) parts.push(await toBytes({ html: buildLoadScheduleHtml(calc, b.id), cssPages: true }));
       const titles = ['Project summary', title, ...dbs.map((b) => `Load schedule — ${b.id}`)];

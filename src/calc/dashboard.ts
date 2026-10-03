@@ -28,6 +28,9 @@ export interface TodoItem {
 }
 
 export interface Dashboard {
+  /** Studies whose results are older than the inputs (the study counts are then from the last run). */
+  stale: StudyKey[];
+  runAt?: number;
   info: { name: string; owner?: string; plot?: string; area?: string; consultant?: string; status: string; revision?: string; engineer?: string; updatedBy?: string; updatedAt?: string };
   connectedKw: number;
   demandKw: number;
@@ -186,7 +189,7 @@ export function buildDashboard(project: Project, run?: CalcRun, stale: StudyKey[
     area, density: area ? { connected: (sys.connectedKw * 1000) / area.gfaM2, demand: (sys.demandKw * 1000) / area.gfaM2 } : undefined,
     capacitorKvar: caps.reduce((a, f) => a + (f.kvar ?? 0), 0),
     cableM, cableRuns: cabled.length, extras,
-    studies, byType, perArea,
+    studies, byType, perArea, stale, runAt: run?.at,
     todo: todo.sort((a, b) => (a.status === b.status ? 0 : a.status === 'bad' ? -1 : 1))
   };
 }

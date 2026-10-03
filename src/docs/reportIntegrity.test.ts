@@ -39,14 +39,42 @@ describe('reports never hide a failure', () => {
   it('a motor that is fine running but too far down while starting fails everywhere', () => {
     const mot = { id: 'M1', boardId: main.id, name: 'Pump', loadKw: 30, demandFactor: 1, powerFactor: 0.85, lengthM: 120, cableCsaMm2: 25, cores: 3, breakerRatingA: 80, breakerIcuKa: 36, loadType: 'motor', starter: 'DOL' };
     const p = { ...p0, feeders: [...p0.feeders, mot] } as unknown as Project;
-    const row = vdRow(p, p.feeders.at(-1)!);
+    const row = vdRow(p, p.feeders[p.feeders.length - 1]);
     expect(row.totalPct).toBeLessThan(row.limitPct); // running is fine
     expect(row.status).toBe('bad');
     const cells = vdCells(row);
     expect(cells[VD_HEADERS.indexOf('Motor start (%)')]).toMatch(/exceeds/);
     const lf = section(p, 'lf');
-    const t = lf.tables.find((x) => x.title.startsWith('Motor starting'))!;
+    const t = lf.tables.find((x) => (x.title ?? '').startsWith('Motor starting'))!;
     expect(t.rows.some((r) => r[0] && JSON.stringify(r).includes('M1') && JSON.stringify(r).includes('bad'))).toBe(true);
     expect(lf.statuses).toContain('bad');
+  });
+});
+
+import { staleStudies } from '../calc/runs';
+import { buildDashboard } from '../calc/dashboard';
+import { buildDashboardHtml } from './dashboardPdf';
+
+describe('results are marked out of date when report inputs change', () => {
+  const run = runCalculations(p0);
+  const edited = (q: Partial<Project>) => staleStudies(run, { ...p0, ...q });
+  it.each([
+    ['power factor correction', { pfc: { ...(p0.pfc ?? {}), stepKvar: 50 } }, 'sizing'],
+    ['transformer size list', { txGen: { sizeList: 'iec' } }, 'sizing'],
+    ['cable temperature for voltage drop', { vdTempC: 90 }, 'vd'],
+    ['busbar data', { busbarData: { cu: [], al: [] } }, 'sizing'],
+    ['a board rating', { boards: p0.boards.map((b, i) => (i ? b : { ...b, ratedCurrentA: 10 })) }, 'checks'],
+    ['a cable type', { feeders: p0.feeders.map((f, i) => (i ? f : { ...f, cableType: 'FR' })) }, 'checks']
+  ] as [string, Partial<Project>, string][])('%s', (_l, q, key) => {
+    expect(edited(q)).toContain(key);
+  });
+  it('a remark alone makes nothing out of date', () => {
+    expect(edited({ feeders: p0.feeders.map((f, i) => (i ? f : { ...f, remarks: 'x' })) })).toEqual([]);
+  });
+  it('the dashboard PDF says the results are out of date, whatever the to-do list holds', () => {
+    const p = { ...p0, feeders: p0.feeders.map((f, i) => (i ? f : { ...f, loadKw: f.loadKw + 50 })) };
+    const html = buildDashboardHtml(p, buildDashboard(p, run, staleStudies(run, p)));
+    expect(html).toMatch(/stale-banner">Results out of date/);
+    expect(html).not.toMatch(/All pass/);
   });
 });
