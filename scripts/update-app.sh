@@ -8,6 +8,9 @@ cd "$(dirname "$0")/.."
 APP="LV Design Studio"
 DEST="/Applications/$APP.app"
 BUILT="release/mac-arm64/$APP.app"
+# The version built into the installed app (written after each install) — compared with GitHub,
+# so code already pulled into this folder but not yet built still gets installed.
+STAMP="$HOME/Library/Application Support/LV Design Studio/installed-commit"
 
 if [ "$(git branch --show-current)" != "main" ]; then
   echo "You're on branch '$(git branch --show-current)'. Switch to main first:  git checkout main"; exit 1
@@ -19,8 +22,9 @@ fi
 echo "Checking GitHub for updates…"
 git fetch -q origin main
 BEFORE=$(git rev-parse HEAD); REMOTE=$(git rev-parse origin/main)
-if [ "$BEFORE" = "$REMOTE" ] && [ -d "$DEST" ] && [ "${1:-}" != "--force" ]; then
-  echo "Already up to date ($(git log -1 --format='%h %s'))."; exit 0
+INSTALLED=$(cat "$STAMP" 2>/dev/null || true)
+if [ "$INSTALLED" = "$REMOTE" ] && [ -d "$DEST" ] && [ "${1:-}" != "--force" ]; then
+  echo "Already up to date — the installed app is $(git log -1 --format='%h %s' "$REMOTE")."; exit 0
 fi
 git merge -q --ff-only origin/main
 echo "Updated to: $(git log -1 --format='%h %s')"
@@ -40,4 +44,5 @@ fi
 rm -rf "$DEST"
 ditto "$BUILT" "$DEST"
 xattr -dr com.apple.quarantine "$DEST" 2>/dev/null || true
-echo "Done — $APP is updated in Applications."
+mkdir -p "$(dirname "$STAMP")" && git rev-parse HEAD > "$STAMP"
+echo "Done — $APP is updated in Applications ($(git log -1 --format='%h %s'))."
