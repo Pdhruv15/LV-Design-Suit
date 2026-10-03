@@ -61,9 +61,11 @@ describe('Solar PV sizing', () => {
     const tMax = 48 + (25 / 800) * 1000;
     expect(r.tCellMaxC).toBeCloseTo(tMax, 6);
     expect(r.vocColdV).toBeCloseTo(49.6 * (1 - 0.0027 * (10 - 25)), 6);
-    expect(r.vmpHotV).toBeCloseTo(41.7 * (1 - 0.0027 * (tMax - 25)), 6);
-    expect(r.maxPerString).toBe(21); // 1100 ÷ 51.6
-    expect(r.minPerString).toBe(6); // 200 ÷ 35.6
+    // Vmp has its own coefficient (ENG-007); the generic panel has none, so the estimate is used and flagged.
+    expect(r.vmpBasis).toBe('estimated');
+    expect(r.vmpHotV).toBeCloseTo(41.7 * (1 - 0.004 * (tMax - 25)), 6);
+    expect(r.maxPerString).toBe(21); // min(1100 ÷ 51.6, 1000 ÷ 44.2)
+    expect(r.minPerString).toBe(7); // 200 ÷ 32.65
     expect(r.perString * r.vocColdV).toBeLessThanOrEqual(1100);
   });
 
@@ -74,7 +76,10 @@ describe('Solar PV sizing', () => {
     expect(r.inverters).toBe(1);
     expect(r.stringsPerMppt).toBe(2);
     expect(r.mpptCurrentA).toBeCloseTo(2 * 14 * 1.25, 6);
-    expect(r.status).toBe('ok');
+    // No datasheet Vmp coefficient: flagged as not verified (ENG-007); with one, nothing to flag.
+    expect(r.status).toBe('warn');
+    expect(r.notes.join(' ')).toMatch(/MPPT window not verified/);
+    expect(sizePv({ ...PV_DEFAULTS, panel: { ...PV_DEFAULTS.panel, betaVmpPct: -0.4 } }).status).toBe('ok');
   });
 
   it('yield: kWp × peak sun hours × performance ratio', () => {
