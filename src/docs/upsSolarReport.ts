@@ -46,7 +46,7 @@ export function buildUpsReportHtml(project: Project, systems: UpsSystem[]): stri
         ['Required capacity (C10)', `${n(r.requiredAh)} Ah = P × t ÷ V ÷ rate × factors`],
         ['Selected battery', r.blockAh ? `<b>${r.strings > 1 ? `${r.strings} strings × ` : ''}${r.blocksPerString} × ${s.blockV} V ${r.blockAh} Ah</b> — ${r.totalBlocks} ${s.chem === 'vrla' ? 'blocks' : 'modules'}, ${n(r.energyKwh)} kWh` : '<span class="bad">No block size fits</span>'],
         ['Backup with this battery', r.runtimeMin !== undefined ? `<span class="${r.runtimeMin >= s.autonomyMin ? 'ok' : 'bad'}">${n(r.runtimeMin, 0)} min</span>` : '—'],
-        ['Maximum DC current / DC breaker', `${n(r.dcCurrentMaxA, 0)} A (end of discharge) / ${r.dcBreakerA} A`]
+        ['Maximum DC current / battery-bus DC breaker', `${n(r.dcCurrentMaxA, 0)} A (end of discharge, all strings) / ${r.dcBreakerNoFit ? `<b class="bad">No suitable DC breaker in the list — ${n(r.dcBreakerRequiredA, 0)} A needed (1.25 × I), largest listed ${r.dcBreakerMaxA} A</b>` : r.dcBreakerA ? `${r.dcBreakerA} A (≥ 1.25 × I; confirm DC voltage, poles and breaking capacity)` : '—'}`]
       ])}
       ${r.notes.length ? `<p>${esc(r.notes.join(' · '))}</p>` : ''}
       <p class="note">Constant-power method (IEEE 485 / 1184 practice). Capacity-at-rate figures are typical; confirm the battery with the manufacturer's constant-power discharge table at the end voltage and room temperature.</p>

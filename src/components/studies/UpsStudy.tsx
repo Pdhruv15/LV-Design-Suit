@@ -156,7 +156,7 @@ function UpsCard({ project, s, upsBoardIds, onPatch, onRemove, onApply }: {
         <div><span>UPS rating</span><b className={r.upsKva ? '' : 'bad'}>{r.upsKva ? `${r.upsKva} kVA · ${f1(r.upsKw!)} kW` : `> ${STANDARD_UPS_KVA[STANDARD_UPS_KVA.length - 1]} kVA`}</b><small>{r.loadingPct !== undefined ? `${f0(r.loadingPct)} % loaded today (${r.loadingBy} limit) · ${f0(r.loadingKvaPct!)} % of kVA · ${f0(r.loadingKwPct!)} % of kW` : ''}</small></div>
         <div><span>Battery</span><b>{r.blockAh ? `${r.strings > 1 ? `${r.strings} × ` : ''}${r.blocksPerString} × ${s.blockV} V ${r.blockAh} Ah` : '—'}</b><small>{r.totalBlocks} {s.chem === 'vrla' ? 'blocks' : 'modules'} · {f1(r.energyKwh)} kWh · needs {f1(r.requiredAh)} Ah</small></div>
         <div><span>Backup with this battery</span><b className={r.runtimeMin !== undefined && r.runtimeMin >= s.autonomyMin ? 'ok' : 'bad'}>{r.runtimeMin !== undefined ? `${f0(r.runtimeMin)} min` : '—'}</b><small>required {s.autonomyMin} min</small></div>
-        <div><span>DC side</span><b>{f0(r.dcCurrentMaxA)} A max</b><small>{f1(r.dcKw)} kW from the battery · DC breaker {r.dcBreakerA} A</small></div>
+        <div><span>DC side</span><b>{f0(r.dcCurrentMaxA)} A max</b><small className={r.dcBreakerNoFit ? 'bad' : ''}>{f1(r.dcKw)} kW from the battery · {r.dcBreakerNoFit ? `No suitable DC breaker in the list — ${f0(r.dcBreakerRequiredA)} A needed, largest ${r.dcBreakerMaxA} A` : r.dcBreakerA ? `battery-bus DC breaker ${r.dcBreakerA} A` : 'no DC breaker (no load)'}</small></div>
       </div>
       {r.notes.length > 0 && <p className="m">{r.notes.join(' · ')}</p>}
       {board && r.upsKva && board.upsKva !== r.upsKva && (
