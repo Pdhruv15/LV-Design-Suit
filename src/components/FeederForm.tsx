@@ -175,6 +175,7 @@ export default function FeederForm({
         )}
         {tab === 'cable' && (
           <>
+        {f.sizingPending && <p className="warn">Placeholder from Build hierarchy — cable and breaker not sized yet. <button type="button" className="chip" onClick={() => set('sizingPending', undefined)}>Mark as sized</button></p>}
         <div className="grid2">
           <label>Cable length (m)<input type="number" step="1" value={f.lengthM} onChange={(e) => { set('lengthM', +e.target.value); set('lengthToCheck', undefined); }} /></label>
           <label>Cores
