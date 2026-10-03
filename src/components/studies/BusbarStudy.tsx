@@ -169,7 +169,7 @@ export default function BusbarStudy({ project, onChange, onStatus }: { project: 
                 <h4>Load</h4>
                 <dl className="kv">
                   <dt>Tap-offs</dt><dd>{res.tapOffs}</dd>
-                  <dt>Connected</dt><dd>{f0(res.connectedKw)} kW · PF {res.pf.toFixed(2)}</dd>
+                  <dt>Connected</dt><dd>{f0(res.connectedKw)} kW · PF {res.pf.toFixed(2)}{(res.sections[0]?.q ?? 0) < -1e-9 ? ' leading' : ''}</dd>
                   <dt>Diversity</dt><dd>{res.diversity}{riser.diversity === undefined ? ' (IEC 61439-6)' : ''}</dd>
                   <dt>Maximum demand</dt><dd>{f0(res.demandKw)} kW · {f0(res.demandKva)} kVA</dd>
                   <dt>Design current Ib</dt><dd><b>{f0(res.designA)} A</b></dd>

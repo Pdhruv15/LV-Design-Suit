@@ -1,5 +1,6 @@
 import { faultCurrentKA, impedanceToBoard, upstreamVoltageDropPct, type Status } from './electrical';
-import type { Board, Feeder, LoadType, Project } from '../types';
+import { settingsOf, type Board, type Feeder, type LoadType, type Project } from '../types';
+import { switchedOnBoard } from './capSwitching';
 
 const SQRT3 = Math.sqrt(3);
 
@@ -31,21 +32,24 @@ function add(a: PowerTotals, b: PowerTotals): PowerTotals {
 export function boardTotals(project: Project, boardId: string, seen = new Set<string>()): PowerTotals {
   if (seen.has(boardId)) return ZERO;
   seen.add(boardId);
-  return project.feeders
-    .filter((f) => f.boardId === boardId)
-    .reduce((acc, f) => {
-      if (f.feedsBoardId) return add(acc, boardTotals(project, f.feedsBoardId, seen));
-      const kw = f.loadKw * f.demandFactor;
-      if (f.generation) return add(acc, { ...ZERO, generationKw: kw });
-      if (f.kvar) return add(acc, { ...ZERO, demandKvar: -f.kvar }); // capacitor bank
-      const pf = Math.min(Math.max(f.powerFactor, 0.01), 1);
-      return add(acc, {
-        connectedKw: f.loadKw,
-        demandKw: kw,
-        demandKvar: kw * Math.tan(Math.acos(pf)),
-        generationKw: 0
-      });
-    }, ZERO);
+  const own = project.feeders.filter((f) => f.boardId === boardId);
+  const caps = own.filter((f) => f.kvar && !f.feedsBoardId);
+  const base = own.filter((f) => !caps.includes(f)).reduce((acc, f) => {
+    if (f.feedsBoardId) return add(acc, boardTotals(project, f.feedsBoardId, seen));
+    const kw = f.loadKw * f.demandFactor;
+    if (f.generation) return add(acc, { ...ZERO, generationKw: kw });
+    const pf = Math.min(Math.max(f.powerFactor, 0.01), 1);
+    return add(acc, {
+      connectedKw: f.loadKw,
+      demandKw: kw,
+      demandKvar: kw * Math.tan(Math.acos(pf)),
+      generationKw: 0
+    });
+  }, ZERO);
+  if (!caps.length) return base;
+  // Capacitor banks: the steps the relay switches in at this load (no leading), not the full rating.
+  const sw = switchedOnBoard(caps, base.demandKw, base.demandKvar, settingsOf(project).pfTarget);
+  return { ...base, demandKvar: base.demandKvar - caps.reduce((a, c) => a + (sw.get(c.id) ?? 0), 0) };
 }
 
 export interface BoardSummary extends PowerTotals {

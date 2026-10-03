@@ -2,6 +2,7 @@ import type { Board, Feeder, Project } from '../types';
 import { settingsOf } from '../types';
 import { boardsInSupplyOrder, boardTotals } from './summary';
 import { DEFAULT_TRANSFORMER_XR, faultCurrentKA, transformerImpedance } from './electrical';
+import { switchedOnBoard } from './capSwitching';
 import { STANDARD_BREAKER_A, STANDARD_GENERATOR_KVA, STANDARD_TRANSFORMER_KVA, chooseGenerator, isEssential, standbyBoards, type GeneratorChoice } from './sizing';
 import { GENERATOR_XD_TRANSIENT_PCT, isMotor, MOTOR_START_DIP_LIMIT_PCT, motorStartDipPct, runningKva, startingKva } from './motor';
 import { planPfc, subtree } from './pfc';
@@ -132,6 +133,10 @@ export function sizeTransformers(project: Project, plan: TxGenPlan = txGenPlanOf
     // Breakdown one level down: sub-boards by their incomer, and the MDB's own loads together.
     const breakdown: TxRow['breakdown'] = [];
     let ownP = 0, ownQ = 0;
+    // Banks on the MDB: their switched kvar at this load (as in boardTotals), shown with its own loads.
+    const capsHere = project.feeders.filter((x) => x.boardId === b.id && x.kvar && !x.feedsBoardId);
+    const noCaps = capsHere.length ? boardTotals({ ...project, feeders: project.feeders.filter((x) => !capsHere.includes(x)) }, b.id) : undefined;
+    const switched = noCaps ? switchedOnBoard(capsHere, noCaps.demandKw, noCaps.demandKvar, settingsOf(project).pfTarget) : new Map<string, number>();
     for (const f of project.feeders.filter((x) => x.boardId === b.id)) {
       if (f.feedsBoardId) {
         const t = boardTotals(project, f.feedsBoardId);
@@ -139,7 +144,7 @@ export function sizeTransformers(project: Project, plan: TxGenPlan = txGenPlanOf
       } else if (!f.generation) {
         const kw = f.loadKw * f.demandFactor;
         ownP += kw;
-        ownQ += f.kvar ? -f.kvar : kw * Math.tan(Math.acos(Math.min(Math.max(f.powerFactor, 0.01), 1)));
+        ownQ += f.kvar ? -(switched.get(f.id) ?? 0) : kw * Math.tan(Math.acos(Math.min(Math.max(f.powerFactor, 0.01), 1)));
       }
     }
     if (ownP || ownQ) breakdown.push({ id: b.id, label: 'Loads on the MDB itself', kva: Math.hypot(ownP, ownQ) });

@@ -143,7 +143,8 @@ export function capacitorFeeder(project: Project, boardId: string, id: string, n
   const f: Feeder = {
     id, boardId, name, loadKw: 0, demandFactor: 1, powerFactor: 1, kvar, lengthM: 10, cableCsaMm2: 4, cores: 4,
     breakerRatingA: 16, breakerIcuKa: 25, loadType: 'capacitor',
-    ...(steps > 1 ? { capSteps: steps } : {}), ...(detunedPct ? { detunedPct } : {})
+    capSteps: Math.max(1, Math.round(steps)), // an automatic bank (APFC relay) — switched by steps in the calculations
+    ...(detunedPct ? { detunedPct } : {})
   };
   return applyRecommendation(f, recommend({ ...project, feeders: [...project.feeders, f] }, f, 'optimise'));
 }

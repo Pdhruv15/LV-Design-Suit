@@ -1,3 +1,4 @@
+import { switchedOnBoard } from './capSwitching';
 import { DEFAULT_POINT_WATTS, LIGHTING_POINTS, POINT_TYPES, pointTemplateOf, settingsOf, type Board, type Feeder, type LoadType, type Phase, type PointType, type Project } from '../types';
 
 export const SINGLE_PHASES: ('R' | 'Y' | 'B')[] = ['R', 'Y', 'B'];
@@ -114,16 +115,23 @@ export function boardPhasePQ(project: Project, boardId: string, seen = new Set<s
     if (f.cores === 2 && f.phase && f.phase !== 'RYB') { out[f.phase].p += p; out[f.phase].q += q; return; }
     for (const ph of ['R', 'Y', 'B'] as const) { out[ph].p += p / 3; out[ph].q += q / 3; }
   };
+  const caps: Feeder[] = [];
   for (const f of project.feeders.filter((x) => x.boardId === boardId)) {
     if (f.feedsBoardId) {
       const sub = boardPhasePQ(project, f.feedsBoardId, seen);
       for (const ph of ['R', 'Y', 'B'] as const) { out[ph].p += sub[ph].p; out[ph].q += sub[ph].q; }
       continue;
     }
-    if (f.kvar) { put(f, f.loadKw * f.demandFactor, -f.kvar); continue; }
+    if (f.kvar) { caps.push(f); continue; }
     const kw = f.loadKw * f.demandFactor;
     const pf = Math.min(Math.max(f.powerFactor, 0.01), 1);
     put(f, kw, kw * Math.tan(Math.acos(pf)));
+  }
+  // Capacitor banks: the switched steps for this board's load (as boardTotals), kvar negative.
+  if (caps.length) {
+    const p = out.R.p + out.Y.p + out.B.p, q = out.R.q + out.Y.q + out.B.q;
+    const sw = switchedOnBoard(caps, p, q, settingsOf(project).pfTarget);
+    for (const c of caps) put(c, c.loadKw * c.demandFactor, -(sw.get(c.id) ?? 0));
   }
   return out;
 }

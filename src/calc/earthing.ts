@@ -85,8 +85,20 @@ export interface EarthingResult {
   maxZsOhm: number; // largest Zs that still gives instantaneous tripping
   requiredS: number; // required disconnection time
   disconnection: Status; // ok: trips instantaneously; warn: 5 s circuit relying on the thermal region; bad: too slow
-  adiabaticMinMm2: number; // minimum protective conductor size for the fault energy
-  adiabatic: 'ok' | 'bad';
+  /** Minimum area of each protective conductor for the fault energy, from the current through it
+   * (cpcCurrentA): the whole fault current for one run; for parallel runs, its equal share (ENG-012). */
+  adiabaticMinMm2: number;
+  /** ok: one CPC carries the whole fault current (also covers a fault inside one run); warn: passes only
+   * if the fault current shares equally between identical runs bonded at both ends (assumed, not
+   * verified); bad: too small even with equal sharing. */
+  adiabatic: Status;
+  runs: number;
+  /** Current through each protective conductor in the modelled end-of-circuit fault (equal sharing). */
+  cpcCurrentA: number;
+  /** One CPC carrying the whole fault current (worst case, e.g. a fault within one run). */
+  adiabaticWholeMm2: number;
+  /** For parallel runs: what the thermal result assumes. */
+  adiabaticNote?: string;
   status: Status;
 }
 
@@ -111,11 +123,22 @@ export function evaluateEarthing(project: Project, f: Feeder): EarthingResult {
   // instantaneously (conservative for MCCBs), otherwise the full required
   // disconnection time.
   const t = instantaneous ? 0.1 : requiredS;
+  // Adiabatic check, S ≥ I × √t ÷ k, with I the current through the conductor checked. The loop above
+  // models identical parallel runs, each with its own CPC, in parallel to a fault at the far end — so
+  // each CPC carries 1 ÷ runs of the total there. Whether that holds for every fault (a fault inside one
+  // run, unequal runs, a shared CPC) isn't known from the data, so a pass that relies on sharing is only
+  // 'warn'. The total fault current still sets the disconnection check above.
   const cpcMm2 = cpcOf(f);
-  const adiabaticMinMm2 = (faultA * Math.sqrt(t)) / K_CPC_XLPE_CU;
-  const adiabatic = cpcMm2 >= adiabaticMinMm2 ? 'ok' : 'bad';
+  const runs = runsOf(f);
+  const cpcCurrentA = faultA / runs;
+  const adiabaticWholeMm2 = (faultA * Math.sqrt(t)) / K_CPC_XLPE_CU;
+  const adiabaticMinMm2 = (cpcCurrentA * Math.sqrt(t)) / K_CPC_XLPE_CU;
+  const adiabatic: Status = cpcMm2 >= adiabaticWholeMm2 ? 'ok' : cpcMm2 >= adiabaticMinMm2 ? 'warn' : 'bad';
+  const adiabaticNote = runs > 1
+    ? `${runs} parallel runs: each ${cpcMm2} mm² CPC carries ${cpcCurrentA.toFixed(0)} A of the ${faultA.toFixed(0)} A end-of-circuit fault (needs ${adiabaticMinMm2.toFixed(1)} mm² each, ${(adiabaticMinMm2 * runs).toFixed(1)} of ${cpcMm2 * runs} mm² together). Assumes identical runs and lengths bonded at both ends; ${adiabatic === 'ok' ? 'one CPC alone also carries the whole fault current, so a fault within one run is covered too' : `not verified for a fault within one run, unequal runs or a shared CPC (one CPC alone would need ${adiabaticWholeMm2.toFixed(1)} mm²)`}.`
+    : undefined;
 
-  const status: Status = disconnection === 'bad' || adiabatic === 'bad' ? 'bad' : disconnection;
+  const status: Status = disconnection === 'bad' || adiabatic === 'bad' ? 'bad' : disconnection === 'warn' || adiabatic === 'warn' ? 'warn' : 'ok';
   return {
     feeder: f,
     cpcMm2,
@@ -129,6 +152,10 @@ export function evaluateEarthing(project: Project, f: Feeder): EarthingResult {
     disconnection,
     adiabaticMinMm2,
     adiabatic,
+    runs,
+    cpcCurrentA,
+    adiabaticWholeMm2,
+    ...(adiabaticNote ? { adiabaticNote } : {}),
     status
   };
 }

@@ -116,7 +116,7 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
     if (f.rcdMa) add('B', `rcd:${f.rcdMa}:${poles}:${f.breakerRatingA}`, `Earth leakage protection ${f.rcdMa} mA, ${poles}, ${f.breakerRatingA} A`, 'no', 1, f.boardId);
     if (f.kwhMeter) add('C', `kwh:${f.kwhMeter}`, f.kwhMeter === 'CT' ? 'kWh meter, CT operated, with CTs and test block' : `kWh meter, direct ${f.kwhMeter === '1-PH' ? '1-phase' : '3-phase'}`, 'no', 1, f.boardId);
     if (f.localIsolator) add('B', `iso:${f.breakerRatingA}:${poles}`, `Local isolator ${f.breakerRatingA} A ${poles}, weatherproof enclosure`, 'no', 1, f.boardId);
-    if (f.kvar) add('D', `cap:${f.kvar}:${f.capSteps ?? 1}:${f.detunedPct ?? 0}`, `Capacitor bank ${f.kvar} kvar${f.capSteps && f.capSteps > 1 ? `, ${f.capSteps} steps` : ''}${f.detunedPct ? `, ${f.detunedPct} % detuned` : ''}, with APFC relay`, 'no', 1, f.boardId);
+    if (f.kvar) add('D', `cap:${f.kvar}:${f.capSteps ?? 1}:${f.detunedPct ?? 0}`, `${f.capSteps ? 'Capacitor bank' : 'Fixed capacitor'} ${f.kvar} kvar${f.capSteps && f.capSteps > 1 ? `, ${f.capSteps} steps` : ''}${f.detunedPct ? `, ${f.detunedPct} % detuned` : ''}${f.capSteps ? ', with APFC relay' : ''}`, 'no', 1, f.boardId);
 
     // Cable and its earth conductor
     const runs = runsOf(f);

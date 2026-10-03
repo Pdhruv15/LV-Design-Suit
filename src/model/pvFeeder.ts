@@ -36,3 +36,14 @@ export function pvToSld(project: Project, pv: PvSystem, r: Pick<PvResult, 'inver
   const sized = applyRecommendation(f, rec);
   return { project: { ...p0, pv: { ...pv, boardId }, feeders: p0.feeders.map((x) => (x.id === id ? sized : x)) }, feeder: sized, existing: !!existing };
 }
+
+/** What the SLD connection would be, without changing the project: the breaker and cable the general
+ * sizing gives the PV feeder (length, tray, cable type as on the SLD feeder when it exists), or why one
+ * aggregate connection can't be built. Shown on the Solar page and in its report beside the AC breaker. */
+export function pvConnection(project: Project, pv: PvSystem, r: Pick<PvResult, 'inverters' | 'kwp'>, boardId: string): { ok: boolean; text: string } | undefined {
+  const res = pvToSld(project, pv, r, boardId);
+  if (!res) return undefined;
+  if (res.unresolved) return { ok: false, text: `Can't be built as one connection on ${boardId}: ${res.unresolved}. Configure separate inverter groups / feeders explicitly.` };
+  const f = res.feeder;
+  return { ok: true, text: `On ${boardId}: ${f.breakerRatingA} A breaker, ${f.parallel && f.parallel > 1 ? `${f.parallel} × ` : ''}${f.cores}C × ${f.cableCsaMm2} mm², ${f.lengthM} m (SLD sizing: I ÷ 0.85, cable for Iz and voltage drop)` };
+}

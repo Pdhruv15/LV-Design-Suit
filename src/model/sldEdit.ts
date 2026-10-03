@@ -296,7 +296,7 @@ export function applyDrop(project: Project, item: PaletteItem, target: DropTarge
     const id = uniqueId(allIds(project), `${target.boardId}-CAP`);
     const f = sized(project, {
       id, boardId: target.boardId, name: `Capacitor bank ${id.slice(id.lastIndexOf('-') + 1)}`,
-      loadKw: 0, demandFactor: 1, powerFactor: 1, kvar, lengthM: 10, cableCsaMm2: 4, cores: 4, breakerRatingA: 16, breakerIcuKa: 25, loadType: 'capacitor'
+      loadKw: 0, demandFactor: 1, powerFactor: 1, kvar, capSteps: Math.max(1, Math.round(kvar / 25)), lengthM: 10, cableCsaMm2: 4, cores: 4, breakerRatingA: 16, breakerIcuKa: 25, loadType: 'capacitor'
     });
     return {
       project: { ...project, feeders: [...project.feeders, f] },

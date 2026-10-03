@@ -89,3 +89,21 @@ describe('ENG-008: no suitable AC breaker is reported, never clamped', () => {
     expect(upd.project).toBe(ok.project);
   });
 });
+
+import { pvConnection } from '../model/pvFeeder';
+
+describe('Solar page: SLD connection check (follow-up to ENG-008)', () => {
+  it('shows the SLD breaker and cable when one connection fits, and why not when it does not', () => {
+    const ok = pvConnection(project, big(500), sizePv(big(500), 400), 'MDB')!;
+    expect(ok.ok).toBe(true);
+    expect(ok.text).toMatch(/A breaker, .*C × \d+ mm²/);
+    // 2,000 kWp: the Solar breaker is 3,200 A, but no single cable fits — now visible on the page / report.
+    const r = sizePv(big(2000), 400);
+    expect(r.acBreakerA).toBe(3200);
+    const bad = pvConnection(project, big(2000), r, 'MDB')!;
+    expect(bad.ok).toBe(false);
+    expect(bad.text).toMatch(/Can't be built as one connection on MDB: No cable fits/);
+    expect(buildPvReportHtml({ ...project, pv: { ...big(2000), boardId: 'MDB' } }, { ...big(2000), boardId: 'MDB' }, r)).toMatch(/SLD connection.*Can&#39;t be built as one connection|SLD connection.*Can't be built as one connection/s);
+    expect(project.feeders).toHaveLength(0); // the check never changes the project
+  });
+});
