@@ -234,6 +234,13 @@ export default function FeederForm({
           {(breakerTypeOf(f) === 'MCCB' || breakerTypeOf(f) === 'ACB') && (
             <label>Instantaneous Im (× In)<input type="number" step="0.5" min="1" value={f.breakerImMultiple ?? 10} onChange={(e) => set('breakerImMultiple', +e.target.value)} /></label>
           )}
+          {!f.feedsBoardId && <label>Circuit supplies
+            <select value={f.circuitPurpose ?? ''} onChange={(e) => set('circuitPurpose', (e.target.value || undefined) as Feeder['circuitPurpose'])} title="Sets the earth-fault disconnection time: socket-outlet circuits ≤ 63 A and fixed-equipment-only circuits ≤ 32 A need 0.4 s, others 5 s (IEC 60364-4-41, TN 230 V)">
+              <option value="">Not set (treated as sockets)</option>
+              <option value="sockets">Socket-outlets</option>
+              <option value="fixed">Fixed equipment only</option>
+            </select>
+          </label>}
           <label>Earth leakage (RCD / ELCB)
             <select value={f.rcdMa ?? ''} onChange={(e) => set('rcdMa', e.target.value ? +e.target.value : undefined)} title="Used in the earth fault check: the RCD trips at 5 × IΔn">
               <option value="">None</option>

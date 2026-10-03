@@ -37,11 +37,45 @@ export function instantaneousTripA(f: Feeder): number {
   }
 }
 
-/** IEC 60364-4-41 Table 41.1 / 411.3.2.3 for TN systems at 230 V to earth:
- * final circuits up to 63 A must disconnect in 0.4 s; distribution
- * circuits and larger final circuits in 5 s. */
-export function requiredDisconnectionS(f: Feeder): number {
-  return !f.feedsBoardId && f.breakerRatingA <= 63 ? 0.4 : 5;
+const SOCKET_POINTS = ['shaver', 's13', 's15', 's13t'] as const;
+
+export type CircuitPurpose = 'sockets' | 'fixed' | 'unknown';
+/** Socket-outlet / fixed-equipment classification of a final circuit (see Feeder.circuitPurpose). */
+export function circuitPurposeOf(f: Feeder): CircuitPurpose {
+  if (f.circuitPurpose) return f.circuitPurpose;
+  if (SOCKET_POINTS.some((k) => (f.points?.[k] ?? 0) > 0)) return 'sockets';
+  return 'unknown';
+}
+
+export interface DisconnectionBasis {
+  requiredS: number;
+  purpose: CircuitPurpose;
+  /** false: U0 outside the 230 V band this check supports — the time is not the standard's for that supply. */
+  supported: boolean;
+  basis: string;
+}
+
+/** Required disconnection time, IEC 60364-4-41 411.3.2.2 / Table 41.1 (as BS 7671 411.3.2), TN system,
+ * U0 in the nominal 230 V band (120–250 V, covering 230/400 and 240/415 V supplies): 0.4 s for final
+ * circuits up to 63 A with socket-outlets and up to 32 A supplying only fixed equipment; 5 s for
+ * distribution circuits and other final circuits. Unknown purpose is treated as socket-outlets (stricter).
+ * The project rule strictFinalDisconnection (0.4 s for every final circuit to 63 A) is a disclosed override.
+ * TT systems and other U0 bands are not modelled. */
+export function disconnectionBasis(f: Feeder, project?: Pick<Project, 'voltageV' | 'strictFinalDisconnection'>): DisconnectionBasis {
+  const purpose = circuitPurposeOf(f);
+  const u0 = project ? project.voltageV / SQRT3 : 230;
+  const supported = u0 > 120 && u0 <= 250;
+  const where = `TN, U0 ${u0.toFixed(0)} V`;
+  if (f.feedsBoardId) return { requiredS: 5, purpose, supported, basis: `Distribution circuit: 5 s (${where})` };
+  if (project?.strictFinalDisconnection && f.breakerRatingA <= 63) return { requiredS: 0.4, purpose, supported, basis: 'Project rule (stricter than IEC 60364-4-41): every final circuit up to 63 A in 0.4 s' };
+  const limit = purpose === 'fixed' ? 32 : 63;
+  const label = purpose === 'fixed' ? 'fixed equipment only' : purpose === 'sockets' ? 'with socket-outlets' : 'purpose not set — treated as socket-outlets';
+  const requiredS = f.breakerRatingA <= limit ? 0.4 : 5;
+  return { requiredS, purpose, supported, basis: `Final circuit ${label}, ${f.breakerRatingA} A ${f.breakerRatingA <= limit ? '≤' : '>'} ${limit} A: ${requiredS} s (${where})${supported ? '' : ' — outside the supported 230 V band, not verified'}` };
+}
+
+export function requiredDisconnectionS(f: Feeder, project?: Pick<Project, 'voltageV' | 'strictFinalDisconnection'>): number {
+  return disconnectionBasis(f, project).requiredS;
 }
 
 /** Phase + protective conductor loop impedance of one cable run. */
@@ -93,6 +127,9 @@ export interface EarthingResult {
   rcdMa?: number; // earth leakage protection on the circuit (its own, or the DB's ELCB group)
   maxZsOhm: number; // largest Zs that still gives instantaneous tripping
   requiredS: number; // required disconnection time
+  /** How requiredS was decided: circuit purpose, rating threshold, supply basis, any project override. */
+  requiredBasis: string;
+  basisSupported: boolean;
   disconnection: Status; // ok: trips instantaneously; warn: 5 s circuit relying on the thermal region; bad: too slow
   /** Minimum area of each protective conductor for the fault energy, from the current through it
    * (cpcCurrentA): the whole fault current for one run; for parallel runs, its equal share (ENG-012). */
@@ -128,12 +165,14 @@ export function evaluateEarthing(project: Project, f: Feeder): EarthingResult {
   // magnetic threshold.
   const rcdMa = rcdOf(project, f);
   const tripA = rcdMa ? Math.min(instantaneousTripA(f), (5 * rcdMa) / 1000) : instantaneousTripA(f);
-  const requiredS = requiredDisconnectionS(f);
+  const db = disconnectionBasis(f, project);
+  const requiredS = db.requiredS;
 
   const instantaneous = faultA >= tripA;
+  // Instantaneous (< 0.1 s) meets every TN time; otherwise the time limit only counts on the supported basis.
   const disconnection: Status = sourceMissing
-    ? (Number.isFinite(faultA) && !instantaneous && requiredS < 5 ? 'bad' : 'warn')
-    : instantaneous ? 'ok' : requiredS >= 5 ? 'warn' : 'bad';
+    ? (Number.isFinite(faultA) && !instantaneous && requiredS < 5 && db.supported ? 'bad' : 'warn')
+    : instantaneous ? 'ok' : requiredS >= 5 || !db.supported ? 'warn' : 'bad';
 
   // Fault duration for the adiabatic check: 0.1 s when the breaker trips
   // instantaneously (conservative for MCCBs), otherwise the full required
@@ -166,6 +205,8 @@ export function evaluateEarthing(project: Project, f: Feeder): EarthingResult {
     ...(rcdMa ? { rcdMa } : {}),
     maxZsOhm: (C_MIN * u0) / tripA,
     requiredS,
+    requiredBasis: db.basis,
+    basisSupported: db.supported,
     disconnection,
     adiabaticMinMm2,
     adiabatic,
@@ -181,7 +222,9 @@ export function evaluateEarthing(project: Project, f: Feeder): EarthingResult {
 /** The disconnection result in words — the same on the page and in the reports. */
 export function disconnectionLabel(r: EarthingResult): string {
   if (r.sourceMissing) return r.disconnection === 'bad' ? 'Too slow (even without the missing source impedance)' : 'Not verified — supply loop incomplete';
-  return r.disconnection === 'ok' ? '< 0.1 s' : r.disconnection === 'warn' ? 'Thermal — check curve' : 'Too slow';
+  if (r.disconnection === 'ok') return '< 0.1 s';
+  if (r.disconnection === 'bad') return 'Too slow';
+  return r.basisSupported ? `Thermal — check curve for ${r.requiredS} s` : 'Required time not determined for this supply';
 }
 /** Ze, Zs and If as text: an incomplete loop shows Ze unknown, Zs as a minimum and If as a maximum. */
 export function loopFigures(r: EarthingResult, d = 4): { ze: string; zs: string; fault: string } {

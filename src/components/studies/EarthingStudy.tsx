@@ -15,8 +15,8 @@ export default function EarthingStudy({ project, onSelectFeeder, focus, onClearF
       intro={
         <>
           TN-S system. Zs = Ze + (R1 + R2) at operating temperature; minimum fault current If = {C_MIN} × U0 / Zs. A circuit
-          passes when If reaches the breaker's instantaneous trip current Ia (disconnection &lt; 0.1 s), which satisfies both
-          the 0.4 s (final circuits ≤ 63 A) and 5 s limits of IEC 60364-4-41. The protective conductor must also withstand
+          passes when If reaches the breaker's instantaneous trip current Ia (disconnection &lt; 0.1 s), which satisfies the 0.4 s and 5 s limits of IEC 60364-4-41 (TN, U0 230 V band): 0.4 s for final circuits
+          ≤ 63 A with socket-outlets and ≤ 32 A for fixed equipment only, 5 s otherwise — set "Circuit supplies" on the feeder; unset is treated as sockets{project.strictFinalDisconnection ? '. Project rule (stricter): every final circuit ≤ 63 A in 0.4 s' : ''}. Below the magnetic trip, a 5 s circuit still needs the breaker's time-current curve checked. Hover Required for its basis. The protective conductor must also withstand
           the fault: S ≥ I·√t / {K_CPC_XLPE_CU}, with I the current through that conductor — for parallel runs its equal share at the end-of-circuit fault (identical runs bonded at both ends; marked "assumed sharing" when only that makes it pass, as a fault within one run isn't covered). The total If sets the disconnection check. Change the breaker type or protective conductor size by editing the feeder.
         </>
       }
@@ -43,7 +43,7 @@ export default function EarthingStudy({ project, onSelectFeeder, focus, onClearF
                 <td>{r.maxZsOhm.toFixed(4)}</td>
                 <td>{lf.fault}</td>
                 <td>{r.tripA.toFixed(0)}</td>
-                <td>{r.requiredS} s</td>
+                <td title={r.requiredBasis} className={r.basisSupported ? '' : 'warn'}>{r.requiredS} s</td>
                 <StatusCell status={r.disconnection}>
                   <span title={r.sourceMissing}>{disconnectionLabel(r)}</span>
                 </StatusCell>
