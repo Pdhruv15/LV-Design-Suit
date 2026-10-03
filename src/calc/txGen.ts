@@ -2,7 +2,7 @@ import type { Board, Feeder, Project } from '../types';
 import { settingsOf } from '../types';
 import { boardsInSupplyOrder, boardTotals } from './summary';
 import { DEFAULT_TRANSFORMER_XR, faultCurrentKA, transformerImpedance } from './electrical';
-import { STANDARD_BREAKER_A, STANDARD_GENERATOR_KVA, STANDARD_TRANSFORMER_KVA, isEssential, standbyBoards } from './sizing';
+import { STANDARD_BREAKER_A, STANDARD_GENERATOR_KVA, STANDARD_TRANSFORMER_KVA, chooseGenerator, isEssential, standbyBoards, type GeneratorChoice } from './sizing';
 import { GENERATOR_XD_TRANSIENT_PCT, isMotor, MOTOR_START_DIP_LIMIT_PCT, motorStartDipPct, runningKva, startingKva } from './motor';
 import { planPfc, subtree } from './pfc';
 import { transformerFor } from '../database/catalog';
@@ -146,7 +146,9 @@ export function sizeTransformers(project: Project, plan: TxGenPlan = txGenPlanOf
     return {
       board: b, demandKw: p, demandKvar: q, pfcKvar: cap, demandKva, pf, designKva, n1: plan.n1.includes(b.id), split,
       recommendedKva, installedKva, loadingPct: installedKva ? (demandKva / installedKva) * 100 : undefined,
-      adequate: installedKva ? installedKva * split >= designKva - 1e-6 : undefined,
+      // The installed source (one rating on the main board) against the design demand. The split is a
+      // proposal for new transformers, never a count of installed ones.
+      adequate: installedKva ? installedKva >= designKva - 1e-6 : undefined,
       checks: checkKva ? transformerChecks(project, b, checkKva, demandKva / split, pf, checkKva === installedKva && b.sourceImpedancePct ? b.sourceImpedancePct : typicalImpedancePct(checkKva)) : undefined,
       outage, breakdown: breakdown.sort((x, y) => y.kva - x.kva)
     };
@@ -186,7 +188,10 @@ export interface GenSizing {
   demandKw: number;
   demandKvar: number;
   demandKva: number;
-  runningDesignKva: number; // demand ÷ max loading
+  runningDesignKva: number; // running rating: max(kVA ÷ L, kW ÷ (0.8 × L))
+  /** What sets the size (kVA, kW or the motor start), and no standard set fits. */
+  governing: GeneratorChoice['governing'];
+  noFit: boolean;
   /** Size for the largest motor start with the dip ≤ limit: X′d · S · (1 − L) ÷ L. */
   startDesignKva: number;
   recommendedKva?: number;
@@ -195,6 +200,7 @@ export interface GenSizing {
   /** When the motor start sets the size: the set a soft starter (3 × running) would allow. */
   softStartKva?: number;
   installedKva?: number; // standby sets on the SLD
+  installedOk?: boolean;
   flcA?: number;
   atsA?: number;
   mainBreakerA?: number;
@@ -231,7 +237,9 @@ export function sizeGeneratorByBoards(project: Project, plan: TxGenPlan = txGenP
     q += kw * Math.tan(Math.acos(Math.min(Math.max(f.powerFactor, 0.01), 1)));
   }
   const demandKva = Math.hypot(p, q);
-  const runningDesignKva = demandKva / (s.generatorMaxLoadingPct / 100);
+  const loading = s.generatorMaxLoadingPct / 100;
+  // Running rating: kVA ÷ L and kW ÷ (0.8 × L), whichever is larger.
+  const runningDesignKva = chooseGenerator(p, demandKva, loading).runningKva;
   // Largest motor, started last with everything else running.
   const motors = [...project.feeders.filter((f) => isMotor(f) && covered.has(f.boardId)), ...circuits.filter(isMotor)]
     .map((f) => ({ feeder: f, runningKva: runningKva(f), startingKva: startingKva(f) }))
@@ -240,17 +248,23 @@ export function sizeGeneratorByBoards(project: Project, plan: TxGenPlan = txGenP
   const L = MOTOR_START_DIP_LIMIT_PCT / 100;
   const startDesignKva = m ? (GENERATOR_XD_TRANSIENT_PCT / 100) * m.startingKva * (1 - L) / L : 0;
   const any = counted.length > 0 || circuits.length > 0;
-  const recommendedKva = any ? nextStd(STANDARD_GENERATOR_KVA, Math.max(runningDesignKva, startDesignKva)) : undefined;
+  // One set meeting the running kVA, the running kW and the motor start (the start rating is not divided by L again).
+  const choice = chooseGenerator(p, demandKva, loading, startDesignKva);
+  const recommendedKva = any ? choice.kva : undefined;
   const baseKva = m ? Math.max(0, demandKva - m.runningKva) : 0;
   const installed = project.boards.filter((b) => b.standby).reduce((a, b) => a + b.standby!.kva, 0) || undefined;
   const flcA = recommendedKva ? (recommendedKva * 1000) / (SQRT3 * project.voltageV) : undefined;
   return {
     picks, circuits, demandKw: p, demandKvar: q, demandKva, runningDesignKva, startDesignKva,
-    recommendedKva, recommendedKw: recommendedKva ? recommendedKva * 0.8 : undefined,
+    recommendedKva, recommendedKw: recommendedKva ? choice.kw : undefined,
+    governing: choice.governing, noFit: any && choice.noFit,
     motor: m ? { ...m, baseKva, peakKva: baseKva + m.startingKva, dipPct: recommendedKva ? motorStartDipPct(m.startingKva, recommendedKva) : undefined } : undefined,
     installedKva: installed,
+    // Installed sets against the same rule: running kVA and kW within the loading limit and the motor start.
+    installedOk: installed === undefined ? undefined : installed * loading >= demandKva - 1e-9 && installed * 0.8 * loading >= p - 1e-9 && installed >= startDesignKva - 1e-9,
     softStartKva: m && startDesignKva > runningDesignKva && m.startingKva > m.runningKva * 3
-      ? nextStd(STANDARD_GENERATOR_KVA, Math.max(runningDesignKva, (GENERATOR_XD_TRANSIENT_PCT / 100) * m.runningKva * 3 * (1 - L) / L))
+      // A soft starter lowers the start rating, never below the running kVA and kW floor.
+      ? chooseGenerator(p, demandKva, loading, (GENERATOR_XD_TRANSIENT_PCT / 100) * m.runningKva * 3 * (1 - L) / L).kva
       : undefined,
     flcA,
     atsA: flcA ? nextStd(STANDARD_BREAKER_A, flcA) : undefined,

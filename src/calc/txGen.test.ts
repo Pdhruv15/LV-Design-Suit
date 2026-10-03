@@ -90,3 +90,52 @@ describe('generator from boards', () => {
     expect(s.statuses).toContain('bad');
   });
 });
+
+describe('ENG-004: a proposed split never counts as installed transformers', () => {
+  const fixture = (sourceKva?: number, loadKw = 2500): Project => ({
+    ...sampleProject,
+    voltageV: 400,
+    studySettings: { ...sampleProject.studySettings, futureGrowthPct: 0, transformerMaxLoadingPct: 100 },
+    txGen: { sizeList: 'dewa', includePfc: false },
+    boards: [{ id: 'MDB', name: 'MDB', sourceKva, ratedCurrentA: 6300 }],
+    feeders: [{ id: 'L1', boardId: 'MDB', name: 'Load', loadKw, demandFactor: 1, powerFactor: 1, lengthM: 10, cableCsaMm2: 300, parallel: 8, cores: 4, breakerRatingA: 4000, breakerIcuKa: 100 }],
+    ties: undefined, pfc: undefined, busRisers: undefined
+  } as Project);
+
+  it('one installed 1500 kVA for a 2500 kVA design: the 2 × 1500 kVA proposal stays, installed is not adequate', () => {
+    const r = sizeTransformers(fixture(1500))[0];
+    expect(r.demandKva).toBeCloseTo(2500, 6);
+    expect(r.designKva).toBeCloseTo(2500, 6);
+    expect(r.split).toBe(2);
+    expect(r.recommendedKva).toBe(1500);
+    expect(r.installedKva).toBe(1500);
+    expect(r.loadingPct).toBeCloseTo(166.67, 1);
+    expect(r.adequate).toBe(false);
+  });
+
+  it('the Study Report shows the proposal and fails the installed transformer', () => {
+    const p = fixture(1500);
+    const s = buildSection('sizing', { project: p, results: [], earthing: [], selectivity: [] }, scopeOf(p, { boards: [], downstream: true }));
+    const row = s.tables.find((t) => t.title === 'Transformers')!.rows[0];
+    expect(row[4]).toBe('2 × 1500 kVA');
+    expect(String(row[5])).toMatch(/^1500 kVA · 167 %$/);
+    expect(row[row.length - 1]).toMatchObject({ s: 'bad' });
+    expect(s.statuses.filter((x) => x === 'bad').length).toBe(1);
+    expect(s.summary.find((x) => x.label === 'MDB transformer')!.status).toBe('bad');
+  });
+
+  it('equal capacity is adequate; no source rating leaves adequacy undefined', () => {
+    const eq = sizeTransformers(fixture(1500, 1500))[0];
+    expect(eq.designKva).toBeCloseTo(1500, 6);
+    expect(eq.adequate).toBe(true);
+    expect(sizeTransformers(fixture(undefined))[0].adequate).toBeUndefined();
+  });
+
+  it('a larger split proposal never multiplies installed capacity', () => {
+    for (const kw of [2500, 3500, 4400]) {
+      const r = sizeTransformers(fixture(1500, kw))[0];
+      expect(r.split).toBeGreaterThan(1);
+      expect(r.adequate).toBe(false);
+    }
+  });
+});

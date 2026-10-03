@@ -2,6 +2,7 @@ import { vdEvaluator, deratedAmpacityA, designCurrentA, trayFactorOf, evaluateFe
 import { boardTotals, loadTypeOf, systemSummary } from './summary';
 import { breakerTypeOf } from './earthing';
 import { isMotor, motorStartDipPct, runningKva, startingKva } from './motor';
+import { generatorFor } from '../database/catalog';
 import { settingsOf, type Board, type BreakerType, type Feeder, type Project } from '../types';
 
 const SQRT3 = Math.sqrt(3);
@@ -84,10 +85,49 @@ export function boardDemandKva(project: Project, boardId: string): number {
   return Math.hypot(t.demandKw, Math.max(0, t.demandKvar));
 }
 
-/** Standard generator for a board's load at the design loading limit. */
-export function generatorForBoard(project: Project, boardId: string): number {
-  const kva = boardDemandKva(project, boardId) / (settingsOf(project).generatorMaxLoadingPct / 100);
-  return nextStandard(STANDARD_GENERATOR_KVA, kva) ?? STANDARD_GENERATOR_KVA[STANDARD_GENERATOR_KVA.length - 1];
+// ---- Generator selection: running kVA and running kW, both within the loading limit ----
+
+/** Rated PF of a standard generator set (typical 3-phase rating): rated kW = 0.8 × rated kVA,
+ * unless the Generators catalogue gives the set's own kW. */
+export const GENERATOR_RATED_PF = 0.8;
+export const generatorRatedKw = (kva: number): number => generatorFor(kva)?.kw ?? kva * GENERATOR_RATED_PF;
+
+export interface GeneratorChoice {
+  /** The standard set chosen, or undefined when none fits (no-fit). */
+  kva?: number;
+  kw?: number;
+  /** Rating the running load needs: max(kVA ÷ L, kW ÷ (0.8 × L)). */
+  runningKva: number;
+  /** Rating the largest motor start needs (already a full rating — not divided by L again). */
+  startKva: number;
+  /** The rating that sets the size, and which constraint gives it. */
+  requiredKva: number;
+  governing: 'kVA' | 'kW' | 'motor start';
+  noFit: boolean;
+}
+
+/** The smallest standard set with ratedKva × L ≥ demand kVA, ratedKw × L ≥ demand kW and ratedKva ≥ the
+ * motor-start rating. Load PF (in demandKw / demandKva), the set's rated PF and the loading fraction L stay distinct. */
+export function chooseGenerator(demandKw: number, demandKva: number, loadingFrac: number, startKva = 0): GeneratorChoice {
+  const L = loadingFrac > 0 ? loadingFrac : 1;
+  const byKva = demandKva / L, byKw = demandKw / (GENERATOR_RATED_PF * L);
+  const runningKva = Math.max(byKva, byKw);
+  const requiredKva = Math.max(runningKva, startKva);
+  const governing: GeneratorChoice['governing'] = startKva > runningKva ? 'motor start' : byKw > byKva + 1e-9 ? 'kW' : 'kVA';
+  const eps = 1e-9;
+  const kva = STANDARD_GENERATOR_KVA.find((k) => k * L >= demandKva - eps && generatorRatedKw(k) * L >= demandKw - eps && k >= startKva - eps);
+  return { kva, kw: kva !== undefined ? generatorRatedKw(kva) : undefined, runningKva, startKva, requiredKva, governing, noFit: kva === undefined && requiredKva > 0 };
+}
+
+/** Standard generator for a board's load at the design loading limit (kVA and kW). Undefined when the
+ * board has load but no standard set fits; an empty board gets the smallest set. */
+export function generatorChoiceForBoard(project: Project, boardId: string): GeneratorChoice {
+  const t = boardTotals(project, boardId);
+  return chooseGenerator(Math.max(0, t.demandKw), boardDemandKva(project, boardId), settingsOf(project).generatorMaxLoadingPct / 100);
+}
+export function generatorForBoard(project: Project, boardId: string): number | undefined {
+  const c = generatorChoiceForBoard(project, boardId);
+  return c.requiredKva > 0 ? c.kva : STANDARD_GENERATOR_KVA[0];
 }
 
 /** Standard UPS for a board's load at 80 % loading. */
@@ -104,8 +144,13 @@ export interface GeneratorSizing {
   essential: Feeder[];
   demandKw: number;
   demandKva: number;
+  /** Running rating needed: max(kVA ÷ L, kW ÷ (0.8 × L)). */
   designKva: number;
   recommendedKva?: number;
+  recommendedKw?: number;
+  /** kW or kVA sets the size; no standard set fits. */
+  governing: GeneratorChoice['governing'];
+  noFit: boolean;
   /** The motor with the largest starting kVA (with its starter). */
   largestMotor?: { feeder: Feeder; runningKva: number; startingKva: number; dipPct?: number };
 }
@@ -125,8 +170,9 @@ export function sizeGenerator(project: Project): GeneratorSizing {
     q += kw * Math.tan(Math.acos(Math.min(Math.max(f.powerFactor, 0.01), 1)));
   }
   const demandKva = Math.hypot(p, q);
-  const designKva = demandKva / (s.generatorMaxLoadingPct / 100);
-  const recommendedKva = essential.length ? nextStandard(STANDARD_GENERATOR_KVA, designKva) : undefined;
+  const choice = chooseGenerator(p, demandKva, s.generatorMaxLoadingPct / 100);
+  const designKva = choice.runningKva;
+  const recommendedKva = essential.length ? choice.kva : undefined;
   const motors = essential
     .filter(isMotor)
     .map((f) => ({ feeder: f, runningKva: runningKva(f), startingKva: startingKva(f), dipPct: recommendedKva ? motorStartDipPct(startingKva(f), recommendedKva) : undefined }))
@@ -137,6 +183,9 @@ export function sizeGenerator(project: Project): GeneratorSizing {
     demandKva,
     designKva,
     recommendedKva,
+    recommendedKw: recommendedKva !== undefined ? choice.kw : undefined,
+    governing: choice.governing,
+    noFit: essential.length > 0 && choice.noFit,
     largestMotor: motors[0]
   };
 }
