@@ -57,6 +57,7 @@ export function buildUpsReportHtml(project: Project, systems: UpsSystem[]): stri
 
 export function buildPvReportHtml(project: Project, s: PvSystem, r: PvResult): string {
   const ok = (b: boolean) => `<span class="${b ? 'ok' : 'bad'}">${b ? 'OK' : 'Fail'}</span>`;
+  const mppt = (b: boolean) => (r.vmpBasis === 'estimated' ? `<span class="${b ? 'warn' : 'bad'}">${b ? 'OK (estimated)' : 'Fail (estimated)'}</span>` : ok(b));
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(project.name)} — Solar PV sizing</title><style>${CSS}</style></head><body>
   <section class="page">${head(project, 'Solar PV sizing — panels and inverters')}
   <h2>Array</h2>${rows([
@@ -68,13 +69,14 @@ export function buildPvReportHtml(project: Project, s: PvSystem, r: PvResult): s
   <h2>Inverters</h2>${rows([
     ['Inverter', `${esc(s.inverter.name)} — ${s.inverter.acKw} kW, ${s.inverter.phases}-phase, max DC ${s.inverter.maxDcV} V, MPPT ${s.inverter.mpptMinV}–${s.inverter.mpptMaxV} V, ${s.inverter.mppts} MPPTs × ${s.inverter.maxInputA} A`],
     ['Selected', `<b>${r.inverters} × ${s.inverter.acKw} kW = ${n(r.inverters * s.inverter.acKw)} kW AC</b>, DC/AC ${r.dcAcRatio.toFixed(2)}`],
-    ['AC connection', `${n(r.acCurrentA, 0)} A → ${r.acBreakerA} A breaker (${acConnection(s, project.voltageV).text}${s.inverter.phases === 1 ? `${s.acPhase ? `, phase ${s.acPhase}` : ', phase not set'}${r.inverters > 1 ? `; ${r.inverters} inverters counted together` : ''}` : ''})`]
+    ['AC connection', `${n(r.acCurrentA, 0)} A → ${r.acBreakerNoFit ? `<b class="bad">No suitable breaker in the available list — ${n(r.acBreakerRequiredA, 0)} A needed (1.25 × I), largest available ${r.acBreakerMaxA} A</b>` : r.acBreakerA ? `${r.acBreakerA} A breaker` : 'no breaker (no generation)'} (${acConnection(s, project.voltageV).text}${s.inverter.phases === 1 ? `${s.acPhase ? `, phase ${s.acPhase}` : ', phase not set'}${r.inverters > 1 ? `; ${r.inverters} inverters counted together` : ''}` : ''})`]
   ])}
   <h2>String design (IEC 62548)</h2>${rows([
     ['Site temperatures', `min ${s.tMinC} °C, max ${s.tMaxC} °C → max cell ${n(r.tCellMaxC, 0)} °C (NOCT ${s.panel.noctC} °C)`],
+    ['Temperature coefficients', `Voc ${s.panel.betaVocPct} %/°C (maximum DC voltage) · Vmp ${r.vmpCoeffPct} %/°C (MPPT window)${r.vmpBasis === 'estimated' ? ' — <b class="warn">ESTIMATED: no datasheet Vmp coefficient; typical crystalline-silicon value, MPPT checks not verified</b>' : ' (datasheet)'} · Pmax ${s.panel.gammaPmaxPct} %/°C (yield). Linear approximation V(T) = V<sub>STC</sub> × (1 + coefficient × (T − 25 °C)).`],
     [`String Voc at ${s.tMinC} °C`, `${r.perString} × ${n(r.vocColdV, 2)} = ${n(r.perString * r.vocColdV, 0)} V ≤ ${s.inverter.maxDcV} V ${ok(r.perString * r.vocColdV <= s.inverter.maxDcV)}`],
-    [`String Vmp at ${n(r.tCellMaxC, 0)} °C`, `${r.perString} × ${n(r.vmpHotV, 2)} = ${n(r.perString * r.vmpHotV, 0)} V ≥ ${s.inverter.mpptMinV} V ${ok(r.perString * r.vmpHotV >= s.inverter.mpptMinV)}`],
-    [`String Vmp at ${s.tMinC} °C`, `${r.perString} × ${n(r.vmpColdV, 2)} = ${n(r.perString * r.vmpColdV, 0)} V ≤ ${s.inverter.mpptMaxV} V ${ok(r.perString * r.vmpColdV <= s.inverter.mpptMaxV)}`],
+    [`String Vmp at ${n(r.tCellMaxC, 0)} °C`, `${r.perString} × ${n(r.vmpHotV, 2)} = ${n(r.perString * r.vmpHotV, 0)} V ≥ ${s.inverter.mpptMinV} V ${mppt(r.perString * r.vmpHotV >= s.inverter.mpptMinV)}`],
+    [`String Vmp at ${s.tMinC} °C`, `${r.perString} × ${n(r.vmpColdV, 2)} = ${n(r.perString * r.vmpColdV, 0)} V ≤ ${s.inverter.mpptMaxV} V ${mppt(r.perString * r.vmpColdV <= s.inverter.mpptMaxV)}`],
     ['MPPT current', `${r.stringsPerMppt} × 1.25 × ${s.panel.iscA} A = ${n(r.mpptCurrentA)} A ≤ ${s.inverter.maxInputA} A ${ok(r.mpptCurrentA <= s.inverter.maxInputA)}`],
     ['Panels per string that fit', `${r.minPerString} – ${r.maxPerString}`]
   ])}
