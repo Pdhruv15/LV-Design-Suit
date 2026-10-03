@@ -5,9 +5,10 @@ declare global {
   interface Window {
     lvds: {
       settings: {
-        get: () => Promise<{ projectsFolder: string; pythonPath?: string }>;
-        chooseProjectsFolder: () => Promise<{ projectsFolder: string; pythonPath?: string }>;
-        choosePython: () => Promise<{ projectsFolder: string; pythonPath?: string }>;
+        get: () => Promise<{ projectsFolder: string; databaseFolder?: string; pythonPath?: string }>;
+        chooseProjectsFolder: () => Promise<{ projectsFolder: string; databaseFolder?: string; pythonPath?: string }>;
+        chooseDatabaseFolder: (reset?: boolean) => Promise<{ projectsFolder: string; databaseFolder?: string; pythonPath?: string }>;
+        choosePython: () => Promise<{ projectsFolder: string; databaseFolder?: string; pythonPath?: string }>;
       };
       projects: {
         list: () => Promise<import('./model/projectStore').ProjectMeta[]>;

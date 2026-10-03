@@ -9,7 +9,11 @@ const spec = require('./databaseSpec.json');
 
 const MAX_ROWS = 2000; // rows given data validation in new workbooks
 
-const folderFor = (projectsFolder) => path.join(projectsFolder, spec.folderName);
+// The database folder: its own setting when chosen (e.g. a Google Drive
+// folder shared with the team), else "LV Database" inside the projects folder.
+let override = null;
+const setFolder = (dir) => { override = dir || null; };
+const folderFor = (projectsFolder) => override || path.join(projectsFolder, spec.folderName);
 
 /** Plain value of an ExcelJS cell (formula results, rich text, hyperlinks). */
 function cellValue(v) {
@@ -220,4 +224,4 @@ function writeLibrary(projectsFolder, data) {
   return true;
 }
 
-module.exports = { spec, folderFor, ensureDatabase, readDatabase, watchDatabase, writeBook, readLibrary, writeLibrary };
+module.exports = { spec, folderFor, setFolder, ensureDatabase, readDatabase, watchDatabase, writeBook, readLibrary, writeLibrary };

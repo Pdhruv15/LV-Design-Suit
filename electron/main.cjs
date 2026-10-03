@@ -26,7 +26,8 @@ function writeSettings(settings) {
 }
 
 function ensureProjectsFolder() {
-  const { projectsFolder } = readSettings();
+  const { projectsFolder, databaseFolder } = readSettings();
+  database.setFolder(databaseFolder);
   fs.mkdirSync(projectsFolder, { recursive: true });
   return projectsFolder;
 }
@@ -115,6 +116,20 @@ ipcMain.handle('settings:chooseProjectsFolder', async () => {
   });
   if (result.canceled || result.filePaths.length === 0) return readSettings();
   const settings = { ...readSettings(), projectsFolder: result.filePaths[0] };
+  writeSettings(settings);
+  return settings;
+});
+
+/** The Excel database in its own folder (e.g. on Google Drive); projects stay where they are.
+ * reset: back to "LV Database" inside the projects folder. */
+ipcMain.handle('settings:chooseDatabaseFolder', async (_evt, reset) => {
+  if (reset) { const { databaseFolder: _d, ...rest } = readSettings(); writeSettings(rest); return readSettings(); }
+  const result = await dialog.showOpenDialog(win, {
+    title: 'Choose the folder with the LV Database workbooks (e.g. a Google Drive folder)',
+    properties: ['openDirectory', 'createDirectory']
+  });
+  if (result.canceled || result.filePaths.length === 0) return readSettings();
+  const settings = { ...readSettings(), databaseFolder: result.filePaths[0] };
   writeSettings(settings);
   return settings;
 });
@@ -257,9 +272,9 @@ let watchedFolder = null;
 async function initDatabase(seeds) {
   const projectsFolder = ensureProjectsFolder();
   const { created } = await database.ensureDatabase(projectsFolder, seeds);
-  if (watchedFolder !== projectsFolder) {
+  if (watchedFolder !== database.folderFor(projectsFolder)) {
     stopWatching();
-    watchedFolder = projectsFolder;
+    watchedFolder = database.folderFor(projectsFolder);
     stopWatching = database.watchDatabase(projectsFolder, async () => {
       if (win && !win.isDestroyed()) win.webContents.send('database:changed', await database.readDatabase(projectsFolder));
     });
