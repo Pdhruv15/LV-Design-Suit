@@ -12,6 +12,8 @@ import {
 import { workbookBytes } from '../../docs/formWorkbook';
 import { buildStudyDocx, docxBytes } from '../../docs/studyWord';
 import { mergePdfs } from '../../docs/mergePdf';
+import { packageCoverHtml, packageStamp, snapshotId, unresolvedChecks, type PackageMeta } from '../../docs/issuePackage';
+import { PDFDocument } from 'pdf-lib';
 import { buildDashboard } from '../../calc/dashboard';
 import { buildDashboardHtml } from '../../docs/dashboardPdf';
 import { buildLoadScheduleHtml } from '../../docs/loadScheduleDoc';
@@ -163,28 +165,48 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
     }
   }
 
-  /** One PDF for the submission: project summary, the study report (with
-   * its SLDs), then the load schedule of every DB in scope — page-numbered. */
+  /** Issue package — one PDF for the submission, everything from ONE frozen
+   * calculation run (the last run, never the live edits): a cover with the
+   * snapshot ID, contents, unresolved checks and assumptions; the project
+   * summary; the study report with its SLDs; the load schedule of every DB in
+   * scope. Every page is stamped with the snapshot ID and app version. */
   async function exportPack() {
     const toBytes = window.lvds?.files?.pdfBytes;
-    if (!data || !sections.length) return;
-    if (!toBytes) { onStatus('The all-in-one Submission PDF is made by the desktop app — download it, or use Export PDF here (opens the print dialog)'); return; }
+    const snap = run; // frozen here: later edits can't mix into this package
+    if (!snap || !data || !sections.length) return;
+    if (!toBytes) { onStatus('The issue package is made by the desktop app — download it, or use Export PDF here (opens the print dialog)'); return; }
     setBusy('pack');
     try {
+      const p = snap.project;
+      const snapData: CalcData = { project: p, results: snap.results, earthing: snap.earthing, selectivity: snap.selectivity };
+      const snapScope = scopeOf(p, setup);
+      const snapSections = setup.studies.map((k) => buildSection(k, snapData, snapScope));
       const slds: Partial<Record<StudyReportKind, string>> = {};
-      if (setup.sld) for (const s of sections) slds[s.key] = await captureSld(drawing, data, s.key);
+      if (setup.sld) for (const s of snapSections) slds[s.key] = await captureSld(drawingProject(p, snapScope), snapData, s.key);
       const meta = { title, docNo: setup.docNo, preparedBy: setup.preparedBy, checkedBy: setup.checkedBy };
       const parts: Uint8Array[] = [];
-      parts.push(await toBytes({ html: buildDashboardHtml(project, buildDashboard(project, run)), cssPages: true }));
-      parts.push(await toBytes({ html: buildStudyReportHtml(project, scope, sections, meta, slds), cssPages: true }));
-      const dbs = scope.boards.filter((b) => scheduleCircuits(calc, b.id).length);
-      for (const b of dbs) parts.push(await toBytes({ html: buildLoadScheduleHtml(calc, b.id), cssPages: true }));
+      parts.push(await toBytes({ html: buildDashboardHtml(p, buildDashboard(p, snap)), cssPages: true }));
+      parts.push(await toBytes({ html: buildStudyReportHtml(p, snapScope, snapSections, meta, slds), cssPages: true }));
+      const dbs = snapScope.boards.filter((b) => scheduleCircuits(p, b.id).length);
+      for (const b of dbs) parts.push(await toBytes({ html: buildLoadScheduleHtml(p, b.id), cssPages: true }));
       const titles = ['Project summary', title, ...dbs.map((b) => `Load schedule — ${b.id}`)];
-      const bytes = await mergePdfs(parts, `${project.name} · ${setup.docNo ?? title} · ${revisionStamp(project)}`, titles);
-      const m = await saveBinary(`${safeFileName(`${project.name} ${setup.docNo ?? ''} submission`.trim())}.pdf`, bytes, 'PDF', 'pdf', 'application/pdf');
-      if (m) onStatus(`${m} — summary, ${sections.length} stud${sections.length > 1 ? 'ies' : 'y'}, ${dbs.length} load schedule${dbs.length === 1 ? '' : 's'}`);
+      const counts = await Promise.all(parts.map(async (bytes) => (await PDFDocument.load(bytes)).getPageCount()));
+      const pm: PackageMeta = { ...meta, calculatedAt: snap.at, snapshot: snapshotId(p) };
+      const list = titles.map((t, i) => ({ title: t, pages: counts[i] }));
+      // The cover lists page numbers, which depend on its own length: build it until that settles.
+      let coverPages = 1, cover = await toBytes({ html: packageCoverHtml(p, pm, list, coverPages, snapSections), cssPages: true });
+      for (let i = 0; i < 3; i++) {
+        const n = (await PDFDocument.load(cover)).getPageCount();
+        if (n === coverPages) break;
+        coverPages = n;
+        cover = await toBytes({ html: packageCoverHtml(p, pm, list, coverPages, snapSections), cssPages: true });
+      }
+      const bytes = await mergePdfs([cover, ...parts], packageStamp(p, pm), ['Issue package — contents and open items', ...titles]);
+      const m = await saveBinary(`${safeFileName(`${project.name} ${setup.docNo ?? ''} issue package ${pm.snapshot}`.trim())}.pdf`, bytes, 'PDF', 'pdf', 'application/pdf');
+      const open = unresolvedChecks(snapSections).length;
+      if (m) onStatus(`${m} — snapshot ${pm.snapshot}: cover, summary, ${snapSections.length} stud${snapSections.length > 1 ? 'ies' : 'y'}, ${dbs.length} load schedule${dbs.length === 1 ? '' : 's'} · ${open} unresolved check${open === 1 ? '' : 's'} listed`);
     } catch (e) {
-      onStatus(`Submission PDF failed: ${e instanceof Error ? e.message : String(e)}`);
+      onStatus(`Issue package failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy('');
     }
@@ -212,7 +234,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
           {blockedWhy && <span className="m sr-why">{blockedWhy}</span>}
           <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportExcel} title={blockedWhy ?? 'Excel: the result tables of each study (no SLDs, no method text)'}>{busy === 'xlsx' ? 'Exporting…' : 'Excel'}</button>
           <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportWord} title={blockedWhy ?? 'Word (.docx): editable report — method, summary and tables (no SLDs)'}>{busy === 'docx' ? 'Exporting…' : 'Word'}</button>
-          <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportPack} title={blockedWhy ?? 'One PDF: project summary + this report with SLDs + the load schedule of every DB in scope, page-numbered'}>{busy === 'pack' ? 'Building…' : window.lvds?.files?.pdfBytes ? 'Submission PDF (all-in-one)' : 'Submission PDF · desktop app'}</button>
+          <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportPack} title={blockedWhy ?? 'One PDF from the last calculation run: cover (snapshot ID, contents, unresolved checks, assumptions) + project summary + this report with SLDs + the load schedule of every DB in scope; snapshot ID on every page'}>{busy === 'pack' ? 'Building…' : window.lvds?.files?.pdfBytes ? 'Issue package (PDF)' : 'Issue package · desktop app'}</button>
           <button className="chip primary" disabled={blocked || !sections.length || !!busy} onClick={exportPdf} title={blockedWhy ?? `PDF: method, summary and tables of each study${setup.sld ? ', with an SLD of the chosen boards showing its results' : ''}`}>
             {busy === 'pdf' ? 'Exporting…' : setup.separate && sections.length > 1 ? `Export ${sections.length} PDFs` : 'Export PDF'}
           </button>
