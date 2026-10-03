@@ -163,6 +163,7 @@ export default function App() {
   const [copiedBoard, setCopiedBoard] = useState<string | null>(null);
   const [pasteTarget, setPasteTarget] = useState<string | null>(null);
   const [showHierarchy, setShowHierarchy] = useState(false);
+  const [createdPanelIds, setCreatedPanelIds] = useState<string[]>([]);
   // Study pages filtered to a board and the boards below it (panel tree).
   const [focus, setFocus] = useState<string | null>(null);
   const [dbScheduleAll, setDbScheduleAll] = useState(true);
@@ -404,6 +405,7 @@ export default function App() {
     }
     setCurrentFile(file);
     setActiveBoardId(p.boards[0]?.id ?? '');
+    setCreatedPanelIds([]);
     setSelected(null);
     setStatus(message);
     setView('dashboard'); // a project opens on its dashboard
@@ -859,6 +861,8 @@ export default function App() {
           activeId={FOCUS_VIEWS.includes(view) ? focus ?? undefined : board?.id}
           focusId={FOCUS_VIEWS.includes(view) ? focus : null}
           copiedId={copiedBoard}
+          highlightedIds={createdPanelIds}
+          onClearHighlights={() => setCreatedPanelIds([])}
           onPick={pickBoard}
           onOpen={(id) => { setView('design'); selectBoard(id); }}
           menu={{
@@ -1060,7 +1064,7 @@ export default function App() {
 
             <aside className="side">
               {panel === 'board' ? (
-                <BoardPanel project={calcProject} board={board} results={allResults} onChange={updateBoard} onSelectFeeder={selectFeeder} tab={boardTab} onTab={setBoardTab} onEnclosure={() => setView('enclosure')} />
+                <BoardPanel project={calcProject.boards.some((b) => b.id === board.id) ? calcProject : project} board={board} results={allResults} onChange={updateBoard} onSelectFeeder={selectFeeder} tab={boardTab} onTab={setBoardTab} onEnclosure={() => setView('enclosure')} />
               ) : (
                 <>
                   <SidePanel results={boardResults} selected={selected} />
@@ -1226,7 +1230,17 @@ export default function App() {
           />
         );
       })()}
-      {showHierarchy && <BuildHierarchyDialog project={project} onClose={() => setShowHierarchy(false)} onCreate={(next, m) => { setProject(next, { step: true }); setStatus(m); setShowHierarchy(false); }} />}
+      {showHierarchy && <BuildHierarchyDialog project={project} onClose={() => setShowHierarchy(false)}
+        onBuilding={() => { setShowHierarchy(false); setView('building'); }}
+        onCreate={(next, m) => {
+          const previous = new Set(project.boards.map((b) => b.id));
+          const added = next.boards.filter((b) => !previous.has(b.id));
+          setProject(next, { step: true });
+          setCreatedPanelIds(added.map((b) => b.id));
+          setStatus(m); setShowHierarchy(false); setView('design'); setDiagramMode('system'); setSelected(null); setBoardTab('general');
+          const first = added[0];
+          if (first) { selectBoard(first.id); setSldFocus({ kind: 'board', id: first.id, n: Date.now() }); }
+        }} />}
       {pasteTarget && copiedBoard && project.boards.some((b) => b.id === copiedBoard) && (
         <PasteBoardDialog
           project={project}

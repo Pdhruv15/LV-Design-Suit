@@ -279,15 +279,6 @@ export default function SystemDiagram({
   const [vb, setVb] = useState<ViewBox>(full);
   // Visible span (drawing units) with a margin of half a screen each side, so panning shows no gaps.
   const viewX1 = vb.x - Math.max(vb.w * 0.5, 400), viewX2 = vb.x + vb.w * 1.5 + 400;
-  // Centre on a panel or circuit picked in the results below the drawing.
-  useEffect(() => {
-    if (!focus) return;
-    const pt = focus.kind === 'board'
-      ? layout.boards.find((n) => n.board.id === focus.id) && (() => { const n = layout.boards.find((m) => m.board.id === focus.id)!; return { x: n.x, y: n.busY - 30 }; })()
-      : layout.feeders.find((n) => n.feeder.id === focus.id) && (() => { const n = layout.feeders.find((m) => m.feeder.id === focus.id)!; return { x: n.x, y: n.busY + 40 }; })();
-    if (!pt) return;
-    setVb((v) => { const w = Math.min(v.w, 1400), h = (w / v.w) * v.h; return { x: pt.x - w / 2, y: pt.y - h / 2, w, h }; });
-  }, [focus?.n]); // eslint-disable-line react-hooks/exhaustive-deps
   // Hover card: a circuit's or panel's results, with quick fixes for a failing circuit.
   const [card, setCard] = useState<{ kind: 'board' | 'feeder'; id: string; x: number; y: number } | null>(null);
   const hideCard = useRef<ReturnType<typeof setTimeout>>();
@@ -339,6 +330,15 @@ export default function SystemDiagram({
   // Re-fit when the network's overall size changes (boards/feeders added).
   useEffect(() => setVb({ x: 0, y: 0, w: W, h: H }), [W, H]);
 
+  // Centre on a panel or circuit picked in the results below the drawing.
+  useEffect(() => {
+    if (!focus) return;
+    const pt = focus.kind === 'board'
+      ? layout.boards.find((n) => n.board.id === focus.id) && (() => { const n = layout.boards.find((m) => m.board.id === focus.id)!; return { x: n.x, y: n.busY - 30 }; })()
+      : layout.feeders.find((n) => n.feeder.id === focus.id) && (() => { const n = layout.feeders.find((m) => m.feeder.id === focus.id)!; return { x: n.x, y: n.busY + 40 }; })();
+    if (!pt) return;
+    setVb((v) => { const w = Math.min(v.w, 1400), h = (w / v.w) * v.h; return { x: pt.x - w / 2, y: pt.y - h / 2, w, h }; });
+  }, [focus?.n]); // eslint-disable-line react-hooks/exhaustive-deps
   function zoom(factor: number, cx = vb.x + vb.w / 2, cy = vb.y + vb.h / 2) {
     setVb((v) => {
       const w = Math.min(Math.max(v.w * factor, 200), layout.width * 3);

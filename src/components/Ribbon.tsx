@@ -172,7 +172,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       [
         { label: 'Add board', icon: AddBoardIcon, title: `Add a board fed from ${a.boardId || 'an existing board'} — ▾ for a DB, SMDB, MCC or EMDB with its usual rating`, onClick: () => a.onAddBoard(),
           menu: ADD_BOARD.map((x) => ({ label: `${x.kind} · ${x.ratingA} A`, title: `Add a ${x.kind} rated ${x.ratingA} A fed from ${a.boardId || 'the selected board'}`, onClick: () => a.onAddBoard(x) })) },
-        { label: 'Build hierarchy', icon: Network, title: 'Build panel hierarchy: MDBs, SMDBs per floor and DBs under each from the building levels — previewed, checked, one undo', onClick: a.onBuildHierarchy },
+        { label: 'Build hierarchy', icon: Network, title: 'Build panels by quantity or typical floors, repeat a panel group or use a saved template — editable preview, one undo', onClick: a.onBuildHierarchy },
         { label: 'Board properties', icon: BoardPropsIcon, title: a.boardId ? `Board properties — ${a.boardId}` : 'Board properties — select a board first', onClick: a.onBoardProperties, disabled: !a.boardId },
         { label: 'Transformer data', icon: TransformerIcon, title: a.transformerBoardId ? `Transformer data of ${a.transformerBoardId} (the main board supplying ${a.boardId})` : 'No main board', onClick: a.onTransformer, disabled: !a.transformerBoardId },
         { label: 'Schedule', icon: Table2, title: `Load distribution schedule of ${a.boardId}`, onClick: go('load-schedule'), active: a.view === 'load-schedule', page: true },
