@@ -8,6 +8,7 @@ export function containmentReportHtml(project: Project, i: ContainmentInput, r: 
   const logo = project.drawing?.logo?.startsWith('data:image/') ? `<img class="logo" src="${esc(project.drawing.logo)}" alt="">` : '';
   const settings: [string, string][] = [['Containment', CONTAINMENT_LABEL[r.type]]];
   if (r.type === 'tray' || r.type === 'ladder' || r.type === 'basket') settings.push(['Laying', i.layout === 'spaced' ? 'Spaced one diameter apart' : i.layout === 'touching' ? 'Touching, single layer' : `Fill ≤ ${i.fillPct} %`], ['Side height', `${i.depthMm} mm`], ['Spare', `${i.sparePct} %`]);
+  if (r.type === 'conduit') settings.push(['Fill limit', i.conduitFillPct !== undefined ? `${i.conduitFillPct} % (entered)` : '53 / 31 / 40 % by cables in each conduit']);
   if (r.type === 'trunking') settings.push(['Space factor', `${i.fillPct} %`], ['Spare', `${i.sparePct} %`]);
   if (r.type === 'trench' || r.type === 'ducts') settings.push(['Burial depth', `${i.burialDepthM} m`], ['Soil thermal resistivity', `${i.soilResistivity} K·m/W`], ['Ground temperature', `${i.groundTempC} °C`]);
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(project.name)} — ${esc(CONTAINMENT_LABEL[r.type])}${i.title ? ` — ${esc(i.title)}` : ''}</title><style>
@@ -18,11 +19,12 @@ export function containmentReportHtml(project: Project, i: ContainmentInput, r: 
   .big { font-size: 15px; font-weight: 700; } svg { width: 100%; max-height: 90mm; color: #111; }
   </style></head><body>
   <header>${logo}<div><h1>${esc(CONTAINMENT_LABEL[r.type])}${i.title ? ` — ${esc(i.title)}` : ''}</h1><div class="m">${esc(project.name)} · ${esc(revisionStamp(project))} · ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</div></div></header>
-  <p class="big">${esc(r.size)}${r.fillPct ? ` — fill ${r.fillPct.toFixed(0)} %` : ''}${r.soil ? ` — derating × ${r.soil.total.toFixed(2)}` : ''}</p>
+  ${r.status === 'fail' ? `<p class="big" style="color:#b00020">No standard size fits</p><p>${esc(r.noFit ?? '')}</p>` : `<p class="big">${esc(r.size)}${r.fillPct ? ` — fill ${r.fillPct.toFixed(0)} %` : ''}${r.soil ? ` — derating × ${r.soil.total.toFixed(2)}` : ''}</p>`}
   <h2>Basis</h2><table><tbody>${settings.map(([k, v]) => `<tr><th class="k">${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}</tbody></table>
   <h2>Cables</h2><table><thead><tr><th>Cable</th><th>Size</th><th>Qty</th><th>OD (mm)</th><th>kg/m each</th></tr></thead><tbody>${r.lines.map((l) => `<tr><td>${esc(l.name)}</td><td>${l.cores}C × ${l.csaMm2} mm²</td><td>${l.qty}</td><td>${l.od.toFixed(1)}${l.estimated ? ' *' : ''}</td><td>${l.kg.toFixed(2)}</td></tr>`).join('')}
   <tr><td colspan="2"><b>Total</b></td><td><b>${r.count}</b></td><td>Σ ${r.sumOdMm.toFixed(0)}</td><td>${r.kgPerM.toFixed(1)} kg/m</td></tr></tbody></table>
-  <h2>Cross-section (to scale)</h2>${containmentSvg(r, i, 520)}
+  ${r.status === 'fail' ? '' : `<h2>Cross-section (to scale)</h2>${containmentSvg(r, i, 520)}`}
+  ${r.allocation && r.runs > 1 ? `<h2>Cables in each run</h2><table><thead><tr><th>Run</th><th>Cables (OD mm)</th><th>Fill</th></tr></thead><tbody>${r.allocation.map((run, k) => `<tr><td>${k + 1}</td><td>${run.map((d) => d.toFixed(1)).join(', ')}</td><td>${((run.reduce((s, d) => s + (Math.PI * d * d) / 4, 0) / (r.type === 'conduit' ? (Math.PI * r.widthMm * r.widthMm) / 4 : r.widthMm * r.heightMm)) * 100).toFixed(0)} %</td></tr>`).join('')}</tbody></table>` : ''}
   ${r.soil ? `<h2>Derating for buried cables</h2><table><tbody><tr><th class="k">Ground temperature ${i.groundTempC} °C</th><td>× ${r.soil.temp.toFixed(2)}</td></tr><tr><th class="k">Soil ${i.soilResistivity} K·m/W</th><td>× ${r.soil.resistivity.toFixed(2)}</td></tr><tr><th class="k">Grouping, ${r.count} circuits</th><td>× ${r.soil.group.toFixed(2)}</td></tr><tr><th class="k">Total</th><td><b>× ${r.soil.total.toFixed(2)}</b> on each cable's buried current rating</td></tr></tbody></table>` : ''}
   ${r.groupFactor !== undefined ? `<p>Grouping factor for the cables on the tray: <b>${r.groupFactor.toFixed(2)}</b> (IEC 60364-5-52 Table B.52.20).</p>` : ''}
   <h2>Notes</h2><ul>${r.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>
