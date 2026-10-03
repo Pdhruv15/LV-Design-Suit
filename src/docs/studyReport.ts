@@ -5,7 +5,7 @@ import { STATUS_TEXT, statusOfText } from '../calc/statusText';
 import type { FeederResult, Status } from '../calc/electrical';
 import { cableSizeText } from '../calc/electrical';
 import type { EarthingResult } from '../calc/earthing';
-import { breakerTypeOf, cpcOf } from '../calc/earthing';
+import { breakerTypeOf, cpcOf, disconnectionLabel, loopFigures } from '../calc/earthing';
 import type { SelectivityResult } from '../calc/protection';
 import { isScheduleCircuit } from '../calc/loadSchedule';
 import { boardSummary, boardsInSupplyOrder } from '../calc/summary';
@@ -247,11 +247,12 @@ export function buildSection(key: StudyReportKind, data: CalcData, scope: Scope)
         'Protective conductor (adiabatic): S ≥ I·√t ÷ 143, t = 0.1 s when tripping instantaneously (not the device let-through energy), with I the current through the conductor checked. Parallel runs: each CPC carries an equal share of the end-of-circuit fault (identical runs bonded at both ends); a result that passes only on that assumption is marked "assumed sharing" (warning) because a fault within one run or unequal runs are not covered. The total fault current sets the disconnection check.',
         'Disconnection per IEC 60364-4-41 (TN, 230 V): 0.4 s for every final circuit up to 63 A — the conservative reading (the standard sets 63 A for socket-outlet circuits and 32 A for fixed equipment) — and 5 s for distribution circuits; instantaneous tripping when If ≥ Ia. Protective conductor checked by the adiabatic equation (k = 143).'
       ],
-      summary: [{ label: 'Circuits checked', value: tally(statuses), status: worst(statuses) }],
+      summary: [{ label: 'Circuits checked', value: tally(statuses), status: worst(statuses) },
+        ...(() => { const m = [...new Set(es.map((e) => e.sourceMissing).filter((x): x is string => !!x))]; return m.length ? [{ label: 'Not verified — supply loop incomplete', value: `${m.join('; ')} (Ze not assumed 0; Zs a minimum, If a maximum)`, status: 'warn' as const }] : []; })()],
       tables: [{
         title: 'Earth fault loop', headers: ['Circuit', 'Board', 'Breaker', 'CPC (mm²)', 'Zs (Ω)', 'Max Zs (Ω)', 'If (A)', 'Ia (A)', 'Required (s)', 'Disconnection', 'CPC min, each (mm²)', 'Result'],
-        rows: es.map((e) => [tag(e.feeder), e.feeder.boardId, `${e.feeder.breakerRatingA} A ${breakerTypeOf(e.feeder)}`, e.cpcMm2, n(e.zsOhm, 4), n(e.maxZsOhm, 4), n(e.faultA, 0), n(e.tripA, 0), e.requiredS,
-          { v: e.disconnection === 'ok' ? '< 0.1 s' : e.disconnection === 'warn' ? 'Thermal — check curve' : 'Too slow', s: e.disconnection }, { v: `${n(e.adiabaticMinMm2, 1)}${e.runs > 1 ? ` (${e.runs} runs, ${n(e.cpcCurrentA, 0)} A each${e.adiabatic === 'warn' ? ', assumed sharing' : ''})` : ''}`, s: e.adiabatic }, S(e.status)])
+        rows: es.map((e) => [tag(e.feeder), e.feeder.boardId, `${e.feeder.breakerRatingA} A ${breakerTypeOf(e.feeder)}`, e.cpcMm2, loopFigures(e).zs, n(e.maxZsOhm, 4), loopFigures(e).fault, n(e.tripA, 0), e.requiredS,
+          { v: disconnectionLabel(e), s: e.disconnection }, { v: `${n(e.adiabaticMinMm2, 1)}${e.runs > 1 ? ` (${e.runs} runs, ${n(e.cpcCurrentA, 0)} A each${e.adiabatic === 'warn' ? ', assumed sharing' : ''})` : ''}`, s: e.adiabatic }, S(e.status)])
       }]
     };
   }

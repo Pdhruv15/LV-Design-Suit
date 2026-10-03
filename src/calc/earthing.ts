@@ -57,21 +57,30 @@ function cableLoop(f: Feeder): Impedance {
 /** Earth fault loop impedance at a board's busbar (TN-S). At the main
  * board this is the transformer's own impedance (Dyn transformer with
  * Z0 ≈ Z1, so a phase-earth fault at its terminals ≈ the 3-phase fault);
- * each incomer below adds its phase + protective conductor loop. */
-export function earthLoopToBoard(project: Project, boardId: string, seen = new Set<string>()): Impedance {
+ * each incomer below adds its phase + protective conductor loop.
+ * `missing` says why the path is incomplete (no source data, a missing
+ * board or incomer, a loop in the board tree): z is then only the part
+ * that is known — a lower bound, never a verified Ze. */
+export function earthLoopPath(project: Project, boardId: string, seen = new Set<string>()): { z: Impedance; missing?: string } {
   const board = project.boards.find((b) => b.id === boardId);
-  if (!board || seen.has(boardId)) return { r: 0, x: 0 };
+  if (!board) return { z: { r: 0, x: 0 }, missing: `board ${boardId} not found` };
+  if (seen.has(boardId)) return { z: { r: 0, x: 0 }, missing: `the supply path loops back to ${boardId}` };
   seen.add(boardId);
   if (!board.upstreamId) {
     return board.sourceKva && board.sourceImpedancePct
-      ? transformerImpedance(board.sourceKva, board.sourceImpedancePct, project.voltageV, board.sourceXr ?? DEFAULT_TRANSFORMER_XR)
-      : { r: 0, x: 0 };
+      ? { z: transformerImpedance(board.sourceKva, board.sourceImpedancePct, project.voltageV, board.sourceXr ?? DEFAULT_TRANSFORMER_XR) }
+      : { z: { r: 0, x: 0 }, missing: `no source data at ${board.id} (transformer kVA and impedance %)` };
   }
+  const up = earthLoopPath(project, board.upstreamId, seen);
   const incomer = project.feeders.find((f) => f.boardId === board.upstreamId && f.feedsBoardId === board.id);
-  const up = earthLoopToBoard(project, board.upstreamId, seen);
-  if (!incomer) return up;
+  if (!incomer) return { z: up.z, missing: up.missing ?? `no incomer feeder from ${board.upstreamId} to ${board.id}` };
   const c = cableLoop(incomer);
-  return { r: up.r + c.r, x: up.x + c.x };
+  return { z: { r: up.z.r + c.r, x: up.z.x + c.x }, ...(up.missing ? { missing: up.missing } : {}) };
+}
+
+/** Known part of the loop impedance at a board (see earthLoopPath for whether it is complete). */
+export function earthLoopToBoard(project: Project, boardId: string): Impedance {
+  return earthLoopPath(project, boardId).z;
 }
 
 export interface EarthingResult {
@@ -99,16 +108,21 @@ export interface EarthingResult {
   adiabaticWholeMm2: number;
   /** For parallel runs: what the thermal result assumes. */
   adiabaticNote?: string;
+  /** Why the loop to the supply is incomplete. Zs, If and the thermal check are then only the known
+   * part (If is an upper bound); nothing is shown as verified. */
+  sourceMissing?: string;
   status: Status;
 }
 
 export function evaluateEarthing(project: Project, f: Feeder): EarthingResult {
   const u0 = project.voltageV / SQRT3;
-  const ze = earthLoopToBoard(project, f.boardId);
+  const { z: ze, missing: sourceMissing } = earthLoopPath(project, f.boardId);
   const c = cableLoop(f);
   const zs = { r: ze.r + c.r, x: ze.x + c.x };
   const zsOhm = zMagnitude(zs);
-  const faultA = (C_MIN * u0) / zsOhm;
+  // Incomplete path: the known loop only gives an upper bound on If (more impedance only lowers it), so it
+  // can prove a failure but never a pass. No loop impedance at all: no figure, not Infinity.
+  const faultA = zsOhm > 0 ? (C_MIN * u0) / zsOhm : NaN;
   // An RCD (feeder's own, or the ELCB of a DB's final-circuit group) trips
   // within 40 ms at 5 × IΔn (IEC 61008 / 61009), far below a breaker's
   // magnetic threshold.
@@ -117,7 +131,9 @@ export function evaluateEarthing(project: Project, f: Feeder): EarthingResult {
   const requiredS = requiredDisconnectionS(f);
 
   const instantaneous = faultA >= tripA;
-  const disconnection: Status = instantaneous ? 'ok' : requiredS >= 5 ? 'warn' : 'bad';
+  const disconnection: Status = sourceMissing
+    ? (Number.isFinite(faultA) && !instantaneous && requiredS < 5 ? 'bad' : 'warn')
+    : instantaneous ? 'ok' : requiredS >= 5 ? 'warn' : 'bad';
 
   // Fault duration for the adiabatic check: 0.1 s when the breaker trips
   // instantaneously (conservative for MCCBs), otherwise the full required
@@ -133,7 +149,8 @@ export function evaluateEarthing(project: Project, f: Feeder): EarthingResult {
   const cpcCurrentA = faultA / runs;
   const adiabaticWholeMm2 = (faultA * Math.sqrt(t)) / K_CPC_XLPE_CU;
   const adiabaticMinMm2 = (cpcCurrentA * Math.sqrt(t)) / K_CPC_XLPE_CU;
-  const adiabatic: Status = cpcMm2 >= adiabaticWholeMm2 ? 'ok' : cpcMm2 >= adiabaticMinMm2 ? 'warn' : 'bad';
+  // Unknown fault current and duration: the thermal check can't be decided either way.
+  const adiabatic: Status = sourceMissing ? 'warn' : cpcMm2 >= adiabaticWholeMm2 ? 'ok' : cpcMm2 >= adiabaticMinMm2 ? 'warn' : 'bad';
   const adiabaticNote = runs > 1
     ? `${runs} parallel runs: each ${cpcMm2} mm² CPC carries ${cpcCurrentA.toFixed(0)} A of the ${faultA.toFixed(0)} A end-of-circuit fault (needs ${adiabaticMinMm2.toFixed(1)} mm² each, ${(adiabaticMinMm2 * runs).toFixed(1)} of ${cpcMm2 * runs} mm² together). Assumes identical runs and lengths bonded at both ends; ${adiabatic === 'ok' ? 'one CPC alone also carries the whole fault current, so a fault within one run is covered too' : `not verified for a fault within one run, unequal runs or a shared CPC (one CPC alone would need ${adiabaticWholeMm2.toFixed(1)} mm²)`}.`
     : undefined;
@@ -156,8 +173,20 @@ export function evaluateEarthing(project: Project, f: Feeder): EarthingResult {
     cpcCurrentA,
     adiabaticWholeMm2,
     ...(adiabaticNote ? { adiabaticNote } : {}),
+    ...(sourceMissing ? { sourceMissing } : {}),
     status
   };
+}
+
+/** The disconnection result in words — the same on the page and in the reports. */
+export function disconnectionLabel(r: EarthingResult): string {
+  if (r.sourceMissing) return r.disconnection === 'bad' ? 'Too slow (even without the missing source impedance)' : 'Not verified — supply loop incomplete';
+  return r.disconnection === 'ok' ? '< 0.1 s' : r.disconnection === 'warn' ? 'Thermal — check curve' : 'Too slow';
+}
+/** Ze, Zs and If as text: an incomplete loop shows Ze unknown, Zs as a minimum and If as a maximum. */
+export function loopFigures(r: EarthingResult, d = 4): { ze: string; zs: string; fault: string } {
+  if (!r.sourceMissing) return { ze: r.zeOhm.toFixed(d), zs: r.zsOhm.toFixed(d), fault: r.faultA.toFixed(0) };
+  return { ze: 'unknown', zs: `≥ ${r.zsOhm.toFixed(d)}`, fault: Number.isFinite(r.faultA) ? `≤ ${r.faultA.toFixed(0)}` : '—' };
 }
 
 const elcbCache = new WeakMap<Project, Map<string, number>>();
