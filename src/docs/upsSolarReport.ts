@@ -33,7 +33,7 @@ export function buildUpsReportHtml(project: Project, systems: UpsSystem[]): stri
       ])}${loads}
       <h2>UPS</h2>${rows([
         ['Selected UPS', r.upsKva ? `<b>${r.upsKva} kVA / ${n(r.upsKw!)} kW</b> (output PF ${s.outputPf})` : '<span class="bad">Above the largest standard size — parallel modules</span>'],
-        ['Loading today', r.loadingPct !== undefined ? `${n(r.loadingPct, 0)} %` : '—'],
+        ['Loading today', r.loadingPct !== undefined ? `<b>${n(r.loadingPct, 0)} %</b> — governed by ${r.loadingBy} (${n(r.loadingKvaPct!, 1)} % of ${r.upsKva} kVA · ${n(r.loadingKwPct!, 1)} % of ${n(r.upsKw!, 0)} kW)` : '—'],
         ['Inverter efficiency', `${n(s.inverterEff * 100)} %`]
       ])}
       <h2>Battery</h2>${rows([

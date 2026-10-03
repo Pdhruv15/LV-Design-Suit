@@ -92,7 +92,12 @@ export interface UpsResult {
   designKw: number;
   upsKva: number | undefined; // standard size
   upsKw: number | undefined;
-  loadingPct: number | undefined; // today's load on the chosen UPS
+  /** Today's load (no growth) on the chosen UPS, against each of its limits: kVA and kW (kVA × output PF).
+   * loadingPct is the larger — the limit reached first (loadingBy). Undefined with no UPS / no rating. */
+  loadingKvaPct: number | undefined;
+  loadingKwPct: number | undefined;
+  loadingPct: number | undefined;
+  loadingBy: 'kVA' | 'kW' | undefined;
   dcKw: number; // battery discharge power
   blocksPerString: number;
   rate: number; // capacity at the backup time, share of C10
@@ -108,6 +113,15 @@ export interface UpsResult {
 }
 
 const DC_BREAKERS = [16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600];
+
+/** Utilisation of a UPS by today's load: kVA and kW separately; the overall figure is the larger. */
+function loadingOf(kva: number, kw: number, upsKva?: number, upsKw?: number): Pick<UpsResult, 'loadingKvaPct' | 'loadingKwPct' | 'loadingPct' | 'loadingBy'> {
+  const loadingKvaPct = upsKva && upsKva > 0 ? (kva / upsKva) * 100 : undefined;
+  const loadingKwPct = upsKw && upsKw > 0 ? (kw / upsKw) * 100 : undefined;
+  if (loadingKvaPct === undefined || loadingKwPct === undefined) return { loadingKvaPct, loadingKwPct, loadingPct: undefined, loadingBy: undefined };
+  const byKw = loadingKwPct > loadingKvaPct + 1e-9;
+  return { loadingKvaPct, loadingKwPct, loadingPct: byKw ? loadingKwPct : loadingKvaPct, loadingBy: byKw ? 'kW' : 'kVA' };
+}
 
 /** Load of a UPS: its board's demand, or its load list. */
 export function upsLoad(project: Project, s: UpsSystem): { kva: number; kw: number } {
@@ -175,7 +189,7 @@ export function sizeUps(project: Project, s: UpsSystem): UpsResult {
   return {
     loadKva: kva, loadKw: kw, designKva, designKw,
     upsKva, upsKw: upsKva ? upsKva * s.outputPf : undefined,
-    loadingPct: upsKva ? (kva / upsKva) * 100 : undefined,
+    ...loadingOf(kva, kw, upsKva, upsKva ? upsKva * s.outputPf : undefined),
     dcKw, blocksPerString, rate, requiredAh, strings, blockAh,
     totalBlocks: blockAh ? blocksPerString * strings : 0,
     energyKwh, dcCurrentMaxA, dcBreakerA, runtimeMin, notes
