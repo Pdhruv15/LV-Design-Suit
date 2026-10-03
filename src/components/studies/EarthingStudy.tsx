@@ -17,7 +17,7 @@ export default function EarthingStudy({ project, onSelectFeeder, focus, onClearF
           TN-S system. Zs = Ze + (R1 + R2) at operating temperature; minimum fault current If = {C_MIN} × U0 / Zs. A circuit
           passes when If reaches the breaker's instantaneous trip current Ia (disconnection &lt; 0.1 s), which satisfies both
           the 0.4 s (final circuits ≤ 63 A) and 5 s limits of IEC 60364-4-41. The protective conductor must also withstand
-          the fault: S ≥ If·√t / {K_CPC_XLPE_CU}. Change the breaker type or protective conductor size by editing the feeder.
+          the fault: S ≥ I·√t / {K_CPC_XLPE_CU}, with I the current through that conductor — for parallel runs its equal share at the end-of-circuit fault (identical runs bonded at both ends; marked "assumed sharing" when only that makes it pass, as a fault within one run isn't covered). The total If sets the disconnection check. Change the breaker type or protective conductor size by editing the feeder.
         </>
       }
     >
@@ -25,7 +25,7 @@ export default function EarthingStudy({ project, onSelectFeeder, focus, onClearF
         <thead>
           <tr>
             <th>Circuit</th><th>Board</th><th>Breaker</th><th>Cable / CPC (mm²)</th><th>Ze (Ω)</th><th>Zs (Ω)</th>
-            <th>Max Zs (Ω)</th><th>If (A)</th><th>Ia (A)</th><th>Required</th><th>Disconnection</th><th>CPC min (mm²)</th><th>Status</th>
+            <th>Max Zs (Ω)</th><th>If (A)</th><th>Ia (A)</th><th>Required</th><th>Disconnection</th><th title="Minimum size of each protective conductor for the fault energy, from the current through it">CPC min, each (mm²)</th><th>Status</th>
           </tr>
         </thead>
         <tbody>
@@ -46,7 +46,7 @@ export default function EarthingStudy({ project, onSelectFeeder, focus, onClearF
                 <StatusCell status={r.disconnection}>
                   {r.disconnection === 'ok' ? '< 0.1 s' : r.disconnection === 'warn' ? 'Thermal — check curve' : 'Too slow'}
                 </StatusCell>
-                <StatusCell status={r.adiabatic}>{r.adiabaticMinMm2.toFixed(1)}</StatusCell>
+                <StatusCell status={r.adiabatic}><span title={r.adiabaticNote}>{r.adiabaticMinMm2.toFixed(1)}{r.runs > 1 ? <span className="m"> ({r.runs} runs, {r.cpcCurrentA.toFixed(0)} A each{r.adiabatic === 'warn' ? ', assumed sharing' : ''})</span> : null}</span></StatusCell>
                 <StatusCell status={r.status} />
               </tr>
             );

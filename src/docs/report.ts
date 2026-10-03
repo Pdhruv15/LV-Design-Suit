@@ -100,10 +100,10 @@ ${section('Feeder calculations', `<p>${counts(results.map((r) => r.status))}</p>
   ))}
 
 ${section('Earthing — fault loop impedance and disconnection', `<p>${counts(earthing.map((r) => r.status))}</p>` + table(
-    ['Circuit', 'CPC (mm²)', 'Zs (Ω)', 'Max Zs (Ω)', 'If (A)', 'Ia (A)', 'Required (s)', 'Disconnection', 'CPC min (mm²)', 'Status'],
+    ['Circuit', 'CPC (mm²)', 'Zs (Ω)', 'Max Zs (Ω)', 'If (A)', 'Ia (A)', 'Required (s)', 'Disconnection', 'CPC min, each (mm²)', 'Status'],
     earthing.map((r) => [esc(r.feeder.id), String(r.cpcMm2), r.zsOhm.toFixed(4), r.maxZsOhm.toFixed(4), f(r.faultA), f(r.tripA), String(r.requiredS),
       `<td class="${r.disconnection}">${r.disconnection === 'ok' ? '&lt; 0.1 s' : r.disconnection === 'warn' ? 'Thermal — check curve' : 'Too slow'}</td>`,
-      `<td class="${r.adiabatic}">${r.adiabaticMinMm2.toFixed(1)}</td>`, st(r.status)])
+      `<td class="${r.adiabatic}">${r.adiabaticMinMm2.toFixed(1)}${r.runs > 1 ? ` <span class="m">(${r.runs} runs, ${r.cpcCurrentA.toFixed(0)} A each${r.adiabatic === 'warn' ? ', assumed equal sharing — not verified for a fault within one run' : ''})</span>` : ''}</td>`, st(r.status)])
   ))}
 
 ${section('Protection coordination', selectivity.length ? `<p>${counts(selectivity.map((r) => r.status))}</p>` + table(
