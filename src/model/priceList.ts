@@ -40,14 +40,53 @@ export function fallbackRate(key: string): number | undefined {
 }
 
 /** Preserve supply and installation legs so client-supplied items retain labour only. */
-export function fallbackPriceEntry(key: string): PriceEntry | undefined {
+export function fallbackPriceEntry(key0: string): PriceEntry | undefined {
+  const key = key0.replace(/:emg$/, ''); // emergency-system lines price like the normal ones
   const c = catalogRate(key);
   if (c) return { rate: c.rate, labour: c.install };
   const [kind, ...rest] = key.split(':');
   if (kind === 'cable') return { rate: cableRatePerM(Number(rest[2])) };
   if (kind === 'mccb' || kind === 'acb') return { rate: breakerRateAed(Number(rest[0])) };
   if (kind === 'mcb') return { rate: breakerRateAed(Number(rest[1])) };
-  return undefined;
+  const t = typicalRate(kind, rest);
+  return t === undefined ? undefined : { rate: Math.round(t) };
+}
+
+/** Starting rates (AED, supply) for the remaining design lines — illustrative
+ * figures to replace with your own price list; counted as "typical" in the
+ * pricing basis. Panels and conductor-metre wiring are left for a real quote. */
+const GLAND_AED: Record<string, number> = { '20S': 15, '20': 18, '25': 25, '32': 35, '40': 55, '50S': 75, '50': 90, '63': 130, '75': 180 };
+function typicalRate(kind: string, a: string[]): number | undefined {
+  const n = (i: number) => Number(a[i]);
+  const perM = (mm2: number) => (Number.isFinite(mm2) ? 1 + 0.7 * mm2 : undefined); // single-core Cu/PVC per metre
+  switch (kind) {
+    case 'incomer': case 'tie': return breakerRateAed(n(1));
+    case 'rccb': case 'rcd': return (a[1] === 'TP+N' ? 320 : 180) + (n(2) || 0);
+    case 'spd': return a[0] === 'T1+2' ? 3500 : 1500;
+    case 'ct': return 450;
+    case 'relay': return 900;
+    case 'pfr': return 1500;
+    case 'ammeter-ss': return 350;
+    case 'voltmeter-ss': return 300;
+    case 'lamps-ryb': return 120;
+    case 'kwh': return a[0] === 'CT' ? 1200 : a[0] === '3-PH' ? 650 : 250;
+    case 'iso': return 150 + 2 * (n(0) || 0);
+    case 'ats': return 2500 + 15 * (n(0) || 0);
+    case 'acb-il': return 2 * breakerRateAed(n(0) || 1600) + 3000;
+    case 'gen': return 400 * (n(0) || 0);
+    case 'ups': return 1200 * (n(0) || 0);
+    case 'cap': return 120 * (n(0) || 0);
+    case 'tx': return 30000 + 65 * (n(0) || 0);
+    case 'rmu': return 85000;
+    case 'earth-pit': return 1800;
+    case 'earth-link': return 450;
+    case 'met': return 900;
+    // Panels and conductor-metre wiring always need a real quote (no starting rate).
+    case 'cpc': case 'ecc': return perM(n(0));
+    case 'gland': return GLAND_AED[a[0]];
+    case 'lug': return Number.isFinite(n(0)) ? 1.5 + 0.1 * n(0) : undefined;
+    default: return undefined;
+  }
 }
 
 /** Your own BOQ lines and adjustments, kept with the project. */
@@ -119,7 +158,7 @@ const validRate = (value: number | undefined): value is number => value !== unde
 function applyScope(raw: BomItem, scope: BoqLineScope, quote: PriceEntry | undefined, source: PricedItem['source'], excluded = false): PricedItem {
   const action = scope.action ?? 'new';
   const supplyBy = excluded ? 'others' : scope.supplyBy ?? raw.supplyBy ?? 'contractor';
-  const installBy = excluded ? 'others' : scope.installBy ?? 'contractor';
+  const installBy = excluded ? 'others' : scope.installBy ?? raw.installBy ?? 'contractor';
   const supplyCharge = !excluded && (action === 'new' || action === 'replace') && supplyBy === 'contractor';
   const installCharge = !excluded && action !== 'retain' && installBy === 'contractor';
   const rate = quote?.rate;
