@@ -136,7 +136,7 @@ describe('BOQ PDF discloses how it was priced', () => {
     for (const summaryOnly of [false, true]) {
       const html = buildBoqHtml(p0, bom, undefined, summaryOnly);
       expect(html).toMatch(/Pricing basis/);
-      expect(html).toMatch(/NO RATE and are not in the total — the total is incomplete/);
+      expect(html).toMatch(/unquoted supply or installation charge — the total is incomplete; known charges remain included/);
       expect(html).toMatch(/built-in typical rates/);
     }
     expect(buildBoqHtml(p0, bom)).toMatch(/class="flag">NO RATE/);

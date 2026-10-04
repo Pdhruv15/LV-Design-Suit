@@ -1,17 +1,18 @@
-import type { Board, Feeder, Project } from '../types';
-import { BOARD_KINDS } from '../types';
+import type { Board, Feeder, PointType, Project } from '../types';
+import { BOARD_KINDS, POINT_TYPES } from '../types';
 import { cableTypeOf } from '../model/cableTypes';
 import { breakerTypeOf, cpcOf } from './earthing';
 import { runsOf } from './electrical';
 import { sizeRiser } from './busbar';
 import { earthingLayout, kindInfo } from '../model/earthingPlan';
 import { sizeRoute, trayPlanOf, trayQuantities } from './cableTray';
+import { elcbGroups, pointLabel, scheduleCircuits } from './loadSchedule';
 
 /** Bill of materials: every item the design already knows about, rolled up
  * into tender BOQ sections. Each item has a stable key, so a price list
  * entered once prices it on every project. */
 
-/** Design sections A–I; your own sections (J, K…) come from the project's BOQ settings. */
+/** Design sections A–I, optional schedule points J; custom sections follow them. */
 export type BomSection = string;
 export const BOM_SECTIONS: Record<string, string> = {
   A: 'Panels and switchboards',
@@ -22,7 +23,8 @@ export const BOM_SECTIONS: Record<string, string> = {
   F: 'Cable accessories',
   G: 'Busbar trunking',
   H: 'Cable containment',
-  I: 'Earthing'
+  I: 'Earthing',
+  J: 'Schedule points and equipment'
 };
 
 export interface BomItem {
@@ -32,6 +34,8 @@ export interface BomItem {
   unit: string; // no, m, set, lot, LS
   qty: number;
   where: string[]; // boards / routes / risers it comes from
+  quantitySource?: string;
+  supplyBy?: 'contractor' | 'client' | 'others';
 }
 
 const kindOf = (b: Board) => b.kind ?? (b.upstreamId ? 'DB' : 'MDB');
@@ -45,8 +49,9 @@ export function polesOf(f: Feeder): string {
 }
 
 export function breakerItem(f: Feeder): Pick<BomItem, 'key' | 'description'> {
-  const t = breakerTypeOf(f);
+  const t = f.device === 'ACB' || f.device === 'MCCB' ? f.device : breakerTypeOf(f);
   const p = polesOf(f);
+  if (f.device === 'ISOL') return { key: `switch-isol:${f.breakerRatingA}:${p}`, description: `Feeder isolator ${f.breakerRatingA} A ${p}` };
   if (t === 'ACB') return { key: `acb:${f.breakerRatingA}:${p}:${f.breakerIcuKa}`, description: `ACB ${f.breakerRatingA} A ${p}, ${f.breakerIcuKa} kA, withdrawable, electronic trip unit` };
   if (t === 'MCCB') return { key: `mccb:${f.breakerRatingA}:${p}:${f.breakerIcuKa}`, description: `MCCB ${f.breakerRatingA} A ${p}, ${f.breakerIcuKa} kA, adjustable thermal-magnetic` };
   return { key: `mcb:${t}:${f.breakerRatingA}:${p}:${f.breakerIcuKa}`, description: `MCB ${f.breakerRatingA} A ${p}, type ${t}, ${f.breakerIcuKa} kA` };
@@ -61,9 +66,11 @@ const glandSize = (csa: number, cores: number) => {
 export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<Project>): BomItem[] {
   const p = project as Project;
   const m = new Map<string, BomItem>();
-  const add = (section: BomSection, key: string, description: string, unit: BomItem['unit'], qty: number, where: string) => {
+  const groupedRcdCircuits = new Set<string>();
+  const add = (section: BomSection, key: string, description: string, unit: BomItem['unit'], qty: number, where: string,
+    basis: Pick<BomItem, 'quantitySource' | 'supplyBy'> = {}) => {
     if (!(qty > 0)) return;
-    const it = m.get(key) ?? { key, section, description, unit, qty: 0, where: [] };
+    const it = m.get(key) ?? { key, section, description, unit, qty: 0, where: [], quantitySource: 'Design model', supplyBy: 'contractor', ...basis };
     it.qty += qty;
     if (where && !it.where.includes(where)) it.where.push(where);
     m.set(key, it);
@@ -72,18 +79,35 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
   // Panels, incomers and board-mounted equipment
   for (const b of p.boards) {
     const k = kindOf(b);
-    const rating = b.ratedCurrentA ?? p.feeders.find((f) => f.feedsBoardId === b.id)?.breakerRatingA;
+    const rating = b.ratedCurrentA ?? (!b.upstreamId ? b.supply?.ratingA : undefined) ?? p.feeders.find((f) => f.feedsBoardId === b.id)?.breakerRatingA;
     const bus = b.busbarMaterial === 'aluminium' ? 'Al' : 'Cu';
     const enc = b.enclosure;
-    const encText = enc ? `, enclosure ${enc.range} ${enc.config.ref}${enc.dims ? ` (H${enc.dims.h} × W${enc.dims.w} × D${enc.dims.d} mm)` : ''}` : '';
-    add('A', `panel:${k}:${rating ?? '-'}:${b.ipRating ?? '-'}${enc ? `:${enc.catalogueId}:${enc.config.id}` : ''}`,
-      `${kindLabel(k)} (${k})${rating ? `, ${rating} A` : ''}, ${bus} busbar${b.ipRating ? `, ${b.ipRating}` : ''}${encText}, form of separation to spec.`, 'no', 1, b.id);
+    const encText = enc ? `, enclosure ${enc.supplier} ${enc.range} ${enc.config.ref}${enc.mounting ? `, ${enc.mounting} mounted` : ''}, rev. ${enc.revision}${enc.dims ? ` (H${enc.dims.h} × W${enc.dims.w} × D${enc.dims.d} mm)` : ''}` : '';
+    const encKey = enc ? `:${enc.catalogueId}:${enc.config.id}:${enc.mounting ?? '-'}:${enc.dims ? `${enc.dims.h}x${enc.dims.w}x${enc.dims.d}` : '-'}:${encodeURIComponent(enc.revision)}` : '';
+    const make = [b.manufacturer, b.model].filter(Boolean).join(' ');
+    const makeKey = [b.manufacturer, b.model].map((s) => encodeURIComponent(s?.trim() || '-')).join(':');
+    add('A', `panel:${k}:${rating ?? '-'}:${b.ipRating ?? '-'}:${bus}:${makeKey}${encKey}`,
+      `${kindLabel(k)} (${k})${rating ? `, ${rating} A` : ''}, ${bus} busbar${make ? `, ${make}` : ''}${b.ipRating ? `, ${b.ipRating}` : ''}${encText}, form of separation to spec.`, 'no', 1, b.id);
     // Extra the supplier's chart adds for the enclosure case (e.g. an 800 mm busbar).
     if (enc?.extra) add('A', `enc-extra:${enc.extra}`, enc.extra.replace(/ to add in the estimate$/, '').replace(/^./, (c) => c.toUpperCase()) + ' for the distribution board (supplier chart allowance)', 'no', 1, b.id);
     // Incomer device of a board fed from a transformer or the authority
-    if (!b.upstreamId && rating) {
-      const dev = b.supply?.device ?? (rating > 630 ? 'ACB' : 'MCCB');
-      add('B', `incomer:${dev}:${rating}`, `Incomer ${dev} ${rating} A 4P${dev === 'ACB' ? ', withdrawable, electronic trip unit' : ''}`, 'no', 1, b.id);
+    const incomerRating = b.supply?.ratingA ?? rating;
+    if (!b.upstreamId && incomerRating) {
+      const dev = b.supply?.device ?? (incomerRating > 630 ? 'ACB' : 'MCCB');
+      add('B', `incomer:${dev}:${incomerRating}`, `Incomer ${dev} ${incomerRating} A 4P${dev === 'ACB' ? ', withdrawable, electronic trip unit' : ''}`, 'no', 1, b.id);
+    }
+    if (!b.upstreamId && b.supply?.meter) {
+      const meter = b.supply.meter;
+      add('C', `kwh:${meter}`, meter === 'CT' ? 'kWh meter, CT operated, with CTs and test block' : `kWh meter, direct ${meter === '1-PH' ? '1-phase' : '3-phase'}`, 'no', 1, b.id);
+    }
+    const circuits = scheduleCircuits(p, b.id);
+    const inc = p.feeders.find((f) => f.feedsBoardId === b.id);
+    const threePhase = !!inc && inc.cores >= 3 || circuits.some((c) => c.cores !== 2 || c.phase === 'RYB') || new Set(circuits.map((c) => c.phase)).size > 1;
+    for (const group of elcbGroups(p, b)) {
+      const poles = threePhase ? 'TP+N' : 'SP+N';
+      add('B', `rccb:${group.sensitivityMa}:${poles}:${group.ratingA}`, `RCCB / ELCB ${group.sensitivityMa} mA, ${poles}, ${group.ratingA} A`, 'no', 1, b.id,
+        { quantitySource: 'Load schedule ELCB groups' });
+      group.circuits.forEach((c) => groupedRcdCircuits.add(c.id));
     }
     if (b.spd) add('B', `spd:${b.spd}`, `Surge protection device, Type ${b.spd === 'T1+2' ? '1+2' : b.spd.slice(1)}, 4P, with backup fuse / MCB`, 'no', 1, b.id);
     const prot = b.protection;
@@ -129,7 +153,7 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
     const bi = breakerItem(f);
     add('B', bi.key, bi.description, 'no', 1, f.boardId);
     const poles = polesOf(f);
-    if (f.rcdMa) add('B', `rcd:${f.rcdMa}:${poles}:${f.breakerRatingA}`, `Earth leakage protection ${f.rcdMa} mA, ${poles}, ${f.breakerRatingA} A`, 'no', 1, f.boardId);
+    if (f.rcdMa && !groupedRcdCircuits.has(f.id)) add('B', `rcd:${f.rcdMa}:${poles}:${f.breakerRatingA}`, `Earth leakage protection ${f.rcdMa} mA, ${poles}, ${f.breakerRatingA} A`, 'no', 1, f.boardId);
     if (f.kwhMeter) add('C', `kwh:${f.kwhMeter}`, f.kwhMeter === 'CT' ? 'kWh meter, CT operated, with CTs and test block' : `kWh meter, direct ${f.kwhMeter === '1-PH' ? '1-phase' : '3-phase'}`, 'no', 1, f.boardId);
     if (f.localIsolator) add('B', `iso:${f.breakerRatingA}:${poles}`, `Local isolator ${f.breakerRatingA} A ${poles}, weatherproof enclosure`, 'no', 1, f.boardId);
     if (f.kvar) add('D', `cap:${f.kvar}:${f.capSteps ?? 1}:${f.detunedPct ?? 0}`, `${f.capSteps ? 'Capacitor bank' : 'Fixed capacitor'} ${f.kvar} kvar${f.capSteps && f.capSteps > 1 ? `, ${f.capSteps} steps` : ''}${f.detunedPct ? `, ${f.detunedPct} % detuned` : ''}${f.capSteps ? ', with APFC relay' : ''}`, 'no', 1, f.boardId);
@@ -139,7 +163,12 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
     const len = f.lengthM * runs;
     const t = cableTypeOf(p, f);
     if (isFinal(f)) {
-      add('E', `wire:${f.cableCsaMm2}`, `Single-core wiring ${f.cableCsaMm2} mm² Cu/PVC in conduit (per circuit: ${f.cores} conductors + CPC)`, 'm', len, f.boardId);
+      // Procurement metres of each conductor, not metres of a complete circuit.
+      // Distinct keys prevent legacy circuit-route rates from silently transferring.
+      const basis = { quantitySource: 'Conductor metres: circuit route length × parallel runs × conductor count; rounded up after aggregation' };
+      add('E', `wire-conductor:${f.cableCsaMm2}`, `Single-core live / neutral wiring ${f.cableCsaMm2} mm² Cu/PVC (conductor metres; conduit measured separately)`, 'm', len * f.cores, f.boardId, basis);
+      add('I', `cpc:${cpcOf(f)}`, `Circuit protective conductor 1C × ${cpcOf(f)} mm² Cu/PVC, green/yellow (conductor metres)`, 'm', len, f.boardId,
+        { quantitySource: 'CPC conductor metres: circuit route length × parallel runs; rounded up after aggregation' });
       continue;
     }
     add('E', `cable:${t.value}:${f.cores}C:${f.cableCsaMm2}`, `${f.cores}C × ${f.cableCsaMm2} mm² Cu ${t.label.replace(/ \(.*\)$/, '')}`, 'm', len, f.boardId);
@@ -150,6 +179,22 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
     add('F', `gland:${g}:${!t.armoured ? 'A2' : 'CW'}`, `Cable gland size ${g}, ${!t.armoured ? 'A2 (unarmoured)' : 'CW (armoured)'} with shroud`, 'no', 2 * runs, f.boardId);
     add('F', `lug:${f.cableCsaMm2}`, `Crimp lug ${f.cableCsaMm2} mm² Cu`, 'no', 2 * runs * f.cores, f.boardId);
     if (!!t.armoured) add('F', `lug:${cpc}`, `Crimp lug ${cpc} mm² Cu`, 'no', 2 * runs, f.boardId);
+  }
+
+  // Point counts are opt-in: a design load does not establish who supplies the equipment.
+  if (p.boq?.includeSchedulePoints) {
+    const electricalPoints = new Set<PointType>(['ltg', 'shaver', 's13', 's15', 's13t', 'spur', 'isol']);
+    for (const b of p.boards) for (const f of scheduleCircuits(p, b.id)) {
+      for (const point of POINT_TYPES) {
+        const count = f.points?.[point.value] ?? 0;
+        const selected = b.pointItems?.[point.value]?.trim();
+        const label = pointLabel(b, point.value, p);
+        const spec = selected || (point.value === 'spare1' || point.value === 'spare2' ? label : point.title);
+        const key = `point:${point.value}:${encodeURIComponent(spec)}`;
+        add('J', key, `${spec} — load schedule point count${selected ? '' : '; product / scope to confirm'}`, 'no', count, b.id,
+          { quantitySource: 'Load schedule point counts', supplyBy: electricalPoints.has(point.value) ? 'contractor' : 'client' });
+      }
+    }
   }
 
   // Busbar trunking risers
