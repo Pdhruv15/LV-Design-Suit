@@ -6,6 +6,7 @@ import CatalogueManager from './CatalogueManager';
 import { safeFileName, savePdf } from '../util/files';
 import { esc } from '../docs/report';
 import { Page } from './ui';
+import { roleOf } from '../model/emergency';
 
 const RESULT: Record<Candidate['result'], string> = { fits: 'Fits', 'too-small': 'Too small', 'not-listed': 'Not in chart', confirm: 'Confirm with supplier' };
 const CLS: Record<Candidate['result'], string> = { fits: 'ok', 'too-small': 'bad', 'not-listed': 'm', confirm: 'warn' };
@@ -46,7 +47,9 @@ function preview(cat: EnclosureCatalogue, c: Candidate | undefined, i: SizingInp
 
 /** Design → Enclosure sizing: physical space of a board from a supplier catalogue (module counting). */
 export default function EnclosureSizing({ project, boardId, onChange, onStatus }: { project: Project; boardId?: string; onChange: (p: Project) => void; onStatus: (m: string) => void }) {
-  const [panel, setPanel] = useState(boardId ?? project.boards.find((b) => !b.upstreamId)?.id ?? '');
+  // The supplier chart is for distribution boards only (DB, and EDB below an EMDB); SMDB / MDB charts come later.
+  const dbs = project.boards.filter((b) => ['DB', 'EDB'].includes(roleOf(project, b)));
+  const [panel, setPanel] = useState(dbs.find((b) => b.id === boardId)?.id ?? dbs[0]?.id ?? '');
   const saved = project.boards.find((b) => b.id === panel)?.enclosure;
   const [catalogues, setCatalogues] = useState(() => allCatalogues());
   const [manager, setManager] = useState(false);
@@ -130,8 +133,10 @@ export default function EnclosureSizing({ project, boardId, onChange, onStatus }
       <div className="enc-cols">
         <section className="card">
           <h4>Sizing inputs</h4>
+          <p className="m">For DBs only (DB / EDB). {boardId && !dbs.some((b) => b.id === boardId) ? <span className="warn">{boardId} is not a DB — SMDB and MDB enclosures will use their own charts (to be added).</span> : 'SMDB and MDB charts to be added.'}</p>
+          {!dbs.length && <p className="warn">This project has no DBs yet.</p>}
           <div className="form-kv">
-            <label>Panel<select value={panel} onChange={(e) => setPanel(e.target.value)}>{project.boards.map((b) => <option key={b.id} value={b.id}>{b.id}{b.enclosure ? ' ✓' : ''}</option>)}</select></label>
+            <label>Panel<select value={panel} onChange={(e) => setPanel(e.target.value)}>{dbs.map((b) => <option key={b.id} value={b.id}>{b.id}{b.enclosure ? ' ✓' : ''}</option>)}</select></label>
             <label>Catalogue<select value={catId} onChange={(e) => { setCatId(e.target.value); setPick(null); }}>{catalogues.map((c) => <option key={c.id} value={c.id}>{c.supplier} — {c.range} (rev. {c.revision})</option>)}</select></label>
             {cat.family === 'modular' && <label>Mounting<select value={mounting} onChange={(e) => setMounting(e.target.value as Mounting)}><option value="surface">Surface</option><option value="flush">Flush</option></select></label>}
           </div>
