@@ -10,9 +10,11 @@ import { namesOf, PANEL_ROLES, planEmergency, prefixOf, roleOf, type PanelRole }
 import { levelRef } from '../model/hierarchy';
 import BuildHierarchyDialog from './BuildHierarchyDialog';
 import BranchPanel from './BranchPanel';
+import TransformersTab from './TransformersTab';
+import { mainOf, txTag } from '../model/transformers';
 
-type Tab = 'quick' | 'list' | 'naming' | 'floors' | 'repeat' | 'templates';
-const TABS: [Tab, string][] = [['quick', 'Quick create'], ['list', 'Panel list'], ['naming', 'Naming'], ['floors', 'Typical floors'], ['repeat', 'Repeat group'], ['templates', 'Templates']];
+type Tab = 'quick' | 'tx' | 'list' | 'naming' | 'floors' | 'repeat' | 'templates';
+const TABS: [Tab, string][] = [['quick', 'Quick create'], ['tx', 'Transformers'], ['list', 'Panel list'], ['naming', 'Naming'], ['floors', 'Typical floors'], ['repeat', 'Repeat group'], ['templates', 'Templates']];
 const ROWS = 300; // panel list rows drawn at once; search narrows it
 
 /** Design → Panels: create panels quickly by count (levels later), then edit
@@ -35,6 +37,7 @@ export default function PanelsPage({ project, onChange, onCreated, onStatus, onB
     <Page title="Panels" intro="Create panels by count first, push them to the SLD and load schedules, then add levels, locations and connections later in Panel list. Names stay incremental (MDB-01, SMDB-01, DB-001) until a panel has a level; Rename by level then applies type – level – number (SMDB-L1, DB-L3-07).">
       <div className="seg pp-tabs">{TABS.map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}</div>
       {tab === 'quick' && <QuickCreate project={project} onCreate={created} onList={() => setTab('list')} onChange={onChange} />}
+      {tab === 'tx' && <TransformersTab project={project} onChange={onChange} onCreate={created} onStatus={onStatus} />}
       {tab === 'naming' && <NamingTab project={project} onChange={onChange} onStatus={onStatus} />}
       {tab === 'list' && <PanelList project={project} onChange={onChange} onStatus={onStatus} onBuilding={onBuilding} />}
       {tab === 'floors' && <BuildHierarchyDialog embedded project={project} onCreate={created} onClose={() => setTab('quick')} onBuilding={onBuilding} />}
@@ -235,11 +238,11 @@ function PanelList({ project, onChange, onStatus, onBuilding }: { project: Proje
       )}
       <div className="pp-table">
         <table className="bi-table compact">
-          <thead><tr><th><input type="checkbox" checked={rows.length > 0 && rows.every((b) => sel.has(b.id))} onChange={(e) => setSel(e.target.checked ? new Set([...sel, ...rows.map((b) => b.id)]) : new Set([...sel].filter((id) => !rows.some((b) => b.id === id))))} title="Tick all shown" /></th><th>Panel</th><th>Type</th><th>Fed from</th><th>Level</th><th>Location</th></tr></thead>
+          <thead><tr><th><input type="checkbox" checked={rows.length > 0 && rows.every((b) => sel.has(b.id))} onChange={(e) => setSel(e.target.checked ? new Set([...sel, ...rows.map((b) => b.id)]) : new Set([...sel].filter((id) => !rows.some((b) => b.id === id))))} title="Tick all shown" /></th><th>Panel</th><th>Type</th><th>Fed from</th><th>Transformer</th><th>Level</th><th>Location</th></tr></thead>
           <tbody>{rows.slice(0, ROWS).map((b) => (
             <tr key={b.id} className={sel.has(b.id) ? 'on' : ''} onClick={() => toggle(b.id)} style={{ cursor: 'pointer' }}>
               <td><input type="checkbox" checked={sel.has(b.id)} onChange={() => toggle(b.id)} onClick={(e) => e.stopPropagation()} /></td>
-              <td><b>{b.id}</b></td><td>{kindOf(b)}</td><td>{b.upstreamId ?? <span className="m">supply</span>}</td>
+              <td><b>{b.id}</b></td><td>{kindOf(b)}</td><td>{b.upstreamId ?? <span className="m">supply</span>}</td><td>{(() => { const m = mainOf(project, b.id); const t = m && txTag(project, m.id); return t ? `${t} · ${m!.sourceKva} kVA` : <span className="m">—</span>; })()}</td>
               <td>{levelText(b) || <span className="m">—</span>}</td><td>{b.location ?? ''}</td>
             </tr>
           ))}</tbody>

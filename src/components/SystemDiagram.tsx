@@ -1,4 +1,5 @@
 import { withNetwork } from '../calc/network';
+import { txTag } from '../model/transformers';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { STATUS_TEXT } from '../calc/statusText';
 import { componentLabel } from '../model/components';
@@ -610,7 +611,7 @@ export default function SystemDiagram({
             <line x1={r.x} y1="50" x2={r.x} y2="70" className="ln mv" />
             <circle cx={r.x} cy="84" r="14" className="tr" />
             <circle cx={r.x} cy="100" r="14" className="tr" />
-            <text className="b" x={r.x + 24} y="86">Transformer</text>
+            <text className="b" x={r.x + 24} y="86">{txTag(project, r.board.id) ?? 'Transformer'}</text>
             <text className="m" x={r.x + 24} y="100">
               {r.board.sourceKva ? `${r.board.sourceKva} kVA · ${r.board.sourceImpedancePct ?? '—'}% Z` : 'no source data'}
             </text>

@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { supplyChain } from '../../model/transformers';
 import { Plus, Scale, Trash2, Zap } from 'lucide-react';
 import type { Board, Phase, PointType, Project } from '../../types';
 import { cables } from '../../calc/cableTable';
@@ -143,6 +144,7 @@ export default function LoadScheduleView({
         </>
       }
     >
+      <p className="m ls-supply" title="Where this board's supply comes from">Supply: {supplyChain(project, board.id).join(' → ')}</p>
       {(() => {
         const c = dbChecks(project).find((x) => x.boardId === board.id);
         if (!c) return null;
