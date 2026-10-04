@@ -82,8 +82,14 @@ export default function EnclosureSizing({ project, boardId, onChange, onStatus }
   const incomplete = method === 'schedule' && (fromSchedule.unmapped.length > 0 || !needed.length);
   const r = useMemo(() => sizeEnclosure(cat, input, mounting), [cat, JSON.stringify(input), mounting]); // eslint-disable-line react-hooks/exhaustive-deps
   const [pick, setPick] = useState<string | null>(null);
-  const shown = r.candidates.filter((c) => c.result !== 'not-listed' || r.candidates.every((x) => x.result === 'not-listed'));
-  const chosen = shown.find((c) => `${c.config.id}/${c.rule.id}` === pick) ?? shown.find((c) => c.result === 'fits' || c.result === 'confirm');
+  // Rows and modules per row: Auto picks the nearest size that fits; the user can fix either for a smaller, wider or larger (future) board.
+  const [rowsSel, setRowsSel] = useState(0);
+  const [perSel, setPerSel] = useState(0);
+  const rowOpts = [...new Set(cat.configs.map((c) => c.rows).filter((x): x is number => !!x))].sort((a, b) => a - b);
+  const perOpts = [...new Set(cat.configs.map((c) => c.modulesPerRow).filter((x): x is number => !!x))].sort((a, b) => a - b);
+  const layoutOk = (c: Candidate) => cat.family !== 'modular' || ((!rowsSel || c.config.rows === rowsSel) && (!perSel || c.config.modulesPerRow === perSel));
+  const shown = r.candidates.filter(layoutOk).filter((c, _, all) => c.result !== 'not-listed' || all.every((x) => x.result === 'not-listed'));
+  const chosen = shown.find((c) => `${c.config.id}/${c.rule.id}` === pick) ?? shown.find((c) => c.result === 'fits' || c.result === 'confirm') ?? shown.find((c) => c.result === 'too-small');
   const svg = useMemo(() => preview(cat, chosen, input), [cat, chosen, input]);
   const setNum = (k: keyof SizingInput) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const t = e.target.value.trim();
@@ -127,7 +133,7 @@ export default function EnclosureSizing({ project, boardId, onChange, onStatus }
     .warn { color: #a15c00; font-weight: 700; } svg { width: 100%; max-height: 110mm; color: #111; } .m { color: #555; }
     </style></head><body>
     <h1>${esc(project.name)} — ${esc(panel)} enclosure size</h1><p class="m">${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} · preliminary space estimate</p>
-    <h2>Selected enclosure</h2><table>${row('Catalogue', `${cat.supplier} — ${cat.range}, rev. ${cat.revision}`)}${row('Source', cat.source)}${row('Size', `${chosen.config.ref}${cat.family === 'modular' ? ` (${chosen.config.rows} rows × ${chosen.config.modulesPerRow} modules)` : ''}`)}${row('Mounting', cat.family === 'modular' ? mounting : 'fabricated')}${row('Dimensions', `H ${d.h} × W ${d.w} × D ${d.d} mm`)}${row('Allowance case', chosen.rule.label)}${chosen.rule.extra ? row('Add to the estimate', chosen.rule.extra) : ''}</table>
+    <h2>Selected enclosure</h2><table>${row('Catalogue', `${cat.supplier} — ${cat.range}, rev. ${cat.revision}`)}${row('Source', cat.source)}${row('Size', `${chosen.config.ref}${cat.family === 'modular' ? ` (${chosen.config.rows} row${chosen.config.rows === 1 ? "" : "s"} × ${chosen.config.modulesPerRow} modules)` : ''}`)}${row('Mounting', cat.family === 'modular' ? mounting : 'fabricated')}${row('Dimensions', `H ${d.h} × W ${d.w} × D ${d.d} mm`)}${row('Allowance case', chosen.rule.label)}${chosen.rule.extra ? row('Add to the estimate', chosen.rule.extra) : ''}</table>
     <h2>Space</h2><table>${row('Method', method === 'schedule' ? 'From the load schedule (device records)' : 'Manual estimate')}${row('Equipment', `${input.equipmentModules} modules`)}${row('Future spare', `${input.spareModules} modules${input.sparePct !== undefined ? ` (${input.sparePct} % of equipment)` : ''}`)}${row('Required', `${r.required} modules`)}${row('Available', `${chosen.config.grossModules} − ${chosen.rule.deductModules} = ${chosen.usable} modules (supplier figure after allowance)`)}${row('Left over', `${chosen.spareAfter} modules`)}${row('ELCB count', String(input.elcbCount))}${input.incomerA !== undefined ? row('Incomer', `${input.incomerA} A`) : ''}</table>
     ${method === 'schedule' ? `<h2>Devices</h2><table><thead><tr><th>Device</th><th>Qty</th><th>Record</th><th>Modules</th></tr></thead><tbody>${needed.map((x) => `<tr><td>${esc(x.key)} — ${esc(x.what)}</td><td>${x.count}</td><td>${x.device ? esc(`${x.device.manufacturer} ${x.device.model}`) : '<span class="warn">needs dimensions</span>'}</td><td>${x.device ? x.device.modules * x.count : '—'}</td></tr>`).join('')}</tbody></table>` : ''}
     <h2>Preview (illustrative, not a manufacturing drawing)</h2>${svg}
@@ -148,6 +154,10 @@ export default function EnclosureSizing({ project, boardId, onChange, onStatus }
           <div className="form-kv">
             <label>Panel<select value={panel} onChange={(e) => choosePanel(e.target.value)}>{dbs.map((b) => <option key={b.id} value={b.id}>{b.id}{b.enclosure ? ' ✓' : ''}</option>)}</select></label>
             <label>Catalogue<select value={catId} onChange={(e) => { setCatId(e.target.value); setPick(null); }}>{catalogues.map((c) => <option key={c.id} value={c.id}>{c.supplier} — {c.range} (rev. {c.revision})</option>)}</select></label>
+            {cat.family === 'modular' && <>
+              <label>Rows<select value={rowsSel} onChange={(e) => { setRowsSel(Number(e.target.value)); setPick(null); }}><option value={0}>Auto (nearest that fits)</option>{rowOpts.map((n) => <option key={n} value={n}>{n} row{n > 1 ? 's' : ''}</option>)}</select></label>
+              <label>Modules per row<select value={perSel} onChange={(e) => { setPerSel(Number(e.target.value)); setPick(null); }}><option value={0}>Auto (nearest that fits)</option>{perOpts.map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
+            </>}
             {cat.family === 'modular' && <label>Mounting<select value={mounting} onChange={(e) => setMounting(e.target.value as Mounting)}><option value="surface">Surface</option><option value="flush">Flush</option></select></label>}
           </div>
           <div className="seg"><button className={method === 'schedule' ? 'on' : ''} onClick={() => { setMethod('schedule'); setPick(null); }} title="The board's devices from its load schedule, each with its real module width from the device records">From schedule</button><button className={method === 'manual' ? 'on' : ''} onClick={() => { setMethod('manual'); setPick(null); }}>Manual</button></div>
@@ -200,8 +210,9 @@ export default function EnclosureSizing({ project, boardId, onChange, onStatus }
         </section>
 
         <section className="card">
-          <h4>Enclosure preview {chosen && <span className="m">— {chosen.config.ref}{cat.family === 'modular' ? ` (${chosen.config.rows} rows × ${chosen.config.modulesPerRow} modules)` : ''}</span>}</h4>
+          <h4>Enclosure preview {chosen && <span className="m">— {chosen.config.ref}{cat.family === 'modular' ? ` (${chosen.config.rows} row${chosen.config.rows === 1 ? "" : "s"} × ${chosen.config.modulesPerRow} modules)` : ''}</span>}</h4>
           {svg ? <div className="pfcc-svg" dangerouslySetInnerHTML={{ __html: svg }} /> : <p className="m">No enclosure in the catalogue fits these inputs.</p>}
+          {chosen && chosen.result === 'too-small' && <p className="bad">{chosen.config.ref} is too small for {r.required} modules — choose more rows or modules per row, or set them to Auto.</p>}
           {cat.family === 'modular' && <p className="m enc-key"><span className="k eq" /> Equipment <span className="k spare" /> Spare <span className="k allow" /> Supplier allowance (terminals, incoming cable) · illustrative layout, not a manufacturing drawing</p>}
           {chosen?.dims && <p><b>{cat.range} {chosen.config.ref}</b> · {cat.family === 'modular' ? (mounting === 'flush' ? 'Flush' : 'Surface') : 'Fabricated'} · H{chosen.dims.h} × W{chosen.dims.w} × D{chosen.dims.d} mm</p>}
         </section>

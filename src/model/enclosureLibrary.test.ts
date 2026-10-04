@@ -46,7 +46,7 @@ describe('enclosure library', () => {
     const bytes = await wb.xlsx.writeBuffer();
     const back = await readCatalogueWorkbook(bytes as ArrayBuffer);
     expect(back.configs).toHaveLength(MOD.configs.length);
-    expect(back.configs[4]).toMatchObject({ ref: '5 × 16', rows: 5, modulesPerRow: 16, grossModules: 80, dims: { surface: { h: 905, w: 445, d: 115 }, flush: { h: 925, w: 465, d: 115 } }, usable: { elcb12: 72, elcb15: null } });
+    expect(back.configs[4]).toMatchObject({ ref: '5 × 16', rows: 5, modulesPerRow: 16, grossModules: 80, dims: { surface: { h: 905, w: 445, d: 115 }, flush: { h: 925, w: 465, d: 115 } }, usable: { elcb12: 72, elcb15: 68 } });
     const input = { equipmentModules: 64, spareModules: 8, elcbCount: 10 };
     expect(sizeEnclosure(back, input).candidates.map((c) => [c.config.ref, c.usable, c.result])).toEqual(sizeEnclosure(MOD, input).candidates.map((c) => [c.config.ref, c.usable, c.result]));
     expect(validateCatalogue(back).filter((x) => x.level === 'bad')).toEqual([]);

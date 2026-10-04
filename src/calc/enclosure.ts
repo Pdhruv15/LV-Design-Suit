@@ -58,15 +58,16 @@ const BASE_NOTES = ['Blank cells in the chart are treated as not offered for tha
 /** The owner's supplier chart, family 1: modular distribution boards. */
 const MODULAR: EnclosureCatalogue = {
   id: 'chart-modular', supplier: 'Supplier chart', range: 'Modular DB', family: 'modular', source: SRC, revision: '1',
-  notes: [...BASE_NOTES, 'Up to 12 ELCB: 8 modules (4 terminal + 4 incoming cable space) off the actual modules; up to 15 ELCB: 12 (8 terminal + 4 incoming).'],
+  notes: ['1 to 4 rows × 16, and 5 × 16 for up to 15 ELCB, are blank in the printed chart: worked out the same way (actual modules − 8 or − 12) so every size can be chosen.',
+    'Up to 12 ELCB: 8 modules (4 terminal + 4 incoming cable space) off the actual modules; up to 15 ELCB: 12 (8 terminal + 4 incoming).'],
   rules: [
     { id: 'elcb12', label: 'Up to 12 ELCB — 4 terminal + 4 incoming cable space', deductModules: 8, elcbMax: 12 },
     { id: 'elcb15', label: 'Up to 15 ELCB — 8 terminal + 4 incoming cable space', deductModules: 12, elcbMin: 13, elcbMax: 15 }
   ],
   overlaps: [],
   configs: ([
-    [1, 16, 16, null, null, [325, 465], [305, 445]], [2, 16, 32, null, null, [475, 465], [455, 445]], [3, 16, 48, null, null, [625, 465], [605, 445]],
-    [4, 16, 64, null, null, [775, 465], [755, 445]], [5, 16, 80, 72, null, [925, 465], [905, 445]], [6, 16, 96, 88, 84, [1075, 465], [1055, 445]],
+    [1, 16, 16, 8, 4, [325, 465], [305, 445]], [2, 16, 32, 24, 20, [475, 465], [455, 445]], [3, 16, 48, 40, 36, [625, 465], [605, 445]],
+    [4, 16, 64, 56, 52, [775, 465], [755, 445]], [5, 16, 80, 72, 68, [925, 465], [905, 445]], [6, 16, 96, 88, 84, [1075, 465], [1055, 445]],
     [4, 24, 96, 88, 84, [775, 609], [755, 589]], [5, 24, 120, 112, 108, [925, 609], [905, 589]], [6, 24, 144, 136, 132, [1075, 609], [1055, 589]]
   ] as [number, number, number, number | null, number | null, [number, number], [number, number]][]).map(([rows, per, gross, a, b, fl, su]) => ({
     id: `m${rows}x${per}`, ref: `${rows} × ${per}`, rows, modulesPerRow: per, grossModules: gross,
