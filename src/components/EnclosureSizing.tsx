@@ -53,7 +53,7 @@ export default function EnclosureSizing({ project, boardId, onChange, onStatus }
   const saved = project.boards.find((b) => b.id === panel)?.enclosure;
   const [catalogues, setCatalogues] = useState(() => allCatalogues());
   const [manager, setManager] = useState(false);
-  const [method, setMethod] = useState<'manual' | 'schedule'>(saved?.method ?? 'manual');
+  const [method, setMethod] = useState<'manual' | 'schedule'>(saved?.method ?? 'schedule');
   const [catId, setCatId] = useState(saved?.catalogueId ?? catalogues[0].id);
   const [mounting, setMounting] = useState<Mounting>(saved?.mounting ?? 'surface');
   const [manual, setInput] = useState<SizingInput>(saved?.input ?? { equipmentModules: 64, spareModules: spareFromPct(64, DEFAULT_SPARE_PCT), elcbCount: 10, sparePct: DEFAULT_SPARE_PCT });
@@ -89,6 +89,16 @@ export default function EnclosureSizing({ project, boardId, onChange, onStatus }
     const t = e.target.value.trim();
     if (k === 'incomerA' && t === '') { const { incomerA: _x, ...rest } = manual; setInput(rest); return; }
     const n = Number(t); if (Number.isFinite(n)) setInput({ ...manual, [k]: n });
+  };
+  /** Another panel: start from its own saved size, or from its load schedule. */
+  const choosePanel = (id: string) => {
+    const sv = project.boards.find((b) => b.id === id)?.enclosure;
+    setPanel(id);
+    setMethod(sv?.method ?? 'schedule');
+    setInput(sv?.input ?? { ...manual, sparePct: manual.sparePct ?? DEFAULT_SPARE_PCT });
+    if (sv) { setCatId(sv.catalogueId); if (sv.mounting) setMounting(sv.mounting); }
+    setPick(null);
+    setWidths({});
   };
   const setSpareMode = (pct: boolean) => {
     if (pct) setInput({ ...manual, sparePct: manual.sparePct ?? DEFAULT_SPARE_PCT });
@@ -136,11 +146,11 @@ export default function EnclosureSizing({ project, boardId, onChange, onStatus }
           <p className="m">For DBs only (DB / EDB). {boardId && !dbs.some((b) => b.id === boardId) ? <span className="warn">{boardId} is not a DB — SMDB and MDB enclosures will use their own charts (to be added).</span> : 'SMDB and MDB charts to be added.'}</p>
           {!dbs.length && <p className="warn">This project has no DBs yet.</p>}
           <div className="form-kv">
-            <label>Panel<select value={panel} onChange={(e) => setPanel(e.target.value)}>{dbs.map((b) => <option key={b.id} value={b.id}>{b.id}{b.enclosure ? ' ✓' : ''}</option>)}</select></label>
+            <label>Panel<select value={panel} onChange={(e) => choosePanel(e.target.value)}>{dbs.map((b) => <option key={b.id} value={b.id}>{b.id}{b.enclosure ? ' ✓' : ''}</option>)}</select></label>
             <label>Catalogue<select value={catId} onChange={(e) => { setCatId(e.target.value); setPick(null); }}>{catalogues.map((c) => <option key={c.id} value={c.id}>{c.supplier} — {c.range} (rev. {c.revision})</option>)}</select></label>
             {cat.family === 'modular' && <label>Mounting<select value={mounting} onChange={(e) => setMounting(e.target.value as Mounting)}><option value="surface">Surface</option><option value="flush">Flush</option></select></label>}
           </div>
-          <div className="seg"><button className={method === 'schedule' ? 'on' : ''} onClick={() => setMethod('schedule')} title="The board's devices from its load schedule, each with its real module width from the device records">From schedule</button><button className={method === 'manual' ? 'on' : ''} onClick={() => setMethod('manual')}>Manual</button></div>
+          <div className="seg"><button className={method === 'schedule' ? 'on' : ''} onClick={() => { setMethod('schedule'); setPick(null); }} title="The board's devices from its load schedule, each with its real module width from the device records">From schedule</button><button className={method === 'manual' ? 'on' : ''} onClick={() => { setMethod('manual'); setPick(null); }}>Manual</button></div>
           {method === 'schedule' && (
             <div className="enc-devs">
               {!needed.length && <p className="warn">{panel} has no circuits or incomer to list.</p>}

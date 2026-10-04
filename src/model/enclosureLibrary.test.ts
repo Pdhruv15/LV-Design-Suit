@@ -84,4 +84,18 @@ describe('enclosure library', () => {
     // MCCBs have no typical width
     expect(matchDevice(TYPICAL_DEVICES, 'MCCB', 4, 100)).toBeUndefined();
   });
+
+  it('from schedule: more circuits → more modules and ELCBs; above 12 ELCB the 12-module case applies', () => {
+    const db = 'DB-GF1';
+    const base = sampleProject.feeders.find((f) => f.boardId === db && f.way && f.phase && f.phase !== 'RYB')!;
+    const big = { ...sampleProject, feeders: [...sampleProject.feeders.filter((f) => !(f.boardId === db && f.way)),
+      ...Array.from({ length: 28 }, (_, w) => (['R', 'Y', 'B'] as const).map((ph) => ({ ...base, id: `T-${w + 1}${ph}`, way: w + 1, phase: ph }))).flat()] };
+    const small = scheduleModules(neededDevices(sampleProject, db));
+    const s = scheduleModules(neededDevices(big, db));
+    expect(s.elcb).toBe(14); // 28 ways, one ELCB per two ways
+    expect(s.modules).toBeGreaterThan(small.modules);
+    const mod = BUILTIN_CATALOGUES.find((c) => c.family === 'modular')!;
+    const r = sizeEnclosure(mod, { equipmentModules: s.modules, spareModules: 0, elcbCount: s.elcb });
+    expect(r.rules.map((x) => x.deductModules)).toEqual([12]);
+  });
 });
