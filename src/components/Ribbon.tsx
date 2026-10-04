@@ -7,7 +7,7 @@ import {
 import type { BoardKind, Feeder } from '../types';
 import type { MainView } from '../views';
 
-export type BomCommand = 'boq' | 'changes' | 'circuits' | 'excel' | 'pdf' | 'summary-pdf' | 'rates-sheet' | 'import' | 'save-list' | 'add-item' | 'add-section' | 'extras' | 'wastage' | 'markup';
+export type BomCommand = 'boq' | 'scope' | 'changes' | 'circuits' | 'excel' | 'pdf' | 'summary-pdf' | 'rates-sheet' | 'import' | 'save-list' | 'add-item' | 'add-section' | 'extras' | 'wastage' | 'markup';
 export type RibbonTab = 'home' | 'design' | 'calculate' | 'simulate' | 'reports' | 'cost' | 'standards';
 export type DiagramTool = 'select' | 'pan';
 
@@ -231,13 +231,14 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
     cost: [
       [
         { label: 'Bill of quantities', icon: Receipt, title: 'Full BOQ by tender section, priced from your price list', onClick: () => a.onBom('boq'), active: a.view === 'boq' },
-        { label: 'Changes', icon: History, title: a.hasRevisions ? 'Quantity and cost change since an issued revision' : 'Issue a revision first (Reports → Revisions)', onClick: () => a.onBom('changes') },
+        { label: 'Scope', icon: ClipboardCheck, title: 'Fit-out / new installation, schedule point quantities, responsibility and tender checks', onClick: () => a.onBom('scope') },
+        { label: 'Changes', icon: History, title: a.hasRevisions ? 'Design quantity change at current rates; contract scope changes are not compared' : 'Issue a revision first (Reports → Revisions)', onClick: () => a.onBom('changes') },
         { label: 'Per circuit', icon: Table2, title: 'Cable and breaker cost of every circuit', onClick: () => a.onBom('circuits') }
       ],
       [
         { label: '+ Item', icon: FilePlus2, title: 'Add your own line: manual work, extra scope, anything not in the design', onClick: () => a.onBom('add-item') },
-        { label: '+ Section', icon: Rows3, title: 'Add your own section, e.g. J Lighting fixtures, L Civil works', onClick: () => a.onBom('add-section') },
-        { label: 'Extras', icon: ClipboardCheck, title: 'Ready-made extras: testing and commissioning, DEWA fees, as-built drawings, scaffolding, core drilling…', onClick: () => a.onBom('extras') },
+        { label: '+ Section', icon: Rows3, title: 'Add your own tender section', onClick: () => a.onBom('add-section') },
+        { label: 'Extras', icon: ClipboardCheck, title: 'Lighting, wiring devices, existing work, mechanical interfaces, ELV, testing and civil scope', onClick: () => a.onBom('extras') },
         { label: 'Wastage', icon: Percent, title: 'Wastage % per section on the design quantities (e.g. cables 5 %)', onClick: () => a.onBom('wastage') }
       ],
       [
