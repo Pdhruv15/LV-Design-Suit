@@ -212,6 +212,18 @@ export default function SystemDiagram({
     if (tool !== 'pan' && fn && id) fn(id);
   };
   const layout = useMemo(() => layoutSystem(project, dewa ? DEWA_EXTRA_Y : 0), [project, dewa]);
+  // CAD label limits follow neighbouring drops on the same row. This is
+  // export metadata only; it does not change the live or printed diagram.
+  const cadSlots = useMemo(() => {
+    const slots = new Map<string, number>();
+    const rows = new Map<number, typeof layout.feeders>();
+    for (const n of layout.feeders) (rows.get(n.busY) ?? rows.set(n.busY, []).get(n.busY)!).push(n);
+    for (const row of rows.values()) {
+      row.sort((a, b) => a.x - b.x);
+      row.forEach((n, i) => slots.set(n.feeder.id, row[i + 1] ? row[i + 1].x - n.x : LEAF_W));
+    }
+    return slots;
+  }, [layout]);
   /** Box around these panels: board box, summary box, busbar and outgoing ways. */
   const boardsBox = (ids: string[], pad: number) => {
     const ns = layout.boards.filter((n) => ids.includes(n.board.id));
@@ -689,8 +701,8 @@ export default function SystemDiagram({
           return (
             <g key={t.id} className={`tie${run ? ' closed' : ''}`} onClick={click(() => onRemoveTie?.(t.id))}>
               <title>{`${t.id}: bus coupler ${t.ratingA} A, ${run ? 'closed' : 'normally open'} — click to remove`}</title>
-              <line x1={x1} y1={y} x2={mx - 9} y2={y} className="tie-ln" />
-              <line x1={mx + 9} y1={y} x2={x2} y2={y} className="tie-ln" />
+              <line x1={x1} y1={y} x2={mx - 9} y2={y} className="tie-ln" data-dxf-layer="BUSBAR" />
+              <line x1={mx + 9} y1={y} x2={x2} y2={y} className="tie-ln" data-dxf-layer="BUSBAR" />
               <rect x={mx - 9} y={y - 9} width="18" height="18" rx="2" className="sym" />
               {run ? <line x1={mx - 9} y1={y} x2={mx + 9} y2={y} className="ln" /> : <line x1={mx - 6} y1={y + 6} x2={mx + 6} y2={y - 6} className="ln" />}
               <text x={mx} y={y - 16} textAnchor="middle" className="b">{t.id} · {t.ratingA} A</text>
@@ -711,6 +723,10 @@ export default function SystemDiagram({
           const y = n.busY;
           const endY = n.childBoardId ? y + layout.levelH - 58 : y + 76;
           const tagY = dewa ? 16 : 0; // DEWA: cable text takes two lines
+          const cadSlot = cadSlots.get(f.id) ?? LEAF_W;
+          const cadCableDx = f.kwhMeter && !n.childBoardId ? (f.kwhMeter === 'CT' ? 50 : 35) : 0;
+          const cadCableWidth = Math.max(1, cadSlot - (cableRefs ? 26 : 12) - 7 - cadCableDx);
+          const cadDeviceWidth = Math.max(1, cadSlot - 26);
           return (
             <g
               key={f.id}
@@ -734,18 +750,21 @@ export default function SystemDiagram({
                 </rect>
               )}
               {!iec && <line x1={n.x - 5} y1={y + 32} x2={n.x + 5} y2={y + 20} className="ln" />}
-              {dewa ? <text x={n.x + 10} y={y + 41} className="acc-t">{f.breakerIcuKa} kA{f.rcdMa ? ` · ${f.rcdMa}mA ELCB` : ''}</text>
-                : iec && <text x={n.x + 10} y={y + 41} className="acc-t">{polesText(f)} · {f.breakerIcuKa} kA</text>}
+              {dewa ? <text x={n.x + 10} y={y + 41} className="acc-t" data-dxf-max-width={cadDeviceWidth}>{f.breakerIcuKa} kA{f.rcdMa ? ` · ${f.rcdMa}mA ELCB` : ''}</text>
+                : iec && <text x={n.x + 10} y={y + 41} className="acc-t" data-dxf-max-width={cadDeviceWidth}>{polesText(f)} · {f.breakerIcuKa} kA</text>}
               {dewa && <text x={n.x - 5} y={y + 13} textAnchor="end" className="acc-t way-no">{wayNo.get(f.id)}</text>}
               <line x1={n.x} y1={y + 34} x2={n.x} y2={endY} className={`ln ${status !== 'ok' ? status : ''}${cableTypeOf(project, f).fireRated ? ' fr' : ''}`}
                 style={feederHeat(f.id) ? { stroke: feederHeat(f.id), strokeWidth: 3.5 } : undefined} />
-              {dewa ? <text className="b" x={n.x + 10} y={y + 28}>{f.breakerRatingA}A {dewaPoles(f)} {dewaDevice(f)}</text>
-                : <text className="b" x={n.x + 10} y={y + 30}>{f.breakerRatingA} A{f.rcdMa ? <tspan className="acc-t"> · {f.rcdMa} mA</tspan> : null}</text>}
+              {dewa ? <text className="b" x={n.x + 10} y={y + 28} data-dxf-max-width={cadDeviceWidth}>{f.breakerRatingA}A {dewaPoles(f)} {dewaDevice(f)}</text>
+                : <text className="b" x={n.x + 10} y={y + 30} data-dxf-max-width={cadDeviceWidth}>{f.breakerRatingA} A{f.rcdMa ? <tspan className="acc-t"> · {f.rcdMa} mA</tspan> : null}</text>}
               <text
                 className={`${dewa ? 'acc-t' : 'm'}${onPatchFeeder ? ' cable-lbl' : ''}`}
                 style={dewa ? { fontSize: 9 } : undefined}
                 x={n.x + 7}
                 y={y + (dewa ? 57 : 52)}
+                data-dxf-max-width={cadCableWidth}
+                data-dxf-dy={dewa ? 3 : 0}
+                data-dxf-dx={cadCableDx}
                 onPointerDown={(e) => onPatchFeeder && e.stopPropagation()}
                 onClick={(e) => {
                   if (!onPatchFeeder || tool === 'pan') return;
@@ -763,9 +782,9 @@ export default function SystemDiagram({
                 <g className="cable-ref"><title>{`Cable ${r.ref}: ${r.text}`}</title>
                   <circle cx={n.x - 13} cy={y + (dewa ? 64 : 49)} r="7.5" className="cable-ref-c" />
                   <text x={n.x - 13} y={y + (dewa ? 67 : 52)} textAnchor="middle" className="cable-ref-t">{r.ref}</text>
-                  <text x={n.x + 7} y={y + (dewa ? 68 : 63)} className="acc-t" style={{ fontSize: 8 }}>{f.lengthM}m</text>
+                  <text x={n.x + 7} y={y + (dewa ? 68 : 63)} className="acc-t" style={{ fontSize: 8 }} data-dxf-max-width={cadCableWidth} data-dxf-dx={cadCableDx}>{f.lengthM}m</text>
                 </g>); })()}
-              {dewa && !cableRefs && <text className="acc-t" style={{ fontSize: 9 }} x={n.x + 7} y={y + 67}>{cableTypeOf(project, f).armoured ? `+1C ${cpcOf(f)}mm² ECC · ` : ''}{f.lengthM}m</text>}
+              {dewa && !cableRefs && <text className="acc-t" style={{ fontSize: 9 }} x={n.x + 7} y={y + 67} data-dxf-max-width={cadCableWidth} data-dxf-dy={3} data-dxf-dx={cadCableDx}>{cableTypeOf(project, f).armoured ? `+1C ${cpcOf(f)}mm² ECC · ` : ''}{f.lengthM}m</text>}
               {/* Accessories on the feeder, top to bottom: earth leakage (its
                   rating goes with the breaker's), metering on the right below
                   the cable text, local isolator just above the load. */}
@@ -795,7 +814,7 @@ export default function SystemDiagram({
                   <rect x={n.x - 4} y={y + 66} width="8" height="9" className="bg-fill" />
                   <circle cx={n.x} cy={y + 67} r="1.6" className="dot" />
                   <line x1={n.x} y1={y + 75} x2={n.x - 7} y2={y + 67} className="ln" />
-                  {dewa ? <text x={n.x + 10} y={y + 79} className="acc-t" style={{ fontSize: 9 }}>{f.breakerRatingA}A {dewaPoles(f)} ISOLATOR (W/P)</text> : <text x={n.x - 9} y={y + 74} textAnchor="end" className="acc-t">ISO</text>}
+                  {dewa ? <text x={n.x + 10} y={y + 79} className="acc-t" style={{ fontSize: 9 }} data-dxf-max-width={cadDeviceWidth}>{f.breakerRatingA}A {dewaPoles(f)} ISOLATOR (W/P)</text> : <text x={n.x - 9} y={y + 74} textAnchor="end" className="acc-t">ISO</text>}
                 </g>
               )}
               {!n.childBoardId && (

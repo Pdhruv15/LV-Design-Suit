@@ -93,7 +93,7 @@ export default function SldExportDialog({ project, onSave, onStatus, onClose, st
           <button className="chip" onClick={() => { onSave(d); onClose(); }}>Save details</button>
           <span className="sp" />
           <button className="chip" disabled={!!busy} onClick={() => run('svg')}>{busy === 'svg' ? 'Exporting…' : 'SVG'}</button>
-          <button className="chip" disabled={!!busy} onClick={() => run('dxf')} title="AutoCAD R12 DXF: layers BUSBAR, CABLE, SYMBOL, TEXT, RESULT, TITLE">{busy === 'dxf' ? 'Exporting…' : 'DXF (CAD)'}</button>
+          <button className="chip" disabled={!!busy} onClick={() => run('dxf')} title="AutoCAD R12 DXF: wide busbars, fitted cable text and editable layers BUSBAR, CABLE, SYMBOL, TEXT, RESULT, TITLE">{busy === 'dxf' ? 'Exporting…' : 'DXF (CAD)'}</button>
           <button className="chip primary" disabled={!!busy} onClick={() => run('pdf')}>{busy === 'pdf' ? 'Exporting…' : `PDF ${d.sheet ?? 'A3'}`}</button>
         </div>
       </div>

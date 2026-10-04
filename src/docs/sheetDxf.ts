@@ -33,10 +33,10 @@ function placeSvg(svg: string, box: { x: number; y: number; w: number; h: number
     const L = layer ?? LAYER_OF[p.layer] ?? 'E-SYMBOL';
     const X = (x: number) => ox + x * s, Y = (y: number) => oy + y * s;
     switch (p.type) {
-      case 'line': return { ...p, layer: L, x1: X(p.x1), y1: Y(p.y1), x2: X(p.x2), y2: Y(p.y2) };
-      case 'polyline': return { ...p, layer: L, points: p.points.map(([a, b]) => [X(a), Y(b)] as [number, number]) };
+      case 'line': return { ...p, layer: L, x1: X(p.x1), y1: Y(p.y1), x2: X(p.x2), y2: Y(p.y2), ...(p.width ? { width: p.width * s } : {}) };
+      case 'polyline': return { ...p, layer: L, points: p.points.map(([a, b]) => [X(a), Y(b)] as [number, number]), ...(p.width ? { width: p.width * s } : {}) };
       case 'circle': return { ...p, layer: L, x: X(p.x), y: Y(p.y), r: p.r * s };
-      case 'text': return { ...p, layer: L, x: X(p.x), y: Y(p.y), height: p.height * s };
+      case 'text': return { ...p, layer: L, x: X(p.x), y: Y(p.y), height: p.height * s, ...(p.width ? { width: p.width * s } : {}) };
     }
   });
   return { items, usedH: dh };
@@ -140,4 +140,3 @@ export function buildSheetDxf(project: Project, svg: string, size: NonNullable<D
   out.push(...placeSvg(svg, area).items);
   return toDxf(out, SHEET_LAYERS);
 }
-

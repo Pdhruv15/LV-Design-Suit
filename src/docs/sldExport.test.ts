@@ -59,6 +59,10 @@ describe('SLD drawing export', () => {
     expect(r.map((v) => Math.round(v * 1e6) / 1e6)).toEqual([0, 1, -1, 0, 0, 0]);
     expect(pathPoints('M-9 5 L-6 -6 H6 L9 5 Z')).toEqual([[[-9, 5], [-6, -6], [6, -6], [9, 5], [-9, 5]]]);
     expect(pathPoints('M0 0 l10 0 v5')).toEqual([[[0, 0], [10, 0], [10, 5]]]);
-    expect(pathPoints('M10 22 q2.5 -6 5 0 t5 0')).toEqual([[[10, 22], [15, 22], [20, 22]]]);
+    const curved = pathPoints('M10 22 q2.5 -6 5 0 t5 0')[0];
+    expect(curved[0]).toEqual([10, 22]);
+    expect(curved[curved.length - 1]).toEqual([20, 22]);
+    expect(Math.min(...curved.map((p) => p[1]))).toBeCloseTo(19);
+    expect(Math.max(...curved.map((p) => p[1]))).toBeCloseTo(25);
   });
 });
