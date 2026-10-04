@@ -60,7 +60,11 @@ self.addEventListener('message', (e) => { if (e.data === 'version') e.source.pos
   }
 });
 
+import pkg from './package.json';
+
 export default defineConfig({
+  // App version shown in the title and header: v1.2 (major.minor of package.json).
+  define: { __APP_VERSION__: JSON.stringify(pkg.version.split('.').slice(0, 2).join('.')) },
   plugins: [react(), csp(), pwa()],
   resolve: {
     // ExcelJS's browser build: the app writes .xlsx files in the page (the

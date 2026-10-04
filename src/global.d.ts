@@ -2,6 +2,8 @@
 export {};
 
 declare global {
+  /** App version, e.g. "1.2" (from package.json; raised with each release). */
+  const __APP_VERSION__: string;
   interface Window {
     lvds: {
       settings: {

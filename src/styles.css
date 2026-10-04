@@ -1206,3 +1206,4 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .pp-naming{grid-template-columns:minmax(260px,1fr) minmax(420px,2.4fr)}
 .earth-cols{grid-template-columns:minmax(240px,1fr) minmax(420px,2.2fr) minmax(220px,1fr)}
 .earth-drawing{width:100%;height:auto;background:#fff;border-radius:4px}
+.app-ver{font-size:.75em;font-weight:500;opacity:.7;margin-left:4px}

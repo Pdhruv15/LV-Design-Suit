@@ -329,7 +329,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    document.title = `${dirty ? '● ' : ''}${project.name} — LV Design Studio`;
+    document.title = `${dirty ? '● ' : ''}${project.name} — LV Design Studio v${__APP_VERSION__}`;
   }, [dirty, project.name]);
 
   function restoreRecovery() {
@@ -780,7 +780,7 @@ export default function App() {
     <div className={`app-root${home ? ' home' : ''}`}>
       <div className="top">
         <div className="brand">
-          LV Design Studio
+          LV Design Studio <span className="app-ver">v{__APP_VERSION__}</span>
           <small>Low-voltage power design suite</small>
         </div>
         <div className="crumb">
