@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { Project } from '../types';
 import { sampleProject } from '../data/sampleProject';
 import { applyTransformers, planTransformers, setRmu } from './transformers';
 import { earthingLayout } from './earthingPlan';
@@ -71,5 +72,25 @@ describe('earthing schematic', () => {
     for (const pit of L.pits) expect(d.svg).toContain(`>${pit.id}</text>`);
     expect(d.h).toBeGreaterThan(900); // LV room on a second row
     expect(d.w).toBeLessThan(3000);
+  });
+
+  it('two substations, 5 transformers and 3 RMUs each: separate bands, pits never linked across substations', () => {
+    let p: Project = { ...sampleProject, boards: [], feeders: [], ties: [] };
+    p = applyTransformers(p, planTransformers(p, Array.from({ length: 5 }, () => ({ kva: 1500 })), false, 2, 'SS-01'));
+    p = applyTransformers(p, planTransformers(p, Array.from({ length: 5 }, () => ({ kva: 1000 })), false, 2, 'SS-02'));
+    const L = earthingLayout(p);
+    for (const g of ['SS-01', 'SS-02']) {
+      expect(L.items.filter((i) => i.group === g && i.kind === 'rmu')).toHaveLength(3);
+      expect(L.items.filter((i) => i.group === g && i.kind === 'txn')).toHaveLength(5);
+      expect(L.items.filter((i) => i.group === g && i.kind === 'lv')).toHaveLength(5);
+    }
+    const group = new Map(L.pits.map((x) => [x.id, L.items.find((i) => i.key === x.itemKey)!.group]));
+    expect(L.links.every(([a, b]) => group.get(a) === group.get(b))).toBe(true);
+    expect(L.pits).toHaveLength(2 * (3 * 2 + 5 * 2 + 5));
+    const d = earthingDrawing(p);
+    expect(d.svg).toContain('LV ROOM — SS-01');
+    expect(d.svg).toContain('LV ROOM — SS-02');
+    expect(d.svg).toContain('LEGEND');
+    expect(d.svg).not.toMatch(/NaN|undefined|NO PIT/);
   });
 });

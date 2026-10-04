@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import type { Project } from '../types';
 import { settingsOf } from '../types';
 import { sizeTransformers } from '../calc/txGen';
-import { applyTransformers, DEWA_TRANSFORMER_KVA, mainBoards, mainOf, moveUnder, nextRmus, planTransformers, rmuNames, setRmu, setTransformer, txTag } from '../model/transformers';
+import { applyTransformers, DEWA_TRANSFORMER_KVA, mainBoards, mainOf, moveUnder, nextRmus, planTransformers, rmuNames, setRmu, setSubstation, setTransformer, txTag } from '../model/transformers';
 
 const fmt = (n: number | undefined, d = 0) => (n === undefined || !Number.isFinite(n) ? '—' : n.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: d }));
 
@@ -16,7 +16,8 @@ export default function TransformersTab({ project, onChange, onCreate, onStatus 
   const [kvas, setKvas] = useState<number[]>([1500, 1500]);
   const [ties, setTies] = useState(false);
   const [perRmu, setPerRmu] = useState<1 | 2>(1);
-  const plan = useMemo(() => planTransformers(project, kvas.map((kva) => ({ kva })), ties, perRmu), [project, kvas, ties, perRmu]);
+  const [sub, setSub] = useState('');
+  const plan = useMemo(() => planTransformers(project, kvas.map((kva) => ({ kva })), ties, perRmu, sub), [project, kvas, ties, perRmu, sub]);
   const mains = mainBoards(project);
   const rows = useMemo(() => { try { return sizeTransformers(project, { txBoards: [], sizeList: 'dewa', n1: [], includePfc: true, emergencyLoadingPct: 100, genBoards: {} }); } catch { return []; } }, [project]);
   const limit = settingsOf(project).transformerMaxLoadingPct;
@@ -48,6 +49,7 @@ export default function TransformersTab({ project, onChange, onCreate, onStatus 
             <label key={i}>{plan.boards[i]?.id ?? `TX ${i + 1}`}<select value={k} onChange={(e) => setKvas(kvas.map((x, j) => (j === i ? Number(e.target.value) : x)))}>{DEWA_TRANSFORMER_KVA.map((v) => <option key={v} value={v}>{v} kVA</option>)}</select></label>
           ))}
         </div>
+        <label>Substation<input className="bi-text" style={{ width: 130 }} value={sub} placeholder="e.g. SS-01" onChange={(e) => setSub(e.target.value)} /></label>
         <label>RMU<select value={perRmu} onChange={(e) => setPerRmu(Number(e.target.value) as 1 | 2)}><option value={1}>One RMU per transformer</option><option value={2}>One RMU for two transformers</option></select></label>
         <p className="m">{[...new Set(plan.boards.map((b) => b.rmu))].join(', ')}</p>
         <label className="row"><input type="checkbox" checked={ties} onChange={(e) => setTies(e.target.checked)} /> Bus tie between pairs (normally open)</label>
@@ -60,7 +62,7 @@ export default function TransformersTab({ project, onChange, onCreate, onStatus 
         {!mains.length && <p className="m">No main boards yet.</p>}
         <div className="pp-table">
           <table className="bi-table compact">
-            <thead><tr><th>Transformer</th><th>MDB</th><th>kVA</th><th>RMU</th><th>Demand kVA</th><th>Loading</th><th>DEWA size needed</th><th>Feeds</th></tr></thead>
+            <thead><tr><th>Transformer</th><th>MDB</th><th>kVA</th><th>Substation</th><th>RMU</th><th>Demand kVA</th><th>Loading</th><th>DEWA size needed</th><th>Feeds</th></tr></thead>
             <tbody>{mains.map((m) => {
               const r = rows.find((x) => x.board.id === m.id);
               const pct = r?.loadingPct;
@@ -70,6 +72,7 @@ export default function TransformersTab({ project, onChange, onCreate, onStatus 
                   <td>{txTag(project, m.id) ?? <span className="warn">none</span>}</td>
                   <td>{m.id}</td>
                   <td><select value={m.sourceKva ?? ''} onChange={(e) => onChange(setTransformer(project, m.id, e.target.value ? Number(e.target.value) : undefined))}><option value="">—</option>{[...new Set([...DEWA_TRANSFORMER_KVA, ...(m.sourceKva ? [m.sourceKva] : [])])].sort((a, b) => a - b).map((v) => <option key={v} value={v}>{v}</option>)}</select></td>
+                  <td><input className="bi-text" style={{ width: 90 }} defaultValue={m.substation ?? ''} key={`${m.id}-${m.substation ?? ''}`} placeholder="—" onBlur={(e) => e.target.value.trim() !== (m.substation ?? '') && onChange(setSubstation(project, m.id, e.target.value))} /></td>
                   <td><select value={m.rmu ?? ''} onChange={(e) => onChange(setRmu(project, m.id, e.target.value === '+' ? nextRmus(project, 1)[0] : e.target.value || undefined))}><option value="">—</option>{rmuNames(project).map((n) => <option key={n} value={n}>{n}</option>)}<option value="+">New RMU</option></select></td>
                   <td>{fmt(r?.demandKva, 1)}</td>
                   <td className={pct === undefined ? 'm' : pct > limit ? 'bad' : 'ok'}>{pct === undefined ? '—' : `${fmt(pct, 1)} %`}</td>
