@@ -1,3 +1,7 @@
+import { applyTransformers, planTransformers } from '../model/transformers';
+import { planEmergency } from '../model/emergency';
+import { earthingLayout } from '../model/earthingPlan';
+import { fallbackPriceEntry } from '../model/priceList';
 import { describe, expect, it } from 'vitest';
 import ExcelJS from 'exceljs';
 import { sampleProject } from '../data/sampleProject';
@@ -255,5 +259,42 @@ describe('instruments and earthing', () => {
     expect(buildBom(p).find((x) => x.key === 'earth-pit:3')!.qty).toBe(p.boards.filter((b) => !b.upstreamId).length * 2);
     const off = { ...p, boards: p.boards.map((b) => ({ ...b, instruments: false, earthing: { show: false } })) };
     expect(buildBom(off).some((x) => x.key === 'ammeter-ss' || x.key.startsWith('earth-pit'))).toBe(false);
+  });
+});
+
+describe('BOQ: RMU, bus couplers, manufacturer references, emergency lines, earth pits, starting rates', () => {
+  const withTx = () => {
+    let p: Project = { ...sampleProject };
+    p = applyTransformers(p, planTransformers(p, [{ kva: 1500 }, { kva: 1500 }], true, 2, 'SS-01'));
+    return p;
+  };
+  it('one RMU line per RMU, supplied by others; a bus coupler per tie', () => {
+    const items = buildBom(withTx());
+    const rmu = items.find((i) => i.key === 'rmu:11kV')!;
+    expect(rmu.qty).toBe(2); // sample TX-1 on its own RMU + RMU-1 for the two new transformers
+    expect(rmu.supplyBy).toBe('others');
+    expect(items.find((i) => i.key.startsWith('tie:'))).toMatchObject({ section: 'B', qty: 1 });
+  });
+  it('breakers carry a manufacturer reference "or approved equal" without changing their keys', () => {
+    const mcb = buildBom(sampleProject).find((i) => i.key.startsWith('mcb:') && / SP,/.test(i.description))!;
+    expect(mcb.description).toMatch(/ref\. Schneider Electric Acti9 iC60N or approved equal/);
+    expect(mcb.key).not.toMatch(/Schneider/);
+  });
+  it('emergency system items are separate lines', () => {
+    const e = planEmergency(sampleProject, { count: 1, mainsFrom: 'MDB-1', esmdb: 1, edb: 1, incomers: true });
+    const p = { ...sampleProject, boards: [...sampleProject.boards, ...e.boards], feeders: [...sampleProject.feeders, ...e.feeders] };
+    const emg = buildBom(p).filter((i) => i.key.endsWith(':emg'));
+    expect(emg.length).toBeGreaterThan(0);
+    expect(emg.every((i) => i.description.startsWith('Emergency system — '))).toBe(true);
+  });
+  it('earth pits by kind match the earthing schematic', () => {
+    const p = { ...withTx(), earthingPlan: {} };
+    const pits = buildBom(p).filter((i) => i.key.startsWith('earth-pit'));
+    const L = earthingLayout(p);
+    for (const k of ['rmu', 'txn', 'txb', 'lv']) expect(pits.find((i) => i.key.endsWith(`:${k}`))?.qty ?? 0).toBe(L.pits.filter((x) => x.kind === k).length);
+  });
+  it('starting rates for everything except panels and conductor-metre wiring', () => {
+    const missing = buildBom(withTx()).filter((i) => !fallbackPriceEntry(i.key)).map((i) => i.key.split(':')[0]);
+    expect([...new Set(missing)].sort()).toEqual(['panel', 'wire-conductor']);
   });
 });

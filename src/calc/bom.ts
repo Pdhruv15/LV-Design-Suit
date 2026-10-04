@@ -5,6 +5,10 @@ import { breakerTypeOf, cpcOf } from './earthing';
 import { runsOf } from './electrical';
 import { sizeRiser } from './busbar';
 import { earthingLayout, kindInfo } from '../model/earthingPlan';
+import { BRAND_DEVICES } from '../data/brandDevices';
+import { matchDevice, type DeviceKind } from '../model/enclosureLibrary';
+import { scheduleGroupOf } from '../model/scheduleGroups';
+import { mainBoards, txTag } from '../model/transformers';
 import { sizeRoute, trayPlanOf, trayQuantities } from './cableTray';
 import { elcbGroups, pointLabel, scheduleCircuits } from './loadSchedule';
 
@@ -36,6 +40,8 @@ export interface BomItem {
   where: string[]; // boards / routes / risers it comes from
   quantitySource?: string;
   supplyBy?: 'contractor' | 'client' | 'others';
+  /** Who installs it, when the design knows (e.g. DEWA's RMU: others). */
+  installBy?: 'contractor' | 'client' | 'others';
 }
 
 const kindOf = (b: Board) => b.kind ?? (b.upstreamId ? 'DB' : 'MDB');
@@ -48,13 +54,20 @@ export function polesOf(f: Feeder): string {
   return f.cores === 2 ? 'SP+N' : f.cores === 3 ? 'TP' : 'TP+N';
 }
 
+const POLE_COUNT: Record<string, number> = { SP: 1, 'SP+N': 2, TP: 3, 'TP+N': 4 };
+/** Manufacturer reference from the built-in device data, written "ref. … or approved equal" (never part of the key). */
+export function brandRef(kind: DeviceKind, poles: string | number, ratingA: number): string {
+  const d = matchDevice(BRAND_DEVICES, kind, typeof poles === 'number' ? poles : POLE_COUNT[poles] ?? 0, ratingA);
+  return d ? ` — ref. ${d.manufacturer} ${d.model.replace(/\s+\S+$/, '')} or approved equal` : '';
+}
+
 export function breakerItem(f: Feeder): Pick<BomItem, 'key' | 'description'> {
   const t = f.device === 'ACB' || f.device === 'MCCB' ? f.device : breakerTypeOf(f);
   const p = polesOf(f);
   if (f.device === 'ISOL') return { key: `switch-isol:${f.breakerRatingA}:${p}`, description: `Feeder isolator ${f.breakerRatingA} A ${p}` };
-  if (t === 'ACB') return { key: `acb:${f.breakerRatingA}:${p}:${f.breakerIcuKa}`, description: `ACB ${f.breakerRatingA} A ${p}, ${f.breakerIcuKa} kA, withdrawable, electronic trip unit` };
-  if (t === 'MCCB') return { key: `mccb:${f.breakerRatingA}:${p}:${f.breakerIcuKa}`, description: `MCCB ${f.breakerRatingA} A ${p}, ${f.breakerIcuKa} kA, adjustable thermal-magnetic` };
-  return { key: `mcb:${t}:${f.breakerRatingA}:${p}:${f.breakerIcuKa}`, description: `MCB ${f.breakerRatingA} A ${p}, type ${t}, ${f.breakerIcuKa} kA` };
+  if (t === 'ACB') return { key: `acb:${f.breakerRatingA}:${p}:${f.breakerIcuKa}`, description: `ACB ${f.breakerRatingA} A ${p}, ${f.breakerIcuKa} kA, withdrawable, electronic trip unit${brandRef('ACB', p, f.breakerRatingA)}` };
+  if (t === 'MCCB') return { key: `mccb:${f.breakerRatingA}:${p}:${f.breakerIcuKa}`, description: `MCCB ${f.breakerRatingA} A ${p}, ${f.breakerIcuKa} kA, adjustable thermal-magnetic${brandRef('MCCB', p, f.breakerRatingA)}` };
+  return { key: `mcb:${t}:${f.breakerRatingA}:${p}:${f.breakerIcuKa}`, description: `MCB ${f.breakerRatingA} A ${p}, type ${t}, ${f.breakerIcuKa} kA${brandRef('MCB', p, f.breakerRatingA)}` };
 }
 
 /** Cable gland size by overall cable size (approximate, CW type for SWA). */
@@ -67,9 +80,14 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
   const p = project as Project;
   const m = new Map<string, BomItem>();
   const groupedRcdCircuits = new Set<string>();
-  const add = (section: BomSection, key: string, description: string, unit: BomItem['unit'], qty: number, where: string,
-    basis: Pick<BomItem, 'quantitySource' | 'supplyBy'> = {}) => {
+  // Items of the emergency system (EMDB and everything below it) are listed on their own lines.
+  const emergency = new Set(p.boards.filter((b) => scheduleGroupOf(p, b) === 'emg').map((b) => b.id));
+  const add = (section: BomSection, key0: string, description0: string, unit: BomItem['unit'], qty: number, where: string,
+    basis: Pick<BomItem, 'quantitySource' | 'supplyBy' | 'installBy'> = {}) => {
     if (!(qty > 0)) return;
+    const emg = emergency.has(where);
+    const key = emg ? `${key0}:emg` : key0;
+    const description = emg ? `Emergency system — ${description0}` : description0;
     const it = m.get(key) ?? { key, section, description, unit, qty: 0, where: [], quantitySource: 'Design model', supplyBy: 'contractor', ...basis };
     it.qty += qty;
     if (where && !it.where.includes(where)) it.where.push(where);
@@ -105,7 +123,7 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
     const threePhase = !!inc && inc.cores >= 3 || circuits.some((c) => c.cores !== 2 || c.phase === 'RYB') || new Set(circuits.map((c) => c.phase)).size > 1;
     for (const group of elcbGroups(p, b)) {
       const poles = threePhase ? 'TP+N' : 'SP+N';
-      add('B', `rccb:${group.sensitivityMa}:${poles}:${group.ratingA}`, `RCCB / ELCB ${group.sensitivityMa} mA, ${poles}, ${group.ratingA} A`, 'no', 1, b.id,
+      add('B', `rccb:${group.sensitivityMa}:${poles}:${group.ratingA}`, `RCCB / ELCB ${group.sensitivityMa} mA, ${poles}, ${group.ratingA} A${brandRef('RCCB', poles, group.ratingA)}`, 'no', 1, b.id,
         { quantitySource: 'Load schedule ELCB groups' });
       group.circuits.forEach((c) => groupedRcdCircuits.add(c.id));
     }
@@ -146,6 +164,23 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
       add('I', `earth-pit:${L.electrodeM}:${pit.kind}`, `Earth pit (${kindInfo(pit.kind).label}): ${L.electrodeM} m copper-bonded earth electrode with inspection pit and cover, tested`, 'no', 1, it.equipment);
     }
     if (L.links.length) add('I', `earth-link:${L.conductorMm2}`, `Earth pit interconnection 1C × ${L.conductorMm2} mm² Cu (length to site)`, 'no', L.links.length, 'Earthing schematic');
+  }
+
+  // RMUs feeding the transformers (one line per RMU; normally DEWA supply)
+  const rmus = new Map<string, string[]>();
+  for (const b of mainBoards(p).filter((x) => x.sourceKva)) {
+    const name = b.rmu?.trim() || `RMU (${txTag(p, b.id)})`;
+    const key = `${b.substation?.trim() || ''}|${name}`;
+    rmus.set(key, [...(rmus.get(key) ?? []), txTag(p, b.id) ?? b.id]);
+  }
+  for (const [key, txs] of rmus) {
+    const name = key.split('|')[1];
+    add('D', 'rmu:11kV', '11 kV ring main unit (RMU): 2 × ring load-break switch + 1 × T-off switch-fuse, SF6 / solid insulated, with earthing switches', 'no', 1, `${name} (${txs.join(', ')})`, { supplyBy: 'others', installBy: 'others' });
+  }
+  // Bus couplers between main boards (normally open)
+  for (const t of p.ties ?? []) {
+    const dev = t.ratingA > 630 ? 'ACB' : 'MCCB';
+    add('B', `tie:${dev}:${t.ratingA}`, `Bus coupler ${dev} ${t.ratingA} A 4P, normally open, interlocked with the incomers${brandRef(dev, 3, t.ratingA)}`, 'no', 1, `${t.a} – ${t.b}`);
   }
 
   // Outgoing ways: breakers, earth leakage, meters, isolators, equipment
