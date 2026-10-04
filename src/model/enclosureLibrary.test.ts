@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
 import { BUILTIN_CATALOGUES, sizeEnclosure } from '../calc/enclosure';
-import { allCatalogues, catalogueWorkbook, duplicateCatalogue, exportLibrary, importLibrary, loadDevices, matchDevice, neededDevices, readCatalogueWorkbook, saveDevices, saveUserCatalogues, scheduleModules, userCatalogues, validateCatalogue, type DeviceDim } from './enclosureLibrary';
+import { allCatalogues, catalogueWorkbook, duplicateCatalogue, exportLibrary, importLibrary, loadDevices, matchDevice, neededDevices, TYPICAL_DEVICES, isTypical, readCatalogueWorkbook, saveDevices, saveUserCatalogues, scheduleModules, userCatalogues, validateCatalogue, type DeviceDim } from './enclosureLibrary';
 
 // localStorage for node
 const store = new Map<string, string>();
@@ -46,7 +46,7 @@ describe('enclosure library', () => {
     const bytes = await wb.xlsx.writeBuffer();
     const back = await readCatalogueWorkbook(bytes as ArrayBuffer);
     expect(back.configs).toHaveLength(MOD.configs.length);
-    expect(back.configs[4]).toMatchObject({ ref: '5 × 16', rows: 5, modulesPerRow: 16, grossModules: 80, dims: { surface: { h: 905, w: 445, d: 115 }, flush: { h: 925, w: 465, d: 115 } }, usable: { elcb12: 72, elcb15: null } });
+    expect(back.configs[4]).toMatchObject({ ref: '5 × 16', rows: 5, modulesPerRow: 16, grossModules: 80, dims: { surface: { h: 905, w: 445, d: 115 }, flush: { h: 925, w: 465, d: 115 } }, usable: { elcb12: 72, elcb15: 68 } });
     const input = { equipmentModules: 64, spareModules: 8, elcbCount: 10 };
     expect(sizeEnclosure(back, input).candidates.map((c) => [c.config.ref, c.usable, c.result])).toEqual(sizeEnclosure(MOD, input).candidates.map((c) => [c.config.ref, c.usable, c.result]));
     expect(validateCatalogue(back).filter((x) => x.level === 'bad')).toEqual([]);
@@ -71,5 +71,31 @@ describe('enclosure library', () => {
     expect(needed.every((d) => d.device === matchDevice(recs, d.kind, d.poles, d.ratingA))).toBe(true);
     expect(matchDevice([{ id: 'r', manufacturer: 'X', model: 'm', kind: 'MCB', poles: 1, ratingMinA: 6, ratingMaxA: 32, modules: 1 }], 'MCB', 1, 40)).toBeUndefined();
     expect(loadDevices()).toEqual([]);
+  });
+
+  it('ELCB groups on a three-phase board are 4-pole RCCBs; typical widths fill in when no record matches', () => {
+    const db = 'DB-GF1';
+    const rccb = neededDevices(sampleProject, db).filter((d) => d.kind === 'RCCB');
+    expect(rccb.length).toBeGreaterThan(0);
+    expect(rccb.every((d) => d.poles === 4 && d.device?.modules === 4 && isTypical(d.device))).toBe(true);
+    // Your own record beats the typical width
+    const mine: DeviceDim = { id: 'm', manufacturer: 'X', model: 'RCCB 4P wide', kind: 'RCCB', poles: 4, modules: 5 };
+    expect(neededDevices(sampleProject, db, [mine, ...TYPICAL_DEVICES]).find((d) => d.kind === 'RCCB')!.device!.id).toBe('m');
+    // MCCBs have no typical width
+    expect(matchDevice(TYPICAL_DEVICES, 'MCCB', 4, 100)).toBeUndefined();
+  });
+
+  it('from schedule: more circuits → more modules and ELCBs; above 12 ELCB the 12-module case applies', () => {
+    const db = 'DB-GF1';
+    const base = sampleProject.feeders.find((f) => f.boardId === db && f.way && f.phase && f.phase !== 'RYB')!;
+    const big = { ...sampleProject, feeders: [...sampleProject.feeders.filter((f) => !(f.boardId === db && f.way)),
+      ...Array.from({ length: 28 }, (_, w) => (['R', 'Y', 'B'] as const).map((ph) => ({ ...base, id: `T-${w + 1}${ph}`, way: w + 1, phase: ph }))).flat()] };
+    const small = scheduleModules(neededDevices(sampleProject, db));
+    const s = scheduleModules(neededDevices(big, db));
+    expect(s.elcb).toBe(14); // 28 ways, one ELCB per two ways
+    expect(s.modules).toBeGreaterThan(small.modules);
+    const mod = BUILTIN_CATALOGUES.find((c) => c.family === 'modular')!;
+    const r = sizeEnclosure(mod, { equipmentModules: s.modules, spareModules: 0, elcbCount: s.elcb });
+    expect(r.rules.map((x) => x.deductModules)).toEqual([12]);
   });
 });

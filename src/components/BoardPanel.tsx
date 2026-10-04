@@ -3,6 +3,7 @@ import type { Board, Project } from '../types';
 import type { FeederResult } from '../calc/electrical';
 import { boardSummary } from '../calc/summary';
 import BoardFields from './BoardFields';
+import { roleOf } from '../model/emergency';
 
 export type BoardTab = 'general' | 'electrical' | 'protection';
 type Tab = BoardTab;
@@ -56,7 +57,7 @@ export default function BoardPanel({
         </div>
 
         {tab === 'general' && <BoardFields board={board} onChange={onChange} section="general" building={project.building} />}
-        {tab === 'general' && (
+        {tab === 'general' && ['DB', 'EDB'].includes(roleOf(project, board)) && (
           <p className="m enc-link">Enclosure: {board.enclosure ? <b>{board.enclosure.range} {board.enclosure.config.ref}{board.enclosure.dims ? ` · H${board.enclosure.dims.h} × W${board.enclosure.dims.w} × D${board.enclosure.dims.d} mm` : ''}</b> : 'not sized'}
             {board.enclosure && <span> ({board.enclosure.supplier} rev. {board.enclosure.revision}{board.enclosure.confirmNeeded ? ', supplier to confirm' : ''})</span>}
             {onEnclosure && <> <button className="chip" onClick={onEnclosure}>Enclosure sizing…</button></>}</p>

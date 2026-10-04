@@ -73,8 +73,12 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
     const k = kindOf(b);
     const rating = b.ratedCurrentA ?? p.feeders.find((f) => f.feedsBoardId === b.id)?.breakerRatingA;
     const bus = b.busbarMaterial === 'aluminium' ? 'Al' : 'Cu';
-    add('A', `panel:${k}:${rating ?? '-'}:${b.ipRating ?? '-'}`,
-      `${kindLabel(k)} (${k})${rating ? `, ${rating} A` : ''}, ${bus} busbar${b.ipRating ? `, ${b.ipRating}` : ''}, form of separation to spec.`, 'no', 1, b.id);
+    const enc = b.enclosure;
+    const encText = enc ? `, enclosure ${enc.range} ${enc.config.ref}${enc.dims ? ` (H${enc.dims.h} × W${enc.dims.w} × D${enc.dims.d} mm)` : ''}` : '';
+    add('A', `panel:${k}:${rating ?? '-'}:${b.ipRating ?? '-'}${enc ? `:${enc.catalogueId}:${enc.config.id}` : ''}`,
+      `${kindLabel(k)} (${k})${rating ? `, ${rating} A` : ''}, ${bus} busbar${b.ipRating ? `, ${b.ipRating}` : ''}${encText}, form of separation to spec.`, 'no', 1, b.id);
+    // Extra the supplier's chart adds for the enclosure case (e.g. an 800 mm busbar).
+    if (enc?.extra) add('A', `enc-extra:${enc.extra}`, enc.extra.replace(/ to add in the estimate$/, '').replace(/^./, (c) => c.toUpperCase()) + ' for the distribution board (supplier chart allowance)', 'no', 1, b.id);
     // Incomer device of a board fed from a transformer or the authority
     if (!b.upstreamId && rating) {
       const dev = b.supply?.device ?? (rating > 630 ? 'ACB' : 'MCCB');

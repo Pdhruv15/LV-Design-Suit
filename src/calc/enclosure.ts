@@ -58,15 +58,16 @@ const BASE_NOTES = ['Blank cells in the chart are treated as not offered for tha
 /** The owner's supplier chart, family 1: modular distribution boards. */
 const MODULAR: EnclosureCatalogue = {
   id: 'chart-modular', supplier: 'Supplier chart', range: 'Modular DB', family: 'modular', source: SRC, revision: '1',
-  notes: [...BASE_NOTES, 'Up to 12 ELCB: 8 modules (4 terminal + 4 incoming cable space) off the actual modules; up to 15 ELCB: 12 (8 terminal + 4 incoming).'],
+  notes: ['1 to 4 rows × 16, and 5 × 16 for up to 15 ELCB, are blank in the printed chart: worked out the same way (actual modules − 8 or − 12) so every size can be chosen.',
+    'Up to 12 ELCB: 8 modules (4 terminal + 4 incoming cable space) off the actual modules; up to 15 ELCB: 12 (8 terminal + 4 incoming).'],
   rules: [
     { id: 'elcb12', label: 'Up to 12 ELCB — 4 terminal + 4 incoming cable space', deductModules: 8, elcbMax: 12 },
     { id: 'elcb15', label: 'Up to 15 ELCB — 8 terminal + 4 incoming cable space', deductModules: 12, elcbMin: 13, elcbMax: 15 }
   ],
   overlaps: [],
   configs: ([
-    [1, 16, 16, null, null, [325, 465], [305, 445]], [2, 16, 32, null, null, [475, 465], [455, 445]], [3, 16, 48, null, null, [625, 465], [605, 445]],
-    [4, 16, 64, null, null, [775, 465], [755, 445]], [5, 16, 80, 72, null, [925, 465], [905, 445]], [6, 16, 96, 88, 84, [1075, 465], [1055, 445]],
+    [1, 16, 16, 8, 4, [325, 465], [305, 445]], [2, 16, 32, 24, 20, [475, 465], [455, 445]], [3, 16, 48, 40, 36, [625, 465], [605, 445]],
+    [4, 16, 64, 56, 52, [775, 465], [755, 445]], [5, 16, 80, 72, 68, [925, 465], [905, 445]], [6, 16, 96, 88, 84, [1075, 465], [1055, 445]],
     [4, 24, 96, 88, 84, [775, 609], [755, 589]], [5, 24, 120, 112, 108, [925, 609], [905, 589]], [6, 24, 144, 136, 132, [1075, 609], [1055, 589]]
   ] as [number, number, number, number | null, number | null, [number, number], [number, number]][]).map(([rows, per, gross, a, b, fl, su]) => ({
     id: `m${rows}x${per}`, ref: `${rows} × ${per}`, rows, modulesPerRow: per, grossModules: gross,
@@ -80,7 +81,8 @@ const FABRICATED: EnclosureCatalogue = {
   notes: [...BASE_NOTES,
     'More than 12 ELCB, up to 125 A: 48 modules off the actual modules and an 800 mm (12×5) busbar added in the estimate; 160–250 A: 64 modules and an 800 mm (20×10) busbar.',
     '13–15 ELCB is covered by both "up to 15 ELCB" and "more than 12 ELCB": the supplier must confirm which governs — both are shown, none selected automatically.',
-    'Incomers above 125 A and below 160 A are not covered by the chart.'],
+    'Incomers above 125 A and below 160 A, and above 250 A, are not covered by the chart.',
+    'To confirm with the supplier: 500 × 400 and 600 × 400 have no usable figure for any case; 600 × 500 shows 6 usable modules for more than 12 ELCB, which cannot hold 13 ELCBs.'],
   rules: [
     { id: 'elcb12', label: 'Up to 12 ELCB — 4 terminal + 4 incoming cable space', deductModules: 8, elcbMax: 12 },
     { id: 'elcb15', label: 'Up to 15 ELCB — 8 terminal + 4 incoming cable space', deductModules: 12, elcbMin: 13, elcbMax: 15 },
@@ -100,7 +102,19 @@ const FABRICATED: EnclosureCatalogue = {
 
 export const BUILTIN_CATALOGUES: EnclosureCatalogue[] = [MODULAR, FABRICATED];
 
-export interface SizingInput { equipmentModules: number; spareModules: number; elcbCount: number; incomerA?: number }
+export interface SizingInput {
+  equipmentModules: number;
+  spareModules: number;
+  elcbCount: number;
+  incomerA?: number;
+  /** Spare entered as a percentage of the equipment space (spareModules is then worked out from it). */
+  sparePct?: number;
+}
+
+/** Default future spare: 20 % of the equipment space. */
+export const DEFAULT_SPARE_PCT = 20;
+/** Spare modules for a percentage of the equipment space, rounded up to whole modules. */
+export const spareFromPct = (equipmentModules: number, pct: number) => Math.max(0, Math.ceil((equipmentModules * pct) / 100 - 1e-9));
 
 /** Which allowance cases apply. `confirm` when the supplier's cases overlap; empty `rules` when none covers the input. */
 export function applicableRules(cat: EnclosureCatalogue, i: SizingInput): { rules: AllowanceRule[]; confirm: boolean; why?: string } {
@@ -108,8 +122,15 @@ export function applicableRules(cat: EnclosureCatalogue, i: SizingInput): { rule
     (r.elcbMin === undefined || i.elcbCount >= r.elcbMin) && (r.elcbMax === undefined || i.elcbCount <= r.elcbMax) &&
     (r.incomerMinA === undefined || (i.incomerA !== undefined && i.incomerA >= r.incomerMinA)) &&
     (r.incomerMaxA === undefined || (i.incomerA !== undefined && i.incomerA <= r.incomerMaxA)));
-  const confirm = cat.overlaps.some((o) => o.every((id) => rules.some((r) => r.id === id)));
-  if (rules.length) return { rules, confirm };
+  const overlap = cat.overlaps.some((o) => o.every((id) => rules.some((r) => r.id === id)));
+  // A case that depends on the incomer and matches the ELCB count can't be ruled out without the incomer current.
+  const unknown = i.incomerA === undefined
+    ? cat.rules.filter((r) => (r.incomerMinA !== undefined || r.incomerMaxA !== undefined) && !rules.includes(r) &&
+      (r.elcbMin === undefined || i.elcbCount >= r.elcbMin) && (r.elcbMax === undefined || i.elcbCount <= r.elcbMax))
+    : [];
+  if (rules.length) return unknown.length
+    ? { rules, confirm: true, why: `Enter the incomer current — "${unknown[0].label}" may govern for ${i.elcbCount} ELCB` }
+    : { rules, confirm: overlap };
   const needsA = cat.rules.some((r) => (r.incomerMinA !== undefined || r.incomerMaxA !== undefined) && (r.elcbMin === undefined || i.elcbCount >= r.elcbMin));
   return { rules, confirm: false, why: needsA && i.incomerA === undefined ? 'Enter the incomer current — the chart depends on it for this many ELCBs' : `The ${cat.range} chart has no case for ${i.elcbCount} ELCB${i.incomerA !== undefined ? ` at ${i.incomerA} A` : ''}` };
 }
@@ -156,14 +177,17 @@ export interface EnclosureSelection {
   mounting?: Mounting;
   dims?: Dims;
   input: SizingInput;
+  /** How the equipment space was found. */
+  method?: 'manual' | 'schedule';
   required: number;
   usable: number;
   confirmNeeded: boolean;
   selectedOn: string;
 }
 
-export function selectionFrom(cat: EnclosureCatalogue, c: Candidate, input: SizingInput, mounting: Mounting | undefined, required: number): EnclosureSelection {
+export function selectionFrom(cat: EnclosureCatalogue, c: Candidate, input: SizingInput, mounting: Mounting | undefined, required: number, method?: 'manual' | 'schedule'): EnclosureSelection {
   return {
+    ...(method ? { method } : {}),
     catalogueId: cat.id, supplier: cat.supplier, range: cat.range, revision: cat.revision, config: structuredClone(c.config), ruleId: c.rule.id, ruleLabel: c.rule.label,
     ...(c.rule.extra ? { extra: c.rule.extra } : {}), ...(cat.family === 'modular' && mounting ? { mounting } : {}), ...(c.dims ? { dims: c.dims } : {}),
     input: { ...input }, required, usable: c.usable!, confirmNeeded: c.result === 'confirm', selectedOn: new Date().toISOString().slice(0, 10)

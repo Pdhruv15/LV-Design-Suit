@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applicableRules, BUILTIN_CATALOGUES, selectionFrom, sizeEnclosure } from './enclosure';
+import { applicableRules, BUILTIN_CATALOGUES, selectionFrom, sizeEnclosure, spareFromPct } from './enclosure';
 
 const [MOD, FAB] = BUILTIN_CATALOGUES;
 
@@ -22,8 +22,10 @@ describe('enclosure sizing from the supplier chart', () => {
     expect(sizeEnclosure(MOD, { equipmentModules: 64, spareModules: 8, elcbCount: 10 }, 'flush').candidates[0].dims).toEqual({ h: 925, w: 465, d: 115 });
     // several suitable candidates, not one: 6 × 16 (tall, narrow) and 4 × 24 (short, wide) both fit too
     expect(r.candidates.filter((c) => c.result === 'fits').map((c) => c.config.ref)).toEqual(['5 × 16', '6 × 16', '4 × 24', '5 × 24', '6 × 24']);
-    // 4 × 16 is blank in the chart for ELCB boards: never offered, not "too small"
-    expect(r.candidates.find((c) => c.config.ref === '4 × 16')!.result).toBe('not-listed');
+    // 4 × 16 (blank in the printed chart) is worked out as 64 − 8 = 56: too small here
+    expect(r.candidates.find((c) => c.config.ref === '4 × 16')!.usable).toBe(56);
+    // small DB: nearest size by rows — 20 modules → 2 × 16 (32 − 8 = 24)
+    expect(sizeEnclosure(MOD, { equipmentModules: 20, spareModules: 0, elcbCount: 4 }).candidates[0].config.ref).toBe('2 × 16');
   });
 
   it('allowance is not deducted twice; one module over the capacity is too small', () => {
@@ -37,7 +39,7 @@ describe('enclosure sizing from the supplier chart', () => {
     const r = sizeEnclosure(MOD, { equipmentModules: 80, spareModules: 0, elcbCount: 14 });
     expect(r.rules.map((x) => x.id)).toEqual(['elcb15']);
     expect(r.candidates[0].config.ref).toBe('6 × 16'); // 96 − 12 = 84
-    expect(r.candidates.find((c) => c.config.ref === '5 × 16')!.result).toBe('not-listed');
+    expect(r.candidates.find((c) => c.config.ref === '5 × 16')!.usable).toBe(68); // 80 − 12
     const none = sizeEnclosure(MOD, { equipmentModules: 10, spareModules: 0, elcbCount: 16 });
     expect(none.candidates).toHaveLength(0);
     expect(none.why).toMatch(/no case for 16 ELCB/);
@@ -64,5 +66,21 @@ describe('enclosure sizing from the supplier chart', () => {
     expect(sel).toMatchObject({ supplier: 'Supplier chart', revision: '1', usable: 72, required: 72, mounting: 'surface', dims: { h: 905, w: 445, d: 115 } });
     sel.config.usable.elcb12 = 999; // the copy is independent of the library
     expect(MOD.configs.find((c) => c.ref === '5 × 16')!.usable.elcb12).toBe(72);
+  });
+
+  it('13–15 ELCB on the fabricated chart with no incomer entered: never a plain fit, asks for the incomer', () => {
+    const fab = BUILTIN_CATALOGUES.find((c) => c.family === 'fabricated')!;
+    const a = applicableRules(fab, { equipmentModules: 40, spareModules: 8, elcbCount: 14 });
+    expect(a.confirm).toBe(true);
+    expect(a.why).toMatch(/incomer/);
+    expect(sizeEnclosure(fab, { equipmentModules: 40, spareModules: 8, elcbCount: 14 }).candidates.some((c) => c.result === 'fits')).toBe(false);
+    // Up to 12 ELCB the incomer doesn't matter
+    expect(applicableRules(fab, { equipmentModules: 40, spareModules: 8, elcbCount: 10 }).confirm).toBe(false);
+  });
+
+  it('spare as a percentage rounds up to whole modules', () => {
+    expect(spareFromPct(64, 20)).toBe(13);
+    expect(spareFromPct(60, 20)).toBe(12);
+    expect(spareFromPct(0, 25)).toBe(0);
   });
 });
