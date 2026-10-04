@@ -35,8 +35,11 @@ function equipment(project: Project): Omit<EarthItem, 'pits' | 'linked'>[] {
   const out: Omit<EarthItem, 'pits' | 'linked'>[] = [];
   const rmus = [...new Set(txs.map((b) => b.rmu?.trim() || `RMU (${txTag(project, b.id)})`))];
   for (const r of rmus) out.push({ key: `rmu:${r}`, kind: 'rmu', equipment: r, point: 'Body', defaultPits: 2 });
-  for (const b of txs) out.push({ key: `txn:${b.id}`, kind: 'txn', equipment: `${txTag(project, b.id)} ${b.sourceKva} kVA`, point: 'Neutral (star point)', defaultPits: 1 });
-  for (const b of txs) out.push({ key: `txb:${b.id}`, kind: 'txb', equipment: `${txTag(project, b.id)} ${b.sourceKva} kVA`, point: 'Tank / body', defaultPits: 1 });
+  // Neutral then body of each transformer, so its pits are numbered together (E3 neutral, E4 body …).
+  for (const b of txs) {
+    out.push({ key: `txn:${b.id}`, kind: 'txn', equipment: `${txTag(project, b.id)} ${b.sourceKva} kVA`, point: 'Neutral (star point)', defaultPits: 1 });
+    out.push({ key: `txb:${b.id}`, kind: 'txb', equipment: `${txTag(project, b.id)} ${b.sourceKva} kVA`, point: 'Tank / body', defaultPits: 1 });
+  }
   const lv = mains.filter((b) => (b.kind ?? 'MDB') !== 'MC');
   for (const b of lv) out.push({ key: `lv:${b.id}`, kind: 'lv', equipment: b.id, point: 'Main earth bar (MET)', defaultPits: lv.length === 1 ? 2 : 1 });
   return out;

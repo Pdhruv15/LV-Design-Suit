@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import type { Project } from '../types';
 import { settingsOf } from '../types';
 import { sizeTransformers } from '../calc/txGen';
-import { applyTransformers, DEWA_TRANSFORMER_KVA, mainBoards, mainOf, moveUnder, planTransformers, setTransformer, txTag } from '../model/transformers';
+import { applyTransformers, DEWA_TRANSFORMER_KVA, mainBoards, mainOf, moveUnder, nextRmus, planTransformers, rmuNames, setRmu, setTransformer, txTag } from '../model/transformers';
 
 const fmt = (n: number | undefined, d = 0) => (n === undefined || !Number.isFinite(n) ? '—' : n.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: d }));
 
@@ -15,7 +15,8 @@ export default function TransformersTab({ project, onChange, onCreate, onStatus 
 }) {
   const [kvas, setKvas] = useState<number[]>([1500, 1500]);
   const [ties, setTies] = useState(false);
-  const plan = useMemo(() => planTransformers(project, kvas.map((kva) => ({ kva })), ties), [project, kvas, ties]);
+  const [perRmu, setPerRmu] = useState<1 | 2>(1);
+  const plan = useMemo(() => planTransformers(project, kvas.map((kva) => ({ kva })), ties, perRmu), [project, kvas, ties, perRmu]);
   const mains = mainBoards(project);
   const rows = useMemo(() => { try { return sizeTransformers(project, { txBoards: [], sizeList: 'dewa', n1: [], includePfc: true, emergencyLoadingPct: 100, genBoards: {} }); } catch { return []; } }, [project]);
   const limit = settingsOf(project).transformerMaxLoadingPct;
@@ -47,6 +48,8 @@ export default function TransformersTab({ project, onChange, onCreate, onStatus 
             <label key={i}>{plan.boards[i]?.id ?? `TX ${i + 1}`}<select value={k} onChange={(e) => setKvas(kvas.map((x, j) => (j === i ? Number(e.target.value) : x)))}>{DEWA_TRANSFORMER_KVA.map((v) => <option key={v} value={v}>{v} kVA</option>)}</select></label>
           ))}
         </div>
+        <label>RMU<select value={perRmu} onChange={(e) => setPerRmu(Number(e.target.value) as 1 | 2)}><option value={1}>One RMU per transformer</option><option value={2}>One RMU for two transformers</option></select></label>
+        <p className="m">{[...new Set(plan.boards.map((b) => b.rmu))].join(', ')}</p>
         <label className="row"><input type="checkbox" checked={ties} onChange={(e) => setTies(e.target.checked)} /> Bus tie between pairs (normally open)</label>
         {plan.problems.map((p) => <p key={p} className="bad">{p}</p>)}
         <button className="chip primary" disabled={!!plan.problems.length} onClick={create}>Create {kvas.length} transformer{kvas.length === 1 ? '' : 's'} + MDB{kvas.length === 1 ? '' : 's'}</button>
@@ -57,7 +60,7 @@ export default function TransformersTab({ project, onChange, onCreate, onStatus 
         {!mains.length && <p className="m">No main boards yet.</p>}
         <div className="pp-table">
           <table className="bi-table compact">
-            <thead><tr><th>Transformer</th><th>MDB</th><th>kVA</th><th>Demand kVA</th><th>Loading</th><th>DEWA size needed</th><th>Feeds</th></tr></thead>
+            <thead><tr><th>Transformer</th><th>MDB</th><th>kVA</th><th>RMU</th><th>Demand kVA</th><th>Loading</th><th>DEWA size needed</th><th>Feeds</th></tr></thead>
             <tbody>{mains.map((m) => {
               const r = rows.find((x) => x.board.id === m.id);
               const pct = r?.loadingPct;
@@ -67,6 +70,7 @@ export default function TransformersTab({ project, onChange, onCreate, onStatus 
                   <td>{txTag(project, m.id) ?? <span className="warn">none</span>}</td>
                   <td>{m.id}</td>
                   <td><select value={m.sourceKva ?? ''} onChange={(e) => onChange(setTransformer(project, m.id, e.target.value ? Number(e.target.value) : undefined))}><option value="">—</option>{[...new Set([...DEWA_TRANSFORMER_KVA, ...(m.sourceKva ? [m.sourceKva] : [])])].sort((a, b) => a - b).map((v) => <option key={v} value={v}>{v}</option>)}</select></td>
+                  <td><select value={m.rmu ?? ''} onChange={(e) => onChange(setRmu(project, m.id, e.target.value === '+' ? nextRmus(project, 1)[0] : e.target.value || undefined))}><option value="">—</option>{rmuNames(project).map((n) => <option key={n} value={n}>{n}</option>)}<option value="+">New RMU</option></select></td>
                   <td>{fmt(r?.demandKva, 1)}</td>
                   <td className={pct === undefined ? 'm' : pct > limit ? 'bad' : 'ok'}>{pct === undefined ? '—' : `${fmt(pct, 1)} %`}</td>
                   <td>{r?.recommendedKva ? `${r.split > 1 ? `${r.split} × ` : ''}${r.recommendedKva} kVA` : '—'}</td>

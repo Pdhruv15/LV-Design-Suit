@@ -3,6 +3,7 @@ import { sampleProject } from '../data/sampleProject';
 import { applyTransformers, planTransformers } from './transformers';
 import { earthingLayout } from './earthingPlan';
 import { buildBom } from '../calc/bom';
+import { earthingDrawing } from '../diagram/earthingDrawing';
 
 const withTx = (n: number) => applyTransformers(sampleProject, planTransformers(sampleProject, Array.from({ length: n }, () => ({ kva: 1500 })), false));
 
@@ -40,5 +41,17 @@ describe('earthing schematic', () => {
     const p = { ...withTx(1), earthingPlan: {} };
     const pits = buildBom(p).filter((i) => i.key.startsWith('earth-pit')).reduce((s, i) => s + i.qty, 0);
     expect(pits).toBe(earthingLayout(p).pits.length);
+  });
+
+  it('one RMU for two transformers: one RMU earth; the drawing has earth bars and every pit', () => {
+    const p = applyTransformers(sampleProject, planTransformers(sampleProject, [{ kva: 1500 }, { kva: 1500 }], false, 2));
+    expect(new Set(p.boards.filter((b) => b.rmu).map((b) => b.rmu)).size).toBe(1);
+    const L = earthingLayout(p);
+    expect(L.items.filter((i) => i.kind === 'rmu').map((i) => i.equipment)).toContain('RMU-1');
+    const d = earthingDrawing(p);
+    expect(d.svg).toContain('EARTH BAR');
+    expect(d.svg).not.toContain('NO PIT');
+    for (const pit of L.pits) expect(d.svg).toContain(`>${pit.id}</text>`);
+    expect(d.svg).not.toMatch(/NaN|undefined/);
   });
 });
