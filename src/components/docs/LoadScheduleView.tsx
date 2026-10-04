@@ -22,6 +22,8 @@ import { hasMdSheet } from '../../docs/mdSheet';
 import { dbChecks } from '../../calc/building';
 import TxSummaryView from './TxSummaryView';
 import RiserFormView from './RiserFormView';
+import { SCHEDULE_GROUPS, scheduleGroupOf, scheduleGroups, type ScheduleGroup } from '../../model/scheduleGroups';
+import { scheduleCircuits } from '../../calc/loadSchedule';
 
 const num = (v: string) => (v === '' ? 0 : Math.max(0, Math.round(+v) || 0));
 
@@ -73,6 +75,12 @@ export default function LoadScheduleView({
   const mdAvailable = hasMdSheet(project, board.id);
   const [pick, setPick] = useState<{ board: string; form: 'db' | 'md' } | null>(null);
   const [txForm, setTxForm] = useState<false | 'tx' | 'riser'>(false);
+  // Tabs by panel type (submission order); the open tab follows the selected panel.
+  const groups = useMemo(() => scheduleGroups(project), [project]);
+  const group: ScheduleGroup = scheduleGroupOf(project, board);
+  const openGroup = (g: ScheduleGroup) => { setTxForm(false); const first = groups[g][0]; if (first && first.id !== board.id) onBoard(first.id); };
+  /** A panel whose schedule still needs filling: a DB with no circuits, or a panel with no outgoing loads. */
+  const incomplete = (b: Board) => (scheduleGroupOf(project, b) === 'db' || (b.kind ?? 'DB') === 'DB' ? !scheduleCircuits(project, b.id).length : !project.feeders.some((f) => f.boardId === b.id));
   const form: 'db' | 'md' | 'tx' | 'riser' = txForm ? txForm : pick?.board === board.id ? pick.form : data.rows.length || !mdAvailable ? 'db' : 'md';
   const [exporting, setExporting] = useState(false);
   async function exportExcel(scope: WorkbookScope, name: string) {
@@ -156,12 +164,29 @@ export default function LoadScheduleView({
           </p>
         );
       })()}
-      <div className="seg form-tabs" role="tablist" aria-label="Form">
-        <button role="tab" aria-selected={form === 'db'} className={form === 'db' ? 'on' : ''} onClick={() => { setTxForm(false); setPick({ board: board.id, form: 'db' }); }}>DB load distribution schedule</button>
-        <button role="tab" aria-selected={form === 'md'} className={form === 'md' ? 'on' : ''} disabled={!mdAvailable} title={mdAvailable ? undefined : `${board.id} has no outgoing feeders`} onClick={() => { setTxForm(false); setPick({ board: board.id, form: 'md' }); }}>Connected load &amp; MD</button>
-        <button role="tab" aria-selected={form === 'tx'} className={form === 'tx' ? 'on' : ''} title="Summary of the TCL at transformer level — every transformer of the project" onClick={() => setTxForm('tx')}>TCL summary (transformers)</button>
-        {!!project.busRisers?.length && <button role="tab" aria-selected={form === 'riser'} className={form === 'riser' ? 'on' : ''} title="Bus bar riser — connected load / max. demand of each tap-off (high-rise)" onClick={() => setTxForm('riser')}>Bus bar riser</button>}
+      <div className="seg form-tabs" role="tablist" aria-label="Schedules">
+        <button role="tab" aria-selected={form === 'tx'} className={form === 'tx' ? 'on' : ''} title="Summary of the TCL at transformer level — every transformer of the project" onClick={() => setTxForm('tx')}>TCL summary</button>
+        {SCHEDULE_GROUPS.flatMap(({ key, label }) => {
+          const tab = groups[key].length ? [<button key={key} role="tab" aria-selected={!txForm && group === key} className={!txForm && group === key ? 'on' : ''} onClick={() => openGroup(key)}>{label} <span className="m">({groups[key].length})</span></button>] : [];
+          // The busbar riser follows the main LV panels.
+          return key === 'mdb' && project.busRisers?.length ? [...tab, <button key="riser" role="tab" aria-selected={form === 'riser'} className={form === 'riser' ? 'on' : ''} title="Bus bar riser — connected load / max. demand of each tap-off (high-rise)" onClick={() => setTxForm('riser')}>Busbar riser</button>] : tab;
+        })}
       </div>
+      {!txForm && (
+        <div className="ls-panels">
+          {groups[group].map((b) => (
+            <button key={b.id} className={`chip${b.id === board.id ? ' on' : ''}`} title={incomplete(b) ? `${b.id}: schedule not filled yet` : b.name} onClick={() => b.id !== board.id && onBoard(b.id)}>
+              {b.id}{incomplete(b) && <span className="warn"> !</span>}
+            </button>
+          ))}
+          {data.rows.length > 0 && mdAvailable && (
+            <span className="seg ls-form">
+              <button className={form === 'db' ? 'on' : ''} onClick={() => setPick({ board: board.id, form: 'db' })}>Load schedule</button>
+              <button className={form === 'md' ? 'on' : ''} onClick={() => setPick({ board: board.id, form: 'md' })}>Connected load &amp; MD</button>
+            </span>
+          )}
+        </div>
+      )}
       {form === 'riser' ? (
         <RiserFormView project={project} onOpenRiser={() => onOpenRiser?.()} />
       ) : form === 'tx' ? (
