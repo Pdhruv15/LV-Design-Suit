@@ -35,7 +35,9 @@ describe('SVG to CAD export geometry', () => {
     const out = svgToDxf('<svg><g transform="translate(10 20) scale(2)"><line class="bus" style="stroke-width:4px" x1="0" y1="0" x2="100" y2="0"/><line class="ln" style="stroke-width:1.5px" x1="0" y1="0" x2="0" y2="20"/></g></svg>', 200);
     expect(out[0]).toEqual({ type: 'line', layer: 'BUSBAR', x1: 10, y1: 180, x2: 210, y2: 180, width: 8 });
     expect(out[1]).not.toHaveProperty('width');
-    expect(entities(toDxf(out))[0].values.get(40)).toBe('8');
+    const bus = entities(toDxf(out))[0];
+    expect(bus.type).toBe('SOLID');
+    expect(Number(bus.values.get(20)) - Number(bus.values.get(22))).toBe(8);
   });
 
   it('keeps rotated measured text dimensions, caps long labels and leaves short labels short', () => {
@@ -92,9 +94,9 @@ describe('SVG to CAD export geometry', () => {
   it.each(['A4', 'A3', 'A2', 'A1'] as const)('scales busbar widths and fitted text together on %s sheets', (size) => {
     const svg = '<svg viewBox="0 0 400 100"><line class="bus" style="stroke-width:4px" x1="0" y1="40" x2="200" y2="40"/><text x="10" y="60" style="font-size:9px" data-dxf-width="90">Long cable label</text></svg>';
     const out = entities(buildSheetDxf(dxfExportProject, svg, size, { no: 'CAD-1', title: 'CAD check', index: 1, count: 1 }));
-    const bi = out.findIndex((e) => e.type === 'POLYLINE' && e.values.get(8) === 'E-BUSBAR');
-    const width = Number(out[bi].values.get(40));
-    const dx = Number(out[bi + 2].values.get(10)) - Number(out[bi + 1].values.get(10));
+    const bus = out.find((e) => e.type === 'SOLID' && e.values.get(8) === 'E-BUSBAR')!;
+    const width = Number(bus.values.get(20)) - Number(bus.values.get(22));
+    const dx = Number(bus.values.get(11)) - Number(bus.values.get(10));
     expect(width).toBeGreaterThan(0);
     expect(dx / width).toBeCloseTo(50, 1);
     const label = out.find((e) => e.type === 'TEXT' && e.values.get(1) === 'Long cable label')!;

@@ -24,6 +24,7 @@ const records = (dxf: string, section?: string): Tag[][] => {
 };
 const value = (record: Tag[], code: number) => record.find((tag) => tag.code === code)?.value;
 const number = (record: Tag[], code: number) => Number(value(record, code));
+const solidCorners = (record: Tag[]) => [0, 1, 2, 3].map((j) => [number(record, 10 + j), number(record, 20 + j)]);
 const extents = (dxf: string, name: '$EXTMIN' | '$EXTMAX') => {
   const headerEnd = dxf.indexOf('\r\n0\r\nENDSEC');
   const input = tags(headerEnd < 0 ? dxf : dxf.slice(0, headerEnd));
@@ -48,45 +49,100 @@ describe('R12 DXF geometry and text widths', () => {
     expect(input.some((tag) => tag.code === 370 || tag.value === 'LWPOLYLINE')).toBe(false);
   });
 
-  it('gives a busbar physical drawing width using an R12 two-vertex polyline', () => {
+  it('gives a busbar physical drawing width using an R12 filled SOLID', () => {
     const dxf = toDxf([
       { type: 'line', layer: 'BUSBAR', x1: 0, y1: 0, x2: 100, y2: 0, width: 4 },
       { type: 'line', layer: 'CABLE', x1: 20, y1: 0, x2: 20, y2: 1 }
     ]);
     const entities = records(dxf, 'ENTITIES');
-    expect(entities.map((record) => value(record, 0))).toEqual(['POLYLINE', 'VERTEX', 'VERTEX', 'SEQEND', 'LINE']);
+    expect(entities.map((record) => value(record, 0))).toEqual(['SOLID', 'LINE']);
     expect(value(entities[0], 8)).toBe('BUSBAR');
-    expect(number(entities[0], 40)).toBe(4);
-    expect(number(entities[0], 41)).toBe(4);
-    expect(number(entities[0], 70)).toBe(0);
-    expect([number(entities[1], 10), number(entities[1], 20)]).toEqual([0, 0]);
-    expect([number(entities[2], 10), number(entities[2], 20)]).toEqual([100, 0]);
-    expect([number(entities[4], 11), number(entities[4], 21)]).toEqual([20, 1]);
-    expect(extents(dxf, '$EXTMIN')).toEqual([-2, -2]);
-    expect(extents(dxf, '$EXTMAX')).toEqual([102, 2]);
+    expect(solidCorners(entities[0])).toEqual([[0, 2], [100, 2], [0, -2], [100, -2]]);
+    expect([number(entities[1], 11), number(entities[1], 21)]).toEqual([20, 1]);
+    expect(extents(dxf, '$EXTMIN')).toEqual([0, -2]);
+    expect(extents(dxf, '$EXTMAX')).toEqual([100, 2]);
+    const layer = records(dxf, 'TABLES').find((record) => value(record, 0) === 'LAYER' && value(record, 2) === 'BUSBAR');
+    expect(number(layer!, 62)).toBe(1); // red remains assigned by layer
     const input = tags(dxf);
     const fill = input.findIndex((tag) => tag.value === '$FILLMODE');
     expect(input[fill + 1]).toEqual({ code: 70, value: '1' });
   });
 
-  it('keeps width and closure on an existing multi-segment polyline', () => {
-    const dxf = toDxf([{ type: 'polyline', layer: 'BUSBAR', width: 2, closed: true, points: [[0, 0], [10, 0], [10, 5]] }]);
-    const entities = records(dxf, 'ENTITIES');
-    expect(number(entities[0], 70)).toBe(1);
-    expect(number(entities[0], 40)).toBe(2);
-    expect(number(entities[0], 41)).toBe(2);
-    expect(entities.filter((record) => value(record, 0) === 'VERTEX').map((record) => [number(record, 10), number(record, 20)])).toEqual([[0, 0], [10, 0], [10, 5]]);
-    const min = extents(dxf, '$EXTMIN'), max = extents(dxf, '$EXTMAX');
-    expect(min[0]).toBeLessThanOrEqual(-1);
-    expect(min[1]).toBeLessThanOrEqual(-1);
-    expect(max[0]).toBeGreaterThanOrEqual(11);
-    expect(max[1]).toBeGreaterThanOrEqual(6);
+  it('uses the correct SOLID corner ordering for a vertical busbar', () => {
+    const dxf = toDxf([{ type: 'line', layer: 'BUSBAR', x1: 0, y1: 0, x2: 0, y2: 10, width: 4 }]);
+    expect(solidCorners(records(dxf, 'ENTITIES')[0])).toEqual([[-2, 0], [-2, 10], [2, 0], [2, 10]]);
+    expect(extents(dxf, '$EXTMIN')).toEqual([-2, 0]);
+    expect(extents(dxf, '$EXTMAX')).toEqual([2, 10]);
   });
 
-  it('includes the projecting miter of an acute wide polyline join in its extents', () => {
+  it('preserves uniform perpendicular width on a diagonal busbar', () => {
+    const dxf = toDxf([{ type: 'line', layer: 'BUSBAR', x1: 0, y1: 0, x2: 10, y2: 10, width: 2 }]);
+    const corners = solidCorners(records(dxf, 'ENTITIES')[0]);
+    expect(corners).toEqual([[-0.7071, 0.7071], [9.2929, 10.7071], [0.7071, -0.7071], [10.7071, 9.2929]]);
+    expect(Math.hypot(corners[0][0] - corners[2][0], corners[0][1] - corners[2][1])).toBeCloseTo(2, 3);
+    expect(extents(dxf, '$EXTMIN')).toEqual([-0.7071, -0.7071]);
+    expect(extents(dxf, '$EXTMAX')).toEqual([10.7071, 10.7071]);
+  });
+
+  it('joins two wide segments using shared miter corners without duplicate centre lines', () => {
+    const dxf = toDxf([{ type: 'polyline', layer: 'BUSBAR', width: 2, points: [[0, 0], [10, 0], [10, 10]] }]);
+    const entities = records(dxf, 'ENTITIES');
+    expect(entities.map((record) => value(record, 0))).toEqual(['SOLID', 'SOLID']);
+    expect(solidCorners(entities[0])).toEqual([[0, 1], [9, 1], [0, -1], [11, -1]]);
+    expect(solidCorners(entities[1])).toEqual([[9, 1], [9, 10], [11, -1], [11, 10]]);
+    expect(extents(dxf, '$EXTMIN')).toEqual([0, -1]);
+    expect(extents(dxf, '$EXTMAX')).toEqual([11, 10]);
+  });
+
+  it('closes a wide rectangular path with shared first and last miter corners', () => {
+    const dxf = toDxf([{ type: 'polyline', layer: 'BUSBAR', width: 2, closed: true, points: [[0, 0], [10, 0], [10, 5], [0, 5], [0, 0]] }]);
+    const entities = records(dxf, 'ENTITIES');
+    expect(entities.map((record) => value(record, 0))).toEqual(['SOLID', 'SOLID', 'SOLID', 'SOLID']);
+    expect(solidCorners(entities[0])).toEqual([[1, 1], [9, 1], [-1, -1], [11, -1]]);
+    expect(solidCorners(entities[3])).toEqual([[1, 4], [1, 1], [-1, 6], [-1, -1]]);
+    expect(extents(dxf, '$EXTMIN')).toEqual([-1, -1]);
+    expect(extents(dxf, '$EXTMAX')).toEqual([11, 6]);
+  });
+
+  it('bevels a sharp turn instead of creating an unbounded projecting miter', () => {
     const dxf = toDxf([{ type: 'polyline', layer: 'BUSBAR', width: 2, points: [[0, 0], [10, 0], [0, 2]] }]);
-    // A half-width-only envelope ends at x=11; the acute join projects farther.
-    expect(extents(dxf, '$EXTMAX')[0]).toBeCloseTo(20.099, 3);
+    const entities = records(dxf, 'ENTITIES');
+    expect(entities.map((record) => value(record, 0))).toEqual(['SOLID', 'SOLID', 'SOLID']);
+    const bevel = solidCorners(entities[2]);
+    expect(bevel[0]).toEqual([10, 0]);
+    expect(bevel[1]).toEqual([10, -1]);
+    expect(bevel[2]).toEqual(bevel[3]); // valid three-point SOLID
+    expect(extents(dxf, '$EXTMAX')).toEqual([10.1961, 2.9806]);
+    expect(dxf).not.toMatch(/NaN|Infinity/);
+  });
+
+  it('omits zero-length wide geometry and safely removes repeated vertices', () => {
+    const empty = toDxf([
+      { type: 'line', layer: 'BUSBAR', x1: 3, y1: 4, x2: 3, y2: 4, width: 2 },
+      { type: 'polyline', layer: 'BUSBAR', width: 2, points: [[3, 4], [3, 4]] }
+    ]);
+    expect(records(empty, 'ENTITIES')).toHaveLength(0);
+    expect(extents(empty, '$EXTMIN')).toEqual([0, 0]);
+    expect(extents(empty, '$EXTMAX')).toEqual([0, 0]);
+    const dxf = toDxf([{ type: 'polyline', layer: 'BUSBAR', width: 2, points: [[0, 0], [0, 0], [10, 0], [10, 0], [10, 10]] }]);
+    expect(records(dxf, 'ENTITIES')).toHaveLength(2);
+    expect(dxf).not.toMatch(/NaN|Infinity/);
+  });
+
+  it('handles a nearly reversing path and a two-point closed path without invalid strips', () => {
+    const reverse = toDxf([{ type: 'polyline', layer: 'BUSBAR', width: 2, points: [[0, 0], [10, 0], [0, 1e-10]] }]);
+    expect(records(reverse, 'ENTITIES')).toHaveLength(2);
+    expect(extents(reverse, '$EXTMAX')).toEqual([10, 1]);
+    expect(reverse).not.toMatch(/NaN|Infinity/);
+    const two = toDxf([{ type: 'polyline', layer: 'BUSBAR', width: 2, closed: true, points: [[0, 0], [10, 0]] }]);
+    expect(records(two, 'ENTITIES')).toHaveLength(1);
+  });
+
+  it('keeps a zero-width closed polyline as an editable polyline', () => {
+    const dxf = toDxf([{ type: 'polyline', layer: 'FRAME', width: 0, closed: true, points: [[0, 0], [10, 0], [10, 5]] }]);
+    const entities = records(dxf, 'ENTITIES');
+    expect(entities.map((record) => value(record, 0))).toEqual(['POLYLINE', 'VERTEX', 'VERTEX', 'VERTEX', 'SEQEND']);
+    expect(number(entities[0], 70)).toBe(1);
   });
 
   it.each([

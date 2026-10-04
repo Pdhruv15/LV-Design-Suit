@@ -1,4 +1,4 @@
-/** Minimal DXF (AutoCAD R12, ASCII) writer: lines, polylines, circles and
+/** Minimal DXF (AutoCAD R12, ASCII) writer: lines, polylines, solids, circles and
  * text on named layers. R12 opens in every CAD program (AutoCAD, BricsCAD,
  * DraftSight, LibreCAD, QCAD). Coordinates are in drawing units, y up. */
 
@@ -30,6 +30,60 @@ export const dxfText = (s: string) =>
 
 const positiveWidth = (width?: number) => typeof width === 'number' && Number.isFinite(width) && width > 0 ? width : 0;
 type DxfTextPrimitive = Extract<DxfPrimitive, { type: 'text' }>;
+type DxfStrokePrimitive = Extract<DxfPrimitive, { type: 'line' | 'polyline' }>;
+type Point = [number, number];
+type Quad = [Point, Point, Point, Point];
+
+/** Physical strokes are filled SOLID strips. Some R12 readers (including
+ * LibreCAD 2.2.1) discard polyline width; explicit geometry keeps the busbar
+ * visible and editable without depending on CAD lineweight display settings. */
+function strokeQuads(i: DxfStrokePrimitive): Quad[] {
+  const halfWidth = positiveWidth(i.width) / 2;
+  if (!halfWidth) return [];
+  const input: Point[] = i.type === 'line' ? [[i.x1, i.y1], [i.x2, i.y2]] : i.points;
+  const points: Point[] = [];
+  const same = (a: Point, b: Point) => Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-9;
+  for (const p of input) if (!points.length || !same(points[points.length - 1], p)) points.push(p);
+  if (i.type === 'polyline' && i.closed && points.length > 1 && same(points[0], points[points.length - 1])) points.pop();
+  if (points.length < 2) return [];
+  const closed = i.type === 'polyline' && !!i.closed && points.length > 2;
+  const segmentCount = closed ? points.length : points.length - 1;
+  const normals: Point[] = Array.from({ length: segmentCount }, (_, j) => {
+    const a = points[j], b = points[(j + 1) % points.length];
+    const length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    return [-(b[1] - a[1]) / length, (b[0] - a[0]) / length];
+  });
+  const bevels: Quad[] = [];
+  const offset = (p: Point, normal: Point, sign = 1): Point => [p[0] + normal[0] * sign, p[1] + normal[1] * sign];
+  const joins = points.map((p, j): { incoming: Point; outgoing: Point } => {
+    const incoming = j > 0 ? normals[j - 1] : closed ? normals[normals.length - 1] : undefined;
+    const outgoing = normals[j];
+    if (!incoming || !outgoing) {
+      const n = incoming ?? outgoing!;
+      const normal: Point = [n[0] * halfWidth, n[1] * halfWidth];
+      return { incoming: normal, outgoing: normal };
+    }
+    const divisor = 1 + incoming[0] * outgoing[0] + incoming[1] * outgoing[1];
+    // Normal joins share one exact offset edge. Limit sharp/reversing joins to
+    // a bevel instead of producing enormous or crossed strip corners.
+    if (divisor > 1e-9) {
+      const miter: Point = [(incoming[0] + outgoing[0]) * halfWidth / divisor, (incoming[1] + outgoing[1]) * halfWidth / divisor];
+      if (Math.hypot(miter[0], miter[1]) <= halfWidth * 4) return { incoming: miter, outgoing: miter };
+    }
+    const a: Point = [incoming[0] * halfWidth, incoming[1] * halfWidth], b: Point = [outgoing[0] * halfWidth, outgoing[1] * halfWidth];
+    const turn = incoming[0] * outgoing[1] - incoming[1] * outgoing[0];
+    if (Math.abs(turn) > 1e-9) {
+      const side = turn > 0 ? -1 : 1, end = offset(p, b, side);
+      bevels.push([p, offset(p, a, side), end, end]);
+    }
+    return { incoming: a, outgoing: b };
+  });
+  const strips: Quad[] = Array.from({ length: segmentCount }, (_, j) => {
+    const end = (j + 1) % points.length;
+    return [offset(points[j], joins[j].outgoing), offset(points[end], joins[end].incoming), offset(points[end], joins[end].incoming, -1), offset(points[j], joins[j].outgoing, -1)];
+  });
+  return strips.concat(bevels);
+}
 
 /** Fit is R12 TEXT justification 5. Its two baseline endpoints control the
  * rendered width independently of the CAD font, without changing text height.
@@ -46,24 +100,7 @@ function fittedBaseline(i: DxfTextPrimitive): { start: [number, number]; end: [n
 function boundsPoints(i: DxfPrimitive): [number, number][] {
   if (i.type === 'line' || i.type === 'polyline') {
     const points: [number, number][] = i.type === 'line' ? [[i.x1, i.y1], [i.x2, i.y2]] : i.points;
-    const halfWidth = positiveWidth(i.width) / 2;
-    if (!halfWidth) return points;
-    // Include segment widths, then the miter corners at polyline joins.
-    const envelope = points.flatMap(([x, y]) => [[x - halfWidth, y - halfWidth], [x + halfWidth, y + halfWidth]] as [number, number][]);
-    if (i.type === 'polyline') {
-      const closed = !!i.closed;
-      for (let j = closed ? 0 : 1; j < points.length - (closed ? 0 : 1); j++) {
-        const [x, y] = points[j], prev = points[(j + points.length - 1) % points.length], next = points[(j + 1) % points.length];
-        const a = Math.hypot(x - prev[0], y - prev[1]), b = Math.hypot(next[0] - x, next[1] - y);
-        if (!a || !b) continue;
-        const ax = (x - prev[0]) / a, ay = (y - prev[1]) / a, bx = (next[0] - x) / b, by = (next[1] - y) / b;
-        const divisor = 1 + ax * bx + ay * by;
-        if (divisor < 1e-9) continue; // a reversing segment has no finite miter
-        const mx = -(ay + by) * halfWidth / divisor, my = (ax + bx) * halfWidth / divisor;
-        envelope.push([x + mx, y + my], [x - mx, y - my]);
-      }
-    }
-    return envelope;
+    return positiveWidth(i.width) ? strokeQuads(i).flat() : points;
   }
   if (i.type === 'text' && positiveWidth(i.width) && dxfText(i.text).trim()) {
     const { start, end, dx, dy } = fittedBaseline(i);
@@ -109,24 +146,33 @@ export function toDxf(items: DxfPrimitive[], layerColours: Record<string, number
   g(0, 'ENDTAB');
   g(0, 'ENDSEC');
 
-  const polyline = (layer: string, vertices: [number, number][], closed: boolean, width?: number) => {
+  const polyline = (layer: string, vertices: [number, number][], closed: boolean) => {
     g(0, 'POLYLINE'); g(8, layer); g(66, 1); g(10, 0); g(20, 0); g(30, 0); g(70, closed ? 1 : 0);
-    const strokeWidth = positiveWidth(width);
-    if (strokeWidth) { g(40, strokeWidth); g(41, strokeWidth); }
     for (const [x, y] of vertices) { g(0, 'VERTEX'); g(8, layer); g(10, x); g(20, y); g(30, 0); }
     g(0, 'SEQEND'); g(8, layer);
+  };
+  const solids = (i: DxfStrokePrimitive) => {
+    for (const quad of strokeQuads(i)) {
+      g(0, 'SOLID'); g(8, i.layer);
+      // DXF SOLID swaps the last two perimeter corners. A bevel triangle
+      // repeats its last corner, as required for a three-point SOLID.
+      [0, 1, 3, 2].forEach((corner, j) => {
+        g(10 + j, quad[corner][0]); g(20 + j, quad[corner][1]); g(30 + j, 0);
+      });
+    }
   };
 
   g(0, 'SECTION'); g(2, 'ENTITIES');
   for (const i of items) {
     if (i.type === 'line') {
-      if (positiveWidth(i.width)) polyline(i.layer, [[i.x1, i.y1], [i.x2, i.y2]], false, i.width);
+      if (positiveWidth(i.width)) solids(i);
       else { g(0, 'LINE'); g(8, i.layer); g(10, i.x1); g(20, i.y1); g(30, 0); g(11, i.x2); g(21, i.y2); g(31, 0); }
     } else if (i.type === 'circle') {
       g(0, 'CIRCLE'); g(8, i.layer); g(10, i.x); g(20, i.y); g(30, 0); g(40, i.r);
     } else if (i.type === 'polyline') {
       if (i.points.length < 2) continue;
-      polyline(i.layer, i.points, !!i.closed, i.width);
+      if (positiveWidth(i.width)) solids(i);
+      else polyline(i.layer, i.points, !!i.closed);
     } else {
       const text = dxfText(i.text);
       if (!text.trim()) continue;
