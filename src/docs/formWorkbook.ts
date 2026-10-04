@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import { SCHEDULE_GROUPS, scheduleGroups } from '../model/scheduleGroups';
 import { boardLocation } from '../model/levels';
 import { boardsInSupplyOrder } from '../calc/summary';
 import { scheduleCircuits } from '../calc/loadSchedule';
@@ -408,22 +409,25 @@ export interface WorkbookScope {
   forms?: ('tx' | 'riser' | 'md' | 'db')[];
 }
 
-/** Every form of the project in supply order: connected load & MD sheets
- * first (the load summary / meter cabinet or MDB, then SMDBs and MCCs), then
- * the DB load schedules. */
+/** Every form of the project in submission order: the TCL summary, then the
+ * main LV panels, the busbar risers, SMDBs, DBs, the emergency system (EMDB,
+ * ESMDB, EDB), MCCs and any other panels — each panel's connected load & MD
+ * sheet and / or its DB load schedule, in supply order within each group. */
 export function buildFormWorkbook(project: Project, scope: WorkbookScope = {}): ExcelJS.Workbook {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'LV Design Studio';
   wb.created = new Date();
   const forms = scope.forms ?? ['tx', 'riser', 'md', 'db'];
   if (forms.includes('tx') && !scope.boardIds && project.boards.some((b) => !b.upstreamId)) addTxSheet(wb, project);
-  if (forms.includes('riser') && !scope.boardIds) for (const r of project.busRisers ?? []) addRiserSheet(wb, project, r.id);
-  const boards = boardsInSupplyOrder(project).filter((b) => !scope.boardIds || scope.boardIds.includes(b.id));
-  if (forms.includes('md')) {
-    for (const b of boards) if (hasMdSheet(project, b.id)) addMdSheet(wb, project, b.id, b.upstreamId ? `${b.id} MD` : `${b.id} LOAD SUMMARY`);
-  }
-  if (forms.includes('db')) {
-    for (const b of boards) if (scheduleCircuits(project, b.id).length) addDbSheet(wb, project, b.id, `${b.id} SCHEDULE`);
+  const groups = scheduleGroups(project);
+  const inScope = (b: { id: string }) => !scope.boardIds || scope.boardIds.includes(b.id);
+  for (const { key } of SCHEDULE_GROUPS) {
+    for (const b of groups[key].filter(inScope)) {
+      if (forms.includes('md') && hasMdSheet(project, b.id)) addMdSheet(wb, project, b.id, b.upstreamId ? `${b.id} MD` : `${b.id} LOAD SUMMARY`);
+      if (forms.includes('db') && scheduleCircuits(project, b.id).length) addDbSheet(wb, project, b.id, `${b.id} SCHEDULE`);
+    }
+    // Busbar risers follow the main LV panels.
+    if (key === 'mdb' && forms.includes('riser') && !scope.boardIds) for (const r of project.busRisers ?? []) addRiserSheet(wb, project, r.id);
   }
   if (!wb.worksheets.length) wb.addWorksheet('Empty').getCell(1, 1).value = 'No forms to export.';
   return wb;

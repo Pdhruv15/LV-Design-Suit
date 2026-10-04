@@ -1208,3 +1208,6 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .earth-drawing{width:100%;height:auto;background:#fff;border-radius:4px}
 .app-ver{font-size:.75em;font-weight:500;opacity:.7;margin-left:4px}
 .cm-dims{white-space:nowrap}
+.ls-panels{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0}
+.ls-panels .chip.on{border-color:var(--acc);color:var(--acc)}
+.ls-panels .ls-form{margin-left:auto}
