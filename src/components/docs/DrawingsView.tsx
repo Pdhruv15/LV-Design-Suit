@@ -4,7 +4,7 @@ import type { CalcRun } from '../../calc/runs';
 import { LAYER_LABELS, SHEET_LAYERS } from '../../diagram/annotations';
 import { boardsInSupplyOrder } from '../../calc/summary';
 import {
-  addRiserSheet, autoSheets, drawable, filterSheets, sheetHash, issueSheets, moveSheet, nextRev, registerHtml, renumber, setOf, SHEET_STATUSES, sheetNumber, sheetRev, sheetsByCount, SIZES, statusColor, transmittalHtml,
+  addEarthingSheet, addRiserSheet, autoSheets, drawable, filterSheets, sheetHash, issueSheets, moveSheet, nextRev, registerHtml, renumber, setOf, SHEET_STATUSES, sheetNumber, sheetRev, sheetsByCount, SIZES, statusColor, transmittalHtml,
   type DrawingIssue, type DrawingSet, type DrawingSheet, type IssueInput, type SheetFilter, type SheetSize, type SheetSort
 } from '../../model/drawingSet';
 import { currentRevision } from '../../model/revisions';
@@ -245,7 +245,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
                         <td><b>{s.number}</b></td>
                         <td>
                           {txt(s.title, (v) => v && setSheet(s.id, { title: v }), '', 260)}
-                          <div className="m dr-panels">{s.kind === 'riser' ? `Riser diagram — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'}` : s.kind === 'board' ? `${s.boards[0]} circuit diagram` : s.boards.length ? s.boards.join(', ') : <span className="warn">no panels — Edit to tick them</span>}</div>
+                          <div className="m dr-panels">{s.kind === 'earthing' ? 'Earthing schematic (from Design → Earth pits)' : s.kind === 'riser' ? `Riser diagram — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'}` : s.kind === 'board' ? `${s.boards[0]} circuit diagram` : s.boards.length ? s.boards.join(', ') : <span className="warn">no panels — Edit to tick them</span>}</div>
                         </td>
                         <td><select className="bi-sel" value={s.size} onChange={(e) => setSheet(s.id, { size: e.target.value as DrawingSheet['size'] })}><option value="auto">Auto</option>{SIZES.map((z) => <option key={z}>{z}</option>)}</select></td>
                         <td><span className="dr-dot" style={{ background: statusColor(st) }} />{st || <span className="m">—</span>}</td>
@@ -276,6 +276,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
               {project.building!.buildings.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
           )}
+          <button className="chip" disabled={set.sheets.some((x) => x.kind === 'earthing')} title="The earthing schematic from Design → Earth pits" onClick={() => save(addEarthingSheet(set).set)}>Add earthing schematic</button>
           {!none && <span className="m">Tick sheets to work on just those — the bar above shows what Set, Next revision and Issue will change.</span>}
         </div>
       </>)}

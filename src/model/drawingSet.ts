@@ -15,7 +15,7 @@ export interface DrawingSheet {
   id: string;
   number: string; // e.g. E-SLD-002
   title: string; // e.g. SLD — MDB-1
-  kind: 'system' | 'board' | 'riser'; // board = one DB's circuit diagram; riser = a building's riser diagram
+  kind: 'system' | 'board' | 'riser' | 'earthing'; // board = one DB's circuit diagram; riser = a building's riser diagram; earthing = earthing schematic
   buildingId?: string; // riser sheets
   boards: string[];
   size: 'auto' | SheetSize;
@@ -87,7 +87,12 @@ export const renumber = (set: DrawingSet, force = false): DrawingSet => {
   };
 };
 /** A sheet that has something to draw. */
-export const drawable = (s: DrawingSheet) => (s.kind === 'riser' ? !!s.buildingId : s.boards.length > 0);
+export const drawable = (s: DrawingSheet) => (s.kind === 'earthing' ? true : s.kind === 'riser' ? !!s.buildingId : s.boards.length > 0);
+/** The earthing schematic sheet (one per project). */
+export function addEarthingSheet(set: DrawingSet): { set: DrawingSet; id: string } {
+  const id = `sh-${Date.now().toString(36)}`;
+  return { id, set: renumber({ ...set, sheets: [...set.sheets, { id, number: '', title: 'Earthing schematic diagram', kind: 'earthing', boards: [], size: 'auto' }] }) };
+}
 /** A riser diagram sheet for a building. */
 export function addRiserSheet(set: DrawingSet, buildingId: string, buildingName: string): { set: DrawingSet; id: string } {
   const id = `sh-${Date.now().toString(36)}`;
@@ -359,6 +364,7 @@ export function transmittalHtml(p: Project, issue: DrawingIssue, company = ''): 
  * values on them) — compared with the one stored when it was issued. */
 export function sheetHash(p: Project, set: DrawingSet, s: DrawingSheet): string {
   const d = s.kind === 'board' ? { boards: p.boards.filter((b) => b.id === s.boards[0]), feeders: p.feeders.filter((f) => f.boardId === s.boards[0]) }
+    : s.kind === 'earthing' ? { boards: p.boards.filter((b) => !b.upstreamId).map((b) => [b.id, b.sourceKva, b.rmu, b.vectorGroup]), feeders: [p.earthingPlan] }
     : s.kind === 'riser' ? { boards: p.boards.map((b) => [b.id, b.upstreamId, b.level, b.ratedCurrentA, b.sourceKva, b.standby]), feeders: [p.feeders.filter((f) => f.feedsBoardId).map((f) => [f.feedsBoardId, f.cores, f.cableCsaMm2, f.lengthM, f.parallel, f.cableType]), p.busRisers, p.building] }
     : sheetProject(p, set, s);
   const txt = JSON.stringify([d.boards, d.feeders, s.title, s.size, s.tags, s.notes, s.clouds, s.arrows]);

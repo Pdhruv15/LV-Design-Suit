@@ -17,6 +17,7 @@ import { cableRefsUsed } from '../../model/cableRefs';
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
 import { SHEET_MM } from '../../docs/sldSheet';
 import SystemDiagram, { LegendSvg } from '../SystemDiagram';
+import { earthingDrawing } from '../../diagram/earthingDrawing';
 import RiserDiagram, { RiserLegendSvg } from '../../diagram/RiserDiagram';
 import { riserLayout } from '../../diagram/riserLayout';
 import SingleLineDiagram from '../SingleLineDiagram';
@@ -30,6 +31,7 @@ export async function renderSheet(project: Project, set: DrawingSet, s: DrawingS
   document.body.appendChild(host);
   const root = createRoot(host);
   try {
+    if (s.kind === 'earthing') return earthingDrawing(project);
     if (s.kind === 'riser') {
       if (!s.buildingId) return undefined;
       flushSync(() => root.render(<RiserDiagram project={project} buildingId={s.buildingId!} />));
