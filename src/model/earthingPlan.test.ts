@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { applyTransformers, planTransformers } from './transformers';
+import { applyTransformers, planTransformers, setRmu } from './transformers';
 import { earthingLayout } from './earthingPlan';
 import { buildBom } from '../calc/bom';
 import { earthingDrawing } from '../diagram/earthingDrawing';
@@ -53,5 +53,23 @@ describe('earthing schematic', () => {
     expect(d.svg).not.toContain('NO PIT');
     for (const pit of L.pits) expect(d.svg).toContain(`>${pit.id}</text>`);
     expect(d.svg).not.toMatch(/NaN|undefined/);
+  });
+
+  it('large site: 10 transformers on 5 RMUs, 10 MDBs, SMDBs with their own pits — two-row drawing', () => {
+    let p = applyTransformers(sampleProject, planTransformers(sampleProject, Array.from({ length: 9 }, () => ({ kva: 1500 })), false, 2));
+    p = setRmu(p, 'MDB-1', 'RMU-5'); // RMU-5 feeds the 9th new one and the existing TX-1
+    const smdbs = p.boards.filter((b) => b.kind === 'SMDB').map((b) => b.id);
+    p = { ...p, earthingPlan: { pits: Object.fromEntries(smdbs.map((id) => [`sub:${id}`, 1])) } };
+    const L = earthingLayout(p);
+    expect(L.items.filter((i) => i.kind === 'rmu')).toHaveLength(5);
+    expect(L.items.filter((i) => i.kind === 'txn')).toHaveLength(10);
+    expect(L.items.filter((i) => i.kind === 'lv')).toHaveLength(10);
+    expect(L.pits.filter((x) => x.kind === 'sub')).toHaveLength(smdbs.length);
+    expect(L.pits).toHaveLength(5 * 2 + 10 * 2 + 10 + smdbs.length);
+    const d = earthingDrawing(p);
+    expect(d.svg).not.toMatch(/NaN|undefined|NO PIT/);
+    for (const pit of L.pits) expect(d.svg).toContain(`>${pit.id}</text>`);
+    expect(d.h).toBeGreaterThan(900); // LV room on a second row
+    expect(d.w).toBeLessThan(3000);
   });
 });

@@ -22,6 +22,9 @@ type Col = 'status' | 'rev' | 'date' | 'drawnBy' | 'checkedBy' | 'approvedBy' | 
 export type DrawingsTab = 'sheets' | 'layout' | 'titleblock' | 'issues';
 const TABS: [DrawingsTab, string][] = [['sheets', 'Sheets'], ['layout', 'Layout'], ['titleblock', 'Title block & numbering'], ['issues', 'Issues & transmittals']];
 
+
+/** The earthing schematic goes with the SLDs (once per set). */
+const withEarthing = (st: DrawingSet): DrawingSet => (st.sheets.some((x) => x.kind === 'earthing') ? st : addEarthingSheet(st).set);
 /** Reports → Drawings: the SLD sheets in one place. Sheets (the list, with
  * filters, bulk changes, thumbnails and a side panel per sheet), Layout (how
  * sheets are made and what they show), Title block & numbering, and Issues
@@ -117,7 +120,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
     if (set.sheets.length) return [];
     const withDb = (x: DrawingSet) => (dbSheets ? autoSheets(project, 'perMdb', true, set.prefix).sheets.filter((s) => s.kind === 'board') : []).reduce((acc, s) => ({ ...acc, sheets: [...acc.sheets, s] }), x);
     return [
-      { key: 'split', title: 'Split by panels', about: 'Fills each sheet with up to the number of panels below, in supply order, keeping a branch together where it fits. Best for authority submissions.', set: renumber(withDb(sheetsByCount(project, perSheet, set.prefix))) },
+      { key: 'split', title: 'Split by panels', about: 'Fills each sheet with up to the number of panels below, in supply order, keeping a branch together where it fits. Best for authority submissions.', set: withEarthing(renumber(withDb(sheetsByCount(project, perSheet, set.prefix)))) },
       { key: 'mdb', title: 'One sheet per MDB', about: 'Each main board with everything it feeds; an overview sheet when there are several MDBs.', set: autoSheets(project, 'perMdb', dbSheets, set.prefix) },
       { key: 'smdb', title: 'Overview + one per SMDB', about: 'An overview of the main boards and sub-mains, then a sheet per SMDB / MCC with its DBs.', set: autoSheets(project, 'perSmdb', dbSheets, set.prefix) }
     ];
@@ -187,7 +190,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
             <input className="bi-text dr-search" type="search" placeholder="Search number, title, panel…" value={filter.q ?? ''} onChange={(e) => setFilter({ ...filter, q: e.target.value })} />
             <select className="chip" value={filter.status ?? ''} onChange={(e) => setFilter({ ...filter, status: e.target.value || undefined })}><option value="">All statuses</option>{statuses.map((x) => <option key={x}>{x}</option>)}</select>
             <select className="chip" value={filter.rev ?? ''} onChange={(e) => setFilter({ ...filter, rev: e.target.value || undefined })}><option value="">All revisions</option>{revs.map((x) => <option key={x} value={x}>Rev {x}</option>)}</select>
-            <select className="chip" value={filter.type ?? ''} onChange={(e) => setFilter({ ...filter, type: (e.target.value || undefined) as SheetFilter['type'] })}><option value="">All sheet types</option><option value="sld">SLD sheets</option><option value="db">DB circuit diagrams</option><option value="riser">Riser diagrams</option></select>
+            <select className="chip" value={filter.type ?? ''} onChange={(e) => setFilter({ ...filter, type: (e.target.value || undefined) as SheetFilter['type'] })}><option value="">All sheet types</option><option value="sld">SLD sheets</option><option value="db">DB circuit diagrams</option><option value="riser">Riser diagrams</option><option value="earthing">Earthing schematic</option></select>
             {(filtered || sort.key !== 'order') && <button className="linkish" onClick={() => { setFilter({}); setSort({ key: 'order' }); }}>Clear filters</button>}
             <span className="sp" />
             <span className="m">{visible.length} of {set.sheets.length} sheets</span>
@@ -285,7 +288,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
         <section className="card">
           <h4>Make the sheets automatically</h4>
           <div className="ds-tools">
-            <button className="chip" onClick={() => replaceSet(sheetsByCount(project, perSheet, set.prefix))}>Split by panels</button>
+            <button className="chip" onClick={() => replaceSet(withEarthing(sheetsByCount(project, perSheet, set.prefix)))}>Split by panels</button>
             <label className="row">max <input className="bi-text" style={{ width: 44 }} inputMode="numeric" value={perSheet} onChange={(e) => setPerSheet(Math.max(1, Number(e.target.value) || 1))} /> panels per sheet</label>
             <span className="sp" style={{ flex: 'none', width: 12 }} />
             <button className="chip" onClick={() => replaceSet(autoSheets(project, 'perMdb', dbSheets, set.prefix))}>One sheet per MDB</button>
@@ -360,6 +363,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
               <label>Digits<select value={set.digits ?? 3} onChange={(e) => setNumbering({ digits: Number(e.target.value) })}>{[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n} ({'0'.repeat(n - 1)}1)</option>)}</select></label>
               <label>Suffix{txt(set.suffix, (v) => setNumbering({ suffix: v || undefined }), 'e.g. -EL')}</label>
               <label>Riser prefix{txt(set.riserPrefix, (v) => setNumbering({ riserPrefix: v || undefined }), 'E-RSR-')}</label>
+              <label>Earthing prefix{txt(set.earthPrefix, (v) => setNumbering({ earthPrefix: v || undefined }), 'E-ERT-')}</label>
             </div>
             <p className="m">Example: <b>{sheetNumber(set, 0)}</b>, {sheetNumber(set, 1)} …</p>
             <label className="row"><input type="checkbox" checked={!!set.manualNumbers} onChange={(e) => save({ ...set, manualNumbers: e.target.checked || undefined })} /> Type numbers by hand (keep them when sheets move)</label>

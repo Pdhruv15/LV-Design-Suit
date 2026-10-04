@@ -8,13 +8,13 @@ const two: Project = { ...sampleProject, boards: [...sampleProject.boards, { id:
 describe('drawing set', () => {
   it('one sheet per MDB (overview when several), DBs as boxes, DB diagrams only on request', () => {
     const one = autoSheets(sampleProject, 'perMdb');
-    expect(one.sheets.map((s) => s.number)).toEqual(['E-SLD-001']);
+    expect(one.sheets.map((s) => s.number)).toEqual(['E-SLD-001', 'E-ERT-001']); // the earthing schematic goes with the SLDs
     expect(one.sheets[0].boards).toContain('DB-GF1');
     const t = autoSheets(two, 'perMdb');
-    expect(t.sheets.map((s) => s.title)).toEqual(['SLD — overall (main boards and sub-mains)', 'SLD — MDB-1', 'SLD — MDB-2']);
+    expect(t.sheets.map((s) => s.title)).toEqual(['SLD — overall (main boards and sub-mains)', 'SLD — MDB-1', 'SLD — MDB-2', 'Earthing schematic diagram']);
     expect(t.sheets[0].boards).not.toContain('DB-GF1');
     const withDb = autoSheets(sampleProject, 'perMdb', true);
-    expect(withDb.sheets[withDb.sheets.length - 1]).toMatchObject({ kind: 'board', boards: ['DB-GF1'], number: 'E-SLD-002' });
+    expect(withDb.sheets.find((x) => x.kind === 'board')).toMatchObject({ kind: 'board', boards: ['DB-GF1'], number: 'E-SLD-002' });
   });
   it('per SMDB: overview then a sheet for each SMDB with DBs', () => {
     const s = autoSheets(sampleProject, 'perSmdb');
@@ -35,7 +35,7 @@ describe('drawing set', () => {
     expect(autoSize(1800, 700).size).toBe('A3');
     expect(autoSize(3800, 1500).size).toBe('A1');
     expect(autoSize(9000, 3000).fits).toBe(false);
-    expect(renumber({ prefix: 'X-', sheets: autoSheets(two, 'perMdb').sheets }).sheets.map((s) => s.number)).toEqual(['X-001', 'X-002', 'X-003']);
+    expect(renumber({ prefix: 'X-', sheets: autoSheets(two, 'perMdb').sheets }).sheets.map((s) => s.number)).toEqual(['X-001', 'X-002', 'X-003', 'E-ERT-001']);
   });
 });
 
