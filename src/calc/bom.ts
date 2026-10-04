@@ -4,6 +4,7 @@ import { cableTypeOf } from '../model/cableTypes';
 import { breakerTypeOf, cpcOf } from './earthing';
 import { runsOf } from './electrical';
 import { sizeRiser } from './busbar';
+import { earthingLayout, kindInfo } from '../model/earthingPlan';
 import { sizeRoute, trayPlanOf, trayQuantities } from './cableTray';
 
 /** Bill of materials: every item the design already knows about, rolled up
@@ -103,13 +104,24 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
     }
     if (b.earthing?.show ?? !b.upstreamId) {
       const el = b.earthing?.electrodeM ?? 3;
-      add('I', `earth-pit:${el}`, `Earth pit: ${el} m copper-bonded earth electrode with inspection pit and cover, tested`, 'no', b.earthing?.pits ?? 2, b.id);
+      // With an earthing schematic, its pits are counted below instead.
+      if (!p.earthingPlan) add('I', `earth-pit:${el}`, `Earth pit: ${el} m copper-bonded earth electrode with inspection pit and cover, tested`, 'no', b.earthing?.pits ?? 2, b.id);
       const inc = p.feeders.find((f) => f.feedsBoardId === b.id);
       const mm = b.earthing?.conductorMm2 ?? (inc ? Math.max(16, cpcOf(inc)) : 50);
       add('I', `met:${mm}`, `Main earth terminal bar with test link; earth conductor 1C × ${mm} mm² Cu/PVC to the pits (length to site)`, 'set', 1, b.id);
     }
     if (b.sourceKva) add('D', `tx:${b.sourceKva}:${b.sourceImpedancePct ?? '-'}`, `Distribution transformer ${b.sourceKva} kVA, 11/0.415 kV, ${b.vectorGroup ?? 'Dyn11'}${b.sourceImpedancePct ? `, Z ${b.sourceImpedancePct} %` : ''}`, 'no', 1, b.id);
     if (k === 'UPS' && b.upsKva) add('D', `ups:${b.upsKva}`, `UPS ${b.upsKva} kVA online double conversion, with batteries`, 'no', 1, b.id);
+  }
+
+  // Earth pits from the earthing schematic (RMU, transformer neutral / body, LV)
+  if (p.earthingPlan) {
+    const L = earthingLayout(p);
+    for (const pit of L.pits) {
+      const it = L.items.find((i) => i.key === pit.itemKey)!;
+      add('I', `earth-pit:${L.electrodeM}:${pit.kind}`, `Earth pit (${kindInfo(pit.kind).label}): ${L.electrodeM} m copper-bonded earth electrode with inspection pit and cover, tested`, 'no', 1, it.equipment);
+    }
+    if (L.links.length) add('I', `earth-link:${L.conductorMm2}`, `Earth pit interconnection 1C × ${L.conductorMm2} mm² Cu (length to site)`, 'no', L.links.length, 'Earthing schematic');
   }
 
   // Outgoing ways: breakers, earth leakage, meters, isolators, equipment

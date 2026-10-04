@@ -285,6 +285,7 @@ export interface Project {
   revisions?: Revision[]; // issued revisions, oldest first (A, B, C…)
   drawing?: DrawingInfo; // SLD drawing title block
   ties?: BusTie[]; // normally-open bus couplers between main boards
+  earthingPlan?: EarthingPlan; // earthing schematic: pits per equipment, links, measured values
   spacePlan?: SpacePlan; // areas → panels → transformers → RMUs (power density planning)
   upsSystems?: import('./calc/ups').UpsSystem[]; // UPS and battery sizing
   feederPresets?: import('./model/presets').FeederPreset[]; // copy of the user's feeder presets, so they travel with the project
@@ -599,6 +600,18 @@ export interface TrayPlan {
 
 /** Normally-open bus coupler (tie breaker) between two main boards: closed
  * when one of their transformers is out, so the other carries both. */
+/** Earthing schematic settings. The layout itself is worked out from the transformers, RMUs and main boards. */
+export interface EarthingPlan {
+  /** Pits per equipment key (rmu:…, txn:…, txb:…, lv:…), where the user changed the default. */
+  pits?: Record<string, number>;
+  /** Equipment whose pits are NOT linked to the others of the same kind. */
+  unlinked?: string[];
+  /** Measured resistance per pit (Ω), from site tests. */
+  measured?: Record<string, number>;
+  electrodeM?: number; // electrode length (m), default 3
+  conductorMm2?: number; // pit link / earth conductor (mm² Cu), default 70
+}
+
 export interface BusTie {
   id: string;
   a: string; // board ids
