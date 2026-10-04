@@ -62,18 +62,21 @@ export function nextRmus(project: Project, count: number): string[] {
   let n = Math.max(0, ...[...used].map((x) => Number(/^RMU-(\d+)$/.exec(x)?.[1] ?? 0)));
   return Array.from({ length: count }, () => { let id; do { id = `RMU-${++n}`; } while (used.has(id)); used.add(id); return id; });
 }
+/** Set the substation a transformer is in; blank clears it. */
+export const setSubstation = (project: Project, mainId: string, name: string): Project =>
+  ({ ...project, boards: project.boards.map((b) => { if (b.id !== mainId) return b; const { substation: _s, ...rest } = b; return name.trim() ? { ...rest, substation: name.trim() } : rest; }) });
 /** Set the RMU feeding a transformer (main board); blank clears it. */
 export const setRmu = (project: Project, mainId: string, rmu: string | undefined): Project =>
   ({ ...project, boards: project.boards.map((b) => { if (b.id !== mainId) return b; const { rmu: _r, ...rest } = b; return rmu ? { ...rest, rmu } : rest; }) });
 
-export function planTransformers(project: Project, specs: TxSpec[], ties: boolean, perRmu: 1 | 2 = 1): TxPlan {
+export function planTransformers(project: Project, specs: TxSpec[], ties: boolean, perRmu: 1 | 2 = 1, substation?: string): TxPlan {
   const problems: string[] = [];
   if (!specs.length) problems.push('Enter at least one transformer');
   if (specs.length > 15) problems.push('15 transformers at most');
   const M = prefixOf(project, 'MDB');
   const seq = sequence({ ...project, boards: project.boards }, M, specs.length);
   const rmus = nextRmus(project, Math.ceil(specs.length / perRmu));
-  const boards = specs.map((s, i) => withTransformer({ id: `${M}-${seq(i + 1)}`, name: `${M}-${seq(i + 1)}`, kind: 'MDB', rmu: rmus[Math.floor(i / perRmu)] }, s.kva, project.voltageV));
+  const boards = specs.map((s, i) => withTransformer({ id: `${M}-${seq(i + 1)}`, name: `${M}-${seq(i + 1)}`, kind: 'MDB', rmu: rmus[Math.floor(i / perRmu)], ...(substation?.trim() ? { substation: substation.trim() } : {}) }, s.kva, project.voltageV));
   const taken = new Set(project.boards.map((b) => b.id));
   const clash = boards.filter((b) => taken.has(b.id));
   if (clash.length) problems.push(`Already in the project: ${clash.map((b) => b.id).join(', ')}`);
