@@ -80,7 +80,8 @@ const FABRICATED: EnclosureCatalogue = {
   notes: [...BASE_NOTES,
     'More than 12 ELCB, up to 125 A: 48 modules off the actual modules and an 800 mm (12×5) busbar added in the estimate; 160–250 A: 64 modules and an 800 mm (20×10) busbar.',
     '13–15 ELCB is covered by both "up to 15 ELCB" and "more than 12 ELCB": the supplier must confirm which governs — both are shown, none selected automatically.',
-    'Incomers above 125 A and below 160 A are not covered by the chart.'],
+    'Incomers above 125 A and below 160 A, and above 250 A, are not covered by the chart.',
+    'To confirm with the supplier: 500 × 400 and 600 × 400 have no usable figure for any case; 600 × 500 shows 6 usable modules for more than 12 ELCB, which cannot hold 13 ELCBs.'],
   rules: [
     { id: 'elcb12', label: 'Up to 12 ELCB — 4 terminal + 4 incoming cable space', deductModules: 8, elcbMax: 12 },
     { id: 'elcb15', label: 'Up to 15 ELCB — 8 terminal + 4 incoming cable space', deductModules: 12, elcbMin: 13, elcbMax: 15 },
@@ -100,7 +101,19 @@ const FABRICATED: EnclosureCatalogue = {
 
 export const BUILTIN_CATALOGUES: EnclosureCatalogue[] = [MODULAR, FABRICATED];
 
-export interface SizingInput { equipmentModules: number; spareModules: number; elcbCount: number; incomerA?: number }
+export interface SizingInput {
+  equipmentModules: number;
+  spareModules: number;
+  elcbCount: number;
+  incomerA?: number;
+  /** Spare entered as a percentage of the equipment space (spareModules is then worked out from it). */
+  sparePct?: number;
+}
+
+/** Default future spare: 20 % of the equipment space. */
+export const DEFAULT_SPARE_PCT = 20;
+/** Spare modules for a percentage of the equipment space, rounded up to whole modules. */
+export const spareFromPct = (equipmentModules: number, pct: number) => Math.max(0, Math.ceil((equipmentModules * pct) / 100 - 1e-9));
 
 /** Which allowance cases apply. `confirm` when the supplier's cases overlap; empty `rules` when none covers the input. */
 export function applicableRules(cat: EnclosureCatalogue, i: SizingInput): { rules: AllowanceRule[]; confirm: boolean; why?: string } {
@@ -108,8 +121,15 @@ export function applicableRules(cat: EnclosureCatalogue, i: SizingInput): { rule
     (r.elcbMin === undefined || i.elcbCount >= r.elcbMin) && (r.elcbMax === undefined || i.elcbCount <= r.elcbMax) &&
     (r.incomerMinA === undefined || (i.incomerA !== undefined && i.incomerA >= r.incomerMinA)) &&
     (r.incomerMaxA === undefined || (i.incomerA !== undefined && i.incomerA <= r.incomerMaxA)));
-  const confirm = cat.overlaps.some((o) => o.every((id) => rules.some((r) => r.id === id)));
-  if (rules.length) return { rules, confirm };
+  const overlap = cat.overlaps.some((o) => o.every((id) => rules.some((r) => r.id === id)));
+  // A case that depends on the incomer and matches the ELCB count can't be ruled out without the incomer current.
+  const unknown = i.incomerA === undefined
+    ? cat.rules.filter((r) => (r.incomerMinA !== undefined || r.incomerMaxA !== undefined) && !rules.includes(r) &&
+      (r.elcbMin === undefined || i.elcbCount >= r.elcbMin) && (r.elcbMax === undefined || i.elcbCount <= r.elcbMax))
+    : [];
+  if (rules.length) return unknown.length
+    ? { rules, confirm: true, why: `Enter the incomer current — "${unknown[0].label}" may govern for ${i.elcbCount} ELCB` }
+    : { rules, confirm: overlap };
   const needsA = cat.rules.some((r) => (r.incomerMinA !== undefined || r.incomerMaxA !== undefined) && (r.elcbMin === undefined || i.elcbCount >= r.elcbMin));
   return { rules, confirm: false, why: needsA && i.incomerA === undefined ? 'Enter the incomer current — the chart depends on it for this many ELCBs' : `The ${cat.range} chart has no case for ${i.elcbCount} ELCB${i.incomerA !== undefined ? ` at ${i.incomerA} A` : ''}` };
 }
@@ -156,14 +176,17 @@ export interface EnclosureSelection {
   mounting?: Mounting;
   dims?: Dims;
   input: SizingInput;
+  /** How the equipment space was found. */
+  method?: 'manual' | 'schedule';
   required: number;
   usable: number;
   confirmNeeded: boolean;
   selectedOn: string;
 }
 
-export function selectionFrom(cat: EnclosureCatalogue, c: Candidate, input: SizingInput, mounting: Mounting | undefined, required: number): EnclosureSelection {
+export function selectionFrom(cat: EnclosureCatalogue, c: Candidate, input: SizingInput, mounting: Mounting | undefined, required: number, method?: 'manual' | 'schedule'): EnclosureSelection {
   return {
+    ...(method ? { method } : {}),
     catalogueId: cat.id, supplier: cat.supplier, range: cat.range, revision: cat.revision, config: structuredClone(c.config), ruleId: c.rule.id, ruleLabel: c.rule.label,
     ...(c.rule.extra ? { extra: c.rule.extra } : {}), ...(cat.family === 'modular' && mounting ? { mounting } : {}), ...(c.dims ? { dims: c.dims } : {}),
     input: { ...input }, required, usable: c.usable!, confirmNeeded: c.result === 'confirm', selectedOn: new Date().toISOString().slice(0, 10)

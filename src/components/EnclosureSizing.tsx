@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { Project } from '../types';
-import { selectionFrom, sizeEnclosure, type Candidate, type EnclosureCatalogue, type Mounting, type SizingInput } from '../calc/enclosure';
-import { allCatalogues, loadDevices, neededDevices, saveDevices, scheduleModules, validateCatalogue, type NeededDevice } from '../model/enclosureLibrary';
+import { DEFAULT_SPARE_PCT, applicableRules, selectionFrom, sizeEnclosure, spareFromPct, type Candidate, type EnclosureCatalogue, type Mounting, type SizingInput } from '../calc/enclosure';
+import { allCatalogues, isTypical, loadDevices, neededDevices, saveDevices, scheduleModules, validateCatalogue, type NeededDevice } from '../model/enclosureLibrary';
 import CatalogueManager from './CatalogueManager';
 import { safeFileName, savePdf } from '../util/files';
 import { esc } from '../docs/report';
@@ -50,10 +50,10 @@ export default function EnclosureSizing({ project, boardId, onChange, onStatus }
   const saved = project.boards.find((b) => b.id === panel)?.enclosure;
   const [catalogues, setCatalogues] = useState(() => allCatalogues());
   const [manager, setManager] = useState(false);
-  const [method, setMethod] = useState<'manual' | 'schedule'>('manual');
+  const [method, setMethod] = useState<'manual' | 'schedule'>(saved?.method ?? 'manual');
   const [catId, setCatId] = useState(saved?.catalogueId ?? catalogues[0].id);
   const [mounting, setMounting] = useState<Mounting>(saved?.mounting ?? 'surface');
-  const [manual, setInput] = useState<SizingInput>(saved?.input ?? { equipmentModules: 64, spareModules: 8, elcbCount: 10 });
+  const [manual, setInput] = useState<SizingInput>(saved?.input ?? { equipmentModules: 64, spareModules: spareFromPct(64, DEFAULT_SPARE_PCT), elcbCount: 10, sparePct: DEFAULT_SPARE_PCT });
   const cat = catalogues.find((c) => c.id === catId) ?? catalogues[0];
   const catBad = validateCatalogue(cat).filter((x) => x.level === 'bad');
   // From schedule: the board's physical devices, widths only from device records.
@@ -71,9 +71,11 @@ export default function EnclosureSizing({ project, boardId, onChange, onStatus }
   };
   const fromSchedule = scheduleModules(needed);
   const incomerA = project.feeders.find((f) => f.feedsBoardId === panel)?.breakerRatingA;
-  const input: SizingInput = method === 'schedule'
-    ? { equipmentModules: fromSchedule.modules, spareModules: manual.spareModules, elcbCount: fromSchedule.elcb, ...(incomerA !== undefined ? { incomerA } : {}) }
+  const base: SizingInput = method === 'schedule'
+    ? { equipmentModules: fromSchedule.modules, spareModules: manual.spareModules, elcbCount: fromSchedule.elcb, ...(incomerA !== undefined ? { incomerA } : {}), ...(manual.sparePct !== undefined ? { sparePct: manual.sparePct } : {}) }
     : manual;
+  // Spare as a percentage follows the equipment space.
+  const input: SizingInput = base.sparePct !== undefined ? { ...base, spareModules: spareFromPct(base.equipmentModules, base.sparePct) } : base;
   const incomplete = method === 'schedule' && (fromSchedule.unmapped.length > 0 || !needed.length);
   const r = useMemo(() => sizeEnclosure(cat, input, mounting), [cat, JSON.stringify(input), mounting]); // eslint-disable-line react-hooks/exhaustive-deps
   const [pick, setPick] = useState<string | null>(null);
@@ -85,11 +87,19 @@ export default function EnclosureSizing({ project, boardId, onChange, onStatus }
     if (k === 'incomerA' && t === '') { const { incomerA: _x, ...rest } = manual; setInput(rest); return; }
     const n = Number(t); if (Number.isFinite(n)) setInput({ ...manual, [k]: n });
   };
+  const setSpareMode = (pct: boolean) => {
+    if (pct) setInput({ ...manual, sparePct: manual.sparePct ?? DEFAULT_SPARE_PCT });
+    else { const { sparePct: _p, ...rest } = manual; setInput({ ...rest, spareModules: input.spareModules }); }
+  };
+  // Other catalogues that do have a case for these inputs (shown when this one has none).
+  const others = r.rules.length ? [] : catalogues.filter((c) => c.id !== cat.id && applicableRules(c, input).rules.length);
+  // The saved size, checked against today's schedule / inputs.
+  const outgrown = saved && (saved.method ?? 'manual') === method && !r.invalid && r.required > saved.usable && !incomplete;
   const notListed = r.candidates.filter((c) => c.result === 'not-listed').length;
 
   function use() {
     if (!chosen || chosen.usable === null || chosen.result === 'too-small' || chosen.result === 'not-listed' || incomplete || catBad.length) return;
-    const sel = selectionFrom(cat, chosen, input, mounting, r.required);
+    const sel = selectionFrom(cat, chosen, input, mounting, r.required, method);
     onChange({ ...project, boards: project.boards.map((b) => (b.id === panel ? { ...b, enclosure: sel } : b)) });
     onStatus(`${panel}: ${cat.range} ${chosen.config.ref}${sel.dims ? `, H${sel.dims.h} × W${sel.dims.w} × D${sel.dims.d} mm` : ''} — ${cat.supplier} rev. ${cat.revision}${sel.confirmNeeded ? ' (supplier confirmation needed)' : ''}`);
   }
@@ -105,7 +115,7 @@ export default function EnclosureSizing({ project, boardId, onChange, onStatus }
     </style></head><body>
     <h1>${esc(project.name)} — ${esc(panel)} enclosure size</h1><p class="m">${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} · preliminary space estimate</p>
     <h2>Selected enclosure</h2><table>${row('Catalogue', `${cat.supplier} — ${cat.range}, rev. ${cat.revision}`)}${row('Source', cat.source)}${row('Size', `${chosen.config.ref}${cat.family === 'modular' ? ` (${chosen.config.rows} rows × ${chosen.config.modulesPerRow} modules)` : ''}`)}${row('Mounting', cat.family === 'modular' ? mounting : 'fabricated')}${row('Dimensions', `H ${d.h} × W ${d.w} × D ${d.d} mm`)}${row('Allowance case', chosen.rule.label)}${chosen.rule.extra ? row('Add to the estimate', chosen.rule.extra) : ''}</table>
-    <h2>Space</h2><table>${row('Method', method === 'schedule' ? 'From the load schedule (device records)' : 'Manual estimate')}${row('Equipment', `${input.equipmentModules} modules`)}${row('Future spare', `${input.spareModules} modules`)}${row('Required', `${r.required} modules`)}${row('Available', `${chosen.config.grossModules} − ${chosen.rule.deductModules} = ${chosen.usable} modules (supplier figure after allowance)`)}${row('Left over', `${chosen.spareAfter} modules`)}${row('ELCB count', String(input.elcbCount))}${input.incomerA !== undefined ? row('Incomer', `${input.incomerA} A`) : ''}</table>
+    <h2>Space</h2><table>${row('Method', method === 'schedule' ? 'From the load schedule (device records)' : 'Manual estimate')}${row('Equipment', `${input.equipmentModules} modules`)}${row('Future spare', `${input.spareModules} modules${input.sparePct !== undefined ? ` (${input.sparePct} % of equipment)` : ''}`)}${row('Required', `${r.required} modules`)}${row('Available', `${chosen.config.grossModules} − ${chosen.rule.deductModules} = ${chosen.usable} modules (supplier figure after allowance)`)}${row('Left over', `${chosen.spareAfter} modules`)}${row('ELCB count', String(input.elcbCount))}${input.incomerA !== undefined ? row('Incomer', `${input.incomerA} A`) : ''}</table>
     ${method === 'schedule' ? `<h2>Devices</h2><table><thead><tr><th>Device</th><th>Qty</th><th>Record</th><th>Modules</th></tr></thead><tbody>${needed.map((x) => `<tr><td>${esc(x.key)} — ${esc(x.what)}</td><td>${x.count}</td><td>${x.device ? esc(`${x.device.manufacturer} ${x.device.model}`) : '<span class="warn">needs dimensions</span>'}</td><td>${x.device ? x.device.modules * x.count : '—'}</td></tr>`).join('')}</tbody></table>` : ''}
     <h2>Preview (illustrative, not a manufacturing drawing)</h2>${svg}
     <h2>Other candidates</h2><table><thead><tr><th>Size</th><th>Usable</th><th>Left</th><th>Result</th></tr></thead><tbody>${shown.filter((c) => c.result !== 'not-listed').map((c) => `<tr><td>${esc(c.config.ref)}</td><td>${c.usable}</td><td>${c.spareAfter}</td><td>${esc(RESULT[c.result])}</td></tr>`).join('')}</tbody></table>
@@ -131,14 +141,14 @@ export default function EnclosureSizing({ project, boardId, onChange, onStatus }
               {!needed.length && <p className="warn">{panel} has no circuits or incomer to list.</p>}
               <table className="bi-table compact">
                 <thead><tr><th>Device</th><th>Qty</th><th>Width</th></tr></thead>
-                <tbody>{needed.map((d) => <tr key={d.key}><td>{d.key}<br /><span className="m">{d.what}</span></td><td>{d.count}</td><td className={d.device ? '' : 'warn'}>{d.device ? <>{d.device.modules} × {d.count} = {d.device.modules * d.count}<br /><span className="m">{d.device.manufacturer} {d.device.model}</span></> : (
+                <tbody>{needed.map((d) => <tr key={d.key}><td>{d.key}<br /><span className="m">{d.what}</span></td><td>{d.count}</td><td className={d.device ? '' : 'warn'}>{d.device ? <>{d.device.modules} × {d.count} = {d.device.modules * d.count}<br /><span className={isTypical(d.device) ? 'warn' : 'm'}>{isTypical(d.device) ? 'Typical width — check manufacturer' : `${d.device.manufacturer} ${d.device.model}`}</span></> : (
                   <span className="enc-w" title="Width of ONE device in 18 mm modules, from the manufacturer's data — saved as a device record">
                     <input className="bi-num" style={{ width: 44 }} inputMode="decimal" placeholder="width" value={widths[d.key] ?? ''} onChange={(e) => setWidths({ ...widths, [d.key]: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && addWidth(d)} />
                     <button className="chip" disabled={!(Number(widths[d.key]) > 0)} onClick={() => addWidth(d)}>Save</button>
                   </span>
                 )}</td></tr>)}</tbody>
               </table>
-              {fromSchedule.unmapped.length > 0 && <p className="warn">{fromSchedule.unmapped.length} device type(s) have no dimension record — add them in Catalogue manager → Device dimensions. Widths are not guessed from poles.</p>}
+              {fromSchedule.unmapped.length > 0 && <p className="warn">{fromSchedule.unmapped.length} device type(s) have no dimension record — enter the width above or in Catalogue manager → Device dimensions (MCCBs are chassis-mounted, so they have no typical width).</p>}
             </div>
           )}
           <div className="form-kv">
@@ -147,7 +157,12 @@ export default function EnclosureSizing({ project, boardId, onChange, onStatus }
               <label>ELCB count<span><b>{input.elcbCount}</b> from the ELCB groups{incomerA !== undefined ? ` · incomer ${incomerA} A` : ''}</span></label>
             </>}
             {method === 'manual' && <label>Equipment space (incomer, devices, accessories)<span className="pfcc-in"><input className="bi-num" style={{ width: 70 }} inputMode="numeric" value={input.equipmentModules} onChange={setNum('equipmentModules')} /><span className="m">modules</span></span></label>}
-            <label>Future spare space<span className="pfcc-in"><input className="bi-num" style={{ width: 70 }} inputMode="numeric" value={input.spareModules} onChange={setNum('spareModules')} /><span className="m">modules</span></span></label>
+            <label>Future spare space<span className="pfcc-in">
+              {input.sparePct !== undefined
+                ? <><input className="bi-num" style={{ width: 50 }} inputMode="numeric" value={input.sparePct} onChange={setNum('sparePct')} /><span className="m">% = {input.spareModules} modules</span></>
+                : <><input className="bi-num" style={{ width: 70 }} inputMode="numeric" value={input.spareModules} onChange={setNum('spareModules')} /><span className="m">modules</span></>}
+              <select value={input.sparePct !== undefined ? 'pct' : 'mod'} onChange={(e) => setSpareMode(e.target.value === 'pct')}><option value="pct">%</option><option value="mod">modules</option></select>
+            </span></label>
             {method === 'manual' && <label>ELCB count<input className="bi-num" inputMode="numeric" value={input.elcbCount} onChange={setNum('elcbCount')} /></label>}
             {method === 'manual' && cat.rules.some((x) => x.incomerMaxA !== undefined) && <label>Incomer<span className="pfcc-in"><input className="bi-num" style={{ width: 70 }} inputMode="numeric" value={input.incomerA ?? ''} placeholder="A" onChange={setNum('incomerA')} /><span className="m">A</span></span></label>}
           </div>
@@ -161,6 +176,8 @@ export default function EnclosureSizing({ project, boardId, onChange, onStatus }
               {r.rules.map((x) => <div key={x.id} className="m">Case: {x.label} (already off the chart's usable figures)</div>)}
               {chosen && chosen.usable !== null && <div>Available: {chosen.config.grossModules} − {chosen.rule.deductModules} = <b>{chosen.usable} modules</b> · {chosen.spareAfter! >= 0 ? `${chosen.spareAfter} left` : `${-chosen.spareAfter!} short`}</div>}
               {r.why && <p className="warn">{r.why}</p>}
+              {others.length > 0 && <p className="warn">Try {others.map((c) => `${c.supplier} — ${c.range}`).join(' or ')}: it has a case for these inputs.</p>}
+              {!r.rules.length && !others.length && !r.invalid && <p className="warn">Outside every catalogue — ask the supplier for a size.</p>}
               {r.confirm && <p className="warn">The supplier's cases overlap here — confirm which governs before choosing.</p>}
               {chosen?.rule.extra && <p className="warn">{chosen.rule.extra}.</p>}
             </>}
@@ -192,6 +209,7 @@ export default function EnclosureSizing({ project, boardId, onChange, onStatus }
           <h4>Catalogue</h4>
           <p className="m">{cat.supplier} · {cat.range} · rev. {cat.revision}<br />{cat.source}</p>
           <ul className="m">{cat.notes.map((n) => <li key={n}>{n}</li>)}</ul>
+          {outgrown && <p className="bad">{panel} has outgrown its saved enclosure: needs {r.required} modules, {saved!.config.ref} has {saved!.usable}. Choose a new size.</p>}
           {saved && <p className="m">{panel} now: {saved.range} {saved.config.ref} (rev. {saved.revision}, {saved.selectedOn}){saved.revision !== cat.revision && saved.catalogueId === cat.id ? ' — the catalogue has changed since; the panel keeps its selection' : ''}</p>}
         </section>
       </div>

@@ -160,6 +160,19 @@ export interface DeviceDim {
   note?: string;
 }
 export const loadDevices = () => read<DeviceDim>(DEV_KEY);
+
+/** Typical DIN-rail widths (18 mm modules), used only when no record of your own matches.
+ * Shown as "Typical" so they can be replaced with the manufacturer's figure. MCCBs have no
+ * typical width — they are chassis-mounted and need their own record. */
+export const TYPICAL_DEVICES: DeviceDim[] = ([
+  ['MCB', 1, 1, 63], ['MCB', 2, 2, 63], ['MCB', 3, 3, 63], ['MCB', 4, 4, 63],
+  ['RCBO', 1, 2, 63], ['RCBO', 2, 2, 63], ['RCBO', 3, 4, 63], ['RCBO', 4, 4, 63],
+  ['RCCB', 2, 2, 100], ['RCCB', 4, 4, 100],
+  ['Isolator', 2, 2, 125], ['Isolator', 3, 3, 125], ['Isolator', 4, 4, 125]
+] as [DeviceKind, number, number, number][]).map(([kind, poles, modules, max]) => ({
+  id: `typ-${kind}-${poles}`, manufacturer: 'Typical', model: `${kind} ${poles}P (check manufacturer)`, kind, poles, ratingMaxA: max, modules, note: 'Built-in typical width'
+}));
+export const isTypical = (d?: DeviceDim) => !!d?.id.startsWith('typ-');
 export const saveDevices = (list: DeviceDim[]) => write(DEV_KEY, list);
 
 /** A device the panel needs, from its load schedule — what it is, not how wide (that comes from a record). */
@@ -168,8 +181,8 @@ export interface NeededDevice { key: string; kind: DeviceKind; poles: number; ra
 /** Physical devices of a DB from its schedule: incomer, one breaker per circuit (RCBO when the
  * circuit has its own earth leakage), one RCCB per ELCB group. Poles: 1 for a single-phase
  * circuit, 3 for a three-phase one, 4 for an RCCB on a three-phase group, 2 otherwise — the
- * actual device may differ (e.g. 1P+N); that is why a matching dimension record is required. */
-export function neededDevices(project: Project, boardId: string, devices: DeviceDim[] = loadDevices()): NeededDevice[] {
+ * actual device may differ (e.g. 1P+N); your own dimension records come first, typical widths fill the rest. */
+export function neededDevices(project: Project, boardId: string, devices: DeviceDim[] = [...loadDevices(), ...TYPICAL_DEVICES]): NeededDevice[] {
   const board = project.boards.find((b) => b.id === boardId);
   if (!board) return [];
   const list: Omit<NeededDevice, 'count' | 'key'>[] = [];
@@ -183,7 +196,9 @@ export function neededDevices(project: Project, boardId: string, devices: Device
     const t = breakerTypeOf(f);
     list.push({ kind: own ? 'RCBO' : t === 'MCCB' || t === 'ACB' ? 'MCCB' : 'MCB', poles: f.cores === 2 ? 1 : 3, ratingA: f.breakerRatingA, what: own ? 'Circuit with RCBO' : 'Circuit breaker' });
   }
-  for (const g of groups) list.push({ kind: 'RCCB', poles: g.circuits.some((c) => c.cores !== 2) ? 4 : 2, ratingA: g.ratingA, what: `ELCB group ${g.index} (${g.sensitivityMa} mA)` });
+  // An ELCB group covers ways across R, Y and B, so on a three-phase board its RCCB is 4-pole.
+  const threePhase = (inc ? inc.cores >= 3 : false) || circuits.some((c) => c.cores !== 2 || c.phase === 'RYB') || new Set(circuits.map((c) => c.phase)).size > 1;
+  for (const g of groups) list.push({ kind: 'RCCB', poles: threePhase || g.circuits.some((c) => c.cores !== 2) ? 4 : 2, ratingA: g.ratingA, what: `ELCB group ${g.index} (${g.sensitivityMa} mA)` });
   const grouped = new Map<string, NeededDevice>();
   for (const d of list) {
     const key = `${d.kind} ${d.poles}P ${d.ratingA}A`;

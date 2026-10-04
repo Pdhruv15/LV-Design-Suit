@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applicableRules, BUILTIN_CATALOGUES, selectionFrom, sizeEnclosure } from './enclosure';
+import { applicableRules, BUILTIN_CATALOGUES, selectionFrom, sizeEnclosure, spareFromPct } from './enclosure';
 
 const [MOD, FAB] = BUILTIN_CATALOGUES;
 
@@ -64,5 +64,21 @@ describe('enclosure sizing from the supplier chart', () => {
     expect(sel).toMatchObject({ supplier: 'Supplier chart', revision: '1', usable: 72, required: 72, mounting: 'surface', dims: { h: 905, w: 445, d: 115 } });
     sel.config.usable.elcb12 = 999; // the copy is independent of the library
     expect(MOD.configs.find((c) => c.ref === '5 × 16')!.usable.elcb12).toBe(72);
+  });
+
+  it('13–15 ELCB on the fabricated chart with no incomer entered: never a plain fit, asks for the incomer', () => {
+    const fab = BUILTIN_CATALOGUES.find((c) => c.family === 'fabricated')!;
+    const a = applicableRules(fab, { equipmentModules: 40, spareModules: 8, elcbCount: 14 });
+    expect(a.confirm).toBe(true);
+    expect(a.why).toMatch(/incomer/);
+    expect(sizeEnclosure(fab, { equipmentModules: 40, spareModules: 8, elcbCount: 14 }).candidates.some((c) => c.result === 'fits')).toBe(false);
+    // Up to 12 ELCB the incomer doesn't matter
+    expect(applicableRules(fab, { equipmentModules: 40, spareModules: 8, elcbCount: 10 }).confirm).toBe(false);
+  });
+
+  it('spare as a percentage rounds up to whole modules', () => {
+    expect(spareFromPct(64, 20)).toBe(13);
+    expect(spareFromPct(60, 20)).toBe(12);
+    expect(spareFromPct(0, 25)).toBe(0);
   });
 });

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
 import { BUILTIN_CATALOGUES, sizeEnclosure } from '../calc/enclosure';
-import { allCatalogues, catalogueWorkbook, duplicateCatalogue, exportLibrary, importLibrary, loadDevices, matchDevice, neededDevices, readCatalogueWorkbook, saveDevices, saveUserCatalogues, scheduleModules, userCatalogues, validateCatalogue, type DeviceDim } from './enclosureLibrary';
+import { allCatalogues, catalogueWorkbook, duplicateCatalogue, exportLibrary, importLibrary, loadDevices, matchDevice, neededDevices, TYPICAL_DEVICES, isTypical, readCatalogueWorkbook, saveDevices, saveUserCatalogues, scheduleModules, userCatalogues, validateCatalogue, type DeviceDim } from './enclosureLibrary';
 
 // localStorage for node
 const store = new Map<string, string>();
@@ -71,5 +71,17 @@ describe('enclosure library', () => {
     expect(needed.every((d) => d.device === matchDevice(recs, d.kind, d.poles, d.ratingA))).toBe(true);
     expect(matchDevice([{ id: 'r', manufacturer: 'X', model: 'm', kind: 'MCB', poles: 1, ratingMinA: 6, ratingMaxA: 32, modules: 1 }], 'MCB', 1, 40)).toBeUndefined();
     expect(loadDevices()).toEqual([]);
+  });
+
+  it('ELCB groups on a three-phase board are 4-pole RCCBs; typical widths fill in when no record matches', () => {
+    const db = 'DB-GF1';
+    const rccb = neededDevices(sampleProject, db).filter((d) => d.kind === 'RCCB');
+    expect(rccb.length).toBeGreaterThan(0);
+    expect(rccb.every((d) => d.poles === 4 && d.device?.modules === 4 && isTypical(d.device))).toBe(true);
+    // Your own record beats the typical width
+    const mine: DeviceDim = { id: 'm', manufacturer: 'X', model: 'RCCB 4P wide', kind: 'RCCB', poles: 4, modules: 5 };
+    expect(neededDevices(sampleProject, db, [mine, ...TYPICAL_DEVICES]).find((d) => d.kind === 'RCCB')!.device!.id).toBe('m');
+    // MCCBs have no typical width
+    expect(matchDevice(TYPICAL_DEVICES, 'MCCB', 4, 100)).toBeUndefined();
   });
 });
