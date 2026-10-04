@@ -13,12 +13,13 @@ import { mainBoards, txTag } from './transformers';
  * substation earths below 2 Ω, the LV earth 1 Ω per incoming supply / MDB
  * (DEWA Regulations 2017). Pits at least 6 m apart — a layout check. */
 
-export type EarthKind = 'rmu' | 'txn' | 'txb' | 'lv';
+export type EarthKind = 'rmu' | 'txn' | 'txb' | 'lv' | 'sub';
 export const EARTH_KINDS: { kind: EarthKind; label: string; limitOhm: number }[] = [
   { kind: 'rmu', label: 'RMU body earth', limitOhm: 2 },
   { kind: 'txn', label: 'Transformer neutral earth', limitOhm: 2 },
   { kind: 'txb', label: 'Transformer body earth', limitOhm: 2 },
-  { kind: 'lv', label: 'LV earth (main board MET)', limitOhm: 1 }
+  { kind: 'lv', label: 'LV earth (main board MET)', limitOhm: 1 },
+  { kind: 'sub', label: 'SMDB earth (own pits)', limitOhm: 1 }
 ];
 export const kindInfo = (k: EarthKind) => EARTH_KINDS.find((x) => x.kind === k)!;
 
@@ -42,6 +43,8 @@ function equipment(project: Project): Omit<EarthItem, 'pits' | 'linked'>[] {
   }
   const lv = mains.filter((b) => (b.kind ?? 'MDB') !== 'MC');
   for (const b of lv) out.push({ key: `lv:${b.id}`, kind: 'lv', equipment: b.id, point: 'Main earth bar (MET)', defaultPits: lv.length === 1 ? 2 : 1 });
+  // SMDBs may have their own pits where the design asks for it (none by default).
+  for (const b of project.boards.filter((x) => x.kind === 'SMDB')) out.push({ key: `sub:${b.id}`, kind: 'sub', equipment: b.id, point: 'Earth bar', defaultPits: 0 });
   return out;
 }
 
@@ -82,7 +85,7 @@ export function earthingLayout(project: Project): EarthLayout {
   }
 
   const checks: EarthCheck[] = [];
-  for (const it of items) if (it.pits === 0) checks.push({ level: 'bad', text: `${it.equipment} — ${it.point}: no earth pit` });
+  for (const it of items) if (it.pits === 0 && it.kind !== 'sub') checks.push({ level: 'bad', text: `${it.equipment} — ${it.point}: no earth pit` });
   const lv = items.filter((i) => i.kind === 'lv');
   if (lv.length === 1 && lv[0].pits < 2) checks.push({ level: 'warn', text: `${lv[0].equipment} is the only main board: DEWA asks for 2 pits` });
   for (const net of nets) {

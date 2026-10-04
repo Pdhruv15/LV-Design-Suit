@@ -17,30 +17,31 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 export function earthingDrawing(project: Project, L: EarthLayout = earthingLayout(project)): { svg: string; w: number; h: number } {
   const out: string[] = [];
   const pitX = new Map<string, number>();
+  const pitY = new Map<string, number>(); // pit row (PY of its section)
   const pitsOf = (it: EarthItem) => L.pits.filter((p) => p.itemKey === it.key);
   const mm = L.conductorMm2;
   let x = 40;
 
   /** Conductor from (cx, y0) down to the item's pits, with a bus when there are several. */
-  const drop = (it: EarthItem, cx: number, y0: number, label: string) => {
+  const drop = (it: EarthItem, cx: number, y0: number, label: string, py = PY) => {
     const ps = pitsOf(it);
-    if (!ps.length) { out.push(`<text x="${cx}" y="${PY}" text-anchor="middle" fill="#c0392b" font-weight="bold">NO PIT</text>`); return; }
+    if (!ps.length) { out.push(`<text x="${cx}" y="${py}" text-anchor="middle" fill="#c0392b" font-weight="bold">NO PIT</text>`); return; }
     const xs = ps.map((p) => pitX.get(p.id)!);
-    const bus = PY - 18;
+    const bus = py - 18;
     const straight = xs.length === 1 && Math.abs(xs[0] - cx) < 0.5;
-    out.push(`<path d="M${cx} ${y0} V${straight ? PY + 28 : bus}" stroke="${GREEN}" stroke-width="1.6" fill="none"/>`);
+    out.push(`<path d="M${cx} ${y0} V${straight ? py + 28 : bus}" stroke="${GREEN}" stroke-width="1.6" fill="none"/>`);
     if (!straight) {
       out.push(`<path d="M${Math.min(cx, ...xs)} ${bus} H${Math.max(cx, ...xs)}" stroke="${GREEN}" stroke-width="1.6" fill="none"/>`);
-      for (const px of xs) out.push(`<path d="M${px} ${bus} V${PY + 28}" stroke="${GREEN}" stroke-width="1.6" fill="none"/>`);
+      for (const px of xs) out.push(`<path d="M${px} ${bus} V${py + 28}" stroke="${GREEN}" stroke-width="1.6" fill="none"/>`);
     }
     const ty = (y0 + bus) / 2;
     out.push(`<text x="${cx - 9}" y="${ty}" text-anchor="middle" fill="${GREEN}" font-size="8" transform="rotate(-90 ${cx - 9} ${ty})">${esc(label)}</text>`);
   };
 
-  const place = (it: EarthItem, from: number, width: number) => {
+  const place = (it: EarthItem, from: number, width: number, py = PY) => {
     const ps = pitsOf(it);
     const mid = from + width / 2;
-    ps.forEach((p, i) => pitX.set(p.id, mid + (i - (ps.length - 1) / 2) * PIT));
+    ps.forEach((p, i) => { pitX.set(p.id, mid + (i - (ps.length - 1) / 2) * PIT); pitY.set(p.id, py); });
     return mid;
   };
 
@@ -71,46 +72,57 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
   }
   if (x > subStart) out.push(`<rect x="${subStart - 20}" y="${TOP}" width="${x - subStart}" height="${PY - TOP + 90}" fill="none" stroke="#999" stroke-dasharray="4 3"/><text x="${subStart - 12}" y="${TOP + 14}" font-size="8" font-weight="bold">SUBSTATION</text>`);
 
-  // ---- LV room: main board earth bars ----------------------------------------
-  const lvStart = x + 10;
+  // ---- LV room: main board earth bars, then SMDBs with their own pits -------
+  // A wide site (many transformers) puts the LV room on a second row.
+  const subEnd = x;
+  const lvItems = L.items.filter((i) => (i.kind === 'lv' || i.kind === 'sub') && (i.kind === 'lv' || i.pits > 0));
+  const lvWidth = lvItems.reduce((s2, it) => s2 + Math.max(220, pitsOf(it).length * PIT) + 20, 40);
+  const ROW = PY - TOP + 150;
+  const stacked = subEnd > 60 && subEnd + lvWidth > 2400;
+  const dy = stacked ? ROW : 0;
+  const T = TOP + dy, P = PY + dy;
+  const lvStart = stacked ? 20 : x + 10;
   x = lvStart + 20;
-  for (const it of L.items.filter((i) => i.kind === 'lv')) {
+  for (const it of lvItems) {
     const w = Math.max(220, pitsOf(it).length * PIT);
-    const cx = place(it, x, w);
-    const by = TOP + 190, bl = cx - 85, br = cx + 85;
-    out.push(`<text x="${bl}" y="${TOP + 95}" fill="${GREEN}" font-size="8">EARTH / CPC FROM SMDBs, DBs</text>`);
-    for (const ax of [bl + 12, bl + 34, bl + 56, br - 34, br - 12]) out.push(`<path d="M${ax} ${TOP + 105} V${by - 6}" stroke="${GREEN}" stroke-width="1.2" stroke-dasharray="2 3" fill="none" marker-end="url(#ea)"/>`);
-    out.push(`<text x="${(bl + 56 + br - 34) / 2}" y="${TOP + 150}" text-anchor="middle" fill="${GREEN}">…</text>`);
+    const cx = place(it, x, w, P);
+    const by = T + 190, bl = cx - 85, br = cx + 85;
+    out.push(`<text x="${bl}" y="${T + 95}" fill="${GREEN}" font-size="8">EARTH / CPC FROM ${it.kind === 'sub' ? 'DBs' : 'SMDBs, DBs'}</text>`);
+    for (const ax of [bl + 12, bl + 34, bl + 56, br - 34, br - 12]) out.push(`<path d="M${ax} ${T + 105} V${by - 6}" stroke="${GREEN}" stroke-width="1.2" stroke-dasharray="2 3" fill="none" marker-end="url(#ea)"/>`);
+    out.push(`<text x="${(bl + 56 + br - 34) / 2}" y="${T + 150}" text-anchor="middle" fill="${GREEN}">…</text>`);
     out.push(`<line x1="${bl}" y1="${by}" x2="${br}" y2="${by}" stroke="#111" stroke-width="5"/><text x="${cx + 8}" y="${by + 18}" font-weight="bold">${esc(it.equipment)} EARTH BAR</text>`);
-    drop(it, cx, by, `1C ${mm} mm² CU/PVC`);
+    drop(it, cx, by, `1C ${mm} mm² CU/PVC`, P);
     x += w + 20;
   }
   const lvW = x - lvStart;
-  if (L.items.some((i) => i.kind === 'lv')) out.push(`<rect x="${lvStart}" y="${TOP}" width="${lvW}" height="${PY - TOP + 90}" fill="none" stroke="#999" stroke-dasharray="4 3"/><text x="${lvStart + 8}" y="${TOP + 14}" font-size="8" font-weight="bold">LV ROOM</text>`);
+  if (lvItems.length) out.push(`<rect x="${lvStart}" y="${T}" width="${lvW}" height="${PY - TOP + 90}" fill="none" stroke="#999" stroke-dasharray="4 3"/><text x="${lvStart + 8}" y="${T + 14}" font-size="8" font-weight="bold">LV ROOM</text>`);
+  const right = Math.max(subEnd, x);
 
   // ---- Pit interconnections: same kind only, dashed, one depth per kind -------
-  const depth: Record<string, number> = { rmu: 50, txn: 50, txb: 64, lv: 50 };
+  const depth: Record<string, number> = { rmu: 50, txn: 50, txb: 64, lv: 50, sub: 64 };
   const kindOf = new Map(L.pits.map((p) => [p.id, p.kind]));
   const own = new Set(L.items.flatMap((it) => { const ids = pitsOf(it).map((p) => p.id); return ids.slice(1).map((id, i) => `${ids[i]}|${id}`); }));
   for (const [a, b] of L.links) {
     if (own.has(`${a}|${b}`)) continue; // pits of one equipment already share its bus
-    const ax = pitX.get(a)!, bx = pitX.get(b)!, d = PY + depth[kindOf.get(a)!];
-    out.push(`<path d="M${ax} ${PY + 34} V${d} H${bx} V${PY + 34}" stroke="${GREEN}" stroke-width="1.6" stroke-dasharray="6 3" fill="none"/>`);
+    if (!pitX.has(a) || !pitX.has(b)) continue;
+    const ax = pitX.get(a)!, bx = pitX.get(b)!, py = pitY.get(a)!, d = py + depth[kindOf.get(a)!];
+    out.push(`<path d="M${ax} ${py + 34} V${d} H${bx} V${py + 34}" stroke="${GREEN}" stroke-width="1.6" stroke-dasharray="6 3" fill="none"/>`);
   }
 
   // ---- Pits ---------------------------------------------------------------------
   for (const p of L.pits) {
-    const px = pitX.get(p.id)!;
-    out.push(`<rect x="${px - 7}" y="${PY}" width="14" height="10" fill="none" stroke="#111" stroke-width="1.3"/><line x1="${px - 7}" y1="${PY + 28}" x2="${px + 7}" y2="${PY + 28}" stroke="#111" stroke-width="1.3"/><line x1="${px - 4.5}" y1="${PY + 31}" x2="${px + 4.5}" y2="${PY + 31}" stroke="#111" stroke-width="1.3"/><line x1="${px - 2}" y1="${PY + 34}" x2="${px + 2}" y2="${PY + 34}" stroke="#111" stroke-width="1.3"/>`);
-    out.push(`<text x="${px + 10}" y="${PY + 9}" font-weight="bold">${p.id}</text>${p.measured !== undefined ? `<text x="${px + 10}" y="${PY + 22}" font-size="8">${p.measured} Ω</text>` : ''}`);
+    if (!pitX.has(p.id)) continue;
+    const px = pitX.get(p.id)!, py = pitY.get(p.id)!;
+    out.push(`<rect x="${px - 7}" y="${py}" width="14" height="10" fill="none" stroke="#111" stroke-width="1.3"/><line x1="${px - 7}" y1="${py + 28}" x2="${px + 7}" y2="${py + 28}" stroke="#111" stroke-width="1.3"/><line x1="${px - 4.5}" y1="${py + 31}" x2="${px + 4.5}" y2="${py + 31}" stroke="#111" stroke-width="1.3"/><line x1="${px - 2}" y1="${py + 34}" x2="${px + 2}" y2="${py + 34}" stroke="#111" stroke-width="1.3"/>`);
+    out.push(`<text x="${px + 10}" y="${py + 9}" font-weight="bold">${p.id}</text>${p.measured !== undefined ? `<text x="${px + 10}" y="${py + 22}" font-size="8">${p.measured} Ω</text>` : ''}`);
   }
 
-  const w = Math.max(x + 20, 900), h = PY + 170;
+  const w = Math.max(right + 20, 900), h = P + 170;
   const notes = [
     'RMU, TRANSFORMER NEUTRAL, TRANSFORMER BODY AND LV EARTHS ARE SEPARATE SYSTEMS — NEUTRAL AND BODY EARTHS NOT INTERCONNECTED.',
     `SUBSTATION EARTHS < 2 Ω · LV EARTH ≤ 1 Ω PER INCOMING SUPPLY / MDB (DEWA) · EARTH PITS ≥ 6.0 m APART · MIN. ${L.electrodeM} m Cu-BONDED ELECTRODE IN INSPECTION PIT.`
   ];
-  const ly = PY + 100;
+  const ly = P + 100;
   const legend = `<g transform="translate(40,${ly})" font-size="8">
     <line x1="0" y1="5" x2="30" y2="5" stroke="${GREEN}" stroke-width="1.6"/><text x="36" y="8">earth conductor 1C ${mm} mm² CU/PVC</text>
     <line x1="210" y1="5" x2="240" y2="5" stroke="${GREEN}" stroke-width="1.6" stroke-dasharray="6 3"/><text x="246" y="8">pit interconnection (same kind)</text>

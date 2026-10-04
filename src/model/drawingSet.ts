@@ -64,6 +64,7 @@ export interface DrawingSet {
   digits?: number; // zero padding (default 3)
   suffix?: string; // after the number, e.g. "-EL"
   riserPrefix?: string; // riser diagram sheets have their own sequence (default E-RSR-)
+  earthPrefix?: string; // earthing schematic sheets (default E-ERT-)
   status?: string; // default status of every sheet
   issues?: DrawingIssue[]; // transmittals, oldest first
 }
@@ -73,15 +74,16 @@ export const SHEET_STATUSES = ['FOR APPROVAL', 'FOR AUTHORITY SUBMISSION', 'FOR 
 export const SIZES: SheetSize[] = ['A4', 'A3', 'A2', 'A1'];
 export const setOf = (p: Project): DrawingSet => p.drawingSet ?? { prefix: 'E-SLD-', sheets: [], register: true };
 export const RISER_PREFIX = 'E-RSR-';
+export const EARTH_PREFIX = 'E-ERT-';
 export const sheetNumber = (set: DrawingSet, i: number, prefix = set.prefix) => `${prefix}${String((set.start ?? 1) + i).padStart(set.digits ?? 3, '0')}${set.suffix ?? ''}`;
 /** Numbers in order (prefix, start, digits, suffix); riser sheets count in
  * their own sequence (E-RSR-001 …). With manual numbers only blanks are filled. */
 export const renumber = (set: DrawingSet, force = false): DrawingSet => {
-  let sld = 0, rsr = 0;
+  let sld = 0, rsr = 0, ert = 0;
   return {
     ...set,
     sheets: set.sheets.map((s) => {
-      const n = s.kind === 'riser' ? sheetNumber(set, rsr++, set.riserPrefix ?? RISER_PREFIX) : sheetNumber(set, sld++);
+      const n = s.kind === 'riser' ? sheetNumber(set, rsr++, set.riserPrefix ?? RISER_PREFIX) : s.kind === 'earthing' ? sheetNumber(set, ert++, set.earthPrefix ?? EARTH_PREFIX) : sheetNumber(set, sld++);
       return { ...s, number: set.manualNumbers && !force && s.number ? s.number : n };
     })
   };
@@ -122,6 +124,8 @@ export function autoSheets(p: Project, mode: 'perMdb' | 'perSmdb', dbSheets = fa
     }
   }
   if (dbSheets) for (const b of order.filter((x) => isDb(x) && p.feeders.some((f) => f.boardId === x.id))) sheets.push({ id: id(), title: `${b.id} — circuit diagram`, kind: 'board', boards: [b.id], size: 'auto' });
+  // The earthing schematic goes with the SLDs whenever there is a main board to earth.
+  if (mains.length) sheets.push({ id: id(), title: 'Earthing schematic diagram', kind: 'earthing', boards: [], size: 'auto' });
   return renumber({ prefix, register: true, sheets: sheets.map((s) => ({ ...s, number: '' })) });
 }
 
@@ -301,8 +305,8 @@ export function moveSheet(set: DrawingSet, from: number, to: number): DrawingSet
   return renumber({ ...set, sheets });
 }
 
-export type SheetType = 'sld' | 'db' | 'riser';
-export const sheetType = (s: DrawingSheet): SheetType => (s.kind === 'board' ? 'db' : s.kind === 'riser' ? 'riser' : 'sld');
+export type SheetType = 'sld' | 'db' | 'riser' | 'earthing';
+export const sheetType = (s: DrawingSheet): SheetType => (s.kind === 'board' ? 'db' : s.kind === 'riser' ? 'riser' : s.kind === 'earthing' ? 'earthing' : 'sld');
 export interface SheetFilter { q?: string; status?: string; rev?: string; type?: SheetType | '' }
 export type SheetSort = { key: 'order' | 'number' | 'title' | 'status' | 'rev' | 'date'; desc?: boolean };
 
