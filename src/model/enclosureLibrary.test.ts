@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
 import { BUILTIN_CATALOGUES, sizeEnclosure } from '../calc/enclosure';
-import { allCatalogues, catalogueWorkbook, duplicateCatalogue, exportLibrary, importLibrary, loadDevices, matchDevice, neededDevices, TYPICAL_DEVICES, isTypical, readCatalogueWorkbook, saveDevices, saveUserCatalogues, scheduleModules, userCatalogues, validateCatalogue, type DeviceDim } from './enclosureLibrary';
+import { BRAND_DEVICES } from '../data/brandDevices';
+import { allCatalogues, catalogueWorkbook, duplicateCatalogue, exportLibrary, importLibrary, loadDevices, matchDevice, neededDevices, TYPICAL_DEVICES, isTypical, isBrand, readCatalogueWorkbook, saveDevices, saveUserCatalogues, scheduleModules, userCatalogues, validateCatalogue, type DeviceDim } from './enclosureLibrary';
 
 // localStorage for node
 const store = new Map<string, string>();
@@ -77,7 +78,10 @@ describe('enclosure library', () => {
     const db = 'DB-GF1';
     const rccb = neededDevices(sampleProject, db).filter((d) => d.kind === 'RCCB');
     expect(rccb.length).toBeGreaterThan(0);
-    expect(rccb.every((d) => d.poles === 4 && d.device?.modules === 4 && isTypical(d.device))).toBe(true);
+    // Manufacturer data first: ABB F200 4P, 70 mm = 4 modules
+    expect(rccb.every((d) => d.poles === 4 && d.device?.modules === 4 && isBrand(d.device) && d.device.widthMm === 70)).toBe(true);
+    // Without manufacturer data, the typical width
+    expect(neededDevices(sampleProject, db, TYPICAL_DEVICES).filter((d) => d.kind === 'RCCB').every((d) => isTypical(d.device))).toBe(true);
     // Your own record beats the typical width
     const mine: DeviceDim = { id: 'm', manufacturer: 'X', model: 'RCCB 4P wide', kind: 'RCCB', poles: 4, modules: 5 };
     expect(neededDevices(sampleProject, db, [mine, ...TYPICAL_DEVICES]).find((d) => d.kind === 'RCCB')!.device!.id).toBe('m');
@@ -97,5 +101,14 @@ describe('enclosure library', () => {
     const mod = BUILTIN_CATALOGUES.find((c) => c.family === 'modular')!;
     const r = sizeEnclosure(mod, { equipmentModules: s.modules, spareModules: 0, elcbCount: s.elcb });
     expect(r.rules.map((x) => x.deductModules)).toEqual([12]);
+  });
+
+  it('manufacturer data: DIN widths in modules, chassis devices without, ratings respected', () => {
+    const by = (id: string) => BRAND_DEVICES.find((d) => d.id === `brand-${id}`)!;
+    expect([by('mcb_1p').modules, by('mcb_4p').modules, by('rccb_2p').modules, by('rcbo_1pn').modules, by('spd_3pn').modules]).toEqual([1, 4, 2, 1, 4]);
+    expect(by('mccb_250a_3p').modules).toBe(0);
+    expect(by('acb_3200a_3p_drawout')).toMatchObject({ kind: 'ACB', widthMm: 317, heightMm: 425, depthMm: 383 });
+    expect(matchDevice(BRAND_DEVICES, 'RCBO', 1, 40)).toBeUndefined(); // Siemens 5SV1 is 6–32 A
+    expect(matchDevice(BRAND_DEVICES, 'MCB', 1, 20)?.manufacturer).toBe('Schneider Electric');
   });
 });

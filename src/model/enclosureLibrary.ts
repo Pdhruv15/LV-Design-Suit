@@ -3,6 +3,7 @@ import type { Project } from '../types';
 import { BUILTIN_CATALOGUES, type AllowanceRule, type EnclosureCatalogue, type EnclosureConfig } from '../calc/enclosure';
 import { breakerTypeOf } from '../calc/earthing';
 import { elcbGroups, scheduleCircuits } from '../calc/loadSchedule';
+import { BRAND_DEVICES } from '../data/brandDevices';
 
 /** Enclosure catalogues and device dimensions kept in the user library
  * (this computer, synced to Library.json in the database folder). The
@@ -145,7 +146,7 @@ export async function readCatalogueWorkbook(bytes: ArrayBuffer): Promise<Enclosu
 
 // ---- Device dimensions ------------------------------------------------------
 
-export type DeviceKind = 'MCB' | 'RCBO' | 'RCCB' | 'MCCB' | 'Isolator' | 'Other';
+export type DeviceKind = 'MCB' | 'RCBO' | 'RCCB' | 'MCCB' | 'ACB' | 'Isolator' | 'SPD' | 'Contactor' | 'Meter' | 'Pilot light' | 'Other';
 export interface DeviceDim {
   id: string;
   manufacturer: string;
@@ -158,6 +159,10 @@ export interface DeviceDim {
   mounting?: string; // DIN rail, chassis …
   accessories?: string;
   note?: string;
+  /** Overall size from the manufacturer's data (mm). */
+  widthMm?: number;
+  heightMm?: number;
+  depthMm?: number;
 }
 export const loadDevices = () => read<DeviceDim>(DEV_KEY);
 
@@ -173,6 +178,7 @@ export const TYPICAL_DEVICES: DeviceDim[] = ([
   id: `typ-${kind}-${poles}`, manufacturer: 'Typical', model: `${kind} ${poles}P (check manufacturer)`, kind, poles, ratingMaxA: max, modules, note: 'Built-in typical width'
 }));
 export const isTypical = (d?: DeviceDim) => !!d?.id.startsWith('typ-');
+export const isBrand = (d?: DeviceDim) => !!d?.id.startsWith('brand-');
 export const saveDevices = (list: DeviceDim[]) => write(DEV_KEY, list);
 
 /** A device the panel needs, from its load schedule — what it is, not how wide (that comes from a record). */
@@ -182,7 +188,7 @@ export interface NeededDevice { key: string; kind: DeviceKind; poles: number; ra
  * circuit has its own earth leakage), one RCCB per ELCB group. Poles: 1 for a single-phase
  * circuit, 3 for a three-phase one, 4 for an RCCB on a three-phase group, 2 otherwise — the
  * actual device may differ (e.g. 1P+N); your own dimension records come first, typical widths fill the rest. */
-export function neededDevices(project: Project, boardId: string, devices: DeviceDim[] = [...loadDevices(), ...TYPICAL_DEVICES]): NeededDevice[] {
+export function neededDevices(project: Project, boardId: string, devices: DeviceDim[] = [...loadDevices(), ...BRAND_DEVICES, ...TYPICAL_DEVICES]): NeededDevice[] {
   const board = project.boards.find((b) => b.id === boardId);
   if (!board) return [];
   const list: Omit<NeededDevice, 'count' | 'key'>[] = [];

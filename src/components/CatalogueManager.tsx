@@ -7,7 +7,8 @@ import {
 import { workbookBytes } from '../docs/formWorkbook';
 import { safeFileName, saveBinary, saveText } from '../util/files';
 
-const KINDS: DeviceKind[] = ['MCB', 'RCBO', 'RCCB', 'MCCB', 'Isolator', 'Other'];
+import { BRAND_DEVICES } from '../data/brandDevices';
+const KINDS: DeviceKind[] = ['MCB', 'RCBO', 'RCCB', 'MCCB', 'ACB', 'Isolator', 'SPD', 'Contactor', 'Meter', 'Pilot light', 'Other'];
 const n = (v: string): number | undefined => (v.trim() === '' || !Number.isFinite(Number(v)) ? undefined : Number(v));
 
 /** Catalogue manager: enclosure catalogues (supplier, range, sizes, allowance cases) and device
@@ -154,7 +155,7 @@ export default function CatalogueManager({ onClose, onStatus }: { onClose: () =>
             <p className="m">Each device's real width, from the manufacturer's data — the schedule's devices are matched by type, poles and rating. Widths are never guessed from pole or circuit counts.</p>
             <div className="cm-scroll">
               <table className="bi-table compact">
-                <thead><tr><th>Manufacturer</th><th>Model</th><th>Type</th><th>Poles</th><th>Rating from A</th><th>to A</th><th>Modules (18 mm)</th><th>Mounting</th><th>Accessories</th><th /></tr></thead>
+                <thead><tr><th>Manufacturer</th><th>Model</th><th>Type</th><th>Poles</th><th>Rating from A</th><th>to A</th><th>Modules (18 mm)</th><th>W × H × D mm</th><th>Mounting</th><th>Accessories</th><th /></tr></thead>
                 <tbody>{devices.map((d, i) => {
                   const set = (p: Partial<DeviceDim>) => saveDevs(devices.map((x, j) => (j === i ? { ...x, ...p } : x)));
                   return (
@@ -166,6 +167,7 @@ export default function CatalogueManager({ onClose, onStatus }: { onClose: () =>
                       <td><input className="bi-num" style={{ width: 50 }} value={d.ratingMinA ?? ''} onChange={(e) => set({ ratingMinA: n(e.target.value) })} /></td>
                       <td><input className="bi-num" style={{ width: 50 }} value={d.ratingMaxA ?? ''} onChange={(e) => set({ ratingMaxA: n(e.target.value) })} /></td>
                       <td><input className="bi-num" style={{ width: 50 }} value={d.modules} onChange={(e) => set({ modules: n(e.target.value) ?? 0 })} /></td>
+                      <td className="cm-dims">{(['widthMm', 'heightMm', 'depthMm'] as const).map((k) => <input key={k} className="bi-num" style={{ width: 44 }} value={d[k] ?? ''} onChange={(e) => set({ [k]: n(e.target.value) })} />)}</td>
                       <td><input className="bi-text" style={{ width: 80 }} value={d.mounting ?? ''} onChange={(e) => set({ mounting: e.target.value || undefined })} /></td>
                       <td><input className="bi-text" value={d.accessories ?? ''} onChange={(e) => set({ accessories: e.target.value || undefined })} /></td>
                       <td><button className="icon-btn" title="Duplicate" onClick={() => saveDevs([...devices.slice(0, i + 1), { ...d, id: `dv-${Date.now().toString(36)}` }, ...devices.slice(i + 1)])}>⧉</button><button className="icon-btn" onClick={() => saveDevs(devices.filter((_, j) => j !== i))}>✕</button></td>
@@ -175,6 +177,21 @@ export default function CatalogueManager({ onClose, onStatus }: { onClose: () =>
               </table>
             </div>
             <button className="chip" onClick={() => saveDevs([...devices, { id: `dv-${Date.now().toString(36)}`, manufacturer: '', model: '', kind: 'MCB', poles: 1, modules: 0 }])}>+ Device</button>
+            <h4>Manufacturer data (built in)</h4>
+            <p className="m">Used after your own records and before the typical widths. Read-only — copy a row to your records to change it.</p>
+            <div className="cm-scroll">
+              <table className="bi-table compact">
+                <thead><tr><th>Manufacturer</th><th>Series / poles</th><th>Type</th><th>Rating A</th><th>Modules</th><th>W × H × D mm</th><th>Mounting</th><th /></tr></thead>
+                <tbody>{BRAND_DEVICES.map((d) => (
+                  <tr key={d.id}>
+                    <td>{d.manufacturer}</td><td>{d.model}</td><td>{d.kind}</td>
+                    <td>{d.ratingMinA !== undefined || d.ratingMaxA !== undefined ? `${d.ratingMinA ?? ''}–${d.ratingMaxA ?? ''}` : '—'}</td>
+                    <td>{d.modules || '—'}</td><td>{d.widthMm} × {d.heightMm} × {d.depthMm}</td><td>{d.mounting}</td>
+                    <td><button className="chip" title="Copy to your records to edit" onClick={() => saveDevs([...devices, { ...d, id: `dv-${Date.now().toString(36)}`, note: `Copied from ${d.manufacturer} ${d.model}` }])}>Copy</button></td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
           </section>
         )}
         <div className="modal-actions"><span className="sp" /><button className="chip primary" onClick={() => { onClose(); }}>Done</button></div>
