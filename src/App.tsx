@@ -85,6 +85,7 @@ import { saveText } from './util/files';
 import SldExportDialog from './components/SldExportDialog';
 import PasteBoardDialog from './components/PasteBoardDialog';
 import EnclosureSizing from './components/EnclosureSizing';
+import EarthingView from './components/EarthingView';
 import PanelsPage from './components/PanelsPage';
 import DiscriminationPanel from './components/DiscriminationPanel';
 import { discriminationChain } from './calc/protection';
@@ -1149,6 +1150,7 @@ export default function App() {
             {view === 'calculators' && <QuickCalcs project={project} />}
             {view === 'panels' && <PanelsPage project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onBuilding={() => setView('building')}
               onCreated={(next, m, added) => { setProject(next, { step: true }); setCreatedPanelIds(added); setStatus(m); }} />}
+            {view === 'earth-schematic' && <EarthingView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'enclosure' && <EnclosureSizing key={board?.id} project={project} boardId={board?.id} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'substation-area' && <SubstationAreaView project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />}
             {view === 'ups' && <UpsStudy project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />}
