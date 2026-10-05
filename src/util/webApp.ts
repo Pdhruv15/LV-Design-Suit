@@ -53,7 +53,7 @@ export function downloadProjectFile(project: Project): string {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  return `Downloaded ${a.download} — keep it safe; open it here or in the desktop app`;
+  return `Downloaded ${a.download} — keep it safe; open it here or in the desktop app. ${backupContents(project)}`;
 }
 
 /** Choose a project file from this computer. */
@@ -73,4 +73,11 @@ export function chooseProjectFile(): Promise<{ project: Project; name: string } 
     };
     input.click();
   });
+}
+
+/** What a project backup contains and what it does not, so a backup is never mistaken for more than it is. */
+export function backupContents(p: Project): string {
+  const linked = (p.receivedDocs ?? []).filter((d) => d.link && !d.supersededBy).length;
+  const docs = (p.receivedDocs ?? []).length;
+  return `Includes the design, drawings, revisions, modification records, review comments and the register of received documents${docs ? ` (${docs})` : ''}. Does not include the files themselves${linked ? ` (${linked} linked document${linked === 1 ? '' : 's'}: only the paths are kept)` : ''}, or checkpoints.`;
 }
