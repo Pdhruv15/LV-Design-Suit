@@ -114,3 +114,35 @@ modification records will use to preview a proposal before it is applied.
   pit measurements; design vs site-measured cable lengths).
 
 Pricing, project details and bookkeeping are not design impact.
+
+# Modification records and applying them (Phase 2, D3 steps b and c)
+
+`src/model/designChanges.ts`, shown under Reports → **Changes → Modifications**.
+
+- **Record:** id (MOD-001), title, reason, origin (comment / query reference), author, date, the baseline
+  revision it was made against, status, history, and the proposed changes: each names a circuit, panel,
+  UPS or project setting and field, with the value it replaces (**before**, captured when proposed) and the
+  new value (**after**). Supported fields are listed in `PROPOSABLE` (loads, cable, breaker, ratings,
+  transformer data, UPS and battery inputs, voltage, frequency, ambient, voltage-drop limit …). Added or
+  removed equipment is not a field change and cannot be proposed this way yet.
+- **Statuses:** Draft → Proposed → Under review → Accepted / Rejected, or Superseded (say what replaces
+  it). A draft is the only editable state; a proposal needs a title, a reason and at least one change.
+  Accepting or rejecting records a decision (who, when, note). Accepted and rejected are final.
+- **Applying is separate from accepting.** Apply changes the working design as one transaction — all of
+  it or none, record and design updated together so **one undo** reverses both — and is allowed only for an
+  accepted, not yet applied record. A draft, proposed, under-review, rejected or superseded record never
+  changes the design.
+- **Edits made since the proposal are never overwritten silently.** Where a value is no longer what the
+  proposal was made against, apply stops and lists it; you can reconcile (re-base the proposal on the
+  current values, recorded in its history), apply the rest and keep the later edits, or overwrite them on
+  purpose (recorded). A deleted item is skipped. Accepting an old proposal that no longer matches needs
+  reconciling first.
+- **Preview:** the same impact function as the draft preview (panels, studies to run again, drawings and
+  schedules, BOQ design quantities, what is not determined), computed on a copy.
+- **Record the draft's changes:** turns field edits already made in the working draft into a record, with the
+  baseline's values as "before", marked as recorded rather than applied. Differences that are not field edits
+  are counted and reported, not guessed.
+- Names are typed text (the profile name). The app has no accounts and records no verified identity.
+- Records are administration (not a design change); applying one changes the design, and so is a change
+  against the issued revision. Not yet: adding or removing equipment as a proposal, per-record
+  attachments, and reviewer comments (D5).
