@@ -155,7 +155,7 @@ export default function TitleBlockDesigner({ project, onChange, onStatus, onPara
           </details>
         </section>
       </div>
-      <p className="m">{covered.size === t.rows.length * t.cols.length ? '' : '⚠ Some grid positions are empty.'} The block sits at the bottom right of the SLD sheet, inside the frame. The DXF export keeps the standard block for now.</p>
+      <p className="m">{covered.size === t.rows.length * t.cols.length ? '' : '⚠ Some grid positions are empty.'} The block sits at the bottom right of the SLD sheet, inside the frame, in PDF and DXF exports. DXF keeps the grid and text editable; raster logos are shown in the PDF.</p>
     </Page>
   );
 }

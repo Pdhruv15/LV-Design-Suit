@@ -37,6 +37,13 @@ export function buildUpsReportHtml(project: Project, systems: UpsSystem[]): stri
         ['Loading today', r.loadingPct !== undefined ? `<b>${n(r.loadingPct, 0)} %</b> — governed by ${r.loadingBy} (${n(r.loadingKvaPct!, 1)} % of ${r.upsKva} kVA · ${n(r.loadingKwPct!, 1)} % of ${n(r.upsKw!, 0)} kW)` : '—'],
         ['Inverter efficiency', `${n(s.inverterEff * 100)} %`]
       ])}
+      ${s.surge ? `<h2>Inverter starting-load check</h2>${rows([
+        ['Model / overload source', esc(s.surge.source)],
+        ['Total starting demand before growth', `${n(s.surge.totalKw ?? NaN)} kW / ${n(s.surge.totalKva ?? NaN)} kVA for ${n(s.surge.durationSeconds ?? NaN)} s (includes running loads)`],
+        ['Starting demand with growth', `${n(r.surge.kw ?? NaN)} kW / ${n(r.surge.kva ?? NaN)} kVA`],
+        ['Entered peak duty', `${n(s.surge.ratedKw ?? NaN)} kW / ${n(s.surge.ratedKva ?? NaN)} kVA for ${n(s.surge.ratedSeconds ?? NaN)} s`],
+        ['Result', `<b class="${r.surge.status === 'pass' ? 'ok' : r.surge.status === 'fail' ? 'bad' : ''}">${esc(r.surge.status)}</b> — ${esc(r.surge.issue)}`]
+      ])}<p class="note">Use the same overload duty and conditions for the selected inverter model. Continuous UPS selection is unchanged. Battery/BMS transient current and voltage dip are not verified by this check.</p>` : ''}
       <h2>Battery</h2>${rows([
         ['Type', s.chem === 'vrla' ? `VRLA lead-acid, end voltage ${s.endCellV ?? 1.75} V/cell` : 'Lithium-ion (LFP)'],
         ['Backup time', `${s.autonomyMin} min`],
@@ -44,15 +51,24 @@ export function buildUpsReportHtml(project: Project, systems: UpsSystem[]): stri
         ...(r.busMismatch
           ? [['DC bus (requested)', `${s.dcVoltage} V`], ['Battery string (actual)', `<b class="bad">${r.blocksPerString} × ${s.blockV} V = ${n(r.stringV, 1)} V ≠ ${s.dcVoltage} V — configuration not valid; figures below are for the ${n(r.stringV, 1)} V string, UPS compatibility not verified</b>`]] as [string, string][]
           : [['DC bus', `${s.dcVoltage} V = ${r.blocksPerString} × ${s.blockV} V`]] as [string, string][]),
-        ['Capacity at this rate', `${n(r.rate * 100, 0)} % of C10 (${s.rateCapacityPct ? 'manufacturer' : 'typical'})`],
+        ['Calculation basis', esc(r.batteryBasis)],
+        ...(s.powerTable ? [['Manufacturer data', `${esc(s.powerTable.model)} · ${esc(s.powerTable.source)} · ${s.powerTable.temperatureC} °C · ${s.powerTable.endCellV} V/cell`], ['Table duty', `${r.tableWattsPerBlock ?? '—'} W/block at ${r.tableMinutes ?? '—'} min (conservative next row)`]] as [string, string][] : []),
+        ['Capacity at this rate', `${n(r.rate * 100, 0)} % of C10 (${s.rateCapacityPct ? 'user override' : 'typical'})`],
         ['Factors', `ageing ${s.ageing} · temperature ${s.tempFactor} · design margin ${s.designMargin}`],
-        ['Required capacity (C10)', `${n(r.requiredAh)} Ah = P × t ÷ ${n(r.stringV, 1)} V (string) ÷ rate × factors`],
+        [s.powerTable ? 'Generic Ah estimate (not used for selection)' : 'Required capacity (C10)', `${n(r.requiredAh)} Ah = P × t ÷ ${n(r.stringV, 1)} V (string) ÷ rate × factors`],
+        ['Battery data issue', esc(r.batteryIssue ?? 'None')],
+        ...(s.chem === 'li-ion' ? [['SOC window / usable energy', `${s.startSocPct ?? 100} % to ${s.minSocPct ?? 0} % · ${n(r.usableEnergyKwh)} kWh nominal within SOC window`], ['BMS continuous discharge', `${n(r.stringCurrentA)} A/string · ${r.bmsOk === undefined ? 'Not checked' : r.bmsOk ? 'Within entered current limit' : 'Failed'}`]] as [string, string][] : []),
         ['Selected battery', r.busMismatch && r.blockAh ? `<span class="bad">Not valid (DC bus mismatch)</span> — candidate ${r.strings > 1 ? `${r.strings} strings × ` : ''}${r.blocksPerString} × ${s.blockV} V ${r.blockAh} Ah, ${n(r.energyKwh)} kWh at ${n(r.stringV, 1)} V` : r.blockAh ? `<b>${r.strings > 1 ? `${r.strings} strings × ` : ''}${r.blocksPerString} × ${s.blockV} V ${r.blockAh} Ah</b> — ${r.totalBlocks} ${s.chem === 'vrla' ? 'blocks' : 'modules'}, ${n(r.energyKwh)} kWh` : '<span class="bad">No block size fits</span>'],
-        ['Backup with this battery', r.runtimeMin !== undefined ? `<span class="${r.runtimeMin >= s.autonomyMin ? 'ok' : 'bad'}">${n(r.runtimeMin, 0)} min</span>` : '—'],
+        ['Backup with this battery', r.runtimeMin !== undefined ? `<span class="${!r.busMismatch && !r.batteryIssue && r.runtimeMin >= s.autonomyMin ? 'ok' : 'bad'}">${n(r.runtimeMin, 0)} min</span>` : '—'],
         ['Maximum DC current / battery-bus DC breaker', `${n(r.dcCurrentMaxA, 0)} A (end of discharge, all strings) / ${r.dcBreakerNoFit ? `<b class="bad">No suitable DC breaker in the list — ${n(r.dcBreakerRequiredA, 0)} A needed (1.25 × I), largest listed ${r.dcBreakerMaxA} A</b>` : r.dcBreakerA ? `${r.dcBreakerA} A (≥ 1.25 × I; confirm DC voltage, poles and breaking capacity)` : '—'}`]
       ])}
+      ${s.chargerCurrentA !== undefined ? `<h2>Recharge estimate</h2>${rows([
+        ['Charger / concurrent DC load', `${n(s.chargerCurrentA)} A / ${n(s.rechargeLoadA ?? 0)} A; net ${n(r.rechargeNetA ?? 0)} A`],
+        ['SOC / efficiency / absorption allowance', `${s.rechargeFromSocPct ?? 20} % → ${s.rechargeToSocPct ?? 100} % / ${s.chargeEfficiencyPct ?? 95} % / ${s.absorptionHours ?? 0} h`],
+        ['Bulk + absorption estimate', r.rechargeIssue ? esc(r.rechargeIssue) : r.rechargeHours !== undefined ? `${n(r.rechargeHours)} h` : '—']
+      ])}` : ''}
       ${r.notes.length ? `<p>${esc(r.notes.join(' · '))}</p>` : ''}
-      <p class="note">Constant-power method (IEEE 485 / 1184 practice). Capacity-at-rate figures are typical; confirm the battery with the manufacturer's constant-power discharge table at the end voltage and room temperature.</p>
+      <p class="note">Generic Ah sizing is a preliminary estimate. Entered constant-power tables apply only to the stated battery model, end voltage and reference temperature; runtime is bounded by the supplied rows. Confirm battery and UPS compatibility, temperature correction and charge limits with the manufacturer.</p>
     </section>`;
   }).join('');
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(project.name)} — UPS sizing</title><style>${CSS}</style></head><body>${pages}</body></html>`;

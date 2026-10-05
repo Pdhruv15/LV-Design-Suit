@@ -1,4 +1,5 @@
 import type { Project } from '../types';
+import { staleStudies } from '../calc/runs';
 import type { CalcRun, StudyKey } from '../calc/runs';
 import { isScheduleCircuit } from '../calc/loadSchedule';
 import type { MainView } from '../views';
@@ -39,8 +40,9 @@ export interface ChecklistItem { id: string; label: string; done: boolean; go: M
 
 /** Start-here checklist, ticked from what the project already has. */
 export function startChecklist(p: Project, run?: CalcRun, stale: StudyKey[] = [], saved = false): ChecklistItem[] {
+  stale = [...new Set([...stale, ...staleStudies(run, p)])];
   const i = p.info ?? {};
-  const failing = run?.results.some((r) => r.status === 'bad') ?? true;
+  const failing = !run || stale.length > 0 || run.results.some(r => r.status === 'bad') || run.earthing.some(r => r.status === 'bad') || run.selectivity.some(r => r.status === 'bad');
   return [
     { id: 'details', label: 'Project details: owner, plot, consultant', done: !!(i.owner && i.plotNo && i.consultant), go: 'settings' },
     { id: 'building', label: 'Building: levels and area (GFA)', done: !!p.building?.buildings.length || !!i.builtUpAreaM2, go: 'building' },

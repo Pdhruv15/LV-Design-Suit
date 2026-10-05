@@ -5,8 +5,8 @@ import { buildDashboard, lengthText, sizesText, type DashBar, type TodoItem } fr
 import { buildDashboardHtml } from '../../docs/dashboardPdf';
 import { safeFileName, savePdf } from '../../util/files';
 import { Page } from '../ui';
-import { Checklist } from '../HelpView';
-import { startChecklist } from '../../help/guide';
+import { projectReadiness } from '../../calc/projectReadiness';
+
 import type { MainView } from '../../views';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -58,7 +58,8 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
   const fails = d.studies.reduce((a, s) => a + s.fail, 0);
   const checks = d.studies.reduce((a, s) => a + s.check, 0);
   const passes = d.studies.reduce((a, s) => a + s.pass, 0);
-  const fresh = project.feeders.filter((f) => !f.feedsBoardId).length < 3; // a new, nearly empty project: lead with the checklist
+  const stages = projectReadiness(project, d, run, stale, saved);
+  const nextStage = stages.find(s => !s.done);
 
 
   async function exportPdf() {
@@ -102,11 +103,12 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
         <span className={`m dash-state ${!run || stale.length ? 'warn' : 'ok'}`}>{!run ? 'Calculations not run' : stale.length ? 'Results out of date' : `✓ Calculated ${new Date(run.at).toLocaleTimeString()}`}</span>
       </div>
 
-      {fresh && (() => {
-        const items = startChecklist(project, run, stale, saved);
-        if (items.every((x) => x.done) || !onOpen) return null;
-        return <section className="card dash-start"><h4>Start here <span className="m">— tick off as you go · Project → Help for the full guide</span></h4><Checklist items={items} onGo={onOpen} compact /></section>;
-      })()}
+      <section className="card dash-start">
+        <h4>Project readiness <span className="m">— {stages.filter(s => s.done).length} / {stages.length} stages complete</span></h4>
+        <p className="m">Checks cover network results, configured UPS and solar studies, and drawings. Completion records workflow progress; engineering review is still required.</p>
+        <div className="dash-tiles more">{stages.map(stage => <Tile key={stage.id} label={stage.label} value={stage.done ? 'Complete' : 'Pending'} sub={stage.detail} onClick={onOpen ? () => stage.id === 'calculate' ? onRun() : onOpen(stage.go) : undefined} />)}</div>
+        {nextStage && onOpen && <button className="chip primary" onClick={() => nextStage.id === 'calculate' ? onRun() : nextStage.id === 'resolve' ? document.getElementById('dash-todo')?.scrollIntoView({ behavior: 'smooth' }) : onOpen(nextStage.go)}>Next: {nextStage.label}</button>}
+      </section>
       <div className="dash-tiles key">
         <Tile label="Maximum demand" value={`${f0(d.demandKw)} kW`} sub={<>{f0(d.demandKva)} kVA · PF {d.pf.toFixed(2)}</>} />
         <Tile label="Transformers" value={d.transformers.length ? sizesText(d.transformers.map((t) => t.kva)) : 'None'}
@@ -117,11 +119,7 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
           sub={run ? <>{passes} pass · {checks} check · {fails} fail{stale.length ? ' · out of date' : ''}</> : 'Press Run (F5)'} onClick={stale.length || !run ? onRun : () => onGo({ view: 'report' })} />
         <Tile label="Outstanding" value={d.todo.length ? `${d.todo.filter((t) => t.status === 'bad').length} to fix · ${d.todo.filter((t) => t.status !== 'bad').length} to check` : 'Nothing'} sub={d.todo[0]?.text ?? 'All clear'} onClick={() => document.getElementById('dash-todo')?.scrollIntoView({ behavior: 'smooth' })} />
       </div>
-      {!fresh && (() => {
-        const items = startChecklist(project, run, stale, saved);
-        if (items.every((x) => x.done) || !onOpen) return null;
-        return <section className="card dash-start"><h4>Start here <span className="m">— tick off as you go · Project → Help for the full guide</span></h4><Checklist items={items} onGo={onOpen} compact /></section>;
-      })()}
+
       <div className="dash-tiles more">
         <Tile label="Connected load (TCL)" value={`${f0(d.connectedKw)} kW`} sub={<>{d.byType.length} load types</>} onClick={() => onGo({ view: 'load-schedule' })} />
         <Tile label="Panels" value={String(d.panels.total)} sub={d.panels.byKind.map((k) => `${k.n} ${k.label}`).join(' · ')} />

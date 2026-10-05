@@ -68,7 +68,7 @@ export default function SingleLineDiagram({
       <text className="b" x={cx - 16} y="106" textAnchor="end" style={{ fill: 'var(--bus)' }}>
         {board.id} · {voltageV} V busbar
       </text>
-      <line x1={busX1} y1="118" x2={busX2} y2="118" style={{ stroke: 'var(--bus)', strokeWidth: 4, strokeLinecap: 'round' }} />
+      <line data-dxf-layer="BUSBAR" x1={busX1} y1="118" x2={busX2} y2="118" style={{ stroke: 'var(--bus)', strokeWidth: 4, strokeLinecap: 'round' }} />
       {results.map((r, i) => {
         const x = xs[i];
         const f = r.feeder;
@@ -83,10 +83,10 @@ export default function SingleLineDiagram({
             <text className="b" x={x + 11} y="163">
               {f.breakerRatingA} A
             </text>
-            <text className="m" x={x + 8} y="200">
+            <text className="m" x={x + 8} y="200" data-dxf-max-width={SPACING - 24}>
               {f.cableCsaMm2}mm² · {f.lengthM}m
             </text>
-            <text className="m" x={x + 8} y="213">
+            <text className="m" x={x + 8} y="213" data-dxf-max-width={SPACING - 24}>
               Vd {r.vdTotalPct.toFixed(1)}% total
             </text>
             <rect x={x - 59} y="232" width="118" height="64" rx="6" className="box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />

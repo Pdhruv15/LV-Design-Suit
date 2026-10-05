@@ -23,7 +23,7 @@ export const EARTH_KINDS: { kind: EarthKind; label: string; limitOhm: number }[]
 ];
 export const kindInfo = (k: EarthKind) => EARTH_KINDS.find((x) => x.kind === k)!;
 
-export interface EarthItem { key: string; kind: EarthKind; group: string; equipment: string; point: string; pits: number; defaultPits: number; linked: boolean }
+export interface EarthItem { key: string; legacyKey?: string; kind: EarthKind; group: string; equipment: string; point: string; pits: number; defaultPits: number; linked: boolean }
 export interface EarthPit { id: string; kind: EarthKind; itemKey: string; measured?: number }
 export interface EarthNet { kind: EarthKind; group: string; pits: string[]; items: string[]; effectiveOhm?: number; ok?: boolean }
 export interface EarthCheck { level: 'ok' | 'warn' | 'bad'; text: string }
@@ -41,7 +41,13 @@ function equipment(project: Project): Omit<EarthItem, 'pits' | 'linked'>[] {
   const groups = [...new Set(lv.map(subOf))];
   for (const g of groups) {
     const gTx = txs.filter((b) => subOf(b) === g);
-    for (const r of [...new Set(gTx.map(rmuOf))]) out.push({ key: `rmu:${g}:${r}`, kind: 'rmu', group: g, equipment: r, point: 'Body', defaultPits: 2 });
+    for (const r of [...new Set(gTx.map(rmuOf))]) {
+      const owner = gTx.find((b) => rmuOf(b) === r)!;
+      const legacyKey = `rmu:${g}:${r}`;
+      // An automatic RMU label follows the transformer display number, which
+      // can change when boards are reordered; ownership uses the board ID.
+      out.push({ key: owner.rmu?.trim() ? legacyKey : `rmu:${g}:@${owner.id}`, legacyKey, kind: 'rmu', group: g, equipment: r, point: 'Body', defaultPits: 2 });
+    }
     // Neutral then body of each transformer, so its pits are numbered together (E3 neutral, E4 body …).
     for (const b of gTx) {
       out.push({ key: `txn:${b.id}`, kind: 'txn', group: g, equipment: `${txTag(project, b.id)} ${b.sourceKva} kVA`, point: 'Neutral (star point)', defaultPits: 1 });
@@ -66,18 +72,46 @@ const mainOfId = (project: Project, id: string): string => {
 /** Parallel resistance of measured pits — an estimate (no mutual resistance between pits). */
 const last = <T>(a: T[]): T => a[a.length - 1];
 const parallel = (rs: number[]) => (rs.length ? 1 / rs.reduce((s, r) => s + 1 / r, 0) : undefined);
+const pitCount = (plan: NonNullable<Project['earthingPlan']>, it: Omit<EarthItem, 'pits' | 'linked'>) => Math.max(0, Math.round(plan.pits?.[it.key] ?? (it.legacyKey ? plan.pits?.[it.legacyKey] : undefined) ?? it.defaultPits));
+
+/** Freeze legacy numbering before edits, then allocate above all reserved IDs.
+ * Keep removed equipment/slots so their test records cannot move to new pits. */
+export function withEarthPitIds(project: Project, previous?: Project): Project {
+  const plan = project.earthingPlan ?? {};
+  const existing = project.earthPitIds ?? previous?.earthPitIds;
+  const pitIds: Record<string, string[]> = { ...existing };
+  let pits = plan.pits, unlinked = plan.unlinked;
+  let next = existing ? Math.max(0, ...Object.values(existing).flat().map((id) => Number(id.match(/^E(\d+)$/)?.[1]) || 0), ...Object.keys(plan.measured ?? {}).map((id) => Number(id.match(/^E(\d+)$/)?.[1]) || 0)) + 1 : 1;
+  let changed = !project.earthPitIds;
+  for (const it of equipment(project)) {
+    if (it.legacyKey && it.legacyKey !== it.key) {
+      if (pits?.[it.legacyKey] !== undefined) {
+        pits = { ...pits, [it.key]: pits[it.key] ?? pits[it.legacyKey] };
+        delete pits[it.legacyKey]; changed = true;
+      }
+      if (unlinked?.includes(it.legacyKey)) {
+        unlinked = [...new Set(unlinked.map((key) => key === it.legacyKey ? it.key : key))]; changed = true;
+      }
+    }
+    const count = pitCount({ ...plan, pits }, it);
+    const ids = [...(pitIds[it.key] ?? [])];
+    while (ids.length < count) { ids.push(`E${next++}`); changed = true; }
+    if (ids.length) pitIds[it.key] = ids;
+  }
+  return changed ? { ...project, earthPitIds: pitIds, ...(project.earthingPlan ? { earthingPlan: { ...plan, ...(pits ? { pits } : {}), ...(unlinked ? { unlinked } : {}) } } : {}) } : project;
+}
 
 export function earthingLayout(project: Project): EarthLayout {
-  const plan = project.earthingPlan ?? {};
+  const normalized = withEarthPitIds(project);
+  const plan = normalized.earthingPlan ?? {};
   const unlinked = new Set(plan.unlinked ?? []);
-  const items: EarthItem[] = equipment(project).map((e) => ({ ...e, pits: Math.max(0, Math.round(plan.pits?.[e.key] ?? e.defaultPits)), linked: !unlinked.has(e.key) }));
+  const items: EarthItem[] = equipment(project).map((e) => ({ ...e, pits: pitCount(plan, e), linked: !unlinked.has(e.key) && !(e.legacyKey && unlinked.has(e.legacyKey)) }));
   const pits: EarthPit[] = [];
   const links: [string, string][] = [];
   const nets: EarthNet[] = [];
-  let n = 0;
   const byItem = new Map<string, string[]>();
   for (const it of items) {
-    const ids = Array.from({ length: it.pits }, () => `E${++n}`);
+    const ids = (normalized.earthPitIds?.[it.key] ?? []).slice(0, it.pits);
     byItem.set(it.key, ids);
     for (const id of ids) pits.push({ id, kind: it.kind, itemKey: it.key, ...(plan.measured?.[id] !== undefined ? { measured: plan.measured[id] } : {}) });
     for (let i = 1; i < ids.length; i++) links.push([ids[i - 1], ids[i]]); // pits of one equipment are always linked
@@ -119,5 +153,6 @@ export function earthingLayout(project: Project): EarthLayout {
 
 /** Change one setting of the plan (pits, link, measured value). */
 export function patchEarthing(project: Project, fn: (p: NonNullable<Project['earthingPlan']>) => NonNullable<Project['earthingPlan']>): Project {
-  return { ...project, earthingPlan: fn({ ...project.earthingPlan }) };
+  const before = withEarthPitIds(project);
+  return withEarthPitIds({ ...before, earthingPlan: fn({ ...before.earthingPlan }) }, before);
 }

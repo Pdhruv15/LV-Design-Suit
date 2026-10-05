@@ -49,7 +49,7 @@ export default function UpsStudy({ project, onChange, onStatus }: {
   return (
     <Page
       title="UPS & battery sizing"
-      intro="UPS rating from the load (a UPS board's demand on the SLD, or a list of loads) with growth and the design loading — covering both kVA and kW. Battery for the backup time by the constant-power method: DC power ÷ inverter efficiency, the capacity a battery gives at that discharge rate, ageing (1.25), temperature and design margin. Check the final battery against the manufacturer's constant-power table."
+      intro="UPS rating from the load (a UPS board's demand on the SLD, or a list of loads) with growth and the design loading — covering both kVA and kW. Battery sizing uses an Ah estimate or entered manufacturer constant-power data, with ageing, temperature and design margin. Lithium options include SOC reserve and BMS current; charger inputs provide a recharge estimate."
       actions={
         <>
           <button className="chip" onClick={fromBoards}>From UPS boards</button>
@@ -87,7 +87,7 @@ function UpsCard({ project, s, upsBoardIds, onPatch, onRemove, onApply }: {
   const board = project.boards.find((b) => b.id === s.boardId);
   const setLoad = (id: string, p: Partial<UpsLoad>) => onPatch({ loads: s.loads.map((l) => (l.id === id ? { ...l, ...p } : l)) });
   const boards = boardsInSupplyOrder(project);
-  const chem = (c: BatteryChem) => onPatch(c === 'vrla' ? { chem: c, blockV: 12, endCellV: 1.75 } : { chem: c, blockV: 51.2, endCellV: undefined }, true);
+  const chem = (c: BatteryChem) => onPatch(c === 'vrla' ? { chem: c, blockV: 12, endCellV: 1.75 } : { chem: c, blockV: 51.2, endCellV: undefined, powerTable: undefined }, true);
 
   return (
     <section className="dm-card">
@@ -151,19 +151,57 @@ function UpsCard({ project, s, upsBoardIds, onPatch, onRemove, onApply }: {
         <NumField label="Design margin" value={s.designMargin} width={55} min={1} onSet={(v) => onPatch({ designMargin: v ?? 1.1 })} />
       </div>
 
+      {s.chem === 'vrla' && <details open={!!s.powerTable}>
+        <summary>Manufacturer constant-power table (W per block)</summary>
+        <label><input type="checkbox" checked={!!s.powerTable} onChange={e => onPatch({ powerTable: e.target.checked ? { model: '', source: '', blockAh: 100, blockV: s.blockV, endCellV: s.endCellV ?? 1.75, temperatureC: 25, points: [] } : undefined }, true)} /> Use exact model data instead of generic Ah sizing</label>
+        {s.powerTable && <>
+          <div className="ups-settings">
+            <label>Battery model<input value={s.powerTable.model} onChange={e => onPatch({ powerTable: { ...s.powerTable!, model: e.target.value } })} /></label>
+            <label>Datasheet source / revision<input value={s.powerTable.source} onChange={e => onPatch({ powerTable: { ...s.powerTable!, source: e.target.value } })} /></label>
+            {(['blockAh', 'blockV', 'endCellV', 'temperatureC'] as const).map(key => <NumField key={key} label={{ blockAh: 'Model capacity (Ah)', blockV: 'Table block voltage (V)', endCellV: 'Table end voltage / cell (V)', temperatureC: 'Table temperature (°C)' }[key]} value={s.powerTable![key]} onSet={v => onPatch({ powerTable: { ...s.powerTable!, [key]: v ?? 0 } })} />)}
+          </div>
+          <table className="schedule"><thead><tr><th>Duration (min)</th><th>Watts per block</th><th /></tr></thead><tbody>{s.powerTable.points.map((point, i) => <tr key={i}><td><NumField label="" value={point.minutes} onSet={v => onPatch({ powerTable: { ...s.powerTable!, points: s.powerTable!.points.map((p, j) => j === i ? { ...p, minutes: v ?? 0 } : p) } })} /></td><td><NumField label="" value={point.wattsPerBlock} onSet={v => onPatch({ powerTable: { ...s.powerTable!, points: s.powerTable!.points.map((p, j) => j === i ? { ...p, wattsPerBlock: v ?? 0 } : p) } })} /></td><td><button className="chip" onClick={() => onPatch({ powerTable: { ...s.powerTable!, points: s.powerTable!.points.filter((_, j) => j !== i) } }, true)}>Remove row</button></td></tr>)}</tbody></table>
+          <button className="chip" onClick={() => onPatch({ powerTable: { ...s.powerTable!, points: [...s.powerTable!.points, { minutes: (s.powerTable!.points[s.powerTable!.points.length - 1]?.minutes ?? 0) + 15, wattsPerBlock: 0 }] } }, true)}>+ Discharge row</button>
+          <p className="m">Enter at least two rows in increasing duration. Use W/block from one model at the stated end voltage and temperature. Between durations the longer-duration row is used; values outside the table are rejected.</p>
+        </>}
+      </details>}
+      {s.chem === 'li-ion' && <div className="ups-settings">
+        <NumField label="Starting SOC" unit="%" value={s.startSocPct ?? 100} min={0} max={100} onSet={v => onPatch({ startSocPct: v ?? 100 })} />
+        <NumField label="Minimum SOC reserve" unit="%" value={s.minSocPct ?? 0} min={0} max={100} onSet={v => onPatch({ minSocPct: v ?? 0 })} />
+        <NumField label="Module end voltage" unit="V" optional value={s.endModuleV} placeholder={f1(s.blockV * 2.8 / 3.2)} onSet={v => onPatch({ endModuleV: v })} />
+        <NumField label="BMS continuous current / string" unit="A" optional value={s.bmsDischargeA} onSet={v => onPatch({ bmsDischargeA: v })} title="Parallel strings share current equally. Verify permitted series and parallel module counts with the manufacturer." />
+      </div>}
+      <details open={!!s.surge}><summary>Inverter starting-load / overload check</summary>
+        <label><input type="checkbox" checked={!!s.surge} onChange={e => onPatch({ surge: e.target.checked ? { source: '' } : undefined }, true)} /> Check coincident starting demand</label>
+        {s.surge && <><div className="ups-settings">
+          <label>Inverter model / overload datasheet<input value={s.surge.source} onChange={e => onPatch({ surge: { ...s.surge!, source: e.target.value } })} /></label>
+          {(['totalKw', 'totalKva', 'durationSeconds', 'ratedKw', 'ratedKva', 'ratedSeconds'] as const).map(key => <NumField key={key} label={{ totalKw: 'Total starting kW', totalKva: 'Total starting kVA', durationSeconds: 'Starting duration (s)', ratedKw: 'Inverter peak kW', ratedKva: 'Inverter peak kVA', ratedSeconds: 'Supported peak duration (s)' }[key]} optional value={s.surge![key]} min={0} onSet={v => onPatch({ surge: { ...s.surge!, [key]: v } })} />)}
+        </div><p className="m">Enter the total simultaneous starting demand, including loads already running. Growth is applied once. Use power and duration from the same overload duty for the selected inverter model; this does not change the continuous UPS selection.</p></>}
+      </details>
+      <details><summary>Charger and recharge estimate</summary><div className="ups-settings">
+        <NumField label="Total charger output" unit="A" optional value={s.chargerCurrentA} onSet={v => onPatch({ chargerCurrentA: v })} />
+        <NumField label="Concurrent shared DC load" unit="A" value={s.rechargeLoadA ?? 0} onSet={v => onPatch({ rechargeLoadA: v ?? 0 })} />
+        <NumField label="Recharge starting SOC" unit="%" value={s.rechargeFromSocPct ?? 20} onSet={v => onPatch({ rechargeFromSocPct: v ?? 20 })} />
+        <NumField label="Recharge target SOC" unit="%" value={s.rechargeToSocPct ?? 100} onSet={v => onPatch({ rechargeToSocPct: v ?? 100 })} />
+        <NumField label="Charge efficiency" unit="%" value={s.chargeEfficiencyPct ?? 95} onSet={v => onPatch({ chargeEfficiencyPct: v ?? 95 })} />
+        <NumField label="Absorption / taper allowance" unit="h" value={s.absorptionHours ?? 0} onSet={v => onPatch({ absorptionHours: v ?? 0 })} />
+      </div><p className="m">Bulk estimate at constant current plus your absorption allowance. Confirm battery charging limits and the charger profile.</p></details>
       <div className="plan-cards">
         <div><span>Load{board ? ` (${board.id} demand)` : ''}</span><b>{f1(r.loadKva)} kVA · {f1(r.loadKw)} kW</b><small>with growth, at {s.maxLoadingPct} %: {f1(r.designKva)} kVA · {f1(r.designKw)} kW</small></div>
         <div><span>UPS rating</span><b className={r.upsKva ? '' : 'bad'}>{r.upsKva ? `${r.upsKva} kVA · ${f1(r.upsKw!)} kW` : `> ${STANDARD_UPS_KVA[STANDARD_UPS_KVA.length - 1]} kVA`}</b><small>{r.loadingPct !== undefined ? `${f0(r.loadingPct)} % loaded today (${r.loadingBy} limit) · ${f0(r.loadingKvaPct!)} % of kVA · ${f0(r.loadingKwPct!)} % of kW` : ''}</small></div>
-        <div><span>Battery{r.busMismatch ? ` — ${+r.stringV.toFixed(2)} V string, not ${s.dcVoltage} V` : ''}</span><b className={r.busMismatch ? 'bad' : ''}>{r.busMismatch ? 'Not valid: ' : ''}{r.blockAh ? `${r.strings > 1 ? `${r.strings} × ` : ''}${r.blocksPerString} × ${s.blockV} V ${r.blockAh} Ah` : '—'}</b><small>{r.totalBlocks} {s.chem === 'vrla' ? 'blocks' : 'modules'} · {f1(r.energyKwh)} kWh · needs {f1(r.requiredAh)} Ah</small></div>
-        <div><span>Backup with this battery</span><b className={r.runtimeMin !== undefined && r.runtimeMin >= s.autonomyMin ? 'ok' : 'bad'}>{r.runtimeMin !== undefined ? `${f0(r.runtimeMin)} min` : '—'}</b><small>required {s.autonomyMin} min</small></div>
+        <div><span>Battery{r.busMismatch ? ` — ${+r.stringV.toFixed(2)} V string, not ${s.dcVoltage} V` : ''}</span><b className={r.busMismatch || r.batteryIssue ? 'bad' : ''}>{r.busMismatch ? 'Not valid: ' : ''}{r.blockAh ? `${r.strings > 1 ? `${r.strings} × ` : ''}${r.blocksPerString} × ${s.blockV} V ${r.blockAh} Ah` : '—'}</b><small>{r.totalBlocks} {s.chem === 'vrla' ? 'blocks' : 'modules'} · {f1(r.energyKwh)} kWh · {r.batteryBasis === 'manufacturer table' ? `${r.tableWattsPerBlock ?? '—'} W/block at ${r.tableMinutes ?? '—'} min` : `needs ${f1(r.requiredAh)} Ah`}</small></div>
+        <div><span>Backup with this battery</span><b className={!r.busMismatch && !r.batteryIssue && r.runtimeMin !== undefined && r.runtimeMin >= s.autonomyMin ? 'ok' : 'bad'}>{r.runtimeMin !== undefined ? `${f0(r.runtimeMin)} min` : '—'}</b><small>required {s.autonomyMin} min</small></div>
         <div><span>DC side</span><b>{f0(r.dcCurrentMaxA)} A max</b><small className={r.dcBreakerNoFit ? 'bad' : ''}>{f1(r.dcKw)} kW from the battery · {r.dcBreakerNoFit ? `No suitable DC breaker in the list — ${f0(r.dcBreakerRequiredA)} A needed, largest ${r.dcBreakerMaxA} A` : r.dcBreakerA ? `battery-bus DC breaker ${r.dcBreakerA} A` : 'no DC breaker (no load)'}</small></div>
+        {s.surge && <div><span>Inverter surge check</span><b className={r.surge.status === 'pass' ? 'ok' : r.surge.status === 'fail' ? 'bad' : ''}>{r.surge.status}</b><small>{r.surge.kw !== undefined ? `${f1(r.surge.kw)} kW · ${f1(r.surge.kva!)} kVA with growth · ` : ''}{r.surge.issue}</small></div>}
+        {s.chem === 'li-ion' && <div><span>Usable SOC / BMS</span><b>{f0(r.usableFraction * 100)} % · {f1(r.usableEnergyKwh)} kWh nominal</b><small>{f1(r.stringCurrentA)} A per string · {r.bmsOk === undefined ? 'BMS not checked' : r.bmsOk ? 'continuous current within limit' : 'BMS check failed'}</small></div>}
+        {s.chargerCurrentA !== undefined && <div><span>Recharge estimate</span><b className={r.rechargeIssue ? 'bad' : ''}>{r.rechargeHours !== undefined ? `${f1(r.rechargeHours)} h` : '—'}</b><small>{f1(r.rechargeNetA ?? 0)} A available · bulk + {s.absorptionHours ?? 0} h absorption allowance</small></div>}
       </div>
       {r.notes.length > 0 && <p className="m">{r.notes.join(' · ')}</p>}
       {r.busMismatch && <div><button className="chip" onClick={() => onPatch({ dcVoltage: +r.stringV.toFixed(2) }, true)} title="Only if the UPS, charger and BMS accept this voltage — check the manufacturer's data">Set the DC bus to {+r.stringV.toFixed(2)} V ({r.blocksPerString} × {s.blockV} V)</button></div>}
       {board && r.upsKva && board.upsKva !== r.upsKva && (
         <div><button className="chip" onClick={() => onApply(r.upsKva!)}>Set {board.id} to {r.upsKva} kVA on the SLD{board.upsKva ? ` (now ${board.upsKva} kVA)` : ''}</button></div>
       )}
-      <p className="m ups-foot">Block sizes considered: {(s.chem === 'vrla' ? VRLA_BLOCK_AH : LI_MODULE_AH).join(', ')} Ah. Capacity at {s.autonomyMin} min: {f0(r.rate * 100)} % of C10 ({s.rateCapacityPct ? 'your figure' : 'typical'}).</p>
+      <p className="m ups-foot" hidden={!!s.powerTable}>Block sizes considered: {(s.chem === 'vrla' ? VRLA_BLOCK_AH : LI_MODULE_AH).join(', ')} Ah. Capacity at {s.autonomyMin} min: {f0(r.rate * 100)} % of C10 ({s.rateCapacityPct ? 'your figure' : 'typical'}).</p>
     </section>
   );
 }

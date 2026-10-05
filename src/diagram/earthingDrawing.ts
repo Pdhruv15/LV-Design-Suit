@@ -1,5 +1,5 @@
 import type { Project } from '../types';
-import { earthingLayout, type EarthItem, type EarthLayout } from '../model/earthingPlan';
+import { earthingLayout, kindInfo, type EarthItem, type EarthLayout } from '../model/earthingPlan';
 import { mainBoards, txTag } from '../model/transformers';
 
 /** Earthing schematic drawing (printable SVG), in the SLD drawing style.
@@ -41,7 +41,7 @@ const txSymbol = (cx: number, cy: number, r = 13) => `<circle cx="${cx}" cy="${c
 /** Earth pit: inspection pit (hollow square) and electrode (earth symbol); the conductor runs through. */
 const pitSymbol = (x: number, y: number) => `<rect x="${x - 7}" y="${y}" width="14" height="10" fill="none" stroke="#111" stroke-width="1.3"/>${ln(x - 7, y + 28, x + 7, y + 28)}${ln(x - 4.5, y + 31, x + 4.5, y + 31)}${ln(x - 2, y + 34, x + 2, y + 34)}`;
 
-export function earthingDrawing(project: Project, L: EarthLayout = earthingLayout(project)): { svg: string; w: number; h: number } {
+export function earthingDrawing(project: Project, L: EarthLayout = earthingLayout(project), includeSchedule = true): { svg: string; w: number; h: number } {
   const out: string[] = [];
   const pitX = new Map<string, number>(), pitY = new Map<string, number>();
   const pitsOf = (it: EarthItem) => L.pits.filter((p) => p.itemKey === it.key);
@@ -174,7 +174,43 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
   ];
   const noteSvg = `<g transform="translate(${lx + 560} ${ly})">${notes.map((t, i) => `<text x="0" y="${18 + i * 16}" font-size="9"${i ? '' : ' font-weight="bold"'}>${esc(t)}</text>`).join('')}</g>`;
 
-  const w = Math.max(right + 30, 1300), h = ly + legendH + 20;
+  const w = Math.max(right + 30, 1300);
+  // The schedule is part of the SVG so every drawing export carries the same
+  // pit IDs and test information. Wrap long cells rather than compressing text.
+  const tableX = 40, tableW = w - 80;
+  const columns = [0.06, 0.27, 0.23, 0.17, 0.16, 0.11].map((f) => f * tableW);
+  const wrap = (text: string, width: number) => {
+    const max = Math.max(1, Math.floor((width - 12) / 6));
+    const lines: string[] = [];
+    let line = '';
+    for (const word of text.split(/\s+/)) {
+      if (line && line.length + word.length + 1 > max) { lines.push(line); line = ''; }
+      let rest = word;
+      while (rest.length > max) { if (line) { lines.push(line); line = ''; } lines.push(rest.slice(0, max)); rest = rest.slice(max); }
+      line = line ? `${line} ${rest}` : rest;
+    }
+    if (line) lines.push(line);
+    return lines;
+  };
+  let tableY = ly + legendH + 40;
+  let schedule = `<text x="${tableX}" y="${tableY - 10}" font-size="12" font-weight="bold">EARTH PIT SCHEDULE</text>`;
+  const row = (cells: string[], heading = false) => {
+    const lines = cells.map((s, i) => wrap(s, columns[i]));
+    const rh = Math.max(1, ...lines.map((ls) => ls.length)) * 14 + 12;
+    let cx = tableX;
+    lines.forEach((ls, i) => {
+      schedule += `<rect x="${cx}" y="${tableY}" width="${columns[i]}" height="${rh}" fill="none" stroke="#999" stroke-width="0.7"/>`;
+      ls.forEach((text, j) => { schedule += `<text x="${cx + 6}" y="${tableY + 16 + j * 14}" font-size="9"${heading ? ' font-weight="bold"' : ''}>${esc(text)}</text>`; });
+      cx += columns[i];
+    });
+    tableY += rh;
+  };
+  row(['Pit', 'Equipment / connection', 'Earth system / substation', 'Conductor', 'Electrode', 'Measured'], true);
+  for (const p of L.pits) {
+    const it = L.items.find((item) => item.key === p.itemKey)!;
+    row([p.id, `${it.equipment} / ${it.point}`, `${kindInfo(p.kind).label} / ${it.group}`, `1C ${mm} mm² Cu/PVC`, `${L.electrodeM} m Cu-bonded rod`, p.measured === undefined ? 'Not tested' : `${p.measured} ohm`]);
+  }
+  const h = includeSchedule ? tableY + 20 : ly + legendH + 20;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" font-family="Arial" font-size="10" fill="#111">
   <defs><marker id="ea" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1L10,5L0,9z" fill="${GREEN}"/></marker></defs>
   <rect width="${w}" height="${h}" fill="#fff"/>
@@ -182,6 +218,7 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
   ${out.join('\n')}
   ${legend}
   ${noteSvg}
+  ${includeSchedule ? schedule : ''}
 </svg>`;
   return { svg, w, h };
 }

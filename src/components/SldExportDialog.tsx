@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import type { DrawingInfo, Project } from '../types';
 import { buildSldSheetHtml, DEFAULT_DRAWING_TITLE, titleBlockOf } from '../docs/sldSheet';
-import { titleBlockDxf, toDxf } from '../docs/dxf';
-import { printableSvg, svgToDxf } from '../diagram/exportSvg';
-import { safeFileName, savePdf, saveText } from '../util/files';
+import { buildSheetDxfPages } from '../docs/sheetDxf';
+import { dxfExportNotice, namedDxfFiles } from '../docs/dxfFiles';
+import { cableRefsUsed } from '../model/cableRefs';
+import { printableSvg } from '../diagram/exportSvg';
+import { safeFileName, saveBinary, savePdf, saveText } from '../util/files';
+import JSZip from 'jszip';
 
 /** The diagram on screen (full extent), as printable SVG. */
 function currentSvg(): { svg: string; w: number; h: number } | undefined {
@@ -44,19 +47,16 @@ export default function SldExportDialog({ project, onSave, onStatus, onClose, st
       } else if (kind === 'svg') {
         m = await saveText(`${name}.svg`, cur.svg, 'SVG image', 'svg');
       } else {
-        const prims = svgToDxf(cur.svg, cur.h);
-        const width = Math.max(cur.w * 0.4, 320);
-        const rows: [string, string][][] = [
-          [['Company / consultant', t.company], ['Owner', t.owner]],
-          [['Project', t.project]],
-          [['Drawing title', t.title]],
-          [['Drawing no.', t.number], ['Revision', t.revision], ['Date', t.date]],
-          [['Drawn', t.drawnBy], ['Checked', t.checkedBy], ['Approved', t.approvedBy], ['Scale', t.scale]]
-        ];
-        const tbHeight = (width / 12) * rows.length;
-        const bottom = -tbHeight - 30;
-        const frame = { type: 'polyline' as const, layer: 'FRAME', closed: true, points: [[-30, bottom - 20], [cur.w + 30, bottom - 20], [cur.w + 30, cur.h + 30], [-30, cur.h + 30]] as [number, number][] };
-        m = await saveText(`${name}.dxf`, toDxf([...prims, ...titleBlockDxf(cur.w + 10, bottom, width, rows), frame]), 'DXF drawing (AutoCAD R12)', 'dxf');
+        const one = d.cableLabels === 'ref' ? { no: t.number, title: t.title, index: 1, count: 1, cables: cableRefsUsed(p) } : undefined;
+        const files = namedDxfFiles(name, buildSheetDxfPages(p, cur.svg, d.sheet ?? 'A3', one));
+        if (files.length === 1) m = await saveText(files[0].name, files[0].data, 'DXF drawing (AutoCAD R12)', 'dxf');
+        else {
+          const zip = new JSZip();
+          files.forEach((f) => zip.file(f.name, f.data));
+          m = await saveBinary(`${name}-DXF.zip`, await zip.generateAsync({ type: 'uint8array' }), 'ZIP', 'zip', 'application/zip');
+        }
+        const notice = dxfExportNotice(files);
+        if (m && notice) m += ` — ${notice}`;
       }
       if (m) onStatus(m);
     } catch (e) {
@@ -93,7 +93,7 @@ export default function SldExportDialog({ project, onSave, onStatus, onClose, st
           <button className="chip" onClick={() => { onSave(d); onClose(); }}>Save details</button>
           <span className="sp" />
           <button className="chip" disabled={!!busy} onClick={() => run('svg')}>{busy === 'svg' ? 'Exporting…' : 'SVG'}</button>
-          <button className="chip" disabled={!!busy} onClick={() => run('dxf')} title="AutoCAD R12 DXF: layers BUSBAR, CABLE, SYMBOL, TEXT, RESULT, TITLE">{busy === 'dxf' ? 'Exporting…' : 'DXF (CAD)'}</button>
+          <button className="chip" disabled={!!busy} onClick={() => run('dxf')} title="AutoCAD R12 DXF at the selected paper size, with editable layers and title block. Additional notes and schedules are included as continuation sheets in a ZIP.">{busy === 'dxf' ? 'Exporting…' : `DXF ${d.sheet ?? 'A3'} (CAD)`}</button>
           <button className="chip primary" disabled={!!busy} onClick={() => run('pdf')}>{busy === 'pdf' ? 'Exporting…' : `PDF ${d.sheet ?? 'A3'}`}</button>
         </div>
       </div>
