@@ -4,6 +4,7 @@ import type { MainView } from '../../views';
 import { baselineOf } from '../../model/designBaseline';
 import { impactBetween, type DesignImpact } from '../../model/designImpact';
 import { Page } from '../ui';
+import ModificationsPanel from './ModificationsPanel';
 
 const f2 = (n: number) => (Math.round(n * 100) / 100).toLocaleString('en-US');
 const WHY = { changed: 'changed', upstream: 'fed by a changed panel', downstream: 'fed from a changed item' } as const;
@@ -66,11 +67,15 @@ export function ImpactPanel({ impact, onGo }: { impact: DesignImpact; onGo?: (v:
 }
 
 /** Design changes: what the working draft changes against its baseline, and what that touches. */
-export default function ChangesView({ project, onGo }: { project: Project; onGo?: (v: MainView) => void }) {
+export default function ChangesView({ project, me = '', onChange, onApply, onStatus, onGo }: {
+  project: Project; me?: string; onChange: (p: Project) => void; onApply: (p: Project) => void; onStatus: (m: string) => void; onGo?: (v: MainView) => void;
+}) {
   const base = baselineOf(project);
   const impact = useMemo(() => (base ? impactBetween(base.revision.snapshot, project) : undefined), [base?.revision, project]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <Page title="Design changes" intro="What the working draft changes compared with its baseline, and what that touches: panels, the studies to run again, drawings and schedules, and BOQ design quantities. It shows no new results — it says what to run again.">
+      <ModificationsPanel project={project} me={me} onChange={onChange} onApply={onApply} onStatus={onStatus} onGo={onGo} />
+      <h4 style={{ marginTop: 14 }}>Working draft against its baseline</h4>
       {!base || !impact ? (
         <p className="m">Nothing to compare yet: issue a revision first (Reports → Revisions). The baseline is the issued revision the draft is measured against.</p>
       ) : (

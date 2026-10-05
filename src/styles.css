@@ -1228,3 +1228,7 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .rev-classes{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:6px 0}
 .baseline-bar{display:flex;align-items:center;flex-wrap:wrap;gap:6px 16px;padding:5px 12px;border-bottom:1px solid var(--line);font-size:12.5px}
 .rev-baseline{margin:6px 0}
+.mod-detail{border-top:1px solid var(--line);margin-top:10px;padding-top:8px}
+.mod-conflicts{border:1px solid var(--warn);border-radius:6px;padding:8px 12px;margin-top:8px;background:rgba(245,192,74,.1)}
+.mod-conflicts ul{margin:4px 0 8px}
+.mod-accepted{color:var(--ok,#2ea043)}.mod-rejected,.mod-superseded{color:var(--muted,#8b949e)}
