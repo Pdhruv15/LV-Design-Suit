@@ -279,6 +279,8 @@ export interface Project {
   tags?: string[];
   /** Notes about the project as a whole (not a design value). */
   notes?: string;
+  /** Who it is for and by whom, what it covers and what is to be delivered (New project wizard). */
+  brief?: import('./model/brief').ProjectBrief;
   /** Where this project was copied from (Save as / Duplicate). */
   origin?: { copiedFromId?: string; copiedFromName?: string; copiedAt: string; kind: 'save-as' | 'duplicate' };
   name: string;

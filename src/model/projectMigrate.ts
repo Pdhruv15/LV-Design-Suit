@@ -40,7 +40,7 @@ export type CopyKind = 'save-as' | 'duplicate';
 /** The one rule for "a copy of this project".
  *  - Save as: a branch of the same job — everything is kept, including revision history and transmittals.
  *  - Duplicate: a similar new job — the design is kept, but not the revision history, issued drawing
- *    history or transmittals, and the status starts again at Design.
+ *    history, transmittals or delivered ticks and dates, and the status starts again at Design.
  * Both get their own id, creation date and a note of where they came from. */
 export function copyProject(p: Project, kind: CopyKind, name: string, by?: string, now = new Date()): Project {
   const at = now.toISOString();
@@ -58,6 +58,8 @@ export function copyProject(p: Project, kind: CopyKind, name: string, by?: strin
   };
   if (kind === 'duplicate') {
     copy.revisions = undefined;
+    // A similar new job starts with nothing delivered and no dates.
+    if (p.brief) copy.brief = { ...p.brief, deliverables: p.brief.deliverables.map((d) => ({ ...d, done: undefined, targetDate: undefined })) };
     if (p.drawingSet) {
       copy.drawingSet = {
         ...p.drawingSet,

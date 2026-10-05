@@ -95,6 +95,8 @@ import { applyDefaults, applyProfile, initialsOf, loadPrefs, savePrefs, signatur
 import { clearRecovery, deleteProjectFile, inDesktop, listProjects, loadProject, emptyTrash, listTrash, loadProjectStamped, readRecoveries, recentFiles, restoreProject, saveProjectFile, statProject, touchRecent, whenText, writeRecovery, type ProjectMeta, type Recovery, type TrashedProject } from './model/projectStore';
 import { applyDetails, withArchived, type ProjectDetails } from './model/projectList';
 import ProjectDetailsDialog from './components/ProjectDetailsDialog';
+import { BriefDialog, NewProjectWizard } from './components/BriefEditor';
+import { applyBrief, type ProjectBrief } from './model/brief';
 import { copyProject, isFutureSchema, migrateProject } from './model/projectMigrate';
 import { diffSections, projectFingerprint, type FileStamp } from './model/saveSafety';
 import { CompareDialog, ConflictDialog, ExternalChangeBar } from './components/SaveDialogs';
@@ -137,6 +139,8 @@ export default function App() {
   const [projectsFolder, setProjectsFolder] = useState<string>('');
   const [projectList, setProjectList] = useState<ProjectMeta[]>([]);
   const [trashList, setTrashList] = useState<TrashedProject[]>([]);
+  const [wizard, setWizard] = useState(false);
+  const [briefDialog, setBriefDialog] = useState(false);
   const [detailsFor, setDetailsFor] = useState<{ file: string; project: Project } | null>(null);
   // Unsaved changes: the project differs from the one last saved or opened.
   const [saved, setSaved] = useState<Project | null>(project);
@@ -677,18 +681,16 @@ export default function App() {
     if (saved) setStatus(`Exported ${saved.split(/[\\/]/).pop()}${warnNote}`);
   }
 
+  /** New project: the wizard (role, parties, scope, deliverables) or Quick create from the name alone. */
   function startNewProject() {
-    guard('starting a new project', () => setNameAsk({
-      title: 'New project',
-      note: prefs.profile.name ? `Starts with your design defaults, and your details in the title block (Profile & preferences).` : 'Tip: set your name, company and design defaults in Profile & preferences — every new project then starts with them.',
-      initial: 'Untitled project',
-      okLabel: 'Create',
-      then: (name) => {
-        // Your Parameters.xlsx defaults, then your profile's defaults and details.
-        const p = applyDefaults(applyParameters(newProject(name), db), prefs);
-        loadIntoApp(p, undefined, 'New project — not saved yet');
-      }
-    }));
+    guard('starting a new project', () => setWizard(true));
+  }
+
+  function createProject(name: string, brief?: ProjectBrief) {
+    setWizard(false);
+    // Your Parameters.xlsx defaults, then your profile's defaults and details, then the brief.
+    const base = applyDefaults(applyParameters(newProject(name), db), prefs);
+    loadIntoApp(brief ? applyBrief(base, brief) : base, undefined, 'New project — not saved yet');
   }
 
   function saveFeeder(f: Feeder) {
@@ -1265,6 +1267,8 @@ export default function App() {
                 stale={staleKeys}
                 saved={!!currentFile && !dirty}
                 onOpen={(v) => (v === 'settings' ? setShowSettings(true) : setView(v))}
+                onEditBrief={() => setBriefDialog(true)}
+                onChangeProject={(p) => setProject(p, { step: true })}
                 onRun={runNow}
                 onStatus={setStatus}
                 onGo={(g) => {
@@ -1446,6 +1450,14 @@ export default function App() {
           onOverwrite={() => { setConflict(null); void saveProject(undefined, true); }}
           onSaveCopy={() => { setConflict(null); saveAs(`${conflict.mine.name} (my changes)`); }}
           onLoadDisk={useDiskVersion} />
+      )}
+      {wizard && (
+        <NewProjectWizard initialName="Untitled project" company={prefs.profile.company} taken={projectList.map((m) => m.name)}
+          onCancel={() => setWizard(false)} onQuick={(n) => createProject(n)} onCreate={createProject} />
+      )}
+      {briefDialog && (
+        <BriefDialog initial={project.brief} company={prefs.profile.company} onCancel={() => setBriefDialog(false)}
+          onSave={(b) => { setBriefDialog(false); setProject(applyBrief(project, b), { step: true }); setStatus('Scope and deliverables updated — save the project to keep them'); }} />
       )}
       {detailsFor && (
         <ProjectDetailsDialog file={detailsFor.file} project={detailsFor.project} onCancel={() => setDetailsFor(null)}

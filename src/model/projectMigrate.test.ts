@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { newProject } from '../types';
 import { sampleProject } from '../data/sampleProject';
+import { newBrief } from './brief';
 import { copyProject, CURRENT_SCHEMA, isFutureSchema, legacyIdFor, migrateProject } from './projectMigrate';
 
 const legacy = () => { const { id: _i, schemaVersion: _s, createdAt: _c, ...rest } = newProject('Old'); return { ...rest, updatedAt: '2026-03-01T08:00:00.000Z' }; };
@@ -74,6 +75,12 @@ describe('copying a project', () => {
     expect(c.drawingSet?.sheets[0]).toMatchObject({ number: 'E-SLD-001', history: undefined, issuedHash: undefined, rev: undefined });
     expect(c.createdBy).toBe('Asha');
     expect(c.origin?.kind).toBe('duplicate');
+  });
+
+  it('Duplicate starts a similar job with nothing delivered; Save as keeps the progress', () => {
+    const withBrief = { ...issued, brief: { ...newBrief('consultant'), deliverables: [{ id: 'sld-set', title: 'SLD set', done: true, targetDate: '2026-12-01' }] } };
+    expect(copyProject(withBrief, 'duplicate', 'X', undefined, now).brief?.deliverables[0]).toEqual({ id: 'sld-set', title: 'SLD set', done: undefined, targetDate: undefined });
+    expect(copyProject(withBrief, 'save-as', 'X', undefined, now).brief?.deliverables[0]).toMatchObject({ done: true, targetDate: '2026-12-01' });
   });
 
   it('never changes the original', () => {
