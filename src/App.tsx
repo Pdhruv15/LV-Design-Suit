@@ -97,6 +97,7 @@ import { applyDetails, withArchived, type ProjectDetails } from './model/project
 import ProjectDetailsDialog from './components/ProjectDetailsDialog';
 import { BriefDialog, NewProjectWizard } from './components/BriefEditor';
 import BaselineBar from './components/BaselineBar';
+import ChangesView from './components/docs/ChangesView';
 import { applyBrief, type ProjectBrief } from './model/brief';
 import { defaultsPreview } from './model/setupPreview';
 import { copyProject, isFutureSchema, migrateProject } from './model/projectMigrate';
@@ -1037,7 +1038,7 @@ export default function App() {
         {view === 'design' && board ? (
           <>
             <main className="mid">
-              {!!project.revisions?.length && <BaselineBar project={project} onCompare={() => setView('revisions')} />}
+              {!!project.revisions?.length && <BaselineBar project={project} onCompare={() => setView('revisions')} onImpact={() => setView('modifications')} />}
               <section className="stage">
                 <div className="stage-head">
                   <div className="seg" role="tablist" aria-label="Diagram">
@@ -1313,6 +1314,7 @@ export default function App() {
             {view === 'cable-tray' && (
               <TrayScheduleView project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />
             )}
+            {view === 'modifications' && <ChangesView project={project} onGo={(v) => setView(v)} />}
             {view === 'revisions' &&<RevisionsView project={project} me={prefs.profile.name ? initialsOf(prefs.profile.name) : ''} onChange={setProject} onStatus={setStatus} />}
             {view === 'projects' && (
               <ProjectsDashboard
