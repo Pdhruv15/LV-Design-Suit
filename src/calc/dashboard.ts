@@ -1,3 +1,4 @@
+import { checkReferences } from '../model/integrity';
 import type { BoardKind, Project } from '../types';
 import { BOARD_KINDS, LOAD_TYPES, PROJECT_STATUSES, settingsOf } from '../types';
 import type { Status } from './electrical';
@@ -190,6 +191,8 @@ export function buildDashboard(project: Project, run?: CalcRun, stale: StudyKey[
     if (r.rechargeIssue) add('bad', r.rechargeIssue);
     else if (u.chargerCurrentA === undefined) add('warn', 'charger and recharge time are not checked');
   }
+  // References to panels and circuits that no longer exist (a deleted panel that a riser, plan or selection still names).
+  for (const i of checkReferences(project)) if (i.view !== 'ups') todo.push({ status: 'bad', text: `${i.where}: ${i.problem} (“${i.ref}”) — reassign or remove it`, go: i.view ? { view: i.view } : undefined });
   if (project.pv) {
     const r = sizePv(project.pv);
     if (r.status !== 'ok') todo.push({ status: r.status, text: `Solar PV: ${r.notes.join(' · ') || 'solar design needs review'}`, go: { view: 'solar' } });

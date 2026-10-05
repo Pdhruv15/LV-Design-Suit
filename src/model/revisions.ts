@@ -2,7 +2,7 @@ import { boardDemandKw } from '../calc/electrical';
 import { circuitRef, isScheduleCircuit } from '../calc/loadSchedule';
 import type { Board, Feeder, Project, Revision } from '../types';
 import { BOARD_CLASS, CLASS_LABEL, DESIGN_CLASSES, FEEDER_CLASS, INFO_ENGINEERING, PROJECT_CLASS, type ChangeClass } from './changeClass';
-import { leafChanges, type FieldChange } from './datasetDiff';
+import { leafChanges, pairText, same, type FieldChange } from './datasetDiff';
 import { withEarthPitIds } from './earthingPlan';
 
 /** Revisions: an issued copy of the project (Rev A, B, C…) kept inside the
@@ -141,22 +141,24 @@ export const DATA_SETS: Fields<Snapshot> = [
 const sizeOf = (v: unknown) => (Array.isArray(v) ? `${v.length} item(s)` : v === undefined || v === null ? '—' : 'set');
 
 /** Plain text for a field value; objects list their non-empty entries. */
-function show(v: unknown): string {
+function show(v: unknown, digits = 3): string {
   if (v === undefined || v === null || v === '') return '—';
-  if (typeof v === 'number') return String(+v.toFixed(3));
+  if (typeof v === 'number') return String(+v.toFixed(digits));
   if (typeof v === 'object') {
-    const parts = Object.entries(v as Record<string, unknown>).filter(([, x]) => x !== undefined && x !== '' && x !== 0).map(([k, x]) => `${k} ${show(x)}`);
+    const parts = Object.entries(v as Record<string, unknown>).filter(([, x]) => x !== undefined && x !== '' && x !== 0).map(([k, x]) => `${k} ${show(x, digits)}`);
     return parts.length ? parts.join(', ') : '—';
   }
   return String(v);
 }
 
+/** The listed fields that differ. Compared on the exact values — not on how they print — so a change in the fourth
+ * decimal is found; zero entries inside an object (points counts) and empty values count as not set. */
 function fieldChanges<T>(a: T, b: T, fields: [keyof T, string][]): FieldChange[] {
   const out: FieldChange[] = [];
   for (const [k, label] of fields) {
-    const from = show(a[k]);
-    const to = show(b[k]);
-    if (from !== to) out.push({ field: label, from, to });
+    if (same(a[k], b[k], true)) continue;
+    const [from, to] = pairText(a[k], b[k], show);
+    out.push({ field: label, from, to });
   }
   return out;
 }

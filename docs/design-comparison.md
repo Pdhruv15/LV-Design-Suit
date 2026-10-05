@@ -22,6 +22,16 @@ checks that every classified field has a comparison line.
 changes only. Revisions → Compare shows a filter per class, a class column in the CSV, and
 says "the design itself is unchanged (only pricing or project details)" when that is so.
 
+## Exact comparison, frozen history
+
+- Values are compared exactly, never through their rounded text: a change in the fourth decimal (a
+  UPS end voltage of 1.7501 → 1.7502) is a change, and is shown with enough decimals to read
+  differently. Equal numbers, key order and harmless empty forms (missing, blank, empty list or
+  object, zero counts inside a points map) are not changes; a real 0 is a value.
+- Issued revisions are frozen. Renaming, moving, copying or deleting panels never touches a
+  snapshot (renames used to rewrite the references inside it, leaving it inconsistent); tests
+  assert every snapshot stays byte-identical and its references unchanged.
+
 ## What is compared now
 
 UPS and battery systems (capacity, backup time, state of charge window, BMS limit, charger and
@@ -43,8 +53,13 @@ app applies on opening, so a revision issued before pit IDs existed does not loo
 incomers, loops, duplicate ids, sheets, revision clouds, callouts, UPS links, bus couplers,
 risers, study report scope, plans and selections. Tests run it after rename, move, copy and delete.
 The audit found and fixed two real gaps:
-- Deleting a panel left it on sheets, in clouds and callouts, UPS links, couplers, risers,
-  report scopes, plans and selections (now removed by `removeDanglingReferences`).
+- Deleting a panel left it on sheets, in clouds and callouts, couplers and report scopes (now
+  removed by `removeDanglingReferences`). That cleanup deliberately does **not** touch what a study
+  is sized from or scoped to — a UPS's panel, a riser's source, the transformer, power-factor and
+  voltage-drop selections: clearing those would silently turn the study into something else (a
+  panel-fed UPS into a zero-load manual one, an "empty = all" list into all). They stay unresolved,
+  `checkReferences` and the To do list report them, and a UPS whose panel is gone shows an explicit
+  source issue (no rating, no battery, not valid) until it is reassigned or deliberately unlinked.
 - Renaming a panel did not update the voltage-drop selection, nor the earthing keys that embed
   the panel id, which orphaned its pit settings, pit IDs and measured values (now followed).
 
