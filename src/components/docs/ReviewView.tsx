@@ -5,6 +5,7 @@ import { Page } from '../ui';
 import { buildDashboard } from '../../calc/dashboard';
 import { STUDY_LABEL, type CalcRun, type StudyKey } from '../../calc/runs';
 import { buildReviewDoc, defaultSetup, reviewHtml, SECTION_IDS, SECTION_LABEL, type ReviewReportSetup, type SectionId } from '../../docs/reviewReport';
+import { buildClarificationDoc } from '../../docs/clarificationReport';
 import { buildReviewDocx } from '../../docs/reviewWord';
 import { docxBytes } from '../../docs/studyWord';
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
@@ -24,7 +25,7 @@ export default function ReviewView({ project, me = "", run, stale = [], onChange
   const sum = reviewSummary(project);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('active');
   const [sel, setSel] = useState<string | null>(null);
-  const [f, setF] = useState({ category: 'calculation' as CommentCategory, severity: 'major' as CommentSeverity, finding: '', criterion: '', requiredAction: '', assignedTo: '', sheet: '', kind: '' as RefKind | '', refId: '' });
+  const [f, setF] = useState({ type: 'finding' as 'finding' | 'question', category: 'calculation' as CommentCategory, severity: 'major' as CommentSeverity, finding: '', criterion: '', requiredAction: '', assignedTo: '', sheet: '', kind: '' as RefKind | '', refId: '' });
   const [text, setText] = useState('');
   const setup: ReviewReportSetup = project.reviewReport ?? defaultSetup();
   const [busy, setBusy] = useState('');
@@ -33,10 +34,10 @@ export default function ReviewView({ project, me = "", run, stale = [], onChange
     const d = buildDashboard(project, run, stale);
     return buildReviewDoc(project, setup, { ran: !!run, stale: stale.map((k) => STUDY_LABEL[k]), findings: d.todo.filter((t) => t.status !== 'ok').map((t) => `${t.status === 'bad' ? 'Fail' : 'To check'}: ${t.text}`) });
   };
-  async function exportAs(kind: 'pdf' | 'docx') {
+  async function exportAs(kind: 'pdf' | 'docx', clar = false) {
     setBusy(kind);
     try {
-      const d = doc(), name = safeFileName(`${project.name} ${d.title}`);
+      const d = clar ? buildClarificationDoc(project, { ...setup, title: setup.title }) : doc(), name = safeFileName(`${project.name} ${d.title}`);
       const m = kind === 'pdf' ? await savePdf(`${name}.pdf`, reviewHtml(d), { pageSize: 'A4', landscape: true })
         : await saveBinary(`${name}.docx`, await docxBytes(buildReviewDocx(d)), 'Word document', 'docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
       if (m) onStatus(m);
@@ -54,7 +55,7 @@ export default function ReviewView({ project, me = "", run, stale = [], onChange
   const ids = f.kind === 'feeder' ? project.feeders.map((x) => x.id) : f.kind === 'board' ? project.boards.map((x) => x.id) : f.kind === 'sheet' ? (project.drawingSet?.sheets ?? []).map((s) => s.id) : [];
 
   const raise = () => guard(() => {
-    const c = newComment(project, { category: f.category, severity: f.severity, finding: f.finding, criterion: f.criterion, requiredAction: f.requiredAction, assignedTo: f.assignedTo, sheet: f.sheet, raisedBy: me,
+    const c = newComment(project, { kind: f.type, category: f.category, severity: f.severity, finding: f.finding, criterion: f.criterion, requiredAction: f.requiredAction, assignedTo: f.assignedTo, sheet: f.sheet, raisedBy: me,
       revisionId: project.revisions?.[project.revisions.length - 1]?.id, ref: f.kind && f.refId ? { kind: f.kind, id: f.refId } : undefined });
     onChange(withComment(project, c)); setSel(c.id); setF({ ...f, finding: '', criterion: '', requiredAction: '', refId: '' }); onStatus(`Raised ${c.id}.`);
   });
@@ -73,6 +74,7 @@ export default function ReviewView({ project, me = "", run, stale = [], onChange
       <div className="card">
         <h4>Raise a comment</h4>
         <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+          <select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value as 'finding' | 'question' })}><option value="finding">Finding</option><option value="question">Question</option></select>
           <select value={f.category} onChange={(e) => setF({ ...f, category: e.target.value as CommentCategory })}>{Object.entries(CATEGORY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
           <select value={f.severity} onChange={(e) => setF({ ...f, severity: e.target.value as CommentSeverity })}>{Object.entries(SEVERITY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
           <select value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value as RefKind | '', refId: '' })}><option value="">About: general</option><option value="feeder">A circuit</option><option value="board">A panel</option><option value="sheet">A sheet</option></select>
@@ -101,6 +103,7 @@ export default function ReviewView({ project, me = "", run, stale = [], onChange
           {setup.decision && <><span className="m">{setup.decision.outcome} — {setup.decision.by}</span><button onClick={() => saveSetup({ ...setup, decision: undefined })}>Clear</button></>}
           <button className="primary" disabled={!!busy || !setup.sections.length} onClick={() => exportAs('pdf')}>{busy === 'pdf' ? 'Exporting…' : 'Export PDF'}</button>
           <button disabled={!!busy || !setup.sections.length} onClick={() => exportAs('docx')}>{busy === 'docx' ? 'Exporting…' : 'Export Word'}</button>
+          <span className="m">Contractor:</span><button disabled={!!busy} onClick={() => exportAs('pdf', true)} title="Technical clarification: the received design, discrepancies, proposed changes and questions. No pricing.">Clarification PDF</button><button disabled={!!busy} onClick={() => exportAs('docx', true)}>Clarification Word</button>
         </div>
       </div>
       <div className="row" style={{ gap: 6, margin: '10px 0' }}>{FILTERS.map((x) => <button key={x} className={filter === x ? 'primary' : ''} onClick={() => setFilter(x)}>{x[0].toUpperCase() + x.slice(1)}</button>)}</div>
@@ -110,7 +113,7 @@ export default function ReviewView({ project, me = "", run, stale = [], onChange
             const rs = refState(project, c), flag = needsReReview(project, c);
             return (
               <tr key={c.id} onClick={() => setSel(c.id)} style={{ cursor: 'pointer', fontWeight: sel === c.id ? 600 : undefined }}>
-                <td>{c.id}</td><td className={c.severity === 'critical' ? 'bad' : ''}>{SEVERITY_LABEL[c.severity]}</td><td>{c.finding}</td>
+                <td>{c.id}{c.kind === 'question' ? <span className="m"> ?</span> : ''}</td><td className={c.severity === 'critical' ? 'bad' : ''}>{SEVERITY_LABEL[c.severity]}</td><td>{c.finding}</td>
                 <td>{c.ref ? `${c.ref.id}${rs === 'missing' ? ' (deleted)' : ''}` : '—'}</td><td>{c.assignedTo ?? '—'}</td>
                 <td>{STATUS_LABEL[c.status]}{flag ? <span className="bad"> · re-review: {rs === 'missing' ? 'item deleted' : 'design changed since closed'}</span> : rs === 'changed' && c.status !== 'withdrawn' ? <span className="m"> · item changed since raised</span> : ''}</td>
               </tr>
