@@ -1211,3 +1211,4 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .ls-panels{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0}
 .ls-panels .chip.on{border-color:var(--acc);color:var(--acc)}
 .ls-panels .ls-form{margin-left:auto}
+.save-failed{color:var(--bad,#e5534b);font-size:12px;margin-right:6px;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

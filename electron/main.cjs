@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const { spawn } = require('node:child_process');
 const database = require('./database.cjs');
+const projectFiles = require('./projectFiles.cjs');
 
 const isDev = !app.isPackaged;
 
@@ -137,18 +138,20 @@ ipcMain.handle('settings:chooseDatabaseFolder', async (_evt, reset) => {
 // ---- IPC: projects (plain JSON files, one per project) ----
 ipcMain.handle('projects:list', () => {
   const folder = ensureProjectsFolder();
-  return fs
-    .readdirSync(folder)
-    .filter((f) => f.endsWith('.json'))
+  const files = fs.readdirSync(folder).filter((f) => f.endsWith('.json'));
+  const siblings = projectFiles.conflictSiblings(files);
+  return files
     .map((f) => {
       const full = path.join(folder, f);
       const stat = fs.statSync(full);
       const meta = { file: f, name: f.replace(/\.json$/, ''), updatedAt: stat.mtimeMs };
+      if (siblings[f]) meta.conflictOf = siblings[f];
       try {
         // What the projects dashboard shows (see metaOf in src/model/projectStore.ts).
         const p = JSON.parse(fs.readFileSync(full, 'utf-8'));
         const revs = Array.isArray(p.revisions) ? p.revisions : [];
         Object.assign(meta, {
+          id: p.id,
           name: p.name || meta.name,
           status: p.status,
           owner: p.info && p.info.owner,
@@ -173,38 +176,48 @@ function projectPath(folder, file) {
   return full;
 }
 
-/** Writes a file safely: to a temporary file first, flushed to disk, then
- * renamed over the old one (a crash or a sync mid-write never leaves a
- * half-written file). The previous version is kept as name.json.bak. */
-function writeFileSafe(full, text, keepBackup = true) {
-  const tmp = `${full}.tmp-${process.pid}-${Date.now()}`;
-  const fd = fs.openSync(tmp, 'w');
-  try { fs.writeFileSync(fd, text, 'utf-8'); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
-  if (keepBackup && fs.existsSync(full)) { try { fs.copyFileSync(full, `${full}.bak`); } catch {} }
-  fs.renameSync(tmp, full);
-}
+ipcMain.handle('projects:load', (_evt, file) => readProject(file).project);
 
-ipcMain.handle('projects:load', (_evt, file) => {
+/** The project and what the file was when it was read (to notice later changes made by someone else). */
+ipcMain.handle('projects:read', (_evt, file) => readProject(file));
+
+function readProject(file) {
   const full = projectPath(ensureProjectsFolder(), file);
   const text = fs.readFileSync(full, 'utf-8');
+  const stamp = projectFiles.stampOf(full);
   try {
-    return JSON.parse(text);
+    return { project: JSON.parse(text), stamp };
   } catch (e) {
     // A damaged file: offer the last good version kept beside it.
     const bak = `${full}.bak`;
     if (fs.existsSync(bak)) {
       const p = JSON.parse(fs.readFileSync(bak, 'utf-8'));
-      return { ...p, _restoredFromBackup: true };
+      return { project: { ...p, _restoredFromBackup: true }, stamp };
     }
     throw new Error(`${file} is damaged and could not be read (${e.message}).`);
   }
-});
+}
 
-ipcMain.handle('projects:save', (_evt, { file, data }) => {
+ipcMain.handle('projects:stat', (_evt, file) => projectFiles.stampOf(projectPath(ensureProjectsFolder(), file)));
+
+/** Saves a project. `expected` is what the file was when this app opened or last saved it; when the file
+ * now holds something else (another computer, a sync tool, another program) nothing is written and the
+ * answer is a conflict — unless `force`, which keeps the other version as name.json.theirs-….bak. */
+ipcMain.handle('projects:save', (_evt, { file, data, expected, force }) => {
   const folder = ensureProjectsFolder();
-  const safeFile = file || `${slugify(data.name || 'untitled')}-${Date.now()}.json`;
-  writeFileSafe(projectPath(folder, safeFile), JSON.stringify(data, null, 2));
-  return { file: safeFile };
+  const idPart = String((data && data.id) || Date.now()).replace(/[^a-z0-9]/gi, '').slice(0, 8);
+  const safeFile = file || projectFiles.uniqueFileName(folder, `${slugify(data.name || 'untitled')}-${idPart}`);
+  const full = projectPath(folder, safeFile);
+  let conflicted = false;
+  if (file) {
+    const disk = projectFiles.stampOf(full);
+    if (projectFiles.decideSave(expected, disk) === 'conflict') {
+      if (!force) return { conflict: true, file: safeFile, disk };
+      conflicted = true;
+    }
+  }
+  const stamp = projectFiles.writeFileSafe(full, JSON.stringify(data, null, 2), { keepTheirs: conflicted, verifyJson: true });
+  return { file: safeFile, stamp };
 });
 
 /** Open project…: pick a .json project anywhere. Inside the projects folder
@@ -226,20 +239,13 @@ ipcMain.handle('projects:delete', (_evt, file) => {
   return true;
 });
 
-// ---- IPC: recovery copy of unsaved work (autosave) ----
-const recoveryPath = path.join(app.getPath('userData'), 'recovery.json');
-ipcMain.handle('recovery:write', (_evt, r) => {
-  fs.mkdirSync(path.dirname(recoveryPath), { recursive: true });
-  writeFileSafe(recoveryPath, JSON.stringify(r), false);
-  return true;
-});
-ipcMain.handle('recovery:read', () => {
-  try { return JSON.parse(fs.readFileSync(recoveryPath, 'utf-8')); } catch { return null; }
-});
-ipcMain.handle('recovery:clear', () => {
-  try { fs.unlinkSync(recoveryPath); } catch {}
-  return true;
-});
+// ---- IPC: recovery copies of unsaved work (autosave), one file per project ----
+const recoveryDir = path.join(app.getPath('userData'), 'recovery');
+const legacyRecoveryPath = path.join(app.getPath('userData'), 'recovery.json');
+ipcMain.handle('recovery:write', (_evt, r) => projectFiles.writeRecovery(recoveryDir, r));
+ipcMain.handle('recovery:readAll', () => projectFiles.readRecoveries(recoveryDir, ensureProjectsFolder(), legacyRecoveryPath));
+ipcMain.handle('recovery:read', () => projectFiles.readRecoveries(recoveryDir, ensureProjectsFolder(), legacyRecoveryPath)[0] || null);
+ipcMain.handle('recovery:clear', (_evt, id) => (id ? projectFiles.clearRecovery(recoveryDir, id) : true));
 
 // ---- IPC: export a generated text file (e.g. OpenDSS script) ----
 ipcMain.handle('files:saveText', async (_evt, { defaultName, content, filterName, extensions }) => {

@@ -25,11 +25,13 @@ export function UnsavedDialog({ name, action, onSave, onDiscard, onCancel }: {
 }
 
 /** Save as / duplicate: the new project's name. */
-export function NameDialog({ title, note, initial, okLabel, onOk, onCancel }: {
+export function NameDialog({ title, note, initial, okLabel, taken, onOk, onCancel }: {
   title: string;
   note?: string;
   initial: string;
   okLabel: string;
+  /** Names of projects that already exist (to warn about a duplicate name). */
+  taken?: string[];
   onOk: (name: string) => void;
   onCancel: () => void;
 }) {
@@ -40,6 +42,7 @@ export function NameDialog({ title, note, initial, okLabel, onOk, onCancel }: {
         <h3>{title}</h3>
         {note && <p className="m">{note}</p>}
         <label>Project name<input autoFocus value={name} onFocus={(e) => e.target.select()} onChange={(e) => setName(e.target.value)} /></label>
+        {taken?.some((t) => t.trim().toLowerCase() === name.trim().toLowerCase()) && <p className="m" style={{ color: 'var(--warn, #e2a03f)' }}>A project with this name already exists. It is kept as a separate project, but different names are easier to tell apart.</p>}
         <div className="modal-actions">
           <span className="sp" />
           <button type="button" className="chip" onClick={onCancel}>Cancel</button>

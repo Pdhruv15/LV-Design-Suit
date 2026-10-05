@@ -1,5 +1,6 @@
 import type { Project, ProjectStatus } from '../types';
 import { currentRevision } from './revisions';
+import type { FileStamp, SaveOutcome } from './saveSafety';
 
 /** Saving and opening projects: JSON files in the projects folder in the
  * desktop app; in a plain browser (web version, preview) this browser's own
@@ -7,6 +8,9 @@ import { currentRevision } from './revisions';
 
 export interface ProjectMeta {
   file: string;
+  id?: string;
+  /** Looks like a sync tool's conflicted copy of this file. */
+  conflictOf?: string;
   name: string;
   updatedAt: number; // ms
   status?: ProjectStatus;
@@ -22,6 +26,7 @@ export interface ProjectMeta {
  * app's main process, which reads it from each file). */
 export const metaOf = (file: string, p: Project, updatedAt = Date.parse(p.updatedAt) || 0): ProjectMeta => ({
   file,
+  id: p.id,
   name: p.name,
   updatedAt,
   status: p.status,
@@ -52,28 +57,45 @@ export async function listProjects(): Promise<ProjectMeta[]> {
 }
 
 export async function loadProject(file: string): Promise<Project> {
+  return (await loadProjectStamped(file)).project;
+}
+
+/** The project and what its file was when read (desktop), to notice later changes made by someone else. */
+export async function loadProjectStamped(file: string): Promise<{ project: Project; stamp?: FileStamp | null }> {
   const b = bridge();
   if (b) {
-    const p = (await b.projects.load(file)) as Project & { _restoredFromBackup?: boolean };
+    const r = b.projects.read ? await b.projects.read(file) : { project: await b.projects.load(file), stamp: undefined };
+    const p = r.project as Project & { _restoredFromBackup?: boolean };
     if (p._restoredFromBackup) {
       delete p._restoredFromBackup;
       window.alert(`${file} was damaged (for example by a crash or a sync during saving). The last good version (${file}.bak) was opened instead — check it and save.`);
     }
-    return p;
+    return { project: p, stamp: r.stamp };
   }
   const s = localStorage.getItem(fileKey(file));
   if (!s) throw new Error(`${file} is not in this browser`);
-  return JSON.parse(s) as Project;
+  return { project: JSON.parse(s) as Project };
 }
 
-/** Saves to file (a new file named after the project when undefined). */
-export async function saveProjectFile(file: string | undefined, p: Project): Promise<string> {
+/** The file now (desktop); null when it is gone, undefined when it cannot be checked. */
+export async function statProject(file: string): Promise<FileStamp | null | undefined> {
   const b = bridge();
-  if (b) return (await b.projects.save(file, p)).file;
-  const f = file ?? `${slug(p.name)}-${Date.now()}.json`;
+  if (!b?.projects.stat) return undefined;
+  try { return await b.projects.stat(file); } catch { return undefined; }
+}
+
+/** Saves to file (a new file named after the project when undefined). With `expected` (what the file was when
+ * opened or last saved), a file someone else changed since is a conflict and is not overwritten, unless `force`. */
+export async function saveProjectFile(file: string | undefined, p: Project, opts: { expected?: FileStamp | null; force?: boolean } = {}): Promise<SaveOutcome> {
+  const b = bridge();
+  if (b) {
+    const r = await b.projects.save(file, p, opts.expected ?? undefined, opts.force);
+    return r.conflict ? { conflict: true, file: r.file, disk: r.disk } : { file: r.file, stamp: r.stamp };
+  }
+  const f = file ?? `${slug(p.name)}-${(p.id ?? String(Date.now())).replace(/[^a-z0-9]/gi, '').slice(0, 8)}.json`;
   localStorage.setItem(fileKey(f), JSON.stringify(p)); // throws when the browser's storage is full
   localStorage.setItem(INDEX, JSON.stringify([metaOf(f, p, Date.now()), ...readIndex().filter((m) => m.file !== f)]));
-  return f;
+  return { file: f };
 }
 
 export async function deleteProjectFile(file: string): Promise<void> {
@@ -86,41 +108,64 @@ export async function deleteProjectFile(file: string): Promise<void> {
 // ---- Recovery copy of unsaved work -----------------------------------------
 
 export interface Recovery {
+  projectId?: string; // one recovery copy per project (its id)
   file?: string; // the project's file, if it was ever saved
   at: number;
   project: Project;
+  /** The project's file was saved again after this copy was made (desktop). */
+  fileChangedSince?: boolean;
 }
 
-const RECOVERY = 'lvds.recovery';
+const RECOVERY = 'lvds.recovery'; // older: a single copy for whatever project autosaved last
+const RECOVERY_IDS = 'lvds.recovery.ids';
+const recoveryKey = (id: string) => `lvds.recovery.${id}`;
+const recoveryId = (r: Recovery) => r.projectId ?? r.project.id;
+const readIds = (): string[] => { try { return (JSON.parse(localStorage.getItem(RECOVERY_IDS) ?? '[]') as string[]).filter((x) => typeof x === 'string'); } catch { return []; } };
 
-/** In the desktop app a file in the app's own folder (no size limit); else
- * this browser's storage. */
+/** One recovery copy for each project (so one project's autosave never replaces another's): in the desktop
+ * app files in the app's own folder (no size limit); else this browser's storage. */
 export async function writeRecovery(r: Recovery): Promise<boolean> {
   try {
+    const id = recoveryId(r);
+    if (!id) return false;
     const b = bridge();
-    if (b?.recovery) await b.recovery.write(r);
-    else localStorage.setItem(RECOVERY, JSON.stringify(r));
+    if (b?.recovery) await b.recovery.write({ ...r, projectId: id });
+    else {
+      localStorage.setItem(recoveryKey(id), JSON.stringify({ ...r, projectId: id }));
+      if (!readIds().includes(id)) localStorage.setItem(RECOVERY_IDS, JSON.stringify([...readIds(), id]));
+    }
     return true;
   } catch {
     return false;
   }
 }
 
-export async function readRecovery(): Promise<Recovery | null> {
+const valid = (r: Recovery | null | undefined): r is Recovery => !!r && !!r.project && Array.isArray(r.project.boards);
+
+/** Every recovery copy, newest first. */
+export async function readRecoveries(): Promise<Recovery[]> {
   try {
     const b = bridge();
-    const r = b?.recovery ? await b.recovery.read() : (JSON.parse(localStorage.getItem(RECOVERY) ?? 'null') as Recovery | null);
-    return r && r.project && Array.isArray(r.project.boards) ? r : null;
+    if (b?.recovery) {
+      const all = b.recovery.readAll ? await b.recovery.readAll() : [await b.recovery.read()];
+      return all.filter(valid).sort((x, y) => y.at - x.at);
+    }
+    const legacy = JSON.parse(localStorage.getItem(RECOVERY) ?? 'null') as Recovery | null;
+    if (valid(legacy)) { await writeRecovery({ ...legacy, projectId: legacy.project.id ?? 'legacy-single' }); localStorage.removeItem(RECOVERY); }
+    return readIds().map((id) => { try { return JSON.parse(localStorage.getItem(recoveryKey(id)) ?? 'null') as Recovery | null; } catch { return null; } }).filter(valid).sort((x, y) => y.at - x.at);
   } catch {
-    return null;
+    return [];
   }
 }
 
-export async function clearRecovery(): Promise<void> {
+/** Forgets one project's recovery copy (after it is saved, restored or discarded). */
+export async function clearRecovery(projectId: string | undefined): Promise<void> {
+  if (!projectId) return;
   try {
     const b = bridge();
-    if (b?.recovery) await b.recovery.clear();
-    localStorage.removeItem(RECOVERY);
+    if (b?.recovery) await b.recovery.clear(projectId);
+    localStorage.removeItem(recoveryKey(projectId));
+    localStorage.setItem(RECOVERY_IDS, JSON.stringify(readIds().filter((x) => x !== projectId)));
   } catch { /* nothing to clear */ }
 }
 
