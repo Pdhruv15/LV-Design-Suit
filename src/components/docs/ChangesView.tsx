@@ -5,6 +5,7 @@ import { baselineOf } from '../../model/designBaseline';
 import { impactBetween, type DesignImpact } from '../../model/designImpact';
 import { Page } from '../ui';
 import ModificationsPanel from './ModificationsPanel';
+import BulkEditPanel from './BulkEditPanel';
 
 const f2 = (n: number) => (Math.round(n * 100) / 100).toLocaleString('en-US');
 const WHY = { changed: 'changed', upstream: 'fed by a changed panel', downstream: 'fed from a changed item' } as const;
@@ -75,6 +76,7 @@ export default function ChangesView({ project, me = '', onChange, onApply, onSta
   return (
     <Page title="Design changes" intro="What the working draft changes compared with its baseline, and what that touches: panels, the studies to run again, drawings and schedules, and BOQ design quantities. It shows no new results — it says what to run again.">
       <ModificationsPanel project={project} me={me} onChange={onChange} onApply={onApply} onStatus={onStatus} onGo={onGo} />
+      <BulkEditPanel project={project} me={me} onChange={onChange} onApply={onApply} onStatus={onStatus} onGo={onGo} />
       <h4 style={{ marginTop: 14 }}>Working draft against its baseline</h4>
       {!base || !impact ? (
         <p className="m">Nothing to compare yet: issue a revision first (Reports → Revisions). The baseline is the issued revision the draft is measured against.</p>
