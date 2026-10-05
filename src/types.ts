@@ -283,6 +283,8 @@ export interface Project {
   modifications?: import('./model/designChanges').ModificationRecord[];
   /** Design review comments (Reports → Review). */
   reviewComments?: import('./model/reviewComments').ReviewComment[];
+  /** Saved setup of the design review report (sections, names, recorded reviewer decision). */
+  reviewReport?: import('./docs/reviewReport').ReviewReportSetup;
   /** The issued revision this working draft is measured against (Revisions → Use as baseline). */
   baseline?: import('./model/designBaseline').DesignBaseline;
   /** Who it is for and by whom, what it covers and what is to be delivered (New project wizard). */
