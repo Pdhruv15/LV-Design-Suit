@@ -1217,3 +1217,6 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .markup-dot{width:16px;height:16px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0}
 .markup-dot.on{border-color:var(--fg,#fff);box-shadow:0 0 0 1px #000}
 .markup-row.on{background:color-mix(in srgb,var(--accent,#2f80ed) 18%,transparent)}
+.th-sort{display:inline-flex;align-items:center;gap:2px;color:inherit;font:inherit;text-transform:inherit}
+.projects-table tr.archived td{opacity:.6}
+.ptags{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}

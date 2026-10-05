@@ -20,7 +20,11 @@ declare global {
         stat?: (file: string) => Promise<import('./model/saveSafety').FileStamp | null>;
         /** With `expected` (what the file was when opened or last saved) a changed file is a conflict, not overwritten, unless `force`. */
         save: (file: string | undefined, data: import('./types').Project, expected?: import('./model/saveSafety').FileStamp, force?: boolean) => Promise<{ file: string; stamp?: import('./model/saveSafety').FileStamp | null; conflict?: boolean; disk?: import('./model/saveSafety').FileStamp | null }>;
+        /** Moves the project to the trash (kept 30 days). */
         delete: (file: string) => Promise<boolean>;
+        trashList?: () => Promise<import('./model/projectStore').TrashedProject[]>;
+        restore?: (trashFile: string) => Promise<string>;
+        emptyTrash?: () => Promise<number>;
         pick: () => Promise<{ file?: string; data?: unknown; from?: string } | null>;
       };
       /** Recovery copy of unsaved work (missing in older desktop builds). */

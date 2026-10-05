@@ -92,7 +92,9 @@ import DiscriminationPanel from './components/DiscriminationPanel';
 import { discriminationChain } from './calc/protection';
 import { pasteBoard } from './model/copyBoard';
 import { applyDefaults, applyProfile, initialsOf, loadPrefs, savePrefs, signature, type Preferences } from './model/profile';
-import { clearRecovery, deleteProjectFile, inDesktop, listProjects, loadProject, loadProjectStamped, readRecoveries, recentFiles, saveProjectFile, statProject, touchRecent, whenText, writeRecovery, type ProjectMeta, type Recovery } from './model/projectStore';
+import { clearRecovery, deleteProjectFile, inDesktop, listProjects, loadProject, emptyTrash, listTrash, loadProjectStamped, readRecoveries, recentFiles, restoreProject, saveProjectFile, statProject, touchRecent, whenText, writeRecovery, type ProjectMeta, type Recovery, type TrashedProject } from './model/projectStore';
+import { applyDetails, withArchived, type ProjectDetails } from './model/projectList';
+import ProjectDetailsDialog from './components/ProjectDetailsDialog';
 import { copyProject, isFutureSchema, migrateProject } from './model/projectMigrate';
 import { diffSections, projectFingerprint, type FileStamp } from './model/saveSafety';
 import { CompareDialog, ConflictDialog, ExternalChangeBar } from './components/SaveDialogs';
@@ -134,6 +136,8 @@ export default function App() {
   const [currentFile, setCurrentFile] = useState<string | undefined>(undefined);
   const [projectsFolder, setProjectsFolder] = useState<string>('');
   const [projectList, setProjectList] = useState<ProjectMeta[]>([]);
+  const [trashList, setTrashList] = useState<TrashedProject[]>([]);
+  const [detailsFor, setDetailsFor] = useState<{ file: string; project: Project } | null>(null);
   // Unsaved changes: the project differs from the one last saved or opened.
   const [saved, setSaved] = useState<Project | null>(project);
   // "Unsaved" means the content differs from what was saved — undoing back to the saved state is clean again.
@@ -446,6 +450,7 @@ export default function App() {
 
   function refreshList() {
     listProjects().then(setProjectList).catch(() => setProjectList([]));
+    listTrash().then(setTrashList).catch(() => setTrashList([]));
   }
 
   /** Saves the open project (Ctrl+S); with a name, as a new project file (Save as: its own project,
@@ -580,38 +585,64 @@ export default function App() {
 
   async function deleteFile(file: string) {
     const m = projectList.find((x) => x.file === file);
-    if (!window.confirm(`Delete the project “${m?.name ?? file}”? The file is removed from the projects folder.`)) return;
+    if (!window.confirm(`Delete the project “${m?.name ?? file}”? It moves to the trash and can be restored for 30 days.`)) return;
     try {
       await deleteProjectFile(file);
       setRecent(touchRecent(file, true));
       if (file === currentFile) { setCurrentFile(undefined); setSaved(null); } // still open, now unsaved
-      setStatus(`Deleted ${m?.name ?? file}`);
+      setStatus(`Moved ${m?.name ?? file} to the trash — Projects → Trash restores it for 30 days`);
     } catch (e) {
       setStatus(`Not deleted: ${e instanceof Error ? e.message : String(e)}`);
     }
     refreshList();
   }
 
-  async function setFileStatus(file: string, st: ProjectStatus) {
-    const changedOnDisk = () => setStatus('Status not saved — the file changed on disk. Open the project and save to review the differences.');
+  /** Changes some details of a project file — the open one through the app's own state (and save), another one by
+   * reading it fresh, changing it and saving with the changed-on-disk check. */
+  async function patchProjectFile(file: string, change: (p: Project) => Project, what: string) {
+    const changedOnDisk = () => setStatus(`${what} not saved — the file changed on disk. Open the project and save to review the differences.`);
     try {
       if (file === currentFile) {
-        const next = { ...project, status: st };
+        const next = change(project);
         setProject(next, { step: true });
-        if (dirty) { setStatus('Status changed — save the project to keep it'); return; }
+        if (dirty) { setStatus(`${what} changed — save the project to keep it`); return; }
         const out = await saveProjectFile(file, { ...next, updatedAt: new Date().toISOString(), updatedBy: prefs.profile.name || next.updatedBy }, { expected: fileStamp.current });
         if (out.conflict) { changedOnDisk(); return; }
         fileStamp.current = out.stamp;
         setSaved(next);
       } else {
         const { project: p, stamp } = await loadProjectStamped(file);
-        const out = await saveProjectFile(file, { ...p, status: st, updatedAt: new Date().toISOString(), updatedBy: prefs.profile.name || p.updatedBy }, { expected: stamp });
+        const out = await saveProjectFile(file, { ...change(p), updatedAt: new Date().toISOString(), updatedBy: prefs.profile.name || p.updatedBy }, { expected: stamp });
         if (out.conflict) { changedOnDisk(); return; }
       }
       refreshList();
     } catch (e) {
-      setStatus(`Status not saved: ${e instanceof Error ? e.message : String(e)}`);
+      setStatus(`${what} not saved: ${e instanceof Error ? e.message : String(e)}`);
     }
+  }
+
+  const setFileStatus = (file: string, st: ProjectStatus) => patchProjectFile(file, (p) => ({ ...p, status: st }), 'Status');
+  const archiveFile = (file: string, archived: boolean) => patchProjectFile(file, (p) => withArchived(p, archived), archived ? 'Archive' : 'Restore from archive');
+
+  async function openDetails(file: string) {
+    try {
+      const p = file === currentFile ? project : (await loadProjectStamped(file)).project;
+      setDetailsFor({ file, project: p });
+    } catch (e) { setStatus(`Could not open the details: ${e instanceof Error ? e.message : String(e)}`); }
+  }
+
+  async function restoreFromTrash(trashFile: string) {
+    try {
+      const file = await restoreProject(trashFile);
+      setStatus(`Restored ${file}`);
+    } catch (e) { setStatus(`Not restored: ${e instanceof Error ? e.message : String(e)}`); }
+    refreshList();
+  }
+
+  async function emptyTheTrash() {
+    if (!window.confirm(`Delete the ${trashList.length} project${trashList.length === 1 ? '' : 's'} in the trash for good? This cannot be undone.`)) return;
+    await emptyTrash();
+    refreshList();
   }
 
   function savePreferences(p: Preferences) {
@@ -1294,6 +1325,11 @@ export default function App() {
                 onPick={pickAndOpen}
                 onContinue={() => setView('dashboard')}
                 onCompare={compareFiles}
+                onDetails={openDetails}
+                onArchive={archiveFile}
+                trash={trashList}
+                onRestore={restoreFromTrash}
+                onEmptyTrash={emptyTheTrash}
                 onSample={() => guard('opening the sample', () => loadIntoApp(JSON.parse(JSON.stringify(sampleProject)), undefined, 'Sample project — explore freely; Save keeps your own copy'))}
               />
             )}
@@ -1410,6 +1446,10 @@ export default function App() {
           onOverwrite={() => { setConflict(null); void saveProject(undefined, true); }}
           onSaveCopy={() => { setConflict(null); saveAs(`${conflict.mine.name} (my changes)`); }}
           onLoadDisk={useDiskVersion} />
+      )}
+      {detailsFor && (
+        <ProjectDetailsDialog file={detailsFor.file} project={detailsFor.project} onCancel={() => setDetailsFor(null)}
+          onSave={(d: ProjectDetails) => { const f = detailsFor.file; setDetailsFor(null); void patchProjectFile(f, (p) => applyDetails(p, d), 'Details'); }} />
       )}
       {compare && <CompareDialog {...compare} onClose={() => setCompare(null)} />}
       {nameAsk && (

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { newProject } from '../types';
 import { sampleProject } from '../data/sampleProject';
 import { applyDefaults, applyProfile, defaultsFromProject, DEFAULT_PREFS, initialsOf, loadPrefs, savePrefs, signature, type Preferences } from './profile';
-import { clearRecovery, deleteProjectFile, listProjects, loadProject, metaOf, readRecoveries, recentFiles, saveProjectFile, touchRecent, whenText, writeRecovery } from './projectStore';
+import { clearRecovery, deleteProjectFile, emptyTrash, listProjects, listTrash, restoreProject, loadProject, metaOf, readRecoveries, recentFiles, saveProjectFile, touchRecent, whenText, writeRecovery } from './projectStore';
 import { titleBlockOf } from '../docs/sldSheet';
 
 // A small in-memory localStorage (the store falls back to it without the desktop app).
@@ -52,6 +52,35 @@ describe('profile and new project defaults', () => {
     expect(loadPrefs()).toEqual(DEFAULT_PREFS);
     expect(savePrefs(me)).toBe(true);
     expect(loadPrefs()).toEqual(me);
+  });
+});
+
+describe('trash (web version storage)', () => {
+  it('delete moves a project to the trash; restore brings it back, under a new name if the old one is taken', async () => {
+    const a = (await saveProjectFile(undefined, { ...sampleProject, id: 'aaaaaaaa1', name: 'Villa' })).file;
+    await deleteProjectFile(a);
+    expect(await listProjects()).toEqual([]);
+    const trash = await listTrash();
+    expect(trash).toMatchObject([{ file: a, name: 'Villa', daysLeft: 30 }]);
+    const b = (await saveProjectFile(a, { ...sampleProject, id: 'bbbbbbbb2', name: 'Other' })).file; // takes the old file name
+    const back = await restoreProject(trash[0].trashFile);
+    expect(back).not.toBe(b);
+    expect((await loadProject(back)).name).toBe('Villa');
+    expect((await loadProject(b)).name).toBe('Other');
+    expect(await listTrash()).toEqual([]);
+  });
+  it('forgets what has been in the trash more than 30 days, and can be emptied', async () => {
+    const f = (await saveProjectFile(undefined, { ...sampleProject, id: 'cccccccc3' })).file;
+    await deleteProjectFile(f);
+    const raw = JSON.parse(localStorage.getItem('lvds.trash')!);
+    raw[0].deletedAt = Date.now() - 31 * 86400000;
+    localStorage.setItem('lvds.trash', JSON.stringify(raw));
+    expect(await listTrash()).toEqual([]);
+    const g = (await saveProjectFile(undefined, { ...sampleProject, id: 'dddddddd4' })).file;
+    await deleteProjectFile(g);
+    expect(await listTrash()).toHaveLength(1);
+    await emptyTrash();
+    expect(await listTrash()).toEqual([]);
   });
 });
 

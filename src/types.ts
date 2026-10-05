@@ -273,6 +273,12 @@ export interface Project {
   /** File format version (src/model/projectMigrate.ts). Files from a newer app open read-only. */
   schemaVersion?: number;
   createdAt?: string;
+  /** Set when the project is archived (kept, hidden from the active list; cleared to restore). */
+  archivedAt?: string;
+  /** Free labels for finding projects (e.g. "villa", "DEWA", "2026"). */
+  tags?: string[];
+  /** Notes about the project as a whole (not a design value). */
+  notes?: string;
   /** Where this project was copied from (Save as / Duplicate). */
   origin?: { copiedFromId?: string; copiedFromName?: string; copiedAt: string; kind: 'save-as' | 'duplicate' };
   name: string;

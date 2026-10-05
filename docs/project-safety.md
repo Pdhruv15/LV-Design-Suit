@@ -37,3 +37,23 @@ Code: `src/model/projectMigrate.ts`, `src/model/saveSafety.ts`, `src/model/proje
 
 Not yet (later batches): checkpoints and portable backups, archive and trash, wizard,
 templates, received-document register.
+
+## Projects list: search, details, archive, trash (Batch B, part 1)
+
+- **Search and filters:** words must all appear in name, client, consultant, contractor, plot, area,
+  tags, engineer or file name. Filters: status, client, year of last save, tag, Active / Archived /
+  All. Every column sorts both ways.
+- **Details without opening the project:** pencil button — name, status, client, consultant,
+  contractor, plot, area, tags, notes. Saved with the same changed-on-disk check as a normal save;
+  everything else in the project is left as it was. Renaming does not rename the file (the list
+  shows the file name when they differ).
+- **Archive:** a flag (`archivedAt`), hidden from the active list and Recent, nothing moves or is
+  deleted; the same button brings it back.
+- **Delete moves to the trash** (`.trash/` in the projects folder on desktop, browser storage on
+  web). Kept 30 days, then removed for good; Restore brings it back (under a new name if the file
+  name is taken); "Empty trash now" removes it at once.
+- **Speed:** the desktop list re-reads a project file only when its modified time or size changed
+  (cache `projects-index.json` in the app's data folder).
+
+Code: `src/model/projectList.ts`, `src/components/ProjectsDashboard.tsx`,
+`src/components/ProjectDetailsDialog.tsx`, `electron/projectFiles.cjs`.
