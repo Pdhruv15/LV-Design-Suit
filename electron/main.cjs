@@ -136,35 +136,12 @@ ipcMain.handle('settings:chooseDatabaseFolder', async (_evt, reset) => {
 });
 
 // ---- IPC: projects (plain JSON files, one per project) ----
+const projectsIndexPath = path.join(app.getPath('userData'), 'projects-index.json');
+let trashPurged = false;
 ipcMain.handle('projects:list', () => {
   const folder = ensureProjectsFolder();
-  const files = fs.readdirSync(folder).filter((f) => f.endsWith('.json'));
-  const siblings = projectFiles.conflictSiblings(files);
-  return files
-    .map((f) => {
-      const full = path.join(folder, f);
-      const stat = fs.statSync(full);
-      const meta = { file: f, name: f.replace(/\.json$/, ''), updatedAt: stat.mtimeMs };
-      if (siblings[f]) meta.conflictOf = siblings[f];
-      try {
-        // What the projects dashboard shows (see metaOf in src/model/projectStore.ts).
-        const p = JSON.parse(fs.readFileSync(full, 'utf-8'));
-        const revs = Array.isArray(p.revisions) ? p.revisions : [];
-        Object.assign(meta, {
-          id: p.id,
-          name: p.name || meta.name,
-          status: p.status,
-          owner: p.info && p.info.owner,
-          plotNo: p.info && p.info.plotNo,
-          area: p.info && p.info.area,
-          revision: revs.length ? revs[revs.length - 1].id : undefined,
-          updatedBy: p.updatedBy,
-          boards: Array.isArray(p.boards) ? p.boards.length : undefined
-        });
-      } catch {}
-      return meta;
-    })
-    .sort((a, b) => b.updatedAt - a.updatedAt);
+  if (!trashPurged) { trashPurged = true; try { projectFiles.purgeTrash(folder); } catch {} } // once per run: what has been deleted for 30 days goes
+  return projectFiles.listProjectsMeta(folder, projectsIndexPath).list;
 });
 
 /** A project file inside the projects folder: a plain .json name, never a
@@ -234,10 +211,14 @@ ipcMain.handle('projects:pick', async () => {
   return { data, from: full };
 });
 
+/** Delete moves the project to the trash folder (kept 30 days, restorable). */
 ipcMain.handle('projects:delete', (_evt, file) => {
-  fs.unlinkSync(projectPath(ensureProjectsFolder(), file));
+  projectFiles.moveToTrash(ensureProjectsFolder(), path.basename(projectPath(ensureProjectsFolder(), file)));
   return true;
 });
+ipcMain.handle('projects:trashList', () => projectFiles.listTrash(ensureProjectsFolder()));
+ipcMain.handle('projects:restore', (_evt, trashFile) => projectFiles.restoreFromTrash(ensureProjectsFolder(), trashFile));
+ipcMain.handle('projects:emptyTrash', () => projectFiles.purgeTrash(ensureProjectsFolder(), 0));
 
 // ---- IPC: recovery copies of unsaved work (autosave), one file per project ----
 const recoveryDir = path.join(app.getPath('userData'), 'recovery');

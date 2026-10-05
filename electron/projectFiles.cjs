@@ -114,4 +114,115 @@ function readRecoveries(dir, projectsFolder, legacyFile) {
   return list.sort((a, b) => b.at - a.at);
 }
 
-module.exports = { sha, stampOf, decideSave, writeFileSafe, uniqueFileName, conflictSiblings, writeRecovery, clearRecovery, readRecoveries, recoveryFile };
+// ---- The projects list (what the dashboard shows), with a cache --------------
+
+/** What the dashboard shows about a project file. Keep in step with metaOf in src/model/projectStore.ts
+ * (a test compares them). */
+function metaFromProject(file, p, updatedAt) {
+  const revs = Array.isArray(p.revisions) ? p.revisions : [];
+  return {
+    file,
+    id: p.id,
+    name: p.name || file.replace(/\.json$/i, ''),
+    updatedAt,
+    status: p.status,
+    owner: p.info && p.info.owner,
+    consultant: p.info && p.info.consultant,
+    contractor: p.info && p.info.contractor,
+    plotNo: p.info && p.info.plotNo,
+    area: p.info && p.info.area,
+    revision: revs.length ? revs[revs.length - 1].id : undefined,
+    updatedBy: p.updatedBy,
+    boards: Array.isArray(p.boards) ? p.boards.length : undefined,
+    createdAt: p.createdAt,
+    archivedAt: p.archivedAt,
+    tags: Array.isArray(p.tags) && p.tags.length ? p.tags : undefined
+  };
+}
+
+/** The list of project files with their details. Each file is read and parsed only when its modified time or
+ * size changed since the cache (a JSON file next to the app's data) was written, so a long list of large
+ * projects opens quickly. Returns { list, parsed } (parsed = how many files were actually read). */
+function listProjectsMeta(folder, cachePath) {
+  let cache = {};
+  try { cache = JSON.parse(fs.readFileSync(cachePath, 'utf-8')); } catch {}
+  const files = fs.readdirSync(folder).filter((f) => f.endsWith('.json'));
+  const next = {};
+  let parsed = 0;
+  const list = files.map((f) => {
+    const st = fs.statSync(path.join(folder, f));
+    const c = cache[f];
+    if (c && c.mtimeMs === st.mtimeMs && c.size === st.size) { next[f] = c; return { ...c.meta, updatedAt: st.mtimeMs }; }
+    let meta = { file: f, name: f.replace(/\.json$/i, ''), updatedAt: st.mtimeMs };
+    try { meta = metaFromProject(f, JSON.parse(fs.readFileSync(path.join(folder, f), 'utf-8')), st.mtimeMs); parsed++; } catch {}
+    next[f] = { mtimeMs: st.mtimeMs, size: st.size, meta };
+    return { ...meta };
+  });
+  const siblings = conflictSiblings(files);
+  for (const m of list) if (siblings[m.file]) m.conflictOf = siblings[m.file];
+  try {
+    if (JSON.stringify(Object.keys(next).sort()) !== JSON.stringify(Object.keys(cache).sort()) || parsed) fs.writeFileSync(cachePath, JSON.stringify(next));
+  } catch {}
+  return { list: list.sort((a, b) => b.updatedAt - a.updatedAt), parsed };
+}
+
+// ---- Trash: a deleted project stays recoverable for a while -------------------
+
+const TRASH = '.trash';
+const TRASH_DAYS = 30;
+const trashDir = (folder) => path.join(folder, TRASH);
+const trashName = (file, at) => `${at}__${file}`;
+const splitTrashName = (name) => { const m = name.match(/^(\d+)__(.+)$/); return m ? { deletedAt: Number(m[1]), file: m[2] } : null; };
+
+/** Moves a project file (and its .bak) to the trash folder. */
+function moveToTrash(folder, file, now = Date.now()) {
+  const dir = trashDir(folder);
+  fs.mkdirSync(dir, { recursive: true });
+  const name = trashName(file, now);
+  fs.renameSync(path.join(folder, file), path.join(dir, name));
+  try { fs.renameSync(path.join(folder, `${file}.bak`), path.join(dir, `${name}.bak`)); } catch {}
+  return name;
+}
+
+/** Deleted projects, newest first, with their name and when they will be removed for good. */
+function listTrash(folder, now = Date.now()) {
+  let names = [];
+  try { names = fs.readdirSync(trashDir(folder)).filter((f) => f.endsWith('.json')); } catch { return []; }
+  const out = [];
+  for (const n of names) {
+    const parts = splitTrashName(n);
+    if (!parts) continue;
+    let name = parts.file.replace(/\.json$/i, ''), id;
+    try { const p = JSON.parse(fs.readFileSync(path.join(trashDir(folder), n), 'utf-8')); if (p.name) name = p.name; id = p.id; } catch {}
+    out.push({ trashFile: n, file: parts.file, name, id, deletedAt: parts.deletedAt, daysLeft: Math.max(0, Math.ceil(TRASH_DAYS - (now - parts.deletedAt) / 86400000)) });
+  }
+  return out.sort((a, b) => b.deletedAt - a.deletedAt);
+}
+
+/** Puts a deleted project back in the projects folder (under a new name if the old one is taken). */
+function restoreFromTrash(folder, trashFile) {
+  const parts = splitTrashName(path.basename(trashFile));
+  if (!parts) throw new Error(`Not a deleted project: ${trashFile}`);
+  const src = path.join(trashDir(folder), path.basename(trashFile));
+  const file = fs.existsSync(path.join(folder, parts.file)) ? uniqueFileName(folder, parts.file.replace(/\.json$/i, '')) : parts.file;
+  fs.renameSync(src, path.join(folder, file));
+  try { fs.renameSync(`${src}.bak`, path.join(folder, `${file}.bak`)); } catch {}
+  return file;
+}
+
+/** Removes what has been in the trash longer than `days` (all of it when days is 0). Returns how many. */
+function purgeTrash(folder, days = TRASH_DAYS, now = Date.now()) {
+  let n = 0;
+  let names = [];
+  try { names = fs.readdirSync(trashDir(folder)); } catch { return 0; }
+  for (const f of names) {
+    const parts = splitTrashName(f.replace(/\.bak$/, ''));
+    if (!parts) continue;
+    if (days === 0 || now - parts.deletedAt > days * 86400000) {
+      try { fs.unlinkSync(path.join(trashDir(folder), f)); if (f.endsWith('.json')) n++; } catch {}
+    }
+  }
+  return n;
+}
+
+module.exports = { metaFromProject, listProjectsMeta, moveToTrash, listTrash, restoreFromTrash, purgeTrash, TRASH_DAYS, sha, stampOf, decideSave, writeFileSafe, uniqueFileName, conflictSiblings, writeRecovery, clearRecovery, readRecoveries, recoveryFile };

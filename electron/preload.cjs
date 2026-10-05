@@ -14,6 +14,9 @@ contextBridge.exposeInMainWorld('lvds', {
     stat: (file) => ipcRenderer.invoke('projects:stat', file),
     save: (file, data, expected, force) => ipcRenderer.invoke('projects:save', { file, data, expected, force }),
     delete: (file) => ipcRenderer.invoke('projects:delete', file),
+    trashList: () => ipcRenderer.invoke('projects:trashList'),
+    restore: (trashFile) => ipcRenderer.invoke('projects:restore', trashFile),
+    emptyTrash: () => ipcRenderer.invoke('projects:emptyTrash'),
     pick: () => ipcRenderer.invoke('projects:pick')
   },
   recovery: {

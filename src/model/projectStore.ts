@@ -15,11 +15,16 @@ export interface ProjectMeta {
   updatedAt: number; // ms
   status?: ProjectStatus;
   owner?: string;
+  consultant?: string;
+  contractor?: string;
   plotNo?: string;
   area?: string;
   revision?: string;
   updatedBy?: string;
   boards?: number;
+  createdAt?: string;
+  archivedAt?: string;
+  tags?: string[];
 }
 
 /** What the dashboard shows about a project (also written by the desktop
@@ -31,11 +36,16 @@ export const metaOf = (file: string, p: Project, updatedAt = Date.parse(p.update
   updatedAt,
   status: p.status,
   owner: p.info?.owner,
+  consultant: p.info?.consultant,
+  contractor: p.info?.contractor,
   plotNo: p.info?.plotNo,
   area: p.info?.area,
   revision: currentRevision(p)?.id,
   updatedBy: p.updatedBy,
-  boards: p.boards?.length
+  boards: p.boards?.length,
+  createdAt: p.createdAt,
+  archivedAt: p.archivedAt,
+  tags: p.tags?.length ? p.tags : undefined
 });
 
 const bridge = () => (typeof window !== 'undefined' && window.lvds ? window.lvds : undefined);
@@ -98,11 +108,62 @@ export async function saveProjectFile(file: string | undefined, p: Project, opts
   return { file: f };
 }
 
+/** Delete moves the project to the trash (kept 30 days; Restore brings it back). */
 export async function deleteProjectFile(file: string): Promise<void> {
   const b = bridge();
   if (b) { await b.projects.delete(file); return; }
+  const text = localStorage.getItem(fileKey(file));
+  if (text) {
+    const p = (() => { try { return JSON.parse(text) as Project; } catch { return undefined; } })();
+    writeTrash([{ trashFile: `${Date.now()}__${file}`, file, name: p?.name ?? file, id: p?.id, deletedAt: Date.now(), daysLeft: TRASH_DAYS, text }, ...readTrash()]);
+  }
   localStorage.removeItem(fileKey(file));
   localStorage.setItem(INDEX, JSON.stringify(readIndex().filter((m) => m.file !== file)));
+}
+
+// ---- Trash ---------------------------------------------------------------------
+
+export const TRASH_DAYS = 30;
+export interface TrashedProject { trashFile: string; file: string; name: string; id?: string; deletedAt: number; daysLeft: number }
+type WebTrashed = TrashedProject & { text: string };
+const TRASH = 'lvds.trash';
+const readTrash = (): WebTrashed[] => {
+  try {
+    const now = Date.now();
+    return (JSON.parse(localStorage.getItem(TRASH) ?? '[]') as WebTrashed[])
+      .filter((t) => now - t.deletedAt < TRASH_DAYS * 86400000)
+      .map((t) => ({ ...t, daysLeft: Math.max(0, Math.ceil(TRASH_DAYS - (now - t.deletedAt) / 86400000)) }));
+  } catch { return []; }
+};
+const writeTrash = (list: WebTrashed[]) => localStorage.setItem(TRASH, JSON.stringify(list));
+
+export async function listTrash(): Promise<TrashedProject[]> {
+  const b = bridge();
+  if (b) return b.projects.trashList ? b.projects.trashList() : [];
+  return readTrash().map(({ text: _t, ...t }) => t);
+}
+
+/** Puts a deleted project back; resolves to the file it is now saved as. */
+export async function restoreProject(trashFile: string): Promise<string> {
+  const b = bridge();
+  if (b) { if (!b.projects.restore) throw new Error('Restore needs the latest desktop app'); return b.projects.restore(trashFile); }
+  const t = readTrash().find((x) => x.trashFile === trashFile);
+  if (!t) throw new Error('That project is no longer in the trash');
+  const taken = new Set(readIndex().map((m) => m.file));
+  let file = t.file, n = 2;
+  while (taken.has(file)) file = `${t.file.replace(/\.json$/i, '')}-${n++}.json`;
+  const p = JSON.parse(t.text) as Project;
+  localStorage.setItem(fileKey(file), t.text);
+  localStorage.setItem(INDEX, JSON.stringify([metaOf(file, p, Date.now()), ...readIndex()]));
+  writeTrash(readTrash().filter((x) => x.trashFile !== trashFile));
+  return file;
+}
+
+/** Deletes everything in the trash for good. */
+export async function emptyTrash(): Promise<void> {
+  const b = bridge();
+  if (b) { await b.projects.emptyTrash?.(); return; }
+  localStorage.removeItem(TRASH);
 }
 
 // ---- Recovery copy of unsaved work -----------------------------------------
