@@ -1211,3 +1211,8 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .ls-panels{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0}
 .ls-panels .chip.on{border-color:var(--acc);color:var(--acc)}
 .ls-panels .ls-form{margin-left:auto}
+.markup-bar{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:4px 8px;border-bottom:1px solid var(--line)}
+.markup-colors{display:inline-flex;gap:4px;margin:0 4px}
+.markup-dot{width:16px;height:16px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0}
+.markup-dot.on{border-color:var(--fg,#fff);box-shadow:0 0 0 1px #000}
+.markup-row.on{background:color-mix(in srgb,var(--accent,#2f80ed) 18%,transparent)}

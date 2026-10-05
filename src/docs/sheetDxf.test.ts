@@ -77,6 +77,16 @@ describe('complete paper-sized DXF sheets', () => {
     expect(pages.map((p) => textOf(p.data, 'E-NOTES')).join(' ')).toContain('Keep every note visible.');
   });
 
+  it('draws the sheet markups on top, on their own layers, within the paper', () => {
+    const markups = [{ id: 'c', kind: 'cloud' as const, x: 30, y: 40, w: 80, h: 50, rev: 'A' }, { id: 't', kind: 'text' as const, x: 40, y: 120, text: 'CHECK SMDB-1 RATING', color: 'blue' as const }];
+    const pages = buildSheetDxfPages(dxfExportProject, svg, 'A3', { ...info, markups });
+    expectPaperBounds(pages[0].data, 420, 297);
+    expect(textOf(pages[0].data, 'E-MARKUP-BLUE')).toContain('CHECK SMDB-1 RATING');
+    expect(textOf(pages[0].data, 'E-MARKUP')).toContain('A');
+    expect(pages[0].data).toContain('E-MARKUP-BLUE');
+    expect(textOf(buildSheetDxfPages(dxfExportProject, svg, 'A3', info)[0].data, 'E-MARKUP-BLUE')).toBe('');
+  });
+
   it('wraps long titles and revision descriptions without drawing beyond their cells', () => {
     const title = 'Electrical distribution drawing for the complete office refurbishment and plant extension';
     const description = `Description start ${'Check coordination and feeder connections. '.repeat(25)}Description end`;
