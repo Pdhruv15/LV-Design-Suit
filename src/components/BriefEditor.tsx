@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import type { DefaultRow } from '../model/setupPreview';
 import {
-  deliverableCatalog, newBrief, PARTY_LABEL, ROLE_LABEL, SCOPE_ITEMS, withRole, withScope,
+  deliverableCatalog, newBrief, PARTY_LABEL, resetToRole, ROLE_LABEL, SCOPE_ITEMS, withRole, withScope,
   type Deliverable, type Party, type ProjectBrief, type ProjectRole, type ScopeId
 } from '../model/brief';
 
@@ -98,8 +99,12 @@ const STEPS = ['Name and role', 'Parties', 'Scope', 'Deliverables', 'Review'];
 
 /** New project: name and role, parties, scope, deliverables, then create. Quick create makes the project from
  * the name alone, as before (no brief). */
-export function NewProjectWizard({ initialName, company, taken, onQuick, onCreate, onCancel }: {
+export function NewProjectWizard({ initialName, company, taken, defaults = [], storage, onChooseFolder, onQuick, onCreate, onCancel }: {
   initialName: string; company?: string; taken?: string[];
+  /** What the project will start with, and where each value comes from. */
+  defaults?: DefaultRow[];
+  /** Where it will be saved (the projects folder, or this browser), with a way to change the folder on the desktop. */
+  storage?: string; onChooseFolder?: () => void;
   onQuick: (name: string) => void; onCreate: (name: string, brief: ProjectBrief) => void; onCancel: () => void;
 }) {
   const [step, setStep] = useState(0);
@@ -135,7 +140,16 @@ export function NewProjectWizard({ initialName, company, taken, onQuick, onCreat
               <p>{brief.parties.filter((p) => p.role !== 'authority' && p.name.trim()).map((p) => `${PARTY_LABEL[p.role]}: ${p.name}`).join(' · ') || <span className="m">No parties entered yet — you can add them in Project settings.</span>}</p>
               <p><b>Scope:</b> {brief.scope.map((s) => SCOPE_ITEMS.find((x) => x.id === s)?.label).join(', ') || 'nothing selected'}</p>
               <p><b>Deliverables ({brief.deliverables.length}):</b> {brief.deliverables.map((d) => d.title).join(' · ') || '—'}</p>
-              <p className="m">Your design defaults and profile details are applied as usual. You can change all of this later from the project's Overview.</p>
+              {defaults.length > 0 && (
+                <>
+                  <p style={{ marginTop: 10 }}><b>The project will start with</b> <span className="m">— change these in Profile &amp; preferences, or the company database</span></p>
+                  <table className="projects-table">
+                    <tbody>{defaults.map((d) => <tr key={d.label}><td>{d.label}</td><td>{d.value}</td><td className="m">{d.source}</td></tr>)}</tbody>
+                  </table>
+                </>
+              )}
+              {storage && <p style={{ marginTop: 10 }}><b>Saved in:</b> {storage} {onChooseFolder && <button type="button" className="linkish" onClick={onChooseFolder}>Change folder…</button>} <span className="m">— it is saved the first time you press Save.</span></p>}
+              <p className="m">You can change all of this later from the project's Overview and Project settings.</p>
             </div>
           )}
         </div>
@@ -162,10 +176,11 @@ export function BriefDialog({ initial, company, onSave, onCancel }: { initial?: 
       <form className="modal" style={{ maxWidth: 680 }} onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); onSave(brief); }}>
         <h3>Scope, parties and deliverables</h3>
         <label>Your side of the job
-          <select value={brief.role} onChange={(e) => setBrief(withRole(brief, e.target.value as ProjectRole, company))} title="Changing it suggests that role's scope and deliverables; the parties are kept">
+          <select value={brief.role} onChange={(e) => setBrief(withRole(brief, e.target.value as ProjectRole, company))} title="Your scope, your own, dated and delivered deliverables and the parties are kept; suggestions you never touched change to the new role's">
             {(Object.keys(ROLE_LABEL) as ProjectRole[]).map((r) => <option key={r} value={r}>{ROLE_LABEL[r].title}</option>)}
           </select>
         </label>
+        <p className="m">Changing the role keeps what you set. <button type="button" className="linkish" onClick={() => { if (window.confirm('Replace the scope and deliverables with this role’s suggestions? Your own deliverables, dates and ticks are lost. The parties are kept.')) setBrief(resetToRole(brief, brief.role, company)); }}>Reset scope and deliverables to the suggestions…</button></p>
         <div className="tabs feeder-tabs" role="tablist">
           {([['scope', 'Scope'], ['parties', 'Parties'], ['deliverables', 'Deliverables']] as const).map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}
         </div>

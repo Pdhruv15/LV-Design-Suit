@@ -97,6 +97,7 @@ import { applyDetails, withArchived, type ProjectDetails } from './model/project
 import ProjectDetailsDialog from './components/ProjectDetailsDialog';
 import { BriefDialog, NewProjectWizard } from './components/BriefEditor';
 import { applyBrief, type ProjectBrief } from './model/brief';
+import { defaultsPreview } from './model/setupPreview';
 import { copyProject, isFutureSchema, migrateProject } from './model/projectMigrate';
 import { diffSections, projectFingerprint, type FileStamp } from './model/saveSafety';
 import { CompareDialog, ConflictDialog, ExternalChangeBar } from './components/SaveDialogs';
@@ -1453,6 +1454,7 @@ export default function App() {
       )}
       {wizard && (
         <NewProjectWizard initialName="Untitled project" company={prefs.profile.company} taken={projectList.map((m) => m.name)}
+          defaults={defaultsPreview(db, prefs)} storage={hasBridge ? projectsFolder || 'the projects folder' : 'this browser (use Download file to keep a copy)'} onChooseFolder={hasBridge ? chooseFolder : undefined}
           onCancel={() => setWizard(false)} onQuick={(n) => createProject(n)} onCreate={createProject} />
       )}
       {briefDialog && (

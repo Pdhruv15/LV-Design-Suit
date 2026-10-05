@@ -81,4 +81,18 @@ before (no brief).
 - **Copying:** Save as keeps the brief and its progress; Duplicate keeps the brief but clears
   delivered ticks and dates.
 
-Not yet: setup templates and the received-document register (Batch C).
+**Changing the role keeps your work** (`withRole`): the scope you chose, deliverables you added, dated or
+ticked, and the parties stay; suggestions you never touched change to the new role's. Before any edits
+it takes the new role's defaults. "Reset scope and deliverables to the suggestions…" (`resetToRole`) is
+the explicit way to start over.
+
+**Readiness follows the scope for findings too:** the To do list and "Resolve issues" count only
+findings from systems in the scope (a UPS failure no longer blocks a job that excludes UPS). The
+excluded ones stay listed under "Outside this project's scope (n)" and reachable. Which screen belongs
+to which scope item is `VIEW_SCOPE` in `src/model/brief.ts`.
+
+**Wizard review step** shows what the project will start with and where each value comes from
+(built-in, company database, your profile; `src/model/setupPreview.ts`) and where it will be saved
+(with Change folder… on the desktop).
+
+Not yet: setup templates (template selection in the wizard) and the received-document register (Batch C).

@@ -5,7 +5,7 @@ import { buildDashboard, lengthText, sizesText, type DashBar, type TodoItem } fr
 import { buildDashboardHtml } from '../../docs/dashboardPdf';
 import { safeFileName, savePdf } from '../../util/files';
 import { Page } from '../ui';
-import { projectReadiness } from '../../calc/projectReadiness';
+import { projectReadiness, splitTodo } from '../../calc/projectReadiness';
 import { deliverableProgress, PARTY_LABEL, ROLE_LABEL, SCOPE_ITEMS } from '../../model/brief';
 
 import type { MainView } from '../../views';
@@ -64,6 +64,7 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
   const checks = d.studies.reduce((a, s) => a + s.check, 0);
   const passes = d.studies.reduce((a, s) => a + s.pass, 0);
   const stages = projectReadiness(project, d, run, stale, saved);
+  const { counted: todoCounted, outside: todoOutside } = splitTodo(project, d.todo);
   const counted = stages.filter(s => s.applicable);
   const nextStage = counted.find(s => !s.done);
   const brief = project.brief;
@@ -145,7 +146,7 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
           sub={d.generatorLoadingPct !== undefined ? <>{f0(d.generatorLoadingPct)} % loaded</> : 'Standby: on a board with an ATS'} onClick={() => onGo({ view: 'sizing' })} />
         <Tile label="Studies" value={run ? (d.stale.length ? 'Out of date' : fails ? `${fails} fail` : checks ? `${checks} to check` : 'All pass') : 'Not run'}
           sub={run ? <>{passes} pass · {checks} check · {fails} fail{stale.length ? ' · out of date' : ''}</> : 'Press Run (F5)'} onClick={stale.length || !run ? onRun : () => onGo({ view: 'report' })} />
-        <Tile label="Outstanding" value={d.todo.length ? `${d.todo.filter((t) => t.status === 'bad').length} to fix · ${d.todo.filter((t) => t.status !== 'bad').length} to check` : 'Nothing'} sub={d.todo[0]?.text ?? 'All clear'} onClick={() => document.getElementById('dash-todo')?.scrollIntoView({ behavior: 'smooth' })} />
+        <Tile label="Outstanding" value={todoCounted.length ? `${todoCounted.filter((t) => t.status === 'bad').length} to fix · ${todoCounted.filter((t) => t.status !== 'bad').length} to check` : 'Nothing'} sub={todoCounted[0]?.text ?? (todoOutside.length ? `All clear · ${todoOutside.length} outside the scope` : 'All clear')} onClick={() => document.getElementById('dash-todo')?.scrollIntoView({ behavior: 'smooth' })} />
       </div>
 
       <div className="dash-tiles more">
@@ -185,17 +186,30 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
           <Bars bars={d.perArea.bars} empty="Add levels and rooms in Building information to see the load per level." />
         </section>
         <section className="card">
-          <h4 id="dash-todo">To do <span className="m">({d.todo.length})</span></h4>
-          {!d.todo.length ? <p className="ok">✓ Nothing outstanding.</p> : (
+          <h4 id="dash-todo">To do <span className="m">({todoCounted.length})</span></h4>
+          {!todoCounted.length ? <p className="ok">✓ Nothing outstanding{todoOutside.length ? ' in this project’s scope' : ''}.</p> : (
             <ul className="dash-todo">
-              {d.todo.slice(0, 14).map((t, k) => (
+              {todoCounted.slice(0, 14).map((t, k) => (
                 <li key={k}>
                   <span className={`dash-todo-mark ${t.status}`}>{t.status === 'bad' ? '✕ Fix' : '⚠ Check'}</span>
                   {t.go ? <button className="linkish" onClick={() => onGo(t.go!)}>{t.text}</button> : <span>{t.text}</span>}
                 </li>
               ))}
-              {d.todo.length > 14 && <li className="m">+ {d.todo.length - 14} more</li>}
+              {todoCounted.length > 14 && <li className="m">+ {todoCounted.length - 14} more</li>}
             </ul>
+          )}
+          {todoOutside.length > 0 && (
+            <details className="dash-outside">
+              <summary>Outside this project’s scope ({todoOutside.length}) <span className="m">— not counted in readiness</span></summary>
+              <ul className="dash-todo">
+                {todoOutside.map((t, k) => (
+                  <li key={k}>
+                    <span className={`dash-todo-mark ${t.status}`}>{t.status === 'bad' ? '✕ Fix' : '⚠ Check'}</span>
+                    {t.go ? <button className="linkish" onClick={() => onGo(t.go!)}>{t.text}</button> : <span>{t.text}</span>}
+                  </li>
+                ))}
+              </ul>
+            </details>
           )}
         </section>
       </div>
