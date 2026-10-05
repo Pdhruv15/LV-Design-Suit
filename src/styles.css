@@ -1225,3 +1225,4 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .brief-scope{display:grid;gap:6px}
 .brief-party{border:1px solid var(--line);border-radius:6px;margin:8px 0;padding:6px 10px}
 .brief-review p{margin:6px 0}
+.rev-classes{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:6px 0}
