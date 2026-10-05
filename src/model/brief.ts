@@ -1,4 +1,5 @@
 import type { Project } from '../types';
+import type { MainView } from '../views';
 
 /** The project brief: who the work is for and by whom, what it covers, and what is to be delivered.
  * Set in the New project wizard (or later from the Overview). A project without a brief (older files,
@@ -92,18 +93,34 @@ const isCustom = (d: Deliverable) => d.id.startsWith('custom-');
 export function withScope(b: ProjectBrief, scope: ScopeId[]): ProjectBrief {
   const wanted = deliverableCatalog(b.role, scope, b.authority);
   const have = new Map(b.deliverables.map((d) => [d.id, d]));
-  const kept = b.deliverables.filter((d) => isCustom(d) || d.done || wanted.some((w) => w.id === d.id));
+  const kept = b.deliverables.filter((d) => isCustom(d) || d.done || d.targetDate || wanted.some((w) => w.id === d.id));
   const added = wanted.filter((w) => !have.has(w.id));
   const order = new Map(wanted.map((w, i) => [w.id, i]));
   const merged = [...kept, ...added].sort((x, y) => (isCustom(x) ? 1e6 : order.get(x.id) ?? 1e5) - (isCustom(y) ? 1e6 : order.get(y.id) ?? 1e5));
   return { ...b, scope, deliverables: merged };
 }
 
-/** Changing the role starts from that role's scope and deliverables but keeps the parties' details. */
-export function withRole(b: ProjectBrief, role: ProjectRole, company?: string): ProjectBrief {
-  if (b.role === role) return b;
+/** The user has not changed the suggestions: the role's default scope and only suggested, undated, undelivered deliverables. */
+const untouched = (b: ProjectBrief): boolean =>
+  b.scope.length === defaultScope(b.role).length && defaultScope(b.role).every((s) => b.scope.includes(s)) && b.deliverables.every((d) => !isCustom(d) && !d.done && !d.targetDate);
+
+/** Starts again from a role's suggested scope and deliverables (an explicit reset). The parties and authority are kept. */
+export function resetToRole(b: ProjectBrief, role: ProjectRole, company?: string): ProjectBrief {
   const fresh = newBrief(role, { authority: b.authority, company });
   return { ...fresh, parties: fresh.parties.map((p) => ({ ...(b.parties.find((x) => x.role === p.role) ?? p), ...(p.name && !b.parties.find((x) => x.role === p.role)?.name ? { name: p.name } : {}) })) };
+}
+
+/** Changes the role without losing work: the scope you chose, the deliverables you added, dated or ticked, and the
+ * parties stay. Suggested deliverables you never touched are replaced by the new role's suggestions. Before any
+ * edits (still the first role's defaults) it simply takes the new role's defaults. Use `resetToRole` to start over. */
+export function withRole(b: ProjectBrief, role: ProjectRole, company?: string): ProjectBrief {
+  if (b.role === role) return b;
+  if (untouched(b)) return resetToRole(b, role, company);
+  const mine = (d: Deliverable) => isCustom(d) || d.done || !!d.targetDate;
+  const parties = b.parties.map((p) => (p.role === role && !p.name.trim() && company ? { ...p, name: company } : p));
+  const next = withScope({ ...b, role, deliverables: b.deliverables.filter(mine) }, b.scope);
+  const { boqType: _old, ...rest } = next;
+  return { ...rest, parties, ...(role === 'contractor' ? { boqType: b.boqType ?? 'new-installation' as const } : {}) };
 }
 
 /** Whether a part of the app is in this project's scope (everything is, without a brief). */
@@ -127,4 +144,17 @@ export function applyBrief(p: Project, b: ProjectBrief): Project {
   const next: Project = { ...p, brief: b, info };
   if (b.role === 'contractor' && b.scope.includes('boq') && b.boqType) next.boq = { ...p.boq, projectType: b.boqType };
   return next;
+}
+
+/** Which parts of the scope a screen (and the findings that lead to it) belong to; a screen not listed always counts. */
+const VIEW_SCOPE: Partial<Record<MainView, ScopeId[]>> = {
+  ups: ['ups'], solar: ['solar'], pfc: ['pfc'], earthing: ['earthing', 'studies'], 'earth-schematic': ['earthing'], 'cable-tray': ['containment'], boq: ['boq'],
+  'load-schedule': ['loads'], 'db-schedule': ['loads'], drawings: ['sld', 'earthing'], busbar: ['sld'],
+  selection: ['studies', 'sld'], coordination: ['studies', 'sld'], sizing: ['studies', 'sld'], 'voltage-drop': ['studies', 'sld'], report: ['studies'], engines: ['studies']
+};
+
+/** Whether findings that lead to this screen count for the project's scope (always, without a brief). */
+export function viewInScope(p: Pick<Project, 'brief'>, view: MainView | undefined): boolean {
+  const ids = view && VIEW_SCOPE[view];
+  return !ids || ids.some((id) => inScope(p, id));
 }
