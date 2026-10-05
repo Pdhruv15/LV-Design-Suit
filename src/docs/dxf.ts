@@ -29,6 +29,10 @@ export const dxfText = (s: string) =>
     .replace(/[≥]/g, '>=').replace(/[≤]/g, '<=').replace(/[\r\n]+/g, ' ').replace(/[^\x20-\x7e]/g, '');
 
 const positiveWidth = (width?: number) => typeof width === 'number' && Number.isFinite(width) && width > 0 ? width : 0;
+// Roman Duplex provides stronger lettering than the thin fallback font. The
+// style name must match the font basename: LibreCAD resolves TEXT's style
+// name as its font, while AutoCAD resolves the STYLE table's SHX filename.
+const TEXT_STYLE = 'ROMAND';
 type DxfTextPrimitive = Extract<DxfPrimitive, { type: 'text' }>;
 type DxfStrokePrimitive = Extract<DxfPrimitive, { type: 'line' | 'polyline' }>;
 type Point = [number, number];
@@ -141,8 +145,11 @@ export function toDxf(items: DxfPrimitive[], layerColours: Record<string, number
   g(0, 'TABLE'); g(2, 'LAYER'); g(70, layers.length);
   for (const l of layers) { g(0, 'LAYER'); g(2, l); g(70, 0); g(62, layerColours[l] ?? 7); g(6, 'CONTINUOUS'); }
   g(0, 'ENDTAB');
-  g(0, 'TABLE'); g(2, 'STYLE'); g(70, 1);
-  g(0, 'STYLE'); g(2, 'STANDARD'); g(70, 0); g(40, 0); g(41, 1); g(50, 0); g(71, 0); g(42, 2.5); g(3, 'txt.shx'); g(4, '');
+  const textStyles = [['STANDARD', 'txt.shx'], [TEXT_STYLE, 'romand.shx']];
+  g(0, 'TABLE'); g(2, 'STYLE'); g(70, textStyles.length);
+  for (const [name, font] of textStyles) {
+    g(0, 'STYLE'); g(2, name); g(70, 0); g(40, 0); g(41, 1); g(50, 0); g(71, 0); g(42, 2.5); g(3, font); g(4, '');
+  }
   g(0, 'ENDTAB');
   g(0, 'ENDSEC');
 
@@ -177,7 +184,7 @@ export function toDxf(items: DxfPrimitive[], layerColours: Record<string, number
       const text = dxfText(i.text);
       if (!text.trim()) continue;
       const fit = positiveWidth(i.width) ? fittedBaseline(i) : undefined;
-      g(0, 'TEXT'); g(8, i.layer); g(7, 'STANDARD'); g(10, fit?.start[0] ?? i.x); g(20, fit?.start[1] ?? i.y); g(30, 0); g(40, i.height); g(1, text);
+      g(0, 'TEXT'); g(8, i.layer); g(7, TEXT_STYLE); g(10, fit?.start[0] ?? i.x); g(20, fit?.start[1] ?? i.y); g(30, 0); g(40, i.height); g(1, text);
       if (i.rotation) g(50, i.rotation);
       const h = i.align === 'center' ? 1 : i.align === 'right' ? 2 : 0;
       if (fit) { g(72, 5); g(73, 0); g(11, fit.end[0]); g(21, fit.end[1]); g(31, 0); }

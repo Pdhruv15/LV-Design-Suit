@@ -33,19 +33,35 @@ const extents = (dxf: string, name: '$EXTMIN' | '$EXTMAX') => {
 };
 
 describe('R12 DXF geometry and text widths', () => {
-  it('defines the standard SHX font and keeps the R12 format', () => {
-    const dxf = toDxf([{ type: 'text', layer: 'TEXT', x: 0, y: 0, height: 4, text: 'MDB' }]);
+  it('uses an editable Roman Duplex style that resolves in LibreCAD and SHX readers', () => {
+    const dxf = toDxf([
+      { type: 'text', layer: 'TEXT', x: 0, y: 0, height: 4, text: 'MDB' },
+      { type: 'text', layer: 'TITLE', x: 50, y: 10, height: 2, text: 'Local lighting', width: 20, align: 'right' }
+    ]);
     const input = tags(dxf);
     const version = input.findIndex((tag) => tag.value === '$ACADVER');
     expect(input[version + 1]).toEqual({ code: 1, value: 'AC1009' });
-    const style = records(dxf, 'TABLES').find((record) => value(record, 0) === 'STYLE');
-    expect(style).toBeDefined();
-    expect(value(style!, 2)).toBe('STANDARD');
-    expect(value(style!, 3)).toBe('txt.shx');
+    const tables = records(dxf, 'TABLES');
+    const styleTable = tables.find((record) => value(record, 0) === 'TABLE' && value(record, 2) === 'STYLE');
+    expect(number(styleTable!, 70)).toBe(2);
+    const styles = tables.filter((record) => value(record, 0) === 'STYLE');
+    expect(styles).toHaveLength(2);
+    const standard = styles.find((record) => value(record, 2) === 'STANDARD');
+    expect(value(standard!, 3)).toBe('txt.shx');
+    const style = styles.find((record) => value(record, 2) === 'ROMAND');
+    expect(value(style!, 3)).toBe('romand.shx');
+    // LibreCAD uses the style name as the font name rather than reading its
+    // font-file tag. Both must identify the same bundled CAD font.
+    expect(value(style!, 2)?.toLowerCase()).toBe(value(style!, 3)?.replace(/\.shx$/, ''));
     expect(number(style!, 40)).toBe(0); // variable text height
     expect(number(style!, 41)).toBe(1);
-    const text = records(dxf, 'ENTITIES')[0];
-    expect(value(text, 7)).toBe('STANDARD');
+    const texts = records(dxf, 'ENTITIES');
+    expect(texts.map((record) => value(record, 0))).toEqual(['TEXT', 'TEXT']);
+    expect(texts.map((record) => value(record, 7))).toEqual(['ROMAND', 'ROMAND']);
+    expect(texts.map((record) => value(record, 1))).toEqual(['MDB', 'Local lighting']);
+    expect(number(texts[1], 40)).toBe(2);
+    expect(number(texts[1], 72)).toBe(5); // font change preserves fitted width
+    expect([number(texts[1], 10), number(texts[1], 11)]).toEqual([30, 50]);
     expect(input.some((tag) => tag.code === 370 || tag.value === 'LWPOLYLINE')).toBe(false);
   });
 

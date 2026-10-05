@@ -2,7 +2,7 @@ import type { BoardKind, Project } from '../types';
 import { BOARD_KINDS, LOAD_TYPES, PROJECT_STATUSES, settingsOf } from '../types';
 import type { Status } from './electrical';
 import type { CalcRun, StudyKey } from './runs';
-import { STUDY_LABEL } from './runs';
+import { staleStudies, STUDY_LABEL } from './runs';
 import { boardsInSupplyOrder, boardTotals, loadTypeOf, systemSummary } from './summary';
 import { boardDemandKva } from './sizing';
 import { summarizeBuilding, dbChecks } from './building';
@@ -12,6 +12,7 @@ import { sizeRiser } from './busbar';
 import { sizeUps } from './ups';
 import { sizePv } from './solar';
 import { fireRatingIssues } from '../model/cableTypes';
+import { sheetChecks } from '../model/drawingSet';
 import { currentRevision } from '../model/revisions';
 import type { MainView } from '../views';
 
@@ -146,6 +147,7 @@ export function buildDashboard(project: Project, run?: CalcRun, stale: StudyKey[
     perArea = { title: 'Load per sub-main board', bars: bars.map((x) => ({ ...x, pct: pct(x.kw, tot) })).sort((a, b) => b.kw - a.kw) };
   }
 
+  stale = [...new Set([...stale, ...staleStudies(run, project)])];
   // To do.
   const todo: TodoItem[] = [];
   if (stale.length) todo.push({ status: 'warn', text: `Results out of date (${stale.map((k) => STUDY_LABEL[k]).join(', ')}) — press Run (F5)` });
@@ -172,6 +174,27 @@ export function buildDashboard(project: Project, run?: CalcRun, stale: StudyKey[
   for (const m of pfc.mains) if (m.pfBefore < pfc.pfTarget - 1e-6 && m.existingKvar === 0) todo.push({ status: 'warn', text: `${m.boardId} PF ${m.pfBefore.toFixed(2)} — no capacitor bank yet (${m.plannedKvar} kvar planned)`, go: { view: 'pfc' } });
   for (const c of dbChecks(project)) if (c.status === 'warn' && c.ratio !== undefined) todo.push({ status: 'warn', text: `${c.boardId} designed for ${(c.ratio * 100).toFixed(0)} % of its rooms’ expected load`, go: { view: 'load-schedule', boardId: c.boardId } });
   for (const r of risers) if (!r.type || r.icwOk === false) todo.push({ status: 'bad', text: `${r.riser.name}: ${!r.type ? 'above the busway data' : 'Icw below the fault level'}`, go: { view: 'busbar' } });
+  for (const u of project.upsSystems ?? []) {
+    const r = sizeUps(project, u);
+    const add = (status: Status, message: string) => todo.push({ status, text: `${u.name}: ${message}`, go: { view: 'ups' } });
+    if (u.boardId && !project.boards.some(b => b.id === u.boardId)) add('bad', 'linked UPS board is missing');
+    if (!r.upsKva) add('bad', 'no standard UPS rating fits');
+    if (r.busMismatch) add('bad', 'battery string does not match the DC bus');
+    if (r.batteryIssue) add('bad', r.batteryIssue);
+    if (!r.blockAh && !r.batteryIssue) add('bad', 'no battery size fits');
+    if (r.blockAh && (r.runtimeMin === undefined || r.runtimeMin < u.autonomyMin - 1e-6)) add('bad', 'battery backup does not meet the requested time');
+    if (r.dcBreakerNoFit) add('bad', 'no listed DC breaker fits');
+    if (!u.powerTable) add('warn', 'battery sizing uses a preliminary capacity estimate; confirm manufacturer discharge data');
+    if (u.chem === 'li-ion' && r.bmsOk !== true) add(r.bmsOk === false ? 'bad' : 'warn', r.bmsOk === false ? 'BMS continuous current check failed' : 'BMS continuous current is not verified');
+    if (r.surge.status !== 'pass') add(r.surge.status === 'fail' ? 'bad' : 'warn', `inverter surge ${r.surge.status}: ${r.surge.issue}`);
+    if (r.rechargeIssue) add('bad', r.rechargeIssue);
+    else if (u.chargerCurrentA === undefined) add('warn', 'charger and recharge time are not checked');
+  }
+  if (project.pv) {
+    const r = sizePv(project.pv);
+    if (r.status !== 'ok') todo.push({ status: r.status, text: `Solar PV: ${r.notes.join(' · ') || 'solar design needs review'}`, go: { view: 'solar' } });
+  }
+  if (project.drawingSet) for (const c of sheetChecks(project, project.drawingSet)) todo.push({ status: c.level, text: `Drawings: ${c.text}`, go: { view: 'drawings' } });
   const missing = [['owner', info.owner], ['plot no.', info.plotNo], ['consultant', info.consultant], ['area', info.area]].filter(([, v]) => !v).map(([k]) => k);
   if (missing.length) todo.push({ status: 'warn', text: `Submission forms: ${missing.join(', ')} not filled in (Project settings)` });
 

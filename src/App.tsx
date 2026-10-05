@@ -1,7 +1,7 @@
 import { pickProject } from './model/projectStore';
 import { chooseProjectFile, downloadProjectFile } from './util/webApp';
 import WebBanner from './components/WebBanner';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Feeder, Board, Project, newProject } from './types';
 import { sampleProject } from './data/sampleProject';
 import { evaluateProject, type Status } from './calc/electrical';
@@ -38,6 +38,7 @@ import ParametersView from './components/docs/ParametersView';
 import TitleBlockDesigner from './components/docs/TitleBlockDesigner';
 import DrawingsView from './components/docs/DrawingsView';
 import { withCableRefs } from './model/cableRefs';
+import { withEarthPitIds } from './model/earthingPlan';
 import { SheetTabs, SheetWorkspace, sheetOutlines } from './components/sld/SheetWorkspace';
 import { movePanelToSheet, setOf } from './model/drawingSet';
 import { boardsInSupplyOrder } from './calc/summary';
@@ -108,9 +109,13 @@ const STUDY_VIEWS: MainView[] = ['voltage-drop', 'earthing', 'selection', 'coord
 
 export default function App() {
   // The project, with undo / redo. Opening or starting a project clears the history.
-  const history = useHistory<Project>(sampleProject);
+  const history = useHistory<Project>(withEarthPitIds(sampleProject));
   const project = history.value;
-  const setProject = history.set;
+  const setProject: typeof history.set = useCallback((value, opts) => history.set((prev) => {
+    const before = withEarthPitIds(prev);
+    const next = typeof value === 'function' ? value(before) : value;
+    return withEarthPitIds(next, before);
+  }, opts), [history.set]);
   // SLD tabs: null = Design (the working canvas), else a drawing sheet.
   const [sheetTab, setSheetTab] = useState<string | null>(null);
   const [sheetOutlinesOn, setSheetOutlinesOn] = useState(false);
@@ -395,7 +400,7 @@ export default function App() {
   }
 
   function loadIntoApp(p: Project, file: string | undefined, message: string) {
-    history.load(p);
+    history.load(withEarthPitIds(p));
     setSaved(p);
     setRun(runCalculations(p)); // results for the project as opened
     // Presets saved with the project join this computer's presets.

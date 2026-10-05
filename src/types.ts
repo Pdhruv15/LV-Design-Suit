@@ -286,6 +286,7 @@ export interface Project {
   drawing?: DrawingInfo; // SLD drawing title block
   ties?: BusTie[]; // normally-open bus couplers between main boards
   earthingPlan?: EarthingPlan; // earthing schematic: pits per equipment, links, measured values
+  earthPitIds?: Record<string, string[]>; // persistent pit IDs; retired slots stay reserved
   spacePlan?: SpacePlan; // areas → panels → transformers → RMUs (power density planning)
   upsSystems?: import('./calc/ups').UpsSystem[]; // UPS and battery sizing
   feederPresets?: import('./model/presets').FeederPreset[]; // copy of the user's feeder presets, so they travel with the project

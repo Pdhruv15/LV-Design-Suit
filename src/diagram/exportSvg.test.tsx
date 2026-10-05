@@ -6,6 +6,7 @@ import { svgToDxf } from './exportSvg';
 import { toDxf, type DxfPrimitive } from '../docs/dxf';
 import { buildSheetDxf } from '../docs/sheetDxf';
 import { dxfExportProject } from '../../tests/fixtures/dxfExport';
+import { earthingDrawing } from './earthingDrawing';
 
 type Text = Extract<DxfPrimitive, { type: 'text' }>;
 const noop = () => {};
@@ -31,6 +32,35 @@ describe('SVG to CAD export geometry', () => {
   beforeAll(() => vi.stubGlobal('DOMParser', DOMParser));
   afterAll(() => vi.unstubAllGlobals());
 
+  it('preserves dash attributes, inheritance, inline overrides and transform scale as visible CAD gaps', () => {
+    const out = svgToDxf('<svg><g stroke-dasharray="3 2" transform="scale(2)"><path d="M0 0 H10"/><line x1="0" y1="10" x2="10" y2="10" style="stroke-dasharray:2px,3px"/><line x1="0" y1="20" x2="10" y2="20" stroke-dasharray="none"/></g></svg>', 100);
+    expect(out.slice(0, 4)).toEqual([
+      { type: 'polyline', layer: 'SYMBOL', points: [[0, 100], [6, 100]] },
+      { type: 'polyline', layer: 'SYMBOL', points: [[10, 100], [16, 100]] },
+      { type: 'polyline', layer: 'SYMBOL', points: [[0, 80], [4, 80]] },
+      { type: 'polyline', layer: 'SYMBOL', points: [[10, 80], [14, 80]] }
+    ]);
+    expect(out[4]).toEqual({ type: 'line', layer: 'SYMBOL', x1: 0, y1: 60, x2: 20, y2: 60 });
+    const dxf = entities(toDxf(out));
+    const vertices = dxf.filter((p) => p.type === 'VERTEX');
+    expect(vertices.map((p) => Number(p.values.get(10)))).toEqual([0, 6, 10, 16, 0, 4, 10, 14]);
+  });
+
+  it('dashes the closing edge of an enclosure while ordinary circles stay editable circles', () => {
+    const out = svgToDxf('<svg><rect x="0" y="0" width="10" height="10" stroke-dasharray="3 2"/><circle cx="20" cy="20" r="4"/></svg>', 100);
+    const lastDash = out[out.length - 2];
+    expect(lastDash).toEqual({ type: 'polyline', layer: 'SYMBOL', points: [[0, 95], [0, 98]] });
+    expect(out[out.length - 1].type).toBe('circle');
+  });
+
+  it('keeps dash spacing in SVG user space under nonuniform scaling', () => {
+    const out = svgToDxf('<svg><path transform="scale(2 3)" stroke-dasharray="3 2" d="M0 0 V10"/></svg>', 100);
+    expect(out).toEqual([
+      { type: 'polyline', layer: 'SYMBOL', points: [[0, 100], [0, 91]] },
+      { type: 'polyline', layer: 'SYMBOL', points: [[0, 85], [0, 76]] }
+    ]);
+  });
+
   it('preserves busbar widths through transforms, while wires remain centrelines', () => {
     const out = svgToDxf('<svg><g transform="translate(10 20) scale(2)"><line class="bus" style="stroke-width:4px" x1="0" y1="0" x2="100" y2="0"/><line class="ln" style="stroke-width:1.5px" x1="0" y1="0" x2="0" y2="20"/></g></svg>', 200);
     expect(out[0]).toEqual({ type: 'line', layer: 'BUSBAR', x1: 10, y1: 180, x2: 210, y2: 180, width: 8 });
@@ -45,6 +75,23 @@ describe('SVG to CAD export geometry', () => {
     expect(out[0]).toMatchObject({ width: 180, rotation: -90, align: 'center', x: 6, y: 80 });
     expect(out[0].height).toBeCloseTo(14.4);
     expect(out[1].width).toBe(48);
+  });
+
+  it('honours SVG font-size attributes and inheritance with inline styles taking precedence', () => {
+    const out = svgToDxf('<svg font-size="10"><text>Root size</text><g font-size="9"><text>Group size</text><text font-size="8">Attribute size</text><text font-size="14" style="font-size:12px">Inline size</text><g style="font-size:7.5px" transform="scale(2)"><text>Scaled inherited size</text></g></g></svg>', 100) as Text[];
+    expect(out.map((p) => p.text)).toEqual(['Root size', 'Group size', 'Attribute size', 'Inline size', 'Scaled inherited size']);
+    [7.2, 6.48, 5.76, 8.64, 10.8].forEach((height, i) => expect(out[i].height).toBeCloseTo(height));
+    const fallback = svgToDxf('<svg><text>No size</text><g font-size="invalid"><text font-size="0">Invalid size</text></g></svg>', 100) as Text[];
+    fallback.forEach((p) => expect(p.height).toBeCloseTo(7.92));
+  });
+
+  it('preserves the distinct heading, equipment, note and conductor sizes in raw earthing SVG', () => {
+    const drawing = earthingDrawing(dxfExportProject);
+    const texts = svgToDxf(drawing.svg, drawing.h).filter((p): p is Text => p.type === 'text');
+    expect(texts.find((p) => p.text === 'EARTHING SCHEMATIC DIAGRAM')!.height).toBeCloseTo(14 * 0.72);
+    expect(texts.find((p) => p.text.endsWith('EARTH BAR'))!.height).toBeCloseTo(10 * 0.72);
+    expect(texts.find((p) => p.text.startsWith('1. RMU'))!.height).toBeCloseTo(9 * 0.72);
+    expect(texts.find((p) => p.rotation === 90)!.height).toBeCloseTo(8 * 0.72);
   });
 
   it('exports curved glands, socket arcs and the RCD oval instead of flattening/losing symbols', () => {

@@ -26,6 +26,32 @@ export interface UpsLoad {
   pf?: number;
 }
 
+export interface BatteryPowerTable {
+  model: string;
+  source: string;
+  blockAh: number;
+  blockV: number;
+  endCellV: number;
+  temperatureC: number;
+  points: { minutes: number; wattsPerBlock: number }[];
+}
+
+/** Total coincident starting scenario, including all loads that remain running. */
+export interface UpsSurge {
+  totalKw?: number;
+  totalKva?: number;
+  durationSeconds?: number;
+  ratedKw?: number;
+  ratedKva?: number;
+  ratedSeconds?: number;
+  source: string; // inverter model and overload datasheet reference
+}
+export interface UpsSurgeResult {
+  status: 'not checked' | 'pass' | 'fail';
+  kw?: number;
+  kva?: number;
+  issue: string;
+}
 export interface UpsSystem {
   id: string;
   name: string;
@@ -44,6 +70,18 @@ export interface UpsSystem {
   ageing: number; // 1.25 (IEEE 485)
   tempFactor: number; // 1.0 at 25 °C; > 1 for colder rooms
   designMargin: number; // 1.1
+  surge?: UpsSurge;
+  powerTable?: BatteryPowerTable; // VRLA, absolute W per block; never scaled between models
+  startSocPct?: number;
+  minSocPct?: number;
+  endModuleV?: number;
+  bmsDischargeA?: number; // continuous limit per series string, shared equally in parallel
+  chargerCurrentA?: number; // total charger output
+  rechargeLoadA?: number; // concurrent load on that charger
+  rechargeFromSocPct?: number;
+  rechargeToSocPct?: number;
+  chargeEfficiencyPct?: number;
+  absorptionHours?: number;
   blockAhOptions?: number[]; // available block sizes (Ah)
 }
 
@@ -119,6 +157,18 @@ export interface UpsResult {
   dcBreakerMaxA: number;
   dcBreakerNoFit: boolean;
   runtimeMin: number | undefined; // with the chosen battery
+  surge: UpsSurgeResult;
+  batteryIssue?: string;
+  batteryBasis: 'estimate' | 'manufacturer table';
+  tableWattsPerBlock?: number;
+  tableMinutes?: number;
+  usableFraction: number;
+  usableEnergyKwh: number;
+  stringCurrentA: number;
+  bmsOk?: boolean;
+  rechargeHours?: number;
+  rechargeNetA?: number;
+  rechargeIssue?: string;
   notes: string[];
 }
 
@@ -150,6 +200,21 @@ export function upsLoad(project: Project, s: UpsSystem): { kva: number; kw: numb
   return { kva, kw };
 }
 
+export function checkUpsSurge(s: UpsSystem, loadKw: number, loadKva: number): UpsSurgeResult {
+  const x = s.surge;
+  if (!x) return { status: 'not checked', issue: 'Starting scenario and inverter overload data not entered.' };
+  const values = [x.totalKw, x.totalKva, x.durationSeconds, x.ratedKw, x.ratedKva, x.ratedSeconds];
+  if (values.some(v => v === undefined) || !x.source.trim()) return { status: 'not checked', issue: 'Enter total starting kW/kVA, duration, inverter peak kW/kVA, supported duration and model/datasheet source.' };
+  if (values.some(v => !Number.isFinite(v) || v! <= 0) || x.totalKw! > x.totalKva! || x.ratedKw! > x.ratedKva! || x.totalKw! < loadKw - 1e-9 || x.totalKva! < loadKva - 1e-9 || !Number.isFinite(s.growthPct) || s.growthPct < 0) return { status: 'fail', issue: 'Invalid surge data: positive values required, kW ≤ kVA, and total starting demand must include the running load.' };
+  const g = 1 + s.growthPct / 100;
+  const kw = x.totalKw! * g, kva = x.totalKva! * g;
+  const failures: string[] = [];
+  if (kw > x.ratedKw! + 1e-9) failures.push('starting kW exceeds peak kW');
+  if (kva > x.ratedKva! + 1e-9) failures.push('starting kVA exceeds peak kVA');
+  if (x.durationSeconds! > x.ratedSeconds! + 1e-9) failures.push('starting duration exceeds supported overload duration');
+  return { status: failures.length ? 'fail' : 'pass', kw, kva, issue: failures.length ? failures.join('; ') : 'Within entered inverter peak power and duration. Battery/BMS transient current, voltage dip and overload curve are separate checks.' };
+}
+
 export function sizeUps(project: Project, s: UpsSystem): UpsResult {
   const notes: string[] = [];
   const { kva, kw } = upsLoad(project, s);
@@ -173,7 +238,9 @@ export function sizeUps(project: Project, s: UpsSystem): UpsResult {
   if (busMismatch) notes.push(busMismatch);
   const rate = s.rateCapacityPct ? s.rateCapacityPct / 100 : capacityAtRate(s.chem, s.autonomyMin);
   const h = s.autonomyMin / 60;
-  const requiredAh = ((dcKw * 1000 * h) / stringV / Math.max(0.05, rate)) * s.ageing * s.tempFactor * s.designMargin;
+  const usableFraction = s.chem === 'li-ion' ? ((s.startSocPct ?? 100) - (s.minSocPct ?? 0)) / 100 : 1;
+  let batteryIssue = usableFraction > 0 && usableFraction <= 1 && (s.minSocPct ?? 0) >= 0 && (s.startSocPct ?? 100) <= 100 ? undefined : 'Invalid SOC window: require 0 ≤ minimum SOC < starting SOC ≤ 100.';
+  const requiredAh = ((dcKw * 1000 * h) / stringV / Math.max(0.05, rate)) * s.ageing * s.tempFactor * s.designMargin / (usableFraction > 0 ? usableFraction : 1);
   const sizes = [...(s.blockAhOptions ?? (s.chem === 'vrla' ? VRLA_BLOCK_AH : LI_MODULE_AH))].sort((a, b) => a - b);
   let strings = 1;
   let blockAh = sizes.find((a) => a >= requiredAh);
@@ -181,13 +248,41 @@ export function sizeUps(project: Project, s: UpsSystem): UpsResult {
     strings++;
     blockAh = sizes.find((a) => a >= requiredAh / strings);
   }
-  if (!blockAh) notes.push('More than 8 strings — use a larger block or a higher DC voltage');
+  const table = s.powerTable;
+  let tableWattsPerBlock: number | undefined;
+  let tableMinutes: number | undefined;
+  if (table) {
+    const valid = s.chem === 'vrla' && table.model.trim() && table.source.trim() && Number.isFinite(table.temperatureC) && table.blockAh > 0 && Number.isFinite(table.blockAh)
+      && Math.abs(table.blockV - s.blockV) < 1e-6 && Math.abs(table.endCellV - (s.endCellV ?? 1.75)) < 1e-6
+      && table.points.length >= 2 && table.points.every((p, i, a) => Number.isFinite(p.minutes) && p.minutes > 0 && Number.isFinite(p.wattsPerBlock) && p.wattsPerBlock > 0 && (!i || p.minutes > a[i - 1].minutes && p.wattsPerBlock <= a[i - 1].wattsPerBlock));
+    if (!valid) batteryIssue = 'Invalid manufacturer table: enter model/source, matching VRLA block/end voltage, temperature and increasing durations with positive, non-increasing W/block.';
+    else if (s.autonomyMin < table.points[0].minutes || s.autonomyMin > table.points[table.points.length - 1].minutes) batteryIssue = 'Backup time is outside the manufacturer table; extrapolation is disabled.';
+    else {
+      const point = table.points.find(p => p.minutes >= s.autonomyMin)!;
+      tableWattsPerBlock = point.wattsPerBlock;
+      tableMinutes = point.minutes;
+      strings = Math.max(1, Math.ceil(dcKw * 1000 * s.ageing * s.tempFactor * s.designMargin / (blocksPerString * point.wattsPerBlock) - 1e-9));
+      blockAh = strings <= 8 ? table.blockAh : undefined;
+      notes.push(`Manufacturer table: ${table.model}, ${table.temperatureC} °C, ${table.endCellV} V/cell. Conservative next-duration row (${point.minutes} min); no interpolation or scaling to other Ah sizes. Confirm temperature factor against this table's reference temperature.`);
+    }
+  }
+  const vEnd = s.chem === 'vrla' ? (stringV / 2) * (s.endCellV ?? 1.75) : blocksPerString * (s.endModuleV ?? s.blockV * (2.8 / 3.2));
+  const dcCurrentMaxA = (dcKw * 1000) / vEnd;
+  if (!(vEnd > 0 && vEnd <= stringV)) batteryIssue = 'End-of-discharge voltage must be positive and no greater than nominal voltage.';
+  if (s.chem === 'li-ion' && s.bmsDischargeA !== undefined) {
+    if (!(s.bmsDischargeA > 0 && Number.isFinite(s.bmsDischargeA))) batteryIssue = 'BMS continuous discharge current must be positive.';
+    else {
+      strings = Math.max(strings, Math.ceil(dcCurrentMaxA / s.bmsDischargeA - 1e-9));
+      blockAh = strings <= 8 ? sizes.find(a => a >= requiredAh / strings) : undefined;
+    }
+  }
+  if (batteryIssue) { blockAh = undefined; notes.push(batteryIssue); }
+  if (!blockAh && !batteryIssue) notes.push('More than 8 strings — use a larger block or a higher DC voltage');
   if (strings > 1) notes.push(`${strings} strings in parallel`);
   const installedAh = (blockAh ?? 0) * strings;
   const energyKwh = (installedAh * stringV) / 1000;
   // End of discharge: VRLA at the end-cell voltage; Li-ion ≈ 2.8 V of 3.2 V per cell.
-  const vEnd = s.chem === 'vrla' ? (stringV / 2) * (s.endCellV ?? 1.75) : stringV * (2.8 / 3.2);
-  const dcCurrentMaxA = (dcKw * 1000) / vEnd;
+
   // Aggregate battery-bus protection (all strings together), app policy ≥ 1.25 × the end-of-discharge
   // current. Per-string protection is a separate check. A rating only covers current — DC voltage,
   // poles and breaking capacity must be confirmed for the chosen device.
@@ -202,18 +297,38 @@ export function sizeUps(project: Project, s: UpsSystem): UpsResult {
     let t = s.autonomyMin;
     for (let i = 0; i < 20; i++) {
       const r = s.rateCapacityPct ? s.rateCapacityPct / 100 : capacityAtRate(s.chem, t);
-      t = ((installedAh * stringV * r) / (s.ageing * s.tempFactor * s.designMargin) / (dcKw * 1000)) * 60;
+      t = ((installedAh * stringV * r * usableFraction) / (s.ageing * s.tempFactor * s.designMargin) / (dcKw * 1000)) * 60;
     }
     runtimeMin = t;
+  }
+  if (table && blockAh) {
+    const covered = table.points.filter(p => p.wattsPerBlock * blocksPerString * strings >= dcKw * 1000 * s.ageing * s.tempFactor * s.designMargin - 1e-9);
+    runtimeMin = covered[covered.length - 1]?.minutes;
+  }
+  const stringCurrentA = dcCurrentMaxA / strings;
+  const bmsOk = s.chem === 'li-ion' && s.bmsDischargeA !== undefined ? !!blockAh && stringCurrentA <= s.bmsDischargeA && !batteryIssue : undefined;
+  if (s.chem === 'li-ion' && s.bmsDischargeA !== undefined) notes.push('BMS check covers continuous current with equal sharing only; confirm permitted series/parallel counts, cutoff voltage and transient capability with the manufacturer.');
+  if (s.chem === 'li-ion' && s.bmsDischargeA === undefined) notes.push('BMS current limit not entered: discharge capability and permitted series/parallel configuration are not verified.');
+  let rechargeHours: number | undefined, rechargeNetA: number | undefined, rechargeIssue: string | undefined;
+  if (s.chargerCurrentA !== undefined) {
+    rechargeNetA = s.chargerCurrentA - (s.rechargeLoadA ?? 0);
+    const from = s.rechargeFromSocPct ?? 20, to = s.rechargeToSocPct ?? 100, efficiency = (s.chargeEfficiencyPct ?? 95) / 100;
+    if (![s.chargerCurrentA, rechargeNetA, from, to, efficiency, s.absorptionHours ?? 0, s.rechargeLoadA ?? 0].every(Number.isFinite) || rechargeNetA <= 0 || (s.rechargeLoadA ?? 0) < 0 || from < 0 || to > 100 || to <= from || efficiency <= 0 || efficiency > 1 || (s.absorptionHours ?? 0) < 0) rechargeIssue = 'Invalid recharge inputs: charger must exceed concurrent load; require 0 ≤ starting SOC < target SOC ≤ 100 and positive efficiency ≤ 100%.';
+    else if (blockAh) rechargeHours = installedAh * (to - from) / 100 / (rechargeNetA * efficiency) + (s.absorptionHours ?? 0);
+    if (rechargeIssue) notes.push(rechargeIssue);
+    notes.push('Recharge is a constant-current bulk estimate plus the entered absorption/taper allowance; confirm charge-current limits and the charger profile with the battery manufacturer.');
   }
   if (s.chem === 'vrla' && s.autonomyMin < 5) notes.push('VRLA capacity below 5 minutes is very rate-dependent — check the manufacturer\'s table');
 
   return {
+    surge: checkUpsSurge(s, kw, kva),
     loadKva: kva, loadKw: kw, designKva, designKw,
     upsKva, upsKw: upsKva ? upsKva * s.outputPf : undefined,
     ...loadingOf(kva, kw, upsKva, upsKva ? upsKva * s.outputPf : undefined),
     dcKw, blocksPerString, stringV, busMismatch, rate, requiredAh, strings, blockAh,
     totalBlocks: blockAh ? blocksPerString * strings : 0,
-    energyKwh, dcCurrentMaxA, dcBreakerA, dcBreakerRequiredA, dcBreakerMaxA, dcBreakerNoFit, runtimeMin, notes
+    energyKwh, dcCurrentMaxA, dcBreakerA, dcBreakerRequiredA, dcBreakerMaxA, dcBreakerNoFit, runtimeMin, batteryIssue, batteryBasis: table ? 'manufacturer table' : 'estimate',
+    tableWattsPerBlock, tableMinutes, usableFraction, usableEnergyKwh: energyKwh * usableFraction,
+    stringCurrentA, bmsOk, rechargeHours, rechargeNetA, rechargeIssue, notes
   };
 }

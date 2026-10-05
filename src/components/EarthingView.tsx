@@ -20,10 +20,11 @@ export default function EarthingView({ project, onChange, onStatus }: { project:
   const itemOf = (key: string) => L.items.find((i) => i.key === key)!;
 
   async function exportPdf() {
-    const rows = L.pits.map((p) => { const it = itemOf(p.itemKey); return `<tr><td>${p.id}</td><td>${esc(kindInfo(p.kind).label)}</td><td>${esc(it.equipment)} — ${esc(it.point)}</td><td>${L.electrodeM} m Cu-bonded rod, inspection pit</td><td>${p.measured ?? ''}</td></tr>`; }).join('');
+    const drawingSvg = earthingDrawing(project, L, false).svg;
+    const rows = L.pits.map((p) => { const it = itemOf(p.itemKey); return `<tr><td>${p.id}</td><td>${esc(it.equipment)} / ${esc(it.point)}</td><td>${esc(kindInfo(p.kind).label)} / ${esc(it.group)}</td><td>1C ${L.conductorMm2} mm² Cu/PVC</td><td>${L.electrodeM} m Cu-bonded rod</td><td>${p.measured === undefined ? 'Not tested' : `${p.measured} ohm`}</td></tr>`; }).join('');
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Earthing schematic</title><style>@page { size: A3 landscape; margin: 12mm; } body { font: 10px Arial, sans-serif; color: #111; } h1 { font-size: 16px; } table { border-collapse: collapse; width: 100%; margin-top: 8px; } th, td { border: .2mm solid #999; padding: 3px 6px; text-align: left; } th { background: #eef2f7; } svg { width: 100%; max-height: 150mm; }</style></head><body>
-      <h1>${esc(project.name)} — Earthing schematic</h1>${svg}
-      <table><thead><tr><th>Pit</th><th>Earth</th><th>Equipment</th><th>Electrode</th><th>Measured Ω</th></tr></thead><tbody>${rows}</tbody></table>
+      <h1>${esc(project.name)} — Earthing schematic</h1>${drawingSvg}
+      <h2>Earth pit schedule</h2><table><thead><tr><th>Pit</th><th>Equipment / connection</th><th>Earth / substation</th><th>Conductor</th><th>Electrode</th><th>Measured</th></tr></thead><tbody>${rows}</tbody></table>
       <p>Pit links and earth conductors 1C × ${L.conductorMm2} mm² Cu. Transformer neutral and body earths are not interconnected. Limits: substation earths below 2 Ω, LV earth 1 Ω per incoming supply / MDB (DEWA). Pits at least 6 m apart.</p></body></html>`;
     const m = await savePdf(`${safeFileName(`${project.name} earthing schematic`)}.pdf`, html, { pageSize: 'A3', landscape: true });
     if (m) onStatus(m);
@@ -63,12 +64,14 @@ export default function EarthingView({ project, onChange, onStatus }: { project:
           <ul className="bh-checks">{L.checks.map((c, i) => <li key={i} className={c.level}>{c.level === 'ok' ? '✓' : c.level === 'warn' ? '!' : '✕'} {c.text}</li>)}</ul>
           <h4>Pit schedule</h4>
           <table className="bi-table compact">
-            <thead><tr><th>Pit</th><th>Equipment</th><th>Measured Ω</th></tr></thead>
+            <thead><tr><th>Pit</th><th>Equipment / earth</th><th>Conductor / electrode</th><th>Measured Ω</th></tr></thead>
             <tbody>{L.pits.map((p) => (
               <tr key={p.id}><td>{p.id}</td><td>{itemOf(p.itemKey).equipment}<br /><span className="m">{kindInfo(p.kind).label}</span></td>
+                <td>1C {L.conductorMm2} mm² Cu/PVC<br /><span className="m">{L.electrodeM} m Cu-bonded rod</span></td>
                 <td><input key={`${p.id}-${plan.measured?.[p.id] ?? ''}`} className="bi-num" style={{ width: 56 }} inputMode="decimal" placeholder="test" defaultValue={plan.measured?.[p.id] ?? ''} onBlur={(e) => setMeasured(p.id, e.target.value)} /></td></tr>
             ))}</tbody>
           </table>
+          <p className="m">Pit IDs are retained when equipment or pit counts change; retired IDs remain reserved for their test records.</p>
           <p className="m">Group value = measured pits in parallel (an estimate; site test governs).</p>
         </section>
       </div>

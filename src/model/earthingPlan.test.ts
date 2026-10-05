@@ -2,13 +2,79 @@ import { describe, expect, it } from 'vitest';
 import type { Project } from '../types';
 import { sampleProject } from '../data/sampleProject';
 import { applyTransformers, planTransformers, setRmu } from './transformers';
-import { earthingLayout } from './earthingPlan';
+import { earthingLayout, patchEarthing, withEarthPitIds } from './earthingPlan';
 import { buildBom } from '../calc/bom';
 import { earthingDrawing } from '../diagram/earthingDrawing';
 
 const withTx = (n: number) => applyTransformers(sampleProject, planTransformers(sampleProject, Array.from({ length: n }, () => ({ kva: 1500 })), false));
 
 describe('earthing schematic', () => {
+  it('migrates legacy IDs without moving readings and preserves IDs when earlier pits grow', () => {
+    const legacy = withTx(1);
+    const old = earthingLayout(legacy);
+    const tested = old.pits.find((p) => p.kind === 'lv')!;
+    const initial = withEarthPitIds({ ...legacy, earthingPlan: { measured: { [tested.id]: 0.65 } } });
+    expect(earthingLayout(initial).pits.map((p) => p.id)).toEqual(old.pits.map((p) => p.id));
+    expect(withEarthPitIds(initial)).toBe(initial);
+    const bookkeeping = withEarthPitIds(sampleProject);
+    expect(bookkeeping.earthingPlan).toBe(sampleProject.earthingPlan);
+    expect(buildBom(bookkeeping)).toEqual(buildBom(sampleProject));
+    const rmu = old.items.find((i) => i.kind === 'rmu')!;
+    const grown = patchEarthing(initial, (p) => ({ ...p, pits: { [rmu.key]: 3 } }));
+    const after = earthingLayout(grown);
+    for (const pit of old.pits) expect(after.pits.find((p) => p.id === pit.id)?.itemKey).toBe(pit.itemKey);
+    expect(after.pits.find((p) => p.id === tested.id)?.measured).toBe(0.65);
+    expect(new Set(after.pits.map((p) => p.id)).size).toBe(after.pits.length);
+  });
+
+  it('reserves removed equipment IDs and retains them across save/reload and board reorder', () => {
+    const initial = withEarthPitIds(withTx(1));
+    const original = earthingLayout(initial);
+    const removed = initial.boards.find((b) => b.sourceKva)!;
+    const fewer = withEarthPitIds({ ...initial, boards: initial.boards.filter((b) => b.id !== removed.id) }, initial);
+    const replacement = withEarthPitIds({ ...fewer, boards: [...fewer.boards, { ...removed, id: 'NEW-MDB' }] });
+    const reserved = new Set(original.pits.map((p) => p.id));
+    const newPits = earthingLayout(replacement).pits.filter((p) => p.itemKey.includes('NEW-MDB'));
+    expect(newPits.length).toBeGreaterThan(0);
+    expect(newPits.every((p) => !reserved.has(p.id))).toBe(true);
+    const restored = withEarthPitIds({ ...JSON.parse(JSON.stringify(fewer)), boards: [...initial.boards].reverse() });
+    const after = earthingLayout(restored);
+    for (const pit of original.pits) expect(after.pits.find((p) => p.id === pit.id)?.itemKey).toBe(pit.itemKey);
+    const reduced = patchEarthing(initial, (p) => ({ ...p, pits: { [original.items[0].key]: 1 } }));
+    const regrown = patchEarthing(reduced, (p) => ({ ...p, pits: {} }));
+    expect(earthingLayout(regrown).pits.map((p) => p.id)).toEqual(original.pits.map((p) => p.id));
+  });
+
+  it('migrates legacy automatic RMU overrides to stable equipment keys before reorder', () => {
+    const project = withTx(1);
+    const rmu = earthingLayout(project).items.find((it) => it.kind === 'rmu')!;
+    const saved = withEarthPitIds({ ...project, earthingPlan: { pits: { [rmu.legacyKey!]: 4 }, unlinked: [rmu.legacyKey!] } });
+    const reordered = withEarthPitIds({ ...saved, boards: [...saved.boards].reverse() });
+    expect(earthingLayout(reordered).items.find((it) => it.key === rmu.key)).toMatchObject({ pits: 4, linked: false });
+  });
+
+  it('includes the complete schedule in SVG and editable DXF without losing measured units', async () => {
+    const { DOMParser } = await import('@xmldom/xmldom');
+    const { svgToDxf } = await import('../diagram/exportSvg');
+    const { toDxf } = await import('../docs/dxf');
+    const { vi } = await import('vitest');
+    const initial = withEarthPitIds(sampleProject);
+    const id = earthingLayout(initial).pits[0].id;
+    const project = patchEarthing(initial, (p) => ({ ...p, measured: { [id]: 0.75 } }));
+    const drawing = earthingDrawing(project);
+    expect(drawing.svg).toContain('EARTH PIT SCHEDULE');
+    expect(drawing.svg).toContain('0.75 ohm');
+    expect(drawing.svg).toContain('Not tested');
+    expect(drawing.svg).toContain('Cu-bonded rod');
+    expect(earthingDrawing(project, undefined, false).svg).not.toContain('EARTH PIT SCHEDULE');
+    vi.stubGlobal('DOMParser', DOMParser);
+    try {
+      const dxf = toDxf(svgToDxf(drawing.svg, drawing.h));
+      expect(dxf).toContain('EARTH PIT SCHEDULE');
+      expect(dxf).toContain('0.75 ohm');
+      for (const pit of earthingLayout(project).pits) expect(dxf).toContain(`\r\n${pit.id}\r\n`);
+    } finally { vi.unstubAllGlobals(); }
+  });
   it('defaults: RMU 2 pits, transformer 1 neutral + 1 body, MDBs 1 pit each when several', () => {
     const p = withTx(2); // sample MDB-1 (1000 kVA) + 2 new → 3 transformers, 3 main boards
     const L = earthingLayout(p);
