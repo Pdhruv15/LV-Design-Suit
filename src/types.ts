@@ -279,6 +279,8 @@ export interface Project {
   tags?: string[];
   /** Notes about the project as a whole (not a design value). */
   notes?: string;
+  /** The issued revision this working draft is measured against (Revisions → Use as baseline). */
+  baseline?: import('./model/designBaseline').DesignBaseline;
   /** Who it is for and by whom, what it covers and what is to be delivered (New project wizard). */
   brief?: import('./model/brief').ProjectBrief;
   /** Where this project was copied from (Save as / Duplicate). */

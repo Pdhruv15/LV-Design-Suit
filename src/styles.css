@@ -1226,3 +1226,5 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .brief-party{border:1px solid var(--line);border-radius:6px;margin:8px 0;padding:6px 10px}
 .brief-review p{margin:6px 0}
 .rev-classes{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:6px 0}
+.baseline-bar{display:flex;align-items:center;flex-wrap:wrap;gap:6px 16px;padding:5px 12px;border-bottom:1px solid var(--line);font-size:12.5px}
+.rev-baseline{margin:6px 0}

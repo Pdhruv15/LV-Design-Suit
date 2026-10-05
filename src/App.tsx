@@ -96,6 +96,7 @@ import { clearRecovery, deleteProjectFile, inDesktop, listProjects, loadProject,
 import { applyDetails, withArchived, type ProjectDetails } from './model/projectList';
 import ProjectDetailsDialog from './components/ProjectDetailsDialog';
 import { BriefDialog, NewProjectWizard } from './components/BriefEditor';
+import BaselineBar from './components/BaselineBar';
 import { applyBrief, type ProjectBrief } from './model/brief';
 import { copyProject, isFutureSchema, migrateProject } from './model/projectMigrate';
 import { diffSections, projectFingerprint, type FileStamp } from './model/saveSafety';
@@ -1035,6 +1036,7 @@ export default function App() {
         {view === 'design' && board ? (
           <>
             <main className="mid">
+              {!!project.revisions?.length && <BaselineBar project={project} onCompare={() => setView('revisions')} />}
               <section className="stage">
                 <div className="stage-head">
                   <div className="seg" role="tablist" aria-label="Diagram">

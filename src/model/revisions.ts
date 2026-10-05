@@ -53,12 +53,24 @@ export function changeCountsSinceRevision(p: Project): Record<ChangeClass, numbe
   return rev ? countByClass(diffProjects(rev.snapshot, p)) : undefined;
 }
 
-/** Replaces the design with a revision's copy; the revision history is kept
- * (restoring is itself undoable by restoring a later revision). */
+/** Replaces the design with a revision's copy; the revision history is kept (restoring is itself undoable by
+ * restoring a later revision). What belongs to the project rather than to the design is kept as it is now: its
+ * name, status, tags, notes, scope, baseline, identity, dates and the app's own bookkeeping — restoring Rev A must
+ * not turn an approved job back into "design" or change which project it is. Engineering inputs held in the form
+ * details (demand factor, built-up area) are restored. */
 export function restoreRevision(project: Project, id: string): Project {
   const rev = project.revisions?.find((r) => r.id === id);
   if (!rev) return project;
-  return { ...JSON.parse(JSON.stringify(rev.snapshot)), revisions: project.revisions };
+  const snap = JSON.parse(JSON.stringify(rev.snapshot)) as Record<string, unknown>;
+  const now = project as unknown as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...snap };
+  for (const k of Object.keys(PROJECT_CLASS) as (keyof Project)[]) if (PROJECT_CLASS[k] === 'admin' || PROJECT_CLASS[k] === 'bookkeeping') out[k] = now[k];
+  const info: Record<string, unknown> = { ...(project.info ?? {}) };
+  const was = (snap.info ?? {}) as Record<string, unknown>;
+  for (const k of INFO_ENGINEERING) { if (was[k] === undefined) delete info[k]; else info[k] = was[k]; }
+  out.info = Object.keys(info).length ? info : undefined;
+  out.revisions = project.revisions;
+  return out as unknown as Project;
 }
 
 /** Text for the form headers, e.g. "REV B · 2026-09-27". */
