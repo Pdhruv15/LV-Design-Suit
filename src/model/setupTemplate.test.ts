@@ -39,3 +39,20 @@ describe('setup template', () => {
     expect(p.voltageV).toBe(400);
   });
 });
+
+import { withTemplate } from './setupPreview';
+import { backupContents } from '../util/webApp';
+import { addDoc } from './receivedDocs';
+
+describe('default sources and backup note', () => {
+  it('shows the template as the source of the values it sets', () => {
+    const rows = withTemplate([{ label: 'Ambient temperature (°C)', value: '45', source: 'built-in' }, { label: 'Drawn by', value: '—', source: 'built-in' }], templateFrom({ ...newProject('x'), ambientC: 50 }, 'T'));
+    expect(rows[0]).toMatchObject({ value: '50', source: 'setup template' });
+    expect(rows[1].source).toBe('built-in');
+  });
+  it('says linked files are not in the backup', () => {
+    const p = addDoc(newProject('x'), { title: 'A', number: '1', revision: 'A', discipline: 'electrical', use: 'reference', link: '/f.pdf' }).project;
+    expect(backupContents(p)).toContain('only the paths are kept');
+    expect(backupContents(newProject('x'))).not.toContain('linked document');
+  });
+});

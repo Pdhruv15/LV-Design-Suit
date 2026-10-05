@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { DefaultRow } from '../model/setupPreview';
+import { withTemplate, type DefaultRow } from '../model/setupPreview';
 import { briefFromTemplate, SYSTEM_LABEL, type SetupTemplate } from '../model/setupTemplate';
 import {
   deliverableCatalog, newBrief, PARTY_LABEL, resetToRole, ROLE_LABEL, SCOPE_ITEMS, withRole, withScope,
@@ -156,7 +156,7 @@ export function NewProjectWizard({ initialName, company, taken, templates = [], 
                 <>
                   <p style={{ marginTop: 10 }}><b>The project will start with</b> <span className="m">— change these in Profile &amp; preferences, or the company database</span></p>
                   <table className="projects-table">
-                    <tbody>{defaults.map((d) => <tr key={d.label}><td>{d.label}</td><td>{d.value}</td><td className="m">{d.source}</td></tr>)}</tbody>
+                    <tbody>{withTemplate(defaults, tpl).map((d) => <tr key={d.label}><td>{d.label}</td><td>{d.value}</td><td className="m">{d.source}</td></tr>)}</tbody>
                   </table>
                 </>
               )}
