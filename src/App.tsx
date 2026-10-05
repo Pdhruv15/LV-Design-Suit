@@ -1315,7 +1315,7 @@ export default function App() {
             {view === 'cable-tray' && (
               <TrayScheduleView project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />
             )}
-            {view === 'review' && <ReviewView project={project} me={prefs.profile.name} onChange={(p) => setProject(p)} onStatus={setStatus} onGo={(v) => setView(v)} />}
+            {view === 'review' && <ReviewView project={project} me={prefs.profile.name} run={run} stale={staleKeys} onChange={(p) => setProject(p)} onStatus={setStatus} onGo={(v) => setView(v)} />}
             {view === 'modifications' && <ChangesView project={project} me={prefs.profile.name} onChange={(p) => setProject(p)} onApply={(p) => setProject(p, { step: true })} onStatus={setStatus} onGo={(v) => setView(v)} />}
             {view === 'revisions' &&<RevisionsView project={project} me={prefs.profile.name ? initialsOf(prefs.profile.name) : ''} onChange={setProject} onStatus={setStatus} />}
             {view === 'projects' && (

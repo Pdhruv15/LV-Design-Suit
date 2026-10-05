@@ -2,6 +2,12 @@ import { useState } from 'react';
 import type { Project } from '../../types';
 import type { MainView } from '../../views';
 import { Page } from '../ui';
+import { buildDashboard } from '../../calc/dashboard';
+import { STUDY_LABEL, type CalcRun, type StudyKey } from '../../calc/runs';
+import { buildReviewDoc, defaultSetup, reviewHtml, SECTION_IDS, SECTION_LABEL, type ReviewReportSetup, type SectionId } from '../../docs/reviewReport';
+import { buildReviewDocx } from '../../docs/reviewWord';
+import { docxBytes } from '../../docs/studyWord';
+import { safeFileName, saveBinary, savePdf } from '../../util/files';
 import {
   allowedNext, CATEGORY_LABEL, CommentError, moveComment, needsReReview, newComment, refState, reviewSummary, SEVERITY_LABEL, STATUS_LABEL, withComment,
   type CommentCategory, type CommentSeverity, type CommentStatus, type RefKind, type ReviewComment
@@ -13,13 +19,35 @@ const FILTERS = ['active', 'all', 'closed', 'withdrawn'] as const;
 
 /** Design review comments: raised against equipment or a sheet, answered by the designer, and closed only by the reviewer.
  * A closed comment is flagged when the engineering values it was about change afterwards. Names are typed text. */
-export default function ReviewView({ project, me = "", onChange, onStatus, onGo }: { project: Project; me?: string; onChange: (p: Project) => void; onStatus: (m: string) => void; onGo?: (v: MainView) => void }) {
+export default function ReviewView({ project, me = "", run, stale = [], onChange, onStatus, onGo }: { project: Project; me?: string; run?: CalcRun; stale?: StudyKey[]; onChange: (p: Project) => void; onStatus: (m: string) => void; onGo?: (v: MainView) => void }) {
   const list = project.reviewComments ?? [];
   const sum = reviewSummary(project);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('active');
   const [sel, setSel] = useState<string | null>(null);
   const [f, setF] = useState({ category: 'calculation' as CommentCategory, severity: 'major' as CommentSeverity, finding: '', criterion: '', requiredAction: '', assignedTo: '', sheet: '', kind: '' as RefKind | '', refId: '' });
   const [text, setText] = useState('');
+  const setup: ReviewReportSetup = project.reviewReport ?? defaultSetup();
+  const [busy, setBusy] = useState('');
+  const saveSetup = (n: ReviewReportSetup) => onChange({ ...project, reviewReport: n });
+  const doc = () => {
+    const d = buildDashboard(project, run, stale);
+    return buildReviewDoc(project, setup, { ran: !!run, stale: stale.map((k) => STUDY_LABEL[k]), findings: d.todo.filter((t) => t.status !== 'ok').map((t) => `${t.status === 'bad' ? 'Fail' : 'To check'}: ${t.text}`) });
+  };
+  async function exportAs(kind: 'pdf' | 'docx') {
+    setBusy(kind);
+    try {
+      const d = doc(), name = safeFileName(`${project.name} ${d.title}`);
+      const m = kind === 'pdf' ? await savePdf(`${name}.pdf`, reviewHtml(d), { pageSize: 'A4', landscape: true })
+        : await saveBinary(`${name}.docx`, await docxBytes(buildReviewDocx(d)), 'Word document', 'docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      if (m) onStatus(m);
+    } catch (e) { onStatus(`Export failed: ${e instanceof Error ? e.message : String(e)}`); } finally { setBusy(''); }
+  }
+  const recordDecision = () => {
+    const by = (me.trim() || window.prompt('Reviewer name (typed text)') || '').trim(); if (!by) return;
+    const outcome = window.prompt('Reviewer decision, in your own words (e.g. "Accepted subject to the conditions below")')?.trim(); if (!outcome) return;
+    const conditions = window.prompt('Conditions (optional)')?.trim() || undefined;
+    saveSetup({ ...setup, decision: { outcome, by, at: new Date().toISOString(), conditions } });
+  };
   const guard = (fn: () => void) => { try { fn(); } catch (e) { onStatus(e instanceof CommentError || e instanceof Error ? e.message : String(e)); } };
   const shown = list.filter((c) => filter === 'all' || (filter === 'active' ? c.status !== 'closed' && c.status !== 'withdrawn' || needsReReview(project, c) : c.status === filter));
   const rec = list.find((c) => c.id === sel);
@@ -56,6 +84,23 @@ export default function ReviewView({ project, me = "", onChange, onStatus, onGo 
           <input placeholder="Criterion / reference" value={f.criterion} onChange={(e) => setF({ ...f, criterion: e.target.value })} style={{ flex: 1, minWidth: 150 }} />
           <input placeholder="Required action" value={f.requiredAction} onChange={(e) => setF({ ...f, requiredAction: e.target.value })} style={{ flex: 1, minWidth: 150 }} />
           <button className="primary" onClick={raise}>Raise</button>
+        </div>
+      </div>
+      <div className="card" style={{ marginBottom: 10 }}>
+        <h4>Review report</h4>
+        <p className="m">Built from a frozen copy of the project. {!run ? 'Calculations have not been run, so no results are included. ' : stale.length ? 'Some results are out of date and are marked as such. ' : ''}Without a recorded reviewer decision the report makes no statement of approval.</p>
+        <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>{SECTION_IDS.map((id: SectionId) => <label key={id}><input type="checkbox" checked={setup.sections.includes(id)} onChange={(e) => saveSetup({ ...setup, sections: SECTION_IDS.filter((x) => (x === id ? e.target.checked : setup.sections.includes(x))) })} /> {SECTION_LABEL[id]}</label>)}</div>
+        <div className="row" style={{ gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+          <input placeholder="Document no." value={setup.docNo ?? ''} onChange={(e) => saveSetup({ ...setup, docNo: e.target.value })} style={{ width: 120 }} />
+          <input placeholder="Purpose" value={setup.purpose ?? ''} onChange={(e) => saveSetup({ ...setup, purpose: e.target.value })} style={{ flex: 1, minWidth: 160 }} />
+          <input placeholder="Prepared by" value={setup.preparedBy ?? ''} onChange={(e) => saveSetup({ ...setup, preparedBy: e.target.value })} style={{ width: 120 }} />
+          <input placeholder="Checked by" value={setup.checkedBy ?? ''} onChange={(e) => saveSetup({ ...setup, checkedBy: e.target.value })} style={{ width: 120 }} />
+        </div>
+        <div className="row" style={{ gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+          <button onClick={recordDecision}>{setup.decision ? 'Change reviewer decision…' : 'Record reviewer decision…'}</button>
+          {setup.decision && <><span className="m">{setup.decision.outcome} — {setup.decision.by}</span><button onClick={() => saveSetup({ ...setup, decision: undefined })}>Clear</button></>}
+          <button className="primary" disabled={!!busy || !setup.sections.length} onClick={() => exportAs('pdf')}>{busy === 'pdf' ? 'Exporting…' : 'Export PDF'}</button>
+          <button disabled={!!busy || !setup.sections.length} onClick={() => exportAs('docx')}>{busy === 'docx' ? 'Exporting…' : 'Export Word'}</button>
         </div>
       </div>
       <div className="row" style={{ gap: 6, margin: '10px 0' }}>{FILTERS.map((x) => <button key={x} className={filter === x ? 'primary' : ''} onClick={() => setFilter(x)}>{x[0].toUpperCase() + x.slice(1)}</button>)}</div>
