@@ -8,11 +8,12 @@ import { FIRE_NOTE } from '../model/cableRefs';
 import { templateOf, templateSize } from '../model/titleBlock';
 import { templateTitleBlockDxf, type TitleDetail } from './titleBlockDxf';
 import { textInBox, textWidth, wrapDxfText, type DxfBox } from './dxfLayout';
+import { MARKUP_LAYERS, markupDxf } from '../model/sheetMarkup';
 
 /** Paper-sized, editable R12 drawings. Overflow is placed on additional
  * sheets, never discarded or drawn across the diagram. */
 export const SHEET_LAYERS: Record<string, number> = {
-  'E-FRAME': 7, 'E-TITLE': 7, 'E-LEGEND': 8, 'E-NOTES': 7, 'E-SYMBOL': 3, 'E-CABLE': 7, 'E-BUSBAR': 1, 'E-TEXT': 7, 'E-RESULT': 4
+  'E-FRAME': 7, 'E-TITLE': 7, 'E-LEGEND': 8, 'E-NOTES': 7, 'E-SYMBOL': 3, 'E-CABLE': 7, 'E-BUSBAR': 1, 'E-TEXT': 7, 'E-RESULT': 4, ...MARKUP_LAYERS
 };
 const LAYER_OF: Record<string, string> = { SYMBOL: 'E-SYMBOL', CABLE: 'E-CABLE', BUSBAR: 'E-BUSBAR', TEXT: 'E-TEXT', RESULT: 'E-RESULT' };
 type SheetSize = NonNullable<DrawingInfo['sheet']>;
@@ -202,6 +203,7 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
   const noticeH = hasContinuation ? Math.max(5, 4 * k) : 0;
   const drawing = placeSvg(svg, { x: frame.x + 3, y: bodyBottom + noticeH, w: frame.w - 6 - (side ? colW : 0), h: bodyH - noticeH });
   first.push(...drawing.items);
+  first.push(...markupDxf(one?.markups ?? [], h)); // after the drawing, so they sit on top
   if (drawing.items.some((p) => p.type === 'text' && p.text.trim() && p.height < 1.5)) warnings.push('Some diagram labels are smaller than 1.5 mm; use a larger paper size or split the drawing for readability.');
   if (hasContinuation) {
     const columns = Math.max(1, Math.floor((frame.w - 6) / colW));

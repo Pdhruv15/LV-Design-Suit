@@ -3,6 +3,7 @@ import { boardsInSupplyOrder, boardTotals } from '../calc/summary';
 import { subtree } from '../calc/pfc';
 import { SHEET_MM } from '../docs/sldSheet';
 import { boardsWithoutLevel } from './levels';
+import type { SheetMarkup } from './sheetMarkup';
 
 /** The SLD as a set of sheets. Each sheet shows the panels ticked for it
  * (DBs as a box with their circuit count and kW — their final circuits are
@@ -36,6 +37,7 @@ export interface DrawingSheet {
   clouds?: SheetCloud[]; // revision clouds around panels
   issuedHash?: string; // what was drawn when last issued (to flag changes since)
   arrows?: SheetArrow[]; // callouts with a leader arrow, on this sheet only
+  markups?: SheetMarkup[]; // free markups drawn on the sheet (clouds, notes, callouts …), in paper mm
 }
 /** A callout: text with a leader arrow pointing at a panel or a circuit. */
 export interface SheetArrow { target: string; text: string; dir: 'ne' | 'nw' | 'se' | 'sw'; len?: number } // target: board id, or "f:" + feeder id
@@ -371,7 +373,7 @@ export function sheetHash(p: Project, set: DrawingSet, s: DrawingSheet): string 
     : s.kind === 'earthing' ? { boards: p.boards.filter((b) => !b.upstreamId).map((b) => [b.id, b.sourceKva, b.rmu, b.vectorGroup]), feeders: [p.earthingPlan] }
     : s.kind === 'riser' ? { boards: p.boards.map((b) => [b.id, b.upstreamId, b.level, b.ratedCurrentA, b.sourceKva, b.standby]), feeders: [p.feeders.filter((f) => f.feedsBoardId).map((f) => [f.feedsBoardId, f.cores, f.cableCsaMm2, f.lengthM, f.parallel, f.cableType]), p.busRisers, p.building] }
     : sheetProject(p, set, s);
-  const txt = JSON.stringify([d.boards, d.feeders, s.title, s.size, s.tags, s.notes, s.clouds, s.arrows]);
+  const txt = JSON.stringify([d.boards, d.feeders, s.title, s.size, s.tags, s.notes, s.clouds, s.arrows, s.markups]);
   let h = 2166136261;
   for (let i = 0; i < txt.length; i++) { h ^= txt.charCodeAt(i); h = Math.imul(h, 16777619); }
   return (h >>> 0).toString(36);

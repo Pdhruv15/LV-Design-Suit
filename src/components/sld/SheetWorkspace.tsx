@@ -14,6 +14,8 @@ import { currentRevision } from '../../model/revisions';
 import { SHEET_MM } from '../../docs/sldSheet';
 import { exportDrawingSet, exportEverythingZip, exportSheetsDxf, sheetHtml } from '../docs/sheetRender';
 import { IssueDialog } from '../docs/DrawingsView';
+import SheetMarkupLayer, { MarkupToolbar, type MarkupTool } from './SheetMarkupLayer';
+import { MARKUP_LABEL, type MarkupColor, type SheetMarkup } from '../../model/sheetMarkup';
 
 /** Colours of the sheet outlines on the design canvas. */
 export const OUTLINE_COLORS = ['#2f80ed', '#e2711d', '#27ae60', '#9b51e0', '#d1495b', '#00a6a6', '#b8860b'];
@@ -128,15 +130,35 @@ export function SheetWorkspace({ project, run, sheetId, design, onChange, onStat
   const [hostH, setHostH] = useState(600);
   const save = (next: DrawingSet) => onChange({ ...project, drawingSet: next });
   const patch = (p: Partial<DrawingSheet>) => s && save({ ...set, sheets: set.sheets.map((x) => (x.id === s.id ? { ...x, ...p } : x)) });
+  const [tool, setTool] = useState<MarkupTool>('select');
+  const [mColor, setMColor] = useState<MarkupColor>('red');
+  const [mSize, setMSize] = useState(3.5);
+  const [selId, setSelId] = useState<string | null>(null);
+  const markups = s?.markups ?? [];
+  const setMarkups = (next: SheetMarkup[]) => patch({ markups: next.length ? next : undefined });
+  const selected = markups.find((m) => m.id === selId);
+  const removeSelected = () => { if (selected) { setMarkups(markups.filter((m) => m.id !== selected.id)); setSelId(null); } };
+  const restyle = (p: Partial<SheetMarkup>) => selected && setMarkups(markups.map((m) => (m.id === selected.id ? { ...m, ...p } : m)));
+  useEffect(() => { setSelId(null); setTool('select'); }, [sheetId]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selected) { e.preventDefault(); removeSelected(); }
+      else if (e.key === 'Escape') { setTool('select'); setSelId(null); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   // Redraw the page when the design or this sheet changes (debounced).
-  const key = useMemo(() => (s ? sheetHash(project, set, s) + JSON.stringify([s.arrows, s.size, s.cableLabels, s.status, s.rev, s.number, project.drawing, project.info, set.sheets.length]) : ''), [project, set, s]);
+  const key = useMemo(() => (s ? sheetHash(project, set, { ...s, markups: undefined }) + JSON.stringify([s.arrows, s.size, s.cableLabels, s.status, s.rev, s.number, project.drawing, project.info, set.sheets.length]) : ''), [project, set, s]);
   useEffect(() => {
     if (!s || !drawable(s)) { setPage(null); return; }
     let stop = false;
     const t = setTimeout(async () => {
       setBusy(true);
-      try { const r = await sheetHtml(project, set, s, run); if (!stop && r) setPage(r); } finally { if (!stop) setBusy(false); }
+      try { const r = await sheetHtml(project, set, s, run, false, false); if (!stop && r) setPage(r); } finally { if (!stop) setBusy(false); }
     }, 350);
     return () => { stop = true; clearTimeout(t); };
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -183,12 +205,22 @@ export function SheetWorkspace({ project, run, sheetId, design, onChange, onStat
         <label className="row" title="The design on the left, this sheet on the right"><input type="checkbox" checked={side} onChange={(e) => { setSide(e.target.checked); try { localStorage.setItem('lvds.sheetSide', e.target.checked ? '1' : '0'); } catch { /* ignore */ } }} /> Side by side</label>
         <button className="chip primary" onClick={() => setPublish(true)}>Publish…</button>
       </div>
+      {s.kind !== 'earthing' && drawable(s) && (
+        <MarkupToolbar tool={tool} color={selected?.color ?? mColor} size={mSize} selected={selected} count={markups.length}
+          onTool={(t) => { setTool(t); if (t !== 'select') setSelId(null); }}
+          onColor={(c) => { setMColor(c); restyle({ color: c }); }}
+          onSize={(z) => { setMSize(z); restyle({ size: z }); }} onDelete={removeSelected} />
+      )}
       <div className="sheet-body">
         {side && <div className="sheet-design">{design}</div>}
         <div className="sheet-page" ref={host}>
           {!drawable(s) ? <p className="m">Tick the panels for this sheet on the right.</p> : page ? (
-            <div style={{ width: pxW * scale, height: pxH * scale }} className="sheet-paper">
+            <div style={{ width: pxW * scale, height: pxH * scale, position: 'relative' }} className="sheet-paper">
               <iframe title={s.number} srcDoc={page.html} sandbox="" style={{ width: pxW, height: pxH, transform: `scale(${scale})`, transformOrigin: '0 0', border: 0, background: '#fff' }} />
+              {s.kind !== 'earthing' && (
+                <SheetMarkupLayer markups={markups} mmW={mm.w} mmH={mm.h} width={pxW * scale} height={pxH * scale} tool={tool} color={mColor} size={mSize}
+                  selected={selId} rev={nextRev(sheetRev(s, rev?.id))} onSelect={setSelId} onChange={setMarkups} onTool={setTool} />
+              )}
             </div>
           ) : <p className="m">Drawing the sheet…</p>}
         </div>
@@ -246,6 +278,18 @@ export function SheetWorkspace({ project, run, sheetId, design, onChange, onStat
                 <div key={i} className="row">△{c.rev} around {c.boards.join(', ')} <button className="icon-btn" title="Remove" onClick={() => patch({ clouds: (s.clouds ?? []).filter((_, k) => k !== i) || undefined })}>✕</button></div>
               ))}
               <CloudAdd boards={s.boards} rev={nextRev(sheetRev(s, rev?.id))} onAdd={(c) => patch({ clouds: [...(s.clouds ?? []), c] })} />
+            </details>
+          )}
+          {s.kind !== 'earthing' && (
+            <details open={markups.length > 0}><summary>Markups ({markups.length})</summary>
+              {markups.map((m) => (
+                <div key={m.id} className={`row markup-row${m.id === selId ? ' on' : ''}`}>
+                  <button className="linkish" onClick={() => { setTool('select'); setSelId(m.id); }}>{MARKUP_LABEL[m.kind]}{m.kind === 'cloud' && m.rev ? ` △${m.rev}` : ''}{m.text ? `: ${m.text.split('\n')[0].slice(0, 28)}` : ''}</button>
+                  <button className="icon-btn" title="Remove" onClick={() => { setMarkups(markups.filter((x) => x.id !== m.id)); if (m.id === selId) setSelId(null); }}>✕</button>
+                </div>
+              ))}
+              {markups.length > 0 && <button className="linkish" onClick={() => { if (window.confirm(`Remove all ${markups.length} markups from ${s.number}?`)) { setMarkups([]); setSelId(null); } }}>Remove all</button>}
+              <p className="m">Draw on the sheet with the Markup tools above. They stay on this sheet when the design changes and print in the PDF and DXF.</p>
             </details>
           )}
           <details><summary>Arrows and callouts ({(s.arrows ?? []).length})</summary>

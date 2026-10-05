@@ -124,7 +124,7 @@ const reserveOf = (s: DrawingSheet) => (s.kind === 'board' ? 0 : LEGEND_RESERVE_
 /** The finished sheet (frame, drawing, title block) as HTML, with its size.
  * withLegend: show the CABLE SCHEDULE even if this sheet itself has full
  * cable text (another sheet of the set uses numbers). */
-export async function sheetHtml(project: Project, set: DrawingSet, s: DrawingSheet, run?: CalcRun, withLegend = false): Promise<{ html: string; size: SheetSize; fits: boolean; refs: boolean; svg: string; legendSvg: string } | undefined> {
+export async function sheetHtml(project: Project, set: DrawingSet, s: DrawingSheet, run?: CalcRun, withLegend = false, withMarkups = true): Promise<{ html: string; size: SheetSize; fits: boolean; refs: boolean; svg: string; legendSvg: string } | undefined> {
   const mode = s.cableLabels ?? project.drawing?.cableLabels ?? 'auto';
   let refs = mode === 'ref' && s.kind === 'system';
   let r = await renderSheet(project, set, s, run, refs);
@@ -136,19 +136,19 @@ export async function sheetHtml(project: Project, set: DrawingSet, s: DrawingShe
     r = (await renderSheet(project, set, s, run, true)) ?? r;
   }
   const legendSvg = s.kind === 'system' ? await legendOf(sheetProject(project, set, s)) : s.kind === 'riser' && s.buildingId ? await riserLegendOf(project, s.buildingId) : '';
-  const html = sheetHtmlFrom(project, set, s, r.svg, size, refs || withLegend, legendSvg);
+  const html = sheetHtmlFrom(project, set, s, r.svg, size, refs || withLegend, legendSvg, withMarkups);
   // Readable on the paper actually used (a chosen A3 can be too small too).
   return { html, size, fits: scaleOn(size, r.w, r.h, reserveOf(s)) >= MIN_MM_PER_PX, refs, svg: r.svg, legendSvg };
 }
 
 /** Sheet HTML from a drawn SVG (legend: every cable number used in the set). */
-export function sheetHtmlFrom(project: Project, set: DrawingSet, s: DrawingSheet, svg: string, size: SheetSize, legend: boolean, legendSvg = ''): string {
-  return buildSldSheetHtml(project, svg, size, fullSheetInfo(project, set, s, legend, legendSvg));
+export function sheetHtmlFrom(project: Project, set: DrawingSet, s: DrawingSheet, svg: string, size: SheetSize, legend: boolean, legendSvg = '', withMarkups = true): string {
+  return buildSldSheetHtml(project, svg, size, fullSheetInfo(project, set, s, legend, legendSvg, withMarkups));
 }
 
 /** Title block values, legend and cable schedule of one sheet (PDF and DXF). */
-export function fullSheetInfo(project: Project, set: DrawingSet, s: DrawingSheet, legend: boolean, legendSvg = ''): SheetInfo {
-  const info: SheetInfo = { ...sheetInfo(set, s, set.sheets.indexOf(s)), legendSvg };
+export function fullSheetInfo(project: Project, set: DrawingSet, s: DrawingSheet, legend: boolean, legendSvg = '', withMarkups = true): SheetInfo {
+  const info: SheetInfo = { ...sheetInfo(set, s, set.sheets.indexOf(s)), legendSvg, ...(withMarkups && s.markups?.length ? { markups: s.markups } : {}) };
   if (legend) {
     const boards = new Set(set.sheets.flatMap((x) => (x.kind === 'system' ? x.boards : [])));
     info.cables = cableRefsUsed(project, project.feeders.filter((f) => boards.has(f.boardId)));
