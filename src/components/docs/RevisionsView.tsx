@@ -4,6 +4,7 @@ import { boardDemandKw } from '../../calc/electrical';
 import { isScheduleCircuit } from '../../calc/loadSchedule';
 import { countByClass, currentRevision, diffProjects, issueRevision, nextRevisionId, restoreRevision, snapshotOf, type Change, type Snapshot } from '../../model/revisions';
 import { CLASS_LABEL, type ChangeClass } from '../../model/changeClass';
+import { baselineOf, clearBaseline, setBaseline } from '../../model/designBaseline';
 import { saveCsv } from '../../util/files';
 import { Page } from '../ui';
 
@@ -22,10 +23,11 @@ export default function RevisionsView({ project, me = '', onChange, onStatus }: 
   const latest = currentRevision(project);
   const [description, setDescription] = useState('');
   const [by, setBy] = useState(me);
-  const [from, setFrom] = useState<string>(latest?.id ?? '');
+  const baseline = baselineOf(project);
+  const [from, setFrom] = useState<string>(baseline?.revision.id ?? latest?.id ?? '');
   const [to, setTo] = useState<string>(CURRENT);
   const [hide, setHide] = useState<ChangeClass[]>([]);
-  const fromId = revisions.some((r) => r.id === from) ? from : latest?.id ?? '';
+  const fromId = revisions.some((r) => r.id === from) ? from : baseline?.revision.id ?? latest?.id ?? '';
 
   const snap = (id: string): Snapshot | undefined => (id === CURRENT ? snapshotOf(project) : revisions.find((r) => r.id === id)?.snapshot);
   const diff = useMemo(() => {
@@ -89,6 +91,13 @@ export default function RevisionsView({ project, me = '', onChange, onStatus }: 
         </span>
       </div>
 
+      {baseline && (
+        <p className="rev-baseline">
+          <b>Design baseline: Rev {baseline.revision.id}</b> <span className="m">{baseline.chosen ? `chosen${project.baseline?.selectedBy ? ` by ${project.baseline.selectedBy}` : ''}` : 'the latest issued revision (none chosen)'}. The working draft is measured against it; changing the baseline never changes the draft.</span>
+          {baseline.chosen && <button className="linkish" onClick={() => { onChange(clearBaseline(project)); onStatus('Baseline cleared — the latest revision is used'); }}>Use the latest instead</button>}
+        </p>
+      )}
+
       {revisions.length > 0 && (
         <table className="schedule rev-table">
           <thead>
@@ -97,7 +106,7 @@ export default function RevisionsView({ project, me = '', onChange, onStatus }: 
           <tbody>
             {[...revisions].reverse().map((r) => (
               <tr key={r.id}>
-                <td><b>{r.id}</b></td>
+                <td><b>{r.id}</b>{baseline?.revision.id === r.id && <span className="chip-lite" title="The working draft is measured against this revision"> Baseline</span>}</td>
                 <td>{r.date}</td>
                 <td>{r.description}</td>
                 <td>{r.by ?? ''}</td>
@@ -105,6 +114,8 @@ export default function RevisionsView({ project, me = '', onChange, onStatus }: 
                 <td>{demandOf(r.snapshot).toFixed(1)}</td>
                 <td className="rev-actions">
                   <button className="chip" onClick={() => { setFrom(r.id); setTo(CURRENT); }}>Compare with current</button>
+                  <button className="chip" disabled={baseline?.revision.id === r.id && baseline.chosen} title="Measure the working draft against this revision. Only the baseline changes — your draft and BOQ stay as they are."
+                    onClick={() => { onChange(setBaseline(project, r.id, me)); setFrom(r.id); setTo(CURRENT); onStatus(`Rev ${r.id} is now the baseline — your working draft is unchanged. Save the project to keep it.`); }}>Use as baseline</button>
                   <button className="chip" onClick={() => {
                     if (!window.confirm(`Replace the current design with Rev ${r.id}? Changes since the latest revision are lost unless you issue a revision first.`)) return;
                     onChange(restoreRevision(project, r.id));
