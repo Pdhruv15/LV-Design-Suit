@@ -1,7 +1,7 @@
 import { pickProject } from './model/projectStore';
 import { chooseProjectFile, downloadProjectFile } from './util/webApp';
 import WebBanner from './components/WebBanner';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Feeder, Board, Project, newProject } from './types';
 import { sampleProject } from './data/sampleProject';
 import { evaluateProject, type Status } from './calc/electrical';
@@ -92,7 +92,10 @@ import DiscriminationPanel from './components/DiscriminationPanel';
 import { discriminationChain } from './calc/protection';
 import { pasteBoard } from './model/copyBoard';
 import { applyDefaults, applyProfile, initialsOf, loadPrefs, savePrefs, signature, type Preferences } from './model/profile';
-import { clearRecovery, deleteProjectFile, inDesktop, listProjects, loadProject, readRecovery, recentFiles, saveProjectFile, touchRecent, whenText, writeRecovery, type ProjectMeta, type Recovery } from './model/projectStore';
+import { clearRecovery, deleteProjectFile, inDesktop, listProjects, loadProject, loadProjectStamped, readRecoveries, recentFiles, saveProjectFile, statProject, touchRecent, whenText, writeRecovery, type ProjectMeta, type Recovery } from './model/projectStore';
+import { copyProject, isFutureSchema, migrateProject } from './model/projectMigrate';
+import { diffSections, projectFingerprint, type FileStamp } from './model/saveSafety';
+import { CompareDialog, ConflictDialog, ExternalChangeBar } from './components/SaveDialogs';
 import PreferencesDialog from './components/PreferencesDialog';
 import PanelTree from './components/PanelTree';
 import { moveBoard, moveSummary, reorderBoard } from './model/moveBoard';
@@ -107,9 +110,13 @@ const FOCUS_VIEWS: MainView[] = ['earthing', 'selection', 'cable-schedule'];
 
 const STUDY_VIEWS: MainView[] = ['voltage-drop', 'earthing', 'selection', 'coordination', 'db-schedule', 'cable-schedule', 'report'];
 
+/** A project as the app holds it once opened: with its id and version, earth pit IDs and cable reference
+ * numbers already in place — so opening never counts as an unsaved change (these are bookkeeping, not edits). */
+const normalised = (p: Project, file?: string): Project => withCableRefs(withEarthPitIds(migrateProject(p, file)));
+
 export default function App() {
   // The project, with undo / redo. Opening or starting a project clears the history.
-  const history = useHistory<Project>(withEarthPitIds(sampleProject));
+  const history = useHistory<Project>(normalised(sampleProject));
   const project = history.value;
   const setProject: typeof history.set = useCallback((value, opts) => history.set((prev) => {
     const before = withEarthPitIds(prev);
@@ -129,17 +136,31 @@ export default function App() {
   const [projectList, setProjectList] = useState<ProjectMeta[]>([]);
   // Unsaved changes: the project differs from the one last saved or opened.
   const [saved, setSaved] = useState<Project | null>(project);
-  const dirty = project !== saved;
+  // "Unsaved" means the content differs from what was saved — undoing back to the saved state is clean again.
+  // The comparison runs on a deferred copy so typing stays responsive; until it catches up an edit counts as unsaved.
+  const deferredProject = useDeferredValue(project);
+  const savedFp = useMemo(() => (saved ? projectFingerprint(saved) : ''), [saved]);
+  const projectFp = useMemo(() => (project === saved ? '' : projectFingerprint(deferredProject)), [deferredProject, project, saved]);
+  const dirty = project !== saved && (saved === null || deferredProject !== project || projectFp !== savedFp);
+  /** What the open file was when read or last saved (desktop): a different file on disk is a conflict. */
+  const fileStamp = useRef<FileStamp | null | undefined>(undefined);
+  const [saveState, setSaveState] = useState<{ kind: 'idle' | 'saving' | 'failed'; msg?: string }>({ kind: 'idle' });
+  const [conflict, setConflict] = useState<{ file: string; mine: Project; disk: Project | null; diskStamp?: FileStamp | null } | null>(null);
+  const [external, setExternal] = useState<'changed' | 'missing' | null>(null);
+  const [readOnly, setReadOnly] = useState<string | null>(null);
+  const [compare, setCompare] = useState<{ aName: string; bName: string; a: Project; b: Project } | null>(null);
   const [prefs, setPrefs] = useState<Preferences>(loadPrefs);
   const [showPrefs, setShowPrefs] = useState(false);
   const [recent, setRecent] = useState<string[]>(recentFiles);
-  const [recovery, setRecovery] = useState<Recovery | null>(null);
+  // One recovery copy per project; the newest is offered first.
+  const [recoveries, setRecoveries] = useState<Recovery[]>([]);
+  const recovery = recoveries[0] ?? null;
   /** Asking what to do with unsaved changes before `then`. */
   const [ask, setAsk] = useState<{ action: string; then: () => void } | null>(null);
   const [nameAsk, setNameAsk] = useState<{ title: string; note?: string; initial: string; okLabel: string; then: (name: string) => void } | null>(null);
   // For timers and window events, which outlive a render.
-  const live = useRef({ project, saved, currentFile });
-  live.current = { project, saved, currentFile };
+  const live = useRef({ project, saved, currentFile, recoveries });
+  live.current = { project, saved, currentFile, recoveries };
   // Changes the app makes by itself (the database syncing) don't count as
   // the user's unsaved changes when there were none.
   const adoptNext = useRef(false);
@@ -302,7 +323,7 @@ export default function App() {
 
   useEffect(() => {
     refreshList();
-    readRecovery().then((r) => r && setRecovery(r));
+    readRecoveries().then(setRecoveries);
     if (!hasBridge) return;
     window.lvds.settings.get().then((s) => setProjectsFolder(s.projectsFolder));
   }, []);
@@ -311,21 +332,22 @@ export default function App() {
   // Paused while a recovered copy is waiting to be restored or discarded.
   useEffect(() => {
     const min = prefs.app.autosaveMin;
-    if (!min || recovery) return;
+    if (!min) return;
     const t = setInterval(() => {
-      const { project: p, saved: s, currentFile: f } = live.current;
-      if (p !== s) writeRecovery({ file: f, at: Date.now(), project: p });
+      const { project: p, saved: s, currentFile: f, recoveries: pending } = live.current;
+      // Not while a recovered copy of this same project is still waiting to be restored or discarded.
+      if (p !== s && !pending.some((r) => r.projectId === p.id)) writeRecovery({ file: f, at: Date.now(), project: p });
     }, min * 60000);
     return () => clearInterval(t);
-  }, [prefs.app.autosaveMin, recovery]);
+  }, [prefs.app.autosaveMin]);
 
   // Closing the window (or reloading) with unsaved changes: keep a recovery
   // copy and ask first.
   useEffect(() => {
     const onUnload = (e: BeforeUnloadEvent) => {
-      const { project: p, saved: s, currentFile: f } = live.current;
+      const { project: p, saved: s, currentFile: f, recoveries: pending } = live.current;
       if (p === s) return;
-      writeRecovery({ file: f, at: Date.now(), project: p });
+      if (!pending.some((r) => r.projectId === p.id)) writeRecovery({ file: f, at: Date.now(), project: p });
       e.preventDefault();
       e.returnValue = '';
     };
@@ -337,11 +359,65 @@ export default function App() {
     document.title = `${dirty ? '● ' : ''}${project.name} — LV Design Studio v${__APP_VERSION__}`;
   }, [dirty, project.name]);
 
-  function restoreRecovery() {
-    if (!recovery) return;
-    loadIntoApp(recovery.project, recovery.file, `Restored your unsaved work from ${whenText(recovery.at)} — save it to keep it`);
+  // Back in the window: did the open project's file change meanwhile (another computer, a sync, another program)?
+  useEffect(() => {
+    if (!hasBridge) return;
+    const check = async () => {
+      const { currentFile: f } = live.current;
+      const known = fileStamp.current;
+      if (!f || !known) return;
+      const now = await statProject(f);
+      if (now === undefined) return;
+      if (now === null) setExternal('missing');
+      else if (now.hash !== known.hash) setExternal('changed');
+    };
+    window.addEventListener('focus', check);
+    return () => window.removeEventListener('focus', check);
+  }, [hasBridge]);
+
+  /** The file on disk next to what is open: the same review as a save conflict. */
+  async function reviewDiskChanges() {
+    const f = currentFile;
+    if (!f) return;
+    try {
+      const r = await loadProjectStamped(f);
+      setConflict({ file: f, mine: project, disk: r.project, diskStamp: r.stamp });
+    } catch (e) { setStatus(`Could not read ${f}: ${e instanceof Error ? e.message : String(e)}`); }
+  }
+
+  async function reloadFromDisk(file: string) {
+    try {
+      const { project: p, stamp } = await loadProjectStamped(file);
+      loadIntoApp(p, file, `Loaded the version of ${p.name} on disk`, stamp);
+    } catch (e) { setStatus(`Could not open ${file}: ${e instanceof Error ? e.message : String(e)}`); }
+  }
+
+  /** Conflict dialog: take the file on disk, and keep what is open here as recoverable work. */
+  async function useDiskVersion() {
+    const c = conflict;
+    if (!c?.disk) return;
+    const rec: Recovery = { projectId: project.id, file: c.file, at: Date.now(), project };
+    if (project.id && await writeRecovery(rec)) setRecoveries((l) => [rec, ...l.filter((x) => x.projectId !== rec.projectId)]);
+    loadIntoApp(c.disk, c.file, `Loaded the version on disk — your unsaved version is kept as recoverable work`, c.diskStamp);
+  }
+
+  async function compareFiles(file: string, other: string) {
+    try {
+      const [a, b] = await Promise.all([loadProject(file), loadProject(other)]);
+      setCompare({ aName: file, bName: other, a, b });
+    } catch (e) { setStatus(`Could not compare: ${e instanceof Error ? e.message : String(e)}`); }
+  }
+
+  async function restoreRecovery() {
+    const r = recovery;
+    if (!r) return;
+    // The file's baseline: what it is now — or, when it was saved again after this copy was made, a stamp that
+    // can never match, so the first save asks what to do instead of overwriting.
+    const now = r.file ? await statProject(r.file) : undefined;
+    const stamp = r.file ? (r.fileChangedSince ? { mtimeMs: 0, size: 0, hash: 'file-changed-after-recovery-copy' } : now) : undefined;
+    loadIntoApp(r.project, r.file, `Restored your unsaved work from ${whenText(r.at)}${r.fileChangedSince ? ' — the file was saved again since; saving will ask what to do' : ' — save it to keep it'}`, stamp);
     setSaved(null); // restored work is unsaved
-    setRecovery(null);
+    setRecoveries((list) => list.filter((x) => x !== r));
   }
 
   useEffect(() => {
@@ -372,23 +448,45 @@ export default function App() {
     listProjects().then(setProjectList).catch(() => setProjectList([]));
   }
 
-  /** Saves the open project (Ctrl+S); with a name, as a new project file
-   * (Save as). Resolves to false when it couldn't be saved. */
-  async function saveProject(asName?: string): Promise<boolean> {
-    const named = asName ? { ...project, name: asName } : project;
+  /** Saves the open project (Ctrl+S); with a name, as a new project file (Save as: its own project,
+   * with the current one left as it was last saved). A file that someone else changed since it was opened
+   * is not overwritten: the conflict dialog asks (force = the user chose to overwrite). Resolves to false
+   * when it couldn't be saved. */
+  async function saveProject(asName?: string, force = false): Promise<boolean> {
+    if (readOnly && !asName) {
+      setStatus(`Not saved: ${readOnly} Use Save as to keep your own copy.`);
+      setSaveState({ kind: 'failed', msg: readOnly });
+      return false;
+    }
+    const named = asName ? copyProject(project, 'save-as', asName, prefs.profile.name) : project;
     const toSave = { ...named, updatedAt: new Date().toISOString(), updatedBy: prefs.profile.name || named.updatedBy };
+    setSaveState({ kind: 'saving' });
     try {
-      const file = await saveProjectFile(asName ? undefined : currentFile, toSave);
+      const out = await saveProjectFile(asName ? undefined : currentFile, toSave, { expected: asName ? undefined : fileStamp.current, force });
+      if (out.conflict) {
+        const disk = await loadProjectStamped(out.file).then((r) => r.project).catch(() => null);
+        setConflict({ file: out.file, mine: project, disk, diskStamp: out.disk });
+        setSaveState({ kind: 'idle' });
+        setStatus('Not saved — the file changed on disk. Choose what to keep.');
+        return false;
+      }
       if (named !== project) setProject(named, { step: true });
       setSaved(named);
-      setCurrentFile(file);
-      setRecent(touchRecent(file));
-      clearRecovery();
+      setCurrentFile(out.file);
+      fileStamp.current = out.stamp;
+      setExternal(null);
+      setReadOnly(null);
+      setRecent(touchRecent(out.file));
+      void clearRecovery(project.id);
+      void clearRecovery(named.id);
+      setSaveState({ kind: 'idle' });
       setStatus(`Saved ${named.name} · ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
       refreshList();
       return true;
     } catch (e) {
-      setStatus(`Not saved: ${e instanceof Error ? e.message : String(e)}`);
+      const msg = e instanceof Error ? e.message : String(e);
+      setSaveState({ kind: 'failed', msg });
+      setStatus(`Not saved: ${msg}`);
       return false;
     }
   }
@@ -399,10 +497,17 @@ export default function App() {
     setAsk({ action, then });
   }
 
-  function loadIntoApp(p: Project, file: string | undefined, message: string) {
-    history.load(withEarthPitIds(p));
-    setSaved(p);
-    setRun(runCalculations(p)); // results for the project as opened
+  function loadIntoApp(p: Project, file: string | undefined, message: string, stamp?: FileStamp | null) {
+    // Older files get an id and version here; opening alone never counts as an unsaved change.
+    const opened = normalised(p, file);
+    history.load(opened);
+    setSaved(opened);
+    fileStamp.current = file ? stamp : undefined;
+    setExternal(null);
+    setConflict(null);
+    setSaveState({ kind: 'idle' });
+    setReadOnly(isFutureSchema(p) ? 'This project was saved by a newer version of LV Design Studio, so it is open read-only.' : null);
+    setRun(runCalculations(opened)); // results for the project as opened
     // Presets saved with the project join this computer's presets.
     if (p.feederPresets?.length) {
       const m = mergePresets(loadUserPresets(), p.feederPresets);
@@ -412,7 +517,7 @@ export default function App() {
     setActiveBoardId(p.boards[0]?.id ?? '');
     setCreatedPanelIds([]);
     setSelected(null);
-    setStatus(message);
+    setStatus(isFutureSchema(p) ? `${message} — read-only (saved by a newer version)` : message);
     setView('dashboard'); // a project opens on its dashboard
   }
 
@@ -429,7 +534,7 @@ export default function App() {
       const r = await pickProject();
       if (!r) return;
       if (r.file) return openProject(r.file);
-      if (r.data) guard('opening another project', () => { loadIntoApp(r.data!, undefined, `Opened ${r.data!.name} from ${r.from} — Save keeps it in the projects folder`); clearRecovery(); });
+      if (r.data) guard('opening another project', () => { loadIntoApp(r.data!, undefined, `Opened ${r.data!.name} from ${r.from} — Save keeps it in the projects folder`); });
     } catch (e) {
       setStatus(`Could not open the project: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -439,10 +544,9 @@ export default function App() {
     if (file === currentFile && !dirty) { setView('dashboard'); return; } // the project's Overview, like any opened project
     guard('opening another project', async () => {
       try {
-        const p = await loadProject(file);
-        loadIntoApp(p, file, `Opened ${p.name}`);
+        const { project: p, stamp } = await loadProjectStamped(file);
+        loadIntoApp(p, file, `Opened ${p.name}`, stamp);
         setRecent(touchRecent(file));
-        clearRecovery();
       } catch (e) {
         setStatus(`Could not open ${file}: ${e instanceof Error ? e.message : String(e)}`);
         refreshList();
@@ -450,22 +554,21 @@ export default function App() {
     });
   }
 
-  function saveAs() {
-    setNameAsk({ title: 'Save as a new project', note: 'A new project file; the current one stays as it was last saved.', initial: `${project.name} (copy)`, okLabel: 'Save', then: (n) => saveProject(n) });
+  function saveAs(initial = `${project.name} (copy)`) {
+    setNameAsk({ title: 'Save as a new project', note: 'A new project with its own identity (revision history is kept); the current one stays as it was last saved.', initial, okLabel: 'Save', then: (n) => saveProject(n) });
   }
 
   function duplicateFile(file: string) {
     const m = projectList.find((x) => x.file === file);
     setNameAsk({
       title: 'Duplicate project',
-      note: 'A copy to start a similar job. Its revision history is not copied, and its status starts at Design.',
+      note: 'A copy to start a similar job: a new project with its own identity. Its revision history and transmittals are not copied, and its status starts at Design.',
       initial: `${m?.name ?? 'Project'} (copy)`,
       okLabel: 'Create copy',
       then: async (name) => {
         try {
           const p = await loadProject(file);
-          const copy: Project = { ...p, name, revisions: undefined, status: undefined, createdBy: prefs.profile.name || p.createdBy, updatedAt: new Date().toISOString(), updatedBy: prefs.profile.name || p.updatedBy };
-          await saveProjectFile(undefined, copy);
+          await saveProjectFile(undefined, copyProject(migrateProject(p, file), 'duplicate', name, prefs.profile.name));
           refreshList();
           setStatus(`Created “${name}” — it’s in the projects list`);
         } catch (e) {
@@ -490,16 +593,20 @@ export default function App() {
   }
 
   async function setFileStatus(file: string, st: ProjectStatus) {
+    const changedOnDisk = () => setStatus('Status not saved — the file changed on disk. Open the project and save to review the differences.');
     try {
       if (file === currentFile) {
         const next = { ...project, status: st };
         setProject(next, { step: true });
         if (dirty) { setStatus('Status changed — save the project to keep it'); return; }
-        await saveProjectFile(file, { ...next, updatedAt: new Date().toISOString(), updatedBy: prefs.profile.name || next.updatedBy });
+        const out = await saveProjectFile(file, { ...next, updatedAt: new Date().toISOString(), updatedBy: prefs.profile.name || next.updatedBy }, { expected: fileStamp.current });
+        if (out.conflict) { changedOnDisk(); return; }
+        fileStamp.current = out.stamp;
         setSaved(next);
       } else {
-        const p = await loadProject(file);
-        await saveProjectFile(file, { ...p, status: st });
+        const { project: p, stamp } = await loadProjectStamped(file);
+        const out = await saveProjectFile(file, { ...p, status: st, updatedAt: new Date().toISOString(), updatedBy: prefs.profile.name || p.updatedBy }, { expected: stamp });
+        if (out.conflict) { changedOnDisk(); return; }
       }
       refreshList();
     } catch (e) {
@@ -549,7 +656,6 @@ export default function App() {
         // Your Parameters.xlsx defaults, then your profile's defaults and details.
         const p = applyDefaults(applyParameters(newProject(name), db), prefs);
         loadIntoApp(p, undefined, 'New project — not saved yet');
-        clearRecovery();
       }
     }));
   }
@@ -799,7 +905,10 @@ export default function App() {
         <div className="sp" />
         {home
           ? <button className="chip" onClick={() => setView('help')} title="Help">Help</button>
-          : <button className="chip" onClick={() => saveProject()} title="Save (Ctrl+S / ⌘S) — New, Open and Save as are on the Project tab">Save{dirty ? ' ●' : ''}</button>}
+          : <>
+            {saveState.kind === 'failed' && <span className="save-failed" role="alert" title={saveState.msg}>Not saved — {saveState.msg && saveState.msg.length > 60 ? `${saveState.msg.slice(0, 60)}…` : saveState.msg}</span>}
+            <button className="chip" disabled={saveState.kind === 'saving'} onClick={() => saveProject()} title="Save (Ctrl+S / ⌘S) — New, Open and Save as are on the Project tab">{saveState.kind === 'saving' ? 'Saving…' : saveState.kind === 'failed' ? 'Retry save' : `Save${dirty ? ' ●' : ''}`}</button>
+          </>}
         {!home && !hasBridge && <button className="chip" onClick={() => setStatus(downloadProjectFile(project))} title="Download this project as a file to keep on your computer (opens here or in the desktop app)">Download file</button>}
         <button className="chip user-chip" onClick={() => setShowPrefs(true)} title={prefs.profile.name ? `${signature(prefs.profile)} — profile & preferences` : 'Set up your profile: name, designation, company, logo and design defaults'}>
           <span className="av">{initialsOf(prefs.profile.name)}</span>{prefs.profile.name ? prefs.profile.name.split(/\s+/)[0] : 'Profile'}
@@ -808,11 +917,14 @@ export default function App() {
       {!hasBridge && <WebBanner />}
       {recovery && (
         <div className="recover-bar" role="alert">
-          <span>Unsaved work on <b>{recovery.project.name}</b> from {whenText(recovery.at)} was kept when the app closed.</span>
+          <span>Unsaved work on <b>{recovery.project.name}</b> from {whenText(recovery.at)} was kept{recoveries.length > 1 ? ` (${recoveries.length} projects have recovered work)` : ' when the app closed'}.{recovery.fileChangedSince ? ' The project file was saved again after that, so restoring will ask before it overwrites anything.' : ''}</span>
           <button className="chip primary" onClick={() => guard('restoring the recovered work', restoreRecovery)}>Restore it</button>
-          <button className="chip" onClick={() => { clearRecovery(); setRecovery(null); }}>Discard</button>
+          <button className="chip" onClick={() => { void clearRecovery(recovery.projectId); setRecoveries((l) => l.slice(1)); }}>Discard</button>
         </div>
       )}
+
+      {!home && external && <ExternalChangeBar kind={external} dirty={dirty} onReload={() => currentFile && reloadFromDisk(currentFile)} onReview={reviewDiskChanges} onDismiss={() => setExternal(null)} />}
+      {!home && readOnly && <div className="recover-bar" role="alert"><span>{readOnly} Use Save as to keep your own copy.</span></div>}
 
       {!home && <Ribbon
         tab={ribbonTab}
@@ -845,7 +957,7 @@ export default function App() {
           canRedo: history.canRedo,
           onNew: startNewProject,
           onSave: () => saveProject(),
-          onSaveAs: saveAs,
+          onSaveAs: () => saveAs(),
           onProfile: () => setShowPrefs(true),
           onChooseFolder: chooseFolder,
           folderLabel: hasBridge ? `Folder: ${projectsFolder.split(/[\\/]/).pop() || 'choose…'}` : 'This browser',
@@ -1181,6 +1293,7 @@ export default function App() {
                 onChooseFolder={chooseFolder}
                 onPick={pickAndOpen}
                 onContinue={() => setView('dashboard')}
+                onCompare={compareFiles}
                 onSample={() => guard('opening the sample', () => loadIntoApp(JSON.parse(JSON.stringify(sampleProject)), undefined, 'Sample project — explore freely; Save keeps your own copy'))}
               />
             )}
@@ -1287,16 +1400,25 @@ export default function App() {
           name={project.name}
           action={ask.action}
           onCancel={() => setAsk(null)}
-          onDiscard={() => { const then = ask.then; setAsk(null); clearRecovery(); then(); }}
+          onDiscard={() => { const then = ask.then; setAsk(null); void clearRecovery(project.id); then(); }}
           onSave={async () => { const then = ask.then; setAsk(null); if (await saveProject()) then(); }}
         />
       )}
+      {conflict && (
+        <ConflictDialog name={conflict.mine.name} mine={conflict.mine} disk={conflict.disk}
+          onCancel={() => setConflict(null)}
+          onOverwrite={() => { setConflict(null); void saveProject(undefined, true); }}
+          onSaveCopy={() => { setConflict(null); saveAs(`${conflict.mine.name} (my changes)`); }}
+          onLoadDisk={useDiskVersion} />
+      )}
+      {compare && <CompareDialog {...compare} onClose={() => setCompare(null)} />}
       {nameAsk && (
         <NameDialog
           title={nameAsk.title}
           note={nameAsk.note}
           initial={nameAsk.initial}
           okLabel={nameAsk.okLabel}
+          taken={projectList.map((m) => m.name)}
           onCancel={() => setNameAsk(null)}
           onOk={(n) => { const then = nameAsk.then; setNameAsk(null); then(n); }}
         />

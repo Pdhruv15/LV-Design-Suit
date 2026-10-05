@@ -32,6 +32,7 @@ export default function ProjectSettings({ project, onSave, onClose }: { project:
       <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
         <h3>Project settings and design basis</h3>
         <label className="settings-name">Project name<input value={p.name} required onChange={(e) => set('name', e.target.value)} /></label>
+        {p.origin && <p className="m">{p.origin.kind === 'duplicate' ? 'Duplicated' : 'Saved as a copy'} from {p.origin.copiedFromName ? <b>{p.origin.copiedFromName}</b> : 'another project'} on {new Date(p.origin.copiedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}.</p>}
         <div className="tabs feeder-tabs" role="tablist">
           {SETTINGS_TABS.map(([k, label]) => <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{label}</button>)}
         </div>

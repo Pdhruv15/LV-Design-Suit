@@ -15,7 +15,11 @@ declare global {
       projects: {
         list: () => Promise<import('./model/projectStore').ProjectMeta[]>;
         load: (file: string) => Promise<import('./types').Project>;
-        save: (file: string | undefined, data: import('./types').Project) => Promise<{ file: string }>;
+        /** The project and the stamp of the file it was read from (missing in older desktop builds). */
+        read?: (file: string) => Promise<{ project: import('./types').Project; stamp: import('./model/saveSafety').FileStamp | null }>;
+        stat?: (file: string) => Promise<import('./model/saveSafety').FileStamp | null>;
+        /** With `expected` (what the file was when opened or last saved) a changed file is a conflict, not overwritten, unless `force`. */
+        save: (file: string | undefined, data: import('./types').Project, expected?: import('./model/saveSafety').FileStamp, force?: boolean) => Promise<{ file: string; stamp?: import('./model/saveSafety').FileStamp | null; conflict?: boolean; disk?: import('./model/saveSafety').FileStamp | null }>;
         delete: (file: string) => Promise<boolean>;
         pick: () => Promise<{ file?: string; data?: unknown; from?: string } | null>;
       };
@@ -23,7 +27,9 @@ declare global {
       recovery?: {
         write: (r: import('./model/projectStore').Recovery) => Promise<boolean>;
         read: () => Promise<import('./model/projectStore').Recovery | null>;
-        clear: () => Promise<boolean>;
+        /** One recovery copy per project, newest first (missing in older desktop builds). */
+        readAll?: () => Promise<import('./model/projectStore').Recovery[]>;
+        clear: (projectId?: string) => Promise<boolean>;
       };
       database: {
         init: (seeds: Record<string, unknown[][]>) => Promise<import('./database/database').RawDatabase & { created: string[] }>;

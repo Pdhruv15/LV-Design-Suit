@@ -1,3 +1,4 @@
+import { CURRENT_SCHEMA, newProjectId } from './model/projectMigrate';
 export type FeederStatus = 'ok' | 'warn' | 'bad';
 
 export type LoadType = 'general' | 'lighting' | 'sockets' | 'hvac' | 'motor' | 'fire-pump' | 'ev' | 'it' | 'pv' | 'capacitor';
@@ -267,6 +268,13 @@ export interface Board {
 }
 
 export interface Project {
+  /** Stable identity: survives renaming, copying elsewhere and moving files (set on first open / creation). */
+  id?: string;
+  /** File format version (src/model/projectMigrate.ts). Files from a newer app open read-only. */
+  schemaVersion?: number;
+  createdAt?: string;
+  /** Where this project was copied from (Save as / Duplicate). */
+  origin?: { copiedFromId?: string; copiedFromName?: string; copiedAt: string; kind: 'save-as' | 'duplicate' };
   name: string;
   voltageV: number; // phase-phase, e.g. 415
   frequencyHz: number;
@@ -691,7 +699,11 @@ export const STUDY_DEFAULTS: Required<StudySettings> = {
 export const settingsOf = (p: Project): Required<StudySettings> => ({ ...STUDY_DEFAULTS, ...p.studySettings });
 
 export function newProject(name: string): Project {
+  const now = new Date().toISOString();
   return {
+    id: newProjectId(),
+    schemaVersion: CURRENT_SCHEMA,
+    createdAt: now,
     name,
     voltageV: 415,
     frequencyHz: 50,

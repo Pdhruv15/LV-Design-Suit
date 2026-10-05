@@ -4,12 +4,13 @@ import { PROJECT_STATUSES, type ProjectStatus } from '../types';
 import { whenText, type ProjectMeta } from '../model/projectStore';
 import { Page } from './ui';
 
+const slugOf = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const statusLabel = (s?: ProjectStatus) => PROJECT_STATUSES.find((x) => x.value === (s ?? 'design'))!.label;
 
 /** All saved projects: recent ones first as cards, then a searchable table
  * with where each job is (status), client, plot, revision and who saved it
  * last. Open, duplicate, delete, change status. */
-export default function ProjectsDashboard({ list, recent, currentFile, currentName, dirty, folder, desktop, onOpen, onNew, onDuplicate, onDelete, onStatus, onChooseFolder, onPick, onContinue, onSample }: {
+export default function ProjectsDashboard({ list, recent, currentFile, currentName, dirty, folder, desktop, onOpen, onNew, onDuplicate, onDelete, onStatus, onChooseFolder, onPick, onContinue, onSample, onCompare }: {
   list: ProjectMeta[];
   recent: string[];
   currentFile?: string;
@@ -29,6 +30,8 @@ export default function ProjectsDashboard({ list, recent, currentFile, currentNa
   onContinue: () => void;
   /** Open the sample villa project to look around. */
   onSample: () => void;
+  /** Compare a project file with another (a sync tool's conflicted copy and its original). */
+  onCompare: (file: string, other: string) => void;
 }) {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState<'' | ProjectStatus>('');
@@ -99,7 +102,11 @@ export default function ProjectsDashboard({ list, recent, currentFile, currentNa
           <tbody>
             {rows.map((m) => (
               <tr key={m.file} className={m.file === currentFile ? 'on' : ''} onDoubleClick={() => onOpen(m.file)}>
-                <td><button className="linkish" onClick={() => onOpen(m.file)}>{m.name}</button>{m.file === currentFile && <span className="m"> · open{dirty ? ', unsaved changes' : ''}</span>}</td>
+                <td>
+                  <button className="linkish" onClick={() => onOpen(m.file)} title={m.file}>{m.name}</button>{m.file === currentFile && <span className="m"> · open{dirty ? ', unsaved changes' : ''}</span>}
+                  {!m.file.toLowerCase().startsWith(slugOf(m.name)) && <div className="m" title="The file name does not change when a project is renamed">File: {m.file}</div>}
+                  {m.conflictOf && <div className="m" style={{ color: 'var(--warn, #e2a03f)' }}>⚠ Looks like a sync conflict copy of {m.conflictOf} <button className="linkish" onClick={() => onCompare(m.conflictOf!, m.file)}>Compare</button></div>}
+                </td>
                 <td>
                   <select className={`pstat-sel s-${m.status ?? 'design'}`} value={m.status ?? 'design'} onChange={(e) => onStatus(m.file, e.target.value as ProjectStatus)}>
                     {PROJECT_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}

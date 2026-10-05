@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { newProject } from '../types';
 import { sampleProject } from '../data/sampleProject';
 import { applyDefaults, applyProfile, defaultsFromProject, DEFAULT_PREFS, initialsOf, loadPrefs, savePrefs, signature, type Preferences } from './profile';
-import { clearRecovery, deleteProjectFile, listProjects, loadProject, metaOf, readRecovery, recentFiles, saveProjectFile, touchRecent, whenText, writeRecovery } from './projectStore';
+import { clearRecovery, deleteProjectFile, listProjects, loadProject, metaOf, readRecoveries, recentFiles, saveProjectFile, touchRecent, whenText, writeRecovery } from './projectStore';
 import { titleBlockOf } from '../docs/sldSheet';
 
 // A small in-memory localStorage (the store falls back to it without the desktop app).
@@ -58,8 +58,9 @@ describe('profile and new project defaults', () => {
 describe('saving, recovery and recent (web version storage)', () => {
   it('save, list with details, open, overwrite, delete', async () => {
     const p = { ...sampleProject, status: 'submitted' as const, updatedBy: 'Palani Samy' };
-    const file = await saveProjectFile(undefined, p);
-    expect(file).toMatch(/\.json$/);
+    const saved = await saveProjectFile(undefined, { ...p, id: 'abcd1234-0000' });
+    const file = saved.file;
+    expect(file).toMatch(/-abcd1234\.json$/);
     const list = await listProjects();
     expect(list).toHaveLength(1);
     expect(list[0]).toMatchObject({ file, name: p.name, status: 'submitted', updatedBy: 'Palani Samy', boards: p.boards.length });
@@ -71,12 +72,27 @@ describe('saving, recovery and recent (web version storage)', () => {
     await expect(loadProject(file)).rejects.toThrow();
   });
 
-  it('a recovery copy is kept until cleared', async () => {
-    expect(await readRecovery()).toBeNull();
-    await writeRecovery({ file: 'a.json', at: 1, project: sampleProject });
-    expect((await readRecovery())?.project.name).toBe(sampleProject.name);
-    await clearRecovery();
-    expect(await readRecovery()).toBeNull();
+  it('each project keeps its own recovery copy until cleared', async () => {
+    expect(await readRecoveries()).toEqual([]);
+    const a = { ...sampleProject, id: 'a' }, b = { ...sampleProject, id: 'b', name: 'Other job' };
+    await writeRecovery({ file: 'a.json', at: 1, project: a });
+    await writeRecovery({ at: 2, project: b }); // another project autosaving does not replace A's
+    expect((await readRecoveries()).map((r) => r.project.id)).toEqual(['b', 'a']);
+    await clearRecovery('b');
+    const left = await readRecoveries();
+    expect(left).toHaveLength(1);
+    expect(left[0]).toMatchObject({ projectId: 'a', file: 'a.json' });
+    await clearRecovery('a');
+    expect(await readRecoveries()).toEqual([]);
+  });
+
+  it('refuses a recovery copy without a project id, and picks up the older single copy', async () => {
+    expect(await writeRecovery({ at: 1, project: sampleProject })).toBe(false);
+    localStorage.setItem('lvds.recovery', JSON.stringify({ file: 'old.json', at: 5, project: sampleProject }));
+    const all = await readRecoveries();
+    expect(all).toHaveLength(1);
+    expect(all[0].file).toBe('old.json');
+    expect(localStorage.getItem('lvds.recovery')).toBeNull();
   });
 
   it('recent projects, newest first, no repeats, removable', () => {
