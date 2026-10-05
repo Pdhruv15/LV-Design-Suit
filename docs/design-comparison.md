@@ -92,3 +92,25 @@ The audit found and fixed two real gaps:
   with the received-document register, Batch C), a read-only "View baseline", and "Start
   modification" (arrives with D3 modification records). Workflow presets reuse the project role
   from the new-project wizard instead of adding another setting.
+
+# Impact preview (Phase 2, D3 step a)
+
+`src/model/designImpact.ts` `impactBetween(before, after)` answers "what does this change touch?" from
+the model alone, and never states a result. It is used for the working draft against its baseline
+(Revisions → **Changes**, or "Impact…" on the Design workspace bar) and is the same function the
+modification records will use to preview a proposal before it is applied.
+
+- **Panels:** those that changed, those that feed them (their demand and voltage drop: "upstream"),
+  and those they feed ("downstream", for incomer and panel changes), with the before/after maximum
+  demand added up from the loads (not a study result).
+- **Studies to run again:** decided by the same input fingerprints that mark results out of date
+  (`src/calc/runs.ts`), plus UPS (data changed, or fed from a panel whose load changed), solar and
+  the earthing plan. Only engineering changes reach studies and UPS: renaming a panel does not.
+- **Drawings and schedules:** sheets that show an affected panel, the earthing and riser sheets when
+  relevant, and the load, DB, cable and cable-tray schedules by which fields changed.
+- **BOQ design quantities:** from the design model only (no rates, manual lines, overrides or
+  wastage), so no cost is shown.
+- **Not determined here:** listed explicitly (no new results; UPS runtime and battery size; earth
+  pit measurements; design vs site-measured cable lengths).
+
+Pricing, project details and bookkeeping are not design impact.
