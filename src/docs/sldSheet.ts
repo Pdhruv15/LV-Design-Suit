@@ -6,6 +6,7 @@ import { templateOf, templateSize, titleBlockHtml } from '../model/titleBlock';
 import { fillParams } from '../model/params';
 import { abbreviationsIn } from './sldNotes';
 import { FIRE_NOTE } from '../model/cableRefs';
+import { markupLayerHtml, type SheetMarkup } from '../model/sheetMarkup';
 
 /** The SLD as a drawing sheet: frame, the diagram scaled to fit, and a
  * title block (company, project, owner, consultant, title, drawing no.,
@@ -83,7 +84,9 @@ export interface SheetInfo { no: string; title: string; count: number; index: nu
   /** Symbol legend as SVG: goes in the legend column with the cable schedule and abbreviations. */
   legendSvg?: string;
   /** Notes on this sheet only (after the project's SLD notes). */
-  notes?: string[] }
+  notes?: string[];
+  /** Markups drawn on this sheet (paper mm). */
+  markups?: SheetMarkup[] }
 
 export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNullable<DrawingInfo['sheet']> = 'A3', one?: SheetInfo): string {
   const { w, h } = SHEET_MM[sheet];
@@ -166,6 +169,7 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
     ${side ? '</div>' : ''}
     ${notes.length ? `<div class="notes" style="bottom:${mm((custom ? templateSize(custom).h : 44) + 3)};width:${mm(tbW)}"><b>NOTES</b><ol>${notes.map((n) => `<li>${esc(fillParams(n, project))}</li>`).join('')}</ol></div>` : ''}
   </div>
+  ${markupLayerHtml(one?.markups ?? [], w, h)}
   </body></html>`;
 }
 
