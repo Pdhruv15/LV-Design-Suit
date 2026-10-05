@@ -2,12 +2,16 @@ import { useMemo, useState } from 'react';
 import type { Project } from '../../types';
 import { boardDemandKw } from '../../calc/electrical';
 import { isScheduleCircuit } from '../../calc/loadSchedule';
-import { currentRevision, diffProjects, issueRevision, nextRevisionId, restoreRevision, snapshotOf, type Change, type Snapshot } from '../../model/revisions';
+import { countByClass, currentRevision, diffProjects, issueRevision, nextRevisionId, restoreRevision, snapshotOf, type Change, type Snapshot } from '../../model/revisions';
+import { CLASS_LABEL, type ChangeClass } from '../../model/changeClass';
 import { saveCsv } from '../../util/files';
 import { Page } from '../ui';
 
 const CURRENT = 'current';
 const KIND: Record<Change['kind'], string> = { added: 'Added', removed: 'Removed', changed: 'Changed' };
+/** Where a change without a panel is listed. */
+const GROUP: Record<Change['what'], string> = { project: 'Project settings', board: 'Project', feeder: 'Project', circuit: 'Project', ups: 'UPS and batteries', earthing: 'Earthing', sheet: 'Drawing sheets', drawing: 'Drawings and documents', commercial: 'Commercial (BOQ, rates)', details: 'Project details' };
+const SHOWN: ChangeClass[] = ['engineering', 'drawing', 'commercial', 'admin'];
 
 const demandOf = (s: Snapshot) => s.boards.filter((b) => !b.upstreamId).reduce((sum, b) => sum + boardDemandKw(s as Project, b.id), 0);
 
@@ -20,6 +24,7 @@ export default function RevisionsView({ project, me = '', onChange, onStatus }: 
   const [by, setBy] = useState(me);
   const [from, setFrom] = useState<string>(latest?.id ?? '');
   const [to, setTo] = useState<string>(CURRENT);
+  const [hide, setHide] = useState<ChangeClass[]>([]);
   const fromId = revisions.some((r) => r.id === from) ? from : latest?.id ?? '';
 
   const snap = (id: string): Snapshot | undefined => (id === CURRENT ? snapshotOf(project) : revisions.find((r) => r.id === id)?.snapshot);
@@ -28,17 +33,21 @@ export default function RevisionsView({ project, me = '', onChange, onStatus }: 
     const b = snap(to);
     return a && b ? diffProjects(a, b) : undefined;
   }, [project, fromId, to]);
-  const sinceLatest = useMemo(() => (latest ? diffProjects(latest.snapshot, project).changes.length : 0), [project, latest]);
+  const sinceDiff = useMemo(() => (latest ? diffProjects(latest.snapshot, project) : undefined), [project, latest]);
+  const sinceCounts = sinceDiff ? countByClass(sinceDiff) : undefined;
+  const sinceLatest = sinceDiff?.changes.length ?? 0;
+  const counts = diff ? countByClass(diff) : undefined;
+  const shown = (diff?.changes ?? []).filter((c) => !hide.includes(c.class));
 
   const groups = useMemo(() => {
     const out = new Map<string, Change[]>();
-    for (const c of diff?.changes ?? []) {
-      const k = c.boardId ?? 'Project';
+    for (const c of shown) {
+      const k = c.boardId ?? GROUP[c.what];
       out.set(k, [...(out.get(k) ?? []), c]);
     }
     return [...out.entries()];
-  }, [diff]);
-  const count = (k: Change['kind']) => diff?.changes.filter((c) => c.kind === k).length ?? 0;
+  }, [diff, hide]);
+  const count = (k: Change['kind']) => shown.filter((c) => c.kind === k).length;
   const label = (id: string) => (id === CURRENT ? 'current design' : `Rev ${id}`);
 
   function issue() {
@@ -56,10 +65,10 @@ export default function RevisionsView({ project, me = '', onChange, onStatus }: 
 
   async function exportChanges() {
     if (!diff) return;
-    const rows = diff.changes.flatMap((c) =>
-      c.fields.length ? c.fields.map((f) => [c.boardId ?? '', KIND[c.kind], c.label, f.field, f.from, f.to]) : [[c.boardId ?? '', KIND[c.kind], c.label, '', '', '']]
+    const rows = shown.flatMap((c) =>
+      c.fields.length ? c.fields.map((f) => [c.boardId ?? '', CLASS_LABEL[c.class], KIND[c.kind], c.label, f.field, f.from, f.to]) : [[c.boardId ?? '', CLASS_LABEL[c.class], KIND[c.kind], c.label, '', '', '']]
     );
-    const m = await saveCsv(`${project.name} changes ${label(fromId)} to ${label(to)}`, ['Board', 'Change', 'Item', 'Field', 'From', 'To'], rows);
+    const m = await saveCsv(`${project.name} changes ${label(fromId)} to ${label(to)}`, ['Board', 'Kind of change', 'Change', 'Item', 'Field', 'From', 'To'], rows);
     if (m) onStatus(m);
   }
 
@@ -74,7 +83,9 @@ export default function RevisionsView({ project, me = '', onChange, onStatus }: 
         <input value={by} placeholder="By (initials)" className="rev-by" onChange={(e) => setBy(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && issue()} />
         <button className="chip primary" onClick={issue}>Issue revision</button>
         <span className="m">
-          {latest ? (sinceLatest ? `${sinceLatest} change${sinceLatest === 1 ? '' : 's'} since Rev ${latest.id}` : `No changes since Rev ${latest.id}`) : 'No revision issued yet'}
+          {latest ? (sinceLatest
+            ? `${sinceLatest} change${sinceLatest === 1 ? '' : 's'} since Rev ${latest.id}${sinceCounts && !sinceCounts.engineering && !sinceCounts.drawing ? ' — the design itself is unchanged (only pricing or project details)' : ''}`
+            : `No changes since Rev ${latest.id}`) : 'No revision issued yet'}
         </span>
       </div>
 
@@ -121,10 +132,18 @@ export default function RevisionsView({ project, me = '', onChange, onStatus }: 
             <span className="m">
               <b className="ok">{count('added')} added</b> · <b className="bad">{count('removed')} removed</b> · <b className="warn">{count('changed')} changed</b>
             </span>
-            <button className="chip" disabled={!diff.changes.length} onClick={exportChanges}>Export changes (CSV)</button>
+            <button className="chip" disabled={!shown.length} onClick={exportChanges}>Export changes (CSV)</button>
           </div>
+          {counts && (
+            <div className="rev-classes">
+              {SHOWN.filter((c) => counts[c] > 0).map((c) => (
+                <label key={c} className="row"><input type="checkbox" checked={!hide.includes(c)} onChange={() => setHide((h) => (h.includes(c) ? h.filter((x) => x !== c) : [...h, c]))} /> {CLASS_LABEL[c]} ({counts[c]})</label>
+              ))}
+              {counts.commercial > 0 && counts.engineering + counts.drawing === 0 && <span className="m">Only pricing changed — the electrical design is the same.</span>}
+            </div>
+          )}
 
-          {diff.changes.length === 0 ? (
+          {shown.length === 0 ? (
             <p className="m">No differences between {label(fromId)} and {label(to)}.</p>
           ) : (
             <>
@@ -145,7 +164,7 @@ export default function RevisionsView({ project, me = '', onChange, onStatus }: 
                   <ul>
                     {cs.map((c) => (
                       <li key={`${c.kind}-${c.id}`}>
-                        <span className={`rev-kind ${c.kind}`}>{KIND[c.kind]}</span> <b>{c.label}</b>
+                        <span className={`rev-kind ${c.kind}`}>{KIND[c.kind]}</span>{c.class !== 'engineering' && <span className="chip-lite" title="Kind of change">{CLASS_LABEL[c.class]}</span>} <b>{c.label}</b>
                         {c.fields.length > 0 && (
                           <span className="rev-fields">
                             {c.fields.map((f) => <span key={f.field}>{f.field}: <s>{f.from}</s> → {f.to}</span>)}

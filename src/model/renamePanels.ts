@@ -12,6 +12,8 @@ import { prefixOf, roleOf } from './emergency';
 
 const BOARD_KEYS = new Set(['boardId', 'feedsBoardId', 'upstreamId', 'sourceBoardId', 'fromBoardId']);
 const BOARD_LIST_KEYS = new Set(['boards']);
+/** Lists of circuit ids (the voltage drop selection). */
+const FEEDER_LIST_KEYS = new Set(['vdSelection']);
 
 export const kindOf = (b: Board) => b.kind ?? (b.upstreamId ? 'DB' : 'MDB');
 
@@ -68,6 +70,7 @@ export function renamePanels(project: Project, pairs: { from: string; to: string
     if (to && to !== f.id && !taken.has(to)) { feederMap.set(f.id, to); taken.add(to); }
   }
   const walk = (v: unknown, key?: string): unknown => {
+    if (Array.isArray(v) && FEEDER_LIST_KEYS.has(key ?? '')) return v.map((x) => (typeof x === 'string' ? feederMap.get(x) ?? x : x));
     if (Array.isArray(v)) return BOARD_LIST_KEYS.has(key ?? '') ? v.map((x) => (typeof x === 'string' ? map.get(x) ?? x : walk(x))) : v.map((x) => walk(x));
     if (v && typeof v === 'object') {
       const o: Record<string, unknown> = {};
@@ -82,6 +85,12 @@ export function renamePanels(project: Project, pairs: { from: string; to: string
     return v;
   };
   const next = walk({ ...project, boards: undefined, feeders: undefined }) as Project;
+  // Earthing keys embed the panel id (txn:MDB-1, lv:MDB-1, rmu:SUBSTATION:@MDB-1): the pit settings and the pit IDs
+  // (and so the measured values recorded against them) follow the panel to its new name.
+  const earthKey = (k: string) => k.replace(/^(txn|txb|lv|sub):(.+)$/, (_m, kind: string, id: string) => `${kind}:${map.get(id) ?? id}`).replace(/^(rmu:.*:@)(.+)$/, (_m, head: string, id: string) => `${head}${map.get(id) ?? id}`);
+  const rekey = <T,>(o: Record<string, T> | undefined) => (o ? Object.fromEntries(Object.entries(o).map(([k, v]) => [earthKey(k), v])) : o);
+  if (project.earthingPlan) next.earthingPlan = { ...next.earthingPlan, ...(project.earthingPlan.pits ? { pits: rekey(project.earthingPlan.pits) } : {}), ...(project.earthingPlan.unlinked ? { unlinked: project.earthingPlan.unlinked.map(earthKey) } : {}) };
+  if (project.earthPitIds) next.earthPitIds = rekey(project.earthPitIds);
   return {
     ...next,
     ...(project.ties ? { ties: project.ties.map((t) => ({ ...t, a: map.get(t.a) ?? t.a, b: map.get(t.b) ?? t.b })) } : {}),
