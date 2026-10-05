@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { DefaultRow } from '../model/setupPreview';
+import { briefFromTemplate, SYSTEM_LABEL, type SetupTemplate } from '../model/setupTemplate';
 import {
   deliverableCatalog, newBrief, PARTY_LABEL, resetToRole, ROLE_LABEL, SCOPE_ITEMS, withRole, withScope,
   type Deliverable, type Party, type ProjectBrief, type ProjectRole, type ScopeId
@@ -99,14 +100,17 @@ const STEPS = ['Name and role', 'Parties', 'Scope', 'Deliverables', 'Review'];
 
 /** New project: name and role, parties, scope, deliverables, then create. Quick create makes the project from
  * the name alone, as before (no brief). */
-export function NewProjectWizard({ initialName, company, taken, defaults = [], storage, onChooseFolder, onQuick, onCreate, onCancel }: {
+export function NewProjectWizard({ initialName, company, taken, templates = [], defaults = [], storage, onChooseFolder, onQuick, onCreate, onCancel }: {
   initialName: string; company?: string; taken?: string[];
   /** What the project will start with, and where each value comes from. */
   defaults?: DefaultRow[];
   /** Where it will be saved (the projects folder, or this browser), with a way to change the folder on the desktop. */
   storage?: string; onChooseFolder?: () => void;
-  onQuick: (name: string) => void; onCreate: (name: string, brief: ProjectBrief) => void; onCancel: () => void;
+  /** Saved setup templates to start from. */
+  templates?: SetupTemplate[];
+  onQuick: (name: string) => void; onCreate: (name: string, brief: ProjectBrief, template?: SetupTemplate) => void; onCancel: () => void;
 }) {
+  const [tpl, setTpl] = useState<SetupTemplate | undefined>();
   const [step, setStep] = useState(0);
   const [name, setName] = useState(initialName);
   const [brief, setBrief] = useState<ProjectBrief | null>(null);
@@ -116,7 +120,7 @@ export function NewProjectWizard({ initialName, company, taken, defaults = [], s
   return (
     <div className="modal-backdrop" onClick={onCancel}>
       <form className="modal" style={{ maxWidth: 680 }} onClick={(e) => e.stopPropagation()}
-        onSubmit={(e) => { e.preventDefault(); if (step < STEPS.length - 1) { if (canNext) setStep(step + 1); } else if (brief && name.trim()) onCreate(name.trim(), brief); }}>
+        onSubmit={(e) => { e.preventDefault(); if (step < STEPS.length - 1) { if (canNext) setStep(step + 1); } else if (brief && name.trim()) onCreate(name.trim(), brief, tpl); }}>
         <h3>New project <span className="m">— step {step + 1} of {STEPS.length}: {STEPS[step]}</span></h3>
         <div className="tabs feeder-tabs" role="tablist">
           {STEPS.map((s, i) => <button key={s} type="button" role="tab" aria-selected={step === i} className={step === i ? 'on' : ''} disabled={i > 0 && !brief} onClick={() => (i === 0 || brief) && setStep(i)}>{i + 1}. {s}</button>)}
@@ -126,6 +130,14 @@ export function NewProjectWizard({ initialName, company, taken, defaults = [], s
             <>
               <label>Project name<input autoFocus value={name} onFocus={(e) => e.target.select()} onChange={(e) => setName(e.target.value)} /></label>
               {duplicate && <p className="m" style={{ color: 'var(--warn, #e2a03f)' }}>A project with this name already exists. It is kept as a separate project.</p>}
+              {templates.length > 0 && (
+                <label style={{ marginTop: 8 }}>Start from
+                  <select value={tpl?.id ?? ''} onChange={(e) => { const t = templates.find((x) => x.id === e.target.value); setTpl(t); setBrief(t ? briefFromTemplate(t, company) : null); }}>
+                    <option value="">A blank project</option>{templates.map((t) => <option key={t.id} value={t.id}>Setup template: {t.name}</option>)}
+                  </select>
+                </label>
+              )}
+              {tpl && <p className="m">The template supplies your side of the job, authority, scope, suggested deliverables{Object.values(tpl.system).some((v) => v !== undefined) ? ` and system defaults (${Object.entries(tpl.system).filter(([, v]) => v !== undefined).map(([k, v]) => `${SYSTEM_LABEL[k as keyof typeof SYSTEM_LABEL]} ${v}`).join(', ')})` : ''}. It does not copy party names, dates, drawings, equipment or revisions.</p>}
               <p className="m" style={{ marginTop: 10 }}>Which side of the job are you on?</p>
               <RoleCards role={brief?.role} onPick={pick} />
             </>
@@ -168,7 +180,7 @@ export function NewProjectWizard({ initialName, company, taken, defaults = [], s
 }
 
 /** Change a project's role, parties, scope and deliverables from its Overview. */
-export function BriefDialog({ initial, company, onSave, onCancel }: { initial?: ProjectBrief; company?: string; onSave: (b: ProjectBrief) => void; onCancel: () => void }) {
+export function BriefDialog({ initial, company, onSave, onSaveTemplate, onCancel }: { initial?: ProjectBrief; company?: string; onSave: (b: ProjectBrief) => void; /** Keep this setup (scope, deliverables, system defaults) as a template for new projects. */ onSaveTemplate?: (b: ProjectBrief) => void; onCancel: () => void }) {
   const [brief, setBrief] = useState<ProjectBrief>(initial ?? newBrief('consultant', { company }));
   const [tab, setTab] = useState<'scope' | 'parties' | 'deliverables'>(initial ? 'deliverables' : 'scope');
   return (
@@ -189,7 +201,7 @@ export function BriefDialog({ initial, company, onSave, onCancel }: { initial?: 
           {tab === 'parties' && <PartiesStep brief={brief} onChange={setBrief} />}
           {tab === 'deliverables' && <DeliverablesStep brief={brief} onChange={setBrief} />}
         </div>
-        <div className="modal-actions"><span className="sp" /><button type="button" className="chip" onClick={onCancel}>Cancel</button><button type="submit" className="chip primary">Save</button></div>
+        <div className="modal-actions">{onSaveTemplate && <button type="button" className="chip" onClick={() => onSaveTemplate(brief)} title="Keep this role, scope, deliverables and the system defaults as a template for new projects. Party names are not kept.">Save as setup template…</button>}<span className="sp" /><button type="button" className="chip" onClick={onCancel}>Cancel</button><button type="submit" className="chip primary">Save</button></div>
       </form>
     </div>
   );

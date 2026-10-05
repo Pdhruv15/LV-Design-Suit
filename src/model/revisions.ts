@@ -147,7 +147,7 @@ export const DATA_SETS: Fields<Snapshot> = [
   ['ties', 'Bus couplers'], ['pv', 'Solar PV'], ['substations', 'Substation rooms'], ['txGen', 'Transformer & generator plan'], ['pfc', 'Power factor correction plan'],
   ['spacePlan', 'Space plan'], ['pfcCalc', 'Power factor calculator'], ['containmentCalc', 'Containment calculator'], ['components', 'Own components'],
   ['drawing', 'SLD title block and drawing settings'], ['titleTemplates', 'Title block templates'], ['params', 'Parameters'], ['studyReport', 'Study report setup'], ['panelPrefixes', 'Panel naming'],
-  ['tags', 'Tags'], ['notes', 'Notes'], ['brief', 'Scope and deliverables'], ['modifications', 'Modification records'], ['reviewComments', 'Review comments'], ['reviewReport', 'Review report setup'], ['vdSelection', 'Circuits chosen for voltage drop'], ['feederPresets', 'Feeder presets'],
+  ['tags', 'Tags'], ['notes', 'Notes'], ['brief', 'Scope and deliverables'], ['modifications', 'Modification records'], ['reviewComments', 'Review comments'], ['reviewReport', 'Review report setup'], ['receivedDocs', 'Received documents'], ['vdSelection', 'Circuits chosen for voltage drop'], ['feederPresets', 'Feeder presets'],
   ['studyReportPresets', 'Study report presets'], ['calc', 'Calculation options']
 ];
 const sizeOf = (v: unknown) => (Array.isArray(v) ? `${v.length} item(s)` : v === undefined || v === null ? '—' : 'set');

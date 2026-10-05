@@ -285,6 +285,8 @@ export interface Project {
   reviewComments?: import('./model/reviewComments').ReviewComment[];
   /** Saved setup of the design review report (sections, names, recorded reviewer decision). */
   reviewReport?: import('./docs/reviewReport').ReviewReportSetup;
+  /** Documents received from others (Reports → Received documents). */
+  receivedDocs?: import('./model/receivedDocs').ReceivedDoc[];
   /** The issued revision this working draft is measured against (Revisions → Use as baseline). */
   baseline?: import('./model/designBaseline').DesignBaseline;
   /** Who it is for and by whom, what it covers and what is to be delivered (New project wizard). */

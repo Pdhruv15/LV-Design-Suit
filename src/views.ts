@@ -2,7 +2,7 @@
 export type MainView =
   | 'projects' | 'help' | 'parameters' | 'titleblock' | 'dashboard' | 'building' | 'design' | 'space-planning' | 'substation-area' | 'enclosure' | 'earth-schematic' | 'panels' | 'load-schedule'
   | 'calculators' | 'voltage-drop' | 'earthing' | 'selection' | 'coordination' | 'sizing' | 'pfc' | 'busbar' | 'ups' | 'solar' | 'engines'
-  | 'drawings' | 'drawing-register' | 'db-schedule' | 'cable-schedule' | 'cable-tray' | 'equipment' | 'study-reports' | 'boq' | 'report' | 'revisions' | 'modifications' | 'review' | 'database';
+  | 'drawings' | 'drawing-register' | 'db-schedule' | 'cable-schedule' | 'cable-tray' | 'equipment' | 'study-reports' | 'boq' | 'report' | 'revisions' | 'modifications' | 'review' | 'received-docs' | 'database';
 
 export const STUDIES: [MainView, string][] = [
   ['voltage-drop', 'Voltage drop'],
