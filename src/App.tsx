@@ -99,6 +99,8 @@ import { BriefDialog, NewProjectWizard } from './components/BriefEditor';
 import BaselineBar from './components/BaselineBar';
 import ChangesView from './components/docs/ChangesView';
 import ReviewView from './components/docs/ReviewView';
+import { applyTemplateSystem, loadTemplates, saveTemplates, templateFrom, type SetupTemplate } from './model/setupTemplate';
+import ReceivedDocsView from './components/docs/ReceivedDocsView';
 import { applyBrief, type ProjectBrief } from './model/brief';
 import { defaultsPreview } from './model/setupPreview';
 import { copyProject, isFutureSchema, migrateProject } from './model/projectMigrate';
@@ -690,10 +692,11 @@ export default function App() {
     guard('starting a new project', () => setWizard(true));
   }
 
-  function createProject(name: string, brief?: ProjectBrief) {
+  function createProject(name: string, brief?: ProjectBrief, template?: SetupTemplate) {
     setWizard(false);
-    // Your Parameters.xlsx defaults, then your profile's defaults and details, then the brief.
-    const base = applyDefaults(applyParameters(newProject(name), db), prefs);
+    // Your Parameters.xlsx defaults, then your profile's defaults and details, then a setup template, then the brief.
+    const base0 = applyDefaults(applyParameters(newProject(name), db), prefs);
+    const base = template ? applyTemplateSystem(base0, template) : base0;
     loadIntoApp(brief ? applyBrief(base, brief) : base, undefined, 'New project — not saved yet');
   }
 
@@ -1315,6 +1318,7 @@ export default function App() {
             {view === 'cable-tray' && (
               <TrayScheduleView project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />
             )}
+            {view === 'received-docs' && <ReceivedDocsView project={project} onChange={(p) => setProject(p)} onStatus={setStatus} />}
             {view === 'review' && <ReviewView project={project} me={prefs.profile.name} run={run} stale={staleKeys} onChange={(p) => setProject(p)} onStatus={setStatus} onGo={(v) => setView(v)} />}
             {view === 'modifications' && <ChangesView project={project} me={prefs.profile.name} onChange={(p) => setProject(p)} onApply={(p) => setProject(p, { step: true })} onStatus={setStatus} onGo={(v) => setView(v)} />}
             {view === 'revisions' &&<RevisionsView project={project} me={prefs.profile.name ? initialsOf(prefs.profile.name) : ''} onChange={setProject} onStatus={setStatus} />}
@@ -1459,12 +1463,14 @@ export default function App() {
           onLoadDisk={useDiskVersion} />
       )}
       {wizard && (
-        <NewProjectWizard initialName="Untitled project" company={prefs.profile.company} taken={projectList.map((m) => m.name)}
+        <NewProjectWizard templates={loadTemplates()} initialName="Untitled project" company={prefs.profile.company} taken={projectList.map((m) => m.name)}
           defaults={defaultsPreview(db, prefs)} storage={hasBridge ? projectsFolder || 'the projects folder' : 'this browser (use Download file to keep a copy)'} onChooseFolder={hasBridge ? chooseFolder : undefined}
           onCancel={() => setWizard(false)} onQuick={(n) => createProject(n)} onCreate={createProject} />
       )}
       {briefDialog && (
-        <BriefDialog initial={project.brief} company={prefs.profile.company} onCancel={() => setBriefDialog(false)}
+        <BriefDialog initial={project.brief} company={prefs.profile.company}
+          onSaveTemplate={(b) => { const n = window.prompt('Name this setup template (e.g. Villa, DEWA consultant)')?.trim(); if (!n) return; const t = templateFrom(applyBrief(project, b), n); setStatus(saveTemplates([...loadTemplates(), t]) ? `Saved setup template “${n}”: scope, deliverables and system defaults. No party names or project data are kept.` : 'Could not save the template in this browser'); }}
+          onCancel={() => setBriefDialog(false)}
           onSave={(b) => { setBriefDialog(false); setProject(applyBrief(project, b), { step: true }); setStatus('Scope and deliverables updated — save the project to keep them'); }} />
       )}
       {detailsFor && (
