@@ -98,6 +98,7 @@ import ProjectDetailsDialog from './components/ProjectDetailsDialog';
 import { BriefDialog, NewProjectWizard } from './components/BriefEditor';
 import BaselineBar from './components/BaselineBar';
 import ChangesView from './components/docs/ChangesView';
+import ReviewView from './components/docs/ReviewView';
 import { applyBrief, type ProjectBrief } from './model/brief';
 import { defaultsPreview } from './model/setupPreview';
 import { copyProject, isFutureSchema, migrateProject } from './model/projectMigrate';
@@ -1314,6 +1315,7 @@ export default function App() {
             {view === 'cable-tray' && (
               <TrayScheduleView project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />
             )}
+            {view === 'review' && <ReviewView project={project} me={prefs.profile.name} onChange={(p) => setProject(p)} onStatus={setStatus} onGo={(v) => setView(v)} />}
             {view === 'modifications' && <ChangesView project={project} me={prefs.profile.name} onChange={(p) => setProject(p)} onApply={(p) => setProject(p, { step: true })} onStatus={setStatus} onGo={(v) => setView(v)} />}
             {view === 'revisions' &&<RevisionsView project={project} me={prefs.profile.name ? initialsOf(prefs.profile.name) : ''} onChange={setProject} onStatus={setStatus} />}
             {view === 'projects' && (
