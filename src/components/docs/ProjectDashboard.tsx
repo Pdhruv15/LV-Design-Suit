@@ -6,6 +6,7 @@ import { buildDashboardHtml } from '../../docs/dashboardPdf';
 import { safeFileName, savePdf } from '../../util/files';
 import { Page } from '../ui';
 import { projectReadiness } from '../../calc/projectReadiness';
+import { deliverableProgress, PARTY_LABEL, ROLE_LABEL, SCOPE_ITEMS } from '../../model/brief';
 
 import type { MainView } from '../../views';
 
@@ -42,10 +43,14 @@ function Bars({ bars, unit = 'kW', empty }: { bars: DashBar[]; unit?: string; em
 
 /** The project at a glance: headline numbers, load breakdowns, transformer
  * loading and a to-do list; exports as a one-page PDF. */
-export default function ProjectDashboard({ project, run, stale, saved = false, onOpen, onGo, onRun, onStatus }: {
+export default function ProjectDashboard({ project, run, stale, saved = false, onOpen, onEditBrief, onChangeProject, onGo, onRun, onStatus }: {
   project: Project;
   saved?: boolean;
   onOpen?: (v: MainView | 'settings') => void;
+  /** Open the scope / parties / deliverables editor. */
+  onEditBrief?: () => void;
+  /** Change the project (ticking a deliverable). */
+  onChangeProject?: (p: Project) => void;
   run?: CalcRun;
   stale: StudyKey[];
   onGo: (go: NonNullable<TodoItem['go']>) => void;
@@ -59,7 +64,10 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
   const checks = d.studies.reduce((a, s) => a + s.check, 0);
   const passes = d.studies.reduce((a, s) => a + s.pass, 0);
   const stages = projectReadiness(project, d, run, stale, saved);
-  const nextStage = stages.find(s => !s.done);
+  const counted = stages.filter(s => s.applicable);
+  const nextStage = counted.find(s => !s.done);
+  const brief = project.brief;
+  const progress = deliverableProgress(brief);
 
 
   async function exportPdf() {
@@ -104,10 +112,30 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
       </div>
 
       <section className="card dash-start">
-        <h4>Project readiness <span className="m">— {stages.filter(s => s.done).length} / {stages.length} stages complete</span></h4>
+        <h4>Project readiness <span className="m">— {counted.filter(s => s.done).length} / {counted.length} stages complete{counted.length < stages.length ? ` (${stages.length - counted.length} not in scope)` : ''}</span></h4>
         <p className="m">Checks cover network results, configured UPS and solar studies, and drawings. Completion records workflow progress; engineering review is still required.</p>
-        <div className="dash-tiles more">{stages.map(stage => <Tile key={stage.id} label={stage.label} value={stage.done ? 'Complete' : 'Pending'} sub={stage.detail} onClick={onOpen ? () => stage.id === 'calculate' ? onRun() : onOpen(stage.go) : undefined} />)}</div>
+        <div className="dash-tiles more">{stages.map(stage => <Tile key={stage.id} label={stage.label} value={!stage.applicable ? 'Not in scope' : stage.done ? 'Complete' : 'Pending'} sub={stage.applicable ? stage.detail : 'Left out of this project’s scope — still available'} onClick={onOpen ? () => stage.id === 'calculate' ? onRun() : onOpen(stage.go) : undefined} />)}</div>
         {nextStage && onOpen && <button className="chip primary" onClick={() => nextStage.id === 'calculate' ? onRun() : nextStage.id === 'resolve' ? document.getElementById('dash-todo')?.scrollIntoView({ behavior: 'smooth' }) : onOpen(nextStage.go)}>Next: {nextStage.label}</button>}
+      </section>
+      <section className="card dash-brief">
+        <h4>Scope and deliverables{brief && <span className="m"> — {ROLE_LABEL[brief.role].title.split(' — ')[0]}{progress.total ? ` · ${progress.done} / ${progress.total} delivered` : ''}</span>}
+          {onEditBrief && <button className="chip" style={{ float: 'right' }} onClick={onEditBrief}>{brief ? 'Edit…' : 'Set scope and deliverables…'}</button>}</h4>
+        {!brief
+          ? <p className="m">No scope set: every part of the app counts towards readiness. Set the role, parties, scope and deliverables to track what this job needs.</p>
+          : <>
+            <p className="m">{[`Authority: ${brief.authority || '—'}`, ...brief.parties.filter(p => p.role !== 'authority' && p.name.trim()).map(p => `${PARTY_LABEL[p.role]}: ${p.name}`)].join(' · ')}</p>
+            <p>{brief.scope.map(s => SCOPE_ITEMS.find(x => x.id === s)?.label).join(' · ') || <span className="m">No scope selected</span>}</p>
+            {brief.deliverables.length > 0 && (
+              <ul className="dash-deliverables">
+                {brief.deliverables.map(dv => (
+                  <li key={dv.id}>
+                    <label className="row"><input type="checkbox" checked={!!dv.done} disabled={!onChangeProject} onChange={e => onChangeProject?.({ ...project, brief: { ...brief, deliverables: brief.deliverables.map(x => x.id === dv.id ? { ...x, done: e.target.checked } : x) } })} /> <span className={dv.done ? 'm' : ''}>{dv.title}</span></label>
+                    {dv.targetDate && <span className={`m${!dv.done && dv.targetDate < new Date().toISOString().slice(0, 10) ? ' late' : ''}`}> — due {new Date(dv.targetDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>}
       </section>
       <div className="dash-tiles key">
         <Tile label="Maximum demand" value={`${f0(d.demandKw)} kW`} sub={<>{f0(d.demandKva)} kVA · PF {d.pf.toFixed(2)}</>} />

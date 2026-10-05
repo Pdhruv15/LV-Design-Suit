@@ -1220,3 +1220,8 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .th-sort{display:inline-flex;align-items:center;gap:2px;color:inherit;font:inherit;text-transform:inherit}
 .projects-table tr.archived td{opacity:.6}
 .ptags{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+.dash-deliverables{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:3px}
+.dash-deliverables .late{color:var(--bad,#e5534b)}
+.brief-scope{display:grid;gap:6px}
+.brief-party{border:1px solid var(--line);border-radius:6px;margin:8px 0;padding:6px 10px}
+.brief-review p{margin:6px 0}

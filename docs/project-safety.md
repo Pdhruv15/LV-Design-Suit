@@ -57,3 +57,28 @@ templates, received-document register.
 
 Code: `src/model/projectList.ts`, `src/components/ProjectsDashboard.tsx`,
 `src/components/ProjectDetailsDialog.tsx`, `electron/projectFiles.cjs`.
+
+## New project wizard and project brief (Batch B, part 2)
+
+New project opens a five-step wizard: **name and role** (consultant, or contractor), **parties**
+(authority — default DEWA — owner, consultant, contractor with contact, phone, email), **scope**,
+**deliverables**, **review**. *Quick create* makes the project from the name alone, exactly as
+before (no brief).
+
+- **Brief** (`Project.brief`, `src/model/brief.ts`): role, authority, scope, parties, deliverables,
+  and for a contractor with a BOQ whether it prices a new installation or a fit-out (sets
+  `boq.projectType`). Owner, consultant, contractor and phone fill the existing header details
+  (`info`) without erasing what is already there.
+- **Scope** (LV distribution/SLD, load schedules, studies, earthing, UPS, solar, PFC, containment,
+  BOQ) decides which readiness stages count on the Overview. Out-of-scope stages show "Not in
+  scope", stay reachable, and are left out of the "n / m stages complete" count. Setup and Save and
+  issue always count. A project without a brief counts everything, as before.
+- **Deliverables** are suggested from role and scope with stable ids; changing the scope adds the
+  new suggestions and removes unticked ones that are not delivered; your own and the dates/ticks
+  you set are kept. Tick them off on the Overview; late ones are marked.
+- **Overview card** "Scope and deliverables": Edit… (role, scope, parties, deliverables) or, for
+  older projects, Set scope and deliverables….
+- **Copying:** Save as keeps the brief and its progress; Duplicate keeps the brief but clears
+  delivered ticks and dates.
+
+Not yet: setup templates and the received-document register (Batch C).
