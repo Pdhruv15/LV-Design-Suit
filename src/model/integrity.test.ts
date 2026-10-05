@@ -75,16 +75,20 @@ describe('reference integrity', () => {
     expect(moved.project.boards.find((b) => b.id === 'DB-GF1')!.upstreamId).toBe('SMDB-FF');
   });
 
-  it('deleting a panel leaves no sheet, cloud, callout, UPS, coupler, riser, report, plan or selection pointing at it', () => {
+  it('deleting a panel removes it from sheets, clouds, callouts, couplers and report scopes — but never silently re-sources a study', () => {
     const r = deleteBoard(connected(), 'DB-GF1');
-    expect(checkReferences(r)).toEqual([]);
     expect(r.boards.some((b) => b.id === 'DB-GF1')).toBe(false);
     expect(r.drawingSet!.sheets[0].clouds ?? []).toEqual([]);
     expect(r.drawingSet!.sheets[0].arrows ?? []).toEqual([]);
     expect(r.ties ?? []).toEqual([]);
-    expect(r.upsSystems![0].boardId).toBeUndefined();
     expect(r.studyReport!.boards).toEqual(['SMDB-FF']);
-    expect(r.vdSelection).toEqual([]);
+    // What a study is sized from or scoped to stays as it was — unresolved, and reported.
+    expect(r.upsSystems![0].boardId).toBe('DB-GF1');
+    expect(r.busRisers![0].sourceBoardId).toBe('DB-GF1');
+    expect(r.pfc!.boards).toEqual(['DB-GF1']);
+    expect(r.vdSelection).toEqual(['DB-GF1-R1', 'DB-GF1-R3']);
+    const where = checkReferences(r).map((i) => i.where).sort();
+    expect(where).toEqual(['Busbar riser Riser 1', 'Power factor plan', 'UPS UPS-1', 'Voltage drop selection', 'Voltage drop selection']);
   });
 
   it('renaming a main board keeps its earth pit settings, pit IDs and measured values', () => {

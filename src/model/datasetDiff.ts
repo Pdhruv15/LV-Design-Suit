@@ -37,14 +37,42 @@ export function isEmpty(v: unknown): boolean {
   return false;
 }
 
-/** Plain text for a value (numbers rounded to three decimals; lists and objects spelled out briefly). */
-export function show(v: unknown): string {
+/** Plain text for a value (numbers to `digits` decimals; lists and objects spelled out briefly). */
+export function show(v: unknown, digits = 3): string {
   if (isEmpty(v)) return '—';
-  if (typeof v === 'number') return String(+v.toFixed(3));
+  if (typeof v === 'number') return String(+v.toFixed(digits));
   if (typeof v === 'boolean') return v ? 'yes' : 'no';
-  if (Array.isArray(v)) return v.map(show).join(', ');
-  if (typeof v === 'object') return Object.entries(v as Record<string, unknown>).filter(([, x]) => !isEmpty(x)).map(([k, x]) => `${leafLabel(k)} ${show(x)}`).join(', ');
+  if (Array.isArray(v)) return v.map((x) => show(x, digits)).join(', ');
+  if (typeof v === 'object') return Object.entries(v as Record<string, unknown>).filter(([, x]) => !isEmpty(x)).map(([k, x]) => `${leafLabel(k)} ${show(x, digits)}`).join(', ');
   return String(v);
+}
+
+/** A value reduced to what matters for "is it different": nothing-there values collapse (missing, blank, empty list or
+ * object), object keys are put in order, and — with `dropZero` — zero entries inside an object count as absent.
+ * Numbers are kept exactly: a change in the fifth decimal is a change. */
+export function canon(v: unknown, dropZero = false): unknown {
+  if (isEmpty(v)) return undefined;
+  if (Array.isArray(v)) return v.map((x) => canon(x, dropZero) ?? null);
+  if (typeof v === 'object') {
+    const o: Record<string, unknown> = {};
+    for (const k of Object.keys(v as object).sort()) {
+      const c = canon((v as Record<string, unknown>)[k], dropZero);
+      if (c !== undefined && !(dropZero && c === 0)) o[k] = c;
+    }
+    return Object.keys(o).length ? o : undefined;
+  }
+  return v;
+}
+
+/** Whether two values are the same design value. Compared exactly, never through their rounded text. */
+export const same = (a: unknown, b: unknown, dropZero = false): boolean => JSON.stringify(canon(a, dropZero) ?? null) === JSON.stringify(canon(b, dropZero) ?? null);
+
+/** Before and after as text, with as many decimals as it takes for two different numbers to read differently
+ * (1.7501 → 1.7502 is shown as such, not as 1.75 → 1.75). */
+export function pairText(a: unknown, b: unknown, fmt: (v: unknown, digits: number) => string = show): [string, string] {
+  let x = fmt(a, 3), y = fmt(b, 3);
+  for (const d of [4, 5, 6, 8, 10, 12]) { if (x !== y) break; x = fmt(a, d); y = fmt(b, d); }
+  return [x, y];
 }
 
 const hasId = (x: unknown): x is { id: string } => !!x && typeof x === 'object' && typeof (x as { id?: unknown }).id === 'string';
@@ -84,7 +112,7 @@ export function leafChanges(before: unknown, after: unknown, o: LeafOptions = {}
         }
         return;
       }
-      if (show(a) !== show(b)) out.push({ field: name, from: show(a), to: show(b) });
+      if (!same(a, b)) { const [from, to] = pairText(a, b); out.push({ field: name, from, to }); }
       return;
     }
     if (isObj(a) || isObj(b)) {
@@ -92,7 +120,7 @@ export function leafChanges(before: unknown, after: unknown, o: LeafOptions = {}
       for (const k of [...new Set([...Object.keys(xa), ...Object.keys(xb)])]) if (!skip.has(k)) walk(xa[k], xb[k], [...path, leafLabel(k)]);
       return;
     }
-    if (show(a) !== show(b)) out.push({ field: name, from: show(a), to: show(b) });
+    if (!same(a, b)) { const [from, to] = pairText(a, b); out.push({ field: name, from, to }); }
   };
   walk(before, after, []);
   const max = o.max ?? 40;

@@ -84,7 +84,10 @@ export function renamePanels(project: Project, pairs: { from: string; to: string
     }
     return v;
   };
-  const next = walk({ ...project, boards: undefined, feeders: undefined }) as Project;
+  // Issued revisions are frozen: they keep the names the panels had when they were issued.
+  const { revisions, ...live } = project;
+  const next = walk({ ...live, boards: undefined, feeders: undefined }) as Project;
+  if (revisions) next.revisions = revisions;
   // Earthing keys embed the panel id (txn:MDB-1, lv:MDB-1, rmu:SUBSTATION:@MDB-1): the pit settings and the pit IDs
   // (and so the measured values recorded against them) follow the panel to its new name.
   const earthKey = (k: string) => k.replace(/^(txn|txb|lv|sub):(.+)$/, (_m, kind: string, id: string) => `${kind}:${map.get(id) ?? id}`).replace(/^(rmu:.*:@)(.+)$/, (_m, head: string, id: string) => `${head}${map.get(id) ?? id}`);

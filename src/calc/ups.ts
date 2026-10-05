@@ -159,6 +159,8 @@ export interface UpsResult {
   runtimeMin: number | undefined; // with the chosen battery
   surge: UpsSurgeResult;
   batteryIssue?: string;
+  /** Set when the linked panel is gone: the figures are not a valid sizing. */
+  sourceIssue?: string;
   batteryBasis: 'estimate' | 'manufacturer table';
   tableWattsPerBlock?: number;
   tableMinutes?: number;
@@ -184,8 +186,12 @@ function loadingOf(kva: number, kw: number, upsKva?: number, upsKw?: number): Pi
 }
 
 /** Load of a UPS: its board's demand, or its load list. */
+/** The panel a UPS is linked to no longer exists (it must be reassigned, or the link removed on purpose). */
+export const upsSourceMissing = (project: Project, s: UpsSystem): boolean => !!s.boardId && !project.boards.some((b) => b.id === s.boardId);
+
 export function upsLoad(project: Project, s: UpsSystem): { kva: number; kw: number } {
-  if (s.boardId && project.boards.some((b) => b.id === s.boardId)) {
+  if (upsSourceMissing(project, s)) return { kva: 0, kw: 0 }; // never falls back to the manual load list
+  if (s.boardId) {
     const t = boardTotals(project, s.boardId);
     return { kw: t.demandKw, kva: Math.hypot(t.demandKw, Math.max(0, t.demandKvar)) };
   }
@@ -223,8 +229,8 @@ export function sizeUps(project: Project, s: UpsSystem): UpsResult {
   const designKva = (kva * g) / lim;
   const designKw = (kw * g) / lim;
   // Smallest standard UPS whose kVA and kW (kVA × output PF) both cover the design.
-  const upsKva = STANDARD_UPS_KVA.find((k) => k >= designKva - 1e-9 && k * s.outputPf >= designKw - 1e-9);
-  if (!upsKva) notes.push(`Above ${STANDARD_UPS_KVA[STANDARD_UPS_KVA.length - 1]} kVA — use UPS modules in parallel`);
+  const upsKva = upsSourceMissing(project, s) ? undefined : STANDARD_UPS_KVA.find((k) => k >= designKva - 1e-9 && k * s.outputPf >= designKw - 1e-9);
+  if (!upsKva && !upsSourceMissing(project, s)) notes.push(`Above ${STANDARD_UPS_KVA[STANDARD_UPS_KVA.length - 1]} kVA — use UPS modules in parallel`);
   if (upsKva && upsKva * s.outputPf < designKw * 1.0001 && upsKva >= designKva) notes.push('Sized by kW (the UPS output power factor), not kVA');
 
   // Battery sized for the load with growth (not the UPS rating).
@@ -276,6 +282,8 @@ export function sizeUps(project: Project, s: UpsSystem): UpsResult {
       blockAh = strings <= 8 ? sizes.find(a => a >= requiredAh / strings) : undefined;
     }
   }
+  const sourceIssue = upsSourceMissing(project, s) ? `The linked panel ${s.boardId} no longer exists — assign this UPS to a panel (or remove the link and enter its loads) before relying on this study.` : undefined;
+  if (sourceIssue) batteryIssue = sourceIssue;
   if (batteryIssue) { blockAh = undefined; notes.push(batteryIssue); }
   if (!blockAh && !batteryIssue) notes.push('More than 8 strings — use a larger block or a higher DC voltage');
   if (strings > 1) notes.push(`${strings} strings in parallel`);
@@ -322,6 +330,7 @@ export function sizeUps(project: Project, s: UpsSystem): UpsResult {
 
   return {
     surge: checkUpsSurge(s, kw, kva),
+    sourceIssue,
     loadKva: kva, loadKw: kw, designKva, designKw,
     upsKva, upsKw: upsKva ? upsKva * s.outputPf : undefined,
     ...loadingOf(kva, kw, upsKva, upsKva ? upsKva * s.outputPf : undefined),

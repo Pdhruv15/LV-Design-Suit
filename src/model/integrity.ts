@@ -2,7 +2,7 @@ import type { Project } from '../types';
 
 /** A reference inside the project that points at something that does not exist (a panel, circuit, sheet or
  * building that was renamed or removed without the reference being updated). */
-export interface RefIssue { where: string; ref: string; problem: string }
+export interface RefIssue { where: string; ref: string; problem: string; /** The screen that fixes it. */ view?: import('../views').MainView }
 
 /** Every cross-reference in the project: which panel a circuit is on and feeds, which panel feeds which, and the
  * panels, circuits and buildings named by sheets, UPS systems, bus couplers, risers, reports and studies.
@@ -10,7 +10,7 @@ export interface RefIssue { where: string; ref: string; problem: string }
 export function checkReferences(p: Project): RefIssue[] {
   const out: RefIssue[] = [];
   const boards = new Set(p.boards.map((b) => b.id)), feeders = new Set(p.feeders.map((f) => f.id));
-  const need = (set: Set<string>, ref: string | undefined, where: string, what: string) => { if (ref && !set.has(ref)) out.push({ where, ref, problem: `${what} does not exist` }); };
+  const need = (set: Set<string>, ref: string | undefined, where: string, what: string, view?: RefIssue['view']) => { if (ref && !set.has(ref)) out.push({ where, ref, problem: `${what} does not exist`, view }); };
 
   for (const b of p.boards) {
     need(boards, b.upstreamId, `Panel ${b.id}`, 'Panel it is fed from');
@@ -31,13 +31,13 @@ export function checkReferences(p: Project): RefIssue[] {
     need(compIds, f.componentId, `Circuit ${f.id}`, 'Own component it was made from');
   }
   for (const t of p.ties ?? []) { need(boards, t.a, `Bus coupler ${t.id}`, 'Panel A'); need(boards, t.b, `Bus coupler ${t.id}`, 'Panel B'); }
-  for (const u of p.upsSystems ?? []) need(boards, u.boardId, `UPS ${u.name || u.id}`, 'UPS panel');
-  for (const r of p.busRisers ?? []) need(boards, r.sourceBoardId, `Busbar riser ${r.name || r.id}`, 'Source panel');
+  for (const u of p.upsSystems ?? []) need(boards, u.boardId, `UPS ${u.name || u.id}`, 'UPS panel', 'ups');
+  for (const r of p.busRisers ?? []) need(boards, r.sourceBoardId, `Busbar riser ${r.name || r.id}`, 'Source panel', 'busbar');
   for (const id of p.studyReport?.boards ?? []) need(boards, id, 'Study report', 'Selected panel');
-  for (const id of p.pfc?.boards ?? []) need(boards, id, 'Power factor plan', 'Panel');
-  for (const id of p.txGen?.txBoards ?? []) need(boards, id, 'Transformer plan', 'Panel');
-  for (const id of p.txGen?.n1 ?? []) need(boards, id, 'Transformer plan (two transformers)', 'Panel');
-  for (const id of p.vdSelection ?? []) need(feeders, id, 'Voltage drop selection', 'Circuit');
+  for (const id of p.pfc?.boards ?? []) need(boards, id, 'Power factor plan', 'Panel', 'pfc');
+  for (const id of p.txGen?.txBoards ?? []) need(boards, id, 'Transformer plan', 'Panel', 'sizing');
+  for (const id of p.txGen?.n1 ?? []) need(boards, id, 'Transformer plan (two transformers)', 'Panel', 'sizing');
+  for (const id of p.vdSelection ?? []) need(feeders, id, 'Voltage drop selection', 'Circuit', 'voltage-drop');
 
   const buildingIds = new Set((p.building?.buildings ?? []).map((b) => b.id));
   for (const s of p.drawingSet?.sheets ?? []) {
@@ -50,12 +50,19 @@ export function checkReferences(p: Project): RefIssue[] {
   return out;
 }
 
-/** The project with references to panels and circuits that no longer exist taken out: sheets lose the panel,
- * clouds and callouts that pointed only at it are removed, a UPS is unlinked from its board, couplers to it are removed,
- * and report scopes, plans and selections drop it. Run after deleting panels. */
+/** The project with plain references to panels and circuits that no longer exist taken out: sheets lose the panel, clouds
+ * and callouts that pointed only at it are removed, couplers to it are removed, report scopes drop it, and earthing
+ * settings of its equipment go. Run after deleting panels.
+ *
+ * It deliberately does NOT touch what a study is sized from or scoped to — a UPS linked to the panel, a busbar riser's
+ * source, the transformer, power-factor and voltage-drop selections. Clearing those would silently turn a study into
+ * something else (a UPS fed by a panel into a zero-load manual UPS, an "empty = all" list into all). They stay
+ * unresolved, are reported by `checkReferences` and by the To do list, and the study is not valid until the user
+ * reassigns it or removes it. */
 export function removeDanglingReferences(p: Project): Project {
-  const boards = new Set(p.boards.map((b) => b.id)), feeders = new Set(p.feeders.map((f) => f.id));
+  const boards = new Set(p.boards.map((b) => b.id));
   const keep = (ids: string[]) => ids.filter((id) => boards.has(id));
+  const feeders = new Set(p.feeders.map((f) => f.id));
   const next: Project = { ...p };
   if (p.drawingSet) {
     next.drawingSet = {
@@ -68,12 +75,7 @@ export function removeDanglingReferences(p: Project): Project {
     };
   }
   if (p.ties) next.ties = p.ties.filter((t) => boards.has(t.a) && boards.has(t.b));
-  if (p.upsSystems) next.upsSystems = p.upsSystems.map((u) => (u.boardId && !boards.has(u.boardId) ? { ...u, boardId: undefined } : u));
-  if (p.busRisers) next.busRisers = p.busRisers.map((r) => (r.sourceBoardId && !boards.has(r.sourceBoardId) ? { ...r, sourceBoardId: undefined } : r));
   if (p.studyReport) next.studyReport = { ...p.studyReport, boards: keep(p.studyReport.boards) };
-  if (p.pfc?.boards) next.pfc = { ...p.pfc, boards: keep(p.pfc.boards) };
-  if (p.txGen) next.txGen = { ...p.txGen, ...(p.txGen.txBoards ? { txBoards: keep(p.txGen.txBoards) } : {}), ...(p.txGen.n1 ? { n1: keep(p.txGen.n1) } : {}) };
-  if (p.vdSelection) next.vdSelection = p.vdSelection.filter((id) => feeders.has(id));
   // Earthing settings kept for equipment of a panel that is gone (the retired pit IDs stay reserved on purpose).
   if (p.earthingPlan) {
     const live = (k: string) => { const m = k.match(/^(?:txn|txb|lv|sub):(.+)$/) ?? k.match(/^rmu:.*:@(.+)$/); return !m || boards.has(m[1]); };
