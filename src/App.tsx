@@ -100,6 +100,7 @@ import BaselineBar from './components/BaselineBar';
 import ChangesView from './components/docs/ChangesView';
 import ReviewView from './components/docs/ReviewView';
 import { applyTemplateSystem, loadTemplates, saveTemplates, templateFrom, type SetupTemplate } from './model/setupTemplate';
+import CheckpointsPanel from './components/docs/CheckpointsPanel';
 import ReceivedDocsView from './components/docs/ReceivedDocsView';
 import { applyBrief, type ProjectBrief } from './model/brief';
 import { defaultsPreview } from './model/setupPreview';
@@ -1321,7 +1322,7 @@ export default function App() {
             {view === 'received-docs' && <ReceivedDocsView project={project} onChange={(p) => setProject(p)} onStatus={setStatus} />}
             {view === 'review' && <ReviewView project={project} me={prefs.profile.name} run={run} stale={staleKeys} onChange={(p) => setProject(p)} onStatus={setStatus} onGo={(v) => setView(v)} />}
             {view === 'modifications' && <ChangesView project={project} me={prefs.profile.name} onChange={(p) => setProject(p)} onApply={(p) => setProject(p, { step: true })} onStatus={setStatus} onGo={(v) => setView(v)} />}
-            {view === 'revisions' &&<RevisionsView project={project} me={prefs.profile.name ? initialsOf(prefs.profile.name) : ''} onChange={setProject} onStatus={setStatus} />}
+            {view === 'revisions' && <><RevisionsView project={project} me={prefs.profile.name ? initialsOf(prefs.profile.name) : ''} onChange={setProject} onStatus={setStatus} /><div style={{ padding: '0 16px 16px' }}><CheckpointsPanel project={project} onRestore={(p) => setProject(p, { step: true })} onStatus={setStatus} /></div></>}
             {view === 'projects' && (
               <ProjectsDashboard
                 list={projectList}
