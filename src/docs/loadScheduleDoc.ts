@@ -23,7 +23,7 @@ export function incomerDeviceText(board: Board, incomer: Feeder | undefined): st
 
 /** The incomer as printed: rating and device as on the SLD, poles from the feeder (SP+N for a 2-core supply, TP+N for 4-core). */
 export function incomerLabel(board: Board, incomer: Feeder | undefined): string {
-  if (!incomer) return board.ratedCurrentA ? `${board.ratedCurrentA} A` : '';
+  if (!incomer) return board.ratedCurrentA ? `${board.ratedCurrentA} A ${incomerDeviceText(board, undefined)}`.trim() : '';
   return `${board.ratedCurrentA ?? incomer.breakerRatingA} A ${incomerDeviceText(board, incomer)} ${polesOf(incomer)}`;
 }
 

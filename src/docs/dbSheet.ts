@@ -134,7 +134,7 @@ export function buildDbSheet(project: Project, boardId: string): DbSheet {
   // DEWA form: the incomer device as drawn on the SLD; poles from the supply (SP for a 2-core supply).
   const incomerText = incomer
     ? `${board.ratedCurrentA ?? incomer.breakerRatingA}A ${incomer.cores >= 3 ? 'TP' : 'SP'} ${incomerDeviceText(board, incomer)}`
-    : board.ratedCurrentA ? `${board.ratedCurrentA}A` : '';
+    : board.ratedCurrentA ? `${board.ratedCurrentA}A ${incomerDeviceText(board, undefined)}`.trim() : '';
   const first = 1;
   const count = rows.length - first;
   data[first][at('incomer')] = incomerText;
