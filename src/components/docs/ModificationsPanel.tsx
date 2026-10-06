@@ -1,14 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Project } from '../../types';
 import type { MainView } from '../../views';
 import {
-  addOp, allowedNext, applyModification, conflictsOf, currentValue, describeOp, impactOfProposal, ModificationError, newModification, PROPOSABLE, reconcile, recordFromDraft, removeOp,
+  addOp, allowedNext, applyModification, conflictsOf, currentValue, impactOfProposal, ModificationError, newModification, PROPOSABLE, reconcile, recordFromDraft, removeOp,
   STATUS_LABEL, transition, withRecord, type ModificationRecord, type ModStatus, type ModTarget, type OpConflict
 } from '../../model/designChanges';
 import { pairText } from '../../model/datasetDiff';
+import { filterRegister, opView, type RegisterFilter } from '../../model/proposalRegister';
+import { followUp } from '../../model/designChanges';
+import { baselineMessage, baselineStatus } from '../../model/proposalRules';
 import { ImpactPanel } from './ChangesView';
 
-const ACTION: Record<ModStatus, string> = { draft: 'Draft', proposed: 'Propose', review: 'Start review', accepted: 'Accept…', rejected: 'Reject…', superseded: 'Supersede…' };
+const ACTION: Record<ModStatus, string> = { draft: 'Return to draft…', proposed: 'Propose', review: 'Start review', accepted: 'Accept…', rejected: 'Reject…', superseded: 'Supersede…' };
 const when = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
 /** Modification records: propose a design change with the reason and the exact values, preview what it touches, record a
@@ -23,11 +26,19 @@ export default function ModificationsPanel({ project, me, onChange, onApply, onS
 }) {
   const records = project.modifications ?? [];
   const [sel, setSel] = useState<string | null>(null);
-  const rec = records.find((r) => r.id === sel);
+  const stored = records.find((r) => r.id === sel);
+  /** The editor's own copy of a draft: nothing reaches the project until Save, and Cancel throws it away. */
+  const [buf, setBuf] = useState<ModificationRecord | undefined>();
+  useEffect(() => { setBuf(undefined); }, [sel, stored]);
+  const rec = buf ?? stored;
+  const dirty = !!buf;
+  const [flt, setFlt] = useState<RegisterFilter>({ status: 'all' });
+  const rows = filterRegister(project, records, flt);
   const [conflict, setConflict] = useState<OpConflict[] | null>(null);
   const [add, setAdd] = useState<{ target: ModTarget; id: string; field: string; value: string }>({ target: 'feeder', id: '', field: '', value: '' });
 
   const save = (r: ModificationRecord) => onChange(withRecord(project, r));
+  const edit = (r: ModificationRecord) => (r.status === 'draft' ? setBuf(r) : save(r));
   const guard = (fn: () => void) => { try { fn(); } catch (e) { onStatus(e instanceof ModificationError || e instanceof Error ? e.message : String(e)); } };
 
   function create() {
@@ -55,7 +66,9 @@ export default function ModificationsPanel({ project, me, onChange, onApply, onS
     if (!rec) return;
     const note = to === 'accepted' || to === 'rejected' || to === 'superseded' ? window.prompt(to === 'superseded' ? 'What supersedes it (e.g. MOD-004), or why?' : 'Decision note (optional)') : '';
     if (note === null) return;
-    const t = transition(project, rec, to, { by: me, note: note || undefined, supersededBy: to === 'superseded' && /^MOD-\d+$/i.test(note ?? '') ? note!.toUpperCase() : undefined });
+    if (to === 'draft' && !window.confirm(rec.decision ? 'Return it to a draft to edit it? The earlier decision stops applying, and it needs a new decision after you change it.' : 'Return it to a draft to edit it?')) return;
+    const evidenceRef = to === 'accepted' || to === 'rejected' ? window.prompt('Where is the evidence for this decision kept? (optional)') ?? undefined : undefined;
+    const t = transition(project, rec, to, { by: me, evidenceRef, note: note || undefined, supersededBy: to === 'superseded' && /^MOD-\d+$/i.test(note ?? '') ? note!.toUpperCase() : undefined });
     if (!t.ok) { onStatus(t.error); if (t.conflicts) setConflict(t.conflicts); return; }
     setConflict(null);
     save(t.record);
@@ -85,7 +98,7 @@ export default function ModificationsPanel({ project, me, onChange, onApply, onS
     guard(() => {
       const raw = add.value.trim();
       const after = def.kind === 'number' ? (raw === '' ? Number.NaN : Number(raw)) : def.kind === 'bool' ? raw === 'yes' : raw;
-      save(addOp(project, rec, add.target, add.target === 'project' ? undefined : add.id, def.key, after));
+      edit(addOp(project, rec, add.target, add.target === 'project' ? undefined : add.id, def.key, after));
       setAdd({ ...add, value: '' });
     });
   }
@@ -100,17 +113,29 @@ export default function ModificationsPanel({ project, me, onChange, onApply, onS
       </h4>
       <p className="m">Propose a change with its reason and the exact values, preview what it touches, record the decision, then apply it to the working design as one undoable step. {me ? <>Recorded as <b>{me}</b> (a typed name — the app does not verify identities).</> : 'Set your name in Profile & preferences to record who proposed and decided.'}</p>
 
-      {records.length === 0 ? <p className="m">No modifications yet.</p> : (
+      {records.length > 0 && (
+        <div className="row" style={{ gap: 8, margin: '6px 0', flexWrap: 'wrap' }}>
+          <select value={flt.status ?? 'all'} onChange={(e) => setFlt({ ...flt, status: e.target.value as RegisterFilter['status'] })}>
+            <option value="all">All statuses</option><option value="open">Not yet decided or applied</option>
+            {(Object.keys(STATUS_LABEL) as ModStatus[]).map((x) => <option key={x} value={x}>{STATUS_LABEL[x]}</option>)}
+          </select>
+          <input placeholder="Equipment, e.g. DB-GF1-R3" value={flt.equipment ?? ''} onChange={(e) => setFlt({ ...flt, equipment: e.target.value })} style={{ width: 190 }} />
+          <input placeholder="Search title or reason" value={flt.text ?? ''} onChange={(e) => setFlt({ ...flt, text: e.target.value })} style={{ width: 170 }} />
+        </div>
+      )}
+      {records.length === 0 ? <p className="m">No modifications yet.</p> : !rows.length ? <p className="m">None match this filter.</p> : (
         <table className="projects-table">
-          <thead><tr><th>ID</th><th>Title</th><th>Status</th><th>Changes</th><th>Applied</th></tr></thead>
+          <thead><tr><th>ID</th><th>Title</th><th>Baseline</th><th>Equipment</th><th>By / date</th><th>Status</th><th>Applied</th></tr></thead>
           <tbody>
-            {records.map((r) => (
+            {rows.map((r) => (
               <tr key={r.id} className={r.id === sel ? 'on' : ''}>
                 <td><button className="linkish" onClick={() => { setSel(r.id); setConflict(null); }}>{r.id}</button></td>
-                <td>{r.title}{r.origin && <span className="m"> · {r.origin}</span>}</td>
-                <td><span className={`chip-lite mod-${r.status}`}>{STATUS_LABEL[r.status]}</span></td>
-                <td>{r.ops.length}</td>
-                <td>{r.applied ? `${when(r.applied.at)}${r.applied.source === 'draft' ? ' (recorded)' : ''}` : '—'}</td>
+                <td>{r.title}{r.follows && <span className="m"> · follows {r.follows}</span>}</td>
+                <td className={r.baselineState === 'unavailable' || r.baselineState === 'changed' ? 'bad' : ''}>{r.baseline}</td>
+                <td>{r.equipment.slice(0, 3).join(', ')}{r.equipment.length > 3 ? ` +${r.equipment.length - 3}` : ''} <span className="m">({r.changes})</span></td>
+                <td>{r.author ? `${r.author}, ` : ''}{when(r.date)}</td>
+                <td><span className={`chip-lite mod-${r.status}`}>{r.statusLabel}</span></td>
+                <td>{r.applied ? when(r.applied) : '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -120,18 +145,28 @@ export default function ModificationsPanel({ project, me, onChange, onApply, onS
       {rec && (
         <div className="mod-detail">
           <h4>{rec.id} — {editable
-            ? <input className="bi-text" value={rec.title} onChange={(e) => save({ ...rec, title: e.target.value })} />
+            ? <input className="bi-text" value={rec.title} onChange={(e) => edit({ ...rec, title: e.target.value })} />
             : rec.title}</h4>
-          <p className="m">{editable ? <><label>Reason <input className="bi-text" value={rec.reason} onChange={(e) => save({ ...rec, reason: e.target.value })} /></label> <label>Origin <input className="bi-text" value={rec.origin ?? ''} placeholder="comment / query reference" onChange={(e) => save({ ...rec, origin: e.target.value || undefined })} /></label></> : <>Reason: {rec.reason || '—'}{rec.origin ? ` · Origin: ${rec.origin}` : ''}</>}
+          <p className="m">{editable ? <><label>Reason <input className="bi-text" value={rec.reason} onChange={(e) => edit({ ...rec, reason: e.target.value })} /></label> <label>Origin <input className="bi-text" value={rec.origin ?? ''} placeholder="comment / query reference" onChange={(e) => edit({ ...rec, origin: e.target.value || undefined })} /></label></> : <>Reason: {rec.reason || '—'}{rec.origin ? ` · Origin: ${rec.origin}` : ''}</>}
             {' '}· {rec.author ? `by ${rec.author}, ` : ''}{when(rec.createdAt)}{rec.baselineRevisionId ? ` · against Rev ${rec.baselineRevisionId}` : ''}</p>
 
+          {baselineMessage(baselineStatus(project, rec), rec) && <p className="bad" role="alert">{baselineMessage(baselineStatus(project, rec), rec)} It cannot be accepted or applied.</p>}
+          {rec.follows && <p className="m">Follows {rec.follows} (that record and its decision are unchanged).</p>}
+          <div className="m">
+            Evidence and references{editable ? '' : rec.evidence?.length ? '' : ': none'}
+            {(rec.evidence ?? []).map((e, i) => (
+              <div key={i}>• {e.ref}{e.note ? ` — ${e.note}` : ''} {editable && <button className="icon-btn" title="Remove" onClick={() => edit({ ...rec, evidence: (rec.evidence ?? []).filter((_, j) => j !== i) })}>✕</button>}</div>
+            ))}
+            {editable && <button className="chip" onClick={() => { const ref = window.prompt('Reference (e.g. DEWA comment 12, markup SLD-03, document RD-002)')?.trim(); if (!ref) return; const note = window.prompt('Note (optional)')?.trim(); edit({ ...rec, evidence: [...(rec.evidence ?? []), { ref, note: note || undefined }] }); }}>Add reference…</button>}
+            <span> — references are notes; a received PDF or DXF is evidence only, never the editable baseline.</span>
+          </div>
           <table className="schedule">
-            <thead><tr><th>Item</th><th>Before</th><th>After</th><th /></tr></thead>
+            <thead><tr><th>Item</th><th>Current design</th><th>Expected before</th><th>Proposed</th><th /></tr></thead>
             <tbody>
-              {rec.ops.map((o) => { const d = describeOp(o); return (
-                <tr key={o.id}><td>{d.item}</td><td>{d.from}</td><td><b>{d.to}</b></td><td>{editable && <button className="icon-btn" title="Remove this change" onClick={() => guard(() => save(removeOp(rec, o.id)))}>✕</button>}</td></tr>
+              {rec.ops.map((o) => { const d = opView(project, o); return (
+                <tr key={o.id} className={d.state !== 'matches' && !rec.applied ? 'warn' : ''}><td>{d.item}</td><td>{d.current}{d.state === 'changed' && !rec.applied ? ' ⚠' : ''}</td><td>{d.expectedBefore}</td><td><b>{d.proposed}</b></td><td>{editable && <button className="icon-btn" title="Remove this change" onClick={() => guard(() => edit(removeOp(rec, o.id)))}>✕</button>}</td></tr>
               ); })}
-              {rec.ops.length === 0 && <tr><td colSpan={4} className="m">No changes yet.</td></tr>}
+              {rec.ops.length === 0 && <tr><td colSpan={5} className="m">No changes yet.</td></tr>}
             </tbody>
           </table>
 
@@ -150,11 +185,19 @@ export default function ModificationsPanel({ project, me, onChange, onApply, onS
             </div>
           )}
 
+          {dirty && (
+            <div className="row" style={{ gap: 6, marginTop: 6 }} role="status">
+              <span className="m">Unsaved edits to this draft — the working design is not affected.</span>
+              <button className="chip primary" onClick={() => { save(buf!); setBuf(undefined); onStatus(`Saved ${rec.id}.`); }}>Save draft</button>
+              <button className="chip" onClick={() => { setBuf(undefined); onStatus('Discarded the unsaved edits.'); }}>Cancel</button>
+            </div>
+          )}
+
           {(conflicts.length > 0 || conflict) && open && (
             <div className="mod-conflicts" role="alert">
               <b>Changed since this was proposed</b>
               <ul>{(conflict ?? conflicts).map((c) => <li key={c.op.id}>{c.op.targetId ?? 'Project'} — {c.op.label}: {c.kind === 'missing' ? 'the item no longer exists' : <>proposed against {pairText(c.op.before, c.current)[0]}, now {pairText(c.op.before, c.current)[1]}</>}</li>)}</ul>
-              {rec.status !== 'accepted' && <button className="chip" onClick={() => { save(reconcile(project, rec, me)); setConflict(null); }} title="Re-base the proposal on the values the design has now; recorded in its history">Reconcile on the current values</button>}
+              {rec.status !== 'accepted' && <button className="chip" onClick={() => { edit(reconcile(project, rec, me)); setConflict(null); }} title="Re-base the proposal on the values the design has now; recorded in its history">Reconcile on the current values</button>}
               {rec.status === 'accepted' && <>
                 <button className="chip" onClick={() => apply('skip')} title="Apply the changes that still match; leave the edited values alone">Apply the rest, keep later edits</button>
                 <button className="chip" onClick={() => { if (window.confirm('Overwrite the later edits with the proposed values?')) apply('overwrite'); }} title="Replace the values edited since with the proposed ones">Overwrite later edits…</button>
@@ -166,7 +209,8 @@ export default function ModificationsPanel({ project, me, onChange, onApply, onS
             {allowedNext(rec).map((s) => <button key={s} className={`chip${s === 'accepted' ? ' primary' : ''}`} onClick={() => step(s)}>{ACTION[s]}</button>)}
             {rec.status === 'accepted' && !rec.applied && conflicts.length === 0 && <button className="chip primary" onClick={() => apply('stop')} title="Change the working design as proposed — one undo step">Apply to the working design</button>}
             {rec.applied && <span className="ok">✓ {rec.applied.source === 'draft' ? 'Recorded from the working draft' : 'Applied'} {when(rec.applied.at)}{rec.applied.skipped?.length ? ` — ${rec.applied.skipped.length} skipped` : ''}{rec.applied.overwritten?.length ? ` — ${rec.applied.overwritten.length} overwritten on purpose` : ''}</span>}
-            {rec.decision && <span className="m">Decision: {rec.decision.outcome}{rec.decision.by ? ` by ${rec.decision.by}` : ''}{rec.decision.note ? ` — ${rec.decision.note}` : ''}</span>}
+            <button className="chip" disabled={dirty} onClick={() => { const r = followUp(project, rec, me); onChange(withRecord(project, r.record)); setSel(r.record.id); onStatus(`Started ${r.record.id} as a new draft following ${rec.id}${r.dropped ? ` — ${r.dropped} change${r.dropped === 1 ? '' : 's'} left out (item no longer exists)` : ''}.`); }} title="A new draft with the same intended changes, re-based on the working design. This record is not changed.">Duplicate as new draft</button>
+            {rec.decision && <span className="m">Decision: {rec.decision.outcome}{rec.decision.by ? ` by ${rec.decision.by}` : ''}{rec.decision.note ? ` — ${rec.decision.note}` : ''}{rec.decision.evidenceRef ? ` · evidence: ${rec.decision.evidenceRef}` : ''}</span>}
           </div>
 
           {open && rec.ops.length > 0 && (
