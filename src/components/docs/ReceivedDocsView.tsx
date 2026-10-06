@@ -21,6 +21,7 @@ export default function ReceivedDocsView({ project, onChange, onStatus }: { proj
 
   return (
     <Page title="Received documents" intro="Documents received from others — drawings, specifications, datasheets, authority comments — with their number and revision. This records what you were given and where it is kept; the app does not read these files or treat them as the electrical design. Choosing a baseline records where your work started from, not that it is approved.">
+      <div className="tool-panel">
       {docIssues(project).map((m, i) => <p key={i} className="warn">⚠ {m}</p>)}
       {base && <p><b>Baseline:</b> {base.title} · {base.number} rev {base.revision}</p>}
       <div className="card">
@@ -28,7 +29,7 @@ export default function ReceivedDocsView({ project, onChange, onStatus }: { proj
         <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
           <input placeholder="Title (required)" value={f.title} onChange={set('title')} style={{ flex: 2, minWidth: 180 }} />
           <input placeholder="Number (required)" value={f.number} onChange={set('number')} style={{ width: 130 }} />
-          <input placeholder="Rev (required)" value={f.revision} onChange={set('revision')} style={{ width: 70 }} />
+          <input placeholder="Rev (required)" value={f.revision} onChange={set('revision')} style={{ width: 110 }} />
           <input type="date" value={f.dateReceived} onChange={set('dateReceived')} />
         </div>
         <div className="row" style={{ gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
@@ -57,6 +58,7 @@ export default function ReceivedDocsView({ project, onChange, onStatus }: { proj
           ))}
         </tbody></table>
       )}
+      </div>
     </Page>
   );
 }

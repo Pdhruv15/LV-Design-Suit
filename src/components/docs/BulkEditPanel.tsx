@@ -53,7 +53,7 @@ export default function BulkEditPanel({ project, me, onChange, onApply, onStatus
   }
 
   return (
-    <div className="card" style={{ marginTop: 14 }}>
+    <div className="card tool-panel" style={{ marginTop: 14 }}>
       <h4>Bulk edit</h4>
       <p className="m">Search, tick the items to change, then set one field on exactly those. Nothing changes until you save or apply.</p>
       <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>

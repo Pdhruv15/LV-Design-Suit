@@ -70,6 +70,7 @@ export default function ReviewView({ project, me = "", run, stale = [], onChange
 
   return (
     <Page title="Design review" intro="Review comments raised against the design: each has what was found, the rule it is judged against, what is required, who answers, and the reviewer's decision. A response does not close a comment — only the reviewer does. These are people's comments, separate from the app's own calculation checks, and no approval is implied.">
+      <div className="tool-panel">
       <p><b>{sum.open} open</b>{sum.critical ? <> · <span className="bad">{sum.critical} critical</span></> : null}{sum.major ? ` · ${sum.major} major` : ''}{sum.awaiting ? ` · ${sum.awaiting} awaiting evidence` : ''}{sum.reReview ? <> · <span className="bad">{sum.reReview} closed to re-review</span></> : null}{sum.stale ? ` · ${sum.stale} about deleted items` : ''}</p>
       <div className="card">
         <h4>Raise a comment</h4>
@@ -135,6 +136,7 @@ export default function ReviewView({ project, me = "", run, stale = [], onChange
           <p className="m" style={{ marginTop: 8 }}>{rec.history.map((h) => `${STATUS_LABEL[h.status]} ${when(h.at)}${h.by ? ` by ${h.by}` : ''}${h.note ? ` (${h.note})` : ''}`).join(' → ')}</p>
         </div>
       )}
+      </div>
     </Page>
   );
 }
