@@ -137,10 +137,11 @@ export const INCOMER_DEVICES: { value: IncomerDevice; label: string }[] = [
   { value: 'NONE', label: 'Not shown' }
 ];
 
-/** The incomer device drawn on a board: its own setting, else a non-automatic breaker (UAE practice);
- * boards fed straight from the authority supply show that supply's device instead. */
+/** The incomer device drawn on a board: its own setting, else an isolator for a DB (DEWA form) and a
+ * non-automatic breaker for larger boards (UAE practice); boards fed straight from the authority supply
+ * show that supply's device instead. */
 export const incomerDeviceOf = (b: Board): Exclude<IncomerDevice, 'NONE'> | undefined => {
-  const d = b.incomerDevice ?? (b.supply ? 'NONE' : 'MCCB-NA');
+  const d = b.incomerDevice ?? (b.supply ? 'NONE' : b.kind === 'DB' || !b.kind ? 'ISOL' : 'MCCB-NA');
   return d === 'NONE' ? undefined : d;
 };
 

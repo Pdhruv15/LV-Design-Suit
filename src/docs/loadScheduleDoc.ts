@@ -2,7 +2,7 @@ import { evaluateFeeder, type Status } from '../calc/electrical';
 import { boardLocation } from '../model/levels';
 import { breakerTypeOf, cpcOf } from '../calc/earthing';
 import { boardPhaseKw, circuitCategory, circuitRef, circuitWatts, elcbGroups, imbalancePct, minWireMm2, pointColumns, pointWattsFor, scheduleCircuits } from '../calc/loadSchedule';
-import type { Board, Feeder, Project } from '../types';
+import { incomerDeviceOf, type Board, type Feeder, type Project } from '../types';
 import { polesOf } from '../calc/bom';
 import { cableTypeOf } from '../model/cableTypes';
 import { cableBuildText, feederBuild } from '../model/cableRefs';
@@ -12,10 +12,19 @@ const esc = (v: unknown) =>
 
 /** Rows of the DEWA-style load distribution schedule for one DB, shared by
  * the PDF and the CSV export. */
-/** The incomer as printed: rating, device and poles from the feeder (SP+N for a 2-core supply, TP+N for 4-core). */
+/** The board's incomer device as named on the SLD: its own setting (default isolator for a DB, non-automatic MCCB above),
+ * else the supplying feeder's breaker when the drawing hides the incomer. */
+export function incomerDeviceText(board: Board, incomer: Feeder | undefined): string {
+  const dev = incomerDeviceOf(board);
+  if (dev === 'MCCB-NA') return 'MCCB (NA)';
+  if (dev === 'ISOL') return 'ISOLATOR';
+  return dev ?? (incomer ? breakerTypeOf(incomer) : '');
+}
+
+/** The incomer as printed: rating and device as on the SLD, poles from the feeder (SP+N for a 2-core supply, TP+N for 4-core). */
 export function incomerLabel(board: Board, incomer: Feeder | undefined): string {
   if (!incomer) return board.ratedCurrentA ? `${board.ratedCurrentA} A` : '';
-  return `${incomer.breakerRatingA} A ${breakerTypeOf(incomer)} ${polesOf(incomer)}`;
+  return `${board.ratedCurrentA ?? incomer.breakerRatingA} A ${incomerDeviceText(board, incomer)} ${polesOf(incomer)}`;
 }
 
 /** The incoming cable as on the cable schedule: parallel runs, construction (fire-rated / LSZH) and ECC. */
