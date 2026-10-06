@@ -30,7 +30,7 @@ describe('bulk edit', () => {
   it('applies as one atomic step through the modification path', () => {
     const prev = previewBulkEdit(p, ids, { target: 'feeder', field: 'lengthM', mode: 'add', value: 10 }, meta);
     let q = withRecord(p, prev.record);
-    for (const s of ['proposed', 'accepted'] as const) { const t = transition(q, q.modifications![0], s); if (!t.ok) throw new Error(t.error); q = withRecord(q, t.record); }
+    for (const s of ['proposed', 'accepted'] as const) { const t = transition(q, q.modifications![0], s, { by: 'Asha' }); if (!t.ok) throw new Error(t.error); q = withRecord(q, t.record); }
     const r = applyModification(q, prev.record.id);
     expect(r.ok).toBe(true);
     if (r.ok) ids.forEach((id) => expect(r.project.feeders.find((f) => f.id === id)!.lengthM).toBeCloseTo(p.feeders.find((f) => f.id === id)!.lengthM + 10, 6));

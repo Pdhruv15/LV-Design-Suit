@@ -58,6 +58,9 @@ export function copyProject(p: Project, kind: CopyKind, name: string, by?: strin
   };
   if (kind === 'duplicate') {
     copy.revisions = undefined;
+    // Decisions and applications belong to the old job; the intended changes are kept as fresh drafts against nothing.
+    copy.baseline = undefined;
+    if (p.modifications) copy.modifications = p.modifications.map((m) => ({ ...m, status: 'draft' as const, decision: undefined, applied: undefined, supersededBy: undefined, baselineRevisionId: undefined, baselineFingerprint: undefined, history: [{ status: 'draft' as const, at, note: `Copied from ${p.name} (${m.id}, was ${m.status})` }] }));
     // A similar new job starts with nothing delivered and no dates.
     if (p.brief) copy.brief = { ...p.brief, deliverables: p.brief.deliverables.map((d) => ({ ...d, done: undefined, targetDate: undefined })) };
     if (p.drawingSet) {

@@ -133,7 +133,7 @@ describe('applying', () => {
     const p0 = base();
     let r = addOp(p0, newModification(p0, { title: 'T', reason: 'R' }, NOW), 'feeder', f0, 'loadKw', 9);
     let p = withRecord(p0, r);
-    const step = (to: Parameters<typeof transition>[2], opts = {}) => { const t = transition(p, r, to, { now: NOW, ...opts }); if (!t.ok) throw new Error(t.error); r = t.record; p = withRecord(p, r); };
+    const step = (to: Parameters<typeof transition>[2], opts = {}) => { const t = transition(p, r, to, { now: NOW, by: 'Asha', note: 'ok', ...opts }); if (!t.ok) throw new Error(t.error); r = t.record; p = withRecord(p, r); };
     for (const check of ['draft', 'proposed', 'review'] as const) {
       if (check === 'proposed') step('proposed'); if (check === 'review') step('review');
       const res = applyModification(p, r.id);
@@ -151,7 +151,7 @@ describe('applying', () => {
     let r = newModification(p0, { title: 'Multi', reason: 'R' }, NOW);
     r = addOp(p0, r, 'board', 'MDB-1', 'ratedCurrentA', 3200); r = addOp(p0, r, 'ups', 'u1', 'autonomyMin', 90); r = addOp(p0, r, 'project', undefined, 'ambientC', 52);
     let p = withRecord(p0, r);
-    for (const s of ['proposed', 'accepted'] as const) { const t = transition(p, r, s, { now: NOW }); if (!t.ok) throw new Error(t.error); r = t.record; p = withRecord(p, r); }
+    for (const s of ['proposed', 'accepted'] as const) { const t = transition(p, r, s, { now: NOW, by: 'Asha' }); if (!t.ok) throw new Error(t.error); r = t.record; p = withRecord(p, r); }
     const res = applyModification(p, r.id, { now: NOW }); if (!res.ok) throw new Error(res.error);
     expect(res.project.boards.find((b) => b.id === 'MDB-1')!.ratedCurrentA).toBe(3200);
     expect(res.project.upsSystems![0].autonomyMin).toBe(90);

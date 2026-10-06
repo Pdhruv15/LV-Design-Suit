@@ -1,3 +1,4 @@
+import { proposalOutstanding } from '../../model/proposalStatus';
 import { useMemo, useState } from 'react';
 import type { Project } from '../../types';
 import type { CalcRun, StudyKey } from '../../calc/runs';
@@ -185,6 +186,17 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
           <h4>{d.perArea.title}</h4>
           <Bars bars={d.perArea.bars} empty="Add levels and rooms in Building information to see the load per level." />
         </section>
+        {(project.modifications?.length ?? 0) > 0 && (() => {
+          const o = proposalOutstanding(project, run);
+          return (
+            <section className="card">
+              <h4>Modifications <span className="m">({project.modifications!.length})</span></h4>
+              <p className="m">{o.counts.draft} draft · {o.counts.awaitingDecision} awaiting a decision · {o.counts.acceptedNotApplied} accepted, not applied{o.counts.conflicts ? ` · ${o.counts.conflicts} with changed values` : ''}{o.counts.needRerun ? ` · ${o.counts.needRerun} applied, studies to run again` : ''}</p>
+              {o.pending.slice(0, 5).map((x) => <p key={x.id} className="m">• {x.text}</p>)}
+              <button className="chip" onClick={() => onGo({ view: 'modifications' })}>Open modifications</button>
+            </section>
+          );
+        })()}
         <section className="card">
           <h4 id="dash-todo">To do <span className="m">({todoCounted.length})</span></h4>
           {!todoCounted.length ? <p className="ok">✓ Nothing outstanding{todoOutside.length ? ' in this project’s scope' : ''}.</p> : (
