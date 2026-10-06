@@ -31,7 +31,7 @@ export default function CheckpointsPanel({ project, onRestore, onStatus, store: 
   }
 
   return (
-    <div className="card" style={{ marginTop: 14 }}>
+    <div className="card tool-panel" style={{ marginTop: 14 }}>
       <h4>Checkpoints</h4>
       <p className="m">Private safety copies of the working design on this computer, not issued revisions. The latest {MAX_CHECKPOINTS} are kept (copies the app makes before a restore go first). They are not part of the project file or its backup.</p>
       <button className="primary" disabled={!project.id} onClick={create}>Create checkpoint…</button>

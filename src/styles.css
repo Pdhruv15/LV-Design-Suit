@@ -1232,3 +1232,19 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .mod-conflicts{border:1px solid var(--warn);border-radius:6px;padding:8px 12px;margin-top:8px;background:rgba(245,192,74,.1)}
 .mod-conflicts ul{margin:4px 0 8px}
 .mod-accepted{color:var(--ok,#2ea043)}.mod-rejected,.mod-superseded{color:var(--muted,#8b949e)}
+
+/* Controls in the review, bulk-edit, received-documents and checkpoint panels */
+.tool-panel .row{display:flex;align-items:center}
+.tool-panel input:not([type=checkbox]):not([type=radio]),.tool-panel select,.tool-panel textarea{background:var(--p2);border:1px solid var(--line);border-radius:6px;padding:4px 8px;color:var(--tx);font:inherit;font-size:13px;min-width:0}
+.tool-panel input::placeholder,.tool-panel textarea::placeholder{color:var(--mut)}
+.tool-panel input:focus-visible,.tool-panel select:focus-visible,.tool-panel textarea:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+.tool-panel button:not(.link):not(.icon-btn){border:1px solid var(--line);border-radius:6px;padding:4px 10px;background:var(--p2);font-size:13px}
+.tool-panel button:not(.link):hover:not(:disabled){border-color:var(--acc)}
+.tool-panel button.primary:not(.link):not(.icon-btn){background:var(--acc);color:#04101f;font-weight:600;border-color:var(--acc)}
+.tool-panel button:disabled{opacity:.5;cursor:not-allowed}
+.tool-panel button.link{color:var(--acc);text-decoration:underline;padding:0;border:0;background:none}
+.tool-panel label{font-size:13px}
+.tool-panel table.tbl{border-collapse:collapse;width:100%;font-size:13px;margin:6px 0}
+.tool-panel table.tbl th,.tool-panel table.tbl td{border-bottom:1px solid var(--line);padding:5px 8px;text-align:left;vertical-align:top}
+.tool-panel table.tbl th{color:var(--mut);font-weight:600}
+.tool-panel h4{margin:0 0 6px}
