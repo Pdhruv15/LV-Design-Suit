@@ -17,7 +17,7 @@ describe('enclosure library', () => {
     const copy = duplicateCatalogue(MOD, 'Brand B');
     copy.configs[4].usable.elcb12 = 70;
     saveUserCatalogues([copy]);
-    expect(allCatalogues().map((c) => c.supplier)).toEqual(['Supplier chart', 'Supplier chart', 'Brand B']);
+    expect(allCatalogues().map((c) => c.supplier)).toEqual(['Supplier chart', 'Supplier chart', 'Supplier chart', 'Brand B']);
     expect(MOD.configs[4].usable.elcb12).toBe(72);
     expect(validateCatalogue(copy).some((x) => x.level === 'warn' && /≠ 80 − 8/.test(x.text))).toBe(true);
     saveUserCatalogues([...userCatalogues(), MOD]); // built-ins are never stored

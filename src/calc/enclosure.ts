@@ -100,7 +100,28 @@ const FABRICATED: EnclosureCatalogue = {
   }))
 };
 
-export const BUILTIN_CATALOGUES: EnclosureCatalogue[] = [MODULAR, FABRICATED];
+/** Family 2b: weatherproof enclosures (H × W × D). Usable modules are worked out as actual − the supplier's deduction
+ * (8 / 12 / 48 / 64); a result of 0 or less is not offered. The supplied table's reduction columns did not line up
+ * with its actual-module column, so its printed figures were not used. */
+const WEATHERPROOF: EnclosureCatalogue = {
+  id: 'chart-weatherproof', supplier: 'Supplier chart', range: 'Weatherproof enclosure', family: 'fabricated', source: 'Weatherproof enclosure DB data (supplied by the owner)', revision: '1',
+  notes: [...FABRICATED.notes.slice(0, 4),
+    'Usable modules = actual modules − 8 (up to 12 ELCB), − 12 (up to 15 ELCB), − 48 (more than 12 ELCB, up to 125 A) or − 64 (160–250 A); blank where that leaves nothing.',
+    'To confirm with the supplier: the supplied table’s printed reduction figures disagree with this rule (e.g. 600 × 600 shows 152 for up to 12 ELCB from 96 actual), and 800 × 800 (120) holds fewer actual modules than 800 × 600 (128).'],
+  rules: FABRICATED.rules, overlaps: FABRICATED.overlaps,
+  configs: ([
+    [500, 400, 200, 24], [600, 400, 200, 36], [600, 500, 200, 54], [600, 600, 200, 96], [800, 600, 200, 128],
+    [800, 800, 200, 120], [1000, 600, 200, 160], [1000, 800, 200, 210], [1200, 800, 250, 224], [1200, 1000, 250, 294]
+  ] as number[][]).map(([h, w, d, gross]) => {
+    const u = (deduct: number) => (gross - deduct > 0 ? gross - deduct : null);
+    return {
+      id: `w${h}x${w}x${d}`, ref: `${h} × ${w} × ${d}`, grossModules: gross, dims: { fabricated: { h, w, d } },
+      usable: { elcb12: u(8), elcb15: u(12), 'gt12-125': u(48), 'gt12-250': u(64) }
+    };
+  })
+};
+
+export const BUILTIN_CATALOGUES: EnclosureCatalogue[] = [MODULAR, FABRICATED, WEATHERPROOF];
 
 export interface SizingInput {
   equipmentModules: number;
