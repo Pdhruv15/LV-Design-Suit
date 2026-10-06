@@ -21,6 +21,7 @@ import SystemDiagram, { LegendSvg } from '../SystemDiagram';
 import { earthingDrawing } from '../../diagram/earthingDrawing';
 import RiserDiagram, { RiserLegendSvg } from '../../diagram/RiserDiagram';
 import { riserLayout } from '../../diagram/riserLayout';
+import { boardIncomerLabel } from '../../docs/loadScheduleDoc';
 import SingleLineDiagram from '../SingleLineDiagram';
 
 const noop = () => {};
@@ -47,7 +48,7 @@ export async function renderSheet(project: Project, set: DrawingSet, s: DrawingS
       if (!b) return undefined;
       // Always the current design (a stored run may be older than the last edit).
       const results = evaluateProject(project).filter((r) => r.feeder.boardId === b.id);
-      flushSync(() => root.render(<div className="sld-print"><SingleLineDiagram board={b} voltageV={project.voltageV} results={results} selected={null} onSelect={noop} /></div>));
+      flushSync(() => root.render(<div className="sld-print"><SingleLineDiagram board={b} voltageV={project.voltageV} incomerLabel={boardIncomerLabel(project, b)} results={results} selected={null} onSelect={noop} /></div>));
       await new Promise((r) => requestAnimationFrame(() => r(null)));
       const svg = host.querySelector<SVGSVGElement>('svg');
       if (!svg) return undefined;

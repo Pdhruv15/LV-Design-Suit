@@ -46,7 +46,7 @@ export function dbSchedule(project: Project, boardIds?: string[]): Schedule {
         b.id, i + 1, f.id, f.name, f.feedsBoardId ? `Sub-board ${f.feedsBoardId}` : loadLabel(f),
         f.feedsBoardId ? '' : n(f.loadKw, 1), f.feedsBoardId ? '' : f.demandFactor,
         f.feedsBoardId ? '' : n(f.loadKw * f.demandFactor, 1), f.feedsBoardId ? '' : f.powerFactor, n(r.ib),
-        `${f.breakerRatingA} A ${breakerTypeOf(f)}`, poles(f), f.breakerIcuKa, cableText(project, f), f.lengthM,
+        `${f.breakerRatingA} A ${f.device === 'ISOL' ? 'ISOL' : breakerTypeOf(f)}`, poles(f), f.breakerIcuKa, cableText(project, f), f.lengthM,
         n(r.vdTotalPct, 2), STATUS_TEXT[r.status], accessoriesText(f)
       ]);
     });

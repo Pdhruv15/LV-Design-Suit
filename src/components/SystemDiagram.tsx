@@ -1037,12 +1037,14 @@ export default function SystemDiagram({
                 // Incomer switching device on the line above the name box.
                 const kind = dev === 'ISOL' ? 'isolator' : dev === 'ACB' ? 'acb' : dev === 'MCCB-NA' ? 'nonauto' : 'breaker';
                 const sy = n.busY - (protectionOf(b) ? 92 : 84);
+                // Rated to the feeder that supplies it; the busbar rating only when fed from the source.
+                const rating = project.feeders.find((f) => f.feedsBoardId === b.id && f.boardId === b.upstreamId)?.breakerRatingA ?? b.ratedCurrentA;
                 return (
                   <g className="acc">
                     <title>{`Incomer: ${INCOMER_DEVICES.find((d) => d.value === dev)!.label}`}</title>
                     <rect x={n.x - 2} y={sy - 1} width="4" height="19" className="bg-fill" />
                     <SwitchSym x={n.x} y={sy} kind={kind} />
-                    <text x={n.x + 12} y={sy + 11} className="acc-t b">{`${b.ratedCurrentA ? `${b.ratedCurrentA} A ` : ''}${dev === 'MCCB-NA' ? 'MCCB (NA)' : dev}`}</text>
+                    <text x={n.x + 12} y={sy + 11} className="acc-t b">{`${rating ? `${rating} A ` : ''}${dev === 'MCCB-NA' ? 'MCCB (NA)' : dev}`}</text>
                   </g>
                 );
               })()}

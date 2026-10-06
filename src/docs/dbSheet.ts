@@ -4,7 +4,7 @@ import { pointColumns, pointWattsFor, SINGLE_PHASES } from '../calc/loadSchedule
 import { breakerRatings } from '../calc/sizing';
 import { addCircuit, refreshBoard, updateCircuit, type CircuitPatch } from '../model/schedule';
 import type { Board, Feeder, Phase, PointType, Project } from '../types';
-import { incomerCableText, loadScheduleRows } from './loadScheduleDoc';
+import { incomerCableText, incomerDeviceText, loadScheduleRows } from './loadScheduleDoc';
 import { cellName, colName, parseCount, parsePositive, STYLE, statusColor, type SheetEdit, type SheetModel } from './sheet';
 
 export { colName, type SheetEdit };
@@ -131,10 +131,10 @@ export function buildDbSheet(project: Project, boardId: string): DbSheet {
     return line;
   });
 
-  // DEWA form: a DB's incomer is its isolator; poles from the supply (SP for a 2-core supply).
+  // DEWA form: the incomer device as drawn on the SLD; poles from the supply (SP for a 2-core supply).
   const incomerText = incomer
-    ? `${incomer.breakerRatingA}A ${incomer.cores >= 3 ? 'TP' : 'SP'} ${board.kind === 'DB' || !board.kind ? 'ISOLATOR' : breakerTypeOf(incomer)}`
-    : board.ratedCurrentA ? `${board.ratedCurrentA}A` : '';
+    ? `${incomer.breakerRatingA}A ${incomer.cores >= 3 ? 'TP' : 'SP'} ${incomerDeviceText(board, incomer)}`
+    : board.ratedCurrentA ? `${board.ratedCurrentA}A ${incomerDeviceText(board, undefined)}`.trim() : '';
   const first = 1;
   const count = rows.length - first;
   data[first][at('incomer')] = incomerText;
