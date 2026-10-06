@@ -9,6 +9,8 @@ import { buildClarificationDoc } from '../../docs/clarificationReport';
 import { buildReviewDocx } from '../../docs/reviewWord';
 import { docxBytes } from '../../docs/studyWord';
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
+import { prepareSheets } from './sheetRender';
+import { mergePdfs } from '../../docs/mergePdf';
 import {
   allowedNext, CATEGORY_LABEL, CommentError, moveComment, needsReReview, newComment, refState, reviewSummary, SEVERITY_LABEL, STATUS_LABEL, withComment,
   type CommentCategory, type CommentSeverity, type CommentStatus, type RefKind, type ReviewComment
@@ -38,6 +40,17 @@ export default function ReviewView({ project, me = "", run, stale = [], onChange
     setBusy(kind);
     try {
       const d = clar ? buildClarificationDoc(project, { ...setup, title: setup.title }) : doc(), name = safeFileName(`${project.name} ${d.title}`);
+      const toBytes = window.lvds?.files?.pdfBytes;
+      const withSheets = kind === 'pdf' && !clar && !!toBytes && setup.sections.includes('diagrams') && !!project.drawingSet?.sheets.length;
+      if (withSheets) {
+        const pages = await prepareSheets(project, project.drawingSet!, run);
+        const parts: Uint8Array[] = [await toBytes!({ html: reviewHtml(d), pageSize: 'A4', landscape: true })];
+        for (const p of pages) parts.push(await toBytes!({ html: p.html, cssPages: true }));
+        const bytes = await mergePdfs(parts, `${project.name} · ${d.title}`, [d.title, ...pages.map((p) => `${p.s.number}  ${p.s.title}`)]);
+        const saved = await saveBinary(`${name}.pdf`, bytes, 'PDF', 'pdf', 'application/pdf');
+        if (saved) onStatus(`${saved} — report + ${pages.length} diagram sheet${pages.length === 1 ? '' : 's'}`);
+        return;
+      }
       const m = kind === 'pdf' ? await savePdf(`${name}.pdf`, reviewHtml(d), { pageSize: 'A4', landscape: true })
         : await saveBinary(`${name}.docx`, await docxBytes(buildReviewDocx(d)), 'Word document', 'docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
       if (m) onStatus(m);
