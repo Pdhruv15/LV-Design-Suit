@@ -175,6 +175,8 @@ export default function SystemDiagram({
   onDrawing?: (patch: Partial<DrawingInfo>) => void;
 }) {
   const iec = (project.drawing?.symbols ?? 'iec') === 'iec';
+  /** The feeder supplying a board from its upstream board. */
+  const incomingOf = (b: Board) => project.feeders.find((f) => f.feedsBoardId === b.id && f.boardId === b.upstreamId);
   // DEWA submission style: panel frames, summary boxes (LOC, TCL, DF, MDL), DEWA wording.
   const dewa = project.drawing?.sldStyle !== 'standard'; // on unless switched off
   const feederTags = (id: string): Tag[] => {
@@ -1007,24 +1009,44 @@ export default function SystemDiagram({
               )}
               {dewa && !n.terminal && (() => {
                 // Panel frame: busbar, outgoing ways and incomer; cables cross it at a gland mark.
-                // Top edge above the incomer symbol, so the cable gland and the frame line clear it.
-                const x1 = n.busX1 - 7, x2 = n.busX2 + 7, y1 = n.busY - (protectionOf(b) ? 92 : 84) - 12, y2 = n.busY + 47;
+                // A header band above the incomer holds the panel's name box (name, TCL, MDL) in the
+                // top-left corner and its location and fault level in the top-right, as on DEWA drawings.
+                const x1 = n.busX1 - 7, x2 = n.busX2 + 7, y2 = n.busY + 47;
+                const narrow = x2 - x1 < 270; // corners would meet: location and kA go under the name box
+                const y1 = n.busY - (protectionOf(b) ? 92 : 84) - 12 - (narrow ? 66 : 42);
                 const gland = (x: number, gy: number) => <path key={`${x}-${gy}`} d={`M${x - 5} ${gy - 4} q3 4 0 8 M${x + 5} ${gy - 4} q-3 4 0 8`} className="ln" />;
                 const outs = layout.feeders.filter((f) => f.feeder.boardId === b.id);
+                const sm = panelSummary(project, b);
+                const ka = incomingOf(b)?.breakerIcuKa;
+                const loc = `LOC : ${trunc(boardLocation(project, b) || '—', 22)}`;
                 return (
                   <g className="panel-frame">
+                    <title>{`${b.id}: TCL ${sm.tclKw.toFixed(2)} kW × DF ${sm.df.toFixed(2)} = MDL ${sm.mdlKw.toFixed(2)} kW`}</title>
                     <rect x={x1} y={y1} width={x2 - x1} height={y2 - y1} className="frame-ln" />
                     {gland(n.x, y1)}
-                    {/* Panel name in the frame's top-right corner. */}
-                    <text x={x2 - 5} y={y1 + 12} textAnchor="end" className="acc-t b">{b.id}</text>
+                    <rect x={x1 + 5} y={y1 + 5} width="112" height="36" className="sum-box" />
+                    <text x={x1 + 10} y={y1 + 16} className="acc-t b">{trunc(b.id, 18)}</text>
+                    <text x={x1 + 10} y={y1 + 27} className="acc-t">{`TCL = ${sm.tclKw.toFixed(2)} kW`}</text>
+                    <text x={x1 + 10} y={y1 + 38} className="acc-t">{`MDL = ${sm.mdlKw.toFixed(2)} kW`}</text>
+                    {narrow ? (
+                      <>
+                        <text x={x1 + 7} y={y1 + 53} className="acc-t">{loc}</text>
+                        {ka && <text x={x1 + 7} y={y1 + 64} className="acc-t b">{`${ka} kA`}</text>}
+                      </>
+                    ) : (
+                      <>
+                        <text x={x2 - 5} y={y1 + 14} textAnchor="end" className="acc-t">{loc}</text>
+                        {ka && <text x={x2 - 5} y={y1 + 26} textAnchor="end" className="acc-t b">{`${ka} kA`}</text>}
+                      </>
+                    )}
                     {outs.map((f) => gland(f.x, y2))}
                   </g>
                 );
               })()}
-              {dewa && (() => {
-                // Summary box: name, LOC, TCL, DF, MDL = TCL × DF (the panel's own DF).
+              {dewa && n.terminal && (() => {
+                // Summary box: name, LOC, TCL, DF, MDL = TCL × DF (the panel's own DF); framed panels carry it in their header.
                 const sm = panelSummary(project, b);
-                const bx = n.x + 12, by = n.terminal ? n.busY - 150 : n.busY - 172;
+                const bx = n.x + 12, by = n.busY - 150;
                 const lines = [`LOC : ${trunc(boardLocation(project, b) || '—', 16)}`, `TCL : ${sm.tclKw.toFixed(2)} kW`, `DF : ${sm.df.toFixed(2)}`, `MDL : ${sm.mdlKw.toFixed(2)} kW`];
                 return (
                   <g className="panel-sum">
@@ -1045,16 +1067,33 @@ export default function SystemDiagram({
                     <title>{`Incomer: ${INCOMER_DEVICES.find((d) => d.value === dev)!.label}`}</title>
                     <rect x={n.x - 2} y={sy - 1} width="4" height="19" className="bg-fill" />
                     <SwitchSym x={n.x} y={sy} kind={kind} />
+                    {/* Rating, poles and device, then the breaking capacity: "500 A TP MCCB (NA)", "36 kA". */}
+                    {(() => {
+                      const inc = incomingOf(b);
+                      const rating = inc?.breakerRatingA ?? b.ratedCurrentA;
+                      const poles = inc ? (inc.cores >= 3 ? 'TP' : 'SP') : 'TP';
+                      return (
+                        <>
+                          <text x={n.x + 10} y={sy + 8} className="acc-t b">{`${rating ? `${rating} A ` : ''}${poles} ${dev === 'MCCB-NA' ? 'MCCB (NA)' : dev === 'ISOL' ? 'ISOLATOR' : dev}`}</text>
+                          {inc?.breakerIcuKa ? <text x={n.x + 10} y={sy + 19} className="acc-t">{`${inc.breakerIcuKa} kA`}</text> : null}
+                        </>
+                      );
+                    })()}
                   </g>
                 );
               })()}
               <rect x={n.x - 62} y={n.busY - 58} width="124" height="36" rx="6" className="box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
               <text className="b" x={n.x - 54} y={n.busY - 42}>{trunc(b.id, 14)}</text>
               <text className="m" x={n.x - 54} y={n.busY - 28}>{b.kind ?? (b.upstreamId ? 'DB' : 'MDB')}</text>
-              {/* Busbar rating at the right-hand end of the busbar; the box names the incomer device. */}
-              {!n.terminal && b.ratedCurrentA && (
-                <text x={n.busX2} y={n.busY - 5} textAnchor="end" className="acc-t b" style={{ fill: 'var(--bus)' }}>{`${b.ratedCurrentA} A busbar`}</text>
-              )}
+              {/* Busbar description at its right-hand end, e.g. "4 WAY 630 A TPN+E COPPER BUSBAR";
+                  shortened when the full text would reach the incoming line. */}
+              {!n.terminal && b.ratedCurrentA && (() => {
+                const ways = layout.feeders.filter((f) => f.feeder.boardId === b.id).length;
+                const metal = b.busbarMaterial === 'aluminium' ? 'ALUMINIUM' : 'COPPER';
+                const full = `${ways} WAY ${b.ratedCurrentA} A TPN+E ${metal} BUSBAR`;
+                const text = full.length * 5.6 < n.busX2 - n.x - 10 ? full : `${b.ratedCurrentA} A ${metal === 'COPPER' ? 'Cu' : 'Al'} BUSBAR`;
+                return <text x={n.busX2} y={n.busY - 5} textAnchor="end" className="acc-t b" style={{ fill: 'var(--bus)' }}><title>{full}</title>{text}</text>;
+              })()}
               <circle cx={n.x + 52} cy={n.busY - 46} r="4" style={{ fill: `var(--${status})` }} />
               {hasInstruments(b) && !n.terminal && (() => {
                 // Ammeter and voltmeter with selector switches, R-Y-B lamps: inside the panel, left of the board box.
