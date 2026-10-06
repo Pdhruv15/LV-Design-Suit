@@ -1,4 +1,5 @@
 import { checkReferences } from '../model/integrity';
+import { proposalOutstanding } from '../model/proposalStatus';
 import type { BoardKind, Project } from '../types';
 import { BOARD_KINDS, LOAD_TYPES, PROJECT_STATUSES, settingsOf } from '../types';
 import type { Status } from './electrical';
@@ -151,6 +152,7 @@ export function buildDashboard(project: Project, run?: CalcRun, stale: StudyKey[
   stale = [...new Set([...stale, ...staleStudies(run, project)])];
   // To do.
   const todo: TodoItem[] = [];
+  todo.push(...proposalOutstanding(project, run).todo);
   if (stale.length) todo.push({ status: 'warn', text: `Results out of date (${stale.map((k) => STUDY_LABEL[k]).join(', ')}) — press Run (F5)` });
   if (run) {
     const fails = run.results.filter((r) => r.status === 'bad');
