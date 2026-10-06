@@ -24,9 +24,9 @@ export function SwitchSym({ x, y, kind }: { x: number; y: number; kind: SwitchKi
       <line x1={x} y1={y} x2={x} y2={y + 3} className="ln" />
       {kind === 'isolator' || kind === 'nonauto'
         ? <line x1={x - 4} y1={y + 3} x2={x + 4} y2={y + 3} className="ln" />
-        : <path d={`M${x - 3} ${y} l6 6 M${x + 3} ${y} l-6 6`} className="ln" />}
+        : null}
+      {kind !== 'isolator' && <path d={`M${x - 3} ${y} l6 6 M${x + 3} ${y} l-6 6`} className="ln" />}
       <line x1={x} y1={y + 16} x2={x - 7} y2={y + 5} className="ln" />
-      {kind === 'nonauto' && <path d={`M${x - 3} ${y + 9} l6 6 M${x + 3} ${y + 9} l-6 6`} className="ln" />}
       {kind === 'acb' && (
         <>
           <path d={`M${x - 4} ${y - 5} l4 -3 l4 3`} className="ln" />
