@@ -64,7 +64,7 @@ const FORM_CSS = `@page { size: A4 landscape; margin: 9mm; }
   body { font: 8.5px/1.3 Arial, "Segoe UI", sans-serif; color: #111; margin: 0; }
   h1 { font-size: 12px; margin: 0 0 4px; } .sub { color: #555; margin: 0 0 6px; }
   table.form { border-collapse: collapse; width: 100%; table-layout: fixed; page-break-after: always; }
-  table.form:last-child { page-break-after: auto; }
+  table.form:last-of-type { page-break-after: auto; }
   table.form td { border: 1px solid #444; padding: 1.5px 3px; vertical-align: middle; overflow-wrap: anywhere; }
   table.form td.v { writing-mode: vertical-rl; transform: rotate(180deg); }
   table.sched { border-collapse: collapse; width: 100%; } table.sched th, table.sched td { border: 1px solid #444; padding: 2px 3px; }

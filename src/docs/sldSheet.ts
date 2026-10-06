@@ -88,6 +88,30 @@ export interface SheetInfo { no: string; title: string; count: number; index: nu
   /** Markups drawn on this sheet (paper mm). */
   markups?: SheetMarkup[] }
 
+/** The title block as CSS and HTML, placed bottom right of its positioned parent: the project's own template when it has
+ * one, otherwise the standard block. Shared by the drawing sheets and the SLD pages of the study reports. k scales it. */
+export function titleBlockFragment(project: Project, t: TitleBlock, custom: ReturnType<typeof templateOf>, extra: Record<string, string>, one: SheetInfo | undefined, sheet: NonNullable<DrawingInfo['sheet']>, k: number, status = one?.status ?? ''): { css: string; html: string } {
+  const mm = (v: number) => `${+(v * k).toFixed(2)}mm`;
+  const px = (v: number) => `${+(v * k).toFixed(2)}px`;
+  const css = `    .tb { position: absolute; right: 0; bottom: 0; width: ${mm(180)}; border-top: ${mm(0.5)} solid #000; border-left: ${mm(0.5)} solid #000; border-collapse: collapse; }
+    .tb td { border: ${mm(0.25)} solid #000; padding: ${mm(1)} ${mm(1.5)}; vertical-align: top; }
+    .tb .k { display: block; font-size: ${px(6.5)}; color: #333; text-transform: uppercase; letter-spacing: .03em; }
+    .tb .v { font-size: ${px(9.5)}; font-weight: 600; }
+    .tb .title .v { font-size: ${px(13)}; }
+    .tb .logo { float: right; max-height: ${mm(11)}; max-width: ${mm(45)}; margin-left: ${mm(2)}; }
+    .tbx { position: absolute; right: 0; bottom: 0; }
+`;
+  const html = (custom ? `<div class="tbx" style="transform:scale(${k});transform-origin:100% 100%">${titleBlockHtml(custom, project, extra)}</div>` : `    <table class="tb">
+      <tr><td colspan="3"><span class="k">Company / consultant</span>${t.logo ? `<img class="logo" src="${esc(t.logo)}" alt="">` : ''}<span class="v">${esc(t.company)}</span></td></tr>
+      <tr><td colspan="2"><span class="k">Project</span><span class="v">${esc(t.project)}</span></td><td><span class="k">Owner</span><span class="v">${esc(t.owner)}</span></td></tr>
+      <tr><td colspan="3" class="title"><span class="k">Drawing title${status ? ` — <b>${esc(status)}</b>` : ''}</span><span class="v">${esc(t.title)}</span></td></tr>
+      <tr><td><span class="k">Drawing no.</span><span class="v">${esc(t.number)}</span></td><td><span class="k">Revision</span><span class="v">${esc(t.revision)}</span></td><td><span class="k">Date</span><span class="v">${esc(t.date)}</span></td></tr>
+      <tr><td><span class="k">Drawn</span><span class="v">${esc(t.drawnBy)}</span></td><td><span class="k">Checked</span><span class="v">${esc(t.checkedBy)}</span></td><td><span class="k">Approved</span><span class="v">${esc(t.approvedBy)}</span></td></tr>
+      <tr><td colspan="2"><span class="k">Sheet</span><span class="v">${one ? `${one.index} of ${one.count} · ` : ''}${sheet} · Scale ${esc(t.scale)}</span></td><td><span class="k">System</span><span class="v">${project.voltageV} V, 3Ph + N, ${project.frequencyHz} Hz</span></td></tr>
+    </table>`);
+  return { css, html };
+}
+
 export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNullable<DrawingInfo['sheet']> = 'A3', one?: SheetInfo): string {
   const { w, h } = SHEET_MM[sheet];
   const t = sheetTitleBlock(project, one);
@@ -116,6 +140,7 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
   const side = !!one && (!!legendSvg || cables.length > 0 || abbr.length > 0);
   const csW = side ? 92 : 0; // legend column width (mm at scale 1)
   const fire = cables.some((c) => c.fireRated);
+  const { css: tbCss, html: tbHtml } = titleBlockFragment(project, t, custom, extra, one, sheet, k);
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(t.number || t.title)}</title><style>
     @page { size: ${w}mm ${h}mm; margin: 0; }
     * { box-sizing: border-box; }
@@ -123,17 +148,11 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
     .frame { position: absolute; inset: 10mm 10mm 10mm 20mm; border: 0.7mm solid #000; }
     .drawing { position: absolute; inset: 3mm 3mm 3mm 3mm; bottom: ${mm(44)}; right: calc(3mm + ${mm(csW)}); display: flex; align-items: center; justify-content: center; }
     .drawing svg { width: 100%; height: 100%; }
-    .tb { position: absolute; right: 0; bottom: 0; width: ${mm(180)}; border-top: ${mm(0.5)} solid #000; border-left: ${mm(0.5)} solid #000; border-collapse: collapse; }
-    .tb td { border: ${mm(0.25)} solid #000; padding: ${mm(1)} ${mm(1.5)}; vertical-align: top; }
-    .tb .k { display: block; font-size: ${px(6.5)}; color: #333; text-transform: uppercase; letter-spacing: .03em; }
-    .tb .v { font-size: ${px(9.5)}; font-weight: 600; }
-    .tb .title .v { font-size: ${px(13)}; }
-    .tb .logo { float: right; max-height: ${mm(11)}; max-width: ${mm(45)}; margin-left: ${mm(2)}; }
+    ${tbCss}
     .revs { position: absolute; left: 0; bottom: 0; width: calc(100% - ${mm(tbW)}); height: ${mm(41)}; border-top: ${mm(0.5)} solid #000; font-size: ${px(8)}; }
     .revs table { width: 100%; border-collapse: collapse; }
     .revs th, .revs td { border-bottom: ${mm(0.2)} solid #999; padding: ${mm(0.8)} ${mm(1.5)}; text-align: left; }
     .revs th { font-size: ${px(7)}; text-transform: uppercase; }
-    .tbx { position: absolute; right: 0; bottom: 0; }
     .notes { position: absolute; right: 0; font-size: ${px(8)}; border: ${mm(0.25)} solid #000; padding: ${mm(1)} ${mm(2)}; background: #fff; }
     .notes ol { margin: ${mm(0.5)} 0 0; padding-left: ${mm(4)}; }
     .side { position: absolute; right: 0; top: 0; width: ${mm(csW)}; bottom: ${mm(47)}; display: flex; flex-direction: column; gap: ${mm(2)}; overflow: hidden; border-left: ${mm(0.25)} solid #000; padding: ${mm(2)}; }
@@ -155,14 +174,7 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
       <table><thead><tr><th style="width:10%">Rev</th><th style="width:18%">Date</th><th>Description</th></tr></thead><tbody>${history}</tbody></table>
       <div class="gen">Generated by LV Design Studio${usingReferenceCables() ? ` — ${esc(REFERENCE_DATA_NOTICE)}` : ''}</div>
     </div>
-    ${custom ? `<div class="tbx" style="transform:scale(${k});transform-origin:100% 100%">${titleBlockHtml(custom, project, extra)}</div>` : `    <table class="tb">
-      <tr><td colspan="3"><span class="k">Company / consultant</span>${t.logo ? `<img class="logo" src="${esc(t.logo)}" alt="">` : ''}<span class="v">${esc(t.company)}</span></td></tr>
-      <tr><td colspan="2"><span class="k">Project</span><span class="v">${esc(t.project)}</span></td><td><span class="k">Owner</span><span class="v">${esc(t.owner)}</span></td></tr>
-      <tr><td colspan="3" class="title"><span class="k">Drawing title${status ? ` — <b>${esc(status)}</b>` : ''}</span><span class="v">${esc(t.title)}</span></td></tr>
-      <tr><td><span class="k">Drawing no.</span><span class="v">${esc(t.number)}</span></td><td><span class="k">Revision</span><span class="v">${esc(t.revision)}</span></td><td><span class="k">Date</span><span class="v">${esc(t.date)}</span></td></tr>
-      <tr><td><span class="k">Drawn</span><span class="v">${esc(t.drawnBy)}</span></td><td><span class="k">Checked</span><span class="v">${esc(t.checkedBy)}</span></td><td><span class="k">Approved</span><span class="v">${esc(t.approvedBy)}</span></td></tr>
-      <tr><td colspan="2"><span class="k">Sheet</span><span class="v">${one ? `${one.index} of ${one.count} · ` : ''}${sheet} · Scale ${esc(t.scale)}</span></td><td><span class="k">System</span><span class="v">${project.voltageV} V, 3Ph + N, ${project.frequencyHz} Hz</span></td></tr>
-    </table>`}
+    ${tbHtml}
     ${side ? `<div class="side">${legendSvg ? `<div class="lg">${legendSvg}</div>` : ''}` : ''}
     ${cables.length ? `<div class="cs"><h5>CABLE SCHEDULE</h5><table>${cables.map((c) => `<tr><td class="n"><span>${c.ref}</span></td><td>${esc(c.text)}</td></tr>`).join('')}</table>${fire ? `<p><b>NOTE:</b> ${esc(FIRE_NOTE)}</p>` : ''}</div>` : ''}
     ${abbr.length ? `<div class="abbr"><b>ABBREVIATIONS</b>${abbr.map(([a, d]) => `<div><span>${esc(a)}</span>${esc(d)}</div>`).join('')}</div>` : ''}
@@ -198,4 +210,14 @@ export function furnitureScale(sheet: NonNullable<DrawingInfo['sheet']>, svg: st
     k = Math.max(kMin, Math.min(kMax, (DIAGRAM_TEXT_PX * s) / TB_TEXT_MM));
   }
   return +k.toFixed(3);
+}
+
+/** The title block for one SLD page of a report, with the same fields, template and look as a drawing sheet. */
+export function pageTitleBlock(project: Project, one: SheetInfo, sheet: NonNullable<DrawingInfo['sheet']> = 'A3', k = 1): { css: string; html: string; w: number; h: number } {
+  const t = sheetTitleBlock(project, one);
+  const custom = templateOf(project);
+  const extra: Record<string, string> = { SheetNo: one.no, SheetTitle: one.title, SheetCount: String(one.count), SheetIndex: String(one.index), SheetSize: sheet, DrawingNo: one.no, DrawingTitle: one.title, Status: one.status ?? '', Scale: t.scale,
+    ...(one.rev ? { Rev: one.rev } : {}), ...(one.date ? { RevDate: one.date } : {}), ...(one.drawnBy ? { DrawnBy: one.drawnBy } : {}), ...(one.checkedBy ? { CheckedBy: one.checkedBy } : {}) };
+  const size = custom ? templateSize(custom) : { w: 180, h: 55 }; // the standard block's rows need ≈ 53 mm at full size
+  return { ...titleBlockFragment(project, t, custom, extra, one, sheet, k), w: size.w * k, h: size.h * k };
 }

@@ -14,11 +14,11 @@ export type Block = { kind: 'para'; text: string; muted?: boolean } | { kind: 'b
 export interface ReportSection { id: string; title: string; blocks: Block[] }
 export interface ReviewDoc { title: string; project: string; sections: ReportSection[]; footer: string }
 
-export const SECTION_IDS = ['control', 'executive', 'documents', 'basis', 'modifications', 'comments', 'consistency', 'conclusion'] as const;
+export const SECTION_IDS = ['control', 'executive', 'documents', 'basis', 'modifications', 'comments', 'consistency', 'diagrams', 'conclusion'] as const;
 export type SectionId = (typeof SECTION_IDS)[number];
 export const SECTION_LABEL: Record<SectionId, string> = {
   control: 'Document control', executive: 'Executive assessment', documents: 'Documents reviewed', basis: 'Design basis', modifications: 'Modification summary',
-  comments: 'Review-comment register', consistency: 'Drawing and schedule consistency', conclusion: 'Conclusion and limitations'
+  comments: 'Review-comment register', consistency: 'Drawing and schedule consistency', diagrams: 'Single line diagrams', conclusion: 'Conclusion and limitations'
 };
 
 /** Saved in the project so the same report can be produced again. */
@@ -92,6 +92,11 @@ export function buildReviewDoc(source: Project, setup: ReviewReportSetup, ev: Re
     impact?.documents.length ? `Documents to regenerate after the changes: ${impact.documents.map((d) => d.label).join(', ')}.` : 'No schedule or drawing regeneration is flagged by the changes.',
     impact?.quantities.length ? `${impact.quantities.length} design quantit${impact.quantities.length === 1 ? 'y' : 'ies'} change (BOQ to be rechecked).` : 'No design quantity changes against the baseline.'
   ] }]);
+
+  add('diagrams', [sheets.length
+    ? { kind: 'table', headers: ['Sheet', 'Title', 'Revision', 'Status'], rows: sheets.map((s) => [s.number, s.title, v(s.rev ?? cur?.id), v(s.status)]) }
+    : { kind: 'para', text: 'No drawing set has been created, so there are no diagrams to attach.' },
+    { kind: 'para', text: 'In the PDF (desktop app) these sheets follow the report as full drawing sheets with their title blocks, drawn from the current design. The Word file lists them only.', muted: true }]);
 
   const d = setup.decision;
   add('conclusion', [
