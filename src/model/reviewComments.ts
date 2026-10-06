@@ -18,6 +18,8 @@ export interface CommentRef { kind: RefKind; id: string; /** The item's engineer
 export interface CommentStep { status: CommentStatus; at: string; by?: string; note?: string }
 export interface ReviewComment {
   id: string; // RC-001
+  /** A finding about the design, or a question put to its author (default: finding). */
+  kind?: 'finding' | 'question';
   category: CommentCategory;
   severity: CommentSeverity;
   finding: string;
@@ -54,7 +56,7 @@ export function stampOf(p: Project, kind: RefKind, id: string): string | undefin
 
 const nextId = (p: Project) => `RC-${String(Math.max(0, ...(p.reviewComments ?? []).map((c) => Number(c.id.replace(/\D/g, '')) || 0)) + 1).padStart(3, '0')}`;
 
-export interface CommentInput { category: CommentCategory; severity: CommentSeverity; finding: string; criterion?: string; requiredAction?: string; assignedTo?: string; sheet?: string; revisionId?: string; ref?: { kind: RefKind; id: string }; raisedBy?: string; related?: string }
+export interface CommentInput { kind?: 'finding' | 'question'; category: CommentCategory; severity: CommentSeverity; finding: string; criterion?: string; requiredAction?: string; assignedTo?: string; sheet?: string; revisionId?: string; ref?: { kind: RefKind; id: string }; raisedBy?: string; related?: string }
 
 export function newComment(p: Project, i: CommentInput, now = new Date()): ReviewComment {
   if (!i.finding.trim()) throw new CommentError('Describe the finding.');
@@ -65,7 +67,7 @@ export function newComment(p: Project, i: CommentInput, now = new Date()): Revie
     ref = { ...i.ref, stamp };
   }
   const at = now.toISOString(), by = i.raisedBy?.trim() || undefined;
-  return { id: nextId(p), category: i.category, severity: i.severity, finding: i.finding.trim(), criterion: i.criterion?.trim() || undefined, requiredAction: i.requiredAction?.trim() || undefined,
+  return { id: nextId(p), ...(i.kind === 'question' ? { kind: 'question' as const } : {}), category: i.category, severity: i.severity, finding: i.finding.trim(), criterion: i.criterion?.trim() || undefined, requiredAction: i.requiredAction?.trim() || undefined,
     assignedTo: i.assignedTo?.trim() || undefined, sheet: i.sheet?.trim() || undefined, revisionId: i.revisionId, ref, raisedBy: by, createdAt: at, status: 'open', history: [{ status: 'open', at, by }], related: i.related?.trim() || undefined };
 }
 

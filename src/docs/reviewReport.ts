@@ -11,7 +11,7 @@ import { esc, REPORT_CSS } from './report';
  * evidence is stated, failed or unverified checks stay visible, and no approval wording appears unless a reviewer decision
  * has been recorded. */
 export type Block = { kind: 'para'; text: string; muted?: boolean } | { kind: 'bullets'; items: string[] } | { kind: 'table'; headers: string[]; rows: string[][] };
-export interface ReportSection { id: SectionId; title: string; blocks: Block[] }
+export interface ReportSection { id: string; title: string; blocks: Block[] }
 export interface ReviewDoc { title: string; project: string; sections: ReportSection[]; footer: string }
 
 export const SECTION_IDS = ['control', 'executive', 'documents', 'basis', 'modifications', 'comments', 'consistency', 'conclusion'] as const;
