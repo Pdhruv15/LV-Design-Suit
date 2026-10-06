@@ -1024,7 +1024,7 @@ export default function SystemDiagram({
                     <title>{`${b.id}: TCL ${sm.tclKw.toFixed(2)} kW × DF ${sm.df.toFixed(2)} = MDL ${sm.mdlKw.toFixed(2)} kW`}</title>
                     <rect x={x1} y={y1} width={x2 - x1} height={y2 - y1} className="frame-ln" />
                     {gland(n.x, y1)}
-                    <rect x={x1 + 5} y={y1 + 5} width="112" height="36" className="sum-box" />
+                    <rect x={x1 + 5} y={y1 + 5} width="112" height="36" className="sum-box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
                     <text x={x1 + 10} y={y1 + 16} className="acc-t b">{trunc(b.id, 18)}</text>
                     <text x={x1 + 10} y={y1 + 27} className="acc-t">{`TCL = ${sm.tclKw.toFixed(2)} kW`}</text>
                     <text x={x1 + 10} y={y1 + 38} className="acc-t">{`MDL = ${sm.mdlKw.toFixed(2)} kW`}</text>
@@ -1082,9 +1082,15 @@ export default function SystemDiagram({
                   </g>
                 );
               })()}
-              <rect x={n.x - 62} y={n.busY - 58} width="124" height="36" rx="6" className="box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
-              <text className="b" x={n.x - 54} y={n.busY - 42}>{trunc(b.id, 14)}</text>
-              <text className="m" x={n.x - 54} y={n.busY - 28}>{b.kind ?? (b.upstreamId ? 'DB' : 'MDB')}</text>
+              {/* Board box; a framed DEWA panel names itself in the frame header, so its incoming line runs straight on. */}
+              {dewa && !n.terminal ? <line x1={n.x} y1={n.busY - 58} x2={n.x} y2={n.busY - 22} className="ln" /> : (
+                <>
+                  <rect x={n.x - 62} y={n.busY - 58} width="124" height="36" rx="6" className="box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
+                  <text className="b" x={n.x - 54} y={n.busY - 42}>{trunc(b.id, 14)}</text>
+                  <text className="m" x={n.x - 54} y={n.busY - 28}>{b.kind ?? (b.upstreamId ? 'DB' : 'MDB')}</text>
+                  <circle cx={n.x + 52} cy={n.busY - 46} r="4" style={{ fill: `var(--${status})` }} />
+                </>
+              )}
               {/* Busbar description at its right-hand end, e.g. "4 WAY 630 A TPN+E COPPER BUSBAR";
                   shortened when the full text would reach the incoming line. */}
               {!n.terminal && b.ratedCurrentA && (() => {
@@ -1094,7 +1100,6 @@ export default function SystemDiagram({
                 const text = full.length * 5.6 < n.busX2 - n.x - 10 ? full : `${b.ratedCurrentA} A ${metal === 'COPPER' ? 'Cu' : 'Al'} BUSBAR`;
                 return <text x={n.busX2} y={n.busY - 5} textAnchor="end" className="acc-t b" style={{ fill: 'var(--bus)' }}><title>{full}</title>{text}</text>;
               })()}
-              <circle cx={n.x + 52} cy={n.busY - 46} r="4" style={{ fill: `var(--${status})` }} />
               {hasInstruments(b) && !n.terminal && (() => {
                 // Ammeter and voltmeter with selector switches, R-Y-B lamps: inside the panel, left of the board box.
                 const room = n.x - 66 - n.busX1;
