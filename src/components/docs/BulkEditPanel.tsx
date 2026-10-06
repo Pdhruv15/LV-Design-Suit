@@ -40,12 +40,14 @@ export default function BulkEditPanel({ project, me, onChange, onApply, onStatus
     if (!reason.trim()) { onStatus('Say why: a bulk edit needs a reason.'); return; }
     let p = withRecord(project, preview.record);
     if (!applyNow) { onChange(p); onStatus(`Saved ${preview.record.id} as a draft (${preview.changed} change${preview.changed === 1 ? '' : 's'}).`); reset(); return; }
+    const by = me.trim() || window.prompt('Your name, recorded with the decision (typed text)')?.trim() || '';
+    if (!by) { onStatus('A name is needed to record the decision.'); return; }
     for (const s of ['proposed', 'accepted'] as const) {
-      const t = transition(p, p.modifications!.find((m) => m.id === preview.record.id)!, s, { by: me, note: 'Bulk edit applied directly' });
+      const t = transition(p, p.modifications!.find((m) => m.id === preview.record.id)!, s, { by, note: 'Bulk edit applied directly' });
       if (!t.ok) { onStatus(t.error); return; }
       p = withRecord(p, t.record);
     }
-    const r = applyModification(p, preview.record.id, { by: me });
+    const r = applyModification(p, preview.record.id, { by });
     if (!r.ok) { onStatus(r.error); return; }
     onApply(r.project); onStatus(`Applied ${preview.record.id}: ${r.applied.length} change${r.applied.length === 1 ? '' : 's'} (one undo step).`); reset();
   }

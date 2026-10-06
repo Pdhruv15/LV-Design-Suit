@@ -10,6 +10,8 @@ import { filterRegister, opView, type RegisterFilter } from '../../model/proposa
 import { followUp } from '../../model/designChanges';
 import { baselineMessage, baselineStatus } from '../../model/proposalRules';
 import { ImpactPanel } from './ChangesView';
+import type { CalcRun } from '../../calc/runs';
+import { appliedFollowUp } from '../../model/designChanges';
 import ProposalPreviewPanel from './ProposalPreviewPanel';
 
 const ACTION: Record<ModStatus, string> = { draft: 'Return to draft…', proposed: 'Propose', review: 'Start review', accepted: 'Accept…', rejected: 'Reject…', superseded: 'Supersede…' };
@@ -17,8 +19,8 @@ const when = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: '
 
 /** Modification records: propose a design change with the reason and the exact values, preview what it touches, record a
  * decision, and apply it to the working design as one undoable step. Names are typed text, not verified identities. */
-export default function ModificationsPanel({ project, me, onChange, onApply, onStatus, onGo }: {
-  project: Project; me: string;
+export default function ModificationsPanel({ project, me, run, onChange, onApply, onStatus, onGo }: {
+  project: Project; me: string; run?: CalcRun;
   /** A change to the records (one undo step). */
   onChange: (p: Project) => void;
   /** Applying to the working design (one undo step: design and record together). */
@@ -33,6 +35,9 @@ export default function ModificationsPanel({ project, me, onChange, onApply, onS
   useEffect(() => { setBuf(undefined); }, [sel, stored]);
   const rec = buf ?? stored;
   const dirty = !!buf;
+  const followUpInfo = rec ? appliedFollowUp(project, rec, run) : undefined;
+  const [reviewing, setReviewing] = useState(false);
+  useEffect(() => { setReviewing(false); }, [sel, stored]);
   const [flt, setFlt] = useState<RegisterFilter>({ status: 'all' });
   const rows = filterRegister(project, records, flt);
   const [conflict, setConflict] = useState<OpConflict[] | null>(null);
@@ -65,11 +70,14 @@ export default function ModificationsPanel({ project, me, onChange, onApply, onS
 
   function step(to: ModStatus) {
     if (!rec) return;
-    const note = to === 'accepted' || to === 'rejected' || to === 'superseded' ? window.prompt(to === 'superseded' ? 'What supersedes it (e.g. MOD-004), or why?' : 'Decision note (optional)') : '';
+    const decision = to === 'accepted' || to === 'rejected';
+    const by = decision && !me.trim() ? window.prompt('Who is making this decision? (a typed name — the app does not verify identities)')?.trim() || '' : me;
+    if (decision && !by) { onStatus('A name is needed to record the decision.'); return; }
+    const note = decision || to === 'superseded' ? window.prompt(to === 'superseded' ? 'What supersedes it (e.g. MOD-004), or why?' : to === 'rejected' ? 'Reason for rejecting it (required)' : 'Reason for accepting it') : '';
     if (note === null) return;
     if (to === 'draft' && !window.confirm(rec.decision ? 'Return it to a draft to edit it? The earlier decision stops applying, and it needs a new decision after you change it.' : 'Return it to a draft to edit it?')) return;
     const evidenceRef = to === 'accepted' || to === 'rejected' ? window.prompt('Where is the evidence for this decision kept? (optional)') ?? undefined : undefined;
-    const t = transition(project, rec, to, { by: me, evidenceRef, note: note || undefined, supersededBy: to === 'superseded' && /^MOD-\d+$/i.test(note ?? '') ? note!.toUpperCase() : undefined });
+    const t = transition(project, rec, to, { by, evidenceRef, note: note || undefined, supersededBy: to === 'superseded' && /^MOD-\d+$/i.test(note ?? '') ? note!.toUpperCase() : undefined });
     if (!t.ok) { onStatus(t.error); if (t.conflicts) setConflict(t.conflicts); return; }
     setConflict(null);
     save(t.record);
@@ -208,11 +216,26 @@ export default function ModificationsPanel({ project, me, onChange, onApply, onS
 
           <div className="row" style={{ gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
             {allowedNext(rec).map((s) => <button key={s} className={`chip${s === 'accepted' ? ' primary' : ''}`} onClick={() => step(s)}>{ACTION[s]}</button>)}
-            {rec.status === 'accepted' && !rec.applied && conflicts.length === 0 && <button className="chip primary" onClick={() => apply('stop')} title="Change the working design as proposed — one undo step">Apply to the working design</button>}
+            {rec.status === 'accepted' && !rec.applied && conflicts.length === 0 && !dirty && <button className="chip primary" onClick={() => setReviewing(true)} title="Review exactly what will change, then apply it as one undo step">Apply to the working design…</button>}
             {rec.applied && <span className="ok">✓ {rec.applied.source === 'draft' ? 'Recorded from the working draft' : 'Applied'} {when(rec.applied.at)}{rec.applied.skipped?.length ? ` — ${rec.applied.skipped.length} skipped` : ''}{rec.applied.overwritten?.length ? ` — ${rec.applied.overwritten.length} overwritten on purpose` : ''}</span>}
             <button className="chip" disabled={dirty} onClick={() => { const r = followUp(project, rec, me); onChange(withRecord(project, r.record)); setSel(r.record.id); onStatus(`Started ${r.record.id} as a new draft following ${rec.id}${r.dropped ? ` — ${r.dropped} change${r.dropped === 1 ? '' : 's'} left out (item no longer exists)` : ''}.`); }} title="A new draft with the same intended changes, re-based on the working design. This record is not changed.">Duplicate as new draft</button>
             {rec.decision && <span className="m">Decision: {rec.decision.outcome}{rec.decision.by ? ` by ${rec.decision.by}` : ''}{rec.decision.note ? ` — ${rec.decision.note}` : ''}{rec.decision.evidenceRef ? ` · evidence: ${rec.decision.evidenceRef}` : ''}</span>}
           </div>
+
+          {reviewing && rec.status === 'accepted' && !rec.applied && (
+            <div className="mod-conflicts" role="dialog" aria-label="Confirm apply">
+              <b>Apply {rec.id} to the working design</b>
+              <p className="m">{rec.ops.length} change{rec.ops.length === 1 ? '' : 's'}, all or none, as one undo step. {conflicts.length ? <span className="bad">{conflicts.length} no longer match the design — it will not apply.</span> : 'Every current value matches what was proposed against; nothing else is touched.'} Issued revisions are not changed.</p>
+              <table className="schedule"><thead><tr><th>Item</th><th>Current</th><th>Becomes</th><th>Status</th></tr></thead><tbody>
+                {rec.ops.map((o) => { const v = opView(project, o); return <tr key={o.id}><td>{v.item}</td><td>{v.current}</td><td><b>{v.proposed}</b></td><td className={v.state === 'matches' ? 'ok' : 'bad'}>{v.state === 'matches' ? 'matches' : v.state === 'missing' ? 'item missing' : 'changed since'}</td></tr>; })}
+              </tbody></table>
+              <button className="chip primary" disabled={conflicts.length > 0} onClick={() => { setReviewing(false); apply('stop'); }}>Confirm and apply</button>
+              <button className="chip" onClick={() => setReviewing(false)}>Cancel</button>
+            </div>
+          )}
+          {followUpInfo && <p className={followUpInfo.studies === 'current' && !followUpInfo.designChangedSince ? 'ok' : 'warn'}>
+            After applying: {followUpInfo.studies === 'current' ? 'studies have been run on the applied design and are current' : followUpInfo.studies === 'not run' ? 'the studies have not been run yet — run them and review the results' : 'the study results are out of date — run them again'}{followUpInfo.designChangedSince ? '; the design has changed again since' : ''}. Accepting or applying is not a statement that the results pass.
+          </p>}
 
           {open && rec.ops.length > 0 && (
             <>

@@ -1,6 +1,7 @@
 import type { Project } from '../types';
 import { FEEDER_FIELDS, BOARD_FIELDS, PROJECT_FIELDS } from './revisions';
 import { BOARD_CLASS, FEEDER_CLASS } from './changeClass';
+import { staleStudies, type CalcRun } from '../calc/runs';
 import { leafLabel, pairText, same } from './datasetDiff';
 import { baselineOf } from './designBaseline';
 import { impactBetween, type DesignImpact } from './designImpact';
@@ -175,6 +176,8 @@ export function transition(p: Project, rec: ModificationRecord, to: ModStatus, o
     const c = conflictsOf(p, rec);
     if (c.length) return { ok: false, error: `${c.length} value${c.length === 1 ? ' has' : 's have'} changed since this was proposed — reconcile it before accepting.`, conflicts: c };
   }
+  if ((to === 'accepted' || to === 'rejected') && !o.by?.trim()) return { ok: false, error: `Record who made the ${to === 'accepted' ? 'acceptance' : 'rejection'} decision (a typed name).` };
+  if (to === 'rejected' && !o.note?.trim()) return { ok: false, error: 'Give the reason for rejecting it.' };
   if (to === 'superseded' && !o.supersededBy && !o.note?.trim()) return { ok: false, error: 'Say what supersedes it (or why).' };
   const at = (o.now ?? new Date()).toISOString();
   const step: ModStep = { status: to, at, by: o.by?.trim() || undefined, note: o.note?.trim() || undefined };
@@ -282,4 +285,16 @@ export function followUp(p: Project, rec: ModificationRecord, by?: string, now =
   let dropped = 0;
   for (const op of rec.ops) { try { next = addOp(p, next, op.target, op.targetId, op.field, op.after); } catch { dropped++; } }
   return { record: { ...next, follows: rec.id, evidence: rec.evidence?.map((e) => ({ ...e })) }, dropped };
+}
+
+/** After applying: has the design moved on since, and have the studies been run again on the applied design? Never claims the
+ * results are good: only whether current results exist. */
+export interface AppliedFollowUp { designChangedSince: boolean; studies: 'not run' | 'out of date' | 'current'; runAt?: number }
+export function appliedFollowUp(p: Project, rec: ModificationRecord, run: CalcRun | undefined): AppliedFollowUp | undefined {
+  if (!rec.applied || rec.applied.source !== 'applied') return undefined;
+  const changed = !!rec.applied.resultFingerprint && rec.applied.resultFingerprint !== designFingerprint(p);
+  if (!run) return { designChangedSince: changed, studies: 'not run' };
+  const ranAfter = run.at >= Date.parse(rec.applied.at);
+  const fresh = staleStudies(run, p).length === 0;
+  return { designChangedSince: changed, studies: ranAfter && fresh ? 'current' : 'out of date', runAt: run.at };
 }

@@ -1321,7 +1321,7 @@ export default function App() {
             )}
             {view === 'received-docs' && <ReceivedDocsView project={project} onChange={(p) => setProject(p)} onStatus={setStatus} />}
             {view === 'review' && <ReviewView project={project} me={prefs.profile.name} run={run} stale={staleKeys} onChange={(p) => setProject(p)} onStatus={setStatus} onGo={(v) => setView(v)} />}
-            {view === 'modifications' && <ChangesView project={project} me={prefs.profile.name} onChange={(p) => setProject(p)} onApply={(p) => setProject(p, { step: true })} onStatus={setStatus} onGo={(v) => setView(v)} />}
+            {view === 'modifications' && <ChangesView project={project} me={prefs.profile.name} run={run} onChange={(p) => setProject(p)} onApply={(p) => setProject(p, { step: true })} onStatus={setStatus} onGo={(v) => setView(v)} />}
             {view === 'revisions' && <><RevisionsView project={project} me={prefs.profile.name ? initialsOf(prefs.profile.name) : ''} onChange={setProject} onStatus={setStatus} /><div style={{ padding: '0 16px 16px' }}><CheckpointsPanel project={project} onRestore={(p) => setProject(p, { step: true })} onStatus={setStatus} /></div></>}
             {view === 'projects' && (
               <ProjectsDashboard
