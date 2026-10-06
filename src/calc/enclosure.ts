@@ -55,9 +55,9 @@ export interface EnclosureCatalogue {
 const SRC = 'Distribution board selection chart (photograph supplied by the owner)';
 const BASE_NOTES = ['Blank cells in the chart are treated as not offered for that case (not selected automatically) until the supplier confirms.'];
 
-/** The owner's supplier chart, family 1: modular distribution boards. */
+/** The supplier chart, family 1: standard (non-weatherproof) modular distribution boards — the default catalogue (listed first). */
 const MODULAR: EnclosureCatalogue = {
-  id: 'chart-modular', supplier: 'Supplier chart', range: 'Modular DB', family: 'modular', source: SRC, revision: '1',
+  id: 'chart-modular', supplier: 'Supplier chart', range: 'Standard enclosure (non-weatherproof)', family: 'modular', source: SRC, revision: '1',
   notes: ['1 to 4 rows × 16, and 5 × 16 for up to 15 ELCB, are blank in the printed chart: worked out the same way (actual modules − 8 or − 12) so every size can be chosen.',
     'Up to 12 ELCB: 8 modules (4 terminal + 4 incoming cable space) off the actual modules; up to 15 ELCB: 12 (8 terminal + 4 incoming).'],
   rules: [
@@ -107,7 +107,8 @@ const WEATHERPROOF: EnclosureCatalogue = {
   id: 'chart-weatherproof', supplier: 'Supplier chart', range: 'Weatherproof enclosure', family: 'fabricated', source: 'Weatherproof enclosure DB data (supplied by the owner)', revision: '1',
   notes: [...FABRICATED.notes.slice(0, 4),
     'Usable modules = actual modules − 8 (up to 12 ELCB), − 12 (up to 15 ELCB), − 48 (more than 12 ELCB, up to 125 A) or − 64 (160–250 A); blank where that leaves nothing.',
-    'To confirm with the supplier: the supplied table’s printed reduction figures disagree with this rule (e.g. 600 × 600 shows 152 for up to 12 ELCB from 96 actual), and 800 × 800 (120) holds fewer actual modules than 800 × 600 (128).'],
+    'The supplier’s table gives 800 × 800 as 120 actual modules (fewer than 800 × 600 at 128); this is the supplier’s own figure.',
+    'To confirm with the supplier: the supplied table’s printed reduction figures disagree with this rule (e.g. 600 × 600 shows 152 for up to 12 ELCB from 96 actual).'],
   rules: FABRICATED.rules, overlaps: FABRICATED.overlaps,
   configs: ([
     [500, 400, 200, 24], [600, 400, 200, 36], [600, 500, 200, 54], [600, 600, 200, 96], [800, 600, 200, 128],
