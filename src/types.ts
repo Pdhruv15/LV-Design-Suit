@@ -128,6 +128,22 @@ export const SPD_TYPES: { value: SpdType; label: string }[] = [
 export const RCD_MA = [10, 30, 100, 300, 500];
 
 /** Switching device column of the connected load / MD form. */
+export type IncomerDevice = 'MCCB' | 'MCCB-NA' | 'ISOL' | 'ACB' | 'NONE';
+export const INCOMER_DEVICES: { value: IncomerDevice; label: string }[] = [
+  { value: 'MCCB', label: 'Breaker (automatic)' },
+  { value: 'MCCB-NA', label: 'Non-automatic breaker (isolating, no trip)' },
+  { value: 'ISOL', label: 'Isolator (switch-disconnector)' },
+  { value: 'ACB', label: 'ACB (withdrawable)' },
+  { value: 'NONE', label: 'Not shown' }
+];
+
+/** The incomer device drawn on a board: its own setting, else a non-automatic breaker (UAE practice);
+ * boards fed straight from the authority supply show that supply's device instead. */
+export const incomerDeviceOf = (b: Board): Exclude<IncomerDevice, 'NONE'> | undefined => {
+  const d = b.incomerDevice ?? (b.supply ? 'NONE' : 'MCCB-NA');
+  return d === 'NONE' ? undefined : d;
+};
+
 export type SwitchDevice = 'ACB' | 'MCCB' | 'ISOL';
 export const SWITCH_DEVICES: SwitchDevice[] = ['ACB', 'MCCB', 'ISOL'];
 
@@ -221,6 +237,8 @@ export interface Board {
   standby?: { kva: number; changeover?: 'ATS' | 'ACB' }; // ACB: mains and generator ACBs, interlocked
   /** Incomer protection and metering drawn on the SLD: CT ratio, long-time
    * setting and protection relays (earth leakage, earth fault, under / over voltage). */
+  /** Incomer switching device drawn above the board name box: auto breaker, non-auto breaker (isolating; the default), isolator or ACB. */
+  incomerDevice?: IncomerDevice;
   protection?: { ctRatio?: string; irSetting?: number; relays?: RelayType[]; apfc?: boolean };
   /** Ammeter and voltmeter with selector switches and R-Y-B indicating lamps (default: on for main boards). */
   instruments?: boolean;
