@@ -1,8 +1,10 @@
 import type { Project } from '../types';
 import { FEEDER_FIELDS, BOARD_FIELDS, PROJECT_FIELDS } from './revisions';
+import { BOARD_CLASS, FEEDER_CLASS } from './changeClass';
 import { leafLabel, pairText, same } from './datasetDiff';
 import { baselineOf } from './designBaseline';
 import { impactBetween, type DesignImpact } from './designImpact';
+import { baselineMessage, baselineStatus, opProblem, stableHash, validateRecord } from './proposalRules';
 
 /** Modification records: a proposed change to the design, with why, who, what exactly (each value with the value it
  * replaces), and a decision. Accepting a proposal records a decision; applying it to the working design is a separate,
@@ -35,13 +37,19 @@ export interface ModificationRecord {
   author?: string;
   createdAt: string;
   baselineRevisionId?: string;
+  /** Fingerprint of that revision's content when this was made: detects a baseline that is not what it was. */
+  baselineFingerprint?: string;
+  /** Reference material (a markup, a received document, a query) that supports it; never an editable baseline. */
+  evidence?: { ref: string; note?: string }[];
+  /** The record this is a follow-up to (applied records are never edited; changes make a new linked one). */
+  follows?: string;
   status: ModStatus;
   history: ModStep[];
   ops: ModOp[];
   /** Recorded when accepted or rejected. */
-  decision?: { outcome: 'accepted' | 'rejected'; by?: string; at: string; note?: string };
+  decision?: { outcome: 'accepted' | 'rejected'; by?: string; at: string; note?: string; /** Where the evidence for the decision is kept. */ evidenceRef?: string };
   /** Set when the changes are in the working design (applied, or recorded from edits already made). */
-  applied?: { at: string; by?: string; source: 'applied' | 'draft'; opIds: string[]; skipped?: string[]; overwritten?: string[] };
+  applied?: { at: string; by?: string; source: 'applied' | 'draft'; opIds: string[]; skipped?: string[]; overwritten?: string[]; /** Fingerprint of the working design's engineering values right after applying. */ resultFingerprint?: string };
   supersededBy?: string;
 }
 
@@ -92,7 +100,7 @@ const opId = () => `op-${Date.now().toString(36)}${(opSeq++).toString(36)}`;
 export function newModification(p: Project, i: ModInput, now = new Date()): ModificationRecord {
   const at = now.toISOString();
   return { id: nextId(p), title: i.title.trim(), reason: i.reason.trim(), origin: i.origin?.trim() || undefined, author: i.author?.trim() || undefined, createdAt: at,
-    baselineRevisionId: baselineOf(p)?.revision.id, status: 'draft', history: [{ status: 'draft', at, by: i.author?.trim() || undefined }], ops: [] };
+    baselineRevisionId: baselineOf(p)?.revision.id, baselineFingerprint: baselineOf(p) ? stableHash(baselineOf(p)!.revision.snapshot) : undefined, status: 'draft', history: [{ status: 'draft', at, by: i.author?.trim() || undefined }], ops: [] };
 }
 
 export class ModificationError extends Error {}
@@ -146,19 +154,24 @@ export const describeOp = (op: ModOp): { item: string; from: string; to: string 
 
 // ---- Lifecycle -----------------------------------------------------------------
 
-const NEXT: Record<ModStatus, ModStatus[]> = { draft: ['proposed', 'superseded'], proposed: ['review', 'accepted', 'rejected', 'superseded'], review: ['accepted', 'rejected', 'superseded'], accepted: ['superseded'], rejected: [], superseded: [] };
-export const allowedNext = (rec: ModificationRecord): ModStatus[] => NEXT[rec.status];
+const NEXT: Record<ModStatus, ModStatus[]> = { draft: ['proposed', 'superseded'], proposed: ['review', 'accepted', 'rejected', 'superseded', 'draft'], review: ['accepted', 'rejected', 'superseded', 'draft'], accepted: ['superseded', 'draft'], rejected: [], superseded: [] };
+/** The steps open from here. An applied record cannot go back to a draft: further changes make a new linked record. */
+export const allowedNext = (rec: ModificationRecord): ModStatus[] => NEXT[rec.status].filter((s) => !(s === 'draft' && rec.applied));
 
 export type TransitionResult = { ok: true; record: ModificationRecord } | { ok: false; error: string; conflicts?: OpConflict[] };
-export interface TransitionOpts { by?: string; note?: string; now?: Date; supersededBy?: string }
+export interface TransitionOpts { by?: string; note?: string; now?: Date; supersededBy?: string; evidenceRef?: string }
 
 /** Moves a record on. Accepting a proposal whose values no longer match the working design is refused until it is
  * reconciled (`reconcile`). Rejecting and superseding never touch the design. */
 export function transition(p: Project, rec: ModificationRecord, to: ModStatus, o: TransitionOpts = {}): TransitionResult {
-  if (!NEXT[rec.status].includes(to)) return { ok: false, error: `A ${STATUS_LABEL[rec.status].toLowerCase()} modification cannot become ${STATUS_LABEL[to].toLowerCase()}.` };
+  const invalid = validateRecord(rec);
+  if (invalid.length) return { ok: false, error: `This record is not sound: ${invalid[0]}.` };
+  if (!allowedNext(rec).includes(to)) return { ok: false, error: `A ${STATUS_LABEL[rec.status].toLowerCase()} modification cannot become ${STATUS_LABEL[to].toLowerCase()}.` };
   if (to === 'proposed' && !rec.ops.length) return { ok: false, error: 'Add at least one change before proposing.' };
   if (to === 'proposed' && (!rec.title.trim() || !rec.reason.trim())) return { ok: false, error: 'A title and a reason are needed before proposing.' };
   if (to === 'accepted') {
+    const bm = baselineMessage(baselineStatus(p, rec), rec);
+    if (bm) return { ok: false, error: bm };
     const c = conflictsOf(p, rec);
     if (c.length) return { ok: false, error: `${c.length} value${c.length === 1 ? ' has' : 's have'} changed since this was proposed — reconcile it before accepting.`, conflicts: c };
   }
@@ -166,7 +179,9 @@ export function transition(p: Project, rec: ModificationRecord, to: ModStatus, o
   const at = (o.now ?? new Date()).toISOString();
   const step: ModStep = { status: to, at, by: o.by?.trim() || undefined, note: o.note?.trim() || undefined };
   const next: ModificationRecord = { ...rec, status: to, history: [...rec.history, step] };
-  if (to === 'accepted' || to === 'rejected') next.decision = { outcome: to, by: step.by, at, note: step.note };
+  if (to === 'accepted' || to === 'rejected') next.decision = { outcome: to, by: step.by, at, note: step.note, evidenceRef: o.evidenceRef?.trim() || undefined };
+  // Returning to a draft withdraws any earlier decision: it cannot authorise content that is edited afterwards.
+  if (to === 'draft') { next.decision = undefined; next.history = [...rec.history, { ...step, note: step.note ?? (rec.decision ? `Returned to draft: the earlier ${rec.decision.outcome} decision no longer stands` : 'Returned to draft') }]; }
   if (to === 'superseded') next.supersededBy = o.supersededBy;
   return { ok: true, record: next };
 }
@@ -195,6 +210,10 @@ export function applyModification(p: Project, id: string, o: ApplyOpts = {}): Ap
   if (!rec) return { ok: false, error: 'No such modification.' };
   if (rec.status !== 'accepted') return { ok: false, error: `Only an accepted modification can be applied (this one is ${STATUS_LABEL[rec.status].toLowerCase()}).` };
   if (rec.applied) return { ok: false, error: 'It has already been applied.' };
+  const invalid = validateRecord(rec);
+  if (invalid.length) return { ok: false, error: `This record is not sound: ${invalid[0]}.` };
+  const bm = baselineMessage(baselineStatus(p, rec), rec);
+  if (bm) return { ok: false, error: bm };
   const conflicts = conflictsOf(p, rec);
   const mode = o.onConflict ?? 'stop';
   if (conflicts.length && mode === 'stop') return { ok: false, error: `${conflicts.length} value${conflicts.length === 1 ? ' has' : 's have'} changed since this was proposed.`, conflicts };
@@ -202,9 +221,12 @@ export function applyModification(p: Project, id: string, o: ApplyOpts = {}): Ap
   const overwritten = conflicts.filter((c) => c.kind === 'changed' && mode === 'overwrite').map((c) => c.op.id);
   const toApply = rec.ops.filter((op) => !skipIds.has(op.id));
   if (!toApply.length) return { ok: false, error: 'Nothing can be applied.', conflicts };
+  // The whole transaction is checked before anything changes.
+  const bad = toApply.map(opProblem).find(Boolean);
+  if (bad) return { ok: false, error: `Nothing was applied: ${bad}.` };
   let next = toApply.reduce((acc, op) => withValue(acc, op, op.after), p);
   const at = (o.now ?? new Date()).toISOString();
-  const applied = { at, by: o.by?.trim() || undefined, source: 'applied' as const, opIds: toApply.map((x) => x.id), ...(skipIds.size ? { skipped: [...skipIds] } : {}), ...(overwritten.length ? { overwritten } : {}) };
+  const applied = { at, by: o.by?.trim() || undefined, source: 'applied' as const, opIds: toApply.map((x) => x.id), resultFingerprint: designFingerprint(next), ...(skipIds.size ? { skipped: [...skipIds] } : {}), ...(overwritten.length ? { overwritten } : {}) };
   next = { ...next, modifications: (p.modifications ?? []).map((m) => (m.id === id ? { ...m, applied } : m)) };
   return { ok: true, project: next, applied: applied.opIds, skipped: [...skipIds], overwritten };
 }
@@ -245,3 +267,19 @@ export function recordFromDraft(p: Project, i: ModInput, now = new Date()): { re
 
 /** Replaces or adds a record in the project. */
 export const withRecord = (p: Project, rec: ModificationRecord): Project => ({ ...p, modifications: p.modifications?.some((m) => m.id === rec.id) ? p.modifications.map((m) => (m.id === rec.id ? rec : m)) : [...(p.modifications ?? []), rec] });
+
+/** Fingerprint of the working design's engineering content (names, notes and records excluded), to show later what a record produced. */
+export function designFingerprint(p: Project): string {
+  const eng = (list: object[], table: Record<string, string>) => list.map((x) => Object.fromEntries(Object.entries(x).filter(([k]) => table[k] === 'engineering')));
+  return stableHash([eng(p.feeders, FEEDER_CLASS as never), eng(p.boards, BOARD_CLASS as never), p.upsSystems ?? null, PROPOSABLE.project.map((f) => (p as unknown as Bag)[f.key] ?? null)]);
+}
+
+/** A new draft that follows an earlier record: the same intended changes, re-based on the working design as it is now.
+ * Used to start again from a rejected or superseded record, or to change something already applied (the original, its
+ * decision and its applied values stay as they were). Changes whose target no longer exists are left out and counted. */
+export function followUp(p: Project, rec: ModificationRecord, by?: string, now = new Date()): { record: ModificationRecord; dropped: number } {
+  let next = newModification(p, { title: `${rec.title} (follow-up)`, reason: rec.reason, origin: rec.origin, author: by }, now);
+  let dropped = 0;
+  for (const op of rec.ops) { try { next = addOp(p, next, op.target, op.targetId, op.field, op.after); } catch { dropped++; } }
+  return { record: { ...next, follows: rec.id, evidence: rec.evidence?.map((e) => ({ ...e })) }, dropped };
+}
