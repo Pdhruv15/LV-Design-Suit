@@ -68,7 +68,7 @@ export const PROPOSABLE: Record<ModTarget, FieldDef[]> = {
     ['ipRating', 'text'], ['manufacturer', 'text'], ['model', 'text'], ['upsKva', 'number'], ['mdDemandFactor', 'number'], ['elcbSensitivityMa', 'number'], ['elcbRatingA', 'number']]),
   ups: ([['autonomyMin', 'number'], ['growthPct', 'number'], ['maxLoadingPct', 'number'], ['outputPf', 'number'], ['inverterEff', 'number'], ['dcVoltage', 'number'], ['blockV', 'number'], ['endCellV', 'number'],
     ['ageing', 'number'], ['tempFactor', 'number'], ['designMargin', 'number'], ['startSocPct', 'number'], ['minSocPct', 'number'], ['endModuleV', 'number'], ['bmsDischargeA', 'number'], ['chargerCurrentA', 'number'],
-    ['rechargeLoadA', 'number']] as [string, Kind][]).map(([key, kind]) => ({ key, kind, label: leafLabel(key) })),
+    ['rechargeLoadA', 'number'], ['rechargeFromSocPct', 'number'], ['rechargeToSocPct', 'number'], ['chargeEfficiencyPct', 'number'], ['absorptionHours', 'number']] as [string, Kind][]).map(([key, kind]) => ({ key, kind, label: leafLabel(key) })),
   project: defs(PROJECT_FIELDS as [string, string][], [['voltageV', 'number'], ['frequencyHz', 'number'], ['ambientC', 'number'], ['vdLimitPct', 'number'], ['vdTempC', 'number']])
 };
 const fieldDef = (target: ModTarget, field: string) => PROPOSABLE[target].find((f) => f.key === field);

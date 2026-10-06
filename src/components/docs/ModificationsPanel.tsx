@@ -10,6 +10,7 @@ import { filterRegister, opView, type RegisterFilter } from '../../model/proposa
 import { followUp } from '../../model/designChanges';
 import { baselineMessage, baselineStatus } from '../../model/proposalRules';
 import { ImpactPanel } from './ChangesView';
+import ProposalPreviewPanel from './ProposalPreviewPanel';
 
 const ACTION: Record<ModStatus, string> = { draft: 'Return to draft…', proposed: 'Propose', review: 'Start review', accepted: 'Accept…', rejected: 'Reject…', superseded: 'Supersede…' };
 const when = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -217,6 +218,7 @@ export default function ModificationsPanel({ project, me, onChange, onApply, onS
             <>
               <h4 style={{ marginTop: 10 }}>What applying it would touch</h4>
               <ImpactPanel impact={impactOfProposal(project, rec)} onGo={onGo} />
+              <ProposalPreviewPanel project={project} rec={rec} onGo={onGo} />
             </>
           )}
           <details style={{ marginTop: 8 }}><summary>History ({rec.history.length})</summary>
