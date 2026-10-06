@@ -21,10 +21,10 @@ export function incomerDeviceText(board: Board, incomer: Feeder | undefined): st
   return dev ?? (incomer ? breakerTypeOf(incomer) : '');
 }
 
-/** The incomer as printed: rating and device as on the SLD, poles from the feeder (SP+N for a 2-core supply, TP+N for 4-core). */
+/** The incomer as printed: rating from the supplying feeder, device as on the SLD, poles from the feeder (SP+N for a 2-core supply, TP+N for 4-core). */
 export function incomerLabel(board: Board, incomer: Feeder | undefined): string {
   if (!incomer) return board.ratedCurrentA ? `${board.ratedCurrentA} A ${incomerDeviceText(board, undefined)}`.trim() : '';
-  return `${board.ratedCurrentA ?? incomer.breakerRatingA} A ${incomerDeviceText(board, incomer)} ${polesOf(incomer)}`;
+  return `${incomer.breakerRatingA} A ${incomerDeviceText(board, incomer)} ${polesOf(incomer)}`;
 }
 
 /** The incoming cable as on the cable schedule: parallel runs, construction (fire-rated / LSZH) and ECC. */
