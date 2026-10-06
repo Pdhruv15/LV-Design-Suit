@@ -51,6 +51,7 @@ export default function SingleLineDiagram({
           <line x1={cx} y1="57" x2={cx} y2="68" className="ln" />
           <rect x={cx - 7} y="68" width="14" height="14" className="sym" />
           <line x1={cx} y1="82" x2={cx} y2="118" className="ln" />
+          {incomerLabel && <text className="m" x={cx + 22} y="79">Incomer {incomerLabel}</text>}
         </>
       ) : (
         <>
@@ -59,7 +60,7 @@ export default function SingleLineDiagram({
             Incomer
           </text>
           <text className="m" x={cx + 22} y="54">
-            {incomerLabel ?? `from ${board.upstreamId}`}
+            {incomerLabel ? `${incomerLabel} · from ${board.upstreamId}` : `from ${board.upstreamId}`}
           </text>
           <rect x={cx - 7} y="102" width="14" height="14" className="sym" />
           <line x1={cx} y1="116" x2={cx} y2="118" className="ln" />

@@ -27,6 +27,10 @@ export function incomerLabel(board: Board, incomer: Feeder | undefined): string 
   return `${incomer.breakerRatingA} A ${incomerDeviceText(board, incomer)} ${polesOf(incomer)}`;
 }
 
+/** The incomer label of a board, found from the project (feeder from its upstream board, if any). */
+export const boardIncomerLabel = (project: Project, board: Board): string =>
+  incomerLabel(board, project.feeders.find((f) => f.feedsBoardId === board.id && f.boardId === board.upstreamId));
+
 /** The incoming cable as on the cable schedule: parallel runs, construction (fire-rated / LSZH) and ECC. */
 export function incomerCableText(project: Project, incomer: Feeder | undefined): string {
   if (!incomer) return 'CABLE SIZE: —';
