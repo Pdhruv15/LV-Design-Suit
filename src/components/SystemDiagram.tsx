@@ -1007,13 +1007,16 @@ export default function SystemDiagram({
               )}
               {dewa && !n.terminal && (() => {
                 // Panel frame: busbar, outgoing ways and incomer; cables cross it at a gland mark.
-                const x1 = n.busX1 - 7, x2 = n.busX2 + 7, y1 = n.busY - 84, y2 = n.busY + 47;
+                // Top edge above the incomer symbol, so the cable gland and the frame line clear it.
+                const x1 = n.busX1 - 7, x2 = n.busX2 + 7, y1 = n.busY - (protectionOf(b) ? 92 : 84) - 12, y2 = n.busY + 47;
                 const gland = (x: number, gy: number) => <path key={`${x}-${gy}`} d={`M${x - 5} ${gy - 4} q3 4 0 8 M${x + 5} ${gy - 4} q-3 4 0 8`} className="ln" />;
                 const outs = layout.feeders.filter((f) => f.feeder.boardId === b.id);
                 return (
                   <g className="panel-frame">
                     <rect x={x1} y={y1} width={x2 - x1} height={y2 - y1} className="frame-ln" />
                     {gland(n.x, y1)}
+                    {/* Panel name in the frame's top-right corner. */}
+                    <text x={x2 - 5} y={y1 + 12} textAnchor="end" className="acc-t b">{b.id}</text>
                     {outs.map((f) => gland(f.x, y2))}
                   </g>
                 );
@@ -1021,7 +1024,7 @@ export default function SystemDiagram({
               {dewa && (() => {
                 // Summary box: name, LOC, TCL, DF, MDL = TCL × DF (the panel's own DF).
                 const sm = panelSummary(project, b);
-                const bx = n.x + 12, by = n.terminal ? n.busY - 150 : n.busY - 160;
+                const bx = n.x + 12, by = n.terminal ? n.busY - 150 : n.busY - 172;
                 const lines = [`LOC : ${trunc(boardLocation(project, b) || '—', 16)}`, `TCL : ${sm.tclKw.toFixed(2)} kW`, `DF : ${sm.df.toFixed(2)}`, `MDL : ${sm.mdlKw.toFixed(2)} kW`];
                 return (
                   <g className="panel-sum">
@@ -1037,23 +1040,21 @@ export default function SystemDiagram({
                 // Incomer switching device on the line above the name box.
                 const kind = dev === 'ISOL' ? 'isolator' : dev === 'ACB' ? 'acb' : dev === 'MCCB-NA' ? 'nonauto' : 'breaker';
                 const sy = n.busY - (protectionOf(b) ? 92 : 84);
-                // Rated to the feeder that supplies it; the busbar rating only when fed from the source.
-                const rating = project.feeders.find((f) => f.feedsBoardId === b.id && f.boardId === b.upstreamId)?.breakerRatingA ?? b.ratedCurrentA;
                 return (
                   <g className="acc">
                     <title>{`Incomer: ${INCOMER_DEVICES.find((d) => d.value === dev)!.label}`}</title>
                     <rect x={n.x - 2} y={sy - 1} width="4" height="19" className="bg-fill" />
                     <SwitchSym x={n.x} y={sy} kind={kind} />
-                    <text x={n.x + 12} y={sy + 11} className="acc-t b">{`${rating ? `${rating} A ` : ''}${dev === 'MCCB-NA' ? 'MCCB (NA)' : dev}`}</text>
                   </g>
                 );
               })()}
               <rect x={n.x - 62} y={n.busY - 58} width="124" height="36" rx="6" className="box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
               <text className="b" x={n.x - 54} y={n.busY - 42}>{trunc(b.id, 14)}</text>
-              <text className="m" x={n.x - 54} y={n.busY - 28}>
-                {b.kind ?? (b.upstreamId ? 'DB' : 'MDB')}
-                {b.ratedCurrentA ? ` · ${b.ratedCurrentA} A` : ''}
-              </text>
+              <text className="m" x={n.x - 54} y={n.busY - 28}>{b.kind ?? (b.upstreamId ? 'DB' : 'MDB')}</text>
+              {/* Busbar rating at the right-hand end of the busbar; the box names the incomer device. */}
+              {!n.terminal && b.ratedCurrentA && (
+                <text x={n.busX2} y={n.busY - 5} textAnchor="end" className="acc-t b" style={{ fill: 'var(--bus)' }}>{`${b.ratedCurrentA} A busbar`}</text>
+              )}
               <circle cx={n.x + 52} cy={n.busY - 46} r="4" style={{ fill: `var(--${status})` }} />
               {hasInstruments(b) && !n.terminal && (() => {
                 // Ammeter and voltmeter with selector switches, R-Y-B lamps: inside the panel, left of the board box.
