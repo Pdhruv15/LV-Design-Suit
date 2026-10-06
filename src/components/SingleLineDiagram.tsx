@@ -1,4 +1,5 @@
-import type { Board } from '../types';
+import { incomerDeviceOf, type Board } from '../types';
+import { SwitchSym, switchKindOf, type SwitchKind } from '../diagram/IecSymbols';
 import type { FeederResult } from '../calc/electrical';
 import { circuitRef } from '../calc/loadSchedule';
 
@@ -31,6 +32,8 @@ export default function SingleLineDiagram({
   const busX1 = Math.min(cx - 60, (xs[0] ?? cx) - 60);
   const busX2 = Math.max(cx + 60, (xs[n - 1] ?? cx) + 60);
   const isMain = !board.upstreamId;
+  const dev = incomerDeviceOf(board);
+  const incKind: SwitchKind = dev === 'ISOL' ? 'isolator' : dev === 'ACB' ? 'acb' : dev === 'MCCB-NA' ? 'nonauto' : 'breaker';
 
   return (
     <svg viewBox={`0 0 ${width} 345`} style={{ minWidth: Math.min(width, 1100), width: '100%', height: 'auto', display: 'block' }} role="img" aria-label={`Single line diagram of ${board.name}`}>
@@ -49,21 +52,21 @@ export default function SingleLineDiagram({
             11/{(voltageV / 1000).toFixed(3)} kV · Z {board.sourceImpedancePct ?? '—'}%
           </text>
           <line x1={cx} y1="57" x2={cx} y2="68" className="ln" />
-          <rect x={cx - 7} y="68" width="14" height="14" className="sym" />
-          <line x1={cx} y1="82" x2={cx} y2="118" className="ln" />
+          {dev ? <SwitchSym x={cx} y={68} kind={incKind} /> : <line x1={cx} y1="68" x2={cx} y2="84" className="ln" />}
+          <line x1={cx} y1="84" x2={cx} y2="118" className="ln" />
           {incomerLabel && <text className="m" x={cx + 22} y="79">Incomer {incomerLabel}</text>}
         </>
       ) : (
         <>
-          <line x1={cx} y1="10" x2={cx} y2="102" className="ln" />
+          <line x1={cx} y1="10" x2={cx} y2={dev ? 100 : 118} className="ln" />
           <text className="b" x={cx + 22} y="40">
             Incomer
           </text>
           <text className="m" x={cx + 22} y="54">
             {incomerLabel ? `${incomerLabel} · from ${board.upstreamId}` : `from ${board.upstreamId}`}
           </text>
-          <rect x={cx - 7} y="102" width="14" height="14" className="sym" />
-          <line x1={cx} y1="116" x2={cx} y2="118" className="ln" />
+          {dev && <SwitchSym x={cx} y={100} kind={incKind} />}
+          {dev && <line x1={cx} y1="116" x2={cx} y2="118" className="ln" />}
         </>
       )}
       <text className="b" x={cx - 16} y="106" textAnchor="end" style={{ fill: 'var(--bus)' }}>
@@ -77,10 +80,9 @@ export default function SingleLineDiagram({
         const sel = selected === f.id;
         return (
           <g key={f.id} tabIndex={0} style={{ cursor: 'pointer' }} onClick={() => onSelect(f.id)} onKeyDown={(e) => e.key === 'Enter' && onSelect(f.id)}>
-            <line x1={x} y1="118" x2={x} y2="150" className="ln" />
-            <rect x={x - 6} y="150" width="12" height="20" className="sym" />
-            <line x1={x - 6} y1="168" x2={x + 6} y2="152" className="ln" />
-            <line x1={x} y1="170" x2={x} y2="232" className="ln" />
+            <line x1={x} y1="118" x2={x} y2="152" className="ln" />
+            <SwitchSym x={x} y={152} kind={switchKindOf(f)} />
+            <line x1={x} y1="168" x2={x} y2="232" className="ln" />
             <text className="b" x={x + 11} y="163">
               {f.breakerRatingA} A
             </text>
