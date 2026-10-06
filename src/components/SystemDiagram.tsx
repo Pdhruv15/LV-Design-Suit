@@ -1,6 +1,6 @@
 import { withNetwork } from '../calc/network';
 import { txTag } from '../model/transformers';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { STATUS_TEXT } from '../calc/statusText';
 import { componentLabel } from '../model/components';
 import type { DrawingInfo, Project } from '../types';
@@ -21,11 +21,12 @@ import { addsWay, canDrop, canMove, type DropTarget, type MoveItem, type Palette
 import { cables } from '../calc/cableTable';
 import { upsLoadingPct } from '../calc/sizing';
 import { isMotor, starterInfo, starterOf } from '../calc/motor';
+import { sldDevices } from '../diagram/sldDevices';
 import { cableSizeText, runsOf, upstreamVoltageDropPct } from '../calc/electrical';
 import { MOTOR_START_DIP_LIMIT_PCT, type GeneratorRun, type OutageScenario } from '../calc/scenario';
 import { boardRatio, COLOR_BY, earthRatio, feederRatio, heatColor, type ColorBy } from '../diagram/heatmap';
 import { evaluateEarthingAll } from '../calc/earthing';
-import type { Board, Feeder } from '../types';
+import { INCOMER_DEVICES, incomerDeviceOf, type Board, type Feeder } from '../types';
 import { getDragItem, setDragItem } from '../diagram/dragItem';
 
 interface Tag {
@@ -338,6 +339,15 @@ export default function SystemDiagram({
     return () => window.removeEventListener('keydown', esc);
   }, [fullScreen, onToggleFullScreen]);
   const svgRef = useRef<SVGSVGElement>(null);
+  // On screen, squeeze any label wider than its slot so it can't run over the neighbouring feeder.
+  useLayoutEffect(() => {
+    svgRef.current?.querySelectorAll<SVGTextElement>('text[data-dxf-max-width], text[data-fit-width]').forEach((t) => {
+      t.removeAttribute('textLength');
+      const max = Number(t.getAttribute('data-dxf-max-width') ?? t.getAttribute('data-fit-width'));
+      const w = t.getComputedTextLength?.() ?? 0;
+      if (max > 0 && w > max) { t.setAttribute('textLength', String(max)); t.setAttribute('lengthAdjust', 'spacingAndGlyphs'); }
+    });
+  });
   const drag = useRef<{ px: number; py: number; vb: ViewBox; moved: boolean } | null>(null);
 
   // Re-fit when the network's overall size changes (boards/feeders added).
@@ -788,12 +798,40 @@ export default function SystemDiagram({
               {/* Accessories on the feeder, top to bottom: earth leakage (its
                   rating goes with the breaker's), metering on the right below
                   the cable text, local isolator just above the load. */}
-              {f.rcdMa && (
-                <g className="acc">
-                  <title>{`Earth leakage protection ${f.rcdMa} mA`}</title>
-                  <ellipse cx={n.x} cy={y + 39} rx="7" ry="3.2" className="sym-ln" />
-                </g>
-              )}
+              {(() => {
+                // Boxed devices on the feeder, to the left of the line (the cable text is on the right).
+                const dev = sldDevices(f);
+                // One compact column left of the line, top to bottom (cable-reference circles sit close in, so shift out).
+                const shiftX = cableRefs ? 12 : 0;
+                const box = (i: number, label: string, key: string) => {
+                  const by = y + 36 + i * 13;
+                  const w = label.length * 5.2 + 6;
+                  const x1 = n.x - 8 - shiftX;
+                  return (
+                    <g className="acc" data-dxf-layer="DEVICE" key={key}>
+                      <line x1={x1} y1={by + 5.5} x2={n.x} y2={by + 5.5} className="ln" />
+                      <rect x={x1 - w} y={by} width={w} height="11" className="sym" />
+                      <text x={x1 - w / 2} y={by + 8.5} textAnchor="middle" className="acc-t b" style={{ fontSize: 7.5 }}>{label}</text>
+                    </g>
+                  );
+                };
+                const items: { key: string; label: string }[] = [];
+                if (dev.elcb) items.push({ key: 'elcb', label: dev.elcb.label });
+                if (dev.starter && !n.childBoardId) items.push({ key: 'starter', label: dev.starter });
+                for (const e of dev.extras) items.push({ key: e, label: e });
+                return (
+                  <>
+                    {items.map((it, i) => box(i, it.label, it.key))}
+                    {dev.elcb && (
+                      <g className="acc">
+                        <title>{`Earth leakage protection${dev.elcb.ma ? ` ${dev.elcb.ma} mA` : ''}`}</title>
+                        <ellipse cx={n.x - 8 - shiftX - dev.elcb.label.length * 5.2 - 6 - 5} cy={y + 41.5} rx="4.5" ry="2.2" className="sym-ln" />
+                        {dev.elcb.ma ? <text x={n.x - 8 - shiftX} y={y + 34} textAnchor="end" className="acc-t" style={{ fontSize: 7 }}>{dev.elcb.ma}mA</text> : null}
+                      </g>
+                    )}
+                  </>
+                );
+              })()}
               {f.kwhMeter && (() => {
                 // Sub-board incomers: below their result labels.
                 const my = n.childBoardId ? y + 128 + tagY : y + 62;
@@ -834,7 +872,7 @@ export default function SystemDiagram({
                   )}
                   <text className="b" x={n.x} y={y + 132} textAnchor="middle">{trunc(f.id, 16)}</text>
                   <text className="m" x={n.x} y={y + 146} textAnchor="middle">{trunc(f.name, 19)}</text>
-                  <text x={n.x} y={y + 160} textAnchor="middle">
+                  <text x={n.x} y={y + 160} textAnchor="middle" data-fit-width={cadSlot - 6}>
                     {f.componentId && project.components?.some((c) => c.id === f.componentId) ? trunc(componentLabel(project, project.components!.find((c) => c.id === f.componentId)!, f), 30) : f.kvar ? `${f.capSteps && f.capSteps > 1 ? `${f.capSteps} × ${+(f.kvar / f.capSteps).toFixed(1)}` : f.kvar} kvar${f.detunedPct ? ` · ${f.detunedPct}% det.` : ''}` : `${dewa && !f.generation ? `TCL : ${f.loadKw.toFixed(2)}` : (f.loadKw * f.demandFactor).toFixed(0)} kW${f.generation ? ' gen' : ''}${isMotor(f) ? ` · ${starterInfo(starterOf(f)).short}` : ''}`}
                     {!layers?.current && ` · ${r ? r.ib.toFixed(0) : '–'} A`}
                   </text>
@@ -991,6 +1029,20 @@ export default function SystemDiagram({
                     <rect x={bx} y={by} width="118" height="70" rx="6" className="sum-box" />
                     <text x={bx + 6} y={by + 13} className="b" style={{ textDecoration: 'underline' }}>{trunc(b.id, 16)}</text>
                     {lines.map((t, i) => <text key={i} x={bx + 6} y={by + 27 + i * 12} className="acc-t">{t}</text>)}
+                  </g>
+                );
+              })()}
+              {incomerDeviceOf(b) && !b.standby && (() => {
+                const dev = incomerDeviceOf(b)!;
+                // Incomer switching device on the line above the name box.
+                const kind = dev === 'ISOL' ? 'isolator' : dev === 'ACB' ? 'acb' : dev === 'MCCB-NA' ? 'nonauto' : 'breaker';
+                const sy = n.busY - (protectionOf(b) ? 92 : 84);
+                return (
+                  <g className="acc">
+                    <title>{`Incomer: ${INCOMER_DEVICES.find((d) => d.value === dev)!.label}`}</title>
+                    <rect x={n.x - 2} y={sy - 1} width="4" height="19" className="bg-fill" />
+                    <SwitchSym x={n.x} y={sy} kind={kind} />
+                    <text x={n.x + 12} y={sy + 11} className="acc-t b">{`${b.ratedCurrentA ? `${b.ratedCurrentA} A ` : ''}${dev === 'MCCB-NA' ? 'MCCB (NA)' : dev}`}</text>
                   </g>
                 );
               })()}

@@ -3,17 +3,17 @@ import { breakerTypeOf } from '../calc/earthing';
 import { isMotor } from '../calc/motor';
 import { isScheduleCircuit } from '../calc/loadSchedule';
 import { cableTypeDef, cableTypeOf, labelCode } from '../model/cableTypes';
-import { DEFAULT_CABLE_TYPE } from '../types';
+import { DEFAULT_CABLE_TYPE, incomerDeviceOf } from '../types';
 
 /** IEC 60617 symbols for the single line diagram, drawn with the diagram's
  * own classes (.ln lines, .sym filled shapes) so they follow the theme and
  * print in black. Each symbol is placed by its connection points. */
 
 export type SymbolStyle = 'iec' | 'simple';
-export type SwitchKind = 'breaker' | 'acb' | 'isolator';
+export type SwitchKind = 'breaker' | 'acb' | 'isolator' | 'nonauto';
 
 export const switchKindOf = (f: Feeder): SwitchKind =>
-  f.device === 'ISOL' ? 'isolator' : breakerTypeOf(f) === 'ACB' ? 'acb' : 'breaker';
+  f.device === 'ISOL' ? 'isolator' : f.device === 'ACB' || breakerTypeOf(f) === 'ACB' ? 'acb' : 'breaker';
 
 /** Switching device in a vertical line from (x, y) to (x, y + 16):
  * circuit breaker (07-13-05: contact with ×), withdrawable ACB (with the
@@ -22,10 +22,11 @@ export function SwitchSym({ x, y, kind }: { x: number; y: number; kind: SwitchKi
   return (
     <g className="iec">
       <line x1={x} y1={y} x2={x} y2={y + 3} className="ln" />
-      {kind === 'isolator'
+      {kind === 'isolator' || kind === 'nonauto'
         ? <line x1={x - 4} y1={y + 3} x2={x + 4} y2={y + 3} className="ln" />
         : <path d={`M${x - 3} ${y} l6 6 M${x + 3} ${y} l-6 6`} className="ln" />}
       <line x1={x} y1={y + 16} x2={x - 7} y2={y + 5} className="ln" />
+      {kind === 'nonauto' && <path d={`M${x - 3} ${y + 9} l6 6 M${x + 3} ${y + 9} l-6 6`} className="ln" />}
       {kind === 'acb' && (
         <>
           <path d={`M${x - 4} ${y - 5} l4 -3 l4 3`} className="ln" />
@@ -125,6 +126,7 @@ export function legendEntries(project: Project): LegendEntry[] {
   if (others.length) add('ctype', `Marked cables: ${others.join(', ')}`, (x, y) => <text x={x} y={y + 3} textAnchor="middle" className="iec-t s">code</text>);
   if (has('breaker')) add('cb', 'Circuit breaker (MCB / MCCB)', (x, y) => <SwitchSym x={x} y={y - 8} kind="breaker" />);
   if (has('acb')) add('acb', 'Air circuit breaker, withdrawable', (x, y) => <SwitchSym x={x} y={y - 8} kind="acb" />);
+  if (project.boards.some((b) => !b.standby && incomerDeviceOf(b) === 'MCCB-NA')) add('nonauto', 'Non-automatic breaker (incomer isolation)', (x, y) => <SwitchSym x={x} y={y - 8} kind="nonauto" />);
   if (has('isolator')) add('isol', 'Switch-disconnector', (x, y) => <SwitchSym x={x} y={y - 8} kind="isolator" />);
   if (drawn.some((f) => f.rcdMa)) add('rcd', 'Earth leakage protection (RCD)', (x, y) => (
     <g className="iec"><line x1={x} y1={y - 9} x2={x} y2={y + 9} className="ln" /><ellipse cx={x} cy={y} rx="7" ry="3.2" className="sym-ln" /></g>

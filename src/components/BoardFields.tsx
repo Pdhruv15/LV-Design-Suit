@@ -1,4 +1,4 @@
-import { BOARD_KINDS, RELAY_TYPES, SPD_TYPES, type Board, type BuildingInfo } from '../types';
+import { BOARD_KINDS, INCOMER_DEVICES, RELAY_TYPES, SPD_TYPES, type Board, type IncomerDevice, type BuildingInfo } from '../types';
 import { findFloor, floorList, levelKey } from '../model/levels';
 import { DEFAULT_TRANSFORMER_XR } from '../calc/electrical';
 
@@ -77,6 +77,13 @@ export default function BoardFields({ board, onChange, section, building }: { bo
           </select>
         </label>
       )}
+      <label>Incomer device (SLD)
+        <select value={board.incomerDevice ?? ''} onChange={(e) => set('incomerDevice', e.target.value ? (e.target.value as IncomerDevice) : undefined)}
+          title="Drawn on the incoming line above the board name. A non-automatic breaker is the UAE practice for an isolator: breaker body, no trip.">
+          <option value="">Default (non-automatic breaker; none on authority-supply boards)</option>
+          {INCOMER_DEVICES.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+        </select>
+      </label>
       <label>Incomer CT ratio
         <input value={board.protection?.ctRatio ?? ''} placeholder={board.supply?.ctRatio ?? 'e.g. 1600/5A'}
           onChange={(e) => setProt({ ctRatio: e.target.value || undefined })} />
