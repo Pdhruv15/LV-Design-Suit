@@ -1,4 +1,4 @@
-import { PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, PDFNumber, PDFRef, StandardFonts, rgb } from 'pdf-lib';
+import { PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, PDFNumber, PDFRef, PDFString, StandardFonts, rgb } from 'pdf-lib';
 
 /** Finishing touches on every PDF the app makes: "title · Page n of N" at
  * the foot of multi-page documents, bookmarks for the parts of a combined
@@ -41,6 +41,35 @@ export async function stampFrame(doc: PDFDocument, f: { headerLeft: string; head
     p.drawText(clean(f.footerLeft), { x: inset, y: 13, size, font, color: grey });
     right(`Page ${i + 1} of ${pages.length}`, 13);
   });
+}
+
+/** The page (1-based) of each named destination — the anchors (id="…") that the
+ * HTML links to, e.g. the contents entries. Chrome writes them to the catalog's
+ * /Dests dictionary (older files: the /Names → /Dests tree). */
+export function destinationPages(doc: PDFDocument): Record<string, number> {
+  const refs = doc.getPages().map((p) => p.ref.toString());
+  const out: Record<string, number> = {};
+  const put = (name: string, d: unknown) => {
+    const arr = d instanceof PDFDict ? d.lookup(PDFName.of('D')) : d;
+    if (!(arr instanceof PDFArray)) return;
+    const at = refs.indexOf(arr.get(0).toString());
+    if (at >= 0) out[name] = at + 1;
+  };
+  const dests = doc.catalog.lookup(PDFName.of('Dests'));
+  if (dests instanceof PDFDict) for (const [k, v] of dests.entries()) put(k.decodeText(), doc.context.lookup(v));
+  const walk = (node: unknown) => {
+    if (!(node instanceof PDFDict)) return;
+    const names = node.lookup(PDFName.of('Names'));
+    if (names instanceof PDFArray) for (let i = 0; i + 1 < names.size(); i += 2) {
+      const k = names.lookup(i);
+      put(k instanceof PDFHexString || k instanceof PDFString ? k.decodeText() : String(k), names.lookup(i + 1));
+    }
+    const kids = node.lookup(PDFName.of('Kids'));
+    if (kids instanceof PDFArray) for (let i = 0; i < kids.size(); i++) walk(kids.lookup(i));
+  };
+  const tree = doc.catalog.lookup(PDFName.of('Names'));
+  if (tree instanceof PDFDict) walk(tree.lookup(PDFName.of('Dests')));
+  return out;
 }
 
 /** A flat outline (the bookmarks panel of a PDF viewer). */

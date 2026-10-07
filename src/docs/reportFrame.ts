@@ -161,11 +161,12 @@ export function numberSections(tree: { title: string; children?: { title: string
   return out;
 }
 
-export function tocHtml(entries: TocEntry[]): string {
+/** `pages`: the page of each entry (anchor → page), when known from a first print; else no page column. */
+export function tocHtml(entries: TocEntry[], pages?: Record<string, number>): string {
   return `
 <section class="toc">
   <h2 class="unnumbered">Contents</h2>
-  <ol class="toc-list">${entries.map((e) => `<li class="l${e.level}"><a href="#${e.anchor}"><span class="n">${esc(e.number)}</span>${esc(e.title)}</a></li>`).join('')}</ol>
+  <ol class="toc-list">${entries.map((e) => `<li class="l${e.level}"><a href="#${e.anchor}"><span class="n">${esc(e.number)}</span>${esc(e.title)}${pages ? `<span class="pg">${pages[e.anchor] ?? ''}</span>` : ''}</a></li>`).join('')}</ol>
 </section>`;
 }
 
@@ -213,5 +214,5 @@ export const REPORT_DOC_CSS = `
     .meta { width: 70%; } .meta th { width: 28%; }
     .sign { width: 70%; margin-top: 10px; } .sign th:first-child { width: 20%; } .sign td { height: 18px; }
     .toc-list { list-style: none; padding: 0; margin: 6px 0; width: 70%; }
-    .toc-list li { padding: 3px 0; border-bottom: 1px dotted #c9d2de; } .toc-list a { color: inherit; text-decoration: none; }
+    .toc-list li { padding: 3px 0; border-bottom: 1px dotted #c9d2de; } .toc-list a { color: inherit; text-decoration: none; display: flex; } .toc-list .pg { margin-left: auto; padding-left: 12px; }
     .toc-list .n { display: inline-block; min-width: 34px; margin-right: 8px; font-weight: 600; } .toc-list .l2 { padding-left: 24px; } .toc-list .l3 { padding-left: 48px; }`;

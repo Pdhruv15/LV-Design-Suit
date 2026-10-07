@@ -133,13 +133,13 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
         let saved = 0;
         for (const s of sections) {
           const m1 = { ...meta, title: setup.title ? `${setup.title} — ${s.title}` : s.title };
-          const html = buildStudyReportHtml(project, scope, [s], m1, slds, basisOpt);
-          const m = await savePdf(`${base} - ${safeFileName(s.title + scopeTag)}.pdf`, html, { cssPages: true, frame: pageFrame(reportDoc(project, m1)) });
+          const make = (pages: Record<string, number>) => buildStudyReportHtml(project, scope, [s], m1, slds, { ...basisOpt, pages });
+          const m = await savePdf(`${base} - ${safeFileName(s.title + scopeTag)}.pdf`, make({}), { cssPages: true, frame: pageFrame(reportDoc(project, m1)), paginate: make });
           if (m) saved++;
         }
         onStatus(`Saved ${saved} of ${sections.length} study reports`);
       } else {
-        const m = await savePdf(`${base} - ${safeFileName(title + scopeTag)}.pdf`, buildStudyReportHtml(project, scope, sections, meta, slds, basisOpt), { cssPages: true, frame: pageFrame(reportDoc(project, meta)) });
+        const m = await savePdf(`${base} - ${safeFileName(title + scopeTag)}.pdf`, buildStudyReportHtml(project, scope, sections, meta, slds, { ...basisOpt, pages: {} }), { cssPages: true, frame: pageFrame(reportDoc(project, meta)), paginate: (pages) => buildStudyReportHtml(project, scope, sections, meta, slds, { ...basisOpt, pages }) });
         if (m) onStatus(m);
       }
     } catch (e) {
@@ -169,7 +169,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
     if (!confirmIssues()) return;
     setBusy('docx');
     try {
-      const doc = buildStudyDocx(calc, scope, sections, { title, docNo: setup.docNo, preparedBy: setup.preparedBy, checkedBy: setup.checkedBy });
+      const doc = buildStudyDocx(calc, scope, sections, reportMeta, basisOpt);
       const m = await saveBinary(`${safeFileName(`${project.name} ${title}`)}.docx`, await docxBytes(doc), 'Word document', 'docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
       if (m) onStatus(m);
     } catch (e) {

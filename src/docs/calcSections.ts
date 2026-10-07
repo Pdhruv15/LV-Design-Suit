@@ -118,7 +118,7 @@ export function structureSection(s: Section, data: CalcData, scope: Scope): Sect
       break;
     }
     case 'schedules':
-      s.tables.forEach((t) => { t.appendix = true; });
+      s.tables.forEach((t) => { t.appendix = t.title === 'Cable schedule' ? 'cable' : 'load'; });
       break;
   }
   return s;

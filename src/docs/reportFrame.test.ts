@@ -111,7 +111,7 @@ describe('calculation sections (phase 3)', () => {
     expect(html).toContain('href="#app-A"');
     const studyPart = html.slice(html.indexOf('class="study"'), html.indexOf('class="appendix"'));
     expect(studyPart).not.toContain('</span> Cables and breakers</h3>');
-    expect(html.slice(html.indexOf('class="appendix"'))).toMatch(/<span class="sn">[A-Z]\.\d+<\/span> Cables and breakers<\/h3>/);
+    expect(html.slice(html.indexOf('class="appendix"'))).toMatch(/<span class="sn">[A-Z]\.\d+<\/span> [^<]*Cables and breakers<\/h3>/);
   });
   it('load assessment and verification figures come from the calculations', () => {
     const load = secs.find((s) => s.key === 'load')!;
@@ -188,5 +188,28 @@ describe('report generator (phase 5)', () => {
   it('a clean, run project has no errors from data or references', () => {
     const v = validateReport({ project: sampleProject, meta: { title: 'T' }, scope, sections: [buildSection('cable', data, scope)], data, stale: [], designBasis: false, resultsSummary: false });
     expect(v.filter((x) => x.level === 'error')).toEqual([]);
+  });
+});
+
+import { planAppendices } from './appendices';
+describe('fixed appendix set', () => {
+  const scope = scopeOf(sampleProject, { boards: [], downstream: true });
+  it('orders load → cable → fault → equipment → SLD → references, lettered without gaps', () => {
+    const secs = (['schedules', 'sc', 'sizing'] as const).map((k) => buildSection(k, data, scope));
+    const apps = planAppendices({ ...sampleProject, standards: ['Spec 26'] }, secs, ['sc'], []);
+    expect(apps.map((a) => [a.letter, a.kind])).toEqual([['A', 'load'], ['B', 'cable'], ['C', 'fault'], ['D', 'equipment'], ['E', 'sld'], ['F', 'refs']]);
+    expect(apps[1].tables.map((t) => t.table.title)).toEqual(['Cable schedule']);
+  });
+  it('leaves out what does not apply, and puts the SLD pages in their appendix', () => {
+    const secs = [buildSection('sc', data, scope)];
+    const apps = planAppendices({ ...sampleProject, standards: undefined, receivedDocs: undefined }, secs, [], []);
+    expect(apps.map((a) => a.kind)).toEqual(['fault']); // no standards, documents or basis passed
+    const html = buildStudyReportHtml(sampleProject, scope, secs, { title: 'T' }, { sc: '<svg></svg>' });
+    expect(html.indexOf('class="sld"')).toBeGreaterThan(html.indexOf('Single line diagrams</h2>'));
+  });
+  it('contents shows page numbers when they are known', () => {
+    const html = buildStudyReportHtml(sampleProject, scope, [buildSection('sc', data, scope)], { title: 'T' }, {}, { pages: { 'sec-1': 4, 'app-A': 9 } });
+    expect(html).toContain('<span class="pg">4</span>');
+    expect(html).toContain('<span class="pg">9</span>');
   });
 });
