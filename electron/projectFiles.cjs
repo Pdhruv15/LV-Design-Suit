@@ -6,6 +6,18 @@ const crypto = require('node:crypto');
 
 const sha = (text) => crypto.createHash('sha256').update(text).digest('hex');
 
+/** A step that may fail without stopping the operation it belongs to (a backup copy, a cache, a
+ * cleanup). A file that is not there is expected and stays quiet; any other failure is logged with
+ * what was being done, never swallowed. Returns the step's result, or undefined when it failed. */
+function bestEffort(what, fn) {
+  try {
+    return fn();
+  } catch (e) {
+    if (!(e && e.code === 'ENOENT')) console.warn(`[projects] ${what}: ${e && e.message ? e.message : e}`);
+    return undefined;
+  }
+}
+
 /** What a file is right now: modified time, size and a hash of its content. null when it does not exist. */
 function stampOf(full) {
   try {
@@ -34,8 +46,8 @@ function writeFileSafe(full, text, opts = {}) {
   const fd = fs.openSync(tmp, 'w');
   try { fs.writeFileSync(fd, text, 'utf-8'); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
   if (fs.existsSync(full)) {
-    if (keepBackup) { try { fs.copyFileSync(full, `${full}.bak`); } catch {} }
-    if (keepTheirs) { try { fs.copyFileSync(full, `${full}.theirs-${Date.now()}.bak`); } catch {} }
+    if (keepBackup) bestEffort(`backup copy of ${path.basename(full)}`, () => fs.copyFileSync(full, `${full}.bak`));
+    if (keepTheirs) bestEffort(`copy of the other version of ${path.basename(full)}`, () => fs.copyFileSync(full, `${full}.theirs-${Date.now()}.bak`));
   }
   fs.renameSync(tmp, full);
   const back = fs.readFileSync(full, 'utf-8');
@@ -82,7 +94,7 @@ function writeRecovery(dir, r) {
 }
 
 function clearRecovery(dir, id) {
-  try { fs.unlinkSync(recoveryFile(dir, id)); } catch {}
+  bestEffort('remove the recovery copy', () => fs.unlinkSync(recoveryFile(dir, id)));
   return true;
 }
 
@@ -91,25 +103,21 @@ function clearRecovery(dir, id) {
  * (fileChangedSince), never dropped: the user decides. */
 function readRecoveries(dir, projectsFolder, legacyFile) {
   if (legacyFile && fs.existsSync(legacyFile)) {
-    try {
+    bestEffort('move the older recovery copy', () => {
       const old = JSON.parse(fs.readFileSync(legacyFile, 'utf-8'));
       if (old && old.project) writeRecovery(dir, { ...old, projectId: (old.project && old.project.id) || 'legacy-single' });
-    } catch {}
-    try { fs.unlinkSync(legacyFile); } catch {}
+    });
+    bestEffort('remove the older recovery copy', () => fs.unlinkSync(legacyFile));
   }
   let names = [];
   try { names = fs.readdirSync(dir).filter((f) => f.endsWith('.json')); } catch { return []; }
   const list = [];
   for (const f of names) {
-    try {
-      const r = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf-8'));
-      if (!r || !r.project || !Array.isArray(r.project.boards)) continue;
-      let fileChangedSince = false;
-      if (r.file && projectsFolder) {
-        try { fileChangedSince = fs.statSync(path.join(projectsFolder, r.file)).mtimeMs > r.at; } catch {}
-      }
-      list.push({ ...r, fileChangedSince });
-    } catch {}
+    const r = bestEffort(`read recovery copy ${f}`, () => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf-8')));
+    if (!r || !r.project || !Array.isArray(r.project.boards)) continue;
+    // The project file may be gone (moved or deleted): then it has not changed since.
+    const st = r.file && projectsFolder ? bestEffort(`check ${r.file}`, () => fs.statSync(path.join(projectsFolder, r.file))) : undefined;
+    list.push({ ...r, fileChangedSince: st ? st.mtimeMs > r.at : false });
   }
   return list.sort((a, b) => b.at - a.at);
 }
@@ -145,7 +153,7 @@ function metaFromProject(file, p, updatedAt) {
  * projects opens quickly. Returns { list, parsed } (parsed = how many files were actually read). */
 function listProjectsMeta(folder, cachePath) {
   let cache = {};
-  try { cache = JSON.parse(fs.readFileSync(cachePath, 'utf-8')); } catch {}
+  cache = bestEffort('read the project list cache', () => JSON.parse(fs.readFileSync(cachePath, 'utf-8'))) || {};
   const files = fs.readdirSync(folder).filter((f) => f.endsWith('.json'));
   const next = {};
   let parsed = 0;
@@ -153,16 +161,16 @@ function listProjectsMeta(folder, cachePath) {
     const st = fs.statSync(path.join(folder, f));
     const c = cache[f];
     if (c && c.mtimeMs === st.mtimeMs && c.size === st.size) { next[f] = c; return { ...c.meta, updatedAt: st.mtimeMs }; }
-    let meta = { file: f, name: f.replace(/\.json$/i, ''), updatedAt: st.mtimeMs };
-    try { meta = metaFromProject(f, JSON.parse(fs.readFileSync(path.join(folder, f), 'utf-8')), st.mtimeMs); parsed++; } catch {}
+    // A file that cannot be read is still listed, under its file name.
+    let meta = bestEffort(`read ${f}`, () => metaFromProject(f, JSON.parse(fs.readFileSync(path.join(folder, f), 'utf-8')), st.mtimeMs));
+    if (meta) parsed++;
+    else meta = { file: f, name: f.replace(/\.json$/i, ''), updatedAt: st.mtimeMs };
     next[f] = { mtimeMs: st.mtimeMs, size: st.size, meta };
     return { ...meta };
   });
   const siblings = conflictSiblings(files);
   for (const m of list) if (siblings[m.file]) m.conflictOf = siblings[m.file];
-  try {
-    if (JSON.stringify(Object.keys(next).sort()) !== JSON.stringify(Object.keys(cache).sort()) || parsed) fs.writeFileSync(cachePath, JSON.stringify(next));
-  } catch {}
+  if (JSON.stringify(Object.keys(next).sort()) !== JSON.stringify(Object.keys(cache).sort()) || parsed) bestEffort('write the project list cache', () => fs.writeFileSync(cachePath, JSON.stringify(next)));
   return { list: list.sort((a, b) => b.updatedAt - a.updatedAt), parsed };
 }
 
@@ -180,7 +188,7 @@ function moveToTrash(folder, file, now = Date.now()) {
   fs.mkdirSync(dir, { recursive: true });
   const name = trashName(file, now);
   fs.renameSync(path.join(folder, file), path.join(dir, name));
-  try { fs.renameSync(path.join(folder, `${file}.bak`), path.join(dir, `${name}.bak`)); } catch {}
+  bestEffort(`move ${file}.bak to the trash`, () => fs.renameSync(path.join(folder, `${file}.bak`), path.join(dir, `${name}.bak`)));
   return name;
 }
 
@@ -193,7 +201,8 @@ function listTrash(folder, now = Date.now()) {
     const parts = splitTrashName(n);
     if (!parts) continue;
     let name = parts.file.replace(/\.json$/i, ''), id;
-    try { const p = JSON.parse(fs.readFileSync(path.join(trashDir(folder), n), 'utf-8')); if (p.name) name = p.name; id = p.id; } catch {}
+    const p = bestEffort(`read deleted project ${n}`, () => JSON.parse(fs.readFileSync(path.join(trashDir(folder), n), 'utf-8')));
+    if (p) { if (p.name) name = p.name; id = p.id; }
     out.push({ trashFile: n, file: parts.file, name, id, deletedAt: parts.deletedAt, daysLeft: Math.max(0, Math.ceil(TRASH_DAYS - (now - parts.deletedAt) / 86400000)) });
   }
   return out.sort((a, b) => b.deletedAt - a.deletedAt);
@@ -206,7 +215,7 @@ function restoreFromTrash(folder, trashFile) {
   const src = path.join(trashDir(folder), path.basename(trashFile));
   const file = fs.existsSync(path.join(folder, parts.file)) ? uniqueFileName(folder, parts.file.replace(/\.json$/i, '')) : parts.file;
   fs.renameSync(src, path.join(folder, file));
-  try { fs.renameSync(`${src}.bak`, path.join(folder, `${file}.bak`)); } catch {}
+  bestEffort(`restore ${file}.bak`, () => fs.renameSync(`${src}.bak`, path.join(folder, `${file}.bak`)));
   return file;
 }
 
@@ -219,10 +228,10 @@ function purgeTrash(folder, days = TRASH_DAYS, now = Date.now()) {
     const parts = splitTrashName(f.replace(/\.bak$/, ''));
     if (!parts) continue;
     if (days === 0 || now - parts.deletedAt > days * 86400000) {
-      try { fs.unlinkSync(path.join(trashDir(folder), f)); if (f.endsWith('.json')) n++; } catch {}
+      if (bestEffort(`remove ${f} from the trash`, () => { fs.unlinkSync(path.join(trashDir(folder), f)); return true; }) && f.endsWith('.json')) n++;
     }
   }
   return n;
 }
 
-module.exports = { metaFromProject, listProjectsMeta, moveToTrash, listTrash, restoreFromTrash, purgeTrash, TRASH_DAYS, sha, stampOf, decideSave, writeFileSafe, uniqueFileName, conflictSiblings, writeRecovery, clearRecovery, readRecoveries, recoveryFile };
+module.exports = { bestEffort, metaFromProject, listProjectsMeta, moveToTrash, listTrash, restoreFromTrash, purgeTrash, TRASH_DAYS, sha, stampOf, decideSave, writeFileSafe, uniqueFileName, conflictSiblings, writeRecovery, clearRecovery, readRecoveries, recoveryFile };

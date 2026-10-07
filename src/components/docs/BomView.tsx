@@ -12,6 +12,7 @@ import { buildBoqHtml, buildBoqWorkbook, buildPriceTemplate, readPriceWorkbook }
 import { workbookBytes } from '../../docs/formWorkbook';
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
 import BoqTable from '../BoqTable';
+import { toggleIn } from '../../util/sets';
 
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const money = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -227,10 +228,10 @@ export default function BomView({ command, project, results, onChange, onStatus 
                           <td className="num">{qtyText(it.qty)}{it.designQty !== undefined && <div className="m" title="Quantity from the design">design {qtyText(it.designQty)}</div>}</td>
                           <td>{it.supplyCharge && it.source !== 'excluded' ? <input className="bom-rate" inputMode="decimal" aria-label={`Supply rate: ${it.description}`} key={`${it.key}-${manual ? m?.rate : list?.rates[it.key]?.rate}`}
                             defaultValue={(manual ? m?.rate : list?.rates[it.key]?.rate) ?? ''} placeholder={it.source === 'typical' ? `${it.rate} typ.` : '—'}
-                            onBlur={(e) => { const old = String((manual ? m?.rate : list?.rates[it.key]?.rate) ?? ''); if (e.target.value !== old) manual ? setManualRate(it.manualId!, 'rate', e.target.value) : setRate(it.key, 'rate', e.target.value, it.description); }} /> : <span className="m">—</span>}</td>
+                            onBlur={(e) => { const old = String((manual ? m?.rate : list?.rates[it.key]?.rate) ?? ''); if (e.target.value === old) return; if (manual) setManualRate(it.manualId!, 'rate', e.target.value); else setRate(it.key, 'rate', e.target.value, it.description); }} /> : <span className="m">—</span>}</td>
                           <td>{it.installCharge && it.source !== 'excluded' ? <input className="bom-rate" inputMode="decimal" aria-label={`Install rate: ${it.description}`} key={`${it.key}-l-${manual ? m?.labour : list?.rates[it.key]?.labour}`}
                             defaultValue={(manual ? m?.labour : list?.rates[it.key]?.labour) ?? ''} placeholder="—" title="Installation per unit"
-                            onBlur={(e) => { const old = String((manual ? m?.labour : list?.rates[it.key]?.labour) ?? ''); if (e.target.value !== old) manual ? setManualRate(it.manualId!, 'labour', e.target.value) : setRate(it.key, 'labour', e.target.value, it.description); }} /> : <span className="m">—</span>}</td>
+                            onBlur={(e) => { const old = String((manual ? m?.labour : list?.rates[it.key]?.labour) ?? ''); if (e.target.value === old) return; if (manual) setManualRate(it.manualId!, 'labour', e.target.value); else setRate(it.key, 'labour', e.target.value, it.description); }} /> : <span className="m">—</span>}</td>
                           <td className="num">{it.source === 'excluded' ? <span className="m">{it.includedIn ? 'In package' : it.action === 'retain' ? 'Retained' : 'By others'}</span> : money(it.amount)}</td>
                           <td className="m" title={it.where.join(', ')}>{it.quantitySource && <div title={it.quantitySource}>{it.quantitySource.split(':')[0]}</div>}{it.evidence && <div>{it.evidence}</div>}{it.note ? <i>{it.note}</i> : null}{it.note && it.where.length ? ' · ' : ''}{it.where.slice(0, 3).join(', ')}{it.where.length > 3 ? ` +${it.where.length - 3}` : ''}</td>
                         </tr>
@@ -484,7 +485,7 @@ function ExtrasForm({ have, onSave, onClose }: { have: Set<string>; onSave: (x: 
           <b>{sec} — {title}</b>
           {EXTRAS.map((x, i) => x.section === sec && (
             <label key={i} className="row">
-              <input type="checkbox" disabled={have.has(x.description)} checked={on.has(i) || have.has(x.description)} onChange={() => setOn((s) => { const n = new Set(s); n.has(i) ? n.delete(i) : n.add(i); return n; })} />
+              <input type="checkbox" disabled={have.has(x.description)} checked={on.has(i) || have.has(x.description)} onChange={() => setOn((s) => toggleIn(s, i))} />
               {x.description} <span className="m">({x.unit})</span>{have.has(x.description) && <span className="m"> — added</span>}
             </label>
           ))}

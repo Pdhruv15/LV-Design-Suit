@@ -444,13 +444,17 @@ export default function App() {
     setRecoveries((list) => list.filter((x) => x !== r));
   }
 
+  // When another board opens, select its first circuit unless the selection is already on it.
+  // Only on a board change: picking or clearing a circuit on the same board must not re-select one.
+  const lastBoardId = useRef<string | undefined>(undefined);
   useEffect(() => {
+    if (board?.id === lastBoardId.current) return;
+    lastBoardId.current = board?.id;
     if (!board) return;
     if (!boardResults.find((r) => r.feeder.id === selected)) {
       setSelected(boardResults[0]?.feeder.id ?? null);
     }
-    // Only when another board opens: picking or clearing a circuit on this board must not re-select one.
-  }, [board?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [board, boardResults, selected]);
 
   function selectFeeder(id: string) {
     const f = project.feeders.find((x) => x.id === id);

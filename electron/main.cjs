@@ -140,7 +140,7 @@ const projectsIndexPath = path.join(app.getPath('userData'), 'projects-index.jso
 let trashPurged = false;
 ipcMain.handle('projects:list', () => {
   const folder = ensureProjectsFolder();
-  if (!trashPurged) { trashPurged = true; try { projectFiles.purgeTrash(folder); } catch {} } // once per run: what has been deleted for 30 days goes
+  if (!trashPurged) { trashPurged = true; projectFiles.bestEffort('empty the trash', () => projectFiles.purgeTrash(folder)); } // once per run: what has been deleted for 30 days goes
   return projectFiles.listProjectsMeta(folder, projectsIndexPath).list;
 });
 
