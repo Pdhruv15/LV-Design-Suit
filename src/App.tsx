@@ -927,6 +927,14 @@ export default function App() {
 
   const home = view === 'projects';
   // The panel tree where clicking a board does something; not on Projects, Overview, Help or settings pages.
+  const equipment = (docked: boolean) => (
+    <EquipmentPalette docked={docked} onHint={setStatus} library={libraryEntries(db.loads)} presets={userPresets} qty={dropQty} onQty={setDropQty}
+                    onDeletePreset={(id) => savePresets(userPresets.filter((p) => p.id !== id), 'Deleted the preset')}
+                    onEditPreset={openPresetEditor} onExportPresets={exportPresets} onImportPresets={importPresets}
+                    components={componentPresets}
+                    onEditComponent={(id) => setEditComponent(id ? project.components?.find((c) => c.id === id) ?? null : newComponent(`c${Date.now().toString(36)}`))}
+                    onDeleteComponent={(id) => setProject((p) => ({ ...p, components: (p.components ?? []).filter((c) => c.id !== id), feeders: p.feeders.map((f) => (f.componentId === id ? { ...f, componentId: undefined, componentValues: undefined } : f)) }), { step: true })} />
+  );
   const showTree = !['projects', 'dashboard', 'help', 'parameters', 'titleblock', 'database', 'calculators'].includes(view);
 
   return (
@@ -1021,6 +1029,7 @@ export default function App() {
           copiedId={copiedBoard}
           highlightedIds={createdPanelIds}
           onClearHighlights={() => setCreatedPanelIds([])}
+          equipment={view === 'design' && diagramMode === 'system' && !sldFull ? equipment(true) : undefined}
           onPick={pickBoard}
           onOpen={(id) => { setView('design'); selectBoard(id); }}
           menu={{
@@ -1123,12 +1132,7 @@ export default function App() {
                 </div>
                 {diagramMode === 'system' ? (
                   <div className={`sld-edit${sldFull ? ' full' : ''}`}>
-                  <EquipmentPalette onHint={setStatus} library={libraryEntries(db.loads)} presets={userPresets} qty={dropQty} onQty={setDropQty}
-                    onDeletePreset={(id) => savePresets(userPresets.filter((p) => p.id !== id), 'Deleted the preset')}
-                    onEditPreset={openPresetEditor} onExportPresets={exportPresets} onImportPresets={importPresets}
-                    components={componentPresets}
-                    onEditComponent={(id) => setEditComponent(id ? project.components?.find((c) => c.id === id) ?? null : newComponent(`c${Date.now().toString(36)}`))}
-                    onDeleteComponent={(id) => setProject((p) => ({ ...p, components: (p.components ?? []).filter((c) => c.id !== id), feeders: p.feeders.map((f) => (f.componentId === id ? { ...f, componentId: undefined, componentValues: undefined } : f)) }), { step: true })} />
+                  {sldFull && equipment(false)}
                   {(() => {
                     const diagram = (
                   <SystemDiagram
