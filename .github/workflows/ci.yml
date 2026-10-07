@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Type check
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests
+        run: npm test
+      - name: Build
+        run: npm run build
+      # The design report printed through Electron's Chromium, like the desktop app.
+      # Linux runners have no display (xvfb) and no setuid sandbox helper.
+      - name: Rendered-PDF tests
+        run: xvfb-run --auto-servernum npm run test:pdf
+        env:
+          ELECTRON_DISABLE_SANDBOX: '1'
