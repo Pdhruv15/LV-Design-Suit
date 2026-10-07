@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react';
 import type { EnclosureCatalogue, EnclosureConfig, Dims } from '../calc/enclosure';
 import {
-  allCatalogues, catalogueWorkbook, duplicateCatalogue, emptyCatalogue, exportLibrary, importLibrary, isBuiltin, loadDevices, readCatalogueWorkbook,
+  allCatalogues, duplicateCatalogue, emptyCatalogue, exportLibrary, importLibrary, isBuiltin, loadDevices,
   saveDevices, saveUserCatalogues, validateCatalogue, type DeviceDim, type DeviceKind
 } from '../model/enclosureLibrary';
+import { catalogueWorkbook, readCatalogueWorkbook } from '../model/enclosureWorkbook';
 import { workbookBytes } from '../docs/formWorkbook';
 import { safeFileName, saveBinary, saveText } from '../util/files';
 
