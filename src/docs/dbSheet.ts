@@ -1,3 +1,4 @@
+import { STATUS_TEXT } from '../calc/statusText';
 import { cables } from '../calc/cableTable';
 import { breakerTypeOf, cpcOf } from '../calc/earthing';
 import { pointColumns, pointWattsFor, SINGLE_PHASES } from '../calc/loadSchedule';
@@ -127,7 +128,7 @@ export function buildDbSheet(project: Project, boardId: string): DbSheet {
     line[at('B')] = r.ph.B;
     line[at('remarks')] = f.remarks ?? '';
     line[at('length')] = f.lengthM;
-    line[at('check')] = r.belowMin ? `< ${r.minWire} mm²` : r.status === 'ok' ? 'OK' : r.status === 'warn' ? 'Check' : 'Fail';
+    line[at('check')] = r.belowMin ? `< ${r.minWire} mm²` : STATUS_TEXT[r.status];
     return line;
   });
 

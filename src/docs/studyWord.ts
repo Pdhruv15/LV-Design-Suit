@@ -9,7 +9,7 @@ import { scopeText, type ReportMeta, type Scope, type Section } from './studyRep
  * results summary, then per study its method, key results and tables.
  * Landscape A4 so the wide tables fit. */
 
-const COLOR = { ok: '13803D', warn: 'A86500', bad: 'C21F32' } as const;
+const COLOR = { ok: '13803D', warn: 'A86500', bad: 'C21F32', nc: '5B6B82', data: 'A86500' } as const;
 const border = { style: BorderStyle.SINGLE, size: 4, color: '9AA6B8' };
 const borders = { top: border, bottom: border, left: border, right: border };
 
@@ -60,7 +60,7 @@ export function buildStudyDocx(project: Project, scope: Scope, sections: Section
     new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun('Results summary')] }),
     table(['Study', 'Result'], sections.map((s) => {
       const f = s.statuses.filter((x) => x === 'bad').length, w = s.statuses.filter((x) => x === 'warn').length, p = s.statuses.length - f - w;
-      return [s.title, s.statuses.length ? { v: `${p} pass · ${w} check · ${f} fail`, s: f ? 'bad' : w ? 'warn' : 'ok' } : '—'];
+      return [s.title, s.statuses.length ? { v: `${p} pass · ${w} warning · ${f} fail`, s: f ? 'bad' : w ? 'warn' : 'ok' } : '—'];
     }))
   ];
   sections.forEach((s, i) => {

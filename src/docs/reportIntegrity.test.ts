@@ -33,7 +33,7 @@ describe('reports never hide a failure', () => {
     expect(v.noType).toBe(true);
     const html = buildVdReportHtml(p, [], 'All', [v]);
     expect(html).toMatch(/Not calculated/);
-    expect(html).not.toMatch(/Within limit/);
+    expect(html).not.toMatch(/>PASS</);
   });
 
   it('a motor that is fine running but too far down while starting fails everywhere', () => {

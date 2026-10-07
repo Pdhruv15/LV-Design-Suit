@@ -2,7 +2,7 @@ import { pageTitleBlock } from './sldSheet';
 import ExcelJS from 'exceljs';
 import { REFERENCE_DATA_NOTICE, usingReferenceCables } from '../calc/cableTable';
 import { CALC_DISCLAIMER } from '../calc/statusText';
-import { STATUS_TEXT, statusOfText } from '../calc/statusText';
+import { STATUS_TEXT, statusOfText, type ReportStatus } from '../calc/statusText';
 import type { FeederResult, Status } from '../calc/electrical';
 import { cableSizeText } from '../calc/electrical';
 import type { EarthingResult } from '../calc/earthing';
@@ -23,6 +23,10 @@ import type { ColorBy } from '../diagram/heatmap';
 import { currentRevision } from '../model/revisions';
 import type { Board, Feeder, Project, StudyReportKind, StudyReportSetup } from '../types';
 import { esc, REPORT_CSS } from './report';
+import { buildResults, resultsSections } from './compliance';
+import { distributionSection, loadSection, structureSection } from './calcSections';
+import { buildDesignBasis, designBasisSections } from './designBasis';
+import { numberSubsections, coverPageHtml, documentControlHtml, numberSections, REPORT_DOC_CSS, reportDoc, tocHtml, type ReportMeta } from './reportFrame';
 import { cableTypeOf, fireRatingIssues } from '../model/cableTypes';
 import { cableSchedule, dbSchedule } from './schedules';
 
@@ -44,17 +48,19 @@ export interface StudyInfo {
 const NO_LAYERS: ResultLayers = { current: false, voltage: false, vd: false, fault: false, pf: false, loading: false };
 
 export const STUDIES: StudyInfo[] = [
-  { key: 'sc', label: 'Short circuit', title: 'Short circuit study', description: 'Fault levels at every busbar, breaking capacity of every breaker, fault at the cable ends',
-    sld: { layers: { ...NO_LAYERS, fault: true }, colorBy: 'fault', note: 'Ik″ = prospective 3-phase fault current; colour = fault at the breaker ÷ its breaking capacity' } },
-  { key: 'lf', label: 'Load flow & voltage drop', title: 'Load flow and voltage drop study', description: 'Busbar demand, current, power factor and voltage; feeder current and voltage drop from the source',
-    sld: { layers: { ...NO_LAYERS, current: true, voltage: true, vd: true }, colorBy: 'vd', note: 'Current, busbar voltage and total voltage drop; colour = voltage drop ÷ limit' } },
+  { key: 'load', label: 'Load assessment', title: 'Load assessment', description: 'Connected load, demand, maximum demand and the design load of each main board', sld: undefined },
+  { key: 'sizing', label: 'Transformer & generator', title: 'Transformer and standby generator sizing', description: 'Transformer per main board (size, loading, fault level, main breaker) and the standby generator from the boards on it', sld: undefined },
+  { key: 'dist', label: 'LV distribution', title: 'LV distribution', description: 'Boards with bus ratings and loading, and the major feeders between them', sld: undefined },
   { key: 'cable', label: 'Cable & breaker sizing', title: 'Cable and breaker sizing', description: 'Ib ≤ In ≤ Iz with ambient and grouping derating, voltage drop',
     sld: { layers: { ...NO_LAYERS, current: true, loading: true }, colorBy: 'utilisation', note: 'Current and breaker loading; colour = design current ÷ cable rating' } },
+  { key: 'lf', label: 'Load flow & voltage drop', title: 'Load flow and voltage drop study', description: 'Busbar demand, current, power factor and voltage; feeder current and voltage drop from the source',
+    sld: { layers: { ...NO_LAYERS, current: true, voltage: true, vd: true }, colorBy: 'vd', note: 'Current, busbar voltage and total voltage drop; colour = voltage drop ÷ limit' } },
+  { key: 'sc', label: 'Short circuit', title: 'Short circuit study', description: 'Fault levels at every busbar, breaking capacity of every breaker, fault at the cable ends',
+    sld: { layers: { ...NO_LAYERS, fault: true }, colorBy: 'fault', note: 'Ik″ = prospective 3-phase fault current; colour = fault at the breaker ÷ its breaking capacity' } },
+  { key: 'disc', label: 'Discrimination', title: 'Protection discrimination study', description: 'Selectivity between each breaker and the one above it', sld: undefined },
   { key: 'earth', label: 'Earth fault loop', title: 'Earth fault loop impedance and disconnection', description: 'Zs, earth fault current, disconnection time and protective conductor size',
     sld: { layers: NO_LAYERS, colorBy: 'earth', note: 'Zs against the largest Zs that disconnects in time' } },
-  { key: 'disc', label: 'Discrimination', title: 'Protection discrimination study', description: 'Selectivity between each breaker and the one above it', sld: undefined },
   { key: 'phase', label: 'Phase balance', title: 'Phase balance', description: 'Demand current on R / Y / B at every board, estimated neutral current and current unbalance; single-phase circuits without a phase flagged', sld: undefined },
-  { key: 'sizing', label: 'Transformer & generator', title: 'Transformer and standby generator sizing', description: 'Transformer per main board (size, loading, fault level, main breaker) and the standby generator from the boards on it', sld: undefined },
   { key: 'busbar', label: 'Busbar risers', title: 'Busbar trunking risers', description: 'Busway rating (copper / aluminium), conductor area, voltage drop per floor, short-circuit withstand, size and weight (tables only)', sld: undefined },
   { key: 'pfc', label: 'Power factor correction', title: 'Power factor correction', description: 'Capacitor banks as planned (central / group / individual): kvar, steps, detuning, breaker and cable, PF before and after', sld: undefined },
   { key: 'schedules', label: 'DB & cable schedules', title: 'DB and cable schedules', description: 'Panel schedule of each board and the cable schedule, for the boards in scope', sld: undefined }
@@ -124,8 +130,9 @@ export function scopeText(project: Project, scope: Scope): string {
 
 // ---- Sections ----------------------------------------------------------------
 
-type Cell = string | number | { v: string | number; s: Status };
-export interface Table { title?: string; headers: string[]; rows: Cell[][]; }
+export type Cell = string | number | { v: string | number; s: ReportStatus };
+/** `appendix`: a long detail table printed in the appendices, not in the section. */
+export interface Table { title?: string; headers: string[]; rows: Cell[][]; appendix?: boolean }
 export interface Section {
   key: StudyReportKind;
   title: string;
@@ -133,6 +140,11 @@ export interface Section {
   summary: { label: string; value: string; status?: Status }[];
   tables: Table[];
   statuses: Status[];
+  /** Standard layout (calcSections.ts): inputs, design criteria, feeder cards, verification. */
+  inputs?: [string, string][];
+  criteria?: [string, string][];
+  cards?: { title: string; rows: [string, Cell][] }[];
+  verification?: Table;
 }
 
 export interface CalcData {
@@ -146,9 +158,15 @@ const LABEL: Record<Status, string> = STATUS_TEXT;
 const S = (s: Status): Cell => ({ v: LABEL[s], s });
 const n = (v: number, d = 0) => (Number.isFinite(v) ? Number(v.toFixed(d)) : '—');
 const worst = (xs: Status[]): Status => (xs.includes('bad') ? 'bad' : xs.includes('warn') ? 'warn' : 'ok');
-const tally = (xs: Status[]) => `${xs.filter((x) => x === 'ok').length} pass · ${xs.filter((x) => x === 'warn').length} check · ${xs.filter((x) => x === 'bad').length} fail`;
+const tally = (xs: Status[]) => `${xs.filter((x) => x === 'ok').length} pass · ${xs.filter((x) => x === 'warn').length} warning · ${xs.filter((x) => x === 'bad').length} fail`;
 
 export function buildSection(key: StudyReportKind, data: CalcData, scope: Scope): Section {
+  if (key === 'load') return loadSection(data, scope, studyInfo(key).title);
+  if (key === 'dist') return distributionSection(data, scope, studyInfo(key).title);
+  return structureSection(baseSection(key, data, scope), data, scope);
+}
+
+function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Section {
   const p = data.project;
   const byId = new Map(data.results.map((r) => [r.feeder.id, r]));
   const res = (fs: Feeder[]) => fs.map((f) => byId.get(f.id)).filter((r): r is FeederResult => !!r);
@@ -449,13 +467,7 @@ export function pfcSection(p: Project, scope: Scope): Section {
 
 // ---- Output --------------------------------------------------------------------
 
-export interface ReportMeta {
-  title: string;
-  docNo?: string;
-  preparedBy?: string;
-  checkedBy?: string;
-  date?: string;
-}
+export type { ReportMeta } from './reportFrame';
 
 export const defaultTitle = (studies: StudyReportKind[]) => (studies.length === 1 ? studyInfo(studies[0]).title : 'Electrical design studies');
 
@@ -463,6 +475,8 @@ const cellHtml = (c: Cell) => (typeof c === 'object' ? `<td class="${c.s}">${esc
 const tableHtml = (t: Table) => `${t.title ? `<h3>${esc(t.title)}</h3>` : ''}${t.rows.length
   ? `<table><thead><tr>${t.headers.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${t.rows.map((r) => `<tr>${r.map(cellHtml).join('')}</tr>`).join('')}</tbody></table>`
   : '<p class="note">Nothing in scope.</p>'}`;
+const kvHtml = (rows: [string, string][]) => `<table class="kv"><tbody>${rows.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}</tbody></table>`;
+const cardHtml = (c: NonNullable<Section['cards']>[number]) => `<div class="card"><b>${esc(c.title)}</b><table><tbody>${c.rows.map(([k, v]) => `<tr><th>${esc(k)}</th>${cellHtml(v)}</tr>`).join('')}</tbody></table></div>`;
 
 /** One SLD page of the report: a framed drawing sheet with the same title block as the drawing set (the project's own template
  * when it has one), the study and scope beside it, and the sheet's position in the report. */
@@ -480,52 +494,74 @@ function sldPage(project: Project, scope: Scope, s: Section, svg: string, meta: 
 
 /** The report as print-ready HTML: cover, then per study its method, results
  * summary, SLD (A3 page) and tables (A4 landscape). */
-export function buildStudyReportHtml(project: Project, scope: Scope, sections: Section[], meta: ReportMeta, slds: Partial<Record<StudyReportKind, string>> = {}): string {
+export function buildStudyReportHtml(project: Project, scope: Scope, sections: Section[], meta: ReportMeta, slds: Partial<Record<StudyReportKind, string>> = {}, opts: { designBasis?: boolean; results?: boolean; data?: CalcData } = {}): string {
   const rev = currentRevision(project);
-  const date = meta.date ?? new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
-  const info = project.info ?? {};
-  const cover = `
-<section class="cover">
-  ${project.drawing?.logo?.startsWith('data:image/') ? `<img class="cover-logo" src="${esc(project.drawing.logo)}" alt="">` : ''}
-  <p class="kicker">${esc(project.name)}</p>
-  <h1>${esc(meta.title)}</h1>
-  <table class="meta">
-    ${[['Project', project.name], ['Owner', info.owner], ['Consultant', info.consultant], ['Contractor', info.contractor], ['Plot / area', [info.plotNo, info.area].filter(Boolean).join(' · ')],
-      ['Scope', scopeText(project, scope)], ['Studies', sections.map((s) => s.title).join('; ')], ['System', `${project.voltageV} V, 3-phase + N, ${project.frequencyHz} Hz, TN-S`],
-      ['Document no.', meta.docNo], ['Revision', rev ? `${rev.id} (${rev.date})` : '—'], ['Date', date], ['Prepared by', meta.preparedBy], ['Checked by', meta.checkedBy]]
-      .filter(([, v]) => v).map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}
-  </table>
-  <h2>Results summary</h2>
-  <table><thead><tr><th>Study</th><th>Result</th></tr></thead><tbody>
-    ${sections.map((s) => `<tr><td>${esc(s.title)}</td>${s.statuses.length ? `<td class="${worst(s.statuses)}">${esc(tally(s.statuses))}</td>` : '<td>—</td>'}</tr>`).join('')}
+  const doc = reportDoc(project, meta);
+  const cover = coverPageHtml(doc, [
+    ['Scope', scopeText(project, scope)], ['Studies', sections.map((s) => s.title).join('; ')], ['System', `${project.voltageV} V, 3-phase + N, ${project.frequencyHz} Hz, TN-S`]
+  ], `<p class="note">Generated by LV Design Studio from the latest calculation run. Calculations cover the whole network; this report shows the part in scope. ${esc(CALC_DISCLAIMER)} Results must be checked by a qualified engineer before submission.${usingReferenceCables() ? ` <b>${esc(REFERENCE_DATA_NOTICE)}</b>` : ''}</p>`);
+  const basis = opts.designBasis ? designBasisSections(buildDesignBasis(project, sections)) : [];
+  const results = opts.results && opts.data ? resultsSections(buildResults(opts.data, scope)) : [];
+  const numbered = numberSections([...basis, ...sections, ...results].map((s) => ({ title: s.title })));
+  // Appendices: one per section with detail tables, lettered A, B, C… in report order.
+  const apps = sections.filter((s) => s.tables.some((t) => t.appendix)).map((s, i) => ({ s, letter: String.fromCharCode(65 + i) }));
+  const appOf = new Map(apps.map((a) => [a.s, a.letter]));
+  const all = [...numbered, ...apps.map((a) => ({ number: `Appendix ${a.letter}`, title: `${a.s.title} — detailed tables`, level: 1, anchor: `app-${a.letter}` }))];
+  const toc = all.slice(basis.length, basis.length + sections.length);
+  const resToc = all.slice(basis.length + sections.length);
+  const tableNo = { n: 0 };
+  const basisHtml = basis.map((b, i) => `
+<section class="basis" id="${all[i].anchor}">
+  <h2>${all[i].number}. ${esc(b.title)}</h2>${numberSubsections(b.html, all[i].number, tableNo)}
+</section>`).join('');
+  const contents = tocHtml(all).replace('</section>', `
+  <h3>Results summary</h3>
+  <table><thead><tr><th>Section</th><th>Study</th><th>Result</th></tr></thead><tbody>
+    ${sections.map((s, i) => `<tr><td>${toc[i].number}</td><td>${esc(s.title)}</td>${s.statuses.length ? `<td class="${worst(s.statuses)}">${esc(tally(s.statuses))}</td>` : '<td>—</td>'}</tr>`).join('')}
   </tbody></table>
-  <p class="note">Generated by LV Design Studio from the latest calculation run. Calculations cover the whole network; this report shows the part in scope. ${esc(CALC_DISCLAIMER)} Results must be checked by a qualified engineer before submission.${usingReferenceCables() ? ` <b>${esc(REFERENCE_DATA_NOTICE)}</b>` : ''}</p>
-</section>`;
+</section>`);
   const sldKeys = sections.filter((s) => slds[s.key]).map((s) => s.key);
   const tbCss = sldKeys.length ? pageTitleBlock(project, { no: '', title: '', count: 1, index: 1 }, 'A3').css : '';
   const body = sections.map((s, i) => `
-<section class="study">
-  <h2>${i + 1}. ${esc(s.title)}</h2>
+<section class="study" id="${toc[i].anchor}">
+  <h2>${toc[i].number}. ${esc(s.title)}</h2>${numberSubsections(`
   <p class="scope">Scope: ${esc(scopeText(project, scope))}</p>
-  <div class="grid">${s.summary.map((k) => `<div class="kpi"><span>${esc(k.label)}</span><b class="${k.status ?? ''}">${esc(k.value)}</b></div>`).join('')}</div>
+  ${s.statuses.length ? `<p class="overall">Overall status: <b class="${worst(s.statuses)}">${esc(LABEL[worst(s.statuses)])}</b> <span>(${esc(tally(s.statuses))})</span></p>` : ''}
+  ${s.inputs?.length ? `<h3>Input</h3>${kvHtml(s.inputs)}` : ''}
+  ${s.criteria?.length ? `<h3>Design criteria</h3>${kvHtml(s.criteria)}` : ''}
   <h3>Method</h3><ul>${s.method.map((m) => `<li>${esc(m)}</li>`).join('')}</ul>
-  ${s.tables.map(tableHtml).join('')}
+  <h3>Result</h3>
+  <div class="grid">${s.summary.map((k) => `<div class="kpi"><span>${esc(k.label)}</span><b class="${k.status ?? ''}">${esc(k.value)}</b></div>`).join('')}</div>
+  ${s.tables.filter((t) => !t.appendix).map(tableHtml).join('')}
+  ${s.cards?.length ? `<h3>Selection — major feeders</h3><div class="cards">${s.cards.map(cardHtml).join('')}</div>` : ''}
+  ${s.verification ? tableHtml({ ...s.verification, title: `Verification — ${s.verification.title}` }) : ''}
+  ${appOf.has(s) ? `<p class="caption">Detailed tables: Appendix ${appOf.get(s)}.</p>` : ''}`, toc[i].number, tableNo)}
 </section>
 ${slds[s.key] ? sldPage(project, scope, s, slds[s.key]!, meta, rev, sldKeys.indexOf(s.key) + 1, sldKeys.length) : ''}`).join('');
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(project.name)} — ${esc(meta.title)}</title><style>${REPORT_CSS}
-    @page { size: A4 landscape; margin: 14mm 12mm; }
+  const resultsHtml = results.map((r, i) => `
+<section class="basis" id="${resToc[i].anchor}">
+  <h2>${resToc[i].number}. ${esc(r.title)}</h2>${numberSubsections(r.html, resToc[i].number, tableNo)}
+</section>`).join('');
+  const appendices = apps.map((a) => `
+<section class="appendix" id="app-${a.letter}">
+  <h2>Appendix ${a.letter} — ${esc(a.s.title)}: detailed tables</h2>
+  ${numberSubsections(a.s.tables.filter((t) => t.appendix).map((t) => (t.rows.length ? tableHtml(t) : `${t.title ? `<h3>${esc(t.title)}</h3>` : ''}<p class="caption">Nothing in scope.</p>`)).join(''), a.letter, tableNo)}
+</section>`).join('');
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(project.name)} — ${esc(meta.title)}</title><style>${REPORT_CSS}${REPORT_DOC_CSS}
     @page sld { size: A3 landscape; margin: 10mm; }
-    h3 { font-size: 11px; margin: 10px 0 3px; }
-    .cover { break-after: page; } .cover h1 { font-size: 24px; margin: 4px 0 14px; } .kicker { color: #5b6b82; margin: 30px 0 0; font-size: 12px; } .cover-logo { float: right; max-height: 22mm; max-width: 70mm; margin-top: 20px; }
-    .meta { width: 70%; } .meta th { width: 28%; }
-    .study { break-before: page; } .scope { color: #5b6b82; margin: 0 0 6px; }
-    .grid { grid-template-columns: repeat(3, 1fr); }
+    .study, .basis, .appendix { break-before: page; }
+    .chart { margin: 8px 0 12px; break-inside: avoid; } .chart figcaption { margin-top: 2px; }
+    .kv { width: 70%; } .kv th { width: 32%; }
+    .overall { margin: 0 0 6px; font-size: 11px; } .overall span { color: #5b6b82; }
+    .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; } .card { break-inside: avoid; border: 1px solid #d5dce6; border-radius: 6px; padding: 6px 8px; }
+    .card > b { display: block; margin-bottom: 4px; } .card table { margin: 0; } .card th { width: 55%; background: none; font-weight: 500; } .scope { color: #5b6b82; margin: 0 0 6px; }
+    .grid { grid-template-columns: repeat(3, 1fr); } .grid.grid4 { grid-template-columns: repeat(4, 1fr); } td.nc, .nc { color: #5b6b82; } td.data, .data { color: #a86500; font-weight: 600; }
     .sld { page: sld; break-before: page; height: 270mm; break-inside: avoid; overflow: hidden; }
     .sld-frame { position: relative; box-sizing: border-box; height: 100%; border: 0.7mm solid #000; }
     .sld-body { position: absolute; inset: 3mm 3mm 48mm 3mm; display: flex; align-items: center; justify-content: center; } .sld-body svg { width: 100%; height: 100%; }
     .sld-meta { position: absolute; left: 3mm; bottom: 3mm; width: calc(100% - 190mm); font-size: 9px; line-height: 1.4; color: #222; } .sld-meta b { font-size: 11px; display: block; color: #000; }
     ${tbCss}
-  </style></head><body>${cover}${body}
+  </style></head><body>${cover}${documentControlHtml(doc)}${contents}${basisHtml}${body}${resultsHtml}${appendices}
 
 </body></html>`;
 }
@@ -534,7 +570,7 @@ ${slds[s.key] ? sldPage(project, scope, s, slds[s.key]!, meta, rev, sldKeys.inde
 export function buildStudyWorkbook(project: Project, scope: Scope, sections: Section[], meta: ReportMeta): ExcelJS.Workbook {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'LV Design Studio';
-  const FILL: Record<Status, string> = { ok: 'FF13803D', warn: 'FFA86500', bad: 'FFC21F32' };
+  const FILL: Record<ReportStatus, string> = { ok: 'FF13803D', warn: 'FFA86500', bad: 'FFC21F32', nc: 'FF5B6B82', data: 'FFA86500' };
   const cover = wb.addWorksheet('Cover');
   cover.columns = [{ width: 22 }, { width: 90 }];
   cover.addRow([meta.title]).font = { bold: true, size: 14 };

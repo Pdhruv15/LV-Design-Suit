@@ -1,3 +1,4 @@
+import { STATUS_TEXT } from '../calc/statusText';
 import { odsSource, routeSettings, SPACING_LABEL, trayQuantities, type TrayResult } from '../calc/cableTray';
 import { revisionStamp } from '../model/revisions';
 import type { Project, TrayPlan } from '../types';
@@ -31,7 +32,7 @@ export function buildTrayReportHtml(project: Project, plan: TrayPlan, results: T
   <p class="sel ${r.status}">Selected tray: ${trayText(r)} mm${r.manual ? ' (chosen)' : ''} — spare ${Math.round(r.sparePctActual)} %, cable weight ${r1(r.kgPerM)} kg/m, grouping factor ${r.groupFactor.toFixed(2)} (${r.loadedPerTier} per tier, ${r.arrangement}), bend radius ≥ ${r.bendMm} mm${r.notes.length ? ` — ${esc(r.notes.join('; '))}` : ''}</p>
 </section>`;
   }).join('');
-  const summary = results.map((r) => `<tr><td><b>${esc(r.route.name)}</b></td><td class="l">${esc(r.route.from ?? '')}</td><td class="l">${esc(r.route.to ?? '')}</td><td class="l">${esc(r.panels.join(', '))}</td><td>${r.cableCount}</td><td>${Math.round(r.requiredMm)}</td><td><b>${r.cableCount ? trayText(r) : '—'}</b></td><td>${Math.round(r.sparePctActual)} %</td><td>${r.groupFactor.toFixed(2)}</td><td>${r1(r.kgPerM)}</td><td>${r.route.lengthM ?? '—'}</td><td class="${r.status}">${r.status === 'ok' ? 'OK' : r.status === 'warn' ? 'Check' : 'Too small'}</td></tr>`).join('');
+  const summary = results.map((r) => `<tr><td><b>${esc(r.route.name)}</b></td><td class="l">${esc(r.route.from ?? '')}</td><td class="l">${esc(r.route.to ?? '')}</td><td class="l">${esc(r.panels.join(', '))}</td><td>${r.cableCount}</td><td>${Math.round(r.requiredMm)}</td><td><b>${r.cableCount ? trayText(r) : '—'}</b></td><td>${Math.round(r.sparePctActual)} %</td><td>${r.groupFactor.toFixed(2)}</td><td>${r1(r.kgPerM)}</td><td>${r.route.lengthM ?? '—'}</td><td class="${r.status}">${STATUS_TEXT[r.status]}</td></tr>`).join('');
   const q = trayQuantities(results, s);
   const boq = q.map((x) => `<tr><td><b>${x.size}</b></td><td>${Math.round(x.lengthM)}</td><td>${x.bends}</td><td>${x.tees}</td><td>${x.reducers}</td><td>${x.risers}</td><td>${x.supports}</td><td>${x.couplers}</td>${s.covers ? `<td>${Math.round(x.coverM)}</td>` : ''}<td>${x.bendRadiusMm || '—'}</td><td class="l">${esc(x.routes.join(', '))}</td></tr>`).join('');
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(project.name)} — cable tray schedule</title>

@@ -146,7 +146,7 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
         <Tile label="Generators" value={d.generators.length ? sizesText(d.generators.map((g) => g.kva)) : 'None'}
           sub={d.generatorLoadingPct !== undefined ? <>{f0(d.generatorLoadingPct)} % loaded</> : 'Standby: on a board with an ATS'} onClick={() => onGo({ view: 'sizing' })} />
         <Tile label="Studies" value={run ? (d.stale.length ? 'Out of date' : fails ? `${fails} fail` : checks ? `${checks} to check` : 'All pass') : 'Not run'}
-          sub={run ? <>{passes} pass · {checks} check · {fails} fail{stale.length ? ' · out of date' : ''}</> : 'Press Run (F5)'} onClick={stale.length || !run ? onRun : () => onGo({ view: 'report' })} />
+          sub={run ? <>{passes} pass · {checks} warning · {fails} fail{stale.length ? ' · out of date' : ''}</> : 'Press Run (F5)'} onClick={stale.length || !run ? onRun : () => onGo({ view: 'report' })} />
         <Tile label="Outstanding" value={todoCounted.length ? `${todoCounted.filter((t) => t.status === 'bad').length} to fix · ${todoCounted.filter((t) => t.status !== 'bad').length} to check` : 'Nothing'} sub={todoCounted[0]?.text ?? (todoOutside.length ? `All clear · ${todoOutside.length} outside the scope` : 'All clear')} onClick={() => document.getElementById('dash-todo')?.scrollIntoView({ behavior: 'smooth' })} />
       </div>
 

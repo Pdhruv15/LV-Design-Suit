@@ -21,6 +21,28 @@ export async function stampPages(doc: PDFDocument, label: string, force = false)
   });
 }
 
+/** Running header and footer of a report: a ruled header (project · title)
+ * and footer (document no. · revision, page n of N) on every page after the
+ * cover. Pages larger than A4 (A3 SLD sheets) carry their own title block and
+ * are left alone. */
+export async function stampFrame(doc: PDFDocument, f: { headerLeft: string; headerRight: string; footerLeft: string }): Promise<void> {
+  const pages = doc.getPages();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const clean = (s: string) => s.replace(/[^\x20-\x7E·]/g, '-');
+  const grey = rgb(0.36, 0.42, 0.51), size = 7, inset = 40;
+  pages.forEach((p, i) => {
+    if (i === 0 || Math.max(p.getWidth(), p.getHeight()) > 900) return;
+    const w = p.getWidth(), h = p.getHeight();
+    const right = (t: string, y: number) => p.drawText(clean(t), { x: w - inset - font.widthOfTextAtSize(clean(t), size), y, size, font, color: grey });
+    p.drawText(clean(f.headerLeft), { x: inset, y: h - 26, size, font, color: grey });
+    right(f.headerRight, h - 26);
+    p.drawLine({ start: { x: inset, y: h - 30 }, end: { x: w - inset, y: h - 30 }, thickness: 0.4, color: grey });
+    p.drawLine({ start: { x: inset, y: 22 }, end: { x: w - inset, y: 22 }, thickness: 0.4, color: grey });
+    p.drawText(clean(f.footerLeft), { x: inset, y: 13, size, font, color: grey });
+    right(`Page ${i + 1} of ${pages.length}`, 13);
+  });
+}
+
 /** A flat outline (the bookmarks panel of a PDF viewer). */
 export function addBookmarks(doc: PDFDocument, items: Bookmark[]): void {
   const pages = doc.getPages();
@@ -51,11 +73,12 @@ export function addBookmarks(doc: PDFDocument, items: Bookmark[]): void {
   doc.catalog.set(PDFName.of('PageMode'), PDFName.of('UseOutlines'));
 }
 
-export interface FinishOptions { title: string; stamp?: string; author?: string; subject?: string; bookmarks?: Bookmark[] }
+export interface FinishOptions { title: string; stamp?: string; frame?: { headerLeft: string; headerRight: string; footerLeft: string }; author?: string; subject?: string; bookmarks?: Bookmark[] }
 
 /** Document information, page numbers, bookmarks; saved compactly. */
 export async function finishPdf(doc: PDFDocument, o: FinishOptions): Promise<Uint8Array> {
-  await stampPages(doc, o.stamp ?? o.title);
+  if (o.frame) await stampFrame(doc, o.frame);
+  else await stampPages(doc, o.stamp ?? o.title);
   if (o.bookmarks?.length) addBookmarks(doc, o.bookmarks);
   doc.setTitle(o.title, { showInWindowTitleBar: true });
   if (o.author) doc.setAuthor(o.author);
