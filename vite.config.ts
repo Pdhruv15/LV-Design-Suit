@@ -73,7 +73,11 @@ export default defineConfig({
   },
   base: './',
   build: {
-    outDir: 'dist'
+    outDir: 'dist',
+    // Views, report and export code load when opened (React.lazy, import()). Two chunks stay near
+    // 940 kB: ExcelJS (one library, loaded only for an Excel export) and the core SLD workspace
+    // needed at start. Anything new above 1 MB still warns.
+    chunkSizeWarningLimit: 1000
   },
   server: {
     port: 5173,

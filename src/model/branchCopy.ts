@@ -3,6 +3,7 @@ import { boardAndDescendants } from './edit';
 import { findFloor, floorList, type Floor } from './levels';
 import { levelRef, type PlanCheck } from './hierarchy';
 import { incomerLengthM } from '../calc/buildingDesign';
+import { pushLibrary } from '../database/librarySync';
 
 /** Repeat a branch on other floors, and panel assemblies (saved branches).
  *
@@ -130,7 +131,7 @@ export function loadAssemblies(): Assembly[] {
 }
 export function saveAssemblies(list: Assembly[]): boolean {
   try { localStorage.setItem(KEY, JSON.stringify(list)); } catch { return false; }
-  void import('../database/librarySync').then((m) => m.pushLibrary());
+  void pushLibrary();
   return true;
 }
 export function assemblyFrom(project: Project, rootId: string, name: string, note?: string): Assembly | undefined {
