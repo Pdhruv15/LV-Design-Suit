@@ -47,7 +47,7 @@ export default function PanelsPage({ project, onChange, onCreated, onStatus, onB
 }
 
 /** Counts only: MDBs, SMDBs and DBs as totals, spread evenly, no levels needed. */
-function QuickCreate({ project, onCreate, onList, onChange }: { project: Project; onCreate: (next: Project, message: string) => void; onList: () => void; onChange: (p: Project) => void }) {
+function QuickCreate({ project, onCreate, onList }: { project: Project; onCreate: (next: Project, message: string) => void; onList: () => void; onChange: (p: Project) => void }) {
   const mains = project.boards.filter((b) => !b.upstreamId);
   const [source, setSource] = useState<'create' | 'existing'>('create');
   const [mdb, setMdb] = useState('1');
@@ -75,7 +75,7 @@ function QuickCreate({ project, onCreate, onList, onChange }: { project: Project
   const mainsChoices = afterNormal.boards.filter((b) => roleOf(afterNormal, b) === 'MDB' || roleOf(afterNormal, b) === 'SMDB');
   const mainsFrom = mainsChoices.some((b) => b.id === eMains) ? eMains : mainsChoices[0]?.id ?? '';
   const ePlan = useMemo(() => (emg ? planEmergency(afterNormal, { count: num(eCount), mainsFrom, generatorKva: eKva.trim() ? num(eKva) : undefined, esmdb: num(eSub), edb: num(eDb), incomers }) : undefined),
-    [emg, afterNormal, eCount, mainsFrom, eKva, eSub, eDb, incomers]); // eslint-disable-line react-hooks/exhaustive-deps
+    [emg, afterNormal, eCount, mainsFrom, eKva, eSub, eDb, incomers]);
   const normalOk = normalCount === 0 || plan.ok;
   const canCreate = (normalCount > 0 || emg) && normalOk && (!emg || !!ePlan?.ok) && (plan.boards.length + (ePlan?.boards.length ?? 0)) > 0;
   const total = (normalCount > 0 && plan.ok ? plan.boards.length : 0) + (ePlan?.boards.length ?? 0);

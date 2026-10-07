@@ -18,7 +18,6 @@ import { buildDashboard } from '../../calc/dashboard';
 import { buildDashboardHtml } from '../../docs/dashboardPdf';
 import { buildLoadScheduleHtml } from '../../docs/loadScheduleDoc';
 import { scheduleCircuits } from '../../calc/loadSchedule';
-import { revisionStamp } from '../../model/revisions';
 import { renderPdf, safeFileName, saveBinary, savePdf } from '../../util/files';
 import { applyReportType, matchingType, REPORT_TYPES } from '../../docs/reportTypes';
 import { issueCounts, validateReport } from '../../docs/reportValidation';

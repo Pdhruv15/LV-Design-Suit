@@ -1,5 +1,5 @@
 import { withNetwork } from './network';
-import { cables, cpcOf, defaultCpcMm2, getCable } from './cableTable';
+import { cpcOf, defaultCpcMm2, getCable } from './cableTable';
 import { DEFAULT_TRANSFORMER_XR, rOperatingOhmPerKm, runsOf, transformerImpedance, zMagnitude, type Impedance, type Status } from './electrical';
 import { elcbGroups, isScheduleCircuit } from './loadSchedule';
 import type { BreakerType, Feeder, Project } from '../types';

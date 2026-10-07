@@ -1,6 +1,6 @@
 import { STATUS_TEXT } from '../calc/statusText';
 import { cables } from '../calc/cableTable';
-import { breakerTypeOf, cpcOf } from '../calc/earthing';
+import { cpcOf } from '../calc/earthing';
 import { pointColumns, pointWattsFor, SINGLE_PHASES } from '../calc/loadSchedule';
 import { breakerRatings } from '../calc/sizing';
 import { addCircuit, refreshBoard, updateCircuit, type CircuitPatch } from '../model/schedule';

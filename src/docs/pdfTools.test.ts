@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { PDFDocument, PDFName } from 'pdf-lib';
+import { PDFDict, PDFDocument, PDFName } from 'pdf-lib';
 import { mergePdfs } from './mergePdf';
 import { finishPdf, htmlTitle } from './pdfTools';
 
@@ -13,7 +13,7 @@ describe('PDF finishing', () => {
     expect(doc.getPageCount()).toBe(6);
     const outlines = doc.catalog.lookup(PDFName.of('Outlines'));
     expect(outlines).toBeTruthy();
-    expect(String((outlines as any).get(PDFName.of('Count')))).toBe('3');
+    expect(String((outlines as PDFDict).get(PDFName.of('Count')))).toBe('3');
     expect(doc.getTitle()).toBe('Villa · Rev A');
   });
   it('stamps multi-page reports, not single sheets, and sets the information', async () => {

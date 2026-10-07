@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BUILT_IN_PRESETS, presetCard, type FeederPreset } from './presets';
 
 const by = (id: string) => presetCard(BUILT_IN_PRESETS.find((p) => p.id === id)!);
-const nb = (s: string) => s.replace(/ /g, ' ');
+const nb = (s: string) => s.replace(/\u00a0/g, ' ');
 
 describe('palette cards', () => {
   it('lead with the equipment, value on the right, protection underneath', () => {

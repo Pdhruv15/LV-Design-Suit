@@ -11,7 +11,7 @@ import { breakerTypeOf, cpcOf, disconnectionLabel, loopFigures } from '../calc/e
 import type { SelectivityResult } from '../calc/protection';
 import { isScheduleCircuit } from '../calc/loadSchedule';
 import { boardSummary, boardsInSupplyOrder } from '../calc/summary';
-import { generatorForBoard, settingsOf, STANDARD_TRANSFORMER_KVA } from '../calc/sizing';
+import { settingsOf } from '../calc/sizing';
 import { planPfc, pfcPlanOf, STRATEGY_LABEL } from '../calc/pfc';
 import { sizeGeneratorByBoards, sizeTransformers, txGenPlanOf, type TxRow } from '../calc/txGen';
 import { MATERIAL_LABEL, sizeRiser } from '../calc/busbar';
