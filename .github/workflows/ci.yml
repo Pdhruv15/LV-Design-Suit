@@ -28,9 +28,13 @@ jobs:
         run: npm test
       - name: Build
         run: npm run build
+      # Chromium's sandbox helper must be owned by root and setuid; npm installs it as the runner
+      # user. Set it up as Chromium expects, so the PDF tests run with the sandbox on.
+      - name: Chromium sandbox for Electron
+        run: |
+          sudo chown root:root node_modules/electron/dist/chrome-sandbox
+          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
       # The design report printed through Electron's Chromium, like the desktop app.
-      # Linux runners have no display (xvfb) and no setuid sandbox helper.
+      # Linux runners have no display: xvfb provides one.
       - name: Rendered-PDF tests
         run: xvfb-run --auto-servernum npm run test:pdf
-        env:
-          ELECTRON_DISABLE_SANDBOX: '1'

@@ -10,11 +10,7 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   {
     rules: {
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_', destructuredArrayIgnorePattern: '^_' }],
-      // The code's idiom: \`cond ? a() : b()\` and \`x && f()\` as statements.
-      '@typescript-eslint/no-unused-expressions': ['error', { allowTernary: true, allowShortCircuit: true }],
-      // \`catch {}\`: best-effort steps (backups, cleanup) that may fail silently by design.
-      'no-empty': ['error', { allowEmptyCatch: true }]
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_', destructuredArrayIgnorePattern: '^_' }]
     }
   },
   {

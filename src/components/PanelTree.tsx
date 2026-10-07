@@ -75,7 +75,11 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
 
   // Reveal the newly created batch even if this tree was hidden, filtered
   // or collapsed. References in the draft have already been validated.
+  // Only a new batch changes the user's tree preferences (not later edits to the boards or the tree).
+  const lastBatch = useRef<typeof highlightedIds>(undefined);
   useEffect(() => {
+    if (highlightedIds === lastBatch.current) return;
+    lastBatch.current = highlightedIds;
     if (!highlightedIds?.length) return;
     const byId = new Map(project.boards.map((b) => [b.id, b]));
     const reveal = new Set<string>();
@@ -86,7 +90,7 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
       }
     }
     setHidden(false); setQ(''); setCollapsed(collapsed.filter((id) => !reveal.has(id)));
-  }, [highlightedIds]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new batch changes the user's tree preferences
+  }, [highlightedIds, project.boards, collapsed, setCollapsed, setHidden]);
   const presentIds = useMemo(() => new Set(project.boards.map((b) => b.id)), [project.boards]);
   const highlighted = new Set(highlightedIds?.filter((id) => presentIds.has(id)));
   useEffect(() => {

@@ -3,6 +3,7 @@ import type { Project } from '../types';
 import { settingsOf } from '../types';
 import { sizeTransformers } from '../calc/txGen';
 import { applyTransformers, DEWA_TRANSFORMER_KVA, mainBoards, mainOf, moveUnder, nextRmus, planTransformers, rmuNames, setRmu, setSubstation, setTransformer, txTag } from '../model/transformers';
+import { toggleIn } from '../util/sets';
 
 const fmt = (n: number | undefined, d = 0) => (n === undefined || !Number.isFinite(n) ? '—' : n.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: d }));
 
@@ -96,7 +97,7 @@ export default function TransformersTab({ project, onChange, onCreate, onStatus 
                 const m = mainOf(project, b.id)!;
                 return (
                   <tr key={b.id} className={moveSel.has(b.id) ? 'on' : ''}>
-                    <td><input type="checkbox" checked={moveSel.has(b.id)} onChange={() => setMoveSel((s) => { const n = new Set(s); n.has(b.id) ? n.delete(b.id) : n.add(b.id); return n; })} /></td>
+                    <td><input type="checkbox" checked={moveSel.has(b.id)} onChange={() => setMoveSel((s) => toggleIn(s, b.id))} /></td>
                     <td>{b.id}</td><td>{txTag(project, m.id) ?? '—'} · {m.id}</td>
                   </tr>
                 );

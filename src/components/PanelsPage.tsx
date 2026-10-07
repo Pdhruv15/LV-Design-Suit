@@ -12,6 +12,7 @@ import BuildHierarchyDialog from './BuildHierarchyDialog';
 import BranchPanel from './BranchPanel';
 import TransformersTab from './TransformersTab';
 import { mainOf, txTag } from '../model/transformers';
+import { toggleIn } from '../util/sets';
 
 type Tab = 'quick' | 'tx' | 'list' | 'naming' | 'floors' | 'repeat' | 'templates';
 const TABS: [Tab, string][] = [['quick', 'Quick create'], ['tx', 'Transformers'], ['list', 'Panel list'], ['naming', 'Naming'], ['floors', 'Typical floors'], ['repeat', 'Repeat group'], ['templates', 'Templates']];
@@ -170,7 +171,7 @@ function PanelList({ project, onChange, onStatus, onBuilding }: { project: Proje
   const word = q.trim().toLowerCase();
   const levelText = (b: Board) => { const f = findFloor(project.building, b.level); return f ? floorLabel(project.building, f) : ''; };
   const rows = project.boards.filter((b) => !word || [b.id, kindOf(b), b.upstreamId ?? '', levelText(b), b.location ?? ''].some((t) => t.toLowerCase().includes(word)));
-  const toggle = (id: string) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggle = (id: string) => setSel((s) => toggleIn(s, id));
   const picked = project.boards.filter((b) => sel.has(b.id));
   const noLevel = project.boards.filter((b) => !findFloor(project.building, b.level)).length;
   // A panel can't be fed from itself or from anything below it.

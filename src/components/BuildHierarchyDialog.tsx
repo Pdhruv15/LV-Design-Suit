@@ -6,6 +6,7 @@ import { applyHierarchy, evenAssignment, levelRef } from '../model/hierarchy';
 import { planBatchHierarchy, type BatchHierarchySpec, type PanelDraftEdit, type PanelDraftEdits, type QuantityBasis } from '../model/hierarchyBuilder';
 import { floorList, levelKey } from '../model/levels';
 import BranchPanel from './BranchPanel';
+import { toggleIn } from '../util/sets';
 
 const ROWS = 400;
 const STEPS = ['Starting point', 'Quantities', 'Connections', 'Review & create'];
@@ -100,7 +101,7 @@ export default function BuildHierarchyDialog({ project, onCreate, onClose, onBui
     setTab('tree'); setAssign({}); setQuery(''); resetDraft();
   };
   const updateDraft = (edit: PanelDraftEdit) => { if (selected) setEdits((prev) => ({ ...prev, [selected.key]: { ...prev[selected.key], ...edit } })); };
-  const toggle = (id: string) => setOpen((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+  const toggle = (id: string) => setOpen((prev) => toggleIn(prev, id));
   const count = (kind: string) => plan.boards.filter((b) => b.kind === kind).length;
   const inputErrors = { mdb: source === 'create' ? quantityError(createN, 1, 20) : undefined,
     smdb: quantityError(smdb, 0, smdbBasis === 'total' ? 5000 : 50), db: quantityError(db, 0, dbBasis === 'total' ? 5000 : 50) };
