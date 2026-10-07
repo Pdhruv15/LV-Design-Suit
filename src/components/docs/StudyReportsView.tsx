@@ -7,7 +7,7 @@ import { boardsInSupplyOrder } from '../../calc/summary';
 import { buildAnnotations } from '../../diagram/annotations';
 import { printableSvg } from '../../diagram/exportSvg';
 import {
-  buildSection, buildStudyReportHtml, missingBoards, scopeMode, buildStudyWorkbook, defaultTitle, drawingProject, scopeOf, scopeText, setupOf, STUDIES, studyInfo, type CalcData, type Section
+  buildSection, buildStudyReportHtml, missingBoards, scopeMode, buildStudyWorkbook, defaultTitle, drawingProject, scopeOf, scopeText, setupOf, sldStudies, STUDIES, studyInfo, type CalcData, type Section
 } from '../../docs/studyReport';
 import { workbookBytes } from '../../docs/formWorkbook';
 import { buildStudyDocx, docxBytes } from '../../docs/studyWord';
@@ -91,14 +91,15 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
     [run, scope, setup.studies] // eslint-disable-line react-hooks/exhaustive-deps
   );
   const [preview, setPreview] = useState<StudyReportKind>('sc');
-  const previewKey = setup.studies.includes(preview) && studyInfo(preview).sld ? preview : setup.studies.find((k) => studyInfo(k).sld);
+  const sldKeys = sldStudies(setup.studies);
+  const previewKey = sldKeys.includes(preview) ? preview : sldKeys[0];
   const drawing = useMemo(() => drawingProject(calc, scope), [calc, scope]);
   const [busy, setBusy] = useState('');
   const [presetName, setPresetName] = useState('');
   const [issuesOnly, setIssuesOnly] = useState(false);
   const [tabPicked, setTab] = useState<'boards' | 'studies' | 'output' | 'sld' | 'contents' | 'checks' | 'preview'>('boards');
   const presets = project.studyReportPresets ?? [];
-  const title = setup.title || defaultTitle(setup.studies);
+  const title = setup.title || defaultTitle(setup.studies, matchingType(setup));
   const reportMeta: ReportMeta = { title, docNo: setup.docNo, projectNo: setup.projectNo, preparedBy: setup.preparedBy, checkedBy: setup.checkedBy, approvedBy: setup.approvedBy, issueStatus: setup.issueStatus };
   const issues = useMemo(() => validateReport({ project: calc, meta: reportMeta, scope, sections, data, stale, designBasis: basisOpt.designBasis, resultsSummary: basisOpt.results }),
     [calc, scope, sections, stale, setup]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -125,7 +126,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
     setBusy('pdf');
     try {
       const slds: Partial<Record<StudyReportKind, string>> = {};
-      if (setup.sld) for (const s of sections) slds[s.key] = await captureSld(drawing, data, s.key);
+      if (setup.sld) for (const k of sldStudies(sections.map((s) => s.key))) slds[k] = await captureSld(drawing, data, k);
       const meta: ReportMeta = { title, docNo: setup.docNo, projectNo: setup.projectNo, preparedBy: setup.preparedBy, checkedBy: setup.checkedBy, approvedBy: setup.approvedBy, issueStatus: setup.issueStatus };
       const base = safeFileName(`${project.name} ${setup.docNo ?? ''}`.trim());
       const scopeTag = scope.all ? '' : ` ${scope.roots.map((b) => b.id).join('+')}`;
@@ -197,7 +198,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
       const snapScope = scopeOf(p, setup);
       const snapSections = setup.studies.map((k) => buildSection(k, snapData, snapScope));
       const slds: Partial<Record<StudyReportKind, string>> = {};
-      if (setup.sld) for (const s of snapSections) slds[s.key] = await captureSld(drawingProject(p, snapScope), snapData, s.key);
+      if (setup.sld) for (const k of sldStudies(snapSections.map((s) => s.key))) slds[k] = await captureSld(drawingProject(p, snapScope), snapData, k);
       const meta: ReportMeta = { title, docNo: setup.docNo, projectNo: setup.projectNo, preparedBy: setup.preparedBy, checkedBy: setup.checkedBy, approvedBy: setup.approvedBy, issueStatus: setup.issueStatus };
       const parts: Uint8Array[] = [];
       parts.push(await toBytes({ html: buildDashboardHtml(p, buildDashboard(p, snap)), cssPages: true }));
@@ -315,6 +316,9 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
             ))}
             {!matchingType(setup) && <span className="m">Custom selection</span>}
           </div>
+          {matchingType(setup) === 'authority' && (
+            <label className="sr-check"><input type="checkbox" checked={setup.studies.includes('lf')} onChange={() => toggleStudy('lf')} /> Include voltage drop calculations <span className="m">(usually only for larger jobs with several LV panels)</span></label>
+          )}
         </section>}
         {tab === 'studies' && <section className="sr-box sr-studies">
           {STUDIES.map((s) => {
@@ -347,7 +351,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
           <label className="sr-check"><input type="checkbox" checked={setup.resultsSummary !== false} onChange={(e) => set({ resultsSummary: e.target.checked })} /> Results and compliance summaries (equipment, load, cables, charts, design checks) after the studies</label>
           <label className="sr-check"><input type="checkbox" checked={setup.separate} onChange={(e) => set({ separate: e.target.checked })} /> A separate PDF for each study</label>
           <div className="sr-fields">
-            {text('title', 'Report title', defaultTitle(setup.studies))}
+            {text('title', 'Report title', defaultTitle(setup.studies, matchingType(setup)))}
             {text('docNo', 'Document no.', 'e.g. E-CALC-003')}
             {text('projectNo', 'Project no.')}
             {text('preparedBy', 'Prepared by')}

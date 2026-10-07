@@ -157,6 +157,7 @@ describe('results and compliance (phase 4)', () => {
 });
 
 import { applyReportType, matchingType, REPORT_TYPES } from './reportTypes';
+import { sldStudies } from './studyReport';
 import { validateReport } from './reportValidation';
 describe('report generator (phase 5)', () => {
   const scope = scopeOf(sampleProject, { boards: [], downstream: true });
@@ -167,6 +168,16 @@ describe('report generator (phase 5)', () => {
     expect(matchingType(s)).toBe('sc');
     expect(matchingType({ ...s, studies: ['sc'] })).toBeUndefined();
     expect(REPORT_TYPES.map((t) => t.key)).toEqual(['full', 'calc', 'load', 'cable', 'sc', 'authority']);
+  });
+  it('DEWA submission: SLD and load schedule only, voltage drop optional', () => {
+    const base = { boards: [], downstream: true, studies: [], sld: false, separate: false };
+    const s = { ...base, ...applyReportType('authority') };
+    expect(s.studies).toEqual(['load', 'schedules']);
+    expect([s.designBasis, s.resultsSummary, s.sld]).toEqual([false, false, true]);
+    expect(matchingType({ ...s, studies: ['load', 'schedules', 'lf'] })).toBe('authority');
+    expect(matchingType({ ...s, studies: ['load', 'schedules', 'sc'] })).toBeUndefined();
+    expect(sldStudies(['load', 'schedules'])).toEqual(['schedules']);
+    expect(sldStudies(['load', 'schedules', 'lf'])).toEqual(['lf']);
   });
   it('numbers sub-sections and tables automatically', () => {
     const html = buildStudyReportHtml(sampleProject, scope, [buildSection('sc', data, scope)], { title: 'T' });

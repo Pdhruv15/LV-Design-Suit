@@ -27,6 +27,7 @@ import { buildResults, resultsSections } from './compliance';
 import { equipmentData, planAppendices } from './appendices';
 import { distributionSection, loadSection, structureSection } from './calcSections';
 import { buildDesignBasis, designBasisSections } from './designBasis';
+import type { ReportType } from './reportTypes';
 import { numberSubsections, coverPageHtml, documentControlHtml, numberSections, REPORT_DOC_CSS, reportDoc, tocHtml, type ReportMeta } from './reportFrame';
 import { cableTypeOf, fireRatingIssues } from '../model/cableTypes';
 import { cableSchedule, dbSchedule } from './schedules';
@@ -64,7 +65,8 @@ export const STUDIES: StudyInfo[] = [
   { key: 'phase', label: 'Phase balance', title: 'Phase balance', description: 'Demand current on R / Y / B at every board, estimated neutral current and current unbalance; single-phase circuits without a phase flagged', sld: undefined },
   { key: 'busbar', label: 'Busbar risers', title: 'Busbar trunking risers', description: 'Busway rating (copper / aluminium), conductor area, voltage drop per floor, short-circuit withstand, size and weight (tables only)', sld: undefined },
   { key: 'pfc', label: 'Power factor correction', title: 'Power factor correction', description: 'Capacitor banks as planned (central / group / individual): kvar, steps, detuning, breaker and cable, PF before and after', sld: undefined },
-  { key: 'schedules', label: 'DB & cable schedules', title: 'DB and cable schedules', description: 'Panel schedule of each board and the cable schedule, for the boards in scope', sld: undefined }
+  { key: 'schedules', label: 'DB & cable schedules', title: 'DB and cable schedules', description: 'Panel schedule of each board and the cable schedule, for the boards in scope',
+    sld: { layers: NO_LAYERS, colorBy: 'none', note: 'Boards, circuits, breakers and cables as designed' } }
 ];
 export const studyInfo = (k: StudyReportKind) => STUDIES.find((s) => s.key === k)!;
 
@@ -470,7 +472,15 @@ export function pfcSection(p: Project, scope: Scope): Section {
 
 export type { ReportMeta } from './reportFrame';
 
-export const defaultTitle = (studies: StudyReportKind[]) => (studies.length === 1 ? studyInfo(studies[0]).title : 'Electrical design studies');
+export const defaultTitle = (studies: StudyReportKind[], type?: ReportType) =>
+  type === 'authority' ? 'DEWA submission — single line diagram and load schedule' : studies.length === 1 ? studyInfo(studies[0]).title : 'Electrical design studies';
+
+/** The studies that get an SLD sheet. The plain SLD of the schedules is drawn only
+ * when no study with results on its SLD is in the report (e.g. a DEWA submission). */
+export function sldStudies(keys: StudyReportKind[]): StudyReportKind[] {
+  const withResults = keys.filter((k) => k !== 'schedules' && studyInfo(k).sld);
+  return withResults.length ? withResults : keys.filter((k) => k === 'schedules');
+}
 
 const cellHtml = (c: Cell) => (typeof c === 'object' ? `<td class="${c.s}">${esc(c.v)}</td>` : `<td>${esc(c)}</td>`);
 const tableHtml = (t: Table) => `${t.title ? `<h3>${esc(t.title)}</h3>` : ''}${t.rows.length

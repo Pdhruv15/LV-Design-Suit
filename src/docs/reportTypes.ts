@@ -14,6 +14,8 @@ export interface ReportTypeInfo {
   designBasis: boolean;
   resultsSummary: boolean;
   sld: boolean;
+  /** Studies the user may add without leaving the type (e.g. voltage drop on a submission). */
+  optional?: StudyReportKind[];
 }
 
 export const REPORT_TYPES: ReportTypeInfo[] = [
@@ -27,8 +29,8 @@ export const REPORT_TYPES: ReportTypeInfo[] = [
     studies: ['cable', 'lf', 'schedules'], designBasis: false, resultsSummary: true, sld: true },
   { key: 'sc', label: 'Short-circuit report', description: 'Fault levels, breaking capacity and discrimination',
     studies: ['sc', 'disc'], designBasis: false, resultsSummary: false, sld: true },
-  { key: 'authority', label: 'Authority submission report', description: 'Concise: design basis, load, sizing, distribution, short circuit, earthing and the compliance summary',
-    studies: ['load', 'sizing', 'dist', 'sc', 'earth'], designBasis: true, resultsSummary: true, sld: true }
+  { key: 'authority', label: 'DEWA submission', description: 'What DEWA checks: the single line diagram and the load schedule, with voltage drop only if you add it',
+    studies: ['load', 'schedules'], designBasis: false, resultsSummary: false, sld: true, optional: ['lf'] }
 ];
 
 export const reportTypeInfo = (k: ReportType) => REPORT_TYPES.find((t) => t.key === k)!;
@@ -43,7 +45,8 @@ export const applyReportType = (k: ReportType): Partial<StudyReportSetup> => {
 export function matchingType(s: StudyReportSetup): ReportType | undefined {
   const t = s.reportType && reportTypeInfo(s.reportType);
   if (!t) return undefined;
-  const same = t.studies.length === s.studies.length && t.studies.every((k) => s.studies.includes(k))
+  const extra = s.studies.filter((k) => !t.studies.includes(k));
+  const same = t.studies.every((k) => s.studies.includes(k)) && extra.every((k) => t.optional?.includes(k))
     && t.designBasis === (s.designBasis !== false) && t.resultsSummary === (s.resultsSummary !== false);
   return same ? t.key : undefined;
 }
