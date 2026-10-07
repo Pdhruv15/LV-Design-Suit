@@ -134,11 +134,12 @@ export default function App() {
   // The project, with undo / redo. Opening or starting a project clears the history.
   const history = useHistory<Project>(normalised(sampleProject));
   const project = history.value;
-  const setProject: typeof history.set = useCallback((value, opts) => history.set((prev) => {
+  const setHistory = history.set;
+  const setProject: typeof history.set = useCallback((value, opts) => setHistory((prev) => {
     const before = withEarthPitIds(prev);
     const next = typeof value === 'function' ? value(before) : value;
     return withEarthPitIds(next, before);
-  }, opts), [history.set]);
+  }, opts), [setHistory]);
   // SLD tabs: null = Design (the working canvas), else a drawing sheet.
   const [sheetTab, setSheetTab] = useState<string | null>(null);
   const [sheetOutlinesOn, setSheetOutlinesOn] = useState(false);
@@ -238,10 +239,13 @@ export default function App() {
     window.lvds.database.init(databaseSeeds()).then(receiveDatabase).then(() => pullLibrary()).catch((e) => setStatus(`Database: ${e.message}`));
   }
 
+  // The latest handlers, so the listener registered once on start never runs an old render's copy.
+  const dbHandlers = useRef({ initDatabase, receiveDatabase });
+  dbHandlers.current = { initDatabase, receiveDatabase };
   useEffect(() => {
     if (!hasDatabase) return;
-    initDatabase();
-    return window.lvds.database.onChange(receiveDatabase);
+    dbHandlers.current.initDatabase();
+    return window.lvds.database.onChange((raw) => dbHandlers.current.receiveDatabase(raw));
   }, []);
   // Navigating (left menu or ribbon) keeps the ribbon on the matching tab.
   const setView = (v: MainView) => {
@@ -259,7 +263,7 @@ export default function App() {
   // inputs changes. Auto-run (project setting) runs them on every change.
   const [run, setRun] = useState<CalcRun | undefined>(() => runCalculations(project));
   const autoRun = !!project.calc?.autoRun;
-  useEffect(() => { if (autoRun && run?.project !== project) setRun(runCalculations(project)); }, [autoRun, project]);
+  useEffect(() => { if (autoRun && run?.project !== project) setRun(runCalculations(project)); }, [autoRun, project, run?.project]);
   const staleKeys = useMemo(() => staleStudies(run, project), [run, project]);
   const stale = staleKeys.map((k) => STUDY_LABEL[k]);
   // What the studies show: the project as last run while out of date,
@@ -393,7 +397,7 @@ export default function App() {
     };
     window.addEventListener('focus', check);
     return () => window.removeEventListener('focus', check);
-  }, [hasBridge]);
+  }, []);
 
   /** The file on disk next to what is open: the same review as a save conflict. */
   async function reviewDiskChanges() {
@@ -445,7 +449,8 @@ export default function App() {
     if (!boardResults.find((r) => r.feeder.id === selected)) {
       setSelected(boardResults[0]?.feeder.id ?? null);
     }
-  }, [board?.id]);
+    // Only when another board opens: picking or clearing a circuit on this board must not re-select one.
+  }, [board?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function selectFeeder(id: string) {
     const f = project.feeders.find((x) => x.id === id);
