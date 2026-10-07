@@ -19,7 +19,7 @@ import { buildDashboardHtml } from '../../docs/dashboardPdf';
 import { buildLoadScheduleHtml } from '../../docs/loadScheduleDoc';
 import { scheduleCircuits } from '../../calc/loadSchedule';
 import { revisionStamp } from '../../model/revisions';
-import { safeFileName, saveBinary, savePdf } from '../../util/files';
+import { renderPdf, safeFileName, saveBinary, savePdf } from '../../util/files';
 import { applyReportType, matchingType, REPORT_TYPES } from '../../docs/reportTypes';
 import { issueCounts, validateReport } from '../../docs/reportValidation';
 import { ISSUE_STATUSES, missingFields, pageFrame, reportDoc, type ReportMeta } from '../../docs/reportFrame';
@@ -202,7 +202,9 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
       const meta: ReportMeta = { title, docNo: setup.docNo, projectNo: setup.projectNo, preparedBy: setup.preparedBy, checkedBy: setup.checkedBy, approvedBy: setup.approvedBy, issueStatus: setup.issueStatus };
       const parts: Uint8Array[] = [];
       parts.push(await toBytes({ html: buildDashboardHtml(p, buildDashboard(p, snap)), cssPages: true }));
-      parts.push(await toBytes({ html: buildStudyReportHtml(p, snapScope, snapSections, meta, slds, { ...basisOpt, data: snapData }), cssPages: true }));
+      // The study report exactly as Export PDF makes it: contents page numbers, header and footer.
+      const report = (pages: Record<string, number>) => buildStudyReportHtml(p, snapScope, snapSections, meta, slds, { ...basisOpt, data: snapData, pages });
+      parts.push((await renderPdf(report({}), { cssPages: true, frame: pageFrame(reportDoc(p, meta)), paginate: report }, title))!);
       const dbs = snapScope.boards.filter((b) => scheduleCircuits(p, b.id).length);
       for (const b of dbs) parts.push(await toBytes({ html: buildLoadScheduleHtml(p, b.id), cssPages: true }));
       const titles = ['Project summary', title, ...dbs.map((b) => `Load schedule — ${b.id}`)];
