@@ -86,7 +86,7 @@ export default function BomView({ command, project, results, onChange, onStatus 
     savePriceLists(next);
     onStatus(`Price list “${list.name}” saved — use it on your other projects`);
   };
-  const useFromLibrary = (id: string) => {
+  const applySavedList = (id: string) => {
     const l = library.find((x) => x.id === id);
     if (l) setList(structuredClone(l));
   };
@@ -170,7 +170,7 @@ export default function BomView({ command, project, results, onChange, onStatus 
         <label>Rates dated <input className="bi-text" type="date" value={list?.date ?? ''} onChange={(e) => edit({ date: e.target.value })} /></label>
         <label>Currency <input className="bi-text" style={{ width: 60 }} value={cur} onChange={(e) => edit({ currency: e.target.value })} /></label>
         <button className="chip" onClick={() => setDialog({ kind: 'markup' })}>Markup {list?.markupPct ?? 0} % · Discount {custom?.discountPct ?? 0} %</button>
-        <select className="chip" value="" onChange={(e) => e.target.value && useFromLibrary(e.target.value)}>
+        <select className="chip" value="" onChange={(e) => e.target.value && applySavedList(e.target.value)}>
           <option value="">Use a saved price list…</option>
           {library.map((l) => <option key={l.id} value={l.id}>{l.name} ({Object.keys(l.rates).length} rates, {l.date})</option>)}
         </select>

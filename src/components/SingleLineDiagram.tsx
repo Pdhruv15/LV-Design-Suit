@@ -58,19 +58,19 @@ export default function SingleLineDiagram({
         </>
       ) : (
         <>
-          <line x1={cx} y1="10" x2={cx} y2={dev ? 100 : 118} className="ln" />
+          <line x1={cx} y1="10" x2={cx} y2={dev ? 94 : 118} className="ln" />
           <text className="b" x={cx + 22} y="40">
             Incomer
           </text>
           <text className="m" x={cx + 22} y="54">
             {incomerLabel ? `${incomerLabel} · from ${board.upstreamId}` : `from ${board.upstreamId}`}
           </text>
-          {dev && <SwitchSym x={cx} y={100} kind={incKind} />}
-          {dev && <line x1={cx} y1="116" x2={cx} y2="118" className="ln" />}
+          {dev && <SwitchSym x={cx} y={94} kind={incKind} />}
+          {dev && <line x1={cx} y1="110" x2={cx} y2="118" className="ln" />}
         </>
       )}
       <text className="b" x={cx - 16} y="106" textAnchor="end" style={{ fill: 'var(--bus)' }}>
-        {board.id} · {voltageV} V busbar
+        {board.id} · {voltageV} V{board.ratedCurrentA ? ` · ${board.ratedCurrentA} A` : ''} busbar
       </text>
       <line data-dxf-layer="BUSBAR" x1={busX1} y1="118" x2={busX2} y2="118" style={{ stroke: 'var(--bus)', strokeWidth: 4, strokeLinecap: 'round' }} />
       {results.map((r, i) => {

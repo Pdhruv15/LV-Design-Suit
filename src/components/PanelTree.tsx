@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, IndentDecrease, IndentIncrease, PanelLeftClose, PanelLeftOpen, Plus, Power, Waves } from 'lucide-react';
 import type { Board, Project } from '../types';
 import type { FeederResult, Status } from '../calc/electrical';
@@ -45,7 +45,7 @@ const worst = (xs: Status[]): Status | undefined => (xs.includes('bad') ? 'bad' 
  * board's status and loading. The page you're on decides what a click does
  * (select on the SLD, open its schedule, filter a study…); double-click
  * opens it on the SLD; right-click for the board menu. */
-export default function PanelTree({ project, results, activeId, focusId, view, onPick, onOpen, menu, copiedId, highlightedIds, onClearHighlights }: {
+export default function PanelTree({ project, results, activeId, focusId, view, onPick, onOpen, menu, copiedId, highlightedIds, onClearHighlights, equipment }: {
   project: Project;
   results: FeederResult[];
   /** The board the page is on (highlighted). */
@@ -59,8 +59,11 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
   copiedId?: string | null;
   highlightedIds?: string[];
   onClearHighlights?: () => void;
+  /** The equipment library, shown as a second tab beside the panels (system SLD). */
+  equipment?: ReactNode;
 }) {
   const [hidden, setHidden] = useStored('tree.hidden', false);
+  const [tab, setTab] = useStored<'panels' | 'equipment'>('tree.tab', 'panels');
   const [collapsed, setCollapsed] = useStored<string[]>('tree.collapsed', []);
   const [width, setWidth] = useStored('tree.width', 230);
   const [q, setQ] = useState('');
@@ -83,7 +86,7 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
       }
     }
     setHidden(false); setQ(''); setCollapsed(collapsed.filter((id) => !reveal.has(id)));
-  }, [highlightedIds]); // Only a new batch changes the user's tree preferences.
+  }, [highlightedIds]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new batch changes the user's tree preferences
   const presentIds = useMemo(() => new Set(project.boards.map((b) => b.id)), [project.boards]);
   const highlighted = new Set(highlightedIds?.filter((id) => presentIds.has(id)));
   useEffect(() => {
@@ -211,11 +214,29 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
   const act = (fn: (id: string) => void) => () => { const id = ctx!.id; setCtx(null); fn(id); };
   const ctxBoard = ctx ? project.boards.find((b) => b.id === ctx.id) : undefined;
 
+  const tabs = equipment && (
+    <div className="tree-tabs" role="tablist" aria-label="Side panel">
+      <button role="tab" aria-selected={tab === 'panels'} className={tab === 'panels' ? 'on' : ''} onClick={() => setTab('panels')}>Panels <span className="m">{project.boards.length}</span></button>
+      <button role="tab" aria-selected={tab === 'equipment'} className={tab === 'equipment' ? 'on' : ''} onClick={() => setTab('equipment')}>Equipment</button>
+      <span className="sp" />
+      <button className="icon-btn" title="Hide the side panel" onClick={() => setHidden(true)}><PanelLeftClose size={14} /></button>
+    </div>
+  );
+  if (equipment && tab === 'equipment') {
+    return (
+      <aside className="tree" ref={ref} style={{ width }} aria-label="Equipment library">
+        {tabs}
+        <div className="tree-equip">{equipment}</div>
+        <div className="tree-resize" onPointerDown={startResize} onDoubleClick={() => setWidth(230)} title="Drag to resize" />
+      </aside>
+    );
+  }
+
   return (
     <aside className="tree" ref={ref} style={{ width }} aria-label="Panel tree">
+      {tabs}
       <div className="tree-head">
-        <b>Panels</b>
-        <span className="m">{project.boards.length}</span>
+        {!tabs && <><b>Panels</b><span className="m">{project.boards.length}</span></>}
         <span className="sp" />
         <button className="icon-btn" title={activeId ? `Add a board fed from ${activeId}` : 'Add a board'} onClick={() => menu.onAddBoard(activeId ?? roots[0]?.id ?? '')}><Plus size={14} /></button>
         {menu.onMove && <>
@@ -226,7 +247,7 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
         </>}
         <button className="icon-btn" title="Collapse all" onClick={() => setCollapsed(allIds.filter((id) => children.get(id)?.length))}><ChevronsDownUp size={14} /></button>
         <button className="icon-btn" title="Expand all" onClick={() => setCollapsed([])}><ChevronsUpDown size={14} /></button>
-        <button className="icon-btn" title="Hide the panel tree" onClick={() => setHidden(true)}><PanelLeftClose size={14} /></button>
+        {!tabs && <button className="icon-btn" title="Hide the panel tree" onClick={() => setHidden(true)}><PanelLeftClose size={14} /></button>}
       </div>
       <input className="tree-search" type="search" placeholder="Find a board…" value={q} onChange={(e) => setQ(e.target.value)} />
       {highlighted.size > 0 && <div className="tree-batch">{highlighted.size} new panels<span className="sp" />{onClearHighlights && <button className="chip" onClick={onClearHighlights}>Clear</button>}</div>}

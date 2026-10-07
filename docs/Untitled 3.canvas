@@ -1,0 +1,7 @@
+{
+	"nodes":[
+		{"id":"1ac5fabdf14c8f9d","x":-353,"y":-144,"width":250,"height":60,"type":"text","text":""},
+		{"id":"2c9d776f4b184596","x":-103,"y":-260,"width":400,"height":400,"type":"file","file":"Electrical Design Report Enhancement.md"}
+	],
+	"edges":[]
+}

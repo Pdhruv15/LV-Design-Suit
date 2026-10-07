@@ -9,10 +9,6 @@ import { autoSize, drawable, LEGEND_RESERVE_MM, MIN_MM_PER_PX, fromSheetLabels, 
 import { buildSldSheetHtml, type SheetInfo } from '../../docs/sldSheet';
 import { buildSheetDxfPages } from '../../docs/sheetDxf';
 import { dxfExportNotice, namedDxfFiles, uniqueDxfFiles, type DxfFile } from '../../docs/dxfFiles';
-import { buildRegisterWorkbook } from '../../docs/registerWorkbook';
-import { workbookBytes } from '../../docs/formWorkbook';
-import JSZip from 'jszip';
-import { mergePdfs } from '../../docs/mergePdf';
 import { currentRevision, revisionStamp } from '../../model/revisions';
 import { cableRefsUsed } from '../../model/cableRefs';
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
@@ -182,7 +178,7 @@ export async function exportSheetsDxf(project: Project, set: DrawingSet, run: Ca
       if (m) onStatus(`${m}${notice ? ` — ${notice}` : ''}`);
       return;
     }
-    const zip = new JSZip();
+    const zip = new (await import('jszip')).default();
     for (const f of files) zip.file(f.name, f.data);
     const m = await saveBinary(`${safeFileName(`${project.name} drawings DXF`)}.zip`, await zip.generateAsync({ type: 'uint8array' }), 'ZIP', 'zip', 'application/zip');
     if (m) onStatus(`${m} — ${files.length} DXF sheets${notice ? ` — ${notice}` : ''}`);
@@ -195,7 +191,7 @@ export async function exportSheetsDxf(project: Project, set: DrawingSet, run: Ca
  * a DXF per sheet, and the drawing register (Excel). */
 export async function exportEverythingZip(project: Project, set: DrawingSet, run: CalcRun | undefined, onStatus: (m: string) => void): Promise<void> {
   try {
-    const zip = new JSZip();
+    const zip = new (await import('jszip')).default();
     const pages = await prepareSheets(project, set, run);
     const dxf = dxfOf(project, set, pages);
     for (const f of dxf) zip.file(`DXF/${f.name}`, f.data);
@@ -209,9 +205,9 @@ export async function exportEverythingZip(project: Project, set: DrawingSet, run
         parts.push(one); titles.push(`${p.s.number}  ${p.s.title}`);
         zip.file(`PDF/${safeFileName(`${p.s.number}${p.s.rev ? `_Rev${p.s.rev}` : ''}`)}.pdf`, one);
       }
-      zip.file(`${safeFileName(`${project.name} drawing set`)}.pdf`, await mergePdfs(parts, `${project.name} · drawings · ${revisionStamp(project)}`, titles));
+      zip.file(`${safeFileName(`${project.name} drawing set`)}.pdf`, await (await import('../../docs/mergePdf')).mergePdfs(parts, `${project.name} · drawings · ${revisionStamp(project)}`, titles));
     }
-    zip.file(`${safeFileName(`${project.name} drawing register`)}.xlsx`, await workbookBytes(buildRegisterWorkbook(project, set)));
+    zip.file(`${safeFileName(`${project.name} drawing register`)}.xlsx`, await (await import('../../docs/formWorkbook')).workbookBytes((await import('../../docs/registerWorkbook')).buildRegisterWorkbook(project, set)));
     const m = await saveBinary(`${safeFileName(`${project.name} drawings`)}.zip`, await zip.generateAsync({ type: 'uint8array' }), 'ZIP', 'zip', 'application/zip');
     const notice = dxfExportNotice(dxf);
     if (m) onStatus(`${m} — ${dxf.length} DXF${toBytes ? ' + PDFs' : ' (PDFs need the desktop app)'} + register${notice ? ` — ${notice}` : ''}`);
@@ -256,7 +252,7 @@ export async function exportDrawingSet(project: Project, set: DrawingSet, run: C
     }
     for (const p of pages) parts.push(await toBytes({ html: p.html, cssPages: true }));
     const titles = [...(reg ? ['Drawing register'] : []), ...pages.map((p) => `${p.s.number}  ${p.s.title}`)];
-    const bytes = await mergePdfs(parts, `${project.name} · SLD set · ${revisionStamp(project)}`, titles);
+    const bytes = await (await import('../../docs/mergePdf')).mergePdfs(parts, `${project.name} · SLD set · ${revisionStamp(project)}`, titles);
     const m = await saveBinary(`${safeFileName(`${project.name} SLD drawing set`)}.pdf`, bytes, 'PDF', 'pdf', 'application/pdf');
     if (m) onStatus(`${m} — ${pages.length} sheets${reg ? ' + register' : ''}`);
   } catch (e) {

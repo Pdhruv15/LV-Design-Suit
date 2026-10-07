@@ -4,6 +4,7 @@ import { subtree } from '../calc/pfc';
 import { SHEET_MM } from '../docs/sldSheet';
 import { boardsWithoutLevel } from './levels';
 import type { SheetMarkup } from './sheetMarkup';
+import { pushLibrary } from '../database/librarySync';
 
 /** The SLD as a set of sheets. Each sheet shows the panels ticked for it
  * (DBs as a box with their circuit count and kW — their final circuits are
@@ -426,7 +427,7 @@ const TPL = 'lvds.sheetTemplates';
 export function loadSheetTemplates(): SheetTemplate[] { try { return JSON.parse(localStorage.getItem(TPL) ?? '[]'); } catch { return []; } }
 export function saveSheetTemplates(list: SheetTemplate[]): void {
   try { localStorage.setItem(TPL, JSON.stringify(list)); } catch { /* storage blocked */ }
-  void import('../database/librarySync').then((m) => m.pushLibrary());
+  void pushLibrary();
 }
 export const templateFromSheet = (s: DrawingSheet, name: string): SheetTemplate => ({ id: `st-${Date.now().toString(36)}`, name, size: s.size, cableLabels: s.cableLabels, tags: s.tags, notes: s.notes, status: s.status, scale: s.scale });
 export const applyTemplate = (s: DrawingSheet, t: SheetTemplate): DrawingSheet => ({ ...s, size: t.size, cableLabels: t.cableLabels, tags: t.tags, notes: t.notes, status: t.status ?? s.status, scale: t.scale ?? s.scale });

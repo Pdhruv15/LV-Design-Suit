@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useStable } from '../util/useStable';
 import { Building2, ChevronDown, ChevronRight, Copy, Layers, ListTree, X } from 'lucide-react';
 import type { Board, Project } from '../types';
 import { applyHierarchy, evenAssignment, levelRef } from '../model/hierarchy';
@@ -48,14 +49,14 @@ export default function BuildHierarchyDialog({ project, onCreate, onClose, onBui
   const [open, setOpen] = useState<Set<string>>(new Set());
   const chosen = floors.slice(Math.min(from, to), Math.max(from, to) + 1);
   const mdbCount = source === 'create' ? number(createN) : existing.length;
-  const spec: BatchHierarchySpec = {
+  const spec = useStable<BatchHierarchySpec>({
     mode: mode === 'floors' ? 'floors' : 'quantity', buildingId, floors: chosen.map((f) => f.key),
     mdbs: source === 'create' ? { create: number(createN) } : { existing },
     smdb: { count: number(smdb), basis: smdbBasis }, db: { count: number(db), basis: dbBasis }, incomers,
     assign: Object.fromEntries(Object.entries(assign).filter(([key, index]) => chosen.some((f) => f.key === key) && index < mdbCount))
-  };
-  const plan = useMemo(() => planBatchHierarchy(project, spec, edits), [project, JSON.stringify(spec), edits]);
-  const base = useMemo(() => planBatchHierarchy(project, spec), [project, JSON.stringify(spec)]);
+  });
+  const plan = useMemo(() => planBatchHierarchy(project, spec, edits), [project, spec, edits]);
+  const base = useMemo(() => planBatchHierarchy(project, spec), [project, spec]);
   const selected = plan.draft.find((d) => d.key === picked) ?? plan.draft.find((d) => d.board.kind !== 'MDB') ?? plan.draft[0];
   const children = useMemo(() => {
     const map = new Map<string, Board[]>();

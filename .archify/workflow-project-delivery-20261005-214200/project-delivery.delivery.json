@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "3a127100-288a-4dac-9b8b-66825b853c86",
+  "status": "current",
+  "command": "deliver",
+  "type": "workflow",
+  "input": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/candidate.json",
+  "output": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/project-delivery.html",
+  "specification": {
+    "sha256": "37472202eb18123d3a8ec8138d0c9f3e9ee20d41dfc3716c5e34feb8757820d5",
+    "bytes": 5931
+  },
+  "artifact": {
+    "sha256": "efcf18e9f5aa59d09e1ecb3b9e686580aa141825d0b28f3337dd4a42b94c1811",
+    "bytes": 763114
+  }
+}

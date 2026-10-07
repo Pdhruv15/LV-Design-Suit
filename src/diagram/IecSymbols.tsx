@@ -22,9 +22,10 @@ export function SwitchSym({ x, y, kind }: { x: number; y: number; kind: SwitchKi
   return (
     <g className="iec">
       <line x1={x} y1={y} x2={x} y2={y + 3} className="ln" />
-      {kind === 'isolator' || kind === 'nonauto'
-        ? <line x1={x - 4} y1={y + 3} x2={x + 4} y2={y + 3} className="ln" />
-        : null}
+      {/* Isolating bar on the fixed contact; on a non-automatic breaker it sits just above the
+          breaker ×, so the two read separately rather than as an asterisk. */}
+      {kind === 'isolator' && <line x1={x - 4} y1={y + 3} x2={x + 4} y2={y + 3} className="ln" />}
+      {kind === 'nonauto' && <line x1={x - 4} y1={y - 2} x2={x + 4} y2={y - 2} className="ln" />}
       {kind !== 'isolator' && <path d={`M${x - 3} ${y} l6 6 M${x + 3} ${y} l-6 6`} className="ln" />}
       <line x1={x} y1={y + 16} x2={x - 7} y2={y + 5} className="ln" />
       {kind === 'acb' && (

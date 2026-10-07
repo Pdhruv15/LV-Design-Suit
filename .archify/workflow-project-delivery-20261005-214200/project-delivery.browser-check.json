@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "browser-check",
+  "evidenceKind": "automated-browser",
+  "status": "fail",
+  "visualReview": "not-requested",
+  "provenance": "current",
+  "deliveryReceiptId": "3a127100-288a-4dac-9b8b-66825b853c86",
+  "artifact": {
+    "path": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/project-delivery.html",
+    "sha256": "efcf18e9f5aa59d09e1ecb3b9e686580aa141825d0b28f3337dd4a42b94c1811",
+    "bytes": 763114
+  },
+  "state": {
+    "detail": "read",
+    "motion": "still"
+  },
+  "chrome": {
+    "status": "available",
+    "executable": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+  },
+  "diagnostics": [
+    {
+      "code": "viewer/browser-check-runtime",
+      "severity": "error",
+      "message": "browser-check could not complete its Chrome inspection.",
+      "subject": {
+        "artifact": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/project-delivery.html"
+      },
+      "evidence": {
+        "reason": "Chrome DevTools read pipe failed: stream ended\nChrome process: still running.\nChrome transport: Node v24.16.0, libuv 1.52.1, darwin; pid=42058, exitCode=null, signalCode=null.\nChrome read pipe: readable=false, ended=true, destroyed=false, receivedBytes=0, messages=0, bufferedBytes=0.\nChrome write pipe: writable=true, ended=false, destroyed=false, completedWrites=1, writtenBytes=50, bufferedBytes=0."
+      },
+      "supportedFixes": [
+        "resolve the reported Chrome inspection error, then rerun browser-check"
+      ]
+    }
+  ],
+  "containment": {
+    "status": "fail",
+    "policy": "fit-or-reader-declared-readable-vertical-scroll",
+    "viewports": []
+  },
+  "themeStates": {
+    "status": "fail",
+    "viewports": []
+  },
+  "readability": {
+    "status": "fail",
+    "minimumProjectedNodeTextPx": 6,
+    "viewports": []
+  },
+  "viewerChrome": {
+    "status": "fail",
+    "viewports": []
+  },
+  "captures": {
+    "status": "not-requested",
+    "screenshots": [],
+    "contactSheet": null
+  },
+  "sidecars": {
+    "receipt": "project-delivery.browser-check.json",
+    "files": []
+  },
+  "error": "Chrome DevTools read pipe failed: stream ended\nChrome process: still running.\nChrome transport: Node v24.16.0, libuv 1.52.1, darwin; pid=42058, exitCode=null, signalCode=null.\nChrome read pipe: readable=false, ended=true, destroyed=false, receivedBytes=0, messages=0, bufferedBytes=0.\nChrome write pipe: writable=true, ended=false, destroyed=false, completedWrites=1, writtenBytes=50, bufferedBytes=0."
+}
