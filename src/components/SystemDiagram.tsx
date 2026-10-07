@@ -89,6 +89,7 @@ export default function SystemDiagram({
   hideLegend = false,
   outlines,
   clouds,
+  anchors,
   onOutline,
   onMoveToSheet,
   focus,
@@ -133,6 +134,8 @@ export default function SystemDiagram({
   outlines?: { id: string; label: string; boards: string[]; color: string }[];
   /** Revision clouds around panels (drawing sheets). */
   clouds?: { boards: string[]; rev: string }[];
+  /** Invisible panel and circuit outlines (data-anchor) so drawing sheets can hit-test what a drag points at. */
+  anchors?: boolean;
   onOutline?: (sheetId: string) => void;
   /** A panel dragged into another sheet's outline. */
   onMoveToSheet?: (boardId: string, sheetId: string) => void;
@@ -1150,6 +1153,12 @@ export default function SystemDiagram({
             </g>
           );
         })}
+        {anchors && (
+          <g className="sheet-anchors" style={{ opacity: 0 }} pointerEvents="none">
+            {layout.boards.map((n) => { const r = boardsBox([n.board.id], 0); return r && <rect key={n.board.id} data-anchor={n.board.id} x={r.x} y={r.y} width={r.w} height={r.h} />; })}
+            {layout.feeders.map((n) => <rect key={n.feeder.id} data-anchor={`f:${n.feeder.id}`} x={n.x - 10} y={n.busY + 8} width={20} height={84} />)}
+          </g>
+        )}
         {(clouds ?? []).map((c, i) => {
           const r = boardsBox(c.boards, 12);
           if (!r) return null;

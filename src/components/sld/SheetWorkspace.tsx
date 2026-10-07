@@ -14,7 +14,7 @@ import { currentRevision } from '../../model/revisions';
 import { SHEET_MM } from '../../docs/sldSheet';
 import { exportDrawingSet, exportEverythingZip, exportSheetsDxf, sheetHtml } from '../docs/sheetRender';
 import { IssueDialog } from '../docs/DrawingsView';
-import SheetMarkupLayer, { MarkupToolbar, type MarkupTool } from './SheetMarkupLayer';
+import SheetMarkupLayer, { MarkupToolbar, ALL_TOOLS, type MarkupTool, type SheetAnchor } from './SheetMarkupLayer';
 import { MARKUP_LABEL, type MarkupColor, type SheetMarkup } from '../../model/sheetMarkup';
 
 /** Colours of the sheet outlines on the design canvas. */
@@ -134,6 +134,7 @@ export function SheetWorkspace({ project, run, sheetId, design, onChange, onStat
   const [mColor, setMColor] = useState<MarkupColor>('red');
   const [mSize, setMSize] = useState(3.5);
   const [selId, setSelId] = useState<string | null>(null);
+  const [anchors, setAnchors] = useState<{ list: SheetAnchor[]; mmPerUnit: number }>({ list: [], mmPerUnit: 1 });
   const markups = s?.markups ?? [];
   const setMarkups = (next: SheetMarkup[]) => patch({ markups: next.length ? next : undefined });
   const selected = markups.find((m) => m.id === selId);
@@ -146,6 +147,10 @@ export function SheetWorkspace({ project, run, sheetId, design, onChange, onStat
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
       if ((e.key === 'Delete' || e.key === 'Backspace') && selected) { e.preventDefault(); removeSelected(); }
       else if (e.key === 'Escape') { setTool('select'); setSelId(null); }
+      else if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+        const t = ALL_TOOLS.find((x) => x.key === e.key.toUpperCase() && (s?.kind === 'system' || (x.tool !== 'pcloud' && x.tool !== 'parrow')));
+        if (t) { setTool(t.tool); if (t.tool !== 'select') setSelId(null); }
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -206,7 +211,7 @@ export function SheetWorkspace({ project, run, sheetId, design, onChange, onStat
         <button className="chip primary" onClick={() => setPublish(true)}>Publish…</button>
       </div>
       {s.kind !== 'earthing' && drawable(s) && (
-        <MarkupToolbar tool={tool} color={selected?.color ?? mColor} size={mSize} selected={selected} count={markups.length}
+        <MarkupToolbar anchored={s.kind === 'system'} tool={tool} color={selected?.color ?? mColor} size={mSize} selected={selected} count={markups.length}
           onTool={(t) => { setTool(t); if (t !== 'select') setSelId(null); }}
           onColor={(c) => { setMColor(c); restyle({ color: c }); }}
           onSize={(z) => { setMSize(z); restyle({ size: z }); }} onDelete={removeSelected} />
@@ -216,10 +221,12 @@ export function SheetWorkspace({ project, run, sheetId, design, onChange, onStat
         <div className="sheet-page" ref={host}>
           {!drawable(s) ? <p className="m">Tick the panels for this sheet on the right.</p> : page ? (
             <div style={{ width: pxW * scale, height: pxH * scale, position: 'relative' }} className="sheet-paper">
-              <iframe title={s.number} srcDoc={page.html} sandbox="" style={{ width: pxW, height: pxH, transform: `scale(${scale})`, transformOrigin: '0 0', border: 0, background: '#fff' }} />
+              <iframe title={s.number} srcDoc={page.html} sandbox="allow-same-origin" onLoad={(e) => setAnchors(measureAnchors(e.currentTarget, mm.w / pxW))} style={{ width: pxW, height: pxH, transform: `scale(${scale})`, transformOrigin: '0 0', border: 0, background: '#fff' }} />
               {s.kind !== 'earthing' && (
                 <SheetMarkupLayer markups={markups} mmW={mm.w} mmH={mm.h} width={pxW * scale} height={pxH * scale} tool={tool} color={mColor} size={mSize}
-                  selected={selId} rev={nextRev(sheetRev(s, rev?.id))} onSelect={setSelId} onChange={setMarkups} onTool={setTool} />
+                  selected={selId} rev={nextRev(sheetRev(s, rev?.id))} onSelect={setSelId} onChange={setMarkups} onTool={setTool}
+                  anchors={s.kind === 'system' ? anchors.list : []} mmPerUnit={anchors.mmPerUnit} onStatus={onStatus}
+                  onPanelCloud={(c) => patch({ clouds: [...(s.clouds ?? []), c] })} onPanelArrow={(a) => patch({ arrows: [...(s.arrows ?? []), a] })} />
               )}
             </div>
           ) : <p className="m">Drawing the sheet…</p>}
@@ -314,6 +321,20 @@ export function SheetWorkspace({ project, run, sheetId, design, onChange, onStat
       {publish && <PublishDialog project={project} run={run} onClose={() => setPublish(false)} onChange={onChange} onStatus={onStatus} onOpen={(id) => { setPublish(false); onActive(id); }} />}
     </div>
   );
+}
+
+/** Panel and circuit outlines of the drawn page (the diagram's data-anchor rects) in paper mm,
+ * and paper mm per drawing unit. Needs the preview iframe to be same-origin (no scripts run in it). */
+function measureAnchors(frame: HTMLIFrameElement, mmPerPx: number): { list: SheetAnchor[]; mmPerUnit: number } {
+  const doc = frame.contentDocument;
+  const svg = doc?.querySelector<SVGSVGElement>('svg[data-w]') ?? doc?.querySelector<SVGSVGElement>('svg');
+  if (!doc || !svg) return { list: [], mmPerUnit: 1 };
+  const vbW = Number((svg.getAttribute('viewBox') ?? '').split(/\s+/)[2]) || svg.getBoundingClientRect().width;
+  const list = [...doc.querySelectorAll<SVGGraphicsElement>('[data-anchor]')].map((el) => {
+    const r = el.getBoundingClientRect();
+    return { target: el.getAttribute('data-anchor')!, x: r.left * mmPerPx, y: r.top * mmPerPx, w: r.width * mmPerPx, h: r.height * mmPerPx };
+  });
+  return { list, mmPerUnit: (svg.getBoundingClientRect().width * mmPerPx) / vbW };
 }
 
 function ArrowAdd({ project, boards, onAdd }: { project: Project; boards: string[]; onAdd: (a: { target: string; text: string; dir: 'ne' | 'nw' | 'se' | 'sw'; len?: number }) => void }) {
