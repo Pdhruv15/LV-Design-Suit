@@ -26,9 +26,6 @@ function table(headers: string[], rows: Cell[][]): Table {
   return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [head, ...body] });
 }
 
-const kv = (rows: [string, string | undefined][]) =>
-  table(['Item', 'Value'], rows.filter(([, v]) => v).map(([k, v]) => [k, v!]));
-
 function logoRun(project: Project): ImageRun | undefined {
   const logo = project.drawing?.logo;
   const m = logo?.match(/^data:image\/(png|jpe?g);base64,(.+)$/);

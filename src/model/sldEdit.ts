@@ -1,5 +1,5 @@
 import { selectCable } from '../calc/electrical';
-import { applyRecommendation, generatorForBoard, generatorChoiceForBoard, recommend, sizePfc, upsForBoard } from '../calc/sizing';
+import { applyRecommendation, generatorForBoard, generatorChoiceForBoard, recommend, sizePfc } from '../calc/sizing';
 import type { LibraryLoad } from '../database/database';
 import { BOARD_KINDS, settingsOf, type Board, type BoardKind, type Feeder, type LoadType, type Project, type StarterType } from '../types';
 import { isMotor, STARTERS } from '../calc/motor';

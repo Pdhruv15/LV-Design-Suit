@@ -85,7 +85,6 @@ import { sizeGeneratorByBoards, sizeTransformers } from '../calc/txGen';
 describe('the main calculation report sizes like the study pages', () => {
   it('uses the chosen size list and the generator boards', () => {
     const p = { ...p0, txGen: { ...(p0.txGen ?? {}), sizeList: 'dewa' } } as Project;
-    const r = runCalculations(p);
     const html = buildReportHtml(p);
     const tx = sizeTransformers(p)[0];
     expect(html).toContain(`recommended ${tx.recommendedKva} kVA`);

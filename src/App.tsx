@@ -106,7 +106,7 @@ import ReceivedDocsView from './components/docs/ReceivedDocsView';
 import { applyBrief, type ProjectBrief } from './model/brief';
 import { defaultsPreview } from './model/setupPreview';
 import { copyProject, isFutureSchema, migrateProject } from './model/projectMigrate';
-import { diffSections, projectFingerprint, type FileStamp } from './model/saveSafety';
+import { projectFingerprint, type FileStamp } from './model/saveSafety';
 import { CompareDialog, ConflictDialog, ExternalChangeBar } from './components/SaveDialogs';
 import PreferencesDialog from './components/PreferencesDialog';
 import PanelTree from './components/PanelTree';

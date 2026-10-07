@@ -124,7 +124,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
       { key: 'mdb', title: 'One sheet per MDB', about: 'Each main board with everything it feeds; an overview sheet when there are several MDBs.', set: autoSheets(project, 'perMdb', dbSheets, set.prefix) },
       { key: 'smdb', title: 'Overview + one per SMDB', about: 'An overview of the main boards and sub-mains, then a sheet per SMDB / MCC with its DBs.', set: autoSheets(project, 'perSmdb', dbSheets, set.prefix) }
     ];
-  }, [set.sheets.length, project, perSheet, dbSheets, set.prefix]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [set.sheets.length, project, perSheet, dbSheets, set.prefix]);
 
   const editSheet = set.sheets.find((s) => s.id === editing);
   const none = !set.sheets.length;
