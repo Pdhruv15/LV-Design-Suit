@@ -342,6 +342,8 @@ export interface Project {
   studyReportPresets?: StudyReportPreset[]; // saved scopes / study sets for repeat submissions
   calc?: { autoRun?: boolean }; // run the network studies on every change (default: on Run / F5 only)
   studySettings?: StudySettings;
+  /** Project standards and specifications listed in the design report (Codes and standards). Never assumed when empty. */
+  standards?: string[];
   /** People, dates and your own values used as {Name} in title blocks, notes and labels. */
   params?: ProjectParams;
   /** Title block templates (the SLD sheet uses drawing.titleTemplateId). */
@@ -538,7 +540,7 @@ export interface DmSubstationRoom {
 }
 
 /** A submission report for chosen studies on chosen boards. */
-export type StudyReportKind = 'sc' | 'lf' | 'cable' | 'earth' | 'disc' | 'phase' | 'sizing' | 'pfc' | 'busbar' | 'schedules';
+export type StudyReportKind = 'load' | 'dist' | 'sc' | 'lf' | 'cable' | 'earth' | 'disc' | 'phase' | 'sizing' | 'pfc' | 'busbar' | 'schedules';
 
 export interface StudyReportSetup {
   boards: string[]; // selected boards
@@ -551,9 +553,21 @@ export interface StudyReportSetup {
   separate: boolean; // one PDF per study
   title?: string;
   docNo?: string;
+  projectNo?: string;
   preparedBy?: string;
   checkedBy?: string;
+  approvedBy?: string;
+  issueStatus?: ReportIssueStatus;
+  /** Executive summary and design basis sections before the studies (default on). */
+  designBasis?: boolean;
+  /** Results and compliance summaries after the studies (default on). */
+  resultsSummary?: boolean;
+  /** The report type last chosen (docs/reportTypes.ts); the setup may since have been customised. */
+  reportType?: import('./docs/reportTypes').ReportType;
 }
+
+/** Issue status printed on the design report cover and document control. */
+export type ReportIssueStatus = 'For information' | 'For review' | 'For approval' | 'For construction' | 'As built';
 
 export interface StudyReportPreset extends StudyReportSetup {
   id: string;

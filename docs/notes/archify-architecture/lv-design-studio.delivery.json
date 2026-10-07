@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "b56075c7-55a7-4048-8342-dbf29c33481d",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/docs/notes/archify-architecture/candidate.json",
+  "output": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/docs/notes/archify-architecture/lv-design-studio.html",
+  "specification": {
+    "sha256": "7df977f283b107cc86167cf816a5cbd6f69af947798de00d7ec98578a579e0fc",
+    "bytes": 4120
+  },
+  "artifact": {
+    "sha256": "e3980a2b14b8824f034a6d7cf317eb0d85d81a279bd208eb4b2586be32e6c9b9",
+    "bytes": 763350
+  }
+}

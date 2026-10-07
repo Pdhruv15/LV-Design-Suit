@@ -137,7 +137,7 @@ export const BOARD_FIELDS: Fields<Board> = [
 /** Single project settings. */
 export const PROJECT_FIELDS: Fields<Snapshot> = [
   ['name', 'Project name'], ['voltageV', 'Voltage (V)'], ['frequencyHz', 'Frequency (Hz)'], ['ambientC', 'Ambient (°C)'], ['vdLimitPct', 'VD limit (%)'],
-  ['pointTemplate', 'Schedule columns'], ['studySettings', 'Design settings'], ['vdTempC', 'Cable temperature for voltage drop (°C)'],
+  ['pointTemplate', 'Schedule columns'], ['studySettings', 'Design settings'], ['standards', 'Project standards'], ['vdTempC', 'Cable temperature for voltage drop (°C)'],
   ['strictFinalDisconnection', 'Strict final-circuit disconnection'], ['vdFinalCircuits', 'Voltage drop: include final circuits'], ['status', 'Status'], ['archivedAt', 'Archived']
 ];
 

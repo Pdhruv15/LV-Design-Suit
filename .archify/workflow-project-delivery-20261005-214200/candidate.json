@@ -1,0 +1,248 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Recommended project workflow: consultant design \u2192 contractor BOQ",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "output": ".archify/workflow-project-delivery-20261005-214200/project-delivery.html"
+  },
+  "lanes": [
+    {
+      "id": "consultant",
+      "label": "CONSULTANT \u00b7 design and review \u2192"
+    },
+    {
+      "id": "contractor",
+      "label": "CONTRACTOR \u00b7 estimating and BOQ \u2190"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "create",
+      "lane": "consultant",
+      "col": 0,
+      "type": "backend",
+      "label": "Create project",
+      "sublabel": "Scope + design basis",
+      "tag": "Existing + proposed",
+      "width": 132
+    },
+    {
+      "id": "design",
+      "lane": "consultant",
+      "col": 1,
+      "type": "backend",
+      "label": "Design and modify",
+      "sublabel": "SLD + loads",
+      "tag": "Existing",
+      "width": 132
+    },
+    {
+      "id": "calculate",
+      "lane": "consultant",
+      "col": 2,
+      "type": "backend",
+      "label": "Calculate + fix",
+      "sublabel": "Fresh study results",
+      "tag": "Existing",
+      "width": 132
+    },
+    {
+      "id": "review",
+      "lane": "consultant",
+      "col": 3,
+      "type": "security",
+      "label": "Independent review",
+      "sublabel": "Comments + closure",
+      "tag": "Proposed",
+      "width": 132
+    },
+    {
+      "id": "report",
+      "lane": "consultant",
+      "col": 4,
+      "type": "backend",
+      "label": "Design review report",
+      "sublabel": "Findings + decision",
+      "tag": "Proposed",
+      "width": 132
+    },
+    {
+      "id": "issue",
+      "lane": "consultant",
+      "col": 5,
+      "type": "database",
+      "label": "Issue baseline",
+      "sublabel": "Frozen design issue",
+      "tag": "Proposed unified pack",
+      "width": 132
+    },
+    {
+      "id": "boq",
+      "lane": "contractor",
+      "col": 0,
+      "type": "backend",
+      "label": "Issue BOQ",
+      "sublabel": "Priced quantities",
+      "tag": "Existing exports",
+      "width": 132
+    },
+    {
+      "id": "commercial",
+      "lane": "contractor",
+      "col": 1,
+      "type": "security",
+      "label": "Review estimate",
+      "sublabel": "Gaps + queries",
+      "tag": "Existing + proposed",
+      "width": 132
+    },
+    {
+      "id": "price",
+      "lane": "contractor",
+      "col": 2,
+      "type": "backend",
+      "label": "Price the work",
+      "sublabel": "Material + labour",
+      "tag": "Existing + proposed",
+      "width": 132
+    },
+    {
+      "id": "scope",
+      "lane": "contractor",
+      "col": 3,
+      "type": "backend",
+      "label": "Check scope",
+      "sublabel": "Scope + allowances",
+      "tag": "Existing",
+      "width": 132
+    },
+    {
+      "id": "measure",
+      "lane": "contractor",
+      "col": 4,
+      "type": "backend",
+      "label": "Take off quantities",
+      "sublabel": "Measured quantities",
+      "tag": "Existing",
+      "width": 132
+    },
+    {
+      "id": "receive",
+      "lane": "contractor",
+      "col": 5,
+      "type": "database",
+      "label": "Receive baseline",
+      "sublabel": "Drawings + revision",
+      "tag": "Proposed baseline lock",
+      "width": 132
+    }
+  ],
+  "edges": [
+    {
+      "id": "e0",
+      "to": "design",
+      "from": "create"
+    },
+    {
+      "id": "e1",
+      "to": "calculate",
+      "from": "design"
+    },
+    {
+      "id": "e2",
+      "to": "review",
+      "from": "calculate"
+    },
+    {
+      "id": "e3",
+      "to": "report",
+      "from": "review",
+      "label": "review recorded"
+    },
+    {
+      "id": "e4",
+      "to": "issue",
+      "from": "report",
+      "label": "ready for issue"
+    },
+    {
+      "id": "e5",
+      "to": "receive",
+      "from": "issue",
+      "label": "same revision"
+    },
+    {
+      "id": "e6",
+      "to": "measure",
+      "from": "receive"
+    },
+    {
+      "id": "e7",
+      "to": "scope",
+      "from": "measure"
+    },
+    {
+      "id": "e8",
+      "to": "price",
+      "from": "scope"
+    },
+    {
+      "id": "e9",
+      "to": "commercial",
+      "from": "price"
+    },
+    {
+      "id": "e10",
+      "to": "boq",
+      "from": "commercial"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Consultant report format",
+      "items": [
+        "Document control and executive review",
+        "Documents reviewed and design basis",
+        "System description and technical assessment",
+        "Numbered findings, responses and closure evidence",
+        "Drawing / specification / quantity consistency",
+        "Conclusion, conditions and calculation appendices"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Contractor BOQ basis report",
+      "items": [
+        "Received consultant drawings and revisions",
+        "Quantity sources and measurement methods",
+        "Design quantity \u2192 adjustment \u2192 wastage \u2192 tender quantity",
+        "Material / labour rates and quotation dates",
+        "Supply / installation responsibility and scope gaps",
+        "Inclusions, exclusions, provisional items and clarifications"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Proposed controls and revision loop",
+      "items": [
+        "This is the recommended future workflow, not a claim that all features exist",
+        "Consultant owns the design baseline; contractor estimating does not silently change it",
+        "Review comments: Open \u2192 Responded \u2192 Awaiting evidence \u2192 Closed",
+        "An unresolved design finding returns to design, calculations and review before issue",
+        "A new consultant revision triggers quantity comparison and BOQ re-review",
+        "Publishing means an issue package with document register and revision references"
+      ]
+    }
+  ],
+  "mainPath": [
+    "create",
+    "design",
+    "calculate",
+    "review",
+    "report",
+    "issue"
+  ]
+}

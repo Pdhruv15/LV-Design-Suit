@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
 import { BUILTIN_CATALOGUES, sizeEnclosure } from '../calc/enclosure';
 import { BRAND_DEVICES } from '../data/brandDevices';
-import { allCatalogues, catalogueWorkbook, duplicateCatalogue, exportLibrary, importLibrary, loadDevices, matchDevice, neededDevices, TYPICAL_DEVICES, isTypical, isBrand, readCatalogueWorkbook, saveDevices, saveUserCatalogues, scheduleModules, userCatalogues, validateCatalogue, type DeviceDim } from './enclosureLibrary';
+import { allCatalogues, duplicateCatalogue, exportLibrary, importLibrary, loadDevices, matchDevice, neededDevices, TYPICAL_DEVICES, isTypical, isBrand, saveDevices, saveUserCatalogues, scheduleModules, userCatalogues, validateCatalogue, type DeviceDim } from './enclosureLibrary';
+import { catalogueWorkbook, readCatalogueWorkbook } from './enclosureWorkbook';
 
 // localStorage for node
 const store = new Map<string, string>();

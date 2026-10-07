@@ -1,3 +1,4 @@
+import { STATUS_TEXT } from '../../calc/statusText';
 import { useMemo, useState } from 'react';
 import type { Project, TrayCable, TrayMethod, TrayPlan, TrayRoute, TraySettings, TraySpacing } from '../../types';
 import {
@@ -290,7 +291,7 @@ function TrayDesignView({ project, onChange, onStatus, modeSwitch }: {
                   <td>{r.cableCount ? r.groupFactor.toFixed(2) : '—'}</td>
                   <td>{f1(r.kgPerM)}</td>
                   <td>{r.route.lengthM ?? '—'}</td>
-                  <td className={r.status}>{r.status === 'ok' ? 'OK' : r.status === 'warn' ? 'Check' : 'Too small'}</td>
+                  <td className={r.status}>{STATUS_TEXT[r.status]}</td>
                 </tr>
               ))}
             </tbody>

@@ -72,7 +72,8 @@ export default function VoltageDropStudy({ project, calcProject = project, stale
   const worstRiser = risers.reduce<RiserVd | undefined>((w, r) => (!w || r.exactTopPct > w.exactTopPct ? r : w), undefined);
   const tempC = project.vdTempC;
   const scopeName = scopeLabel(project, scope);
-  const cableSizes = useMemo(() => cables().map((c) => ({ value: String(c.csaMm2), label: `${c.csaMm2} mm²` })), [project]);
+  // Read every render: the cable table can change with the database, which is not a dependency React sees.
+  const cableSizes = cables().map((c) => ({ value: String(c.csaMm2), label: `${c.csaMm2} mm²` }));
 
   const setSelection = (ids: Set<string>) =>
     onChange({ ...project, vdSelection: candidates.filter((f) => ids.has(f.id)).map((f) => f.id) });

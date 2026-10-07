@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import {
-  Activity, CircleDot, Link2, ShieldAlert, ToggleLeft, ZapOff, BatteryCharging, BatteryFull, Star, Cable, Car, Cog, Cpu, Database, Fan, Flame, Gauge, Lightbulb, PanelLeftClose, PanelLeftOpen, Power, Server, ShieldCheck, Snowflake, Sun, Waves, Zap,
+  Activity, CircleDot, Link2, ShieldAlert, ToggleLeft, ZapOff, BatteryCharging, BatteryFull, Star, Cable, Car, Cog, Cpu, Database, Fan, Flame, Gauge, Lightbulb, PanelLeftClose, PanelLeftOpen, Power, ShieldCheck, Snowflake, Sun, Waves, Zap,
   ChevronDown, ChevronRight, Pencil, Copy, Download, Upload, Plus, Plug, Heater, PanelTop, Info, type LucideIcon
 } from 'lucide-react';
 import { dropHint, itemKey, PALETTE, type PaletteEntry, type PaletteItem } from '../model/sldEdit';

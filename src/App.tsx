@@ -1,7 +1,7 @@
 import { pickProject } from './model/projectStore';
 import { chooseProjectFile, downloadProjectFile } from './util/webApp';
 import WebBanner from './components/WebBanner';
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Feeder, Board, Project, newProject } from './types';
 import { sampleProject } from './data/sampleProject';
 import { evaluateProject, type Status } from './calc/electrical';
@@ -11,32 +11,32 @@ import ResultsTable from './components/ResultsTable';
 import SidePanel from './components/SidePanel';
 import FeederForm from './components/FeederForm';
 import BoardForm from './components/BoardForm';
-import BomView from './components/docs/BomView';
+const BomView = lazy(() => import('./components/docs/BomView'));
 import { exportDss } from './engines/opendss/exportDss';
-import EngineCompare from './components/EngineCompare';
+const EngineCompare = lazy(() => import('./components/EngineCompare'));
 import SystemDiagram from './components/SystemDiagram';
 import SystemSummaryCards from './components/SystemSummaryCards';
 import BoardPanel from './components/BoardPanel';
-import EarthingStudy from './components/studies/EarthingStudy';
-import SelectionStudy from './components/studies/SelectionStudy';
-import VoltageDropStudy from './components/studies/VoltageDropStudy';
-import RevisionsView from './components/docs/RevisionsView';
-import SpacePlanView from './components/docs/SpacePlanView';
-import TrayScheduleView from './components/docs/TrayScheduleView';
-import SubstationAreaView from './components/docs/SubstationAreaView';
-import UpsStudy from './components/studies/UpsStudy';
-import SolarStudy from './components/studies/SolarStudy';
-import StudyReportsView from './components/docs/StudyReportsView';
-import QuickCalcs from './components/QuickCalcs';
-import CoordinationStudy from './components/studies/CoordinationStudy';
-import { TransformerGeneratorStudy } from './components/studies/SizingStudy';
-import PfcStudy from './components/studies/PfcStudy';
-import BusbarStudy from './components/studies/BusbarStudy';
-import BuildingView from './components/docs/BuildingView';
-import ProjectDashboard from './components/docs/ProjectDashboard';
-import HelpView from './components/HelpView';
-import ParametersView from './components/docs/ParametersView';
-import TitleBlockDesigner from './components/docs/TitleBlockDesigner';
+const EarthingStudy = lazy(() => import('./components/studies/EarthingStudy'));
+const SelectionStudy = lazy(() => import('./components/studies/SelectionStudy'));
+const VoltageDropStudy = lazy(() => import('./components/studies/VoltageDropStudy'));
+const RevisionsView = lazy(() => import('./components/docs/RevisionsView'));
+const SpacePlanView = lazy(() => import('./components/docs/SpacePlanView'));
+const TrayScheduleView = lazy(() => import('./components/docs/TrayScheduleView'));
+const SubstationAreaView = lazy(() => import('./components/docs/SubstationAreaView'));
+const UpsStudy = lazy(() => import('./components/studies/UpsStudy'));
+const SolarStudy = lazy(() => import('./components/studies/SolarStudy'));
+const StudyReportsView = lazy(() => import('./components/docs/StudyReportsView'));
+const QuickCalcs = lazy(() => import('./components/QuickCalcs'));
+const CoordinationStudy = lazy(() => import('./components/studies/CoordinationStudy'));
+const TransformerGeneratorStudy = lazy(() => import('./components/studies/SizingStudy').then((m) => ({ default: m.TransformerGeneratorStudy })));
+const PfcStudy = lazy(() => import('./components/studies/PfcStudy'));
+const BusbarStudy = lazy(() => import('./components/studies/BusbarStudy'));
+const BuildingView = lazy(() => import('./components/docs/BuildingView'));
+const ProjectDashboard = lazy(() => import('./components/docs/ProjectDashboard'));
+const HelpView = lazy(() => import('./components/HelpView'));
+const ParametersView = lazy(() => import('./components/docs/ParametersView'));
+const TitleBlockDesigner = lazy(() => import('./components/docs/TitleBlockDesigner'));
 import DrawingsView from './components/docs/DrawingsView';
 import { withCableRefs } from './model/cableRefs';
 import { withEarthPitIds } from './model/earthingPlan';
@@ -45,10 +45,14 @@ import { movePanelToSheet, setOf } from './model/drawingSet';
 import { boardsInSupplyOrder } from './calc/summary';
 import ComponentEditor from './components/ComponentEditor';
 import { componentPreset, newComponent, syncComponent, type UserComponent } from './model/components';
-import { CableScheduleView, DbScheduleView, EquipmentScheduleView, ReportView } from './components/docs/Documents';
-import LoadScheduleView from './components/docs/LoadScheduleView';
+const documents = () => import('./components/docs/Documents');
+const CableScheduleView = lazy(() => documents().then((m) => ({ default: m.CableScheduleView })));
+const DbScheduleView = lazy(() => documents().then((m) => ({ default: m.DbScheduleView })));
+const EquipmentScheduleView = lazy(() => documents().then((m) => ({ default: m.EquipmentScheduleView })));
+const ReportView = lazy(() => documents().then((m) => ({ default: m.ReportView })));
+const LoadScheduleView = lazy(() => import('./components/docs/LoadScheduleView'));
 import { refreshBoard } from './model/schedule';
-import DatabaseView from './components/docs/DatabaseView';
+const DatabaseView = lazy(() => import('./components/docs/DatabaseView'));
 import { pullLibrary } from './database/librarySync';
 import { applyDatabase, applyParameters, databaseSeeds, EMPTY_DATABASE, parseDatabase, syncLibrary, type Database, type RawDatabase } from './database/database';
 
@@ -84,9 +88,9 @@ import PresetEditor from './components/PresetEditor';
 import { isScheduleCircuit } from './calc/loadSchedule';
 import { CABLE_TYPE_DEFS, cableTypeDef } from './model/cableTypes';
 import { saveText } from './util/files';
-import SldExportDialog from './components/SldExportDialog';
+const SldExportDialog = lazy(() => import('./components/SldExportDialog'));
 import PasteBoardDialog from './components/PasteBoardDialog';
-import EnclosureSizing from './components/EnclosureSizing';
+const EnclosureSizing = lazy(() => import('./components/EnclosureSizing'));
 import EarthingView from './components/EarthingView';
 import PanelsPage from './components/PanelsPage';
 import DiscriminationPanel from './components/DiscriminationPanel';
@@ -98,20 +102,20 @@ import { applyDetails, withArchived, type ProjectDetails } from './model/project
 import ProjectDetailsDialog from './components/ProjectDetailsDialog';
 import { BriefDialog, NewProjectWizard } from './components/BriefEditor';
 import BaselineBar from './components/BaselineBar';
-import ChangesView from './components/docs/ChangesView';
-import ReviewView from './components/docs/ReviewView';
+const ChangesView = lazy(() => import('./components/docs/ChangesView'));
+const ReviewView = lazy(() => import('./components/docs/ReviewView'));
 import { applyTemplateSystem, loadTemplates, saveTemplates, templateFrom, type SetupTemplate } from './model/setupTemplate';
 import CheckpointsPanel from './components/docs/CheckpointsPanel';
-import ReceivedDocsView from './components/docs/ReceivedDocsView';
+const ReceivedDocsView = lazy(() => import('./components/docs/ReceivedDocsView'));
 import { applyBrief, type ProjectBrief } from './model/brief';
 import { defaultsPreview } from './model/setupPreview';
 import { copyProject, isFutureSchema, migrateProject } from './model/projectMigrate';
-import { diffSections, projectFingerprint, type FileStamp } from './model/saveSafety';
+import { projectFingerprint, type FileStamp } from './model/saveSafety';
 import { CompareDialog, ConflictDialog, ExternalChangeBar } from './components/SaveDialogs';
 import PreferencesDialog from './components/PreferencesDialog';
 import PanelTree from './components/PanelTree';
 import { moveBoard, moveSummary, reorderBoard } from './model/moveBoard';
-import ProjectsDashboard from './components/ProjectsDashboard';
+const ProjectsDashboard = lazy(() => import('./components/ProjectsDashboard'));
 import { NameDialog, UnsavedDialog } from './components/FileDialogs';
 import type { BoardKind, ProjectStatus } from './types';
 type DiagramMode = 'system' | 'board';
@@ -130,11 +134,12 @@ export default function App() {
   // The project, with undo / redo. Opening or starting a project clears the history.
   const history = useHistory<Project>(normalised(sampleProject));
   const project = history.value;
-  const setProject: typeof history.set = useCallback((value, opts) => history.set((prev) => {
+  const setHistory = history.set;
+  const setProject: typeof history.set = useCallback((value, opts) => setHistory((prev) => {
     const before = withEarthPitIds(prev);
     const next = typeof value === 'function' ? value(before) : value;
     return withEarthPitIds(next, before);
-  }, opts), [history.set]);
+  }, opts), [setHistory]);
   // SLD tabs: null = Design (the working canvas), else a drawing sheet.
   const [sheetTab, setSheetTab] = useState<string | null>(null);
   const [sheetOutlinesOn, setSheetOutlinesOn] = useState(false);
@@ -234,10 +239,13 @@ export default function App() {
     window.lvds.database.init(databaseSeeds()).then(receiveDatabase).then(() => pullLibrary()).catch((e) => setStatus(`Database: ${e.message}`));
   }
 
+  // The latest handlers, so the listener registered once on start never runs an old render's copy.
+  const dbHandlers = useRef({ initDatabase, receiveDatabase });
+  dbHandlers.current = { initDatabase, receiveDatabase };
   useEffect(() => {
     if (!hasDatabase) return;
-    initDatabase();
-    return window.lvds.database.onChange(receiveDatabase);
+    dbHandlers.current.initDatabase();
+    return window.lvds.database.onChange((raw) => dbHandlers.current.receiveDatabase(raw));
   }, []);
   // Navigating (left menu or ribbon) keeps the ribbon on the matching tab.
   const setView = (v: MainView) => {
@@ -255,7 +263,7 @@ export default function App() {
   // inputs changes. Auto-run (project setting) runs them on every change.
   const [run, setRun] = useState<CalcRun | undefined>(() => runCalculations(project));
   const autoRun = !!project.calc?.autoRun;
-  useEffect(() => { if (autoRun && run?.project !== project) setRun(runCalculations(project)); }, [autoRun, project]);
+  useEffect(() => { if (autoRun && run?.project !== project) setRun(runCalculations(project)); }, [autoRun, project, run?.project]);
   const staleKeys = useMemo(() => staleStudies(run, project), [run, project]);
   const stale = staleKeys.map((k) => STUDY_LABEL[k]);
   // What the studies show: the project as last run while out of date,
@@ -389,7 +397,7 @@ export default function App() {
     };
     window.addEventListener('focus', check);
     return () => window.removeEventListener('focus', check);
-  }, [hasBridge]);
+  }, []);
 
   /** The file on disk next to what is open: the same review as a save conflict. */
   async function reviewDiskChanges() {
@@ -441,7 +449,8 @@ export default function App() {
     if (!boardResults.find((r) => r.feeder.id === selected)) {
       setSelected(boardResults[0]?.feeder.id ?? null);
     }
-  }, [board?.id]);
+    // Only when another board opens: picking or clearing a circuit on this board must not re-select one.
+  }, [board?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function selectFeeder(id: string) {
     const f = project.feeders.find((x) => x.id === id);
@@ -1241,6 +1250,7 @@ export default function App() {
           </>
         ) : (
           <main className="mid" style={{ gridColumn: '2 / span 2' }}>
+            <Suspense fallback={<p className="m">Loading…</p>}>
             {view === 'load-schedule' && board && (
               <LoadScheduleView project={project} onOpenRiser={() => setView('busbar')} boardId={board.id} db={db} onBoard={(id) => setActiveBoardId(id)} onChange={setProject} onStatus={setStatus} onSettings={() => setShowSettings(true)} />
             )}
@@ -1360,6 +1370,7 @@ export default function App() {
                 <BomView command={bomCmd} project={project} results={allResults} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />
               </>
             )}
+            </Suspense>
           </main>
         )}
       </div>
@@ -1434,13 +1445,13 @@ export default function App() {
         />
       )}
       {showExport && (
-        <SldExportDialog
+        <Suspense fallback={null}><SldExportDialog
           project={project}
           stale={staleKeys.length > 0}
           onSave={(d) => setProject((p) => ({ ...p, drawing: d }))}
           onStatus={setStatus}
           onClose={() => setShowExport(false)}
-        />
+        /></Suspense>
       )}
       {editComponent && <ComponentEditor project={project} initial={editComponent} onSave={saveComponent} onClose={() => setEditComponent(null)} />}
       {showPrefs && (
