@@ -2,12 +2,13 @@ import { useMemo, useState } from 'react';
 import { useStable } from '../util/useStable';
 import type { Project } from '../types';
 import { DEFAULT_SPARE_PCT, applicableRules, selectionFrom, sizeEnclosure, spareFromPct, type Candidate, type EnclosureCatalogue, type Mounting, type SizingInput } from '../calc/enclosure';
-import { allCatalogues, isTypical, loadDevices, neededDevices, saveDevices, scheduleModules, validateCatalogue, type NeededDevice } from '../model/enclosureLibrary';
+import { allCatalogues, isTypical, loadDevices, TYPICAL_DEVICES, neededDevices, saveDevices, scheduleModules, validateCatalogue, type NeededDevice } from '../model/enclosureLibrary';
 import CatalogueManager from './CatalogueManager';
 import { safeFileName, savePdf } from '../util/files';
 import { esc } from '../docs/report';
 import { Page } from './ui';
 import { roleOf } from '../model/emergency';
+import { BRAND_DEVICES } from '../data/brandDevices';
 
 const RESULT: Record<Candidate['result'], string> = { fits: 'Fits', 'too-small': 'Too small', 'not-listed': 'Not in chart', confirm: 'Confirm with supplier' };
 const CLS: Record<Candidate['result'], string> = { fits: 'ok', 'too-small': 'bad', 'not-listed': 'm', confirm: 'warn' };
@@ -61,16 +62,17 @@ export default function EnclosureSizing({ project, boardId, onChange, onStatus }
   const cat = catalogues.find((c) => c.id === catId) ?? catalogues[0];
   const catBad = validateCatalogue(cat).filter((x) => x.level === 'bad');
   // From schedule: the board's physical devices, widths only from device records.
-  const [devRev, setDevRev] = useState(0); // bumps when a device record is added here
+  // The user's device records (saved on this computer): re-read when one is added here or the catalogue manager closes.
+  const [devices, setDevices] = useState(loadDevices);
   const [widths, setWidths] = useState<Record<string, string>>({});
-  const needed = useMemo(() => (method === 'schedule' ? neededDevices(project, panel) : []), [method, project, panel, manager, devRev]); // eslint-disable-line react-hooks/exhaustive-deps
+  const needed = useMemo(() => (method === 'schedule' ? neededDevices(project, panel, [...devices, ...BRAND_DEVICES, ...TYPICAL_DEVICES]) : []), [method, project, panel, devices]);
   /** A width typed for an unmapped device becomes a device record (this type, poles and rating) — the user's figure, not a guess. */
   const addWidth = (d: NeededDevice) => {
     const w = Number(widths[d.key]);
     if (!(w > 0)) return;
     saveDevices([...loadDevices(), { id: `dv-${Date.now().toString(36)}`, manufacturer: 'Enter manufacturer', model: d.key, kind: d.kind, poles: d.poles, ratingMinA: d.ratingA, ratingMaxA: d.ratingA, modules: w, note: `Added from ${panel}'s schedule` }]);
     setWidths({ ...widths, [d.key]: '' });
-    setDevRev((n) => n + 1);
+    setDevices(loadDevices());
     onStatus(`Device record added: ${d.key} = ${w} module${w === 1 ? '' : 's'} — set the manufacturer and model in Catalogue manager → Device dimensions`);
   };
   const fromSchedule = scheduleModules(needed);
@@ -245,7 +247,7 @@ export default function EnclosureSizing({ project, boardId, onChange, onStatus }
         <span className="sp" />
         <button className="chip primary" disabled={!panel || !chosen || chosen.result === 'too-small' || chosen.result === 'not-listed' || !!r.invalid || incomplete || catBad.length > 0} onClick={use} title={chosen?.result === 'confirm' ? 'Saved with "supplier to confirm" — the chart\'s cases overlap here' : undefined}>Use for {panel || 'this panel'}{chosen?.result === 'confirm' ? ' (supplier to confirm)' : ''}</button>
       </div>
-      {manager && <CatalogueManager onStatus={onStatus} onClose={() => { setManager(false); const next = allCatalogues(); setCatalogues(next); if (!next.some((c) => c.id === catId)) setCatId(next[0].id); }} />}
+      {manager && <CatalogueManager onStatus={onStatus} onClose={() => { setManager(false); setDevices(loadDevices()); const next = allCatalogues(); setCatalogues(next); if (!next.some((c) => c.id === catId)) setCatId(next[0].id); }} />}
     </Page>
   );
 }

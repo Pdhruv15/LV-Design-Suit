@@ -23,10 +23,10 @@ const HINT: Record<PfcStrategy, string> = {
  * individual, which boards), how they're built (steps, detuning), then add
  * them to the SLD and export the calculation sheet. */
 export default function PfcStudy({ project, onChange, onStatus }: { project: Project; onChange: (p: Project) => void; onStatus?: (m: string) => void }) {
-  const plan = pfcPlanOf(project);
+  const plan = useMemo(() => pfcPlanOf(project), [project]);
   const target = settingsOf(project).pfTarget;
   const setPlan = (patch: Partial<PfcPlan>) => onChange({ ...project, pfc: { ...project.pfc, ...patch } });
-  const r = useMemo(() => planPfc(project, plan), [project]); // eslint-disable-line react-hooks/exhaustive-deps
+  const r = useMemo(() => planPfc(project, plan), [project, plan]);
   const boards = useMemo(() => boardsInSupplyOrder(project), [project]);
   const mains = boards.filter((b) => !b.upstreamId);
   const depth = (id: string) => { let d = 0, b = project.boards.find((x) => x.id === id); while (b?.upstreamId && d < 20) { d++; b = project.boards.find((x) => x.id === b!.upstreamId); } return d; };

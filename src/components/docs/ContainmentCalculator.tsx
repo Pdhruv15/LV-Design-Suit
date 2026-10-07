@@ -3,6 +3,7 @@ import type { Project } from '../../types';
 import { calcContainment, CONTAINMENT_DEFAULT, CONTAINMENT_LABEL, containmentSvg, type ContainmentInput, type ContainmentType } from '../../calc/containment';
 import { containmentReportHtml } from '../../docs/containmentReport';
 import { safeFileName, savePdf } from '../../util/files';
+import { useStable } from '../../util/useStable';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const f2 = (n: number) => n.toFixed(2);
@@ -18,10 +19,10 @@ function Num({ label, value, onSet, unit, title }: { label: string; value?: numb
 
 /** Custom containment: cables → tray / ladder / basket / trunking / conduit / trench / duct bank. */
 export default function ContainmentCalculator({ project, onChange, onStatus }: { project: Project; onChange: (p: Project) => void; onStatus: (m: string) => void }) {
-  const input: ContainmentInput = { ...CONTAINMENT_DEFAULT, ...project.containmentCalc };
+  const input = useStable<ContainmentInput>({ ...CONTAINMENT_DEFAULT, ...project.containmentCalc });
   const set = (patch: Partial<ContainmentInput>) => onChange({ ...project, containmentCalc: { ...input, ...patch } });
-  const r = useMemo(() => calcContainment(input), [JSON.stringify(input)]); // eslint-disable-line react-hooks/exhaustive-deps
-  const svg = useMemo(() => containmentSvg(r, input), [r]); // eslint-disable-line react-hooks/exhaustive-deps
+  const r = useMemo(() => calcContainment(input), [input]);
+  const svg = useMemo(() => containmentSvg(r, input), [r, input]);
   const cables = input.cables;
   const t = input.type;
   const tray = t === 'tray' || t === 'ladder' || t === 'basket';

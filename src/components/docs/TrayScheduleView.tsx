@@ -1,6 +1,6 @@
 import { STATUS_TEXT } from '../../calc/statusText';
-import { useMemo, useState } from 'react';
-import type { Project, TrayCable, TrayMethod, TrayPlan, TrayRoute, TraySettings, TraySpacing } from '../../types';
+import { useMemo, useRef, useState } from 'react';
+import type { Feeder, Project, TrayCable, TrayMethod, TrayPlan, TrayRoute, TraySettings, TraySpacing } from '../../types';
 import {
   addFeedersToRoute, deleteRoute, newTrayId, nextRouteName, odsOf, onRoute as isOnRoute, panelCables, removeFeederFromRoute,
   renameRoute, routeSettings, sizeAll, SPACING_LABEL, TRAY_DEPTHS, trayFeeders, trayPlanOf, trayQuantities, unroutedFeeders, type TrayResult
@@ -71,27 +71,28 @@ function TrayDesignView({ project, onChange, onStatus, modeSwitch }: {
   onStatus: (m: string) => void;
   modeSwitch: React.ReactNode;
 }) {
-  const plan = trayPlanOf(project);
+  const plan = useMemo(() => trayPlanOf(project), [project]);
   const s = plan.settings;
   const setPlan = (next: TrayPlan, step = false) => onChange({ ...project, trays: next }, step);
   const setSettings = (patch: Partial<TraySettings>) => setPlan({ ...plan, settings: { ...s, ...patch } });
   const setRoute = (id: string, patch: Partial<TrayRoute>, step = false) =>
     setPlan({ ...plan, routes: plan.routes.map((r) => (r.id === id ? { ...r, ...patch } : r)) }, step);
-  const results = useMemo(() => sizeAll(project, plan), [project]); // eslint-disable-line react-hooks/exhaustive-deps
-  const quantities = useMemo(() => trayQuantities(results, s), [results]); // eslint-disable-line react-hooks/exhaustive-deps
+  const results = useMemo(() => sizeAll(project, plan), [project, plan]);
+  const quantities = useMemo(() => trayQuantities(results, s), [results, s]);
   const [showOds, setShowOds] = useState(false);
-  const odSheet = useMemo(() => buildOdSheet(odsOf(plan)), [project.trays?.ods]); // eslint-disable-line react-hooks/exhaustive-deps
+  const odSheet = useMemo(() => buildOdSheet(odsOf(plan)), [plan]);
   const boards = boardsInSupplyOrder(project);
   const [busy, setBusy] = useState(false);
   const [withFinal, setWithFinal] = useState(false);
   const [onlyUnrouted, setOnlyUnrouted] = useState(false);
   const [showRouting, setShowRouting] = useState(true);
   const unrouted = useMemo(() => unroutedFeeders(project, withFinal), [project, withFinal]);
-  // Rows stay put while you type a path; the filter applies when it's switched on.
-  const routingRows = useMemo(
-    () => (onlyUnrouted ? unrouted : trayFeeders(project, withFinal)),
-    [onlyUnrouted, withFinal, project.feeders.length] // eslint-disable-line react-hooks/exhaustive-deps
-  );
+  // Rows stay put while you type a path (a cable must not vanish from "only unrouted" mid-typing): the
+  // list is taken again only when the filter, the final-circuit option or the number of cables changes.
+  const rowsKey = `${onlyUnrouted}|${withFinal}|${project.feeders.length}`;
+  const rowsSnapshot = useRef<{ key: string; rows: Feeder[] } | null>(null);
+  if (rowsSnapshot.current?.key !== rowsKey) rowsSnapshot.current = { key: rowsKey, rows: onlyUnrouted ? unrouted : trayFeeders(project, withFinal) };
+  const routingRows = rowsSnapshot.current.rows;
   const routingSheet = useMemo(() => {
     const live = routingRows.map((f) => project.feeders.find((x) => x.id === f.id)).filter((f): f is NonNullable<typeof f> => !!f);
     return buildRoutingSheet(project, live);

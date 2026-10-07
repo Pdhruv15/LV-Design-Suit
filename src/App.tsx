@@ -147,7 +147,8 @@ export default function App() {
   const [resTab, setResTab] = useState<'summary' | 'buses' | 'feeders' | null>(() => { try { const v = localStorage.getItem('lvds.resTab'); return v === 'summary' || v === 'buses' || v === 'feeders' ? v : null; } catch { return null; } });
   const [sldFocus, setSldFocus] = useState<{ kind: 'board' | 'feeder'; id: string; n: number } | undefined>();
   // A cable type new to the project gets the next free reference number (kept).
-  useEffect(() => { history.patch(withCableRefs); }, [project.feeders, project.cableRefs]); // eslint-disable-line react-hooks/exhaustive-deps
+  const patchHistory = history.patch;
+  useEffect(() => { patchHistory(withCableRefs); }, [patchHistory, project.feeders, project.cableRefs]);
   const [currentFile, setCurrentFile] = useState<string | undefined>(undefined);
   const [projectsFolder, setProjectsFolder] = useState<string>('');
   const [projectList, setProjectList] = useState<ProjectMeta[]>([]);
