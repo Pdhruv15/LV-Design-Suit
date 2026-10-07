@@ -1,3 +1,4 @@
+import { STATUS_TEXT } from '../calc/statusText';
 import ExcelJS from 'exceljs';
 import { routeSettings, SPACING_LABEL, trayQuantities, type TrayResult, odsSource } from '../calc/cableTray';
 import { revisionStamp } from '../model/revisions';
@@ -76,7 +77,7 @@ export function buildTrayWorkbook(project: Project, plan: TrayPlan, results: Tra
   sum.addRow([]);
   row(sum, ['Route', 'From', 'To', 'Panels (cables from)', 'Cables', 'Required width (mm)', 'Tray W × D (mm)', 'Spare %', 'Grouping', 'Weight (kg/m)', 'Length (m)', 'Status'], { bold: true, fill: GREY });
   for (const r of results) {
-    row(sum, [r.route.name, r.route.from ?? '', r.route.to ?? '', r.panels.join(', '), r.cableCount, Math.round(r.requiredMm), r.cableCount ? trayText(r) : '—', Math.round(r.sparePctActual), Math.round(r.groupFactor * 100) / 100, r1(r.kgPerM), r.route.lengthM ?? null, r.status === 'ok' ? 'OK' : r.status === 'warn' ? 'Check' : 'Too small']);
+    row(sum, [r.route.name, r.route.from ?? '', r.route.to ?? '', r.panels.join(', '), r.cableCount, Math.round(r.requiredMm), r.cableCount ? trayText(r) : '—', Math.round(r.sparePctActual), Math.round(r.groupFactor * 100) / 100, r1(r.kgPerM), r.route.lengthM ?? null, STATUS_TEXT[r.status]]);
   }
   sum.addRow([]);
   row(sum, ['', `Tray BOQ — ${s.trayType}`], { bold: true, border: false });

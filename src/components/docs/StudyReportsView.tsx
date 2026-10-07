@@ -20,6 +20,9 @@ import { buildLoadScheduleHtml } from '../../docs/loadScheduleDoc';
 import { scheduleCircuits } from '../../calc/loadSchedule';
 import { revisionStamp } from '../../model/revisions';
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
+import { applyReportType, matchingType, REPORT_TYPES } from '../../docs/reportTypes';
+import { issueCounts, validateReport } from '../../docs/reportValidation';
+import { ISSUE_STATUSES, missingFields, pageFrame, reportDoc, type ReportMeta } from '../../docs/reportFrame';
 import SystemDiagram from '../SystemDiagram';
 import { Page, StaleBanner } from '../ui';
 
@@ -82,6 +85,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
   const boards = boardsInSupplyOrder(project);
   const scope = useMemo(() => scopeOf(calc, setup), [calc, setup.boards, setup.downstream, setup.mode]); // eslint-disable-line react-hooks/exhaustive-deps
   const data: CalcData | undefined = run && { project: run.project, results: run.results, earthing: run.earthing, selectivity: run.selectivity };
+  const basisOpt = { designBasis: setup.designBasis !== false, results: setup.resultsSummary !== false, data };
   const sections: Section[] = useMemo(
     () => (data ? setup.studies.map((k) => buildSection(k, data, scope)) : []),
     [run, scope, setup.studies] // eslint-disable-line react-hooks/exhaustive-deps
@@ -92,9 +96,15 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
   const [busy, setBusy] = useState('');
   const [presetName, setPresetName] = useState('');
   const [issuesOnly, setIssuesOnly] = useState(false);
-  const [tabPicked, setTab] = useState<'boards' | 'studies' | 'output' | 'sld' | 'contents'>('boards');
+  const [tabPicked, setTab] = useState<'boards' | 'studies' | 'output' | 'sld' | 'contents' | 'checks' | 'preview'>('boards');
   const presets = project.studyReportPresets ?? [];
   const title = setup.title || defaultTitle(setup.studies);
+  const reportMeta: ReportMeta = { title, docNo: setup.docNo, projectNo: setup.projectNo, preparedBy: setup.preparedBy, checkedBy: setup.checkedBy, approvedBy: setup.approvedBy, issueStatus: setup.issueStatus };
+  const issues = useMemo(() => validateReport({ project: calc, meta: reportMeta, scope, sections, data, stale, designBasis: basisOpt.designBasis, resultsSummary: basisOpt.results }),
+    [calc, scope, sections, stale, setup]); // eslint-disable-line react-hooks/exhaustive-deps
+  const ic = issueCounts(issues);
+  /** Errors are never hidden: exporting with any asks first. */
+  const confirmIssues = () => !ic.error || window.confirm(`The pre-export check found ${ic.error} error(s) and ${ic.warning} warning(s) — see the Pre-export check tab.\n\nExport anyway?`);
   const depth = (id: string) => {
     let d = 0;
     let b = project.boards.find((x) => x.id === id);
@@ -111,23 +121,25 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
 
   async function exportPdf() {
     if (!data || !sections.length) return;
+    if (!confirmIssues()) return;
     setBusy('pdf');
     try {
       const slds: Partial<Record<StudyReportKind, string>> = {};
       if (setup.sld) for (const s of sections) slds[s.key] = await captureSld(drawing, data, s.key);
-      const meta = { title, docNo: setup.docNo, preparedBy: setup.preparedBy, checkedBy: setup.checkedBy };
+      const meta: ReportMeta = { title, docNo: setup.docNo, projectNo: setup.projectNo, preparedBy: setup.preparedBy, checkedBy: setup.checkedBy, approvedBy: setup.approvedBy, issueStatus: setup.issueStatus };
       const base = safeFileName(`${project.name} ${setup.docNo ?? ''}`.trim());
       const scopeTag = scope.all ? '' : ` ${scope.roots.map((b) => b.id).join('+')}`;
       if (setup.separate && sections.length > 1) {
         let saved = 0;
         for (const s of sections) {
-          const html = buildStudyReportHtml(project, scope, [s], { ...meta, title: setup.title ? `${setup.title} — ${s.title}` : s.title }, slds);
-          const m = await savePdf(`${base} - ${safeFileName(s.title + scopeTag)}.pdf`, html, { cssPages: true });
+          const m1 = { ...meta, title: setup.title ? `${setup.title} — ${s.title}` : s.title };
+          const make = (pages: Record<string, number>) => buildStudyReportHtml(project, scope, [s], m1, slds, { ...basisOpt, pages });
+          const m = await savePdf(`${base} - ${safeFileName(s.title + scopeTag)}.pdf`, make({}), { cssPages: true, frame: pageFrame(reportDoc(project, m1)), paginate: make });
           if (m) saved++;
         }
         onStatus(`Saved ${saved} of ${sections.length} study reports`);
       } else {
-        const m = await savePdf(`${base} - ${safeFileName(title + scopeTag)}.pdf`, buildStudyReportHtml(project, scope, sections, meta, slds), { cssPages: true });
+        const m = await savePdf(`${base} - ${safeFileName(title + scopeTag)}.pdf`, buildStudyReportHtml(project, scope, sections, meta, slds, { ...basisOpt, pages: {} }), { cssPages: true, frame: pageFrame(reportDoc(project, meta)), paginate: (pages) => buildStudyReportHtml(project, scope, sections, meta, slds, { ...basisOpt, pages }) });
         if (m) onStatus(m);
       }
     } catch (e) {
@@ -139,6 +151,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
 
   async function exportExcel() {
     if (!sections.length) return;
+    if (!confirmIssues()) return;
     setBusy('xlsx');
     try {
       const bytes = await workbookBytes(buildStudyWorkbook(calc, scope, sections, { title, docNo: setup.docNo, preparedBy: setup.preparedBy, checkedBy: setup.checkedBy }));
@@ -153,9 +166,10 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
 
   async function exportWord() {
     if (!sections.length) return;
+    if (!confirmIssues()) return;
     setBusy('docx');
     try {
-      const doc = buildStudyDocx(calc, scope, sections, { title, docNo: setup.docNo, preparedBy: setup.preparedBy, checkedBy: setup.checkedBy });
+      const doc = buildStudyDocx(calc, scope, sections, reportMeta, basisOpt);
       const m = await saveBinary(`${safeFileName(`${project.name} ${title}`)}.docx`, await docxBytes(doc), 'Word document', 'docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
       if (m) onStatus(m);
     } catch (e) {
@@ -173,6 +187,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
   async function exportPack() {
     const toBytes = window.lvds?.files?.pdfBytes;
     const snap = run; // frozen here: later edits can't mix into this package
+    if (!confirmIssues()) return;
     if (!snap || !data || !sections.length) return;
     if (!toBytes) { onStatus('The issue package is made by the desktop app — download it, or use Export PDF here (opens the print dialog)'); return; }
     setBusy('pack');
@@ -183,10 +198,10 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
       const snapSections = setup.studies.map((k) => buildSection(k, snapData, snapScope));
       const slds: Partial<Record<StudyReportKind, string>> = {};
       if (setup.sld) for (const s of snapSections) slds[s.key] = await captureSld(drawingProject(p, snapScope), snapData, s.key);
-      const meta = { title, docNo: setup.docNo, preparedBy: setup.preparedBy, checkedBy: setup.checkedBy };
+      const meta: ReportMeta = { title, docNo: setup.docNo, projectNo: setup.projectNo, preparedBy: setup.preparedBy, checkedBy: setup.checkedBy, approvedBy: setup.approvedBy, issueStatus: setup.issueStatus };
       const parts: Uint8Array[] = [];
       parts.push(await toBytes({ html: buildDashboardHtml(p, buildDashboard(p, snap)), cssPages: true }));
-      parts.push(await toBytes({ html: buildStudyReportHtml(p, snapScope, snapSections, meta, slds), cssPages: true }));
+      parts.push(await toBytes({ html: buildStudyReportHtml(p, snapScope, snapSections, meta, slds, { ...basisOpt, data: snapData }), cssPages: true }));
       const dbs = snapScope.boards.filter((b) => scheduleCircuits(p, b.id).length);
       for (const b of dbs) parts.push(await toBytes({ html: buildLoadScheduleHtml(p, b.id), cssPages: true }));
       const titles = ['Project summary', title, ...dbs.map((b) => `Load schedule — ${b.id}`)];
@@ -220,8 +235,8 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
     onStatus(`Saved "${name}"`);
   }
 
-  const tab = (tabPicked === 'sld' && !(previewKey && setup.sld && run)) || (tabPicked === 'contents' && !sections.length) ? 'studies' : tabPicked;
-  const text = (k: 'title' | 'docNo' | 'preparedBy' | 'checkedBy', label: string, placeholder = '') => (
+  const tab = (tabPicked === 'sld' && !(previewKey && setup.sld && run)) || (tabPicked === 'contents' && !sections.length) || (tabPicked === 'preview' && !(data && sections.length)) ? 'studies' : tabPicked;
+  const text = (k: 'title' | 'docNo' | 'projectNo' | 'preparedBy' | 'checkedBy' | 'approvedBy', label: string, placeholder = '') => (
     <label>{label}<input key={`${k}-${setup[k] ?? ''}`} defaultValue={setup[k] ?? ''} placeholder={placeholder} onBlur={(e) => e.target.value.trim() !== (setup[k] ?? '') && set({ [k]: e.target.value.trim() || undefined })} /></label>
   );
 
@@ -249,10 +264,12 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
           ['studies', '2 · Studies', `${setup.studies.length} of ${STUDIES.length}`],
           ['output', '3 · Output', setup.separate && sections.length > 1 ? `${sections.length} PDFs` : 'PDF'],
           ...(previewKey && setup.sld && run ? [['sld', 'SLD preview', '']] : []),
-          ...(sections.length ? [['contents', 'Report contents', `${sections.length} section(s)`]] : [])
+          ...(sections.length ? [['contents', 'Report contents', `${sections.length} section(s)`]] : []),
+          ['checks', 'Pre-export check', ic.error ? `${ic.error} error(s)` : ic.warning ? `${ic.warning} warning(s)` : 'clear'],
+          ...(data && sections.length ? [['preview', 'Preview', '']] : [])
         ] as [typeof tabPicked, string, string][]).map(([k, label, sub]) => (
           <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>
-            {label}{sub && <span className={`m sr-tab-sub${k === 'boards' && noBoards ? ' warn' : ''}`}> · {sub}</span>}
+            {label}{sub && <span className={`m sr-tab-sub${(k === 'boards' && noBoards) || (k === 'checks' && ic.error) ? ' warn' : ''}`}> · {sub}</span>}
           </button>
         ))}
       </div>
@@ -290,6 +307,15 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
           <p className="m">{scope.feeders.length + scope.incomers.length} circuits{scope.finals.length ? ` + ${scope.finals.length} final circuits (cable and earthing studies)` : ''}.</p>
         </section>}
 
+        {tab === 'studies' && <section className="sr-box sr-types">
+          <h4 className="sr-sub">Report type <span className="m">— sets the sections below; tick sections on or off to customise</span></h4>
+          <div className="sr-type-list">
+            {REPORT_TYPES.map((t) => (
+              <button key={t.key} className={`chip${matchingType(setup) === t.key ? ' on' : ''}`} title={t.description} onClick={() => set(applyReportType(t.key))}>{t.label}</button>
+            ))}
+            {!matchingType(setup) && <span className="m">Custom selection</span>}
+          </div>
+        </section>}
         {tab === 'studies' && <section className="sr-box sr-studies">
           {STUDIES.map((s) => {
             const sec = sections.find((x) => x.key === s.key);
@@ -302,8 +328,8 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
                   <b>{s.label}</b>
                   {sec && sec.statuses.length > 0 && (
                     <em className="sr-counts">
-                      <span className="ok">{sec.statuses.length - bad - warn} within limits</span>
-                      {warn > 0 && <span className="warn"> · {warn} check</span>}
+                      <span className="ok">{sec.statuses.length - bad - warn} pass</span>
+                      {warn > 0 && <span className="warn"> · {warn} warning</span>}
                       {bad > 0 && <span className="bad"> · {bad} exceed</span>}
                     </em>
                   )}
@@ -317,13 +343,28 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
 
         {tab === 'output' && <section className="sr-box">
           <label className="sr-check"><input type="checkbox" checked={setup.sld} onChange={(e) => set({ sld: e.target.checked })} /> SLD of the chosen boards with each study's results (A3 page)</label>
+          <label className="sr-check"><input type="checkbox" checked={setup.designBasis !== false} onChange={(e) => set({ designBasis: e.target.checked })} /> Executive summary and design basis (scope, system description, codes and standards, design criteria) before the studies</label>
+          <label className="sr-check"><input type="checkbox" checked={setup.resultsSummary !== false} onChange={(e) => set({ resultsSummary: e.target.checked })} /> Results and compliance summaries (equipment, load, cables, charts, design checks) after the studies</label>
           <label className="sr-check"><input type="checkbox" checked={setup.separate} onChange={(e) => set({ separate: e.target.checked })} /> A separate PDF for each study</label>
           <div className="sr-fields">
             {text('title', 'Report title', defaultTitle(setup.studies))}
             {text('docNo', 'Document no.', 'e.g. E-CALC-003')}
+            {text('projectNo', 'Project no.')}
             {text('preparedBy', 'Prepared by')}
             {text('checkedBy', 'Checked by')}
+            {text('approvedBy', 'Approved by')}
+            <label>Issue status<select value={setup.issueStatus ?? ''} onChange={(e) => set({ issueStatus: (e.target.value || undefined) as StudyReportSetup['issueStatus'] })}>
+              <option value="">Not defined</option>
+              {ISSUE_STATUSES.map((x) => <option key={x} value={x}>{x}</option>)}
+            </select></label>
           </div>
+          {(() => {
+            const gaps = missingFields(reportDoc(project, { title, docNo: setup.docNo, projectNo: setup.projectNo, preparedBy: setup.preparedBy, checkedBy: setup.checkedBy, approvedBy: setup.approvedBy, issueStatus: setup.issueStatus }));
+            return gaps.length ? <p className="warn">Shown as "Not defined" in the report: {gaps.join(', ')}. Client, consultant and contractor come from the project information; the revision from Revisions.</p> : null;
+          })()}
+          <label className="sr-standards">Project standards and specifications <span className="m">(one per line; listed under Codes and standards — none are assumed)</span>
+            <textarea rows={4} key={(project.standards ?? []).join('\n')} defaultValue={(project.standards ?? []).join('\n')} placeholder={'e.g. DEWA Regulations for Electrical Installations 2017\nProject specification Section 26 05 00'}
+              onBlur={(e) => { const v = e.target.value.split('\n').map((x) => x.trim()).filter(Boolean); if (v.join('\n') !== (project.standards ?? []).join('\n')) onChange({ ...project, standards: v.length ? v : undefined }); }} /></label>
           <h4 className="sr-sub">Saved report sets</h4>
           <div className="sr-presets">
             {presets.map((p) => (
@@ -373,6 +414,20 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
         </>
       )}
 
+      {tab === 'checks' && (
+        <section className="sr-box sr-checks">
+          <p className="m">Checked before every export. Errors ask for confirmation; nothing is hidden or changed in the report.</p>
+          {issues.length ? <table className="schedule"><thead><tr><th>Level</th><th>Area</th><th>Issue</th></tr></thead><tbody>
+            {issues.map((x, i) => <tr key={i}><td className={x.level === 'error' ? 'bad' : x.level === 'warning' ? 'warn' : 'm'}>{x.level.toUpperCase()}</td><td>{x.area}</td><td>{x.message}</td></tr>)}
+          </tbody></table> : <p className="ok">No issues found.</p>}
+        </section>
+      )}
+      {tab === 'preview' && data && sections.length > 0 && (
+        <section className="sr-preview">
+          <p className="m">The report as it will print (single line diagrams are added on export; page header, footer and numbers are added to the PDF).</p>
+          <iframe title="Report preview" sandbox="" srcDoc={buildStudyReportHtml(calc, scope, sections, reportMeta, {}, basisOpt)} />
+        </section>
+      )}
       {tab === 'contents' && sections.length > 0 && (
         <>
           <h3 className="section-title"><label className="row m sr-issues"><input type="checkbox" checked={issuesOnly} onChange={(e) => setIssuesOnly(e.target.checked)} /> Issues only</label></h3>

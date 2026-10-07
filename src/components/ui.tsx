@@ -14,7 +14,7 @@ export function StatusCounts({ statuses }: { statuses: Status[] }) {
   return (
     <span className="counts">
       <span className="ok">{n('ok')} pass</span>
-      <span className="warn">{n('warn')} check</span>
+      <span className="warn">{n('warn')} warning</span>
       <span className="bad">{n('bad')} fail</span>
     </span>
   );
