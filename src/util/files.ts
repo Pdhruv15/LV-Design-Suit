@@ -48,11 +48,29 @@ export async function saveBinary(defaultName: string, bytes: Uint8Array, filterN
 export const saveCsv = (baseName: string, headers: string[], rows: unknown[][]) =>
   saveText(`${safeFileName(baseName)}.csv`, toCsv(headers, rows), 'CSV (Excel)', 'csv');
 
+export type PdfPage = { pageSize?: 'A4' | 'A3' | 'A2' | 'A1'; landscape?: boolean; cssPages?: boolean; bookmarks?: { title: string; page: number }[]; frame?: { headerLeft: string; headerRight: string; footerLeft: string };
+  /** Print, read the page of each anchor, and print the HTML this returns (e.g. contents with page numbers) until the pages settle. */
+  paginate?: (pages: Record<string, number>) => string };
+
+/** The finished PDF of an HTML document — layout by Chrome, then contents page numbers, the report
+ * frame (header and footer), document information and bookmarks — the same for a saved PDF and a PDF
+ * placed in an issue package. Undefined outside the desktop app. */
+export async function renderPdf(html: string, page: PdfPage = {}, fallbackTitle = ''): Promise<Uint8Array | undefined> {
+  const toBytes = hasBridge() ? window.lvds.files.pdfBytes : undefined;
+  if (!toBytes) return undefined;
+  const { PDFDocument } = await import('pdf-lib');
+  const { finishPdf, htmlTitle, paginatePdf } = await import('../docs/pdfTools');
+  const { pageSize, landscape, cssPages, bookmarks, frame, paginate } = page;
+  const render = async (h: string) => PDFDocument.load(await toBytes({ html: h, pageSize, landscape, cssPages }));
+  const doc = paginate ? await paginatePdf(render, html, paginate) : await render(html);
+  let author: string | undefined;
+  try { author = JSON.parse(localStorage.getItem('lvds.preferences') ?? '{}').profile?.name || undefined; } catch { /* none */ }
+  return finishPdf(doc, { title: htmlTitle(html) || fallbackTitle, author, bookmarks, frame });
+}
+
 /** Renders a self-contained HTML document to PDF. In the desktop app this
  * uses Electron's printToPDF; in a browser it opens the print dialog. */
-export async function savePdf(defaultName: string, html: string, page?: { pageSize?: 'A4' | 'A3' | 'A2' | 'A1'; landscape?: boolean; cssPages?: boolean; bookmarks?: { title: string; page: number }[]; frame?: { headerLeft: string; headerRight: string; footerLeft: string };
-  /** Two passes: print, read the page of each anchor, and print the HTML this returns (e.g. contents with page numbers). */
-  paginate?: (pages: Record<string, number>) => string }): Promise<string | null> {
+export async function savePdf(defaultName: string, html: string, page?: PdfPage): Promise<string | null> {
   if (!hasBridge()) {
     const w = window.open('', '_blank');
     if (!w) return 'Allow pop-ups to print the report';
@@ -62,21 +80,8 @@ export async function savePdf(defaultName: string, html: string, page?: { pageSi
     w.print();
     return 'Opened the print dialog';
   }
-  // Chrome lays the page out; pdf-lib adds page numbers, the document
-  // information and bookmarks, and saves it compactly.
-  const toBytes = window.lvds.files.pdfBytes;
-  if (toBytes) {
-    const { PDFDocument } = await import('pdf-lib');
-    const { destinationPages, finishPdf, htmlTitle } = await import('../docs/pdfTools');
-    const { pageSize, landscape, cssPages, bookmarks, frame, paginate } = page ?? {};
-    let doc = await PDFDocument.load(await toBytes({ html, pageSize, landscape, cssPages }));
-    if (paginate) doc = await PDFDocument.load(await toBytes({ html: paginate(destinationPages(doc)), pageSize, landscape, cssPages }));
-    const title = htmlTitle(html) || defaultName.replace(/[.]pdf$/i, '');
-    let author: string | undefined;
-    try { author = JSON.parse(localStorage.getItem('lvds.preferences') ?? '{}').profile?.name || undefined; } catch { /* none */ }
-    const bytes = await finishPdf(doc, { title, author, bookmarks, frame });
-    return saveBinary(defaultName, bytes, 'PDF', 'pdf', 'application/pdf');
-  }
+  const bytes = await renderPdf(html, page, defaultName.replace(/[.]pdf$/i, ''));
+  if (bytes) return saveBinary(defaultName, bytes, 'PDF', 'pdf', 'application/pdf');
   const saved = await window.lvds.files.savePdf({ defaultName, html, ...page });
   return saved ? `Saved ${saved.split(/[\\/]/).pop()}` : null;
 }

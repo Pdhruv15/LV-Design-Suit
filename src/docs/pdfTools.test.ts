@@ -24,3 +24,15 @@ describe('PDF finishing', () => {
     expect(htmlTitle('<html><head><title>A &amp; B</title></head></html>')).toBe('A & B');
   });
 });
+
+import { paginatePdf } from './pdfTools';
+describe('contents pagination', () => {
+  it('renders again until the contents page numbers stop moving', async () => {
+    // The anchors move once (contents grew a page), then settle.
+    const maps = [{ a: 2 }, { a: 3 }, { a: 3 }];
+    const seen: string[] = [];
+    let i = 0;
+    await paginatePdf(async (h) => { seen.push(h); return PDFDocument.create(); }, 'first', (p) => `with ${JSON.stringify(p)}`, 3, () => maps[Math.min(i++, maps.length - 1)]);
+    expect(seen).toEqual(['first', 'with {"a":2}', 'with {"a":3}']);
+  });
+});

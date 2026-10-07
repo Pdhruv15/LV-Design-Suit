@@ -25,7 +25,7 @@ import type { Board, Feeder, Project, StudyReportKind, StudyReportSetup } from '
 import { esc, REPORT_CSS } from './report';
 import { buildResults, resultsSections } from './compliance';
 import { equipmentData, planAppendices } from './appendices';
-import { distributionSection, loadSection, structureSection } from './calcSections';
+import { cableStatus, distributionSection, loadSection, structureSection } from './calcSections';
 import { buildDesignBasis, designBasisSections } from './designBasis';
 import type { ReportType } from './reportTypes';
 import { numberSubsections, coverPageHtml, documentControlHtml, numberSections, REPORT_DOC_CSS, reportDoc, tocHtml, type ReportMeta } from './reportFrame';
@@ -180,7 +180,8 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
 
   if (key === 'sc') {
     const sums = scope.boards.map((b) => boardSummary(p, b));
-    const rs = res(circuits);
+    // Every breaker in scope, final circuits included.
+    const rs = res([...circuits, ...scope.finals]);
     const statuses = rs.map((r) => r.icuStatus);
     return {
       key, title: info.title, statuses,
@@ -238,12 +239,12 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
 
   if (key === 'cable') {
     const rs = res([...circuits, ...scope.finals]);
-    const statuses = rs.map((r) => worst([r.protectionStatus, r.ampacityStatus, r.vdStatus]));
+    const statuses = rs.map(cableStatus);
     return {
       key, title: info.title, statuses,
       method: [
         'Cu/XLPE/SWA multicore cable, reference rating in free air; derated for the ambient temperature and for grouping (the cable tray the cable runs on, else its own parallel runs).',
-        'Overload protection per IEC 60364-4-43: Ib ≤ In ≤ Iz. Voltage drop from the main board to the load within the limit.'
+        'Overload protection per IEC 60364-4-43: Ib ≤ In ≤ Iz. Voltage drop from the main board to the load within the limit. Breaker Icu ≥ the fault at its terminals.'
       ],
       summary: [
         { label: 'Circuits checked', value: tally(statuses), status: worst(statuses) },

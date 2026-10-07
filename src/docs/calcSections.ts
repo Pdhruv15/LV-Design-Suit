@@ -24,6 +24,9 @@ const sourceText = (data: CalcData, scope: Scope) => scope.roots.map((b) => {
   return m.upstreamId ? `${m.id}: fed from ${m.upstreamId}` : m.sourceKva ? `${m.id}: transformer ${m.sourceKva} kVA, ${m.sourceImpedancePct ?? '—'} % Z` : m.supply ? `${m.id}: ${m.supply.fedFrom ?? 'authority'} supply${m.supply.faultKa ? `, ${m.supply.faultKa} kA` : ''}` : `${m.id}: supply not defined`;
 }).join('; ');
 
+/** A circuit's cable check: overload protection, ampacity, voltage drop and breaking capacity. */
+export const cableStatus = (r: FeederResult): Status => worst([r.protectionStatus, r.ampacityStatus, r.vdStatus, r.icuStatus]);
+
 /** Moves the named tables to the appendix. */
 const toAppendix = (s: Section, titles: (string | undefined)[]) => s.tables.forEach((t) => { if (titles.some((x) => x && t.title?.startsWith(x))) t.appendix = true; });
 
@@ -37,15 +40,16 @@ export function structureSection(s: Section, data: CalcData, scope: Scope): Sect
 
   switch (s.key) {
     case 'sc': {
-      const rs = res(circuits);
+      const rs = res([...circuits, ...scope.finals]);
       s.inputs = [['Supply', sourceText(data, scope)], ['System', `${p.voltageV} V, ${p.frequencyHz} Hz`]];
       s.criteria = [['Voltage factor', 'c = 1.0 (maximum fault)'], ['Breaking capacity', 'Breaker Icu ≥ prospective fault at its terminals (Ik″)']];
-      s.verification = { title: 'Breaking capacity at each busbar', headers: ['Location', 'Ik″ (kA)', 'Lowest Icu on the board (kA)', 'Margin (kA)', 'Breakers pass / check / fail', 'Status'],
+      // The governing breaker is the one with the smallest Icu ÷ Ik″: its own Icu, fault and margin are shown together.
+      s.verification = { title: 'Breaking capacity at each busbar', headers: ['Location', 'Ik″ busbar (kA)', 'Governing circuit', 'Ik″ at breaker (kA)', 'Icu (kA)', 'Margin (kA)', 'Breakers pass / check / fail', 'Status'],
         rows: scope.boards.map((b) => {
           const here = onBoard(rs, b.id), fk = boardSummary(p, b).faultKA;
-          if (!here.length) return [b.id, n(fk, 1), '—', '—', '—', '—'];
-          const icu = Math.min(...here.map((r) => r.feeder.breakerIcuKa)), st = here.map((r) => r.icuStatus);
-          return [b.id, n(fk, 1), icu, n(icu - Math.max(...here.map((r) => r.breakerFaultKA)), 1), counts(st), S(worst(st))];
+          if (!here.length) return [b.id, n(fk, 1), '—', '—', '—', '—', '—', '—'];
+          const g = here.reduce((a, r) => (r.feeder.breakerIcuKa / r.breakerFaultKA < a.feeder.breakerIcuKa / a.breakerFaultKA ? r : a)), st = here.map((r) => r.icuStatus);
+          return [b.id, n(fk, 1), g.feeder.id, n(g.breakerFaultKA, 1), g.feeder.breakerIcuKa, n(g.feeder.breakerIcuKa - g.breakerFaultKA, 1), counts(st), S(worst(st))];
         }) };
       toAppendix(s, ['Breaker breaking capacity', 'Fault at the end of each cable']);
       break;
@@ -75,11 +79,11 @@ export function structureSection(s: Section, data: CalcData, scope: Scope): Sect
           ['Design current (Ib)', `${n(r.ib, 0)} A`], ['Protective device (In)', `${r.feeder.breakerRatingA} A ${breakerTypeOf(r.feeder)}`],
           ['Selected cable', cableSizeText(r.feeder)], ['Derated capacity (Iz)', `${n(r.ampacity, 0)} A`],
           ['Ib ≤ In ≤ Iz', S(r.protectionStatus)], ['Voltage drop (total)', `${n(r.vdTotalPct, 2)} % (limit ${p.vdLimitPct} %)`],
-          ['Breaking capacity check', S(r.icuStatus)], ['Overall status', S(worst([r.protectionStatus, r.ampacityStatus, r.vdStatus, r.icuStatus]))]
+          ['Breaking capacity check', S(r.icuStatus)], ['Overall status', S(cableStatus(r))]
         ]
       }));
       s.verification = { title: 'Circuits on each board', headers: ['Board', 'Circuits', 'Pass / check / fail', 'Status'],
-        rows: scope.boards.flatMap((b) => { const here = onBoard(rs, b.id).map((r) => worst([r.protectionStatus, r.ampacityStatus, r.vdStatus])); return here.length ? [[b.id, here.length, counts(here), S(worst(here))]] : []; }) };
+        rows: scope.boards.flatMap((b) => { const here = onBoard(rs, b.id).map(cableStatus); return here.length ? [[b.id, here.length, counts(here), S(worst(here))]] : []; }) };
       toAppendix(s, ['Cables and breakers']);
       break;
     }
