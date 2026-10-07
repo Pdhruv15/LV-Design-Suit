@@ -83,7 +83,7 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
       }
     }
     setHidden(false); setQ(''); setCollapsed(collapsed.filter((id) => !reveal.has(id)));
-  }, [highlightedIds]); // Only a new batch changes the user's tree preferences.
+  }, [highlightedIds]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new batch changes the user's tree preferences
   const presentIds = useMemo(() => new Set(project.boards.map((b) => b.id)), [project.boards]);
   const highlighted = new Set(highlightedIds?.filter((id) => presentIds.has(id)));
   useEffect(() => {

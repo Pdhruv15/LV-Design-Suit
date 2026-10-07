@@ -29,8 +29,8 @@ export default function RevisionsView({ project, me = '', onChange, onStatus }: 
   const [hide, setHide] = useState<ChangeClass[]>([]);
   const fromId = revisions.some((r) => r.id === from) ? from : baseline?.revision.id ?? latest?.id ?? '';
 
-  const snap = (id: string): Snapshot | undefined => (id === CURRENT ? snapshotOf(project) : revisions.find((r) => r.id === id)?.snapshot);
   const diff = useMemo(() => {
+    const snap = (id: string): Snapshot | undefined => (id === CURRENT ? snapshotOf(project) : (project.revisions ?? []).find((r) => r.id === id)?.snapshot);
     const a = snap(fromId);
     const b = snap(to);
     return a && b ? diffProjects(a, b) : undefined;
@@ -39,7 +39,7 @@ export default function RevisionsView({ project, me = '', onChange, onStatus }: 
   const sinceCounts = sinceDiff ? countByClass(sinceDiff) : undefined;
   const sinceLatest = sinceDiff?.changes.length ?? 0;
   const counts = diff ? countByClass(diff) : undefined;
-  const shown = (diff?.changes ?? []).filter((c) => !hide.includes(c.class));
+  const shown = useMemo(() => (diff?.changes ?? []).filter((c) => !hide.includes(c.class)), [diff, hide]);
 
   const groups = useMemo(() => {
     const out = new Map<string, Change[]>();
@@ -48,7 +48,7 @@ export default function RevisionsView({ project, me = '', onChange, onStatus }: 
       out.set(k, [...(out.get(k) ?? []), c]);
     }
     return [...out.entries()];
-  }, [diff, hide]);
+  }, [shown]);
   const count = (k: Change['kind']) => shown.filter((c) => c.kind === k).length;
   const label = (id: string) => (id === CURRENT ? 'current design' : `Rev ${id}`);
 

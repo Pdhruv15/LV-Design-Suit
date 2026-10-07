@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useStable } from '../util/useStable';
 import type { Project } from '../types';
 import { DEFAULT_SPARE_PCT, applicableRules, selectionFrom, sizeEnclosure, spareFromPct, type Candidate, type EnclosureCatalogue, type Mounting, type SizingInput } from '../calc/enclosure';
 import { allCatalogues, isTypical, loadDevices, neededDevices, saveDevices, scheduleModules, validateCatalogue, type NeededDevice } from '../model/enclosureLibrary';
@@ -78,9 +79,9 @@ export default function EnclosureSizing({ project, boardId, onChange, onStatus }
     ? { equipmentModules: fromSchedule.modules, spareModules: manual.spareModules, elcbCount: fromSchedule.elcb, ...(incomerA !== undefined ? { incomerA } : {}), ...(manual.sparePct !== undefined ? { sparePct: manual.sparePct } : {}) }
     : manual;
   // Spare as a percentage follows the equipment space.
-  const input: SizingInput = base.sparePct !== undefined ? { ...base, spareModules: spareFromPct(base.equipmentModules, base.sparePct) } : base;
+  const input = useStable<SizingInput>(base.sparePct !== undefined ? { ...base, spareModules: spareFromPct(base.equipmentModules, base.sparePct) } : base);
   const incomplete = method === 'schedule' && (fromSchedule.unmapped.length > 0 || !needed.length);
-  const r = useMemo(() => sizeEnclosure(cat, input, mounting), [cat, JSON.stringify(input), mounting]); // eslint-disable-line react-hooks/exhaustive-deps
+  const r = useMemo(() => sizeEnclosure(cat, input, mounting), [cat, input, mounting]);
   const [pick, setPick] = useState<string | null>(null);
   // Rows and modules per row: Auto picks the nearest size that fits; the user can fix either for a smaller, wider or larger (future) board.
   const [rowsSel, setRowsSel] = useState(0);
