@@ -38,7 +38,7 @@ export function buildDashboardHtml(project: Project, d: Dashboard): string {
     ['Power density', d.density ? `${f1(d.density.connected)} W/m²` : '—', d.density ? `connected · ${f1(d.density.demand)} W/m² demand` : ''],
     ['Capacitors', d.capacitorKvar ? `${f0(d.capacitorKvar)} kvar` : '—', ''],
     ['Cables', lengthText(d.cableM), `${d.cableRuns} cables${d.extras.length ? ` · ${d.extras.join(' · ')}` : ''}`],
-    ['Studies', !d.studies.length ? 'Not run' : d.stale.length ? 'Out of date' : fails ? `${fails} fail` : checks ? `${checks} to check` : 'All pass', d.studies.length ? `${passes} pass · ${checks} check · ${fails} fail` : '']
+    ['Studies', !d.studies.length ? 'Not run' : d.stale.length ? 'Out of date' : fails ? `${fails} fail` : checks ? `${checks} to check` : 'All pass', d.studies.length ? `${passes} pass · ${checks} warning · ${fails} fail` : '']
   ];
   const meters = d.transformers.length
     ? `<table class="bars">${d.transformers.map((t) => `<tr><td class="bl">${esc(t.boardId)} <span class="m">${t.kva} kVA</span></td><td class="bt"><div class="track"><div class="bf" style="width:${Math.min(100, t.loadingPct).toFixed(1)}%"></div></div><div class="lim" style="left:${t.limitPct}%"></div></td><td class="bv">${f0(t.loadingPct)} %${t.status !== 'ok' ? ` <b class="${t.status}">${t.status === 'bad' ? '✕ over' : '⚠ above limit'}</b>` : ''}</td></tr>`).join('')}</table>`

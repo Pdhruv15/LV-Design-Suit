@@ -33,7 +33,7 @@ export default function EditCell(p: Props) {
     if (!editing) return;
     input.current?.focus();
     if (p.kind !== 'select') input.current?.select();
-  }, [editing]);
+  }, [editing, p.kind]);
 
   const invalid = (() => {
     if (!editing || p.kind !== 'number') return '';

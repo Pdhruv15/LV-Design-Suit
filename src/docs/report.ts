@@ -29,7 +29,7 @@ const scheduleTable = (s: Schedule) =>
 
 function counts(statuses: Status[]) {
   const n = (s: Status) => statuses.filter((x) => x === s).length;
-  return `<span class="ok">${n('ok')} pass</span> · <span class="warn">${n('warn')} check</span> · <span class="bad">${n('bad')} fail</span>`;
+  return `<span class="ok">${n('ok')} pass</span> · <span class="warn">${n('warn')} warning</span> · <span class="bad">${n('bad')} fail</span>`;
 }
 
 /** Print styles shared by the PDF reports (A4 landscape). */

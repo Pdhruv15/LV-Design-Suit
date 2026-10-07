@@ -208,12 +208,12 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
     }
     add('E', `cable:${t.value}:${f.cores}C:${f.cableCsaMm2}`, `${f.cores}C × ${f.cableCsaMm2} mm² Cu ${t.label.replace(/ \(.*\)$/, '')}`, 'm', len, f.boardId);
     const cpc = cpcOf(f);
-    if (!!t.armoured) add('I', `ecc:${cpc}`, `Earth continuity conductor 1C × ${cpc} mm² Cu/PVC, green/yellow`, 'm', len, f.boardId);
+    if (t.armoured) add('I', `ecc:${cpc}`, `Earth continuity conductor 1C × ${cpc} mm² Cu/PVC, green/yellow`, 'm', len, f.boardId);
     // Two ends per run: glands and lugs
     const g = glandSize(f.cableCsaMm2, f.cores);
     add('F', `gland:${g}:${!t.armoured ? 'A2' : 'CW'}`, `Cable gland size ${g}, ${!t.armoured ? 'A2 (unarmoured)' : 'CW (armoured)'} with shroud`, 'no', 2 * runs, f.boardId);
     add('F', `lug:${f.cableCsaMm2}`, `Crimp lug ${f.cableCsaMm2} mm² Cu`, 'no', 2 * runs * f.cores, f.boardId);
-    if (!!t.armoured) add('F', `lug:${cpc}`, `Crimp lug ${cpc} mm² Cu`, 'no', 2 * runs, f.boardId);
+    if (t.armoured) add('F', `lug:${cpc}`, `Crimp lug ${cpc} mm² Cu`, 'no', 2 * runs, f.boardId);
   }
 
   // Point counts are opt-in: a design load does not establish who supplies the equipment.

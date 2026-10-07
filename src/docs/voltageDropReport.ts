@@ -53,7 +53,7 @@ export function buildVdReportHtml(project: Project, rows: VdRow[], scope: string
     th, td { white-space: nowrap; } td:nth-child(3), td:last-child { white-space: normal; }</style></head><body>
 <h1>Voltage drop calculation</h1>
 <p class="sub">${esc(project.name)} · ${esc(scope)} · ${esc(date)} · ${rows.length} cables:
-  <span class="ok">${count('ok')} pass</span> · <span class="warn">${count('warn')} check</span> · <span class="bad">${count('bad')} fail</span>
+  <span class="ok">${count('ok')} pass</span> · <span class="warn">${count('warn')} warning</span> · <span class="bad">${count('bad')} fail</span>
   ${worst ? ` · highest total ${worst.totalPct.toFixed(2)} % (${esc(worst.feeder.id)} to ${esc(worst.toName)})` : ''}</p>
 <table><tbody>
   <tr><th>System</th><td>${project.voltageV} V, 3-phase + N, ${project.frequencyHz} Hz</td><th>Voltage drop limit</th><td>${project.vdLimitPct} % source to load</td></tr>

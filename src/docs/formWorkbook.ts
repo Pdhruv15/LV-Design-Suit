@@ -1,7 +1,6 @@
 import ExcelJS from 'exceljs';
 import { SCHEDULE_GROUPS, scheduleGroups } from '../model/scheduleGroups';
 import { boardLocation } from '../model/levels';
-import { boardsInSupplyOrder } from '../calc/summary';
 import { scheduleCircuits } from '../calc/loadSchedule';
 import type { Project } from '../types';
 import { buildDbSheet } from './dbSheet';

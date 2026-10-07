@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "LV Design Studio Architecture",
+    "subtitle": "Electron shell, React renderer, calculations and document export",
+    "output": "lv-design-studio.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/Pdhruv15/LV-Design-Suit.git",
+      "provider": "github",
+      "revision": "bcb3afeb7dfbeb248fa604623cbf0a39bedcf117"
+    }
+  },
+  "components": [
+    { "id": "user", "type": "external", "label": "Engineer", "sublabel": "Desktop user", "pos": [40, 250], "size": [130, 60] },
+    { "id": "app", "type": "frontend", "label": "React App", "sublabel": "App.tsx state", "pos": [240, 250], "size": [130, 60],
+      "sources": [{ "path": "src/App.tsx", "line": 214, "label": "runs calculations" }, { "path": "src/main.tsx", "line": 6, "label": "mounts App" }] },
+    { "id": "diagram", "type": "frontend", "label": "SLD Diagram", "sublabel": "layout + SVG", "pos": [460, 250], "size": [130, 60],
+      "sources": [{ "path": "src/components/SystemDiagram.tsx", "line": 214, "label": "layoutSystem" }] },
+    { "id": "exports", "type": "backend", "label": "Doc Exports", "sublabel": "DXF, PDF, BOQ", "pos": [700, 250], "size": [130, 60],
+      "sources": [{ "path": "src/docs/dxf.ts", "line": 115, "label": "toDxf" }, { "path": "src/docs/sldSheet.ts", "line": 88, "label": "SLD sheet HTML" }, { "path": "src/docs/boqWorkbook.ts", "line": 73, "label": "BOQ workbook" }] },
+    { "id": "files", "type": "external", "label": "Saved Files", "sublabel": "PDF, DXF, XLSX", "pos": [940, 250], "size": [130, 60] },
+    { "id": "calc", "type": "backend", "label": "Calc Runs", "sublabel": "built-in studies", "pos": [240, 410], "size": [130, 60],
+      "sources": [{ "path": "src/calc/runs.ts", "line": 74, "label": "runCalculations" }] },
+    { "id": "shell", "type": "backend", "label": "Electron Main", "sublabel": "IPC handlers", "pos": [240, 90], "size": [130, 60],
+      "sources": [{ "path": "electron/main.cjs", "line": 110, "label": "ipcMain handlers" }, { "path": "electron/preload.cjs", "line": 3, "label": "lvds bridge" }] },
+    { "id": "store", "type": "database", "label": "Project Files", "sublabel": "JSON + database", "pos": [40, 90], "size": [130, 60],
+      "sources": [{ "path": "electron/main.cjs", "line": 203, "label": "projects:save" }] },
+    { "id": "python", "type": "backend", "label": "Python Engines", "sublabel": "OpenDSS, pandapower", "pos": [460, 90], "size": [130, 60],
+      "sources": [{ "path": "electron/main.cjs", "line": 364, "label": "spawn python" }, { "path": "src/engines/external.ts", "line": 45, "label": "engine adapters" }] }
+  ],
+  "boundaries": [
+    { "kind": "security-group", "label": "Sandboxed renderer", "wraps": ["app", "diagram", "exports", "calc"] },
+    { "kind": "region", "label": "Main process + local I/O", "wraps": ["shell", "store", "python"] }
+  ],
+  "connections": [
+    { "id": "user-edits", "from": "user", "to": "app", "label": "edits" },
+    { "id": "app-renders", "from": "app", "to": "diagram", "label": "renders" },
+    { "id": "diagram-export", "from": "diagram", "to": "exports", "label": "SVG" },
+    { "id": "export-save", "from": "exports", "to": "files", "label": "saves" },
+    { "id": "app-calc", "from": "app", "to": "calc", "label": "run", "fromSide": "bottom", "toSide": "top" },
+    { "id": "app-ipc", "from": "app", "to": "shell", "label": "IPC", "fromSide": "top", "toSide": "bottom", "variant": "security" },
+    { "id": "shell-store", "from": "shell", "to": "store", "label": "JSON" },
+    { "id": "shell-python", "from": "shell", "to": "python", "label": "spawn", "variant": "dashed" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Renderer", "items": ["App.tsx holds project state and runs calculations", "SLD export reuses the live diagram SVG"] },
+    { "dot": "emerald", "title": "Main process", "items": ["Projects, database, PDF and Python run via IPC", "Renderer is sandboxed with context isolation"] },
+    { "dot": "rose", "title": "Not shown", "items": ["Studies, BOQ pricing and drawing sets"] }
+  ]
+}

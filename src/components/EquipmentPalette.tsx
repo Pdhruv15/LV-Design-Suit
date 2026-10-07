@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import {
-  Activity, CircleDot, Link2, ShieldAlert, ToggleLeft, ZapOff, BatteryCharging, BatteryFull, Star, Cable, Car, Cog, Cpu, Database, Fan, Flame, Gauge, Lightbulb, PanelLeftClose, PanelLeftOpen, Power, Server, ShieldCheck, Snowflake, Sun, Waves, Zap,
+  Activity, CircleDot, Link2, ShieldAlert, ToggleLeft, ZapOff, BatteryCharging, BatteryFull, Star, Cable, Car, Cog, Cpu, Database, Fan, Flame, Gauge, Lightbulb, PanelLeftClose, PanelLeftOpen, Power, ShieldCheck, Snowflake, Sun, Waves, Zap,
   ChevronDown, ChevronRight, Pencil, Copy, Download, Upload, Plus, Plug, Heater, PanelTop, Info, type LucideIcon
 } from 'lucide-react';
 import { dropHint, itemKey, PALETTE, type PaletteEntry, type PaletteItem } from '../model/sldEdit';
@@ -40,7 +40,9 @@ function useStored<T>(key: string, initial: T): [T, (v: T) => void] {
  * and along a busbar, where the new way goes. Search, favourites ★,
  * recently used, collapsible groups; drop several at once (× qty); the
  * user's own presets can be edited, duplicated, exported and imported. */
-export default function EquipmentPalette({ onHint, library = [], presets = [], components = [], onEditComponent, onDeleteComponent, qty = 1, onQty, onDeletePreset, onEditPreset, onExportPresets, onImportPresets }: {
+export default function EquipmentPalette({ docked, onHint, library = [], presets = [], components = [], onEditComponent, onDeleteComponent, qty = 1, onQty, onDeletePreset, onEditPreset, onExportPresets, onImportPresets }: {
+  /** Inside the side panel's Equipment tab: no own frame, hide button or resize handle. */
+  docked?: boolean;
   /** Your own components (as presets with id cmp-<id>). */
   components?: FeederPreset[];
   onEditComponent?: (id: string | null) => void;
@@ -98,7 +100,7 @@ export default function EquipmentPalette({ onHint, library = [], presets = [], c
         ...groups
       ];
 
-  if (!open) {
+  if (!open && !docked) {
     return (
       <aside className="palette closed">
         <button className="chip" onClick={toggle} title="Show the equipment library"><PanelLeftOpen size={16} /></button>
@@ -106,12 +108,14 @@ export default function EquipmentPalette({ onHint, library = [], presets = [], c
     );
   }
   return (
-    <aside className="palette" aria-label="Equipment library" style={{ width }}>
-      <div className="palette-resize" onPointerDown={startResize} onDoubleClick={() => setWidth(210)} title="Drag to resize (double-click: default width)" />
-      <div className="palette-head">
-        <b>Equipment</b>
-        <button className="icon-btn" onClick={toggle} title="Hide the library"><PanelLeftClose size={15} /></button>
-      </div>
+    <aside className={`palette${docked ? ' docked' : ''}`} aria-label="Equipment library" style={docked ? undefined : { width }}>
+      {!docked && <>
+        <div className="palette-resize" onPointerDown={startResize} onDoubleClick={() => setWidth(210)} title="Drag to resize (double-click: default width)" />
+        <div className="palette-head">
+          <b>Equipment</b>
+          <button className="icon-btn" onClick={toggle} title="Hide the library"><PanelLeftClose size={15} /></button>
+        </div>
+      </>}
       <input className="palette-search" type="search" placeholder="Search… (AHU, RCD, SMDB)" value={query} onChange={(e) => setQuery(e.target.value)} />
       {onQty && (
         <label className="palette-qty" title="Loads and presets dropped on a busbar are added this many times">

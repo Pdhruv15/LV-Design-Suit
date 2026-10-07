@@ -3,7 +3,7 @@ import { settingsOf } from '../types';
 import { boardsInSupplyOrder, boardTotals } from './summary';
 import { DEFAULT_TRANSFORMER_XR, faultCurrentKA, transformerImpedance } from './electrical';
 import { switchedOnBoard } from './capSwitching';
-import { STANDARD_BREAKER_A, STANDARD_GENERATOR_KVA, STANDARD_TRANSFORMER_KVA, chooseGenerator, isEssential, standbyBoards, type GeneratorChoice } from './sizing';
+import { STANDARD_BREAKER_A, STANDARD_TRANSFORMER_KVA, chooseGenerator, isEssential, standbyBoards, type GeneratorChoice } from './sizing';
 import { GENERATOR_XD_TRANSIENT_PCT, isMotor, MOTOR_START_DIP_LIMIT_PCT, motorStartDipPct, runningKva, startingKva } from './motor';
 import { planPfc, subtree } from './pfc';
 import { transformerFor } from '../database/catalog';
@@ -76,10 +76,6 @@ export interface TxRow {
   outage?: { with: string; kva: number; pctOfRecommended?: number; ok: boolean };
   /** One level down: what the demand is made of. */
   breakdown: { id: string; label: string; kva: number }[];
-}
-
-function sumPQ(project: Project, ids: string[]) {
-  return ids.reduce((a, id) => { const t = boardTotals(project, id); return { p: a.p + t.demandKw, q: a.q + t.demandKvar }; }, { p: 0, q: 0 });
 }
 
 export function transformerChecks(project: Project, board: Board, kva: number, demandKva: number, pf: number, impedancePct = typicalImpedancePct(kva)): TxChecks {

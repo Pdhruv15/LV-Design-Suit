@@ -28,7 +28,7 @@ export interface Unresolved { study: string; item: string; check: string; value:
 export function unresolvedChecks(sections: Section[]): Unresolved[] {
   const out: Unresolved[] = [];
   for (const s of sections) {
-    for (const m of s.summary) if (m.status && m.status !== 'ok' && !/^(Circuits|Boards|Pairs|Items) checked$/i.test(m.label) && !/\d+ pass · \d+ check · \d+ fail/.test(m.value)) out.push({ study: s.title, item: '—', check: m.label, value: m.value, status: m.status });
+    for (const m of s.summary) if (m.status && m.status !== 'ok' && !/^(Circuits|Boards|Pairs|Items) checked$/i.test(m.label) && !/\d+ pass · \d+ (?:check|warning) · \d+ fail/.test(m.value)) out.push({ study: s.title, item: '—', check: m.label, value: m.value, status: m.status });
     for (const t of s.tables) {
       // The overall result column repeats the cells before it; report the specific checks.
       const last = t.headers.length - 1;
