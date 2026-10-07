@@ -1225,6 +1225,10 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .ls-panels .ls-form{margin-left:auto}
 .save-failed{color:var(--bad,#e5534b);font-size:12px;margin-right:6px;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .markup-bar{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:4px 8px;border-bottom:1px solid var(--line)}
+.markup-tools{display:inline-flex;gap:2px;padding:2px;border:1px solid var(--line);border-radius:6px}
+.markup-tool{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:4px}
+.markup-tool.on{background:color-mix(in srgb,var(--accent,#2f80ed) 22%,transparent);color:var(--accent,#2f80ed)}
+.markup-tool:disabled{opacity:.4}
 .markup-colors{display:inline-flex;gap:4px;margin:0 4px}
 .markup-dot{width:16px;height:16px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0}
 .markup-dot.on{border-color:var(--fg,#fff);box-shadow:0 0 0 1px #000}
