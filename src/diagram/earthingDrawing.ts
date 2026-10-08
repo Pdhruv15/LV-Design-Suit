@@ -1,5 +1,5 @@
 import type { Project } from '../types';
-import { earthingLayout, genTag, kindInfo, type EarthItem, type EarthLayout } from '../model/earthingPlan';
+import { earthingLayout, genTag, kindInfo, txUnits, unitKey, unitName, type EarthItem, type EarthLayout } from '../model/earthingPlan';
 import { mainBoards, txTag } from '../model/transformers';
 
 /** Earthing schematic drawing (printable SVG), in the SLD drawing style.
@@ -99,7 +99,10 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
   const two = (n: number) => String(n).padStart(2, '0');
   const barId = new Map<string, string>();
   L.items.filter((i) => i.kind === 'rmu').forEach((i, n) => barId.set(i.key, `EB-RMU-${two(n + 1)}`));
-  txBoards.forEach((b, n) => { barId.set(`txn:${b.id}`, `EB-TX(N)-${two(n + 1)}`); barId.set(`txb:${b.id}`, `EB-TX(B)-${two(n + 1)}`); });
+  // Every transformer unit (TX-1A, TX-1B … where a board has several, per the transformer sizing).
+  const units = txUnits(project);
+  const txUnitList = txBoards.flatMap((b) => { const n = units.get(b.id) ?? 1; return Array.from({ length: n }, (_, i) => ({ b, u: i + 1, n, name: unitName(txTag(project, b.id) ?? b.id, i + 1, n) })); });
+  txUnitList.forEach(({ b, u }, i) => { barId.set(unitKey(`txn:${b.id}`, u), `EB-TX(N)-${two(i + 1)}`); barId.set(unitKey(`txb:${b.id}`, u), `EB-TX(B)-${two(i + 1)}`); });
   const genBoards = project.boards.filter((b) => b.standby);
   genBoards.forEach((b, n) => { barId.set(`gn:${b.id}`, `EB-GEN(N)-${two(n + 1)}`); barId.set(`gb:${b.id}`, `EB-GEN(B)-${two(n + 1)}`); });
   /** Equipment → earth bar → test link → pits; the size called out on the conductor to the pits. */
@@ -150,7 +153,7 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
       for (const r of rmus) {
         wrap(rmuW(r));
         const w = rmuW(r) - 20, cx = place(r, x, w, PY);
-        const fed = txs.filter((b) => (b.rmu?.trim() || `RMU (${txTag(project, b.id)})`) === r.equipment).map((b) => txTag(project, b.id));
+        const fed = txUnitList.filter(({ b }) => txs.includes(b) && (b.rmu?.trim() || `RMU (${txTag(project, b.id)})`) === r.equipment).map((t) => t.name);
         out.push(rmuSymbol(cx, TOP + 50));
         out.push(`<text x="${cx}" y="${TOP + 42}" text-anchor="middle" font-weight="bold">${esc(r.equipment)}</text><text x="${cx}" y="${TOP + 130}" text-anchor="middle" font-size="8">feeds ${esc(fed.join(', ') || '—')}</text>`);
         // Body earth from the enclosure's lower left corner, to its earth bar
@@ -159,14 +162,14 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
         spread(r, PY, 84);
         x += w + 20;
       }
-      for (const b of txs) {
-        const n = L.items.find((i) => i.key === `txn:${b.id}`)!, bd = L.items.find((i) => i.key === `txb:${b.id}`)!;
+      for (const { b, u, name: unitTag } of txUnitList.filter((t) => txs.includes(t.b))) {
+        const n = L.items.find((i) => i.key === unitKey(`txn:${b.id}`, u))!, bd = L.items.find((i) => i.key === unitKey(`txb:${b.id}`, u))!;
         const wn = Math.max(100, pitsOf(n).length * PIT), wb = Math.max(100, pitsOf(bd).length * PIT);
         wrap(wn + wb + 20);
         const nx = place(n, x, wn, PY), bx = place(bd, x + wn, wb, PY);
         const cx = (nx + bx) / 2, cy = TOP + 80;
         out.push(txSymbol(cx, cy));
-        out.push(`<text x="${cx}" y="${cy - 22}" text-anchor="middle" font-weight="bold">${esc(txTag(project, b.id) ?? b.id)}</text><text x="${cx}" y="${cy - 34}" text-anchor="middle" font-size="8">${b.sourceKva} kVA · ${esc(b.vectorGroup ?? 'Dyn11')}</text>`);
+        out.push(`<text x="${cx}" y="${cy - 22}" text-anchor="middle" font-weight="bold">${esc(unitTag)}</text><text x="${cx}" y="${cy - 34}" text-anchor="middle" font-size="8">${b.sourceKva} kVA · ${esc(b.vectorGroup ?? 'Dyn11')}</text>`);
         out.push(`<text x="${nx}" y="${cy + 12}" text-anchor="middle" font-size="8" fill="#5b6b82">star point (N)</text><text x="${bx}" y="${cy + 12}" text-anchor="middle" font-size="8" fill="#5b6b82">tank / body</text>`);
         viaBar(n, nx, `M${cx - 13} ${cy + 18} H${nx}`, TOP, PY);
         viaBar(bd, bx, `M${cx + 13} ${cy + 18} H${bx}`, TOP, PY);

@@ -4,7 +4,7 @@ import { cableTypeOf } from '../model/cableTypes';
 import { breakerTypeOf, cpcOf } from './earthing';
 import { runsOf } from './electrical';
 import { sizeRiser } from './busbar';
-import { earthingLayout, kindInfo } from '../model/earthingPlan';
+import { earthingLayout, kindInfo, txUnits } from '../model/earthingPlan';
 import { BRAND_DEVICES } from '../data/brandDevices';
 import { matchDevice, type DeviceKind } from '../model/enclosureLibrary';
 import { scheduleGroupOf } from '../model/scheduleGroups';
@@ -78,6 +78,7 @@ const glandSize = (csa: number, cores: number) => {
 
 export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<Project>): BomItem[] {
   const p = project as Project;
+  let units: Map<string, number> | undefined; // transformers per main board, as the sizing shows them (2 × … when split or N+1)
   const m = new Map<string, BomItem>();
   const groupedRcdCircuits = new Set<string>();
   // Items of the emergency system (EMDB and everything below it) are listed on their own lines.
@@ -152,7 +153,7 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
       const mm = b.earthing?.conductorMm2 ?? (inc ? Math.max(16, cpcOf(inc)) : 50);
       add('I', `met:${mm}`, `Main earth terminal bar with test link; earth conductor 1C × ${mm} mm² Cu/PVC to the pits (length to site)`, 'set', 1, b.id);
     }
-    if (b.sourceKva) add('D', `tx:${b.sourceKva}:${b.sourceImpedancePct ?? '-'}`, `Distribution transformer ${b.sourceKva} kVA, 11/0.415 kV, ${b.vectorGroup ?? 'Dyn11'}${b.sourceImpedancePct ? `, Z ${b.sourceImpedancePct} %` : ''}`, 'no', 1, b.id);
+    if (b.sourceKva) add('D', `tx:${b.sourceKva}:${b.sourceImpedancePct ?? '-'}`, `Distribution transformer ${b.sourceKva} kVA, 11/0.415 kV, ${b.vectorGroup ?? 'Dyn11'}${b.sourceImpedancePct ? `, Z ${b.sourceImpedancePct} %` : ''}`, 'no', (units ??= txUnits(p)).get(b.id) ?? 1, b.id);
     if (k === 'UPS' && b.upsKva) add('D', `ups:${b.upsKva}`, `UPS ${b.upsKva} kVA online double conversion, with batteries`, 'no', 1, b.id);
   }
 

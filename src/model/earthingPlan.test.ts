@@ -229,4 +229,25 @@ describe('earthing schematic', () => {
     for (const t of ['STANDBY GENERATOR', '>GEN-1</text>', '>EB-GEN(N)-01</text>', '>EB-GEN(B)-01</text>', 'BONDED: Fuel tank', 'ATS to SMDB-GF', '8. GENERATOR NEUTRAL AND BODY EARTHS ARE SEPARATE']) expect(svg).toContain(t);
     expect(svg).not.toMatch(/NaN|undefined/);
   });
+  it('two transformers on one main board (N+1 in the sizing): each gets its neutral and body earths; pit IDs kept', () => {
+    const before = withEarthPitIds(sampleProject);
+    const owner = (q: Project) => Object.fromEntries(earthingLayout(q).pits.map((x) => [x.id, x.itemKey]));
+    const was = owner(before);
+    const two: Project = { ...before, txGen: { ...before.txGen, n1: ['MDB-1'] } };
+    const p = withEarthPitIds(two, before);
+    const L = earthingLayout(p);
+    // Every existing pit keeps its ID on the same equipment (TX-1A keeps TX-1's); TX-1B gets new IDs.
+    const now = owner(p);
+    for (const [id, key] of Object.entries(was)) expect(now[id]).toBe(key);
+    expect(Object.keys(now).filter((id) => !(id in was))).toEqual(['E7', 'E8']);
+    expect(L.items.filter((i) => i.kind === 'txn').map((i) => i.equipment)).toEqual(['TX-1A 1000 kVA', 'TX-1B 1000 kVA']);
+    expect(L.pits.filter((x) => x.kind === 'txn')).toHaveLength(2);
+    expect(L.pits.filter((x) => x.kind === 'txb')).toHaveLength(2);
+    const svg = earthingDrawing(p).svg;
+    for (const t of ['>TX-1A</text>', '>TX-1B</text>', '>EB-TX(N)-01</text>', '>EB-TX(N)-02</text>', '>EB-TX(B)-02</text>', 'feeds TX-1A, TX-1B']) expect(svg).toContain(t);
+    // The BOQ prices both transformers.
+    expect(buildBom(p).find((it) => it.key.startsWith('tx:'))!.qty).toBe(2);
+    // One transformer below the largest standard size is never split into two by the earthing.
+    expect(earthingLayout(withEarthPitIds(sampleProject)).items.filter((i) => i.kind === 'txn')).toHaveLength(1);
+  });
 });

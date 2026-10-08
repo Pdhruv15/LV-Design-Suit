@@ -1,5 +1,24 @@
 import type { Project } from '../types';
 import { mainBoards, txTag } from './transformers';
+import { sizesOf, sizeTransformers, txGenPlanOf } from '../calc/txGen';
+
+/** Transformers on each main board, as the transformer sizing shows them: 2 when two are planned
+ * (N+1, each for the whole load), n when the load is split over n of the largest size, else 1.
+ * The board holds one rating; the count comes from the sizing. */
+export function txUnits(project: Project): Map<string, number> {
+  const m = new Map<string, number>();
+  const plan = txGenPlanOf(project), largest = Math.max(...sizesOf(plan));
+  // Runs on every edit: the load sizing is needed only where a split is possible (a board already
+  // at the largest standard size) or two transformers are planned; everything else is one.
+  const txs = mainBoards(project).filter((b) => b.sourceKva);
+  if (!txs.some((b) => plan.n1.includes(b.id) || b.sourceKva! >= largest)) return m;
+  for (const r of sizeTransformers(project, plan)) if (r.board.sourceKva) m.set(r.board.id, r.n1 ? 2 : r.board.sourceKva >= largest ? Math.max(1, r.split) : 1);
+  return m;
+}
+/** Key of transformer unit u (1-based) of a board: the first keeps the plain key, so its pit IDs never move. */
+export const unitKey = (base: string, u: number) => (u === 1 ? base : `${base}#${u}`);
+/** TX-1 for a single transformer; TX-1A, TX-1B … when the board has several. */
+export const unitName = (tag: string, u: number, n: number) => (n > 1 ? `${tag}${String.fromCharCode(64 + u)}` : tag);
 
 /** Earthing schematic (DEWA practice, no lightning protection).
  *
@@ -36,6 +55,7 @@ export const DEFAULT_BONDING = ['Room earth bar', 'Cable containment', 'Sprinkle
 
 /** The equipment that needs an earth, from the project. */
 function equipment(project: Project): Omit<EarthItem, 'pits' | 'linked'>[] {
+  const units = txUnits(project);
   const mains = mainBoards(project);
   const txs = mains.filter((b) => b.sourceKva);
   const out: Omit<EarthItem, 'pits' | 'linked'>[] = [];
@@ -55,8 +75,12 @@ function equipment(project: Project): Omit<EarthItem, 'pits' | 'linked'>[] {
     }
     // Neutral then body of each transformer, so its pits are numbered together (E3 neutral, E4 body …).
     for (const b of gTx) {
-      out.push({ key: `txn:${b.id}`, kind: 'txn', group: g, equipment: `${txTag(project, b.id)} ${b.sourceKva} kVA`, point: 'Neutral (star point)', defaultPits: 1 });
-      out.push({ key: `txb:${b.id}`, kind: 'txb', group: g, equipment: `${txTag(project, b.id)} ${b.sourceKva} kVA`, point: 'Tank / body', defaultPits: 1 });
+      const n = units.get(b.id) ?? 1;
+      for (let u = 1; u <= n; u++) {
+        const name = `${unitName(txTag(project, b.id) ?? b.id, u, n)} ${b.sourceKva} kVA`;
+        out.push({ key: unitKey(`txn:${b.id}`, u), kind: 'txn', group: g, equipment: name, point: 'Neutral (star point)', defaultPits: 1 });
+        out.push({ key: unitKey(`txb:${b.id}`, u), kind: 'txb', group: g, equipment: name, point: 'Tank / body', defaultPits: 1 });
+      }
     }
     const gLv = lv.filter((b) => subOf(b) === g);
     for (const b of gLv) out.push({ key: `lv:${b.id}`, kind: 'lv', group: g, equipment: b.id, point: 'Main earth bar (MET)', defaultPits: lv.length === 1 ? 2 : 1 });
