@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { Project } from '../types';
-import { earthingLayout, kindInfo, patchEarthing } from '../model/earthingPlan';
+import { earthingLayout, kindInfo, patchEarthing, DEFAULT_BONDING } from '../model/earthingPlan';
 import { earthingDrawing } from '../diagram/earthingDrawing';
 import { safeFileName, savePdf } from '../util/files';
 import { esc } from '../docs/report';
@@ -51,6 +51,9 @@ export default function EarthingView({ project, onChange, onStatus }: { project:
             <label>Electrode<span className="pfcc-in"><input className="bi-num" style={{ width: 50 }} inputMode="decimal" value={L.electrodeM} onChange={(e) => onChange(patchEarthing(project, (p) => ({ ...p, electrodeM: Number(e.target.value) || undefined })))} /><span className="m">m Cu-bonded rod</span></span></label>
             <label>Link conductor<span className="pfcc-in"><input className="bi-num" style={{ width: 50 }} inputMode="numeric" value={L.conductorMm2} onChange={(e) => onChange(patchEarthing(project, (p) => ({ ...p, conductorMm2: Number(e.target.value) || undefined })))} /><span className="m">mm² Cu</span></span></label>
           </div>
+          <label className="earth-bonding">Bonded to each main earth bar <span className="m">(one per line; shown on the schematic)</span>
+            <textarea rows={4} key={L.bonding.join('\n')} defaultValue={L.bonding.join('\n')}
+              onBlur={(e) => { const v = e.target.value.split('\n').map((x) => x.trim()).filter(Boolean); if (v.join('\n') !== L.bonding.join('\n')) onChange(patchEarthing(project, (p) => ({ ...p, bonding: v.join('\n') === DEFAULT_BONDING.join('\n') ? undefined : v }))); }} /></label>
           <p className="m">Defaults: RMU 2 pits · transformer 1 neutral + 1 body · main board 2 pits (one MDB) or 1 each (several). Change any number for a company standard.</p>
         </section>
 

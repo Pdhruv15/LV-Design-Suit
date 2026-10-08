@@ -183,4 +183,18 @@ describe('earthing schematic', () => {
     expect(svg).toMatch(/stroke="#1a7f37"[^>]*\/><text[^>]*>0\.8 Ω</);
     expect(svg).not.toMatch(/NaN|undefined/);
   });
+  it('LV room: N and E bars with one N–E link, main earth bar with test link, named incoming earths and bonding', () => {
+    const p = withEarthPitIds(sampleProject);
+    const svg = earthingDrawing(p).svg;
+    expect(svg).toContain('N–E link (only here)');
+    expect(svg).toContain('>EB-LV-MDB-1</text>');
+    expect(svg).toContain('MAIN EARTH BAR');
+    for (const id of sampleProject.boards.filter((b) => b.upstreamId === 'MDB-1').map((b) => b.id)) expect(svg).toContain(`>from ${id}</text>`);
+    expect(svg).toContain('BONDED: Room earth bar');
+    expect(svg).not.toContain('marker-end'); // arrowheads are drawn shapes (every renderer and the DXF show them)
+    // The project's own bonding list replaces the default.
+    const own = patchEarthing(p, (x) => ({ ...x, bonding: ['Lift guide rails'] }));
+    expect(earthingLayout(own).bonding).toEqual(['Lift guide rails']);
+    expect(earthingDrawing(own).svg).toContain('BONDED: Lift guide rails');
+  });
 });

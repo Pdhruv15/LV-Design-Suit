@@ -670,6 +670,8 @@ export interface EarthingPlan {
   measured?: Record<string, number>;
   electrodeM?: number; // electrode length (m), default 3
   conductorMm2?: number; // pit link / earth conductor (mm² Cu), default 70
+  /** Metal parts bonded to each main earth bar (shown on the schematic); default room earth bar, containment, pipework, ductwork. */
+  bonding?: string[];
 }
 
 export interface BusTie {
