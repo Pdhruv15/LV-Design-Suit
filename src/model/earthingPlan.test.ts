@@ -197,4 +197,29 @@ describe('earthing schematic', () => {
     expect(earthingLayout(own).bonding).toEqual(['Lift guide rails']);
     expect(earthingDrawing(own).svg).toContain('BONDED: Lift guide rails');
   });
+  it('standby generator: neutral and body earths with their own pits (≤ 1 Ω), added without renumbering existing pits', () => {
+    const before = withEarthPitIds(sampleProject);
+    const ids = earthingLayout(before).pits.map((x) => x.id);
+    const withGen: Project = { ...before, boards: before.boards.map((b) => (b.id === 'SMDB-GF' ? { ...b, standby: { kva: 500 } } : b)) };
+    const p = withEarthPitIds(withGen, before);
+    const L = earthingLayout(p);
+    // Existing pits keep their IDs; the generator gets new ones after them.
+    expect(L.pits.slice(0, ids.length).map((x) => x.id)).toEqual(ids);
+    const gn = L.pits.find((x) => x.kind === 'gn')!, gb = L.pits.find((x) => x.kind === 'gb')!;
+    expect([gn.id, gb.id]).toEqual([`E${ids.length + 1}`, `E${ids.length + 2}`]);
+    expect(L.items.find((i) => i.kind === 'gn')!.equipment).toBe('GEN-1 500 kVA');
+    // Neutral and body are separate nets, each checked against 1 Ω.
+    const m = patchEarthing(p, (x) => ({ ...x, measured: { [gn.id]: 0.71, [gb.id]: 1.24 } }));
+    const checks = earthingLayout(m).checks.map((c) => `${c.level} ${c.text}`);
+    expect(checks).toContain(`ok Generator neutral earth ${gn.id}: 0.71 Ω ≤ 1 Ω`);
+    expect(checks.some((c) => c.startsWith(`bad Generator body earth ${gb.id}: 1.24 Ω > 1 Ω`))).toBe(true);
+    expect(checks).toContain('ok Generator neutral and body earths are separate (never interconnected)');
+    expect(earthingLayout(m).links.some(([a, b]) => [a, b].includes(gn.id) && [a, b].includes(gb.id))).toBe(false);
+    // The BOQ counts the generator pits too (once the project has an earthing plan, as for the other pits).
+    expect(buildBom({ ...p, earthingPlan: p.earthingPlan ?? {} }).filter((it) => it.key.startsWith('earth-pit')).reduce((n, it) => n + it.qty, 0)).toBe(L.pits.length);
+    // Drawing: generator zone, its earth bars, bonding and the note.
+    const svg = earthingDrawing(m).svg;
+    for (const t of ['STANDBY GENERATOR', '>GEN-1</text>', '>EB-GEN(N)-01</text>', '>EB-GEN(B)-01</text>', 'BONDED: Fuel tank', 'ATS to SMDB-GF', '7. GENERATOR NEUTRAL AND BODY EARTHS ARE SEPARATE']) expect(svg).toContain(t);
+    expect(svg).not.toMatch(/NaN|undefined/);
+  });
 });

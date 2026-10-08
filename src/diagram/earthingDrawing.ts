@@ -1,5 +1,5 @@
 import type { Project } from '../types';
-import { earthingLayout, kindInfo, type EarthItem, type EarthLayout } from '../model/earthingPlan';
+import { earthingLayout, genTag, kindInfo, type EarthItem, type EarthLayout } from '../model/earthingPlan';
 import { mainBoards, txTag } from '../model/transformers';
 
 /** Earthing schematic drawing (printable SVG), in the SLD drawing style.
@@ -100,6 +100,8 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
   const barId = new Map<string, string>();
   L.items.filter((i) => i.kind === 'rmu').forEach((i, n) => barId.set(i.key, `EB-RMU-${two(n + 1)}`));
   txBoards.forEach((b, n) => { barId.set(`txn:${b.id}`, `EB-TX(N)-${two(n + 1)}`); barId.set(`txb:${b.id}`, `EB-TX(B)-${two(n + 1)}`); });
+  const genBoards = project.boards.filter((b) => b.standby);
+  genBoards.forEach((b, n) => { barId.set(`gn:${b.id}`, `EB-GEN(N)-${two(n + 1)}`); barId.set(`gb:${b.id}`, `EB-GEN(B)-${two(n + 1)}`); });
   /** Equipment → earth bar → test link → pits; the size called out on the conductor to the pits. */
   const BAR_Y = 190;
   const viaBar = (it: EarthItem, cx: number, from: string, top: number, py: number) => {
@@ -222,12 +224,51 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
       x += w + 20;
     }
     if (lvs.length) zone(lvStart, LT, x - lvStart, lvTitle);
+
+    // ---- Standby generators: beside the LV room, or on their own row ----------
+    const gens = genBoards.filter((b) => L.items.some((i) => i.key === `gn:${b.id}` && i.group === g));
+    if (gens.length) {
+      const genW = (b: (typeof gens)[number]) => {
+        const n = L.items.find((i) => i.key === `gn:${b.id}`)!, bd = L.items.find((i) => i.key === `gb:${b.id}`)!;
+        return Math.max(110, pitsOf(n).length * PIT) + Math.max(170, pitsOf(bd).length * PIT) + 20;
+      };
+      let GT = LT, gStart = x === 60 ? 40 : x + 10;
+      if (x > 60 && x + gens.reduce((s, b) => s + genW(b), 0) + 40 > SUB_MAX_W) { right = Math.max(right, x); y += BAND_H; GT = y; gStart = 40; }
+      let GP = GT + 410;
+      x = gStart + 20;
+      const gTitle = groups.length > 1 ? `STANDBY GENERATOR — ${name}` : 'STANDBY GENERATOR';
+      for (const b of gens) {
+        if (x > gStart + 20 && x + genW(b) > SUB_MAX_W) { zone(gStart, GT, x - gStart, gTitle); right = Math.max(right, x); y += BAND_H; GT = y; GP = GT + 410; gStart = 40; x = 60; }
+        const n = L.items.find((i) => i.key === `gn:${b.id}`)!, bd = L.items.find((i) => i.key === `gb:${b.id}`)!;
+        const wn = Math.max(110, pitsOf(n).length * PIT), wb = Math.max(170, pitsOf(bd).length * PIT);
+        const nx = place(n, x, wn, GP), bx = place(bd, x + wn, wb, GP);
+        const cx = (nx + bx) / 2, cy = GT + 90;
+        // Generator: circle with G and 3~, its name, rating and the board it supplies through the ATS.
+        out.push(`<circle cx="${cx}" cy="${cy}" r="20" fill="#fff" stroke="#111" stroke-width="1.4"/><text x="${cx}" y="${cy + 2}" text-anchor="middle" font-weight="bold" font-size="13">G</text><text x="${cx}" y="${cy + 13}" text-anchor="middle" font-size="7">3~</text>`);
+        out.push(`<text x="${cx}" y="${cy - 40}" text-anchor="middle" font-size="8">${b.standby!.kva} kVA · ATS to ${esc(b.id)}</text><text x="${cx}" y="${cy - 28}" text-anchor="middle" font-weight="bold">${esc(genTag(genBoards.indexOf(b)))}</text>`);
+        out.push(`<text x="${nx - 5}" y="${cy + 16}" text-anchor="end" font-size="8" fill="#5b6b82">star point (N)</text><text x="${bx + 5}" y="${cy + 16}" font-size="8" fill="#5b6b82">frame / body</text>`);
+        out.push(`<circle cx="${cx - 20}" cy="${cy}" r="3" fill="${GREEN}"/><circle cx="${cx + 20}" cy="${cy}" r="3" fill="${GREEN}"/>`);
+        viaBar(n, nx, `M${cx - 20} ${cy} H${nx}`, GT, GP);
+        viaBar(bd, bx, `M${cx + 20} ${cy} H${bx}`, GT, GP);
+        // Fuel tank, enclosure and a spare stud bonded on the body bar (right of the incoming conductor).
+        const by = GT + BAR_Y, top = by - 34, parts = ['Fuel tank', 'Enclosure', 'Spare'];
+        parts.forEach((_, i) => out.push(`<path d="M${bx + 10 + i * 9} ${by} V${top + 6}" stroke="${GREEN}" stroke-width="1.2" fill="none"/>`, headUp(bx + 10 + i * 9, top)));
+        out.push(`<path d="M${bx + 7} ${top} q0 -6 6 -6 h${2 * 9 - 6} q6 0 6 6" stroke="#5b6b82" stroke-width="0.8" fill="none"/>`);
+        const lines = wrapText(`BONDED: ${parts.join(' · ')}`, 20);
+        lines.forEach((t, i) => out.push(`<text x="${bx + 6}" y="${top - 12 - (lines.length - 1 - i) * 10}" font-size="8" fill="#5b6b82">${esc(t)}</text>`));
+        spread(n, GP, 84);
+        spread(bd, GP, 84);
+        if (pitsOf(n).length && pitsOf(bd).length) out.push(separation(Math.max(...pitsOf(n).map((p) => pitX.get(p.id)!)), Math.min(...pitsOf(bd).map((p) => pitX.get(p.id)!)), GP + 100, '≥ 6 m  N ↔ body'));
+        x += wn + wb + 20;
+      }
+      zone(gStart, GT, x - gStart, gTitle);
+    }
     right = Math.max(right, x);
     y += BAND_H;
   }
 
   // ---- Pit interconnections: same kind, same substation; dashed, one depth per kind ----
-  const depth: Record<string, number> = { rmu: 50, txn: 50, txb: 64, lv: 50, sub: 64 };
+  const depth: Record<string, number> = { rmu: 50, txn: 50, txb: 64, lv: 50, sub: 64, gn: 50, gb: 64 };
   const kindOf = new Map(L.pits.map((p) => [p.id, p.kind]));
   const ownPair = new Set(L.items.flatMap((it) => { const ids = pitsOf(it).map((p) => p.id); return ids.slice(1).map((id, i) => `${ids[i]}|${id}`); }));
   /** A link to a pit on another row: a dashed stub with a break mark and the other pit's ID, at both ends. */
@@ -266,7 +307,7 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
   const rows: [string, string, number][] = [
     [`<g transform="translate(26 -16) scale(.5)">${rmuSymbol(0, 0)}</g>`, 'RMU: 2 × ring load-break switch + 1 × T-off switch-fuse (IEC 60617)', 44],
     [`<g transform="translate(26 -10)">${txSymbol(0, 0, 7)}</g>`, 'Transformer', 30],
-    [`<rect x="8" y="-5" width="36" height="10" rx="2" fill="${CU}" fill-opacity="0.18" stroke="${CU}" stroke-width="1.3"/>`, 'Equipment earth bar with ID (EB-RMU / EB-TX(N) / EB-TX(B))', 26],
+    [`<rect x="8" y="-5" width="36" height="10" rx="2" fill="${CU}" fill-opacity="0.18" stroke="${CU}" stroke-width="1.3"/>`, 'Equipment earth bar with ID (EB-RMU / EB-TX / EB-GEN)', 26],
     [testLink(30, 0), 'Test link between the earth bar and its pits', 26],
     [`${ln(8, -5, 44, -5, 2.6)}${ln(8, 5, 44, 5, 2.6, GREEN)}${ln(20, -5, 20, 5, 1.4)}`, 'Main board N and E bars with the N–E link (TN-S: main board only)', 26],
     [separation(8, 44, 4, '≥ 6 m'), 'Minimum separation between pits', 26],
@@ -290,7 +331,8 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
     '3. EARTH PITS OF DIFFERENT SUBSTATIONS ARE NOT INTERCONNECTED.',
     '4. SUBSTATION EARTHS < 2 Ω; LV EARTH ≤ 1 Ω PER INCOMING SUPPLY / MDB (DEWA).',
     '5. EARTH PITS AT LEAST 6.0 m APART. LIGHTNING PROTECTION NOT SHOWN.',
-    '6. ONE N–E LINK ONLY, AT THE MAIN BOARD (TN-S). EVERY EARTH BAR HAS A TEST LINK TO ITS PITS.'
+    '6. ONE N–E LINK ONLY, AT THE MAIN BOARD (TN-S). EVERY EARTH BAR HAS A TEST LINK TO ITS PITS.',
+    '7. GENERATOR NEUTRAL AND BODY EARTHS ARE SEPARATE, EACH ≤ 1 Ω; FUEL TANK AND ENCLOSURE BONDED TO THE GENERATOR EARTH BAR.'
   ];
   const noteSvg = `<g transform="translate(${lx + 560} ${ly})">${notes.map((t, i) => `<text x="0" y="${18 + i * 16}" font-size="9"${i ? '' : ' font-weight="bold"'}>${esc(t)}</text>`).join('')}</g>`;
 
