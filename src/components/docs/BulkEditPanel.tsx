@@ -6,6 +6,7 @@ import { applyModification, PROPOSABLE, transition, withRecord } from '../../mod
 import { pairText } from '../../model/datasetDiff';
 import { impactBetween } from '../../model/designImpact';
 import { ImpactPanel } from './ChangesView';
+import { useStable } from '../../util/useStable';
 
 /** Find equipment, tick the items to change, set one field on exactly those, and see before and after (and the impact)
  * before anything happens. "Save as draft" keeps it as a modification record for review; "Apply now" records it as accepted
@@ -25,13 +26,14 @@ export default function BulkEditPanel({ project, me, onChange, onApply, onStatus
   const hits = useMemo(() => searchEquipment(project, q), [project, q]);
   const fields = PROPOSABLE[target];
   const def = fields.find((f) => f.key === field);
-  const ids = picked.filter((id) => hits.some((h) => h.id === id)); // only what is both ticked and still listed
+  const ids = useStable(picked.filter((id) => hits.some((h) => h.id === id))); // only what is both ticked and still listed
   const num = def?.kind === 'number';
   const parsed: number | string | boolean = def?.kind === 'bool' ? value === 'true' : num ? Number(value) : value;
-  const preview = useMemo(() => (show && def && value !== '' ? previewBulkEdit(project, ids, { target, field, mode: num ? mode : 'set', value: parsed }, { title: title || `Bulk edit: ${def.label}`, reason, author: me }) : undefined), [show, project, ids.join('|'), field, mode, value, title, reason]); // eslint-disable-line react-hooks/exhaustive-deps
-  const after = preview && !preview.error ? bulkResult(project, preview) : undefined;
+  const preview = useMemo(() => (show && def && value !== '' ? previewBulkEdit(project, ids, { target, field, mode: num ? mode : 'set', value: parsed }, { title: title || `Bulk edit: ${def.label}`, reason, author: me }) : undefined),
+    [show, def, value, project, ids, target, field, num, mode, parsed, title, reason, me]);
+  const after = useMemo(() => (preview && !preview.error ? bulkResult(project, preview) : undefined), [preview, project]);
   const introduced = after ? introducedIssues(project, after) : [];
-  const impact = useMemo(() => (after && preview?.changed ? impactBetween(project, after) : undefined), [after, preview?.changed]); // eslint-disable-line react-hooks/exhaustive-deps
+  const impact = useMemo(() => (after && preview?.changed ? impactBetween(project, after) : undefined), [after, preview?.changed, project]);
   const toggle = (id: string) => setPicked((l) => (l.includes(id) ? l.filter((x) => x !== id) : [...l, id]));
   const reset = () => { setShow(false); setPicked([]); setValue(''); setTitle(''); setReason(''); };
 

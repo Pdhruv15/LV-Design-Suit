@@ -69,7 +69,8 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
   const chosen = set.sheets.filter((s) => selected.has(s.id));
   // What Set / Next revision / Issue act on: the ticked sheets, or every sheet shown.
   const [scope, setScope] = useState<'selected' | 'shown'>('shown');
-  useEffect(() => { setScope(chosen.length ? 'selected' : 'shown'); }, [chosen.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+  const anyChosen = chosen.length > 0;
+  useEffect(() => { setScope(anyChosen ? 'selected' : 'shown'); }, [anyChosen]);
   const targets = scope === 'selected' && chosen.length ? chosen : visible;
   const toggle = (id: string) => setSelected((x) => { const n = new Set(x); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const allOn = visible.length > 0 && visible.every((s) => selected.has(s.id));

@@ -24,6 +24,7 @@ import { issueCounts, validateReport } from '../../docs/reportValidation';
 import { ISSUE_STATUSES, missingFields, pageFrame, reportDoc, type ReportMeta } from '../../docs/reportFrame';
 import SystemDiagram from '../SystemDiagram';
 import { Page, StaleBanner } from '../ui';
+import { useStable } from '../../util/useStable';
 
 const noop = () => {};
 /** A table row with a status cell that is a warning or worse. */
@@ -76,18 +77,18 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
   onChange: (p: Project) => void;
   onStatus: (m: string) => void;
 }) {
-  const setup = setupOf(project);
-  setup.preparedBy ??= me?.preparedBy || undefined;
-  setup.checkedBy ??= me?.checkedBy || undefined;
+  const stored = setupOf(project);
+  // The same object while the setup is unchanged, so the scope, sections and checks below are not rebuilt every render.
+  const setup = useStable<StudyReportSetup>({ ...stored, preparedBy: stored.preparedBy ?? (me?.preparedBy || undefined), checkedBy: stored.checkedBy ?? (me?.checkedBy || undefined) });
   const set = (patch: Partial<StudyReportSetup>) => onChange({ ...project, studyReport: { ...setup, ...patch } });
   const calc = run?.project ?? project;
   const boards = boardsInSupplyOrder(project);
-  const scope = useMemo(() => scopeOf(calc, setup), [calc, setup.boards, setup.downstream, setup.mode]); // eslint-disable-line react-hooks/exhaustive-deps
-  const data: CalcData | undefined = run && { project: run.project, results: run.results, earthing: run.earthing, selectivity: run.selectivity };
+  const scope = useMemo(() => scopeOf(calc, setup), [calc, setup]);
+  const data: CalcData | undefined = useMemo(() => run && { project: run.project, results: run.results, earthing: run.earthing, selectivity: run.selectivity }, [run]);
   const basisOpt = { designBasis: setup.designBasis !== false, results: setup.resultsSummary !== false, data };
   const sections: Section[] = useMemo(
     () => (data ? setup.studies.map((k) => buildSection(k, data, scope)) : []),
-    [run, scope, setup.studies] // eslint-disable-line react-hooks/exhaustive-deps
+    [data, scope, setup.studies]
   );
   const [preview, setPreview] = useState<StudyReportKind>('sc');
   const sldKeys = sldStudies(setup.studies);
@@ -99,9 +100,9 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
   const [tabPicked, setTab] = useState<'boards' | 'studies' | 'output' | 'sld' | 'contents' | 'checks' | 'preview'>('boards');
   const presets = project.studyReportPresets ?? [];
   const title = setup.title || defaultTitle(setup.studies, matchingType(setup));
-  const reportMeta: ReportMeta = { title, docNo: setup.docNo, projectNo: setup.projectNo, preparedBy: setup.preparedBy, checkedBy: setup.checkedBy, approvedBy: setup.approvedBy, issueStatus: setup.issueStatus };
+  const reportMeta: ReportMeta = useMemo(() => ({ title, docNo: setup.docNo, projectNo: setup.projectNo, preparedBy: setup.preparedBy, checkedBy: setup.checkedBy, approvedBy: setup.approvedBy, issueStatus: setup.issueStatus }), [title, setup]);
   const issues = useMemo(() => validateReport({ project: calc, meta: reportMeta, scope, sections, data, stale, designBasis: basisOpt.designBasis, resultsSummary: basisOpt.results }),
-    [calc, scope, sections, stale, setup]); // eslint-disable-line react-hooks/exhaustive-deps
+    [calc, reportMeta, scope, sections, data, stale, basisOpt.designBasis, basisOpt.results]);
   const ic = issueCounts(issues);
   /** Errors are never hidden: exporting with any asks first. */
   const confirmIssues = () => !ic.error || window.confirm(`The pre-export check found ${ic.error} error(s) and ${ic.warning} warning(s) — see the Pre-export check tab.\n\nExport anyway?`);

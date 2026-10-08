@@ -13,6 +13,7 @@ import BranchPanel from './BranchPanel';
 import TransformersTab from './TransformersTab';
 import { mainOf, txTag } from '../model/transformers';
 import { toggleIn } from '../util/sets';
+import { useStable } from '../util/useStable';
 
 type Tab = 'quick' | 'tx' | 'list' | 'naming' | 'floors' | 'repeat' | 'templates';
 const TABS: [Tab, string][] = [['quick', 'Quick create'], ['tx', 'Transformers'], ['list', 'Panel list'], ['naming', 'Naming'], ['floors', 'Typical floors'], ['repeat', 'Repeat group'], ['templates', 'Templates']];
@@ -65,12 +66,12 @@ function QuickCreate({ project, onCreate, onList }: { project: Project; onCreate
   const [eSub, setESub] = useState('0');
   const [eDb, setEDb] = useState('0');
   const num = (v: string) => (v.trim() === '' ? NaN : Number(v));
-  const spec: BatchHierarchySpec = {
+  const spec = useStable<BatchHierarchySpec>({
     mode: 'quantity', mdbs: source === 'create' ? { create: num(mdb) } : { existing },
     smdb: { count: num(smdb), basis: 'total' }, db: { count: num(db), basis: 'total' }, incomers, names: namesOf(project)
-  };
+  });
   const normalCount = (source === 'create' ? num(mdb) || 0 : 0) + (num(smdb) || 0) + (num(db) || 0);
-  const plan = useMemo(() => planBatchHierarchy(project, spec), [project, JSON.stringify(spec)]); // eslint-disable-line react-hooks/exhaustive-deps
+  const plan = useMemo(() => planBatchHierarchy(project, spec), [project, spec]);
   // The normal batch first; the emergency panel is then fed from any normal panel, including new ones.
   const afterNormal = useMemo(() => (plan.ok && plan.boards.length ? applyHierarchy(project, plan) : project), [project, plan]);
   const mainsChoices = afterNormal.boards.filter((b) => roleOf(afterNormal, b) === 'MDB' || roleOf(afterNormal, b) === 'SMDB');
@@ -175,7 +176,7 @@ function PanelList({ project, onChange, onStatus, onBuilding }: { project: Proje
   const picked = project.boards.filter((b) => sel.has(b.id));
   const noLevel = project.boards.filter((b) => !findFloor(project.building, b.level)).length;
   // A panel can't be fed from itself or from anything below it.
-  const badParents = useMemo(() => { const s = new Set<string>(); for (const b of picked) for (const id of boardAndDescendants(project, b.id)) s.add(id); return s; }, [project, sel]); // eslint-disable-line react-hooks/exhaustive-deps
+  const badParents = useMemo(() => { const s = new Set<string>(); for (const id of sel) if (project.boards.some((b) => b.id === id)) for (const d of boardAndDescendants(project, id)) s.add(d); return s; }, [project, sel]);
 
   const patch = (fn: (b: Board) => Board, what: string) => {
     onChange({ ...project, boards: project.boards.map((b) => (sel.has(b.id) ? fn(b) : b)) });

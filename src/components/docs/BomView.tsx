@@ -121,8 +121,12 @@ export default function BomView({ command, project, results, onChange, onStatus 
 
   // Ribbon commands (BOM / Cost tab).
   const last = useRef(0);
+  // Ribbon commands run once each (command.n counts them) with this render's handlers.
+  const actions = useRef({ exportBoq, exportPdf, exportTemplate, saveToLibrary, newItem });
+  actions.current = { exportBoq, exportPdf, exportTemplate, saveToLibrary, newItem };
   useEffect(() => {
     if (!command || command.n === last.current) return;
+    const { exportBoq, exportPdf, exportTemplate, saveToLibrary, newItem } = actions.current;
     last.current = command.n;
     const c = command.cmd;
     if (c === 'boq' || c === 'scope' || c === 'changes' || c === 'circuits') { setTab(c); setDialog(null); }
@@ -137,7 +141,6 @@ export default function BomView({ command, project, results, onChange, onStatus 
     else if (c === 'extras') setDialog({ kind: 'extras' });
     else if (c === 'wastage') setDialog({ kind: 'wastage' });
     else if (c === 'markup') setDialog({ kind: 'markup' });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [command]);
 
   const q = filter.trim().toLowerCase();

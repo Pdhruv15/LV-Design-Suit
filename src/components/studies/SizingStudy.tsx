@@ -18,10 +18,10 @@ const f1 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 1 }
 export function TransformerGeneratorStudy({ project, onChange, onStatus }: { project: Project; onChange: (p: Project) => void; onStatus?: (m: string) => void }) {
   const s = settingsOf(project);
   const setS = (k: keyof StudySettings, v: number) => onChange({ ...project, studySettings: { ...project.studySettings, [k]: v } });
-  const plan = txGenPlanOf(project);
+  const plan = useMemo(() => txGenPlanOf(project), [project]);
   const setPlan = (patch: Partial<TxGenPlan>) => onChange({ ...project, txGen: { ...project.txGen, ...patch } });
-  const tx = useMemo(() => sizeTransformers(project, plan), [project]); // eslint-disable-line react-hooks/exhaustive-deps
-  const gen = useMemo(() => sizeGeneratorByBoards(project, plan), [project]); // eslint-disable-line react-hooks/exhaustive-deps
+  const tx = useMemo(() => sizeTransformers(project, plan), [project, plan]);
+  const gen = useMemo(() => sizeGeneratorByBoards(project, plan), [project, plan]);
   const boards = useMemo(() => boardsInSupplyOrder(project), [project]);
   const mains = boards.filter((b) => !b.upstreamId);
   const [open, setOpen] = useState<string[]>([]);

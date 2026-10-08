@@ -4,6 +4,7 @@ import { calcPfc, PFC_CALC_DEFAULT, pfText, phasorSvg, powerTriangleSvg, type Pf
 import { capacitorFeeder } from '../../calc/pfc';
 import { pfcReportHtml } from '../../docs/pfcReport';
 import { safeFileName, savePdf } from '../../util/files';
+import { useStable } from '../../util/useStable';
 
 const MODES: [PfcInputMode, string][] = [['kw-pf', 'kW + PF'], ['kva-pf', 'kVA + PF'], ['vi-pf', 'V, A + PF'], ['bill', 'DEWA bill'], ['loads', 'List of loads']];
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -19,9 +20,9 @@ function Num({ label, value, onSet, unit, step = 'any', title }: { label: string
 
 /** Power factor correction for an existing installation: measured values, a bill or a load list → bank, diagrams and report. */
 export default function PfcCalculator({ project, onChange, onStatus }: { project: Project; onChange: (p: Project) => void; onStatus: (m: string) => void }) {
-  const input: PfcCalcInput = { ...PFC_CALC_DEFAULT, voltageV: project.voltageV, ...project.pfcCalc };
+  const input = useStable<PfcCalcInput>({ ...PFC_CALC_DEFAULT, voltageV: project.voltageV, ...project.pfcCalc });
   const set = (patch: Partial<PfcCalcInput>) => onChange({ ...project, pfcCalc: { ...input, ...patch } });
-  const r = useMemo(() => calcPfc(input), [JSON.stringify(input)]); // eslint-disable-line react-hooks/exhaustive-deps
+  const r = useMemo(() => calcPfc(input), [input]);
   const [board, setBoard] = useState(project.boards.find((b) => !b.upstreamId)?.id ?? '');
   const loads = input.loads ?? [];
 

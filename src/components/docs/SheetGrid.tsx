@@ -27,24 +27,26 @@ export default function SheetGrid({ project, set, sheets, run, selected, canDrag
   const [stamp, setStamp] = useState(0); // bump to redraw all
   const [drag, setDrag] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
-  const live = useRef(project);
-  live.current = project;
+  // The latest inputs, read by the thumbnail loop below (it restarts only for new sheets or a new stamp).
+  const live = useRef({ project, set, run, sheets, thumbs });
+  live.current = { project, set, run, sheets, thumbs };
+  const sheetIds = sheets.map((s) => s.id).join(',');
   const projectRev = project.revisions?.[project.revisions.length - 1]?.id;
 
   // Draw missing thumbnails one by one (the drawing is rendered off-screen).
   useEffect(() => {
     let stop = false;
     (async () => {
-      for (const s of sheets) {
+      for (const s of live.current.sheets) {
         if (stop) return;
-        if (thumbs[s.id] || !drawable(s)) continue;
-        const r = await sheetHtml(live.current, set, s, run).catch(() => undefined);
+        if (live.current.thumbs[s.id] || !drawable(s)) continue;
+        const r = await sheetHtml(live.current.project, live.current.set, s, live.current.run).catch(() => undefined);
         if (stop) return;
         if (r) setThumbs((t) => ({ ...t, [s.id]: { html: r.html, size: r.size } }));
       }
     })();
     return () => { stop = true; };
-  }, [sheets.map((s) => s.id).join(','), stamp]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sheetIds, stamp]);
 
   const index = (id: string) => set.sheets.findIndex((s) => s.id === id);
 

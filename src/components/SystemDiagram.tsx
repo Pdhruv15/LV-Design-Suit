@@ -359,14 +359,16 @@ export default function SystemDiagram({
   useEffect(() => setVb({ x: 0, y: 0, w: W, h: H }), [W, H]);
 
   // Centre on a panel or circuit picked in the results below the drawing.
+  const lastFocus = useRef<number | undefined>(undefined);
   useEffect(() => {
-    if (!focus) return;
+    if (!focus || focus.n === lastFocus.current) return;
+    lastFocus.current = focus.n;
     const pt = focus.kind === 'board'
       ? layout.boards.find((n) => n.board.id === focus.id) && (() => { const n = layout.boards.find((m) => m.board.id === focus.id)!; return { x: n.x, y: n.busY - 30 }; })()
       : layout.feeders.find((n) => n.feeder.id === focus.id) && (() => { const n = layout.feeders.find((m) => m.feeder.id === focus.id)!; return { x: n.x, y: n.busY + 40 }; })();
     if (!pt) return;
     setVb((v) => { const w = Math.min(v.w, 1400), h = (w / v.w) * v.h; return { x: pt.x - w / 2, y: pt.y - h / 2, w, h }; });
-  }, [focus?.n]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [focus, layout]);
   function zoom(factor: number, cx = vb.x + vb.w / 2, cy = vb.y + vb.h / 2) {
     setVb((v) => {
       const w = Math.min(Math.max(v.w * factor, 200), layout.width * 3);

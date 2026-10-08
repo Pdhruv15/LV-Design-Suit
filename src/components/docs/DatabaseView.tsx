@@ -31,6 +31,8 @@ const loadSeen = (): Record<string, string[]> => { try { return JSON.parse(local
 /** The LV Database: Excel workbooks in the projects folder (synced by
  * Google Drive). Edit them in Excel or in the table here — saving from here
  * backs the file up first. Changes since you last looked are listed. */
+const books = BOOKS as unknown as Book[];
+
 export default function DatabaseView({ db, available, onRefresh, onApplyParameters, onStatus }: {
   db: Database;
   available: boolean;
@@ -38,7 +40,6 @@ export default function DatabaseView({ db, available, onRefresh, onApplyParamete
   onApplyParameters: () => void;
   onStatus?: (m: string) => void;
 }) {
-  const books = BOOKS as unknown as Book[];
   const [tab, setTab] = useState(books[0].id);
   const [draft, setDraft] = useState<Row[] | null>(null); // editing copy
   const [busy, setBusy] = useState(false);
@@ -59,7 +60,7 @@ export default function DatabaseView({ db, available, onRefresh, onApplyParamete
     let changed = false;
     for (const b of books) if (!s[b.id] && db.raw.books[b.id]) { s[b.id] = (db.raw.books[b.id].rows as Row[]).map((r) => sig(r, b.columns)); changed = true; }
     if (changed) { try { localStorage.setItem(SEEN, JSON.stringify(s)); } catch { /* ignore */ } setSeen(s); }
-  }, [db.raw]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [db.raw]);
 
   const changes = useMemo(() => {
     const out: Record<string, { added: Row[]; removed: string[] }> = {};
@@ -73,7 +74,7 @@ export default function DatabaseView({ db, available, onRefresh, onApplyParamete
       if (added.length || removed.length) out[b.id] = { added, removed };
     }
     return out;
-  }, [db.raw, seen]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [db.raw, seen]);
   const markSeen = (id: string) => {
     const s = { ...seen, [id]: rows.map((r) => sig(r, book.columns)) };
     try { localStorage.setItem(SEEN, JSON.stringify(s)); } catch { /* ignore */ }

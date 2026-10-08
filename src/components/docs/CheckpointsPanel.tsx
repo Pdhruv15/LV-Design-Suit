@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Project } from '../../types';
 import { idbStore, MAX_CHECKPOINTS, newCheckpoint, restoredFrom, saveCheckpoint, type Checkpoint, type CheckpointStore } from '../../model/checkpoints';
 
@@ -8,8 +8,12 @@ const when = (iso: string) => new Date(iso).toLocaleString('en-GB', { day: 'nume
 export default function CheckpointsPanel({ project, onRestore, onStatus, store: given }: { project: Project; onRestore: (p: Project) => void; onStatus: (m: string) => void; store?: CheckpointStore }) {
   const store = useMemo(() => given ?? idbStore(), [given]);
   const [list, setList] = useState<Checkpoint[]>([]);
-  const refresh = async () => { if (store && project.id) setList((await store.list(project.id)).sort((a, b) => b.at.localeCompare(a.at))); };
-  useEffect(() => { refresh().catch((e) => onStatus(`Could not read checkpoints: ${e instanceof Error ? e.message : String(e)}`)); }, [project.id, store]); // eslint-disable-line react-hooks/exhaustive-deps
+  const projectId = project.id;
+  const refresh = useCallback(async () => { if (store && projectId) setList((await store.list(projectId)).sort((a, b) => b.at.localeCompare(a.at))); }, [store, projectId]);
+  // The parent's status callback may change every render; the list is read again only for another project or store.
+  const status = useRef(onStatus);
+  status.current = onStatus;
+  useEffect(() => { refresh().catch((e) => status.current(`Could not read checkpoints: ${e instanceof Error ? e.message : String(e)}`)); }, [refresh]);
   if (!store) return <p className="m">Checkpoints need browser storage, which is not available here.</p>;
   const fail = (what: string) => (e: unknown) => onStatus(`${what} failed: ${e instanceof Error ? e.message : String(e)}`);
 

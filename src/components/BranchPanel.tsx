@@ -3,6 +3,7 @@ import type { Project } from '../types';
 import { applyBranchCopies, assemblyFrom, branchSummary, extractBranch, loadAssemblies, otherFloors, planBranchCopies, saveAssemblies, type Assembly, type Branch } from '../model/branchCopy';
 import { floorList } from '../model/levels';
 import { levelRef } from '../model/hierarchy';
+import { useStable } from '../util/useStable';
 
 /** Repeat branch / Assemblies tabs of Build hierarchy: copy a board with
  * everything below it to chosen floors, or insert a saved assembly — renamed
@@ -30,9 +31,10 @@ export default function BranchPanel({ mode, project, onCreate, onClose }: {
   const sourceParent = mode === 'repeat' ? project.boards.find((b) => b.id === sourceId)?.upstreamId : undefined;
   const floors = mode === 'repeat' ? otherFloors(project, sourceId) : floorList(project.building);
   const parent = parentMode === 'same' && sourceParent ? sourceParent : parentId;
-  const targets = floors.filter((f) => picked.includes(f.key)).map((floor) => ({ floor, parentId: parent }));
-  const plan = useMemo(() => (branch && parent ? planBranchCopies(project, branch, targets.length || floors.length ? targets : [{ parentId: parent }]) : undefined),
-    [project, branch, parent, JSON.stringify(picked)]); // eslint-disable-line react-hooks/exhaustive-deps
+  const targets = useStable(floors.filter((f) => picked.includes(f.key)).map((floor) => ({ floor, parentId: parent })));
+  const anyFloors = floors.length > 0;
+  const plan = useMemo(() => (branch && parent ? planBranchCopies(project, branch, targets.length || anyFloors ? targets : [{ parentId: parent }]) : undefined),
+    [project, branch, parent, targets, anyFloors]);
   const toggle = (k: string) => setPicked((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]));
   const boardsAdded = plan?.copies.reduce((n, c) => n + c.boards.length, 0) ?? 0;
 

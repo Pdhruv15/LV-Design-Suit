@@ -156,17 +156,22 @@ export function SheetWorkspace({ project, run, sheetId, design, onChange, onStat
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  // Redraw the page when the design or this sheet changes (debounced).
+  // Redraw the page when the design or this sheet changes (debounced). The content hash `key` decides
+  // when; the drawing reads the latest inputs, so a new run or object identity alone never restarts it.
+  const latest = useRef({ project, set, s, run });
+  latest.current = { project, set, s, run };
   const key = useMemo(() => (s ? sheetHash(project, set, { ...s, markups: undefined }) + JSON.stringify([s.arrows, s.size, s.cableLabels, s.status, s.rev, s.number, project.drawing, project.info, set.sheets.length]) : ''), [project, set, s]);
   useEffect(() => {
+    const { s } = latest.current;
     if (!s || !drawable(s)) { setPage(null); return; }
     let stop = false;
     const t = setTimeout(async () => {
       setBusy(true);
-      try { const r = await sheetHtml(project, set, s, run, false, false); if (!stop && r) setPage(r); } finally { if (!stop) setBusy(false); }
+      const { project, set, s, run } = latest.current;
+      try { const r = s && (await sheetHtml(project, set, s, run, false, false)); if (!stop && r) setPage(r); } finally { if (!stop) setBusy(false); }
     }, 350);
     return () => { stop = true; clearTimeout(t); };
-  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [key]);
 
   useEffect(() => {
     const el = host.current;
@@ -377,7 +382,10 @@ function PublishDialog({ project, run, onClose, onChange, onStatus, onOpen }: { 
   const [issuing, setIssuing] = useState(false);
   const failing = useMemo(() => (run?.results ?? evaluateProject(project)).map((r) => ({ feederId: r.feeder.id, boardId: r.feeder.boardId, status: r.status })), [project, run]);
   const checks = useMemo(() => sheetChecks(project, set, failing), [project, set, failing]);
+  // Crowded sheets: drawn once when the Publish dialog opens (each sheet is laid out in full), with the inputs of that moment.
+  const atOpen = useRef({ project, set, run });
   useEffect(() => {
+    const { project, set, run } = atOpen.current;
     let stop = false;
     (async () => {
       const out: SheetCheck[] = [];
@@ -389,7 +397,7 @@ function PublishDialog({ project, run, onClose, onChange, onStatus, onOpen }: { 
       if (!stop) setCrowded(out);
     })();
     return () => { stop = true; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
   const all = [...checks, ...(crowded ?? [])];
   const bad = all.filter((c) => c.level === 'bad').length;
   const rev = currentRevision(project);
