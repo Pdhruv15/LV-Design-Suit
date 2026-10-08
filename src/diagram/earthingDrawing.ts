@@ -13,6 +13,8 @@ import { mainBoards, txTag } from '../model/transformers';
  * interconnected (dashed). Symbol legend and DEWA notes at the bottom. */
 
 const PIT = 64, GREEN = '#1a7f37', MAX_W = 3200;
+/** A substation row wraps before this width, so the drawing still prints readably on one sheet. */
+const SUB_MAX_W = 2900;
 const BAND_H = 560; // one row: equipment, conductors, pits and links
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const ln = (x1: number, y1: number, x2: number, y2: number, w = 1.3, c = '#111') => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${c}" stroke-width="${w}"/>`;
@@ -38,6 +40,26 @@ export function rmuSymbol(cx: number, top: number, enclosure = true): string {
 
 /** Transformer: two overlapping circles (r). */
 const txSymbol = (cx: number, cy: number, r = 13) => `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#111" stroke-width="1.3"/><circle cx="${cx}" cy="${cy + r * 1.4}" r="${r}" fill="none" stroke="#111" stroke-width="1.3"/>`;
+/** Earth bar (copper, with studs) and its ID; the conductor to the pits leaves from the centre through a test link. */
+const BAR_W = 64, CU = '#b86b2b', TAG = '#1d4f8f';
+const earthBar = (cx: number, y: number, id: string) => {
+  let s = `<rect x="${cx - BAR_W / 2}" y="${y}" width="${BAR_W}" height="10" rx="2" fill="${CU}" fill-opacity="0.18" stroke="${CU}" stroke-width="1.3"/>`;
+  for (let i = 0; i < 4; i++) s += `<circle cx="${cx - BAR_W / 2 + 11 + i * 14}" cy="${y + 5}" r="2.4" fill="#111"/>`;
+  return s + idTag(cx + 6, y + 24, id);
+};
+/** An ID in a rounded outline (earth bars), starting at x. */
+const idTag = (x: number, y: number, id: string) => {
+  const w = 10 + id.length * 5.6;
+  return `<rect x="${x}" y="${y - 10}" width="${w}" height="14" rx="7" fill="#fff" stroke="${TAG}" stroke-width="0.8"/><text x="${x + w / 2}" y="${y + 1}" text-anchor="middle" font-size="8.5" font-weight="bold" fill="${TAG}">${esc(id)}</text>`;
+};
+/** Test link on a vertical conductor at (x, y): a box the conductor passes through, marked TL. */
+const testLink = (x: number, y: number) => `<rect x="${x - 6}" y="${y - 5}" width="12" height="10" fill="#fff" stroke="#111" stroke-width="1"/>${ln(x - 6, y, x + 6, y, 1)}<text x="${x - 9}" y="${y + 3}" text-anchor="end" font-size="7" fill="#5b6b82">TL</text>`;
+/** Conductor size on a vertical conductor: a tick and the size beside it (horizontal, readable). */
+const callout = (x: number, y: number, label: string) => `${ln(x - 4, y + 4, x + 4, y - 4, 1.2, GREEN)}<text x="${x + 7}" y="${y + 3}" font-size="8" fill="${GREEN}">${esc(label)}</text>`;
+/** Dimension line between two pits with its text above. */
+const separation = (x1: number, x2: number, y: number, label: string) =>
+  `${ln(x1, y, x2, y, 0.7, '#5b6b82')}${ln(x1, y - 4, x1, y + 4, 0.7, '#5b6b82')}${ln(x2, y - 4, x2, y + 4, 0.7, '#5b6b82')}<text x="${(x1 + x2) / 2}" y="${y - 4}" text-anchor="middle" font-size="8" fill="#5b6b82">${esc(label)}</text>`;
+
 /** Earth pit: inspection pit (hollow square) and electrode (earth symbol); the conductor runs through. */
 const pitSymbol = (x: number, y: number) => `<rect x="${x - 7}" y="${y}" width="14" height="10" fill="none" stroke="#111" stroke-width="1.3"/>${ln(x - 7, y + 28, x + 7, y + 28)}${ln(x - 4.5, y + 31, x + 4.5, y + 31)}${ln(x - 2, y + 34, x + 2, y + 34)}`;
 
@@ -49,7 +71,7 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
   const txBoards = mainBoards(project).filter((b) => b.sourceKva);
 
   /** Conductor from (cx, y0) down to the item's pits (row at py), with a bus when there are several. */
-  const drop = (it: EarthItem, cx: number, y0: number, py: number, label: string) => {
+  const drop = (it: EarthItem, cx: number, y0: number, py: number, label: string, labelAsCallout = false) => {
     const ps = pitsOf(it);
     if (!ps.length) { out.push(`<text x="${cx}" y="${py}" text-anchor="middle" fill="#c0392b" font-weight="bold">NO PIT</text>`); return; }
     const xs = ps.map((p) => pitX.get(p.id)!);
@@ -61,7 +83,26 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
       for (const px of xs) out.push(`<path d="M${px} ${bus} V${py + 28}" stroke="${GREEN}" stroke-width="1.6" fill="none"/>`);
     }
     const ty = (y0 + bus) / 2;
-    out.push(`<text x="${cx - 9}" y="${ty}" text-anchor="middle" fill="${GREEN}" font-size="8" transform="rotate(-90 ${cx - 9} ${ty})">${esc(label)}</text>`);
+    if (labelAsCallout) out.push(callout(cx, ty, label));
+    else out.push(`<text x="${cx - 9}" y="${ty}" text-anchor="middle" fill="${GREEN}" font-size="8" transform="rotate(-90 ${cx - 9} ${ty})">${esc(label)}</text>`);
+  };
+  // Earth bar IDs, numbered in drawing order: EB-RMU-01 …, and each transformer's EB-TX(N)-nn / EB-TX(B)-nn.
+  const two = (n: number) => String(n).padStart(2, '0');
+  const barId = new Map<string, string>();
+  L.items.filter((i) => i.kind === 'rmu').forEach((i, n) => barId.set(i.key, `EB-RMU-${two(n + 1)}`));
+  txBoards.forEach((b, n) => { barId.set(`txn:${b.id}`, `EB-TX(N)-${two(n + 1)}`); barId.set(`txb:${b.id}`, `EB-TX(B)-${two(n + 1)}`); });
+  /** Equipment → earth bar → test link → pits; the size called out on the conductor to the pits. */
+  const BAR_Y = 190;
+  const viaBar = (it: EarthItem, cx: number, from: string, top: number, py: number) => {
+    const by = top + BAR_Y;
+    out.push(`<path d="${from} V${by}" stroke="${GREEN}" stroke-width="1.6" fill="none"/>`, earthBar(cx, by, barId.get(it.key) ?? 'EB'));
+    out.push(`<path d="M${cx} ${by + 10} V${by + 52}" stroke="${GREEN}" stroke-width="1.6" fill="none"/>`, testLink(cx, by + 46));
+    drop(it, cx, by + 52, py, `1C ${mm} mm² Cu G/Y`, true);
+  };
+  /** "≥ 6 m" between the first and last pit of one item, at depth dy below the pits. */
+  const spread = (it: EarthItem, py: number, dy: number) => {
+    const xs = pitsOf(it).map((p) => pitX.get(p.id)!);
+    if (xs.length > 1) out.push(separation(Math.min(...xs), Math.max(...xs), py + dy, '≥ 6 m'));
   };
   const place = (it: EarthItem, from: number, width: number, py: number) => {
     const ps = pitsOf(it);
@@ -72,7 +113,7 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
   const zone = (x: number, y: number, w: number, label: string) => out.push(`<rect x="${x}" y="${y}" width="${w}" height="${BAND_H - 40}" fill="none" stroke="#999" stroke-dasharray="4 3"/><text x="${x + 8}" y="${y + 14}" font-size="8" font-weight="bold">${esc(label)}</text>`);
 
   // Widths, to decide whether a substation's LV room fits beside it.
-  const rmuW = (it: EarthItem) => Math.max(150, pitsOf(it).length * PIT) + 20;
+  const rmuW = (it: EarthItem) => Math.max(160, pitsOf(it).length * PIT) + 20;
   const lvW = (it: EarthItem) => Math.max(220, pitsOf(it).length * PIT) + 20;
 
   let y = 50, right = 0;
@@ -86,28 +127,43 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
 
     // ---- Substation zone ----------------------------------------------------
     let x = 60;
-    const TOP = y, PY = y + 410;
+    let TOP = y, PY = y + 410;
+    // A substation wider than the sheet continues on the next row (each row its own zone).
+    const wrap = (w: number) => {
+      if (x === 60 || x + w <= SUB_MAX_W) return;
+      zone(40, TOP, x - 40, name);
+      right = Math.max(right, x);
+      y += BAND_H; TOP = y; PY = y + 410; x = 60;
+    };
     if (rmus.length || txs.length) {
       for (const r of rmus) {
+        wrap(rmuW(r));
         const w = rmuW(r) - 20, cx = place(r, x, w, PY);
         const fed = txs.filter((b) => (b.rmu?.trim() || `RMU (${txTag(project, b.id)})`) === r.equipment).map((b) => txTag(project, b.id));
         out.push(rmuSymbol(cx, TOP + 50));
         out.push(`<text x="${cx}" y="${TOP + 42}" text-anchor="middle" font-weight="bold">${esc(r.equipment)}</text><text x="${cx}" y="${TOP + 130}" text-anchor="middle" font-size="8">feeds ${esc(fed.join(', ') || '—')}</text>`);
-        // Body earth from the enclosure's lower left corner
-        out.push(`<path d="M${cx - 55} ${TOP + 110} H${cx - 64}" stroke="${GREEN}" stroke-width="1.6" fill="none"/>`);
-        drop(r, cx - 64, TOP + 110, PY, `RMU BODY · 1C ${mm} mm² CU/PVC`);
+        // Body earth from the enclosure's lower left corner, to its earth bar
+        out.push(`<path d="M${cx - 55} ${TOP + 110} H${cx - 64}" stroke="${GREEN}" stroke-width="1.6" fill="none"/><circle cx="${cx - 55}" cy="${TOP + 110}" r="2.5" fill="${GREEN}"/>`);
+        viaBar(r, cx - 64, `M${cx - 64} ${TOP + 110}`, TOP, PY);
+        spread(r, PY, 84);
         x += w + 20;
       }
       for (const b of txs) {
         const n = L.items.find((i) => i.key === `txn:${b.id}`)!, bd = L.items.find((i) => i.key === `txb:${b.id}`)!;
-        const wn = Math.max(80, pitsOf(n).length * PIT), wb = Math.max(80, pitsOf(bd).length * PIT);
+        const wn = Math.max(100, pitsOf(n).length * PIT), wb = Math.max(100, pitsOf(bd).length * PIT);
+        wrap(wn + wb + 20);
         const nx = place(n, x, wn, PY), bx = place(bd, x + wn, wb, PY);
         const cx = (nx + bx) / 2, cy = TOP + 80;
         out.push(txSymbol(cx, cy));
         out.push(`<text x="${cx}" y="${cy - 22}" text-anchor="middle" font-weight="bold">${esc(txTag(project, b.id) ?? b.id)}</text><text x="${cx}" y="${cy - 34}" text-anchor="middle" font-size="8">${b.sourceKva} kVA · ${esc(b.vectorGroup ?? 'Dyn11')}</text>`);
-        out.push(`<path d="M${cx - 13} ${cy + 18} H${nx}" stroke="${GREEN}" stroke-width="1.6" fill="none"/><path d="M${cx + 13} ${cy + 18} H${bx}" stroke="${GREEN}" stroke-width="1.6" fill="none"/>`);
-        drop(n, nx, cy + 18, PY, `${txTag(project, b.id)} NEUTRAL · 1C ${mm} mm²`);
-        drop(bd, bx, cy + 18, PY, `${txTag(project, b.id)} BODY · 1C ${mm} mm²`);
+        out.push(`<text x="${nx}" y="${cy + 12}" text-anchor="middle" font-size="8" fill="#5b6b82">star point (N)</text><text x="${bx}" y="${cy + 12}" text-anchor="middle" font-size="8" fill="#5b6b82">tank / body</text>`);
+        viaBar(n, nx, `M${cx - 13} ${cy + 18} H${nx}`, TOP, PY);
+        viaBar(bd, bx, `M${cx + 13} ${cy + 18} H${bx}`, TOP, PY);
+        spread(n, PY, 84);
+        spread(bd, PY, 84);
+        // Neutral and body pit groups kept apart (never joined)
+        const nLast = Math.max(...pitsOf(n).map((p) => pitX.get(p.id)!)), bFirst = Math.min(...pitsOf(bd).map((p) => pitX.get(p.id)!));
+        if (pitsOf(n).length && pitsOf(bd).length) out.push(separation(nLast, bFirst, PY + 100, '≥ 6 m  N ↔ body'));
         x += wn + wb + 20;
       }
       zone(40, TOP, x - 40, name);
@@ -137,15 +193,35 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
   const depth: Record<string, number> = { rmu: 50, txn: 50, txb: 64, lv: 50, sub: 64 };
   const kindOf = new Map(L.pits.map((p) => [p.id, p.kind]));
   const ownPair = new Set(L.items.flatMap((it) => { const ids = pitsOf(it).map((p) => p.id); return ids.slice(1).map((id, i) => `${ids[i]}|${id}`); }));
+  /** A link to a pit on another row: a dashed stub with a break mark and the other pit's ID, at both ends. */
+  // The stub points away from the pit's own same-row link, so it never lies on top of it.
+  const sameRow = L.links.filter(([a, b]) => !ownPair.has(`${a}|${b}`) && pitX.has(a) && pitX.has(b) && pitY.get(a) === pitY.get(b));
+  const linksRight = (id: string) => sameRow.some(([a, b]) => (a === id && pitX.get(b)! > pitX.get(a)!) || (b === id && pitX.get(a)! > pitX.get(b)!));
+  const continues = (id: string, d: number, to: string) => {
+    const x = pitX.get(id)!, py = pitY.get(id)!, s = linksRight(id) ? -1 : 1;
+    return `<path d="M${x} ${py + 34} V${d} h${s * 22}" stroke="${GREEN}" stroke-width="1.6" stroke-dasharray="6 3" fill="none"/><path d="M${x + s * 22} ${d - 5} q${s * 5} 5 0 10" stroke="${GREEN}" stroke-width="1.4" fill="none"/><text x="${x + s * 30}" y="${d + 3}" font-size="8" fill="${GREEN}" text-anchor="${s < 0 ? 'end' : 'start'}">to ${esc(to)}</text>`;
+  };
   for (const [a, b] of L.links) {
     if (ownPair.has(`${a}|${b}`) || !pitX.has(a) || !pitX.has(b)) continue;
     const ax = pitX.get(a)!, bx = pitX.get(b)!, py = pitY.get(a)!, d = py + depth[kindOf.get(a)!];
+    if (pitY.get(b) !== py) {
+      out.push(continues(a, d, b), continues(b, pitY.get(b)! + depth[kindOf.get(b)!], a));
+      continue;
+    }
     out.push(`<path d="M${ax} ${py + 34} V${d} H${bx} V${py + 34}" stroke="${GREEN}" stroke-width="1.6" stroke-dasharray="6 3" fill="none"/>`);
   }
+  // A measured value takes the colour of its pit's net (linked pits together), the same result as the Checks list.
+  const netOf = new Map(L.nets.flatMap((n) => n.pits.map((id) => [id, n] as const)));
+  const badge = (x: number, y: number, p: (typeof L.pits)[number]) => {
+    const net = netOf.get(p.id);
+    const [fill, stroke] = net?.ok === undefined ? ['#fff', '#5b6b82'] : net.ok ? ['#e8f5ec', GREEN] : ['#fdecea', '#c0392b'];
+    const t = `${p.measured} Ω`, w = 10 + t.length * 5.4;
+    return `<rect x="${x}" y="${y}" width="${w}" height="13" rx="2" fill="${fill}" stroke="${stroke}" stroke-width="0.8"/><text x="${x + w / 2}" y="${y + 9.5}" text-anchor="middle" font-size="8" font-weight="bold" fill="${stroke}">${esc(t)}</text>`;
+  };
   for (const p of L.pits) {
     if (!pitX.has(p.id)) continue;
     const px = pitX.get(p.id)!, py = pitY.get(p.id)!;
-    out.push(`${pitSymbol(px, py)}<text x="${px + 10}" y="${py + 9}" font-weight="bold">${p.id}</text>${p.measured !== undefined ? `<text x="${px + 10}" y="${py + 22}" font-size="8">${p.measured} Ω</text>` : ''}`);
+    out.push(`${pitSymbol(px, py)}<text x="${px + 10}" y="${py + 9}" font-weight="bold">${p.id}</text>${p.measured !== undefined ? badge(px + 10, py + 13, p) : ''}`);
   }
 
   // ---- Legend and notes -------------------------------------------------------
@@ -153,9 +229,14 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
   const rows: [string, string, number][] = [
     [`<g transform="translate(26 -16) scale(.5)">${rmuSymbol(0, 0)}</g>`, 'RMU: 2 × ring load-break switch + 1 × T-off switch-fuse (IEC 60617)', 44],
     [`<g transform="translate(26 -10)">${txSymbol(0, 0, 7)}</g>`, 'Transformer', 30],
+    [`<rect x="8" y="-5" width="36" height="10" rx="2" fill="${CU}" fill-opacity="0.18" stroke="${CU}" stroke-width="1.3"/>`, 'Equipment earth bar with ID (EB-RMU / EB-TX(N) / EB-TX(B))', 26],
+    [testLink(30, 0), 'Test link between the earth bar and its pits', 26],
     [ln(8, 0, 44, 0, 5), 'Earth bar (main board / SMDB)', 26],
+    [separation(8, 44, 4, '≥ 6 m'), 'Minimum separation between pits', 26],
+    [`<rect x="12" y="-7" width="30" height="13" rx="2" fill="#e8f5ec" stroke="${GREEN}" stroke-width="0.8"/>`, 'Measured resistance: green within the limit for its pit group, red above', 26],
     [`<path d="M8 0 H44" stroke="${GREEN}" stroke-width="1.6"/>`, `Earth conductor 1C ${mm} mm² CU/PVC`, 26],
     [`<path d="M8 0 H44" stroke="${GREEN}" stroke-width="1.6" stroke-dasharray="6 3"/>`, 'Pit interconnection (same kind, same substation)', 26],
+    [`<path d="M8 0 H30" stroke="${GREEN}" stroke-width="1.6" stroke-dasharray="6 3"/><path d="M30 -5 q5 5 0 10" stroke="${GREEN}" stroke-width="1.4" fill="none"/>`, 'Interconnection continues to a pit on another row (to E…)', 26],
     [`<path d="M8 0 H42" stroke="${GREEN}" stroke-width="1.2" stroke-dasharray="2 3" marker-end="url(#ea)"/>`, 'Incoming earth / CPC from sub-boards (indicative)', 26],
     [`<g transform="translate(26 -16)">${pitSymbol(0, 0)}</g>`, `Earth pit: inspection pit with min. ${L.electrodeM} m Cu-bonded electrode`, 40]
   ];

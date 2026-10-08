@@ -138,6 +138,12 @@ describe('earthing schematic', () => {
     for (const pit of L.pits) expect(d.svg).toContain(`>${pit.id}</text>`);
     expect(d.h).toBeGreaterThan(900); // LV room on a second row
     expect(d.w).toBeLessThan(3000);
+    // The substation wraps onto a second row; links between rows show as "to E…" at both ends.
+    const rows = new Set([...d.svg.matchAll(/>(EB-TX\(N\)-\d+)<\/text>/g)].map((m) => m[1]));
+    expect(rows.size).toBe(10);
+    const cross = [...d.svg.matchAll(/>to (E\d+)<\/text>/g)].map((m) => m[1]);
+    expect(cross.length).toBeGreaterThan(0);
+    expect(cross.length % 2).toBe(0); // both ends of every row-crossing link
   });
 
   it('two substations, 5 transformers and 3 RMUs each: separate bands, pits never linked across substations', () => {
@@ -158,5 +164,23 @@ describe('earthing schematic', () => {
     expect(d.svg).toContain('LV ROOM — SS-02');
     expect(d.svg).toContain('LEGEND');
     expect(d.svg).not.toMatch(/NaN|undefined|NO PIT/);
+  });
+  it('substation earths go through numbered earth bars with test links; separations and measured badges shown', () => {
+    const p0 = withEarthPitIds(sampleProject);
+    const [e1, e2, e3, e4] = earthingLayout(p0).pits.map((x) => x.id);
+    const p = patchEarthing(p0, (x) => ({ ...x, measured: { [e1]: 0.8, [e2]: 0.9, [e3]: 2.6, [e4]: 1.1 } }));
+    const L = earthingLayout(p);
+    const svg = earthingDrawing(p).svg;
+    for (const id of ['EB-RMU-01', 'EB-TX(N)-01', 'EB-TX(B)-01']) expect(svg).toContain(`>${id}</text>`);
+    expect(svg.match(/>TL<\/text>/g)!.length).toBeGreaterThanOrEqual(3 + 1); // three bars + the legend
+    expect(svg).toContain('1C 70 mm² Cu G/Y');
+    expect(svg).toContain('≥ 6 m  N ↔ body');
+    // A badge takes its pit group's result, the same as the Checks list: the neutral (2.6 Ω > 2 Ω) is red,
+    // the RMU pits are green because together they are within the limit.
+    const neutral = L.nets.find((n) => n.kind === 'txn')!, rmu = L.nets.find((n) => n.kind === 'rmu')!;
+    expect([neutral.ok, rmu.ok]).toEqual([false, true]);
+    expect(svg).toMatch(/stroke="#c0392b"[^>]*\/><text[^>]*>2\.6 Ω</);
+    expect(svg).toMatch(/stroke="#1a7f37"[^>]*\/><text[^>]*>0\.8 Ω</);
+    expect(svg).not.toMatch(/NaN|undefined/);
   });
 });
