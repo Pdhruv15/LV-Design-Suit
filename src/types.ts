@@ -690,7 +690,7 @@ export interface DrawingInfo {
   sheet?: 'A4' | 'A3' | 'A2' | 'A1';
   symbols?: 'iec' | 'simple'; // IEC 60617 symbols (default) or simple icons
   cableLabels?: 'auto' | 'ref' | 'full'; // SLD cable text: auto = reference numbers when the sheet is crowded
-  legend?: boolean; // symbol legend beside the drawing (default on with IEC symbols)
+  legend?: boolean; // symbol legend on the drawing sheets and SLD exports, not the design canvas (default on with IEC symbols)
   logo?: string; // company logo (data: URL) in the title block and on report covers
   titleTemplateId?: string; // a custom title block (else the standard one)
   notes?: string[]; // text notes on the SLD sheet; {Parameters} are filled in

@@ -1151,6 +1151,9 @@ export default function App() {
                     const diagram = (
                   <SystemDiagram
                     cull
+                    // The design canvas is not published: the symbol legend is on the drawing sheets. The
+                    // Export dialog prints the canvas as a drawing, so the legend is drawn while it is open.
+                    hideLegend={!showExport}
                     project={project}
                     calcProject={calcProject}
                     stale={staleKeys.length > 0}
