@@ -13,13 +13,15 @@ import { mainBoards, txTag } from './transformers';
  * substation earths below 2 Ω, the LV earth 1 Ω per incoming supply / MDB
  * (DEWA Regulations 2017). Pits at least 6 m apart — a layout check. */
 
-export type EarthKind = 'rmu' | 'txn' | 'txb' | 'lv' | 'sub';
+export type EarthKind = 'rmu' | 'txn' | 'txb' | 'lv' | 'sub' | 'gn' | 'gb';
 export const EARTH_KINDS: { kind: EarthKind; label: string; limitOhm: number }[] = [
   { kind: 'rmu', label: 'RMU body earth', limitOhm: 2 },
   { kind: 'txn', label: 'Transformer neutral earth', limitOhm: 2 },
   { kind: 'txb', label: 'Transformer body earth', limitOhm: 2 },
   { kind: 'lv', label: 'LV earth (main board MET)', limitOhm: 1 },
-  { kind: 'sub', label: 'SMDB earth (own pits)', limitOhm: 1 }
+  { kind: 'sub', label: 'SMDB earth (own pits)', limitOhm: 1 },
+  { kind: 'gn', label: 'Generator neutral earth', limitOhm: 1 },
+  { kind: 'gb', label: 'Generator body earth', limitOhm: 1 }
 ];
 export const kindInfo = (k: EarthKind) => EARTH_KINDS.find((x) => x.kind === k)!;
 
@@ -61,8 +63,20 @@ function equipment(project: Project): Omit<EarthItem, 'pits' | 'linked'>[] {
     // SMDBs may have their own pits where the design asks for it (none by default).
     for (const b of project.boards.filter((x) => x.kind === 'SMDB' && gLv.some((m) => m.id === mainOfId(project, x.id)))) out.push({ key: `sub:${b.id}`, kind: 'sub', group: g, equipment: b.id, point: 'Earth bar', defaultPits: 0 });
   }
+  // Standby generators (a board fed through an ATS): neutral and frame earths, each to its own pit, never joined.
+  // Listed after everything else, so adding a generator never renumbers pits that already have IDs.
+  project.boards.filter((b) => b.standby).forEach((b, n) => {
+    const main = mains.find((m) => m.id === mainOfId(project, b.id));
+    const g = main ? subOf(main) : 'SUBSTATION';
+    const name = `${genTag(n)} ${b.standby!.kva} kVA`;
+    out.push({ key: `gn:${b.id}`, kind: 'gn', group: g, equipment: name, point: 'Neutral (star point)', defaultPits: 1 });
+    out.push({ key: `gb:${b.id}`, kind: 'gb', group: g, equipment: name, point: 'Frame / body', defaultPits: 1 });
+  });
   return out;
 }
+
+/** Generator display name, in board order: GEN-1, GEN-2 … */
+export const genTag = (n: number) => `GEN-${n + 1}`;
 
 const mainOfId = (project: Project, id: string): string => {
   const byId = new Map(project.boards.map((b) => [b.id, b]));
@@ -150,6 +164,7 @@ export function earthingLayout(project: Project): EarthLayout {
   if (!items.length) checks.push({ level: 'warn', text: 'No transformers or main boards yet — add them in Panels → Transformers' });
   else if (!items.some((i) => i.kind === 'txn')) checks.push({ level: 'warn', text: 'No transformer on any main board — only the LV earth is shown' });
   if (pits.length) checks.push({ level: 'ok', text: 'Transformer neutral and body earths are separate (never interconnected)' });
+  if (items.some((i) => i.kind === 'gn')) checks.push({ level: 'ok', text: 'Generator neutral and body earths are separate (never interconnected)' });
   if (pits.length > 1) checks.push({ level: 'warn', text: 'Layout: keep earth pits at least 6 m apart' });
   return { items, pits, links, nets, checks, electrodeM: plan.electrodeM ?? 3, conductorMm2: plan.conductorMm2 ?? 70, bonding: plan.bonding ?? DEFAULT_BONDING };
 }
