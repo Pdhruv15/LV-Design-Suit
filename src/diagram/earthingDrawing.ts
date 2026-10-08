@@ -191,14 +191,14 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
       if (x > lvStart + 20 && x + lvW(it) > SUB_MAX_W) { zone(lvStart, LT, x - lvStart, lvTitle); right = Math.max(right, x); y += BAND_H; LT = y; LP = LT + 410; lvStart = 40; x = 60; }
       const w = lvW(it) - 20, cx = place(it, x, w, LP);
       const main = it.kind === 'lv';
-      // The board: its N and E bars, and the single N–E link (main boards only; TN-S).
-      const bx = cx - 105, eY = LT + (main ? 104 : 84);
-      out.push(`<rect x="${bx}" y="${LT + 46}" width="210" height="${main ? 84 : 64}" fill="#fff" stroke="#111" stroke-width="1.4"/><text x="${bx}" y="${LT + 40}" font-weight="bold">${esc(it.equipment)}</text>`);
-      if (main) {
-        out.push(`${ln(bx + 22, LT + 70, bx + 196, LT + 70, 2.6)}<text x="${bx + 12}" y="${LT + 74}" text-anchor="middle" font-weight="bold">N</text>`);
-        out.push(`${ln(cx - 45, LT + 70, cx - 45, eY, 1.6)}<circle cx="${cx - 45}" cy="${LT + 70}" r="3" fill="#111"/><circle cx="${cx - 45}" cy="${eY}" r="3" fill="#111"/><text x="${cx - 39}" y="${LT + 90}" font-size="8" fill="#5b6b82">N–E link (only here)</text>`);
-      } else out.push(`<text x="${bx + 196}" y="${LT + 64}" text-anchor="end" font-size="8" fill="#5b6b82">no N–E link (TN-S)</text>`);
+      // The board: N bar isolated from earth (the neutral is earthed once, at the transformer star point),
+      // and the E bar with the panel body (enclosure / frame) bonded to it. No N–E link in an LV panel.
+      const bx = cx - 105, eY = LT + 104;
+      out.push(`<rect x="${bx}" y="${LT + 46}" width="210" height="84" fill="#fff" stroke="#111" stroke-width="1.4"/><text x="${bx}" y="${LT + 40}" font-weight="bold">${esc(it.equipment)}</text>`);
+      out.push(`${ln(bx + 22, LT + 70, bx + 196, LT + 70, 2.6)}<text x="${bx + 12}" y="${LT + 74}" text-anchor="middle" font-weight="bold">N</text><text x="${bx + 196}" y="${LT + 84}" text-anchor="end" font-size="8" fill="#5b6b82">N isolated from earth</text>`);
       out.push(`${ln(bx + 22, eY, bx + 196, eY, 2.6, GREEN)}<text x="${bx + 12}" y="${eY + 4}" text-anchor="middle" font-weight="bold" fill="${GREEN}">E</text>`);
+      // Panel body bonded to the E bar: from the enclosure wall at the bottom to the bar.
+      out.push(`<circle cx="${bx + 60}" cy="${LT + 130}" r="2.5" fill="${GREEN}"/><path d="M${bx + 60} ${LT + 130} V${eY}" stroke="${GREEN}" stroke-width="1.4" fill="none"/><circle cx="${bx + 60}" cy="${eY}" r="2.5" fill="${GREEN}"/><text x="${bx + 66}" y="${LT + 124}" font-size="8" fill="#5b6b82">panel body</text>`);
       // Board E bar → main earth bar → test link → pits.
       const by = LT + 236, mx = cx + 70;
       out.push(`<circle cx="${mx}" cy="${eY}" r="3" fill="${GREEN}"/><path d="M${mx} ${eY} V${by}" stroke="${GREEN}" stroke-width="1.6" fill="none"/>`, callout(mx, (eY + by) / 2 + 20, `1C ${mm} mm² Cu G/Y`));
@@ -217,7 +217,7 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
       const fed = project.boards.filter((b) => b.upstreamId === it.equipment).map((b) => b.id);
       if (fed.length) {
         const ex = cx + 80, shown = fed.slice(0, 3), more = fed.length - shown.length;
-        out.push(`<path d="M${ex + 54} ${by + 5} H${ex + 8}" stroke="${GREEN}" stroke-width="1.2" stroke-dasharray="2 3" fill="none"/>`, headLeft(ex, by + 5));
+        out.push(`<path d="M${ex + 54} ${by + 5} H${ex + 8}" stroke="${GREEN}" stroke-width="1.2" stroke-dasharray="7 3 1.5 3" fill="none"/>`, headLeft(ex, by + 5));
         [...shown.map((id) => `from ${id}`), ...(more ? [`+ ${more} more`] : [])].forEach((t, i) => out.push(`<text x="${ex + 12}" y="${by + 24 + i * 10}" font-size="8" fill="${GREEN}">${esc(t)}</text>`));
       }
       spread(it, LP, 84);
@@ -277,7 +277,7 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
   const linksRight = (id: string) => sameRow.some(([a, b]) => (a === id && pitX.get(b)! > pitX.get(a)!) || (b === id && pitX.get(a)! > pitX.get(b)!));
   const continues = (id: string, d: number, to: string) => {
     const x = pitX.get(id)!, py = pitY.get(id)!, s = linksRight(id) ? -1 : 1;
-    return `<path d="M${x} ${py + 34} V${d} h${s * 22}" stroke="${GREEN}" stroke-width="1.6" stroke-dasharray="6 3" fill="none"/><path d="M${x + s * 22} ${d - 5} q${s * 5} 5 0 10" stroke="${GREEN}" stroke-width="1.4" fill="none"/><text x="${x + s * 30}" y="${d + 3}" font-size="8" fill="${GREEN}" text-anchor="${s < 0 ? 'end' : 'start'}">to ${esc(to)}</text>`;
+    return `<path d="M${x} ${py + 34} V${d} h${s * 22}" stroke="${GREEN}" stroke-width="1.6" stroke-dasharray="1.5 3" stroke-linecap="round" fill="none"/><path d="M${x + s * 22} ${d - 5} q${s * 5} 5 0 10" stroke="${GREEN}" stroke-width="1.4" fill="none"/><text x="${x + s * 30}" y="${d + 3}" font-size="8" fill="${GREEN}" text-anchor="${s < 0 ? 'end' : 'start'}">to ${esc(to)}</text>`;
   };
   for (const [a, b] of L.links) {
     if (ownPair.has(`${a}|${b}`) || !pitX.has(a) || !pitX.has(b)) continue;
@@ -286,7 +286,7 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
       out.push(continues(a, d, b), continues(b, pitY.get(b)! + depth[kindOf.get(b)!], a));
       continue;
     }
-    out.push(`<path d="M${ax} ${py + 34} V${d} H${bx} V${py + 34}" stroke="${GREEN}" stroke-width="1.6" stroke-dasharray="6 3" fill="none"/>`);
+    out.push(`<path d="M${ax} ${py + 34} V${d} H${bx} V${py + 34}" stroke="${GREEN}" stroke-width="1.6" stroke-dasharray="1.5 3" stroke-linecap="round" fill="none"/>`);
   }
   // A measured value takes the colour of its pit's net (linked pits together), the same result as the Checks list.
   const netOf = new Map(L.nets.flatMap((n) => n.pits.map((id) => [id, n] as const)));
@@ -309,13 +309,13 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
     [`<g transform="translate(26 -10)">${txSymbol(0, 0, 7)}</g>`, 'Transformer', 30],
     [`<rect x="8" y="-5" width="36" height="10" rx="2" fill="${CU}" fill-opacity="0.18" stroke="${CU}" stroke-width="1.3"/>`, 'Equipment earth bar with ID (EB-RMU / EB-TX / EB-GEN)', 26],
     [testLink(30, 0), 'Test link between the earth bar and its pits', 26],
-    [`${ln(8, -5, 44, -5, 2.6)}${ln(8, 5, 44, 5, 2.6, GREEN)}${ln(20, -5, 20, 5, 1.4)}`, 'Main board N and E bars with the N–E link (TN-S: main board only)', 26],
+    [`${ln(8, -5, 44, -5, 2.6)}${ln(8, 5, 44, 5, 2.6, GREEN)}${ln(20, 5, 20, 12, 1.4, GREEN)}`, 'Panel N bar (isolated from earth) and E bar with the panel body bonded to it', 26],
     [separation(8, 44, 4, '≥ 6 m'), 'Minimum separation between pits', 26],
     [`<rect x="12" y="-7" width="30" height="13" rx="2" fill="#e8f5ec" stroke="${GREEN}" stroke-width="0.8"/>`, 'Measured resistance: green within the limit for its pit group, red above', 26],
     [`<path d="M8 0 H44" stroke="${GREEN}" stroke-width="1.6"/>`, `Earth conductor 1C ${mm} mm² CU/PVC`, 26],
-    [`<path d="M8 0 H44" stroke="${GREEN}" stroke-width="1.6" stroke-dasharray="6 3"/>`, 'Pit interconnection (same kind, same substation)', 26],
-    [`<path d="M8 0 H30" stroke="${GREEN}" stroke-width="1.6" stroke-dasharray="6 3"/><path d="M30 -5 q5 5 0 10" stroke="${GREEN}" stroke-width="1.4" fill="none"/>`, 'Interconnection continues to a pit on another row (to E…)', 26],
-    [`<path d="M44 0 H16" stroke="${GREEN}" stroke-width="1.2" stroke-dasharray="2 3"/>${headLeft(8, 0)}`, 'Incoming earth / CPC from the boards it feeds (named)', 26],
+    [`<path d="M8 0 H44" stroke="${GREEN}" stroke-width="1.6" stroke-dasharray="1.5 3" stroke-linecap="round"/>`, 'Pit interconnection, dotted (same kind, same substation)', 26],
+    [`<path d="M8 0 H30" stroke="${GREEN}" stroke-width="1.6" stroke-dasharray="1.5 3" stroke-linecap="round"/><path d="M30 -5 q5 5 0 10" stroke="${GREEN}" stroke-width="1.4" fill="none"/>`, 'Interconnection continues to a pit on another row (to E…)', 26],
+    [`<path d="M44 0 H16" stroke="${GREEN}" stroke-width="1.2" stroke-dasharray="7 3 1.5 3"/>${headLeft(8, 0)}`, 'Incoming earth / CPC from the boards it feeds (named)', 26],
     [`<path d="M26 9 V0" stroke="${GREEN}" stroke-width="1.2"/>${headUp(26, -8)}`, 'Bonding of metal parts to the main earth bar', 26],
     [`<g transform="translate(26 -16)">${pitSymbol(0, 0)}</g>`, `Earth pit: inspection pit with min. ${L.electrodeM} m Cu-bonded electrode`, 40]
   ];
@@ -331,8 +331,9 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
     '3. EARTH PITS OF DIFFERENT SUBSTATIONS ARE NOT INTERCONNECTED.',
     '4. SUBSTATION EARTHS < 2 Ω; LV EARTH ≤ 1 Ω PER INCOMING SUPPLY / MDB (DEWA).',
     '5. EARTH PITS AT LEAST 6.0 m APART. LIGHTNING PROTECTION NOT SHOWN.',
-    '6. ONE N–E LINK ONLY, AT THE MAIN BOARD (TN-S). EVERY EARTH BAR HAS A TEST LINK TO ITS PITS.',
-    '7. GENERATOR NEUTRAL AND BODY EARTHS ARE SEPARATE, EACH ≤ 1 Ω; FUEL TANK AND ENCLOSURE BONDED TO THE GENERATOR EARTH BAR.'
+    '6. NEUTRAL EARTHED AT THE TRANSFORMER STAR POINT ONLY; NO N–E LINK IN LV PANELS. PANEL BODY BONDED TO THE E BAR.',
+    '7. EVERY EARTH BAR HAS A TEST LINK TO ITS PITS. PIT INTERCONNECTIONS DOTTED.',
+    '8. GENERATOR NEUTRAL AND BODY EARTHS ARE SEPARATE, EACH ≤ 1 Ω; FUEL TANK AND ENCLOSURE BONDED TO THE GENERATOR EARTH BAR.'
   ];
   const noteSvg = `<g transform="translate(${lx + 560} ${ly})">${notes.map((t, i) => `<text x="0" y="${18 + i * 16}" font-size="9"${i ? '' : ' font-weight="bold"'}>${esc(t)}</text>`).join('')}</g>`;
 
