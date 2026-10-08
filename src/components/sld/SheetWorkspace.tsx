@@ -212,6 +212,10 @@ export function SheetWorkspace({ project, run, sheetId, design, onChange, onStat
         <button className="icon-btn" title="Zoom out" onClick={() => setZoom(Math.max(0.15, (zoom === 'fit' ? fit : zoom) / 1.25))}>−</button>
         <button className="chip" onClick={() => setZoom('fit')}>{zoom === 'fit' ? 'Fit' : `${Math.round(scale * 100)} %`}</button>
         <button className="icon-btn" title="Zoom in" onClick={() => setZoom(Math.min(3, (zoom === 'fit' ? fit : zoom) * 1.25))}>+</button>
+        {project.drawing?.symbols !== 'simple' && (
+          <button className={`chip${project.drawing?.legend !== false ? ' on' : ''}`} onClick={() => onChange({ ...project, drawing: { ...project.drawing, legend: project.drawing?.legend === false } })}
+            title="Symbol legend in the sheets' legend column (and on SLD exports)">Legend</button>
+        )}
         <label className="row" title="The design on the left, this sheet on the right"><input type="checkbox" checked={side} onChange={(e) => { setSide(e.target.checked); try { localStorage.setItem('lvds.sheetSide', e.target.checked ? '1' : '0'); } catch { /* ignore */ } }} /> Side by side</label>
         <button className="chip primary" onClick={() => setPublish(true)}>Publish…</button>
       </div>
