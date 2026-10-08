@@ -183,10 +183,17 @@ describe('earthing schematic', () => {
     expect(svg).toMatch(/stroke="#1a7f37"[^>]*\/><text[^>]*>0\.8 Ω</);
     expect(svg).not.toMatch(/NaN|undefined/);
   });
-  it('LV room: N and E bars with one N–E link, main earth bar with test link, named incoming earths and bonding', () => {
+  it('LV room: N isolated, panel body to the E bar, main earth bar with test link, named incoming earths and bonding', () => {
     const p = withEarthPitIds(sampleProject);
     const svg = earthingDrawing(p).svg;
-    expect(svg).toContain('N–E link (only here)');
+    // The neutral is earthed at the transformer star point only: no N–E link in the panel; the panel body goes to earth.
+    expect(svg).not.toContain('N–E link');
+    expect(svg).toContain('N isolated from earth');
+    expect(svg).toContain('>panel body</text>');
+    expect(svg).toContain('NEUTRAL EARTHED AT THE TRANSFORMER STAR POINT ONLY');
+    // Pit interconnections are dotted.
+    expect(svg).toContain('stroke-dasharray="1.5 3"');
+    expect(svg).not.toContain('stroke-dasharray="6 3"');
     expect(svg).toContain('>EB-LV-MDB-1</text>');
     expect(svg).toContain('MAIN EARTH BAR');
     for (const id of sampleProject.boards.filter((b) => b.upstreamId === 'MDB-1').map((b) => b.id)) expect(svg).toContain(`>from ${id}</text>`);
@@ -219,7 +226,7 @@ describe('earthing schematic', () => {
     expect(buildBom({ ...p, earthingPlan: p.earthingPlan ?? {} }).filter((it) => it.key.startsWith('earth-pit')).reduce((n, it) => n + it.qty, 0)).toBe(L.pits.length);
     // Drawing: generator zone, its earth bars, bonding and the note.
     const svg = earthingDrawing(m).svg;
-    for (const t of ['STANDBY GENERATOR', '>GEN-1</text>', '>EB-GEN(N)-01</text>', '>EB-GEN(B)-01</text>', 'BONDED: Fuel tank', 'ATS to SMDB-GF', '7. GENERATOR NEUTRAL AND BODY EARTHS ARE SEPARATE']) expect(svg).toContain(t);
+    for (const t of ['STANDBY GENERATOR', '>GEN-1</text>', '>EB-GEN(N)-01</text>', '>EB-GEN(B)-01</text>', 'BONDED: Fuel tank', 'ATS to SMDB-GF', '8. GENERATOR NEUTRAL AND BODY EARTHS ARE SEPARATE']) expect(svg).toContain(t);
     expect(svg).not.toMatch(/NaN|undefined/);
   });
 });

@@ -6,7 +6,7 @@ import { boardsInSupplyOrder } from '../../calc/summary';
 import { subtree } from '../../calc/pfc';
 import { evaluateProject } from '../../calc/electrical';
 import {
-  addRiserSheet, addSheet, applyTemplate, drawable, issueSheets, loadSheetTemplates, nextRev, renumber, saveSheetTemplates, setOf, SHEET_STATUSES, sheetChecks, sheetHash, sheetRev, sheetsByCount, SIZES, statusColor, templateFromSheet,
+  addEarthingSheet, addRiserSheet, addSheet, applyTemplate, drawable, issueSheets, loadSheetTemplates, nextRev, renumber, saveSheetTemplates, setOf, SHEET_STATUSES, sheetChecks, sheetHash, sheetRev, sheetsByCount, SIZES, statusColor, templateFromSheet,
   type DrawingSet, type DrawingSheet, type SheetCheck, type SheetSize,
   sheetRefs, type SheetRef
 } from '../../model/drawingSet';
@@ -86,6 +86,11 @@ export function SheetTabs({ project, active, selectedBoardId, outlinesOn, onActi
             {(project.building?.buildings ?? []).map((b) => (
               <button key={b.id} onClick={() => { close(); const r = addRiserSheet(set, b.id, b.name); save(r.set); onActive(r.id); }}>Riser diagram — {b.name}</button>
             ))}
+            {(() => {
+              // One earthing schematic per set: open it if it is already there.
+              const earthing = set.sheets.find((x) => x.kind === 'earthing');
+              return <button title="The earthing schematic from Design → Earth pits, as a drawing sheet" onClick={() => { close(); if (earthing) { onActive(earthing.id); return; } const r = addEarthingSheet(set); save(r.set); onActive(r.id); }}>{earthing ? 'Earthing schematic (open)' : 'Earthing schematic'}</button>;
+            })()}
             <button onClick={() => { close(); const n = Number(window.prompt('Panels per sheet', '10')); if (!n) return; if (set.sheets.length && !window.confirm('Replace all sheets?')) return; save({ ...sheetsByCount(project, n, set.prefix), register: set.register, tags: set.tags, status: set.status, issues: set.issues }); }}>Split all panels into sheets…</button>
           </div>
         )}
