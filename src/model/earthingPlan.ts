@@ -27,7 +27,10 @@ export interface EarthItem { key: string; legacyKey?: string; kind: EarthKind; g
 export interface EarthPit { id: string; kind: EarthKind; itemKey: string; measured?: number }
 export interface EarthNet { kind: EarthKind; group: string; pits: string[]; items: string[]; effectiveOhm?: number; ok?: boolean }
 export interface EarthCheck { level: 'ok' | 'warn' | 'bad'; text: string }
-export interface EarthLayout { items: EarthItem[]; pits: EarthPit[]; links: [string, string][]; nets: EarthNet[]; checks: EarthCheck[]; electrodeM: number; conductorMm2: number }
+export interface EarthLayout { items: EarthItem[]; pits: EarthPit[]; links: [string, string][]; nets: EarthNet[]; checks: EarthCheck[]; electrodeM: number; conductorMm2: number; bonding: string[] }
+
+/** Metal parts bonded to each main earth bar unless the project lists its own. */
+export const DEFAULT_BONDING = ['Room earth bar', 'Cable containment', 'Sprinkler / pipework', 'Ductwork / mechanical'];
 
 /** The equipment that needs an earth, from the project. */
 function equipment(project: Project): Omit<EarthItem, 'pits' | 'linked'>[] {
@@ -148,7 +151,7 @@ export function earthingLayout(project: Project): EarthLayout {
   else if (!items.some((i) => i.kind === 'txn')) checks.push({ level: 'warn', text: 'No transformer on any main board — only the LV earth is shown' });
   if (pits.length) checks.push({ level: 'ok', text: 'Transformer neutral and body earths are separate (never interconnected)' });
   if (pits.length > 1) checks.push({ level: 'warn', text: 'Layout: keep earth pits at least 6 m apart' });
-  return { items, pits, links, nets, checks, electrodeM: plan.electrodeM ?? 3, conductorMm2: plan.conductorMm2 ?? 70 };
+  return { items, pits, links, nets, checks, electrodeM: plan.electrodeM ?? 3, conductorMm2: plan.conductorMm2 ?? 70, bonding: plan.bonding ?? DEFAULT_BONDING };
 }
 
 /** Change one setting of the plan (pits, link, measured value). */
