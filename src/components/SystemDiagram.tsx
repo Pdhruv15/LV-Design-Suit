@@ -1168,7 +1168,8 @@ export default function SystemDiagram({
                 ...boardTags(b.id),
                 ...(s.loadingPct !== undefined ? [{ text: `${s.loadingPct.toFixed(0)}% loaded`, cls: layers?.loading ? s.loadingStatus ?? 'm' : 'm' }] : [])
               ].map((t, i) => (
-                <text key={t.text} x={n.x + 10} y={n.busY - 30 + i * 13} className={`res ${t.cls}`}>{t.text}</text>
+                // Under the incomer label (same left edge, one line gap), clear of the busbar label.
+                <text key={t.text} x={n.x + 10} y={(incomerDeviceOf(b) && !b.standby ? n.busY - (protectionOf(b) ? 92 : 84) + 40 : n.busY - 47) + i * 13} className={`res ${t.cls}`}>{t.text}</text>
               ))}
             </g>
           );
