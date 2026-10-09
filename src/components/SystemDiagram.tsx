@@ -26,6 +26,7 @@ import { cableSizeText, faultCurrentKA, impedanceToBoard, runsOf, upstreamVoltag
 import { MOTOR_START_DIP_LIMIT_PCT, type GeneratorRun, type OutageScenario } from '../calc/scenario';
 import { boardRatio, COLOR_BY, earthRatio, feederRatio, heatColor, type ColorBy } from '../diagram/heatmap';
 import { evaluateEarthingAll } from '../calc/earthing';
+import { earthingLayout } from '../model/earthingPlan';
 import { INCOMER_DEVICES, incomerDeviceOf, type Board, type Feeder } from '../types';
 import { getDragItem, setDragItem } from '../diagram/dragItem';
 
@@ -55,6 +56,9 @@ export const protectionOf = (b: Board): Board['protection'] | undefined => {
 /** Instruments and earthing default on for main boards. */
 export const hasInstruments = (b: Board) => b.instruments ?? !b.upstreamId;
 export const hasEarthPits = (b: Board) => b.earthing?.show ?? !b.upstreamId;
+/** Top of a framed panel (DEWA style): the name box band above the incomer. */
+const frameTopOf = (b: Board, busY: number) => busY - (protectionOf(b) ? 92 : 84) - 12 - 62;
+const m2s = (ids?: string[]) => (ids?.length ? ids.join(', ') : undefined);
 /** Main earth conductor: typed, else the incomer's protective conductor size (min. 16), else 50 mm². */
 export function earthConductorOf(project: Project, b: Board): number {
   if (b.earthing?.conductorMm2) return b.earthing.conductorMm2;
@@ -218,6 +222,14 @@ export default function SystemDiagram({
     if (tool !== 'pan' && fn && id) fn(id);
   };
   const layout = useMemo(() => layoutSystem(project, dewa ? DEWA_EXTRA_Y : 0), [project, dewa]);
+  // Earth pit IDs (E1, E2 …) from the earthing plan, so the SLD and the earthing sheet agree.
+  const earthPits = useMemo(() => {
+    const m = new Map<string, string[]>();
+    if (!layout.roots.some((r) => hasEarthPits(r.board))) return m;
+    for (const pit of earthingLayout(project).pits) { const k = pit.itemKey.replace(/#\d+$/, ''); (m.get(k) ?? m.set(k, []).get(k)!).push(pit.id); }
+    return m;
+  }, [project, layout]);
+  const pitIds = (key: string) => m2s(earthPits.get(key));
   // CAD label limits follow neighbouring drops on the same row. This is
   // export metadata only; it does not change the live or printed diagram.
   const cadSlots = useMemo(() => {
@@ -661,36 +673,64 @@ export default function SystemDiagram({
           </g>
         ))}
 
-        {/* Main earthing detail: earth pits left of each main board's incoming supply */}
+        {/* Main earthing: the transformer's neutral and body earths (separate pits, never joined) and
+            the LV earth pits, wired through a test link to the main board's MET. IEC 60364-5-54 / BS 7430. */}
         {layout.roots.map((r, i) => {
           const b = r.board;
           if (!hasEarthPits(b)) return null;
           const prev = layout.roots[i - 1];
           if (prev && prev.x > r.x - 280) return null; // no room beside a neighbouring main board
-          const ox = r.x - 150, oy = 60;
+          const tx = !!b.sourceKva && !b.upstreamId; // own transformer (an authority supply has none to draw)
+          const ox = r.x - 185, oy = 60;
           const mm = earthConductorOf(project, b);
           const pits = b.earthing?.pits ?? 2;
           const el = b.earthing?.electrodeM ?? 3;
           const sp = b.earthing?.spacingM ?? 6;
+          const lvIds = earthPits.get(`lv:${b.id}`);
+          const ids = lvIds?.length === pits ? ` · ${lvIds.join(', ')}` : '';
+          // MET: a bar inside the main board's frame, right of its name box.
+          const y1 = frameTopOf(b, r.busY);
+          const runX = ox + 116;
+          const metX1 = Math.max(runX - 25, r.busX1 - 7 + 152), metY = y1 + 20;
+          const metMid = metX1 + 25;
+          const gnd = (x: number, y: number) => (
+            <>
+              <line x1={x - 7} y1={y} x2={x + 7} y2={y} className="ln" />
+              <line x1={x - 4.5} y1={y + 3} x2={x + 4.5} y2={y + 3} className="ln" />
+              <line x1={x - 2} y1={y + 6} x2={x + 2} y2={y + 6} className="ln" />
+            </>
+          );
           const rod = (x: number) => (
             <g key={x}>
               <rect x={x - 7} y={oy + 12} width="14" height="10" className="sym" />
               <line x1={x} y1={oy + 17} x2={x} y2={oy + 40} className="ln" />
-              <line x1={x - 7} y1={oy + 40} x2={x + 7} y2={oy + 40} className="ln" />
-              <line x1={x - 4.5} y1={oy + 43} x2={x + 4.5} y2={oy + 43} className="ln" />
-              <line x1={x - 2} y1={oy + 46} x2={x + 2} y2={oy + 46} className="ln" />
+              {gnd(x, oy + 40)}
             </g>
           );
+          const nIds = pitIds(`txn:${b.id}`), bIds = pitIds(`txb:${b.id}`);
           return (
             <g key={`earth-${b.id}`} className="acc earth-pit">
-              <title>{`${b.id} main earthing: ${pits} earth pits, ${el} m electrodes, min. ${sp} m apart, 1C ${mm} mm² Cu/PVC earth conductor`}</title>
-              <text x={ox} y={oy - 6} className="acc-t b">EARTH PITS ({pits} NO.)</text>
-              <line x1={ox + 15} y1={oy + 8} x2={ox + 85} y2={oy + 8} className="ln" />
-              <line x1={ox + 15} y1={oy + 8} x2={ox + 15} y2={oy + 12} className="ln" />
+              <title>{`${b.id} main earthing: ${pits} earth pits${ids}, ${el} m electrodes, min. ${sp} m apart, 1C ${mm} mm² Cu/PVC to the MET through a test link${tx ? '; transformer neutral and body earthed to separate pits, not interconnected' : ''}`}</title>
+              {tx && (
+                <g className="tx-earth">
+                  {/* Neutral (star point) to its own pit, on the left */}
+                  <circle cx={r.x - 14} cy={100} r="1.8" className="dot" />
+                  <path d={`M${r.x - 14} 100 H${r.x - 36} V130`} className="ln" />
+                  {gnd(r.x - 36, 130)}
+                  <text x={r.x - 36} y={146} textAnchor="middle" className="acc-t" style={{ fontSize: 7 }}>{`N EARTH${nIds ? ` · ${nIds}` : ''}`}</text>
+                  {/* Tank / body to a separate pit, on the right under the rating text */}
+                  <rect x={r.x - 18} y={67} width="36" height="51" className="ln interlock" fill="none" />
+                  <path d={`M${r.x + 12} 118 V124 H${r.x + 44} V130`} className="ln" />
+                  {gnd(r.x + 44, 130)}
+                  <text x={r.x + 44} y={146} textAnchor="middle" className="acc-t" style={{ fontSize: 7 }}>{`BODY EARTH${bIds ? ` · ${bIds}` : ''}`}</text>
+                </g>
+              )}
+              <text x={ox} y={oy - 6} className="acc-t b">{`LV EARTH PITS (${pits} NO.)${ids}`}</text>
+              {/* Pits linked to each other and run down to the MET through a test link */}
+              <path d={`M${ox + 15} ${oy + 12} V${oy + 8} H${runX} V${y1 - 4} H${metMid} V${metY}`} className="ln" />
               <line x1={ox + 85} y1={oy + 8} x2={ox + 85} y2={oy + 12} className="ln" />
-              <line x1={ox + 50} y1={oy + 8} x2={ox + 50} y2={oy + 2} className="ln" />
-              <path d={`M${ox + 50} ${oy + 2} H${r.x - 20}`} className="ln interlock" />
-              <text x={r.x - 22} y={oy + 11} textAnchor="end" className="acc-t" style={{ fontSize: 7 }}>to MET</text>
+              <rect x={runX - 5} y={y1 - 17} width="10" height="7" className="sym" />
+              <text x={runX - 8} y={y1 - 11} textAnchor="end" className="acc-t" style={{ fontSize: 7 }}>TEST LINK</text>
               {rod(ox + 15)}
               {rod(ox + 85)}
               <line x1={ox + 15} y1={oy + 52} x2={ox + 85} y2={oy + 52} className="ln" />
@@ -699,6 +739,9 @@ export default function SystemDiagram({
               <text x={ox} y={oy + 63} className="acc-t" style={{ fontSize: 7.5 }}>1C {mm}mm² CU/PVC</text>
               <text x={ox} y={oy + 72} className="acc-t" style={{ fontSize: 7.5 }}>MIN. {el} m ELECTRODE WITH</text>
               <text x={ox} y={oy + 81} className="acc-t" style={{ fontSize: 7.5 }}>INSPECTION PIT AND COVER</text>
+              {/* Main earthing terminal in the main board */}
+              <line x1={metX1} y1={metY} x2={metX1 + 50} y2={metY} className="ln met-bar" />
+              <text x={metX1 + 54} y={metY + 3} className="acc-t b">MET</text>
             </g>
           );
         })}
@@ -1016,7 +1059,7 @@ export default function SystemDiagram({
                 // The panel's name box sits just inside the frame's top-left corner: name, TCL, MDL, location and
                 // the prospective fault level at the board (the breaker's own Icu is on the incomer line).
                 const x1 = n.busX1 - 7, x2 = n.busX2 + 7, y2 = n.busY + 47;
-                const y1 = n.busY - (protectionOf(b) ? 92 : 84) - 12 - 62;
+                const y1 = frameTopOf(b, n.busY);
                 const gland = (x: number, gy: number) => <path key={`${x}-${gy}`} d={`M${x - 5} ${gy - 4} q3 4 0 8 M${x + 5} ${gy - 4} q-3 4 0 8`} className="ln" />;
                 const outs = layout.feeders.filter((f) => f.feeder.boardId === b.id);
                 const sm = panelSummary(project, b);
