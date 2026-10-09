@@ -135,7 +135,7 @@ describe('SVG to CAD export geometry', () => {
     });
     // Metadata leaves live/printable SVG baselines unchanged.
     const first = Array.from(groups[0].getElementsByTagName('text')).find((t) => /4C/.test(t.textContent ?? ''))!;
-    expect(Number(first.getAttribute('y'))).toBe(Number(groups[0].getElementsByTagName('line')[0].getAttribute('y1')) + 57);
+    expect(Number(first.getAttribute('y'))).toBe(Number(groups[0].getElementsByTagName('line')[0].getAttribute('y1')) + 60);
   });
 
   it.each(['A4', 'A3', 'A2', 'A1'] as const)('scales busbar widths and fitted text together on %s sheets', (size) => {

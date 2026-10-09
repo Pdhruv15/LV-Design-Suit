@@ -766,18 +766,18 @@ export default function SystemDiagram({
                 </rect>
               )}
               {!iec && <line x1={n.x - 5} y1={y + 32} x2={n.x + 5} y2={y + 20} className="ln" />}
-              {dewa ? <text x={n.x + 10} y={y + 41} className="acc-t" data-dxf-max-width={cadDeviceWidth}>{f.breakerIcuKa} kA{f.rcdMa ? ` · ${f.rcdMa}mA ELCB` : ''}</text>
+              {dewa ? <text x={n.x + 10} y={y + 37} className="acc-t" data-dxf-max-width={cadDeviceWidth}>{f.breakerIcuKa} kA{f.rcdMa ? ` · ${f.rcdMa}mA ELCB` : ''}</text>
                 : iec && <text x={n.x + 10} y={y + 41} className="acc-t" data-dxf-max-width={cadDeviceWidth}>{polesText(f)} · {f.breakerIcuKa} kA</text>}
               {dewa && <text x={n.x - 5} y={y + 13} textAnchor="end" className="acc-t way-no">{wayNo.get(f.id)}</text>}
               <line x1={n.x} y1={y + 34} x2={n.x} y2={endY} className={`ln ${status !== 'ok' ? status : ''}${cableTypeOf(project, f).fireRated ? ' fr' : ''}`}
                 style={feederHeat(f.id) ? { stroke: feederHeat(f.id), strokeWidth: 3.5 } : undefined} />
-              {dewa ? <text className="b" x={n.x + 10} y={y + 28} data-dxf-max-width={cadDeviceWidth}>{f.breakerRatingA}A {dewaPoles(f)} {dewaDevice(f)}</text>
+              {dewa ? <text className="b" x={n.x + 10} y={y + 26} data-dxf-max-width={cadDeviceWidth}>{f.breakerRatingA}A {dewaPoles(f)} {dewaDevice(f)}</text>
                 : <text className="b" x={n.x + 10} y={y + 30} data-dxf-max-width={cadDeviceWidth}>{f.breakerRatingA} A{f.rcdMa ? <tspan className="acc-t"> · {f.rcdMa} mA</tspan> : null}</text>}
               <text
                 className={`${dewa ? 'acc-t' : 'm'}${onPatchFeeder ? ' cable-lbl' : ''}`}
                 style={dewa ? { fontSize: 9 } : undefined}
                 x={n.x + 7}
-                y={y + (dewa ? 57 : 52)}
+                y={y + (dewa ? 60 : 52)}
                 data-dxf-max-width={cadCableWidth}
                 data-dxf-dy={dewa ? 3 : 0}
                 data-dxf-dx={cadCableDx}
@@ -796,11 +796,11 @@ export default function SystemDiagram({
               </text>
               {cableRefs && (() => { const r = cableRefOf(project, f); return (
                 <g className="cable-ref"><title>{`Cable ${r.ref}: ${r.text}`}</title>
-                  <circle cx={n.x - 13} cy={y + (dewa ? 64 : 49)} r="7.5" className="cable-ref-c" />
-                  <text x={n.x - 13} y={y + (dewa ? 67 : 52)} textAnchor="middle" className="cable-ref-t">{r.ref}</text>
+                  <circle cx={n.x - 13} cy={y + (dewa ? 66 : 49)} r="7.5" className="cable-ref-c" />
+                  <text x={n.x - 13} y={y + (dewa ? 69 : 52)} textAnchor="middle" className="cable-ref-t">{r.ref}</text>
                   <text x={n.x + 7} y={y + (dewa ? 68 : 63)} className="acc-t" style={{ fontSize: 8 }} data-dxf-max-width={cadCableWidth} data-dxf-dx={cadCableDx}>{f.lengthM}m</text>
                 </g>); })()}
-              {dewa && !cableRefs && <text className="acc-t" style={{ fontSize: 9 }} x={n.x + 7} y={y + 67} data-dxf-max-width={cadCableWidth} data-dxf-dy={3} data-dxf-dx={cadCableDx}>{cableTypeOf(project, f).armoured ? `+1C ${cpcOf(f)}mm² ECC · ` : ''}{f.lengthM}m</text>}
+              {dewa && !cableRefs && <text className="acc-t" style={{ fontSize: 9 }} x={n.x + 7} y={y + 70} data-dxf-max-width={cadCableWidth} data-dxf-dy={3} data-dxf-dx={cadCableDx}>{cableTypeOf(project, f).armoured ? `+1C ${cpcOf(f)}mm² ECC · ` : ''}{f.lengthM}m</text>}
               {/* Accessories on the feeder, top to bottom: earth leakage (its
                   rating goes with the breaker's), metering on the right below
                   the cable text, local isolator just above the load. */}
