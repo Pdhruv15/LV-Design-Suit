@@ -32,9 +32,11 @@ export default function ResultsTable({
   const problems = results.filter((r) => statusOf(r) !== 'ok').length;
   /** A value with a bar against its limit (e.g. Vd 2.38 of 4.0 → 60 %). */
   const bar = (text: string, value: number, max: number, st: 'ok' | 'warn' | 'bad') => (
-    <td className="bar-cell"><span className="vbar"><span className={st} style={{ width: `${Math.min(100, Math.max(2, (value / max) * 100))}%` }} /></span>{text}</td>
+    <td className="bar-cell num"><span className="vbar"><span className={st} style={{ width: `${Math.min(100, Math.max(2, (value / max) * 100))}%` }} /></span>{text}</td>
   );
 
+  // Columns holding numbers are right-aligned (header and cells).
+  const NUM: Record<TabKey, number[]> = { vd: [2, 3, 4, 5, 6, 7], load: [1, 2, 3, 4, 5], sc: [1, 2, 3, 4], prot: [1, 2, 3] };
   const headers: Record<TabKey, string[]> = {
     vd: ['Circuit', 'Cable', 'Length', 'Ib (A)', 'Vd feeder (%)', 'Vd upstream (%)', 'Vd total (%)', 'Limit', 'Status'],
     load: ['Board', 'Connected (kW)', 'Demand factor', 'Max demand (kW)', 'Current (A)', 'Breaker loading', 'Status'],
@@ -50,7 +52,7 @@ export default function ResultsTable({
 
   function statusCell(s: 'ok' | 'warn' | 'bad') {
     const label = STATUS_TEXT[s];
-    return <td className={s}>{label}</td>;
+    return <td className={`st ${s}`}>{label}</td>;
   }
 
   function row(r: FeederResult) {
@@ -61,12 +63,12 @@ export default function ResultsTable({
           <>
             <td>{f.id}</td>
             <td>{f.cableCsaMm2} mm²</td>
-            <td>{f.lengthM} m</td>
-            <td>{r.ib.toFixed(0)}</td>
-            <td>{r.vdPct.toFixed(2)}</td>
-            <td>{r.vdUpstreamPct.toFixed(2)}</td>
+            <td className="num">{f.lengthM} m</td>
+            <td className="num">{r.ib.toFixed(0)}</td>
+            <td className="num">{r.vdPct.toFixed(2)}</td>
+            <td className="num">{r.vdUpstreamPct.toFixed(2)}</td>
             {bar(r.vdTotalPct.toFixed(2), r.vdTotalPct, vdLimitPct, r.vdStatus)}
-            <td>{vdLimitPct.toFixed(1)}</td>
+            <td className="num">{vdLimitPct.toFixed(1)}</td>
             {statusCell(r.vdStatus)}
           </>
         );
@@ -74,10 +76,10 @@ export default function ResultsTable({
         return (
           <>
             <td>{f.id}</td>
-            <td>{f.loadKw.toFixed(0)}{f.generation ? ' (PV)' : ''}</td>
-            <td>{f.demandFactor.toFixed(2)}</td>
-            <td>{(f.loadKw * f.demandFactor).toFixed(0)}</td>
-            <td>{r.ib.toFixed(0)}</td>
+            <td className="num">{f.loadKw.toFixed(0)}{f.generation ? ' (PV)' : ''}</td>
+            <td className="num">{f.demandFactor.toFixed(2)}</td>
+            <td className="num">{(f.loadKw * f.demandFactor).toFixed(0)}</td>
+            <td className="num">{r.ib.toFixed(0)}</td>
             {bar(`${r.loadingPct.toFixed(0)}%`, r.loadingPct, 100, r.loadingPct > 100 ? 'bad' : r.loadingPct > 85 ? 'warn' : 'ok')}
             {statusCell(r.loadingPct > 100 ? 'bad' : r.loadingPct > 85 ? 'warn' : 'ok')}
           </>
@@ -86,10 +88,10 @@ export default function ResultsTable({
         return (
           <>
             <td>{f.id}</td>
-            <td>{r.breakerFaultKA.toFixed(1)}</td>
+            <td className="num">{r.breakerFaultKA.toFixed(1)}</td>
             {bar(`${r.breakerFaultKA.toFixed(1)} of ${f.breakerIcuKa}`, r.breakerFaultKA, f.breakerIcuKa, r.icuStatus)}
-            <td>{(f.breakerIcuKa - r.breakerFaultKA).toFixed(1)}</td>
-            <td>{r.endFaultKA.toFixed(1)}</td>
+            <td className="num">{(f.breakerIcuKa - r.breakerFaultKA).toFixed(1)}</td>
+            <td className="num">{r.endFaultKA.toFixed(1)}</td>
             {statusCell(r.icuStatus)}
           </>
         );
@@ -97,9 +99,9 @@ export default function ResultsTable({
         return (
           <>
             <td>{f.id}</td>
-            <td>{r.ib.toFixed(0)}</td>
-            <td>{f.breakerRatingA}</td>
-            <td>{r.ampacity.toFixed(0)}</td>
+            <td className="num">{r.ib.toFixed(0)}</td>
+            <td className="num">{f.breakerRatingA}</td>
+            <td className="num">{r.ampacity.toFixed(0)}</td>
             <td>{protectionNote(r)}</td>
             {statusCell(r.protectionStatus)}
           </>
@@ -122,8 +124,8 @@ export default function ResultsTable({
         <table>
           <thead>
             <tr>
-              {headers[tab].map((h) => (
-                <th key={h}>{h}</th>
+              {headers[tab].map((h, i) => (
+                <th key={h} className={NUM[tab].includes(i) ? 'num' : undefined}>{h}</th>
               ))}
             </tr>
           </thead>
