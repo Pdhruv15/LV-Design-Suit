@@ -57,11 +57,15 @@ svg .b{font-weight:600;font-size:12px}
 .tabs .on{color:var(--acc);border-color:var(--acc)}
 .tw{overflow-x:auto;padding:0 var(--gutter) var(--gutter)}
 table{border-collapse:collapse;width:100%;min-width:560px}
-th{text-align:left;font-weight:500;color:var(--mut);padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
-td{padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+/* Tables: 11px semibold headers in their written case (units such as kA and mm² must not be uppercased) */
+th{text-align:left;font-size:var(--fs-xs);font-weight:600;letter-spacing:.02em;color:var(--mut);padding:var(--space-2) var(--space-3);border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:var(--space-1) var(--space-3);height:32px;border-bottom:1px solid color-mix(in srgb,var(--line) 75%,transparent);white-space:nowrap}
 tbody tr{cursor:pointer}
-tbody tr:hover{background:var(--p2)}
-tr.sel{background:var(--p2)}
+tbody tr:hover{background:color-mix(in srgb,var(--p2) 70%,transparent)}
+th.num,td.num{text-align:right}
+td.acts,th.acts{text-align:right;white-space:nowrap}
+td.st{font-weight:600}
+tr.sel{background:color-mix(in srgb,var(--acc) 12%,transparent);box-shadow:inset 2px 0 var(--acc)}
 .ok{color:var(--ok)}
 .warn{color:var(--warn)}
 .bad{color:var(--bad)}
@@ -232,6 +236,7 @@ tr.total td{background:var(--p2);font-weight:600}
 table.ls{min-width:1500px;font-size:12px}
 table.ls th,table.ls td{padding:3px 4px;text-align:center;border:1px solid var(--line)}
 table.ls thead th{position:sticky;top:0;background:var(--panel);z-index:1}
+table.ls th:not(.pt){font-size:inherit}
 table.ls thead tr:nth-child(2) th{top:26px}
 table.ls th.pt{font-size:10.5px;min-width:54px}
 table.ls .shade{background:color-mix(in srgb,var(--p2) 70%,var(--line))}
