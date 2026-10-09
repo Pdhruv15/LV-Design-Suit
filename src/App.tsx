@@ -960,8 +960,8 @@ export default function App() {
         </div>
         <div className="crumb">
           {home ? <b>Projects</b> : <>
-            <button className="linkish" style={{ marginLeft: 0, color: 'inherit' }} onClick={() => setView('projects')} title="All projects">Projects</button> / <button className="linkish crumb-project" style={{ marginLeft: 0, color: 'inherit' }} onClick={() => setView('dashboard')} title={`${project.name} — Overview`}><b>{project.name}</b></button>
-            {' / '}{view === 'dashboard' ? <b>Overview</b> : <button className="linkish" style={{ marginLeft: 0, color: 'inherit' }} onClick={() => setView('dashboard')} title="This project's overview">Overview</button>}
+            <button className="linkish" onClick={() => setView('projects')} title="All projects">Projects</button> / <button className="linkish crumb-project" onClick={() => setView('dashboard')} title={`${project.name} — Overview`}><b>{project.name}</b></button>
+            {' / '}{view === 'dashboard' ? <b>Overview</b> : <button className="linkish" onClick={() => setView('dashboard')} title="This project's overview">Overview</button>}
           </>}
           {!home && dirty && <span className="dirty-dot" title={currentFile ? 'Unsaved changes — Ctrl+S / ⌘S to save' : 'Not saved yet — Ctrl+S / ⌘S to save'}>●</span>}
           {status && <span className="saved">{status}</span>}
@@ -1257,7 +1257,7 @@ export default function App() {
             </aside>
           </>
         ) : (
-          <main className="mid" style={{ gridColumn: '2 / span 2' }}>
+          <main className="mid wide">
             <Suspense fallback={<p className="m">Loading…</p>}>
             {view === 'load-schedule' && board && (
               <LoadScheduleView project={project} onOpenRiser={() => setView('busbar')} boardId={board.id} db={db} onBoard={(id) => setActiveBoardId(id)} onChange={setProject} onStatus={setStatus} onSettings={() => setShowSettings(true)} />
