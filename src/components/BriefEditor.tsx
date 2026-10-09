@@ -74,7 +74,7 @@ export function DeliverablesStep({ brief, onChange }: { brief: ProjectBrief; onC
           {brief.deliverables.length === 0 && <tr><td colSpan={4} className="m">No deliverables yet.</td></tr>}
         </tbody>
       </table>
-      <div className="row" style={{ marginTop: 8, gap: 6 }}>
+      <div className="row mt">
         <input className="bi-text" placeholder="Add your own, e.g. Site survey report" value={extra} onChange={(e) => setExtra(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }} />
         <button type="button" className="chip" disabled={!extra.trim()} onClick={add}>Add</button>
       </div>

@@ -235,7 +235,7 @@ function PanelList({ project, onChange, onStatus, onBuilding }: { project: Proje
             </div>
           )}
           {renameIssues.map((x) => <p key={x} className="bad">{x}</p>)}
-          <div className="row" style={{ gap: 6 }}><button className="chip primary" disabled={!renames.some((r) => r.on) || renameIssues.length > 0} onClick={applyRenames}>Rename {renames.filter((r) => r.on).length}</button><button className="chip" onClick={() => setRenames(null)}>Cancel</button></div>
+          <div className="row"><button className="chip primary" disabled={!renames.some((r) => r.on) || renameIssues.length > 0} onClick={applyRenames}>Rename {renames.filter((r) => r.on).length}</button><button className="chip" onClick={() => setRenames(null)}>Cancel</button></div>
         </section>
       )}
       <div className="pp-table">

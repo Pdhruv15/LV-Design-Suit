@@ -51,8 +51,8 @@ export default function CatalogueManager({ onClose, onStatus }: { onClose: () =>
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal cm" onClick={(e) => e.stopPropagation()}>
-        <div className="row" style={{ gap: 10 }}>
-          <h3 style={{ margin: 0 }}>Catalogue manager</h3>
+        <div className="row">
+          <h3>Catalogue manager</h3>
           <div className="seg"><button className={tab === 'enclosures' ? 'on' : ''} onClick={() => setTab('enclosures')}>Enclosures</button><button className={tab === 'devices' ? 'on' : ''} onClick={() => setTab('devices')}>Device dimensions</button></div>
           <span className="sp" />
           <button className="chip" onClick={exportJson} title="Your catalogues and device dimensions as one JSON file — backup or share">Export JSON</button>
@@ -73,13 +73,13 @@ export default function CatalogueManager({ onClose, onStatus }: { onClose: () =>
                   <b>{c.supplier}</b> — {c.range} <span className="m">rev. {c.revision} · {c.configs.length} sizes{isBuiltin(c) ? ' · built-in, read-only' : ''}</span>
                 </div>
               ))}
-              <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <div className="row">
                 <button className="chip" onClick={() => add(emptyCatalogue())}>Add</button>
                 <button className="chip" disabled={!sel} onClick={() => sel && add(duplicateCatalogue(sel))} title="Copy, then change the supplier, dimensions and rules">Duplicate</button>
                 <button className="chip" disabled={locked} onClick={() => { if (sel && confirm(`Delete ${sel.supplier} — ${sel.range} from your library? Panels sized with it keep their copy.`)) { persist(cats.filter((c) => c.id !== sel.id)); setSelId(cats[0]?.id ?? ''); } }}>Delete</button>
               </div>
               <h4>Excel</h4>
-              <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <div className="row">
                 <button className="chip" onClick={() => exportXlsx()}>Blank template</button>
                 <button className="chip" disabled={!sel} onClick={() => sel && exportXlsx(sel)}>Export selected</button>
                 <button className="chip" onClick={() => xlsxRef.current?.click()}>Import Excel</button>
