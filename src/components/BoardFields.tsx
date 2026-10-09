@@ -2,10 +2,15 @@ import { BOARD_KINDS, INCOMER_DEVICES, RELAY_TYPES, SPD_TYPES, type Board, type 
 import { findFloor, floorList, levelKey } from '../model/levels';
 import { DEFAULT_TRANSFORMER_XR } from '../calc/electrical';
 
+/** Groups of the 'general' fields, so the edit dialog can show them as tabs. */
+export type BoardFieldGroup = 'board' | 'incomer' | 'sld' | 'location';
+export const BOARD_FIELD_GROUPS: [BoardFieldGroup, string][] = [['board', 'General'], ['incomer', 'Incomer & protection'], ['sld', 'On the SLD'], ['location', 'Location & make']];
+
 /** Editable board fields, shared by the properties panel (applied as you
  * type) and the double-click edit dialog (applied on Save).
- * 'general': equipment data; 'source': transformer data (main boards). */
-export default function BoardFields({ board, onChange, section, building }: { board: Board; onChange: (b: Board) => void; section: 'general' | 'source'; building?: BuildingInfo }) {
+ * 'general': equipment data (all groups, or only `groups`); 'source': transformer data (main boards). */
+export default function BoardFields({ board, onChange, section, building, groups }: { board: Board; onChange: (b: Board) => void; section: 'general' | 'source'; building?: BuildingInfo; groups?: BoardFieldGroup[] }) {
+  const show = (g: BoardFieldGroup) => !groups || groups.includes(g);
   const floors = floorList(building);
   const isMain = !board.upstreamId;
   function set<K extends keyof Board>(key: K, value: Board[K]) {
@@ -48,118 +53,134 @@ export default function BoardFields({ board, onChange, section, building }: { bo
   }
   return (
     <div className="form-kv">
-      <label>Name{text('name')}</label>
-      <label>
-        Type
-        <select value={board.kind ?? (isMain ? 'MDB' : 'DB')} onChange={(e) => set('kind', e.target.value as Board['kind'])}>
-          {BOARD_KINDS.map((k) => (
-            <option key={k.value} value={k.value}>{k.label}</option>
-          ))}
-        </select>
-      </label>
-      <label>Rated current (A){num('ratedCurrentA', 1, 'e.g. 400')}</label>
-      {board.kind === 'UPS' && (
-        <label>UPS rating (kVA)
-          <input inputMode="decimal" value={board.upsKva ?? ''} placeholder="e.g. 20"
-            onChange={(e) => set('upsKva', e.target.value === '' || Number.isNaN(+e.target.value) ? undefined : +e.target.value)} />
-        </label>
-      )}
-      <label>Standby generator (kVA, via ATS)
-        <input inputMode="decimal" value={board.standby?.kva ?? ''} placeholder="none"
-          title="Leave blank for no generator. Everything on and below this board then counts as essential load."
-          onChange={(e) => set('standby', e.target.value === '' || Number.isNaN(+e.target.value) ? undefined : { kva: +e.target.value })} />
-      </label>
-      {board.standby && (
-        <label>Changeover
-          <select value={board.standby.changeover ?? 'ATS'} onChange={(e) => set('standby', { ...board.standby!, changeover: e.target.value === 'ACB' ? 'ACB' : undefined })}>
-            <option value="ATS">ATS</option>
-            <option value="ACB">Mains + generator ACBs, interlocked</option>
-          </select>
-        </label>
-      )}
-      <label>Incomer device (SLD)
-        <select value={board.incomerDevice ?? ''} onChange={(e) => set('incomerDevice', e.target.value ? (e.target.value as IncomerDevice) : undefined)}
-          title="Drawn on the incoming line above the board name. A non-automatic breaker is the UAE practice for an isolator: breaker body, no trip.">
-          <option value="">Default (non-automatic breaker; none on authority-supply boards)</option>
-          {INCOMER_DEVICES.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
-        </select>
-      </label>
-      <label>Incomer CT ratio
-        <input value={board.protection?.ctRatio ?? ''} placeholder={board.supply?.ctRatio ?? 'e.g. 1600/5A'}
-          onChange={(e) => setProt({ ctRatio: e.target.value || undefined })} />
-      </label>
-      <label>Incomer Ir setting (× In)
-        <input inputMode="decimal" value={board.protection?.irSetting ?? ''} placeholder={board.supply?.irSetting ? String(board.supply.irSetting) : 'e.g. 0.9'}
-          onChange={(e) => setProt({ irSetting: e.target.value === '' || Number.isNaN(+e.target.value) ? undefined : +e.target.value })} />
-      </label>
-      <fieldset className="relays">
-        <legend>Incomer relays (shown on the SLD)</legend>
-        {RELAY_TYPES.map((r) => (
-          <label key={r.value} className="row">
-            <input type="checkbox" checked={!!board.protection?.relays?.includes(r.value)}
-              onChange={(e) => { const cur = board.protection?.relays ?? []; const next = e.target.checked ? [...cur, r.value] : cur.filter((x) => x !== r.value); setProt({ relays: next.length ? next : undefined }); }} />
-            {r.label}
+      {show('board') && (
+        <>
+          <label>Name{text('name')}</label>
+          <label>
+            Type
+            <select value={board.kind ?? (isMain ? 'MDB' : 'DB')} onChange={(e) => set('kind', e.target.value as Board['kind'])}>
+              {BOARD_KINDS.map((k) => (
+                <option key={k.value} value={k.value}>{k.label}</option>
+              ))}
+            </select>
           </label>
-        ))}
-        <label className="row">
-          <input type="checkbox" checked={!!board.protection?.apfc} onChange={(e) => setProt({ apfc: e.target.checked || undefined })} />
-          APFC relay CT (to the capacitor bank)
-        </label>
-      </fieldset>
-      <fieldset className="relays">
-        <legend>On the SLD</legend>
-        <label className="row">
-          <input type="checkbox" checked={board.instruments ?? isMain} onChange={(e) => set('instruments', e.target.checked === isMain ? undefined : e.target.checked)} />
-          Ammeter + voltmeter with selector switches, R-Y-B lamps
-        </label>
-        <label className="row">
-          <input type="checkbox" checked={board.earthing?.show ?? isMain} onChange={(e) => setEarth({ show: e.target.checked === isMain ? undefined : e.target.checked })} />
-          Earth pit detail{!isMain && ' (main boards only)'}
-        </label>
-        {(board.earthing?.show ?? isMain) && (
-          <div className="earth-kv">
-            <label>Pits <input inputMode="numeric" value={board.earthing?.pits ?? ''} placeholder="2" onChange={(e) => setEarth({ pits: numOrU(e.target.value) })} /></label>
-            <label>Earth conductor mm² <input inputMode="decimal" value={board.earthing?.conductorMm2 ?? ''} placeholder="auto" onChange={(e) => setEarth({ conductorMm2: numOrU(e.target.value) })} /></label>
-            <label>Electrode m <input inputMode="decimal" value={board.earthing?.electrodeM ?? ''} placeholder="3" onChange={(e) => setEarth({ electrodeM: numOrU(e.target.value) })} /></label>
-            <label>Spacing m <input inputMode="decimal" value={board.earthing?.spacingM ?? ''} placeholder="6" onChange={(e) => setEarth({ spacingM: numOrU(e.target.value) })} /></label>
-          </div>
-        )}
-      </fieldset>
-      <label>
-        Busbar material
-        <select value={board.busbarMaterial ?? ''} onChange={(e) => set('busbarMaterial', (e.target.value || undefined) as Board['busbarMaterial'])}>
-          <option value="">—</option>
-          <option value="copper">Copper</option>
-          <option value="aluminium">Aluminium</option>
-        </select>
-      </label>
-      <label>Diversity factor (DF)
-        <input inputMode="decimal" value={board.mdDemandFactor ?? ''} placeholder="from its loads"
-          title="This panel's own DF: MDL = TCL × DF on the SLD summary box and the MD form. Blank = its loads' maximum demand ÷ connected load."
-          onChange={(e) => set('mdDemandFactor', e.target.value === '' || Number.isNaN(+e.target.value) ? undefined : +e.target.value)} />
-      </label>
-      <label>Surge protection (SPD)
-        <select value={board.spd ?? ''} onChange={(e) => set('spd', (e.target.value || undefined) as Board['spd'])}>
-          <option value="">None</option>
-          {SPD_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-        </select>
-      </label>
-      <label>IP rating{text('ipRating', 'e.g. IP42')}</label>
-      <label title="The floor, from Building information — the one list of levels used everywhere (SLD summary box, riser diagram, schedules)">Level
-        {floors.length ? (
-          <select value={board.level && findFloor(building, board.level) ? levelKey(board.level) : ''} onChange={(e) => set('level', floors.find((f) => f.key === e.target.value)?.ref)}>
-            <option value="">— not set —</option>
-            {(building?.buildings ?? []).map((bd) => (
-              <optgroup key={bd.id} label={bd.name}>
-                {floors.filter((f) => f.buildingId === bd.id).slice().reverse().map((f) => <option key={f.key} value={f.key}>{f.name}{f.elevationM ? ` (${f.elevationM >= 0 ? '+' : ''}${f.elevationM.toFixed(2)})` : ''}</option>)}
-              </optgroup>
+          <label>Rated current (A){num('ratedCurrentA', 1, 'e.g. 400')}</label>
+          {board.kind === 'UPS' && (
+            <label>UPS rating (kVA)
+              <input inputMode="decimal" value={board.upsKva ?? ''} placeholder="e.g. 20"
+                onChange={(e) => set('upsKva', e.target.value === '' || Number.isNaN(+e.target.value) ? undefined : +e.target.value)} />
+            </label>
+          )}
+          <label>
+            Busbar material
+            <select value={board.busbarMaterial ?? ''} onChange={(e) => set('busbarMaterial', (e.target.value || undefined) as Board['busbarMaterial'])}>
+              <option value="">—</option>
+              <option value="copper">Copper</option>
+              <option value="aluminium">Aluminium</option>
+            </select>
+          </label>
+          <label>Diversity factor (DF)
+            <input inputMode="decimal" value={board.mdDemandFactor ?? ''} placeholder="from its loads"
+              title="This panel's own DF: MDL = TCL × DF on the SLD summary box and the MD form. Blank = its loads' maximum demand ÷ connected load."
+              onChange={(e) => set('mdDemandFactor', e.target.value === '' || Number.isNaN(+e.target.value) ? undefined : +e.target.value)} />
+          </label>
+          <label>IP rating{text('ipRating', 'e.g. IP42')}</label>
+        </>
+      )}
+      {show('incomer') && (
+        <>
+          <label>Standby generator (kVA, via ATS)
+            <input inputMode="decimal" value={board.standby?.kva ?? ''} placeholder="none"
+              title="Leave blank for no generator. Everything on and below this board then counts as essential load."
+              onChange={(e) => set('standby', e.target.value === '' || Number.isNaN(+e.target.value) ? undefined : { kva: +e.target.value })} />
+          </label>
+          {board.standby && (
+            <label>Changeover
+              <select value={board.standby.changeover ?? 'ATS'} onChange={(e) => set('standby', { ...board.standby!, changeover: e.target.value === 'ACB' ? 'ACB' : undefined })}>
+                <option value="ATS">ATS</option>
+                <option value="ACB">Mains + generator ACBs, interlocked</option>
+              </select>
+            </label>
+          )}
+          <label>Incomer device (SLD)
+            <select value={board.incomerDevice ?? ''} onChange={(e) => set('incomerDevice', e.target.value ? (e.target.value as IncomerDevice) : undefined)}
+              title="Drawn on the incoming line above the board name. A non-automatic breaker is the UAE practice for an isolator: breaker body, no trip.">
+              <option value="">Default (non-automatic breaker; none on authority-supply boards)</option>
+              {INCOMER_DEVICES.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+            </select>
+          </label>
+          <label>Incomer CT ratio
+            <input value={board.protection?.ctRatio ?? ''} placeholder={board.supply?.ctRatio ?? 'e.g. 1600/5A'}
+              onChange={(e) => setProt({ ctRatio: e.target.value || undefined })} />
+          </label>
+          <label>Incomer Ir setting (× In)
+            <input inputMode="decimal" value={board.protection?.irSetting ?? ''} placeholder={board.supply?.irSetting ? String(board.supply.irSetting) : 'e.g. 0.9'}
+              onChange={(e) => setProt({ irSetting: e.target.value === '' || Number.isNaN(+e.target.value) ? undefined : +e.target.value })} />
+          </label>
+          <fieldset className="relays">
+            <legend>Incomer relays (shown on the SLD)</legend>
+            {RELAY_TYPES.map((r) => (
+              <label key={r.value} className="row">
+                <input type="checkbox" checked={!!board.protection?.relays?.includes(r.value)}
+                  onChange={(e) => { const cur = board.protection?.relays ?? []; const next = e.target.checked ? [...cur, r.value] : cur.filter((x) => x !== r.value); setProt({ relays: next.length ? next : undefined }); }} />
+                {r.label}
+              </label>
             ))}
-          </select>
-        ) : <span className="m">Add levels in Building information</span>}
-      </label>
-      <label>Room / place{text('location', 'e.g. Elec. room 3.01')}</label>
-      <label>Manufacturer{text('manufacturer')}</label>
-      <label>Model{text('model')}</label>
+            <label className="row">
+              <input type="checkbox" checked={!!board.protection?.apfc} onChange={(e) => setProt({ apfc: e.target.checked || undefined })} />
+              APFC relay CT (to the capacitor bank)
+            </label>
+          </fieldset>
+          <label>Surge protection (SPD)
+            <select value={board.spd ?? ''} onChange={(e) => set('spd', (e.target.value || undefined) as Board['spd'])}>
+              <option value="">None</option>
+              {SPD_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+          </label>
+        </>
+      )}
+      {show('sld') && (
+        <>
+          <fieldset className="relays">
+            <legend>On the SLD</legend>
+            <label className="row">
+              <input type="checkbox" checked={board.instruments ?? isMain} onChange={(e) => set('instruments', e.target.checked === isMain ? undefined : e.target.checked)} />
+              Ammeter + voltmeter with selector switches, R-Y-B lamps
+            </label>
+            <label className="row">
+              <input type="checkbox" checked={board.earthing?.show ?? isMain} onChange={(e) => setEarth({ show: e.target.checked === isMain ? undefined : e.target.checked })} />
+              Earth pit detail{!isMain && ' (main boards only)'}
+            </label>
+            {(board.earthing?.show ?? isMain) && (
+              <div className="earth-kv">
+                <label>Pits <input inputMode="numeric" value={board.earthing?.pits ?? ''} placeholder="2" onChange={(e) => setEarth({ pits: numOrU(e.target.value) })} /></label>
+                <label>Earth conductor mm² <input inputMode="decimal" value={board.earthing?.conductorMm2 ?? ''} placeholder="auto" onChange={(e) => setEarth({ conductorMm2: numOrU(e.target.value) })} /></label>
+                <label>Electrode m <input inputMode="decimal" value={board.earthing?.electrodeM ?? ''} placeholder="3" onChange={(e) => setEarth({ electrodeM: numOrU(e.target.value) })} /></label>
+                <label>Spacing m <input inputMode="decimal" value={board.earthing?.spacingM ?? ''} placeholder="6" onChange={(e) => setEarth({ spacingM: numOrU(e.target.value) })} /></label>
+              </div>
+            )}
+          </fieldset>
+        </>
+      )}
+      {show('location') && (
+        <>
+          <label title="The floor, from Building information — the one list of levels used everywhere (SLD summary box, riser diagram, schedules)">Level
+            {floors.length ? (
+              <select value={board.level && findFloor(building, board.level) ? levelKey(board.level) : ''} onChange={(e) => set('level', floors.find((f) => f.key === e.target.value)?.ref)}>
+                <option value="">— not set —</option>
+                {(building?.buildings ?? []).map((bd) => (
+                  <optgroup key={bd.id} label={bd.name}>
+                    {floors.filter((f) => f.buildingId === bd.id).slice().reverse().map((f) => <option key={f.key} value={f.key}>{f.name}{f.elevationM ? ` (${f.elevationM >= 0 ? '+' : ''}${f.elevationM.toFixed(2)})` : ''}</option>)}
+                  </optgroup>
+                ))}
+              </select>
+            ) : <span className="m">Add levels in Building information</span>}
+          </label>
+          <label>Room / place{text('location', 'e.g. Elec. room 3.01')}</label>
+          <label>Manufacturer{text('manufacturer')}</label>
+          <label>Model{text('model')}</label>
+        </>
+      )}
     </div>
   );
 }
