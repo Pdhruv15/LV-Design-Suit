@@ -123,7 +123,7 @@ export default function ModificationsPanel({ project, me, run, onChange, onApply
       <p className="m">Propose a change with its reason and the exact values, preview what it touches, record the decision, then apply it to the working design as one undoable step. {me ? <>Recorded as <b>{me}</b> (a typed name — the app does not verify identities).</> : 'Set your name in Profile & preferences to record who proposed and decided.'}</p>
 
       {records.length > 0 && (
-        <div className="row" style={{ gap: 8, margin: '6px 0', flexWrap: 'wrap' }}>
+        <div className="row my">
           <select value={flt.status ?? 'all'} onChange={(e) => setFlt({ ...flt, status: e.target.value as RegisterFilter['status'] })}>
             <option value="all">All statuses</option><option value="open">Not yet decided or applied</option>
             {(Object.keys(STATUS_LABEL) as ModStatus[]).map((x) => <option key={x} value={x}>{STATUS_LABEL[x]}</option>)}
@@ -180,7 +180,7 @@ export default function ModificationsPanel({ project, me, run, onChange, onApply
           </table>
 
           {editable && (
-            <div className="row mod-add" style={{ gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+            <div className="row mod-add mt">
               <select value={add.target} onChange={(e) => setAdd({ target: e.target.value as ModTarget, id: '', field: '', value: '' })}>
                 <option value="feeder">Circuit</option><option value="board">Panel</option><option value="ups">UPS</option><option value="project">Project setting</option>
               </select>
@@ -195,7 +195,7 @@ export default function ModificationsPanel({ project, me, run, onChange, onApply
           )}
 
           {dirty && (
-            <div className="row" style={{ gap: 6, marginTop: 6 }} role="status">
+            <div className="row mt" role="status">
               <span className="m">Unsaved edits to this draft — the working design is not affected.</span>
               <button className="chip primary" onClick={() => { save(buf!); setBuf(undefined); onStatus(`Saved ${rec.id}.`); }}>Save draft</button>
               <button className="chip" onClick={() => { setBuf(undefined); onStatus('Discarded the unsaved edits.'); }}>Cancel</button>
@@ -214,7 +214,7 @@ export default function ModificationsPanel({ project, me, run, onChange, onApply
             </div>
           )}
 
-          <div className="row" style={{ gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+          <div className="row mt">
             {allowedNext(rec).map((s) => <button key={s} className={`chip${s === 'accepted' ? ' primary' : ''}`} onClick={() => step(s)}>{ACTION[s]}</button>)}
             {rec.status === 'accepted' && !rec.applied && conflicts.length === 0 && !dirty && <button className="chip primary" onClick={() => setReviewing(true)} title="Review exactly what will change, then apply it as one undo step">Apply to the working design…</button>}
             {rec.applied && <span className="ok">✓ {rec.applied.source === 'draft' ? 'Recorded from the working draft' : 'Applied'} {when(rec.applied.at)}{rec.applied.skipped?.length ? ` — ${rec.applied.skipped.length} skipped` : ''}{rec.applied.overwritten?.length ? ` — ${rec.applied.overwritten.length} overwritten on purpose` : ''}</span>}

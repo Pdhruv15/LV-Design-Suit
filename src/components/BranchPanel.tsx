@@ -94,7 +94,7 @@ export default function BranchPanel({ mode, project, onCreate, onClose }: {
           <h4>Floors</h4>
           {!floors.length ? <p className="m">No other floors in Building information{mode === 'assemblies' ? ' — the assembly is inserted once, on the board chosen' : ''}.</p> : (
             <>
-              <div className="row" style={{ gap: 6 }}><button className="chip" onClick={() => setPicked(floors.map((f) => f.key))}>All</button><button className="chip" onClick={() => setPicked([])}>None</button></div>
+              <div className="row"><button className="chip" onClick={() => setPicked(floors.map((f) => f.key))}>All</button><button className="chip" onClick={() => setPicked([])}>None</button></div>
               <div className="bh-floors">{floors.map((f) => <label key={f.key} className="row"><input type="checkbox" checked={picked.includes(f.key)} onChange={() => toggle(f.key)} /> {levelRef(f.tag)} <span className="m">{f.name}</span></label>)}</div>
             </>
           )}

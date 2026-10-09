@@ -87,7 +87,7 @@ export default function ReviewView({ project, me = "", run, stale = [], onChange
       <p><b>{sum.open} open</b>{sum.critical ? <> · <span className="bad">{sum.critical} critical</span></> : null}{sum.major ? ` · ${sum.major} major` : ''}{sum.awaiting ? ` · ${sum.awaiting} awaiting evidence` : ''}{sum.reReview ? <> · <span className="bad">{sum.reReview} closed to re-review</span></> : null}{sum.stale ? ` · ${sum.stale} about deleted items` : ''}</p>
       <div className="card">
         <h4>Raise a comment</h4>
-        <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+        <div className="row">
           <select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value as 'finding' | 'question' })}><option value="finding">Finding</option><option value="question">Question</option></select>
           <select value={f.category} onChange={(e) => setF({ ...f, category: e.target.value as CommentCategory })}>{Object.entries(CATEGORY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
           <select value={f.severity} onChange={(e) => setF({ ...f, severity: e.target.value as CommentSeverity })}>{Object.entries(SEVERITY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
@@ -95,7 +95,7 @@ export default function ReviewView({ project, me = "", run, stale = [], onChange
           {f.kind && <select value={f.refId} onChange={(e) => setF({ ...f, refId: e.target.value })}><option value="">Choose…</option>{ids.map((id) => <option key={id}>{id}</option>)}</select>}
           <input placeholder="Assigned to" value={f.assignedTo} onChange={(e) => setF({ ...f, assignedTo: e.target.value })} style={{ width: 130 }} />
         </div>
-        <div className="row" style={{ gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+        <div className="row mt">
           <input placeholder="Finding (required)" value={f.finding} onChange={(e) => setF({ ...f, finding: e.target.value })} style={{ flex: 2, minWidth: 220 }} />
           <input placeholder="Criterion / reference" value={f.criterion} onChange={(e) => setF({ ...f, criterion: e.target.value })} style={{ flex: 1, minWidth: 150 }} />
           <input placeholder="Required action" value={f.requiredAction} onChange={(e) => setF({ ...f, requiredAction: e.target.value })} style={{ flex: 1, minWidth: 150 }} />
@@ -105,14 +105,14 @@ export default function ReviewView({ project, me = "", run, stale = [], onChange
       <div className="card" style={{ marginBottom: 10 }}>
         <h4>Review report</h4>
         <p className="m">Built from a frozen copy of the project. {!run ? 'Calculations have not been run, so no results are included. ' : stale.length ? 'Some results are out of date and are marked as such. ' : ''}Without a recorded reviewer decision the report makes no statement of approval.</p>
-        <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>{SECTION_IDS.map((id: SectionId) => <label key={id}><input type="checkbox" checked={setup.sections.includes(id)} onChange={(e) => saveSetup({ ...setup, sections: SECTION_IDS.filter((x) => (x === id ? e.target.checked : setup.sections.includes(x))) })} /> {SECTION_LABEL[id]}</label>)}</div>
-        <div className="row" style={{ gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+        <div className="row">{SECTION_IDS.map((id: SectionId) => <label key={id}><input type="checkbox" checked={setup.sections.includes(id)} onChange={(e) => saveSetup({ ...setup, sections: SECTION_IDS.filter((x) => (x === id ? e.target.checked : setup.sections.includes(x))) })} /> {SECTION_LABEL[id]}</label>)}</div>
+        <div className="row mt">
           <input placeholder="Document no." value={setup.docNo ?? ''} onChange={(e) => saveSetup({ ...setup, docNo: e.target.value })} style={{ width: 120 }} />
           <input placeholder="Purpose" value={setup.purpose ?? ''} onChange={(e) => saveSetup({ ...setup, purpose: e.target.value })} style={{ flex: 1, minWidth: 160 }} />
           <input placeholder="Prepared by" value={setup.preparedBy ?? ''} onChange={(e) => saveSetup({ ...setup, preparedBy: e.target.value })} style={{ width: 120 }} />
           <input placeholder="Checked by" value={setup.checkedBy ?? ''} onChange={(e) => saveSetup({ ...setup, checkedBy: e.target.value })} style={{ width: 120 }} />
         </div>
-        <div className="row" style={{ gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+        <div className="row mt">
           <button onClick={recordDecision}>{setup.decision ? 'Change reviewer decision…' : 'Record reviewer decision…'}</button>
           {setup.decision && <><span className="m">{setup.decision.outcome} — {setup.decision.by}</span><button onClick={() => saveSetup({ ...setup, decision: undefined })}>Clear</button></>}
           <button className="primary" disabled={!!busy || !setup.sections.length} onClick={() => exportAs('pdf')}>{busy === 'pdf' ? 'Exporting…' : 'Export PDF'}</button>
@@ -120,7 +120,7 @@ export default function ReviewView({ project, me = "", run, stale = [], onChange
           <span className="m">Contractor:</span><button disabled={!!busy} onClick={() => exportAs('pdf', true)} title="Technical clarification: the received design, discrepancies, proposed changes and questions. No pricing.">Clarification PDF</button><button disabled={!!busy} onClick={() => exportAs('docx', true)}>Clarification Word</button>
         </div>
       </div>
-      <div className="row" style={{ gap: 6, margin: '10px 0' }}>{FILTERS.map((x) => <button key={x} className={filter === x ? 'primary' : ''} onClick={() => setFilter(x)}>{x[0].toUpperCase() + x.slice(1)}</button>)}</div>
+      <div className="row my">{FILTERS.map((x) => <button key={x} className={filter === x ? 'primary' : ''} onClick={() => setFilter(x)}>{x[0].toUpperCase() + x.slice(1)}</button>)}</div>
       {!shown.length ? <p className="m">No comments here.</p> : (
         <table className="tbl"><thead><tr><th>ID</th><th>Severity</th><th>Finding</th><th>About</th><th>Assigned</th><th>Status</th></tr></thead><tbody>
           {shown.map((c) => {
@@ -145,7 +145,7 @@ export default function ReviewView({ project, me = "", run, stale = [], onChange
           {rec.ref?.kind === 'sheet' && onGo && <button onClick={() => onGo('drawings')}>Open drawings</button>}
           {rec.ref && rec.ref.kind !== 'sheet' && onGo && <button onClick={() => onGo('design')}>Open design</button>}
           {allowedNext(rec).some((s) => s === 'responded' || s === 'awaiting-evidence') && <textarea placeholder="Response or evidence note" value={text} onChange={(e) => setText(e.target.value)} style={{ width: '100%', marginTop: 6 }} rows={2} />}
-          <div className="row" style={{ gap: 6, marginTop: 6, flexWrap: 'wrap' }}>{allowedNext(rec).map((s) => <button key={s} onClick={() => move(rec, s)}>{ACTION[s]}</button>)}</div>
+          <div className="row mt">{allowedNext(rec).map((s) => <button key={s} onClick={() => move(rec, s)}>{ACTION[s]}</button>)}</div>
           <p className="m" style={{ marginTop: 8 }}>{rec.history.map((h) => `${STATUS_LABEL[h.status]} ${when(h.at)}${h.by ? ` by ${h.by}` : ''}${h.note ? ` (${h.note})` : ''}`).join(' → ')}</p>
         </div>
       )}

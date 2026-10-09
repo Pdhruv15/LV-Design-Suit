@@ -26,13 +26,13 @@ export default function ReceivedDocsView({ project, onChange, onStatus }: { proj
       {base && <p><b>Baseline:</b> {base.title} · {base.number} rev {base.revision}</p>}
       <div className="card">
         <h4>Register a document</h4>
-        <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+        <div className="row">
           <input placeholder="Title (required)" value={f.title} onChange={set('title')} style={{ flex: 2, minWidth: 180 }} />
           <input placeholder="Number (required)" value={f.number} onChange={set('number')} style={{ width: 130 }} />
           <input placeholder="Rev (required)" value={f.revision} onChange={set('revision')} style={{ width: 110 }} />
           <input type="date" value={f.dateReceived} onChange={set('dateReceived')} />
         </div>
-        <div className="row" style={{ gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+        <div className="row mt">
           <input placeholder="Originator" value={f.originator} onChange={set('originator')} style={{ width: 150 }} />
           <input placeholder="Purpose (e.g. for tender)" value={f.purpose} onChange={set('purpose')} style={{ width: 170 }} />
           <select value={f.discipline} onChange={set('discipline')}>{Object.entries(DISCIPLINE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>

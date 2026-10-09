@@ -81,7 +81,7 @@ export default function ParametersView({ project, onChange, onStatus, onTitleBlo
             <textarea className="param-try" style={{ minHeight: 120 }} defaultValue={notes.join('\n')} key={notes.join('\n')}
               placeholder={'1. All cables Cu/XLPE/SWA/PVC unless noted.\n2. Maximum demand {MaxDemand} on {TransformerKVA} transformer.'}
               onBlur={(e) => setNotes(e.target.value.split('\n').map((l) => l.trimEnd()).filter(Boolean))} />
-            <div className="row" style={{ gap: 6, margin: '6px 0', flexWrap: 'wrap' }}>
+            <div className="row my">
               <button className="chip" onClick={() => setNotes([...notes, ...DEWA_GENERAL_NOTES.filter((n) => !notes.includes(n))])}>+ Standard DEWA notes</button>
               <button className="chip" onClick={() => { try { localStorage.setItem('lvds.sldNotes', JSON.stringify(notes)); void pushLibrary(); } catch { /* ignore */ } }} disabled={!notes.length} title="Keep these notes for your next projects">Save as my notes</button>
               <button className="chip" onClick={() => { try { const n = JSON.parse(localStorage.getItem('lvds.sldNotes') ?? '[]'); if (Array.isArray(n) && n.length) setNotes(n.map(String)); } catch { /* ignore */ } }} title="Replace with your saved notes">Use my notes</button>

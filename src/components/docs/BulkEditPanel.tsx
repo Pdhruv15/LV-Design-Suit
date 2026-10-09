@@ -58,7 +58,7 @@ export default function BulkEditPanel({ project, me, onChange, onApply, onStatus
     <div className="card tool-panel" style={{ marginTop: 14 }}>
       <h4>Bulk edit</h4>
       <p className="m">Search, tick the items to change, then set one field on exactly those. Nothing changes until you save or apply.</p>
-      <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+      <div className="row">
         <select value={target} onChange={(e) => { setQ({ ...q, type: e.target.value as 'feeder' | 'board' }); setPicked([]); setField(''); setShow(false); }}><option value="feeder">Circuits</option><option value="board">Panels</option></select>
         <input placeholder="Search name, id, room…" value={q.text ?? ''} onChange={(e) => setQ({ ...q, text: e.target.value })} />
         <select value={q.boardId ?? ''} onChange={(e) => setQ({ ...q, boardId: e.target.value || undefined })}><option value="">Any panel</option>{project.boards.map((b) => <option key={b.id} value={b.id}>{b.id}</option>)}</select>
@@ -73,7 +73,7 @@ export default function BulkEditPanel({ project, me, onChange, onApply, onStatus
         ))}
         {hits.length > 300 && <p className="m" style={{ padding: 6 }}>Showing the first 300; narrow the search to see the rest.</p>}
       </div>
-      <div className="row" style={{ gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+      <div className="row mt">
         <select value={field} onChange={(e) => { setField(e.target.value); setValue(''); setShow(false); }}><option value="">Field to change…</option>{fields.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}</select>
         {num && <select value={mode} onChange={(e) => { setMode(e.target.value as BulkMode); setShow(false); }}><option value="set">set to</option><option value="scale">multiply by</option><option value="add">add</option></select>}
         {def?.kind === 'bool' ? <select value={value} onChange={(e) => { setValue(e.target.value); setShow(false); }}><option value="">…</option><option value="true">yes</option><option value="false">no</option></select>
@@ -91,7 +91,7 @@ export default function BulkEditPanel({ project, me, onChange, onApply, onStatus
           <p className="m">{preview.changed} will change, {preview.skipped} unchanged. {ids.length < picked.length ? 'Ticked items hidden by the search are not included.' : ''}</p>
           {introduced.length > 0 && <div className="mod-conflicts"><b>This edit would introduce:</b><ul>{introduced.map((i, k) => <li key={k}>{i.where}: {i.problem}</li>)}</ul></div>}
           {impact && <ImpactPanel impact={impact} onGo={onGo} />}
-          <div className="row" style={{ gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+          <div className="row mt">
             <input placeholder="Title (optional)" value={title} onChange={(e) => setTitle(e.target.value)} />
             <input placeholder="Reason (required)" value={reason} onChange={(e) => setReason(e.target.value)} style={{ flex: 1, minWidth: 200 }} />
             <button disabled={!preview.changed} onClick={() => save(false)}>Save as draft</button>
