@@ -34,7 +34,7 @@ export default function SidePanel({ results, selected }: { results: FeederResult
           </div>
           {tab === 'general' && (
             <dl className="kv">
-              <dt>Board</dt>
+              <dt>Load</dt>
               <dd>{r.feeder.name}</dd>
               <dt>Design current</dt>
               <dd>{r.ib.toFixed(0)} A ({r.loadingPct.toFixed(0)}%)</dd>
