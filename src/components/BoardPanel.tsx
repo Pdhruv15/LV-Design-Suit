@@ -5,14 +5,17 @@ import { boardSummary } from '../calc/summary';
 import BoardFields from './BoardFields';
 import { roleOf } from '../model/emergency';
 
-export type BoardTab = 'general' | 'electrical' | 'protection';
+export type BoardTab = 'general' | 'electrical' | 'protection' | 'location';
 type Tab = BoardTab;
 
 const statusLabel = { ok: 'Within limits', warn: 'Near rating (> 80 %)', bad: 'Overloaded' } as const;
 
 /** Properties of a board: editable equipment data (General), supply and
- * computed electrical values (Electrical), and the incoming protective
- * device's checks (Protection), plus a loading summary. */
+ * computed electrical values (Electrical), the incomer's settings and its
+ * protective device's checks (Protection), and where it is and who makes it
+ * (Location), plus a loading summary. What the SLD draws sits under General. */
+const TABS: [Tab, string][] = [['general', 'General'], ['electrical', 'Electrical'], ['protection', 'Protection'], ['location', 'Location']];
+
 export default function BoardPanel({
   project,
   board,
@@ -49,14 +52,15 @@ export default function BoardPanel({
           {s.loadingStatus && <span className={`pill ${s.loadingStatus}`}>{s.loadingStatus === 'ok' ? 'In service' : statusLabel[s.loadingStatus]}</span>}
         </h3>
         <div className="tabs ptabs" role="tablist">
-          {(['general', 'electrical', 'protection'] as Tab[]).map((t) => (
+          {TABS.map(([t, label]) => (
             <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>
-              {t[0].toUpperCase() + t.slice(1)}
+              {label}
             </button>
           ))}
         </div>
 
-        {tab === 'general' && <BoardFields board={board} onChange={onChange} section="general" building={project.building} />}
+        {tab === 'general' && <BoardFields board={board} onChange={onChange} section="general" groups={['board', 'sld']} />}
+        {tab === 'location' && <BoardFields board={board} onChange={onChange} section="general" building={project.building} groups={['location']} />}
         {tab === 'general' && ['DB', 'EDB'].includes(roleOf(project, board)) && (
           <p className="m enc-link">Enclosure: {board.enclosure ? <b>{board.enclosure.range} {board.enclosure.config.ref}{board.enclosure.dims ? ` · H${board.enclosure.dims.h} × W${board.enclosure.dims.w} × D${board.enclosure.dims.d} mm` : ''}</b> : 'not sized'}
             {board.enclosure && <span> ({board.enclosure.supplier} rev. {board.enclosure.revision}{board.enclosure.confirmNeeded ? ', supplier to confirm' : ''})</span>}
@@ -81,6 +85,7 @@ export default function BoardPanel({
           </>
         )}
 
+        {tab === 'protection' && <BoardFields board={board} onChange={onChange} section="general" groups={['incomer']} />}
         {tab === 'protection' && (
           <dl className="kv">
             {s.incomer ? (
