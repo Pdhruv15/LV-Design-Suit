@@ -159,7 +159,7 @@ export default function ProjectsDashboard({ list, recent, currentFile, currentNa
 
       {trash.length > 0 && (
         <>
-          <h4 className="projects-h"><button className="linkish" style={{ marginLeft: 0, color: 'inherit', font: 'inherit' }} onClick={() => setShowTrash(!showTrash)}>{showTrash ? '▾' : '▸'} Trash ({trash.length})</button></h4>
+          <h4 className="projects-h"><button className="linkish trash-toggle" onClick={() => setShowTrash(!showTrash)}>{showTrash ? '▾' : '▸'} Trash ({trash.length})</button></h4>
           {showTrash && (
             <>
               <p className="m">Deleted projects are kept for 30 days, then removed for good.</p>
