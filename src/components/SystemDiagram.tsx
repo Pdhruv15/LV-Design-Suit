@@ -57,7 +57,19 @@ export const protectionOf = (b: Board): Board['protection'] | undefined => {
 export const hasInstruments = (b: Board) => b.instruments ?? !b.upstreamId;
 export const hasEarthPits = (b: Board) => b.earthing?.show ?? !b.upstreamId;
 /** Top of a framed panel (DEWA style): the name box band above the incomer. */
-const frameTopOf = (b: Board, busY: number) => busY - (protectionOf(b) ? 92 : 84) - 12 - 62;
+const frameTopOf = (b: Board, busY: number, rows = 4) => busY - (protectionOf(b) ? 92 : 84) - 12 - 62 - Math.max(0, rows - 4) * 11;
+/** Wraps text to lines of at most `max` characters at spaces; the last line is cut with "…". */
+const wrapText = (text: string, max: number, lines: number): string[] => {
+  const out: string[] = [];
+  let rest = text.trim();
+  while (rest && out.length < lines - 1 && rest.length > max) {
+    const cut = rest.lastIndexOf(' ', max);
+    if (cut <= 0) break;
+    out.push(rest.slice(0, cut)); rest = rest.slice(cut + 1).trim();
+  }
+  if (rest) out.push(rest.length > max ? `${rest.slice(0, max - 1)}…` : rest);
+  return out;
+};
 const m2s = (ids?: string[]) => (ids?.length ? ids.join(', ') : undefined);
 /** Main earth conductor: typed, else the incomer's protective conductor size (min. 16), else 50 mm². */
 export function earthConductorOf(project: Project, b: Board): number {
@@ -230,6 +242,24 @@ export default function SystemDiagram({
     return m;
   }, [project, layout]);
   const pitIds = (key: string) => m2s(earthPits.get(key));
+  // A framed panel's name box: as wide as the room left of the incomer allows (never across it),
+  // with the location wrapped onto a second line when it doesn't fit.
+  const nameBox = (b: Board, n: { x: number; busX1: number; busY: number }) => {
+    const x1 = n.busX1 - 7;
+    const w = Math.max(96, Math.min(139, n.x - x1 - 14));
+    const max = Math.floor((w - 12) / 5);
+    const sm = panelSummary(project, b);
+    const iscRaw = faultCurrentKA(impedanceToBoard(project, b.id), project.voltageV);
+    const isc = Number.isFinite(iscRaw) ? iscRaw : undefined;
+    const loc = wrapText(`LOC : ${boardLocation(project, b) || '—'}`, max, 2);
+    const rows = [
+      `TCL = ${sm.tclKw.toFixed(2)} kW`,
+      `MDL = ${sm.mdlKw.toFixed(2)} kW`,
+      ...loc.map((t, i) => (i ? `      ${t}` : t)),
+      ...(isc !== undefined ? [`Isc = ${isc.toFixed(1)} kA`] : [])
+    ];
+    return { w, rows, sm, top: frameTopOf(b, n.busY, rows.length) };
+  };
   // CAD label limits follow neighbouring drops on the same row. This is
   // export metadata only; it does not change the live or printed diagram.
   const cadSlots = useMemo(() => {
@@ -689,9 +719,9 @@ export default function SystemDiagram({
           const lvIds = earthPits.get(`lv:${b.id}`);
           const ids = lvIds?.length === pits ? ` · ${lvIds.join(', ')}` : '';
           // MET: a bar inside the main board's frame, right of its name box.
-          const y1 = frameTopOf(b, r.busY);
+          const nb = nameBox(b, r), y1 = nb.top;
           const runX = ox + 116;
-          const metX1 = Math.max(runX - 25, r.busX1 - 7 + 152), metY = y1 + 20;
+          const metX1 = Math.max(runX - 25, r.busX1 - 7 + nb.w + 13), metY = y1 + 20;
           const metMid = metX1 + 25;
           const gnd = (x: number, y: number) => (
             <>
@@ -809,12 +839,12 @@ export default function SystemDiagram({
                 </rect>
               )}
               {!iec && <line x1={n.x - 5} y1={y + 32} x2={n.x + 5} y2={y + 20} className="ln" />}
-              {dewa ? <text x={n.x + 10} y={y + 37} className="acc-t" data-dxf-max-width={cadDeviceWidth}>{f.breakerIcuKa} kA{f.rcdMa ? ` · ${f.rcdMa}mA ELCB` : ''}</text>
+              {dewa ? <text x={n.x + 10} y={y + 37} className="dev-k" data-dxf-max-width={cadDeviceWidth}>{f.breakerIcuKa} kA{f.rcdMa ? ` · ${f.rcdMa}mA ELCB` : ''}</text>
                 : iec && <text x={n.x + 10} y={y + 41} className="acc-t" data-dxf-max-width={cadDeviceWidth}>{polesText(f)} · {f.breakerIcuKa} kA</text>}
               {dewa && <text x={n.x - 5} y={y + 13} textAnchor="end" className="acc-t way-no">{wayNo.get(f.id)}</text>}
               <line x1={n.x} y1={y + 34} x2={n.x} y2={endY} className={`ln ${status !== 'ok' ? status : ''}${cableTypeOf(project, f).fireRated ? ' fr' : ''}`}
                 style={feederHeat(f.id) ? { stroke: feederHeat(f.id), strokeWidth: 3.5 } : undefined} />
-              {dewa ? <text className="b" x={n.x + 10} y={y + 26} data-dxf-max-width={cadDeviceWidth}>{f.breakerRatingA}A {dewaPoles(f)} {dewaDevice(f)}</text>
+              {dewa ? <text className="dev" x={n.x + 10} y={y + 26} data-dxf-max-width={cadDeviceWidth}>{f.breakerRatingA}A {dewaPoles(f)} {dewaDevice(f)}</text>
                 : <text className="b" x={n.x + 10} y={y + 30} data-dxf-max-width={cadDeviceWidth}>{f.breakerRatingA} A{f.rcdMa ? <tspan className="acc-t"> · {f.rcdMa} mA</tspan> : null}</text>}
               <text
                 className={`${dewa ? 'acc-t' : 'm'}${onPatchFeeder ? ' cable-lbl' : ''}`}
@@ -853,7 +883,7 @@ export default function SystemDiagram({
                 // One compact column left of the line, top to bottom (cable-reference circles sit close in, so shift out).
                 const shiftX = cableRefs ? 12 : 0;
                 const box = (i: number, label: string, key: string) => {
-                  const by = y + 36 + i * 13;
+                  const by = y + 21 + i * 12; // beside the breaker, clear of the panel frame's gland line
                   const w = label.length * 5.2 + 6;
                   const x1 = n.x - 8 - shiftX;
                   return (
@@ -874,8 +904,8 @@ export default function SystemDiagram({
                     {dev.elcb && (
                       <g className="acc">
                         <title>{`Earth leakage protection${dev.elcb.ma ? ` ${dev.elcb.ma} mA` : ''}`}</title>
-                        <ellipse cx={n.x - 8 - shiftX - dev.elcb.label.length * 5.2 - 6 - 5} cy={y + 41.5} rx="4.5" ry="2.2" className="sym-ln" />
-                        {dev.elcb.ma ? <text x={n.x - 8 - shiftX} y={y + 34} textAnchor="end" className="acc-t" style={{ fontSize: 7 }}>{dev.elcb.ma}mA</text> : null}
+                        <ellipse cx={n.x - 8 - shiftX - dev.elcb.label.length * 5.2 - 6 - 5} cy={y + 26.5} rx="4.5" ry="2.2" className="sym-ln" />
+                        {dev.elcb.ma ? <text x={n.x - 8 - shiftX} y={y + 19} textAnchor="end" className="acc-t" style={{ fontSize: 7 }}>{dev.elcb.ma}mA</text> : null}
                       </g>
                     )}
                   </>
@@ -1059,26 +1089,19 @@ export default function SystemDiagram({
                 // The panel's name box sits just inside the frame's top-left corner: name, TCL, MDL, location and
                 // the prospective fault level at the board (the breaker's own Icu is on the incomer line).
                 const x1 = n.busX1 - 7, x2 = n.busX2 + 7, y2 = n.busY + 47;
-                const y1 = frameTopOf(b, n.busY);
+                const nb = nameBox(b, n);
+                const y1 = nb.top;
                 const gland = (x: number, gy: number) => <path key={`${x}-${gy}`} d={`M${x - 5} ${gy - 4} q3 4 0 8 M${x + 5} ${gy - 4} q-3 4 0 8`} className="ln" />;
                 const outs = layout.feeders.filter((f) => f.feeder.boardId === b.id);
-                const sm = panelSummary(project, b);
-                const iscRaw = faultCurrentKA(impedanceToBoard(project, b.id), project.voltageV);
-                const isc = Number.isFinite(iscRaw) ? iscRaw : undefined;
-                const rows = [
-                  `TCL = ${sm.tclKw.toFixed(2)} kW`,
-                  `MDL = ${sm.mdlKw.toFixed(2)} kW`,
-                  `LOC : ${trunc(boardLocation(project, b) || '—', 22)}`,
-                  ...(isc !== undefined ? [`Isc = ${isc.toFixed(1)} kA`] : [])
-                ];
+                const { sm, rows } = nb;
                 return (
                   <g className="panel-frame">
                     <title>{`${b.id}: TCL ${sm.tclKw.toFixed(2)} kW × DF ${sm.df.toFixed(2)} = MDL ${sm.mdlKw.toFixed(2)} kW`}</title>
                     <rect x={x1} y={y1} width={x2 - x1} height={y2 - y1} className="frame-ln" />
                     {gland(n.x, y1)}
-                    <rect x={x1 + 5} y={y1 + 5} width="139" height={18 + rows.length * 11} className="sum-box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
-                    <text x={x1 + 11} y={y1 + 18} className="acc-t b">{trunc(b.id, 18)}</text>
-                    {rows.map((t, i) => <text key={i} x={x1 + 11} y={y1 + 29 + i * 11} className="acc-t" data-dxf-max-width="127">{t}</text>)}
+                    <rect x={x1 + 5} y={y1 + 5} width={nb.w} height={18 + rows.length * 11} className="sum-box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
+                    <text x={x1 + 11} y={y1 + 18} className="acc-t b">{trunc(b.id, Math.floor((nb.w - 12) / 5.5))}</text>
+                    {rows.map((t, i) => <text key={i} x={x1 + 11} y={y1 + 29 + i * 11} className="acc-t" data-dxf-max-width={nb.w - 12} xmlSpace="preserve">{t}</text>)}
                     {outs.map((f) => gland(f.x, y2))}
                   </g>
                 );
@@ -1114,12 +1137,12 @@ export default function SystemDiagram({
                       const poles = inc ? (inc.cores >= 3 ? 'TP' : 'SP') : 'TP';
                       return (
                         <>
-                          <text x={n.x + 10} y={sy + 8} className="acc-t b">{`${rating ? `${rating} A ` : ''}${poles} ${dev === 'MCCB-NA' ? 'MCCB (NA)' : dev === 'ISOL' ? 'ISOLATOR' : dev}`}</text>
+                          <text x={n.x + 10} y={sy + 9} className="dev">{`${rating ? `${rating} A ` : ''}${poles} ${dev === 'MCCB-NA' ? 'MCCB (NA)' : dev === 'ISOL' ? 'ISOLATOR' : dev}`}</text>
                           {inc?.breakerIcuKa ? (() => {
                             // Red when the breaker can't break the board's prospective fault current.
                             const isc = faultCurrentKA(impedanceToBoard(project, b.id), project.voltageV);
                             const low = Number.isFinite(isc) && inc.breakerIcuKa < isc - 1e-6;
-                            return <text x={n.x + 10} y={sy + 19} className="acc-t" style={low ? { fill: 'var(--bad)' } : undefined}>{`Icu ${inc.breakerIcuKa} kA${low ? ` < Isc ${isc.toFixed(1)} kA` : ''}`}</text>;
+                            return <text x={n.x + 10} y={sy + 21} className="dev-k" style={low ? { fill: 'var(--bad)' } : undefined}>{`Icu ${inc.breakerIcuKa} kA${low ? ` < Isc ${isc.toFixed(1)} kA` : ''}`}</text>;
                           })() : null}
                         </>
                       );

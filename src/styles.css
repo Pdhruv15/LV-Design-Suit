@@ -465,6 +465,9 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 .qc-formula{margin:0;font-size:11px;color:var(--mut);font-family:ui-monospace,Menlo,monospace;line-height:1.4}
 .sysdiag .acc .sym-ln{fill:none;stroke:var(--tx);stroke-width:1.2}
 .sysdiag .acc .acc-t{font-size:9px;fill:var(--mut)}
+/* Breaker labels: the same size on incomers and outgoing ways */
+.sysdiag text.dev{font-size:11px;font-weight:700;fill:var(--tx)}
+.sysdiag text.dev-k{font-size:10px;fill:var(--mut)}
 .sysdiag .acc .acc-t.b{fill:var(--tx);font-weight:700;font-size:8px}
 .sysdiag .acc .bg-fill{fill:var(--bg);stroke:none}
 .sysdiag .acc .dot{fill:var(--tx)}
