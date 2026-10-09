@@ -22,7 +22,7 @@ import { cables } from '../calc/cableTable';
 import { upsLoadingPct } from '../calc/sizing';
 import { isMotor, starterInfo, starterOf } from '../calc/motor';
 import { sldDevices } from '../diagram/sldDevices';
-import { cableSizeText, runsOf, upstreamVoltageDropPct } from '../calc/electrical';
+import { cableSizeText, faultCurrentKA, impedanceToBoard, runsOf, upstreamVoltageDropPct } from '../calc/electrical';
 import { MOTOR_START_DIP_LIMIT_PCT, type GeneratorRun, type OutageScenario } from '../calc/scenario';
 import { boardRatio, COLOR_BY, earthRatio, feederRatio, heatColor, type ColorBy } from '../diagram/heatmap';
 import { evaluateEarthingAll } from '../calc/earthing';
@@ -766,18 +766,18 @@ export default function SystemDiagram({
                 </rect>
               )}
               {!iec && <line x1={n.x - 5} y1={y + 32} x2={n.x + 5} y2={y + 20} className="ln" />}
-              {dewa ? <text x={n.x + 10} y={y + 41} className="acc-t" data-dxf-max-width={cadDeviceWidth}>{f.breakerIcuKa} kA{f.rcdMa ? ` · ${f.rcdMa}mA ELCB` : ''}</text>
+              {dewa ? <text x={n.x + 10} y={y + 37} className="acc-t" data-dxf-max-width={cadDeviceWidth}>{f.breakerIcuKa} kA{f.rcdMa ? ` · ${f.rcdMa}mA ELCB` : ''}</text>
                 : iec && <text x={n.x + 10} y={y + 41} className="acc-t" data-dxf-max-width={cadDeviceWidth}>{polesText(f)} · {f.breakerIcuKa} kA</text>}
               {dewa && <text x={n.x - 5} y={y + 13} textAnchor="end" className="acc-t way-no">{wayNo.get(f.id)}</text>}
               <line x1={n.x} y1={y + 34} x2={n.x} y2={endY} className={`ln ${status !== 'ok' ? status : ''}${cableTypeOf(project, f).fireRated ? ' fr' : ''}`}
                 style={feederHeat(f.id) ? { stroke: feederHeat(f.id), strokeWidth: 3.5 } : undefined} />
-              {dewa ? <text className="b" x={n.x + 10} y={y + 28} data-dxf-max-width={cadDeviceWidth}>{f.breakerRatingA}A {dewaPoles(f)} {dewaDevice(f)}</text>
+              {dewa ? <text className="b" x={n.x + 10} y={y + 26} data-dxf-max-width={cadDeviceWidth}>{f.breakerRatingA}A {dewaPoles(f)} {dewaDevice(f)}</text>
                 : <text className="b" x={n.x + 10} y={y + 30} data-dxf-max-width={cadDeviceWidth}>{f.breakerRatingA} A{f.rcdMa ? <tspan className="acc-t"> · {f.rcdMa} mA</tspan> : null}</text>}
               <text
                 className={`${dewa ? 'acc-t' : 'm'}${onPatchFeeder ? ' cable-lbl' : ''}`}
                 style={dewa ? { fontSize: 9 } : undefined}
                 x={n.x + 7}
-                y={y + (dewa ? 57 : 52)}
+                y={y + (dewa ? 60 : 52)}
                 data-dxf-max-width={cadCableWidth}
                 data-dxf-dy={dewa ? 3 : 0}
                 data-dxf-dx={cadCableDx}
@@ -796,11 +796,11 @@ export default function SystemDiagram({
               </text>
               {cableRefs && (() => { const r = cableRefOf(project, f); return (
                 <g className="cable-ref"><title>{`Cable ${r.ref}: ${r.text}`}</title>
-                  <circle cx={n.x - 13} cy={y + (dewa ? 64 : 49)} r="7.5" className="cable-ref-c" />
-                  <text x={n.x - 13} y={y + (dewa ? 67 : 52)} textAnchor="middle" className="cable-ref-t">{r.ref}</text>
+                  <circle cx={n.x - 13} cy={y + (dewa ? 66 : 49)} r="7.5" className="cable-ref-c" />
+                  <text x={n.x - 13} y={y + (dewa ? 69 : 52)} textAnchor="middle" className="cable-ref-t">{r.ref}</text>
                   <text x={n.x + 7} y={y + (dewa ? 68 : 63)} className="acc-t" style={{ fontSize: 8 }} data-dxf-max-width={cadCableWidth} data-dxf-dx={cadCableDx}>{f.lengthM}m</text>
                 </g>); })()}
-              {dewa && !cableRefs && <text className="acc-t" style={{ fontSize: 9 }} x={n.x + 7} y={y + 67} data-dxf-max-width={cadCableWidth} data-dxf-dy={3} data-dxf-dx={cadCableDx}>{cableTypeOf(project, f).armoured ? `+1C ${cpcOf(f)}mm² ECC · ` : ''}{f.lengthM}m</text>}
+              {dewa && !cableRefs && <text className="acc-t" style={{ fontSize: 9 }} x={n.x + 7} y={y + 70} data-dxf-max-width={cadCableWidth} data-dxf-dy={3} data-dxf-dx={cadCableDx}>{cableTypeOf(project, f).armoured ? `+1C ${cpcOf(f)}mm² ECC · ` : ''}{f.lengthM}m</text>}
               {/* Accessories on the feeder, top to bottom: earth leakage (its
                   rating goes with the breaker's), metering on the right below
                   the cable text, local isolator just above the load. */}
@@ -1013,36 +1013,29 @@ export default function SystemDiagram({
               )}
               {dewa && !n.terminal && (() => {
                 // Panel frame: busbar, outgoing ways and incomer; cables cross it at a gland mark.
-                // A header band above the incomer holds the panel's name box (name, TCL, MDL) in the
-                // top-left corner and its location and fault level in the top-right, as on DEWA drawings.
+                // The panel's name box sits just inside the frame's top-left corner: name, TCL, MDL, location and
+                // the prospective fault level at the board (the breaker's own Icu is on the incomer line).
                 const x1 = n.busX1 - 7, x2 = n.busX2 + 7, y2 = n.busY + 47;
-                const narrow = x2 - x1 < 270; // corners would meet: location and kA go under the name box
-                const y1 = n.busY - (protectionOf(b) ? 92 : 84) - 12 - (narrow ? 66 : 42);
+                const y1 = n.busY - (protectionOf(b) ? 92 : 84) - 12 - 62;
                 const gland = (x: number, gy: number) => <path key={`${x}-${gy}`} d={`M${x - 5} ${gy - 4} q3 4 0 8 M${x + 5} ${gy - 4} q-3 4 0 8`} className="ln" />;
                 const outs = layout.feeders.filter((f) => f.feeder.boardId === b.id);
                 const sm = panelSummary(project, b);
-                const ka = incomingOf(b)?.breakerIcuKa;
-                const loc = `LOC : ${trunc(boardLocation(project, b) || '—', 22)}`;
+                const iscRaw = faultCurrentKA(impedanceToBoard(project, b.id), project.voltageV);
+                const isc = Number.isFinite(iscRaw) ? iscRaw : undefined;
+                const rows = [
+                  `TCL = ${sm.tclKw.toFixed(2)} kW`,
+                  `MDL = ${sm.mdlKw.toFixed(2)} kW`,
+                  `LOC : ${trunc(boardLocation(project, b) || '—', 22)}`,
+                  ...(isc !== undefined ? [`Isc = ${isc.toFixed(1)} kA`] : [])
+                ];
                 return (
                   <g className="panel-frame">
                     <title>{`${b.id}: TCL ${sm.tclKw.toFixed(2)} kW × DF ${sm.df.toFixed(2)} = MDL ${sm.mdlKw.toFixed(2)} kW`}</title>
                     <rect x={x1} y={y1} width={x2 - x1} height={y2 - y1} className="frame-ln" />
                     {gland(n.x, y1)}
-                    <rect x={x1 + 5} y={y1 + 5} width="112" height="36" className="sum-box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
-                    <text x={x1 + 10} y={y1 + 16} className="acc-t b">{trunc(b.id, 18)}</text>
-                    <text x={x1 + 10} y={y1 + 27} className="acc-t">{`TCL = ${sm.tclKw.toFixed(2)} kW`}</text>
-                    <text x={x1 + 10} y={y1 + 38} className="acc-t">{`MDL = ${sm.mdlKw.toFixed(2)} kW`}</text>
-                    {narrow ? (
-                      <>
-                        <text x={x1 + 7} y={y1 + 53} className="acc-t">{loc}</text>
-                        {ka && <text x={x1 + 7} y={y1 + 64} className="acc-t b">{`${ka} kA`}</text>}
-                      </>
-                    ) : (
-                      <>
-                        <text x={x2 - 5} y={y1 + 14} textAnchor="end" className="acc-t">{loc}</text>
-                        {ka && <text x={x2 - 5} y={y1 + 26} textAnchor="end" className="acc-t b">{`${ka} kA`}</text>}
-                      </>
-                    )}
+                    <rect x={x1 + 5} y={y1 + 5} width="139" height={18 + rows.length * 11} className="sum-box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
+                    <text x={x1 + 11} y={y1 + 18} className="acc-t b">{trunc(b.id, 18)}</text>
+                    {rows.map((t, i) => <text key={i} x={x1 + 11} y={y1 + 29 + i * 11} className="acc-t" data-dxf-max-width="127">{t}</text>)}
                     {outs.map((f) => gland(f.x, y2))}
                   </g>
                 );
@@ -1079,7 +1072,12 @@ export default function SystemDiagram({
                       return (
                         <>
                           <text x={n.x + 10} y={sy + 8} className="acc-t b">{`${rating ? `${rating} A ` : ''}${poles} ${dev === 'MCCB-NA' ? 'MCCB (NA)' : dev === 'ISOL' ? 'ISOLATOR' : dev}`}</text>
-                          {inc?.breakerIcuKa ? <text x={n.x + 10} y={sy + 19} className="acc-t">{`${inc.breakerIcuKa} kA`}</text> : null}
+                          {inc?.breakerIcuKa ? (() => {
+                            // Red when the breaker can't break the board's prospective fault current.
+                            const isc = faultCurrentKA(impedanceToBoard(project, b.id), project.voltageV);
+                            const low = Number.isFinite(isc) && inc.breakerIcuKa < isc - 1e-6;
+                            return <text x={n.x + 10} y={sy + 19} className="acc-t" style={low ? { fill: 'var(--bad)' } : undefined}>{`Icu ${inc.breakerIcuKa} kA${low ? ` < Isc ${isc.toFixed(1)} kA` : ''}`}</text>;
+                          })() : null}
                         </>
                       );
                     })()}
@@ -1170,7 +1168,8 @@ export default function SystemDiagram({
                 ...boardTags(b.id),
                 ...(s.loadingPct !== undefined ? [{ text: `${s.loadingPct.toFixed(0)}% loaded`, cls: layers?.loading ? s.loadingStatus ?? 'm' : 'm' }] : [])
               ].map((t, i) => (
-                <text key={t.text} x={n.x + 68} y={n.busY - 47 + i * 13} className={`res ${t.cls}`}>{t.text}</text>
+                // Under the incomer label (same left edge, one line gap), clear of the busbar label.
+                <text key={t.text} x={n.x + 10} y={(incomerDeviceOf(b) && !b.standby ? n.busY - (protectionOf(b) ? 92 : 84) + 40 : n.busY - 47) + i * 13} className={`res ${t.cls}`}>{t.text}</text>
               ))}
             </g>
           );

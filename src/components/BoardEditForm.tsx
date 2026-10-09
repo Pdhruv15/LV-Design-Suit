@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import type { Board, Project } from '../types';
-import BoardFields from './BoardFields';
+import BoardFields, { BOARD_FIELD_GROUPS, type BoardFieldGroup } from './BoardFields';
+
+type Tab = BoardFieldGroup | 'transformer';
 
 /** Double-click edit dialog for a board (and, for a main board, its
  * transformer). Changes apply on Save. */
@@ -20,13 +22,15 @@ export default function BoardEditForm({
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState<Board>(board);
+  const [tab, setTab] = useState<Tab>('board');
   const isMain = !board.upstreamId;
+  const tabs: [Tab, string][] = [...BOARD_FIELD_GROUPS, ...(isMain ? [['transformer', 'Transformer'] as [Tab, string]] : [])];
   const subBoards = project.boards.filter((b) => b.upstreamId === board.id).length;
   const feeders = project.feeders.filter((f) => f.boardId === board.id).length;
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!draft.name.trim()) return;
+    if (!draft.name.trim()) { setTab('board'); return; }
     onSave(draft);
   }
 
@@ -35,13 +39,14 @@ export default function BoardEditForm({
       <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
         <h3>Edit board: {board.id}</h3>
         <p className="m">{isMain ? 'Main board, supplied by the transformer.' : `Supplied from ${board.upstreamId}.`} {feeders} outgoing feeder(s).</p>
-        <BoardFields board={draft} onChange={setDraft} section="general" building={project.building} />
-        {isMain && (
-          <>
-            <h4 className="modal-sub">Transformer</h4>
-            <BoardFields board={draft} onChange={setDraft} section="source" />
-          </>
-        )}
+        <div className="tabs feeder-tabs" role="tablist">
+          {tabs.map(([k, label]) => <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{label}</button>)}
+        </div>
+        <div className="board-tab-body">
+          {tab === 'transformer'
+            ? <BoardFields board={draft} onChange={setDraft} section="source" />
+            : <BoardFields board={draft} onChange={setDraft} section="general" building={project.building} groups={[tab]} />}
+        </div>
         <div className="modal-actions">
           {onDelete && (
             <button

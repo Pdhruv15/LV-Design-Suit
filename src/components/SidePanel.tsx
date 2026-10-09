@@ -1,7 +1,12 @@
 import type { FeederResult } from '../calc/electrical';
+import { useState } from 'react';
 import { STATUS_TEXT } from '../calc/statusText';
 
+type Tab = 'general' | 'cable' | 'protection';
+const TABS: [Tab, string][] = [['general', 'General'], ['cable', 'Cable'], ['protection', 'Protection']];
+
 export default function SidePanel({ results, selected }: { results: FeederResult[]; selected: string | null }) {
+  const [tab, setTab] = useState<Tab>('general');
   const r = results.find((r) => r.feeder.id === selected) ?? results[0];
   const passed = results.filter((r) => r.status === 'ok').length;
   const warned = results.filter((r) => r.status === 'warn').length;
@@ -22,32 +27,51 @@ export default function SidePanel({ results, selected }: { results: FeederResult
             Feeder: {r.feeder.id}
             <span className={`pill ${r.status}`}>{STATUS_TEXT[r.status]}</span>
           </h3>
-          <dl className="kv">
-            <dt>Board</dt>
-            <dd>{r.feeder.name}</dd>
-            <dt>Breaker</dt>
-            <dd>{r.feeder.breakerRatingA} A, {r.feeder.breakerIcuKa} kA</dd>
-            <dt>Cable</dt>
-            <dd>{r.feeder.cableCsaMm2} mm², {r.feeder.cores}-core</dd>
-            <dt>Length</dt>
-            <dd>{r.feeder.lengthM} m</dd>
-            <dt>Design current</dt>
-            <dd>{r.ib.toFixed(0)} A ({r.loadingPct.toFixed(0)}%)</dd>
-            <dt>Voltage drop</dt>
-            <dd className={r.vdStatus}>{r.vdPct.toFixed(2)}% feeder · {r.vdTotalPct.toFixed(2)}% total</dd>
-            <dt>Cable rating Iz</dt>
-            <dd className={r.protectionStatus}>{r.ampacity.toFixed(0)} A {r.protectionStatus === 'ok' ? '(Ib ≤ In ≤ Iz)' : '(Ib ≤ In ≤ Iz fails)'}</dd>
-            {r.tray && (
-              <>
-                <dt>Grouping</dt>
-                <dd>× {r.tray.factor.toFixed(2)} on cable tray route {r.tray.route}{r.feeder.trayRoute ? ` (path ${r.feeder.trayRoute})` : ''}</dd>
-              </>
-            )}
-            <dt>Fault at breaker</dt>
-            <dd className={r.icuStatus}>{r.breakerFaultKA.toFixed(1)} kA vs Icu {r.feeder.breakerIcuKa} kA</dd>
-            <dt>Fault at cable end</dt>
-            <dd>{r.endFaultKA.toFixed(1)} kA</dd>
-          </dl>
+          <div className="tabs ptabs" role="tablist">
+            {TABS.map(([t, label]) => (
+              <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>{label}</button>
+            ))}
+          </div>
+          {tab === 'general' && (
+            <dl className="kv">
+              <dt>Load</dt>
+              <dd>{r.feeder.name}</dd>
+              <dt>Design current</dt>
+              <dd>{r.ib.toFixed(0)} A ({r.loadingPct.toFixed(0)}%)</dd>
+              <dt>Voltage drop</dt>
+              <dd className={r.vdStatus}>{r.vdPct.toFixed(2)}% feeder · {r.vdTotalPct.toFixed(2)}% total</dd>
+            </dl>
+          )}
+          {tab === 'cable' && (
+            <dl className="kv">
+              <dt>Cable</dt>
+              <dd>{r.feeder.cableCsaMm2} mm², {r.feeder.cores}-core</dd>
+              <dt>Length</dt>
+              <dd>{r.feeder.lengthM} m</dd>
+              <dt>Cable rating Iz</dt>
+              <dd className={r.protectionStatus}>{r.ampacity.toFixed(0)} A {r.protectionStatus === 'ok' ? '(Ib ≤ In ≤ Iz)' : '(Ib ≤ In ≤ Iz fails)'}</dd>
+              {r.tray && (
+                <>
+                  <dt>Grouping</dt>
+                  <dd>× {r.tray.factor.toFixed(2)} on cable tray route {r.tray.route}{r.feeder.trayRoute ? ` (path ${r.feeder.trayRoute})` : ''}</dd>
+                </>
+              )}
+              <dt>Voltage drop</dt>
+              <dd className={r.vdStatus}>{r.vdPct.toFixed(2)}% feeder · {r.vdTotalPct.toFixed(2)}% total</dd>
+            </dl>
+          )}
+          {tab === 'protection' && (
+            <dl className="kv">
+              <dt>Breaker</dt>
+              <dd>{r.feeder.breakerRatingA} A, {r.feeder.breakerIcuKa} kA</dd>
+              <dt>Ib ≤ In ≤ Iz</dt>
+              <dd className={r.protectionStatus}>{r.ib.toFixed(0)} ≤ {r.feeder.breakerRatingA} ≤ {r.ampacity.toFixed(0)} A</dd>
+              <dt>Fault at breaker</dt>
+              <dd className={r.icuStatus}>{r.breakerFaultKA.toFixed(1)} kA vs Icu {r.feeder.breakerIcuKa} kA</dd>
+              <dt>Fault at cable end</dt>
+              <dd>{r.endFaultKA.toFixed(1)} kA</dd>
+            </dl>
+          )}
         </div>
       )}
       <div className="pn">
