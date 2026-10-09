@@ -22,7 +22,7 @@ import { cables } from '../calc/cableTable';
 import { upsLoadingPct } from '../calc/sizing';
 import { isMotor, starterInfo, starterOf } from '../calc/motor';
 import { sldDevices } from '../diagram/sldDevices';
-import { cableSizeText, runsOf, upstreamVoltageDropPct } from '../calc/electrical';
+import { cableSizeText, faultCurrentKA, impedanceToBoard, runsOf, upstreamVoltageDropPct } from '../calc/electrical';
 import { MOTOR_START_DIP_LIMIT_PCT, type GeneratorRun, type OutageScenario } from '../calc/scenario';
 import { boardRatio, COLOR_BY, earthRatio, feederRatio, heatColor, type ColorBy } from '../diagram/heatmap';
 import { evaluateEarthingAll } from '../calc/earthing';
@@ -1013,36 +1013,29 @@ export default function SystemDiagram({
               )}
               {dewa && !n.terminal && (() => {
                 // Panel frame: busbar, outgoing ways and incomer; cables cross it at a gland mark.
-                // A header band above the incomer holds the panel's name box (name, TCL, MDL) in the
-                // top-left corner and its location and fault level in the top-right, as on DEWA drawings.
+                // The panel's name box sits in the frame's top-left corner: name, TCL, MDL, location and
+                // the prospective fault level at the board (the breaker's own Icu is on the incomer line).
                 const x1 = n.busX1 - 7, x2 = n.busX2 + 7, y2 = n.busY + 47;
-                const narrow = x2 - x1 < 270; // corners would meet: location and kA go under the name box
-                const y1 = n.busY - (protectionOf(b) ? 92 : 84) - 12 - (narrow ? 66 : 42);
+                const y1 = n.busY - (protectionOf(b) ? 92 : 84) - 12 - 52;
                 const gland = (x: number, gy: number) => <path key={`${x}-${gy}`} d={`M${x - 5} ${gy - 4} q3 4 0 8 M${x + 5} ${gy - 4} q-3 4 0 8`} className="ln" />;
                 const outs = layout.feeders.filter((f) => f.feeder.boardId === b.id);
                 const sm = panelSummary(project, b);
-                const ka = incomingOf(b)?.breakerIcuKa;
-                const loc = `LOC : ${trunc(boardLocation(project, b) || '—', 22)}`;
+                const iscRaw = faultCurrentKA(impedanceToBoard(project, b.id), project.voltageV);
+                const isc = Number.isFinite(iscRaw) ? iscRaw : undefined;
+                const rows = [
+                  `TCL = ${sm.tclKw.toFixed(2)} kW`,
+                  `MDL = ${sm.mdlKw.toFixed(2)} kW`,
+                  `LOC : ${trunc(boardLocation(project, b) || '—', 22)}`,
+                  ...(isc !== undefined ? [`Isc = ${isc.toFixed(1)} kA`] : [])
+                ];
                 return (
                   <g className="panel-frame">
                     <title>{`${b.id}: TCL ${sm.tclKw.toFixed(2)} kW × DF ${sm.df.toFixed(2)} = MDL ${sm.mdlKw.toFixed(2)} kW`}</title>
                     <rect x={x1} y={y1} width={x2 - x1} height={y2 - y1} className="frame-ln" />
                     {gland(n.x, y1)}
-                    <rect x={x1 + 5} y={y1 + 5} width="112" height="36" className="sum-box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
-                    <text x={x1 + 10} y={y1 + 16} className="acc-t b">{trunc(b.id, 18)}</text>
-                    <text x={x1 + 10} y={y1 + 27} className="acc-t">{`TCL = ${sm.tclKw.toFixed(2)} kW`}</text>
-                    <text x={x1 + 10} y={y1 + 38} className="acc-t">{`MDL = ${sm.mdlKw.toFixed(2)} kW`}</text>
-                    {narrow ? (
-                      <>
-                        <text x={x1 + 7} y={y1 + 53} className="acc-t">{loc}</text>
-                        {ka && <text x={x1 + 7} y={y1 + 64} className="acc-t b">{`${ka} kA`}</text>}
-                      </>
-                    ) : (
-                      <>
-                        <text x={x2 - 5} y={y1 + 14} textAnchor="end" className="acc-t">{loc}</text>
-                        {ka && <text x={x2 - 5} y={y1 + 26} textAnchor="end" className="acc-t b">{`${ka} kA`}</text>}
-                      </>
-                    )}
+                    <rect x={x1} y={y1} width="135" height={14 + rows.length * 11} className="sum-box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
+                    <text x={x1 + 4} y={y1 + 11} className="acc-t b">{trunc(b.id, 18)}</text>
+                    {rows.map((t, i) => <text key={i} x={x1 + 4} y={y1 + 22 + i * 11} className="acc-t" data-dxf-max-width="127">{t}</text>)}
                     {outs.map((f) => gland(f.x, y2))}
                   </g>
                 );
@@ -1079,7 +1072,12 @@ export default function SystemDiagram({
                       return (
                         <>
                           <text x={n.x + 10} y={sy + 8} className="acc-t b">{`${rating ? `${rating} A ` : ''}${poles} ${dev === 'MCCB-NA' ? 'MCCB (NA)' : dev === 'ISOL' ? 'ISOLATOR' : dev}`}</text>
-                          {inc?.breakerIcuKa ? <text x={n.x + 10} y={sy + 19} className="acc-t">{`${inc.breakerIcuKa} kA`}</text> : null}
+                          {inc?.breakerIcuKa ? (() => {
+                            // Red when the breaker can't break the board's prospective fault current.
+                            const isc = faultCurrentKA(impedanceToBoard(project, b.id), project.voltageV);
+                            const low = Number.isFinite(isc) && inc.breakerIcuKa < isc - 1e-6;
+                            return <text x={n.x + 10} y={sy + 19} className="acc-t" style={low ? { fill: 'var(--bad)' } : undefined}>{`Icu ${inc.breakerIcuKa} kA${low ? ` < Isc ${isc.toFixed(1)} kA` : ''}`}</text>;
+                          })() : null}
                         </>
                       );
                     })()}
@@ -1170,7 +1168,7 @@ export default function SystemDiagram({
                 ...boardTags(b.id),
                 ...(s.loadingPct !== undefined ? [{ text: `${s.loadingPct.toFixed(0)}% loaded`, cls: layers?.loading ? s.loadingStatus ?? 'm' : 'm' }] : [])
               ].map((t, i) => (
-                <text key={t.text} x={n.x + 68} y={n.busY - 47 + i * 13} className={`res ${t.cls}`}>{t.text}</text>
+                <text key={t.text} x={n.x + 10} y={n.busY - 30 + i * 13} className={`res ${t.cls}`}>{t.text}</text>
               ))}
             </g>
           );
