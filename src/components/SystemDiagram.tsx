@@ -1096,7 +1096,7 @@ export default function SystemDiagram({
                 const { sm, rows } = nb;
                 return (
                   <g className="panel-frame">
-                    <title>{`${b.id}: TCL ${sm.tclKw.toFixed(2)} kW × DF ${sm.df.toFixed(2)} = MDL ${sm.mdlKw.toFixed(2)} kW`}</title>
+                    <title>{`${b.id}: TCL ${sm.tclKw.toFixed(2)} kW × DF ${sm.df.toFixed(2)} = MDL ${sm.mdlKw.toFixed(2)} kW · ${boardLocation(project, b) || 'location not set'}`}</title>
                     <rect x={x1} y={y1} width={x2 - x1} height={y2 - y1} className="frame-ln" />
                     {gland(n.x, y1)}
                     <rect x={x1 + 5} y={y1 + 5} width={nb.w} height={18 + rows.length * 11} className="sum-box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
