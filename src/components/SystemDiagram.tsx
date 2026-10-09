@@ -1159,14 +1159,26 @@ export default function SystemDiagram({
                   <circle cx={n.x + 52} cy={n.busY - 46} r="4" style={{ fill: `var(--${status})` }} />
                 </>
               )}
-              {/* Busbar description at its right-hand end, e.g. "4 WAY 630 A TPN+E COPPER BUSBAR";
-                  shortened when the full text would reach the incoming line. */}
+              {/* Busbar description at its right-hand end, the same wording on every panel:
+                  "630 A TPN+E Cu BUSBAR", wrapped onto two lines where it would reach the incoming line.
+                  The way count and full description are in the tooltip (and the panel schedule). */}
               {!n.terminal && b.ratedCurrentA && (() => {
                 const ways = layout.feeders.filter((f) => f.feeder.boardId === b.id).length;
-                const metal = b.busbarMaterial === 'aluminium' ? 'ALUMINIUM' : 'COPPER';
-                const full = `${ways} WAY ${b.ratedCurrentA} A TPN+E ${metal} BUSBAR`;
-                const text = full.length * 5.6 < n.busX2 - n.x - 10 ? full : `${b.ratedCurrentA} A ${metal === 'COPPER' ? 'Cu' : 'Al'} BUSBAR`;
-                return <text x={n.busX2} y={n.busY - 5} textAnchor="end" className="acc-t b" style={{ fill: 'var(--bus)' }}><title>{full}</title>{text}</text>;
+                const al = b.busbarMaterial === 'aluminium';
+                const full = `${ways} WAY ${b.ratedCurrentA} A TPN+E ${al ? 'ALUMINIUM' : 'COPPER'} BUSBAR`;
+                const head = `${b.ratedCurrentA} A TPN+E`, tail = `${al ? 'Al' : 'Cu'} BUSBAR`;
+                const oneLine = (head.length + tail.length + 1) * 6.8 < n.busX2 - n.x - 10;
+                // Separate <text> lines (not tspans), and the tooltip on the group, so the CAD export reads each line as is.
+                return (
+                  <g><title>{full}</title>
+                    {oneLine ? <text x={n.busX2} y={n.busY - 5} textAnchor="end" className="dev bus-t">{`${head} ${tail}`}</text> : (
+                      <>
+                        <text x={n.busX2} y={n.busY - 17} textAnchor="end" className="dev bus-t">{head}</text>
+                        <text x={n.busX2} y={n.busY - 5} textAnchor="end" className="dev bus-t">{tail}</text>
+                      </>
+                    )}
+                  </g>
+                );
               })()}
               {hasInstruments(b) && !n.terminal && (() => {
                 // Ammeter and voltmeter with selector switches, R-Y-B lamps: inside the panel, left of the board box.
