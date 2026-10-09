@@ -1013,10 +1013,10 @@ export default function SystemDiagram({
               )}
               {dewa && !n.terminal && (() => {
                 // Panel frame: busbar, outgoing ways and incomer; cables cross it at a gland mark.
-                // The panel's name box sits in the frame's top-left corner: name, TCL, MDL, location and
+                // The panel's name box sits just inside the frame's top-left corner: name, TCL, MDL, location and
                 // the prospective fault level at the board (the breaker's own Icu is on the incomer line).
                 const x1 = n.busX1 - 7, x2 = n.busX2 + 7, y2 = n.busY + 47;
-                const y1 = n.busY - (protectionOf(b) ? 92 : 84) - 12 - 52;
+                const y1 = n.busY - (protectionOf(b) ? 92 : 84) - 12 - 62;
                 const gland = (x: number, gy: number) => <path key={`${x}-${gy}`} d={`M${x - 5} ${gy - 4} q3 4 0 8 M${x + 5} ${gy - 4} q-3 4 0 8`} className="ln" />;
                 const outs = layout.feeders.filter((f) => f.feeder.boardId === b.id);
                 const sm = panelSummary(project, b);
@@ -1033,9 +1033,9 @@ export default function SystemDiagram({
                     <title>{`${b.id}: TCL ${sm.tclKw.toFixed(2)} kW × DF ${sm.df.toFixed(2)} = MDL ${sm.mdlKw.toFixed(2)} kW`}</title>
                     <rect x={x1} y={y1} width={x2 - x1} height={y2 - y1} className="frame-ln" />
                     {gland(n.x, y1)}
-                    <rect x={x1} y={y1} width="135" height={14 + rows.length * 11} className="sum-box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
-                    <text x={x1 + 4} y={y1 + 11} className="acc-t b">{trunc(b.id, 18)}</text>
-                    {rows.map((t, i) => <text key={i} x={x1 + 4} y={y1 + 22 + i * 11} className="acc-t" data-dxf-max-width="127">{t}</text>)}
+                    <rect x={x1 + 5} y={y1 + 5} width="139" height={18 + rows.length * 11} className="sum-box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
+                    <text x={x1 + 11} y={y1 + 18} className="acc-t b">{trunc(b.id, 18)}</text>
+                    {rows.map((t, i) => <text key={i} x={x1 + 11} y={y1 + 29 + i * 11} className="acc-t" data-dxf-max-width="127">{t}</text>)}
                     {outs.map((f) => gland(f.x, y2))}
                   </g>
                 );
