@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import type { BuildingInfo, MeterType, Project, ProjectBuilding, RoomType, UnitType } from '../../types';
 import { METER_TYPES } from '../../types';
 import { roomTypesOf } from '../../calc/building';
-import { catalog } from '../../database/catalog';
+import { unitTypeLibrary } from '../../model/buildingPreset';
+import { saveUnitTypesToLibrary, UnitLibraryDialog } from './BuildingReuse';
 import { addServices, benchOf, defaultServices, floorLoads, generateBuildingDbs, plannedDbs, roomDensities, rulesOf, lpdOf, unitLoads, type ServiceItem } from '../../calc/buildingDesign';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -50,8 +51,10 @@ export function RoomRulesTable({ types, onChange }: { types: RoomType[]; onChang
 }
 
 /** Flat / tenant layouts: rooms of each unit type and its meter. */
-export function UnitTypesCard({ info, onChange }: { info: BuildingInfo; onChange: (i: BuildingInfo) => void }) {
+export function UnitTypesCard({ info, onChange, onStatus }: { info: BuildingInfo; onChange: (i: BuildingInfo) => void; onStatus: (m: string) => void }) {
   const types = roomTypesOf(info);
+  const [picking, setPicking] = useState(false);
+  const libCount = picking ? 0 : unitTypeLibrary().length;
   const units = info.unitTypes ?? [];
   const set = (next: UnitType[]) => onChange({ ...info, unitTypes: next });
   const setU = (id: string, patch: Partial<UnitType>) => set(units.map((u) => (u.id === id ? { ...u, ...patch } : u)));
@@ -69,7 +72,8 @@ export function UnitTypesCard({ info, onChange }: { info: BuildingInfo; onChange
       <div className="bi-actions" style={{ marginTop: 0 }}>
         <b>Flats / tenants</b><span className="m">a layout entered once, placed on levels (Levels → Flats). Each flat gets its own DB and meter.</span>
         <span className="sp" />
-        {catalog().unitTypes.length > 0 && <button className="chip" title="Add the layouts from UnitTypes.xlsx (database)" onClick={() => set([...units, ...catalog().unitTypes.filter((u) => !units.some((x) => x.id === u.id)).map((u) => ({ ...u, rooms: u.rooms.map((r) => ({ ...r })) }))])}>From library ({catalog().unitTypes.length})</button>}
+        <button className="chip" title="Add layouts from your library (UnitTypes.xlsx in the database)" onClick={() => setPicking(true)}>From library{libCount ? ` (${libCount})` : ''}…</button>
+        <button className="chip" disabled={!units.length} title="Write these layouts to your library (UnitTypes.xlsx) — same name updates, new ones are added" onClick={() => void saveUnitTypesToLibrary(units, onStatus)}>Save to library</button>
         <button className="chip" onClick={add}>+ Unit type</button>
       </div>
       {!units.length && <p className="m">No unit types yet — e.g. Studio, 1BR, 2BR, 3BR, shop.</p>}
@@ -103,6 +107,7 @@ export function UnitTypesCard({ info, onChange }: { info: BuildingInfo; onChange
           );
         })}
       </div>
+      {picking && <UnitLibraryDialog info={info} onClose={() => setPicking(false)} onAdd={(next, m) => { set(next); setPicking(false); onStatus(m); }} />}
     </section>
   );
 }
