@@ -21,7 +21,8 @@ export default function DiagramResultsBar({
   supply,
   onSupply,
   hasGenerator,
-  outages = []
+  outages = [],
+  calc
 }: {
   layers: ResultLayers;
   onLayers: (l: ResultLayers) => void;
@@ -37,6 +38,8 @@ export default function DiagramResultsBar({
   hasGenerator: boolean;
   /** Main boards whose transformer can fail with a tie to another. */
   outages?: string[];
+  /** State of the network studies: out of date (with what), failing checks, and when they last ran. */
+  calc?: { stale: number; staleWhat?: string; fails: number; at?: number; onRun: () => void };
 }) {
   const shown = LAYER_LABELS.filter(([k]) => layers[k]).length;
   const supplyLabel = supply === 'generator' ? 'On generator' : supply.startsWith('outage:') ? `Transformer of ${supply.slice(7)} failed` : '';
@@ -63,10 +66,17 @@ export default function DiagramResultsBar({
         )}
       </MenuButton>
       {supplyLabel && <button className="chip supply-pick active" onClick={() => onSupply('normal')} title="Back to normal supply">{supplyLabel} ✕</button>}
+      {calc && (calc.stale ? (
+        <button className="chip calc-chip warn" onClick={calc.onRun} title={`Out of date: ${calc.staleWhat ?? 'the studies'} — click to run (F5)`}>⚠ Out of date · Run</button>
+      ) : (
+        <span className={`calc-chip ${calc.fails ? 'bad' : 'ok'}`} title={`Calculations up to date${calc.at ? ` — run at ${new Date(calc.at).toLocaleTimeString()}` : ''}${calc.fails ? ` · ${calc.fails} check(s) failing — see the results below` : ''}`}>
+          {calc.fails ? `✕ ${calc.fails} failing` : '✓ Calculated'}{calc.at ? <span className="m"> · {new Date(calc.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span> : null}
+        </span>
+      ))}
       <label className="results-src" title={note?.text}>
-        <span className="res-dot" style={{ background: dot }} />
+        {source !== 'builtin' && <span className="res-dot" style={{ background: dot }} />}
         <select className="chip" value={supply === 'generator' ? 'builtin' : source} disabled={supply === 'generator'} onChange={(e) => onSource(e.target.value)} aria-label="Results from">
-          <option value="builtin">Results: built-in (instant)</option>
+          <option value="builtin">Results: built-in</option>
           {EXTERNAL_ENGINES.map((e) => <option key={e.id} value={e.id}>Results: {e.name} load flow</option>)}
         </select>
       </label>

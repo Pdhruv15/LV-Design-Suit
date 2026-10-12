@@ -1128,6 +1128,7 @@ export default function App() {
                         onSupply={setSupply}
                         hasGenerator={hasGenerator}
                         outages={tiedRoots}
+                        calc={{ stale: staleKeys.length, staleWhat: stale.join(', '), fails: allResults.filter((r) => r.status === 'bad').length, at: run?.at, onRun: runNow }}
                       />
                     )}
                     <span className="sp" />
