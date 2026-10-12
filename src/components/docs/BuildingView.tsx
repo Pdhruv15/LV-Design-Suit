@@ -10,6 +10,7 @@ import { buildingSummaryHtml, buildingSummaryWorkbook } from '../../docs/buildin
 import { workbookBytes } from '../../docs/formWorkbook';
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
 import { DensityPanel, GenerateDialog, LevelUnitsDialog, RoomRulesTable, ServicesDialog, UnitTypesCard } from './BuildingDesignPanels';
+import { ReuseDialog, SavePresetDialog } from './BuildingReuse';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const f1 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 1 });
@@ -36,7 +37,7 @@ export default function BuildingView({ project, onChange, onStatus }: { project:
   const [levelFilter, setLevelFilter] = useState('');
   const [paste, setPaste] = useState<string | null>(null);
   const [showTypes, setShowTypes] = useState(false);
-  const [dialog, setDialog] = useState<'generate' | 'services' | null>(null);
+  const [dialog, setDialog] = useState<'generate' | 'services' | 'reuse' | 'save-preset' | null>(null);
   const [unitsFor, setUnitsFor] = useState<string | null>(null);
   const exportSummary = async (kind: 'pdf' | 'xlsx') => {
     const ids = info.buildings.map((x) => x.id);
@@ -111,6 +112,8 @@ export default function BuildingView({ project, onChange, onStatus }: { project:
       intro="The architectural data, entered once: buildings, levels (typical floors counted as many times as they repeat), rooms with their type and area, and the DB serving them. Used by Space planning, the busbar riser, the DEWA forms (built-up area) and the check of each DB against its rooms."
       actions={<>
         <button className="chip" onClick={addBuilding}>+ Building</button>
+        <button className="chip" onClick={() => setDialog('reuse')} title="Start from one of your building presets, or copy buildings from a past project">From preset / past project…</button>
+        {b && <button className="chip" onClick={() => setDialog('save-preset')} title="Keep this building's levels, flats, rooms and room types for the next project">Save as preset…</button>}
         {b && <button className="chip" onClick={() => setPaste('')} title="Paste the architect's area schedule from Excel">Paste rooms from Excel</button>}
         <button className="chip" onClick={() => setShowTypes(!showTypes)}>Room types</button>
         {b && <button className="chip" onClick={() => setDialog('services')} title="Lifts, pumps, fans, façade lighting, EV chargers…">Common services…</button>}
@@ -120,7 +123,7 @@ export default function BuildingView({ project, onChange, onStatus }: { project:
       </>}
     >
       {!b ? (
-        <div className="card"><p>No building yet. Add one, then its levels and rooms — or paste the architect’s area schedule.</p><button className="chip primary" onClick={addBuilding}>Add a building</button></div>
+        <div className="card"><p>No building yet. Add one, then its levels and rooms — or paste the architect’s area schedule, or start from a preset or a past project.</p><div className="bi-actions" style={{ marginTop: 0 }}><button className="chip primary" onClick={addBuilding}>Add a building</button><button className="chip" onClick={() => setDialog('reuse')}>From preset / past project…</button></div></div>
       ) : (
         <>
           {info.buildings.length > 1 && (
@@ -244,7 +247,7 @@ export default function BuildingView({ project, onChange, onStatus }: { project:
           </table>
           <div className="bi-actions"><button className="chip" onClick={addRoom}>+ Room</button></div>
 
-          <UnitTypesCard info={info} onChange={set} />
+          <UnitTypesCard info={info} onChange={set} onStatus={onStatus} />
 
           <h3 className="section-title flush">Load density <span className="m">— per floor, rooms against benchmarks, flats</span></h3>
           <DensityPanel project={project} b={b} />
@@ -313,6 +316,8 @@ export default function BuildingView({ project, onChange, onStatus }: { project:
 
       {dialog === 'generate' && b && <GenerateDialog project={project} b={b} onClose={() => setDialog(null)} onDone={(p, m) => { onChange(p); onStatus(m); setDialog(null); }} />}
       {dialog === 'services' && b && <ServicesDialog project={project} b={b} onClose={() => setDialog(null)} onDone={(p, m) => { onChange(p); onStatus(m); setDialog(null); }} />}
+      {dialog === 'save-preset' && b && <SavePresetDialog info={info} b={b} onClose={() => setDialog(null)} onStatus={onStatus} />}
+      {dialog === 'reuse' && <ReuseDialog project={project} onClose={() => setDialog(null)} onStatus={onStatus} onAdd={(next, ids, m) => { set(next); setSel(ids[0] ?? sel); setDialog(null); onStatus(m); }} />}
       {unitsFor && b && <LevelUnitsDialog info={info} b={b} levelId={unitsFor} onClose={() => setUnitsFor(null)} onSave={(u) => { setLevel(unitsFor, { units: u.length ? u : undefined }); setUnitsFor(null); }} />}
       {paste !== null && (
         <div className="modal-backdrop" onClick={() => setPaste(null)}>
