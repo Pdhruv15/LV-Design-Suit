@@ -158,6 +158,8 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
       if ((e.key === 'Delete' || e.key === 'Backspace') && selected) { e.preventDefault(); removeSelected(); }
       else if (e.key === 'Escape') { setTool('select'); setSelId(null); }
+      else if (!e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'f' || e.key === 'F')) setZoom('fit');
+      else if (!e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'm' || e.key === 'M') && s && s.kind !== 'earthing') toggleMarkup(!(markOn || tool !== 'select' || !!selected));
       else if (!e.ctrlKey && !e.metaKey && !e.altKey) {
         const t = ALL_TOOLS.find((x) => x.key === e.key.toUpperCase() && (s?.kind === 'system' || (x.tool !== 'pcloud' && x.tool !== 'parrow')));
         if (t) { setTool(t.tool); if (t.tool !== 'select') setSelId(null); }
@@ -242,14 +244,14 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
         })()}
         <span className="sp" />
         <button className="icon-btn" title="Zoom out" onClick={() => setZoom(Math.max(0.15, (zoom === 'fit' ? fit : zoom) / 1.25))}>−</button>
-        <button className={`chip${zoom === 'fit' ? ' on' : ''}`} title="Fit the sheet to the window (Ctrl/⌘ + scroll to zoom)" onClick={() => setZoom('fit')}>{zoom === 'fit' ? `Fit · ${pct}` : pct}</button>
+        <button className={`chip${zoom === 'fit' ? ' on' : ''}`} title="Fit the sheet to the window (F) · Ctrl/⌘ + scroll to zoom" onClick={() => setZoom('fit')}>{zoom === 'fit' ? `Fit · ${pct}` : pct}</button>
         <button className="icon-btn" title="Zoom in" onClick={() => setZoom(Math.min(3, (zoom === 'fit' ? fit : zoom) * 1.25))}>+</button>
         {project.drawing?.symbols !== 'simple' && (
           <button className={`chip${project.drawing?.legend !== false ? ' on' : ''}`} onClick={() => onChange({ ...project, drawing: { ...project.drawing, legend: project.drawing?.legend === false } })}
             title="Symbol legend in the sheets' legend column (and on SLD exports)">Legend</button>
         )}
         {s.kind !== 'earthing' && drawable(s) && (
-          <button className={`chip${showMarkup ? ' on' : ''}`} aria-pressed={showMarkup} title="Show the markup tools: clouds, arrows, text and callouts on this sheet" onClick={() => toggleMarkup(!showMarkup)}>
+          <button className={`chip${showMarkup ? ' on' : ''}`} aria-pressed={showMarkup} title="Show the markup tools: clouds, arrows, text and callouts on this sheet (M)" onClick={() => toggleMarkup(!showMarkup)}>
             Markup{markups.length ? ` (${markups.length})` : ''}
           </button>
         )}
