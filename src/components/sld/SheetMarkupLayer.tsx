@@ -215,7 +215,11 @@ export function MarkupToolbar({ tool, color, size, selected, count, anchored, on
         </select>
       )}
       <button className="icon-btn markup-tool" disabled={!selected} onClick={onDelete} title={`Delete the selected ${selected ? MARKUP_LABEL[selected.kind].toLowerCase() : 'markup'} (Delete key)`} aria-label="Delete markup"><Trash2 size={16} /></button>
-      <span className="m">{ALL_TOOLS.find((t) => t.tool === tool)?.label}: {hint}{count ? ` · ${count} on this sheet` : ''}</span>
+      {(() => {
+        // The select hint is long and always the same — show the hint only once a drawing tool or a markup is picked.
+        const text = tool !== 'select' || selected ? `${ALL_TOOLS.find((t) => t.tool === tool)?.label}: ${hint}${count ? ` · ${count} on this sheet` : ''}` : '';
+        return text ? <span className="m markup-hint" title={`${ALL_TOOLS.find((t) => t.tool === tool)?.label}: ${hint}`}>{text}</span> : null;
+      })()}
     </div>
   );
 }

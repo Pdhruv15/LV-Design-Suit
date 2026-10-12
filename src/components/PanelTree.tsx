@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, IndentDecrease, IndentIncrease, PanelLeftClose, PanelLeftOpen, Plus, Power, Waves } from 'lucide-react';
 import type { Board, Project } from '../types';
 import type { FeederResult, Status } from '../calc/electrical';
@@ -196,11 +196,11 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
           <span className={`tree-dot ${i?.status ?? ''}`} />
           <span className="tree-id">{b.id}</span>
           {highlighted.has(b.id) && <span className="tree-new">New</span>}
-          {!b.upstreamId && b.sourceKva ? <span className="tree-tx" title={`${b.sourceKva} kVA transformer`}><Waves size={11} />{b.sourceKva}</span> : null}
+          {!b.upstreamId && b.sourceKva ? <span className="tree-tx" title={`${b.sourceKva} kVA transformer`}><Waves size={11} />{b.sourceKva} kVA</span> : null}
           {b.standby ? <span className="tree-tx" title={`${b.standby.kva} kVA standby generator (ATS)`}><Power size={11} /></span> : null}
           {check ? <span className="tree-check" title="Moved to another source — check the incomer cable length">len?</span> : null}
           <span className="sp" />
-          {i?.loading !== undefined && <span className={`tree-load ${i.loadingStatus ?? ''}`}>{i.loading.toFixed(0)}%</span>}
+          {i?.loading !== undefined && <span className={`tree-load ${i.loadingStatus ?? ''}`} style={{ '--pct': `${Math.min(100, Math.max(0, i.loading))}%` } as CSSProperties}>{i.loading.toFixed(0)}%</span>}
         </div>
         {open && kids.length > 0 && <div role="group">{kids.map((k) => node(k, depth + 1))}</div>}
       </div>
