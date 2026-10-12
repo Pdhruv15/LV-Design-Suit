@@ -401,7 +401,10 @@ export default function SystemDiagram({
   }, [lod]);
   // Screen pixels per drawing unit (the viewBox is fitted with "meet").
   const pxPerUnit = box.w && box.h ? Math.min(box.w / vb.w, box.h / vb.h) : 1;
-  const lodLevel = !lod ? '' : pxPerUnit < 0.55 ? ' lod-far' : pxPerUnit < 0.8 ? ' lod-mid' : '';
+  // Text detail: 'auto' follows the zoom, 'all' always shows every label (remembered).
+  const [detail, setDetail] = useState<'auto' | 'all'>(() => { try { return localStorage.getItem('lvds.sldDetail') === 'all' ? 'all' : 'auto'; } catch { return 'auto'; } });
+  const toggleDetail = () => setDetail((d) => { const v = d === 'auto' ? 'all' : 'auto'; try { localStorage.setItem('lvds.sldDetail', v); } catch { /* ignore */ } return v; });
+  const lodLevel = !lod || detail === 'all' ? '' : pxPerUnit < 0.55 ? ' lod-far' : pxPerUnit < 0.8 ? ' lod-mid' : '';
   // On screen, squeeze any label wider than its slot so it can't run over the neighbouring feeder.
   useLayoutEffect(() => {
     svgRef.current?.querySelectorAll<SVGTextElement>('text[data-dxf-max-width], text[data-fit-width]').forEach((t) => {
@@ -596,12 +599,22 @@ export default function SystemDiagram({
         {onDrawing && <button className="chip" onClick={() => onDrawing({ symbols: iec ? 'simple' : 'iec' })} title={iec ? 'IEC 60617 symbols — switch to simple icons' : 'Simple icons — switch to IEC 60617 symbols'}>{iec ? 'IEC' : 'Icons'}</button>}
         {onDrawing && <button className={`chip${dewa ? ' on' : ''}`} onClick={() => onDrawing({ sldStyle: dewa ? 'standard' : undefined })} title="DEWA submission style: a frame around each panel with its summary (LOC, TCL, DF, MDL), way numbers and DEWA wording">DEWA</button>}
         {onDrawing && <button className={`chip${project.drawing?.cableLabels === 'ref' ? ' on' : ''}`} onClick={() => onDrawing({ cableLabels: project.drawing?.cableLabels === 'ref' ? undefined : 'ref' })} title="Cable text as reference numbers (CABLE SCHEDULE legend). Off: full description on screen; drawing sheets switch to numbers by themselves when crowded.">Cable no.</button>}
+        {lod && <button className={`chip${detail === 'all' ? ' on' : ''}`} onClick={toggleDetail} aria-pressed={detail === 'all'}
+          title={detail === 'auto' ? 'Text follows the zoom: names only when zoomed out, ratings and cables closer in. Click to always show all text.' : 'All text shown at every zoom. Click to let the text follow the zoom.'}>
+          {detail === 'auto' ? 'Text: Auto' : 'Text: All'}
+        </button>}
         <button className="chip" onClick={nextGrid} title="Grid: lines, dots or none">{grid === 'lines' ? '▦' : grid === 'dots' ? '⁙' : '□'}</button>
         <button className="chip" onClick={() => zoom(1 / 1.25)} aria-label="Zoom in">+</button>
         <button className="chip" onClick={() => zoom(1.25)} aria-label="Zoom out">−</button>
         <button className="chip" onClick={() => setVb(full)}>Fit</button>
         {onToggleFullScreen && <button className="chip" onClick={onToggleFullScreen} title={fullScreen ? 'Exit full screen (Esc)' : 'Full screen'}>{fullScreen ? '✕' : '⤢'}</button>}
       </div>
+      {lodLevel && (
+        <div className="lod-hint" role="status">
+          {lodLevel === ' lod-far' ? 'Zoomed out: names only' : 'Zoomed out: cables and results hidden'} — zoom in to see more, or
+          <button className="linkish" onClick={toggleDetail}>show all text</button>
+        </div>
+      )}
       {resizable && !fullScreen && (
         <div className="sysdiag-resize" onPointerDown={startResize} onDoubleClick={() => { setHeight(undefined); try { localStorage.removeItem('sld.height'); } catch { /* ignore */ } }} title="Drag to make the drawing taller or shorter — double-click for the default height" />
       )}

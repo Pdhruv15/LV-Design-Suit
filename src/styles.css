@@ -1369,3 +1369,5 @@ kbd{display:inline-block;font:11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospa
 .sysdiag.lod-mid svg .acc text,.sysdiag.lod-mid svg text.res,.sysdiag.lod-mid svg .panel-frame text:not(.lod-name){display:none}
 .sysdiag.lod-far svg text:not(.lod-name),.sysdiag.lod-far svg .acc,.sysdiag.lod-far svg .cable-ref,.sysdiag.lod-far svg .sum-box{display:none}
 .sysdiag.lod-far svg text.lod-name{font-size:var(--lod-fs,11px);font-weight:700}
+.lod-hint{position:absolute;right:10px;bottom:10px;z-index:3;background:color-mix(in srgb,var(--panel) 92%,transparent);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:12px;color:var(--mut);display:flex;align-items:center;gap:4px}
+.lod-hint .linkish{margin-left:0}
