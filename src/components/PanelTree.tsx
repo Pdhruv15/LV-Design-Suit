@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, IndentDecrease, IndentIncrease, PanelLeftClose, PanelLeftOpen, Plus, Power, Waves } from 'lucide-react';
 import type { Board, Project } from '../types';
 import type { FeederResult, Status } from '../calc/electrical';
@@ -30,6 +30,9 @@ export interface TreeMenuActions {
   onReorder?: (boardId: string, dir: -1 | 1) => void;
   /** The moved board's incomer length was checked. */
   onLengthChecked?: (boardId: string) => void;
+  /** Set the cable type of all the board's outgoing cables ('auto' = automatic). */
+  onCableType?: (boardId: string, type: string) => void;
+  cableTypes?: { value: string; label: string }[];
 }
 
 function useStored<T>(key: string, initial: T): [T, (v: T) => void] {
@@ -196,11 +199,11 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
           <span className={`tree-dot ${i?.status ?? ''}`} />
           <span className="tree-id">{b.id}</span>
           {highlighted.has(b.id) && <span className="tree-new">New</span>}
-          {!b.upstreamId && b.sourceKva ? <span className="tree-tx" title={`${b.sourceKva} kVA transformer`}><Waves size={11} />{b.sourceKva}</span> : null}
+          {!b.upstreamId && b.sourceKva ? <span className="tree-tx" title={`${b.sourceKva} kVA transformer`}><Waves size={11} />{b.sourceKva} kVA</span> : null}
           {b.standby ? <span className="tree-tx" title={`${b.standby.kva} kVA standby generator (ATS)`}><Power size={11} /></span> : null}
           {check ? <span className="tree-check" title="Moved to another source — check the incomer cable length">len?</span> : null}
           <span className="sp" />
-          {i?.loading !== undefined && <span className={`tree-load ${i.loadingStatus ?? ''}`}>{i.loading.toFixed(0)}%</span>}
+          {i?.loading !== undefined && <span className={`tree-load ${i.loadingStatus ?? ''}`} style={{ '--pct': `${Math.min(100, Math.max(0, i.loading))}%` } as CSSProperties}>{i.loading.toFixed(0)}%</span>}
         </div>
         {open && kids.length > 0 && <div role="group">{kids.map((k) => node(k, depth + 1))}</div>}
       </div>
@@ -274,6 +277,15 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
           {menu.onMove && ctxBoard.upstreamId && <button role="menuitem" onClick={act((id) => { setMoveFor(id); setMoveQ(''); })}>Move under…</button>}
           {menu.onLengthChecked && incomerOf(project, ctxBoard.id)?.lengthToCheck && <button role="menuitem" onClick={act(menu.onLengthChecked)}>Incomer length checked</button>}
           <button role="menuitem" onClick={act(menu.onCopy)}>Copy with everything below</button>
+          {menu.onCableType && (
+            <label className="tree-menu-field">Outgoing cable type
+              <select value="" onChange={(e) => { const t = e.target.value; if (t) act((id) => menu.onCableType!(id, t))(); }}>
+                <option value="">Choose…</option>
+                <option value="auto">Automatic (fire-rated for life safety)</option>
+                {(menu.cableTypes ?? []).map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+              </select>
+            </label>
+          )}
           {menu.onPaste && copiedId && copiedId !== ctxBoard.id && <button role="menuitem" onClick={act(menu.onPaste)}>Paste {copiedId} here</button>}
           <button role="menuitem" className="bad" onClick={act(menu.onDelete)}>Delete…</button>
         </div>

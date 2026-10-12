@@ -262,6 +262,11 @@ export default function App() {
   const [boardPreset, setBoardPreset] = useState<{ kind: BoardKind; ratingA: number } | undefined>();
   const [diagramMode, setDiagramMode] = useState<DiagramMode>('system');
   const [panel, setPanel] = useState<'feeder' | 'board'>('board');
+  // With a drawing sheet open, the right panel holds that sheet's settings (portalled from SheetWorkspace) beside the board / circuit inspector.
+  const [sideTab, setSideTab] = useState<'sheet' | 'item'>('sheet');
+  const [sheetHost, setSheetHost] = useState<HTMLDivElement | null>(null);
+  useEffect(() => { setSideTab('item'); }, [activeBoardId, selected, panel]);
+  useEffect(() => { setSideTab('sheet'); }, [sheetTab]);
 
   // Network studies run on demand (Run calculations / F5): results come from
   // the last run, and a study shows as out of date once one of its own
@@ -1064,7 +1069,13 @@ export default function App() {
               setStatus(`${id} is now supplied from ${to} — check the incomer cable length.`);
             },
             onReorder: (id, dir) => setProject(reorderBoard(project, id, dir), { step: true }),
-            onLengthChecked: (id) => setProject({ ...project, feeders: project.feeders.map((f) => (f.feedsBoardId === id ? { ...f, lengthToCheck: undefined } : f)) }, { step: true })
+            onLengthChecked: (id) => setProject({ ...project, feeders: project.feeders.map((f) => (f.feedsBoardId === id ? { ...f, lengthToCheck: undefined } : f)) }, { step: true }),
+            cableTypes: CABLE_TYPE_DEFS.filter((d) => d.value !== 'XLPE/SWA/PVC'),
+            onCableType: (id, t) => {
+              const ids = project.feeders.filter((f) => f.boardId === id && !isScheduleCircuit(f)).map((f) => f.id);
+              setProject((p) => ({ ...p, feeders: p.feeders.map((f) => (ids.includes(f.id) ? { ...f, cableType: t === 'auto' ? undefined : t } : f)) }), { step: true });
+              setStatus(`${ids.length} cable${ids.length === 1 ? '' : 's'} from ${id}: ${t === 'auto' ? 'automatic type (fire-rated for life safety)' : cableTypeDef(t).label}`);
+            }
           }}
         />}
 
@@ -1092,31 +1103,6 @@ export default function App() {
                         </>
                       )}
                     </MenuButton>
-                    {panel === 'board' && board && (
-                      <MenuButton label={board.id} title={`${board.id}: copy, cable type of its outgoing cables`}>
-                        {(close) => (
-                          <>
-                            <button onClick={() => { close(); setEditBoardId(board.id); }}>Edit {board.id}…</button>
-                            <button onClick={() => { close(); copyBoard(board.id); }}>Copy with sub-boards (⌘C)</button>
-                            <div className="mp-h">Cable type for all outgoing cables</div>
-                            <label>
-                              <select value="" onChange={(e) => {
-                                const t = e.target.value;
-                                if (!t) return;
-                                close();
-                                const ids = project.feeders.filter((f) => f.boardId === board.id && !isScheduleCircuit(f)).map((f) => f.id);
-                                setProject((p) => ({ ...p, feeders: p.feeders.map((f) => (ids.includes(f.id) ? { ...f, cableType: t === 'auto' ? undefined : t } : f)) }), { step: true });
-                                setStatus(`${ids.length} cable${ids.length === 1 ? '' : 's'} from ${board.id}: ${t === 'auto' ? 'automatic type (fire-rated for life safety)' : cableTypeDef(t).label}`);
-                              }}>
-                                <option value="">Choose…</option>
-                                <option value="auto">Automatic (fire-rated for life safety)</option>
-                                {CABLE_TYPE_DEFS.filter((d) => d.value !== 'XLPE/SWA/PVC').map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
-                              </select>
-                            </label>
-                          </>
-                        )}
-                      </MenuButton>
-                    )}
                     {selectedFeeder && panel === 'feeder' && (
                       <MenuButton label={selectedFeeder.id} title={`${selectedFeeder.id}: edit, save as preset`}>
                         {(close) => (
@@ -1207,7 +1193,7 @@ export default function App() {
                   />
                     );
                     return sheetTab && setOf(project).sheets.some((x) => x.id === sheetTab)
-                      ? <SheetWorkspace project={project} run={run} sheetId={sheetTab} design={diagram} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onActive={setSheetTab} />
+                      ? <SheetWorkspace project={project} run={run} sheetId={sheetTab} design={diagram} settingsHost={sheetHost} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onActive={setSheetTab} />
                       : diagram;
                   })()}
                   <SheetTabs project={project} run={run} active={sheetTab} selectedBoardId={panel === 'board' ? board.id : null} outlinesOn={sheetOutlinesOn}
@@ -1248,7 +1234,21 @@ export default function App() {
             </main>
 
             <aside className="side">
-              {panel === 'board' ? (
+              {(() => {
+                const sheet = sheetTab ? setOf(project).sheets.find((x) => x.id === sheetTab) : undefined;
+                if (!sheet) return null;
+                const item = panel === 'board' ? board.id : selected ?? 'Circuit';
+                return (
+                  <>
+                    <div className="side-tabs" role="tablist" aria-label="Inspector">
+                      <button role="tab" aria-selected={sideTab === 'sheet'} className={sideTab === 'sheet' ? 'on' : ''} onClick={() => setSideTab('sheet')}>Sheet <span className="m">{sheet.number}</span></button>
+                      <button role="tab" aria-selected={sideTab === 'item'} className={sideTab === 'item' ? 'on' : ''} onClick={() => setSideTab('item')}>{panel === 'board' ? 'Board' : 'Circuit'} <span className="m">{item}</span></button>
+                    </div>
+                    <div ref={setSheetHost} className="sheet-side" hidden={sideTab !== 'sheet'} />
+                  </>
+                );
+              })()}
+              {sheetTab && setOf(project).sheets.some((x) => x.id === sheetTab) && sideTab === 'sheet' ? null : panel === 'board' ? (
                 <BoardPanel project={calcProject.boards.some((b) => b.id === board.id) ? calcProject : project} board={board} results={allResults} onChange={updateBoard} onSelectFeeder={selectFeeder} tab={boardTab} onTab={setBoardTab} onEnclosure={() => setView('enclosure')} />
               ) : (
                 <>

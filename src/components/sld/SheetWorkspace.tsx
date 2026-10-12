@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { Project } from '../../types';
 import type { CalcRun } from '../../calc/runs';
 import { LAYER_LABELS, SHEET_LAYERS, type ResultLayers } from '../../diagram/annotations';
@@ -119,8 +120,10 @@ export function SheetTabs({ project, active, selectedBoardId, outlinesOn, onActi
 }
 
 /** One sheet as it prints, live, with its settings beside it. */
-export function SheetWorkspace({ project, run, sheetId, design, onChange, onStatus, onActive }: {
+export function SheetWorkspace({ project, run, sheetId, design, settingsHost, onChange, onStatus, onActive }: {
   project: Project; run?: CalcRun; sheetId: string; design: React.ReactNode;
+  /** Where the sheet settings go (the app's right panel); beside the page when absent. */
+  settingsHost?: HTMLElement | null;
   onChange: (p: Project) => void; onStatus: (m: string) => void; onActive: (id: string | null) => void;
 }) {
   const set = setOf(project);
@@ -130,6 +133,9 @@ export function SheetWorkspace({ project, run, sheetId, design, onChange, onStat
   const [zoom, setZoom] = useState<number | 'fit'>('fit');
   const [side, setSide] = useState(() => { try { return localStorage.getItem('lvds.sheetSide') === '1'; } catch { return false; } });
   const [publish, setPublish] = useState(false);
+  const [markOn, setMarkOn] = useState(() => { try { return localStorage.getItem('lvds.sheetMarkup') === '1'; } catch { return false; } });
+  const toggleMarkup = (on: boolean) => { setMarkOn(on); if (!on) { setTool('select'); setSelId(null); } try { localStorage.setItem('lvds.sheetMarkup', on ? '1' : '0'); } catch { /* ignore */ } };
+  const toggleSide = (on: boolean) => { setSide(on); try { localStorage.setItem('lvds.sheetSide', on ? '1' : '0'); } catch { /* ignore */ } };
   const host = useRef<HTMLDivElement>(null);
   const [hostW, setHostW] = useState(900);
   const [hostH, setHostH] = useState(600);
@@ -186,11 +192,28 @@ export function SheetWorkspace({ project, run, sheetId, design, onChange, onStat
     return () => ro.disconnect();
   }, [side]);
 
+  // Ctrl/⌘ + wheel zooms the sheet (a native listener: React's wheel handler is passive and cannot stop the page zoom).
+  const scaleRef = useRef(1);
+  useEffect(() => {
+    const el = host.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      setZoom(Math.min(3, Math.max(0.15, scaleRef.current * (e.deltaY < 0 ? 1.1 : 1 / 1.1))));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [side, s?.id]);
+
   if (!s) return <p className="m">This sheet no longer exists.</p>;
   const mm = SHEET_MM[page?.size ?? (s.size === 'auto' ? 'A3' : s.size)];
   const pxW = mm.w * 3.78, pxH = mm.h * 3.78;
   const fit = Math.min((hostW - 24) / pxW, (hostH - 24) / pxH);
   const scale = zoom === 'fit' ? fit : zoom;
+  scaleRef.current = scale;
+  const pct = `${Math.round(scale * 100)} %`;
+  const showMarkup = markOn || tool !== 'select' || !!selected;
   const boards = boardsInSupplyOrder(project);
   const depth = (id: string) => { let n = 0, x = project.boards.find((b) => b.id === id); while (x?.upstreamId && n < 20) { n++; x = project.boards.find((b) => b.id === x!.upstreamId); } return n; };
   const tags = s.tags ?? set.tags ?? SHEET_LAYERS;
@@ -215,16 +238,21 @@ export function SheetWorkspace({ project, run, sheetId, design, onChange, onStat
         })()}
         <span className="sp" />
         <button className="icon-btn" title="Zoom out" onClick={() => setZoom(Math.max(0.15, (zoom === 'fit' ? fit : zoom) / 1.25))}>−</button>
-        <button className="chip" onClick={() => setZoom('fit')}>{zoom === 'fit' ? 'Fit' : `${Math.round(scale * 100)} %`}</button>
+        <button className={`chip${zoom === 'fit' ? ' on' : ''}`} title="Fit the sheet to the window (Ctrl/⌘ + scroll to zoom)" onClick={() => setZoom('fit')}>{zoom === 'fit' ? `Fit · ${pct}` : pct}</button>
         <button className="icon-btn" title="Zoom in" onClick={() => setZoom(Math.min(3, (zoom === 'fit' ? fit : zoom) * 1.25))}>+</button>
         {project.drawing?.symbols !== 'simple' && (
           <button className={`chip${project.drawing?.legend !== false ? ' on' : ''}`} onClick={() => onChange({ ...project, drawing: { ...project.drawing, legend: project.drawing?.legend === false } })}
             title="Symbol legend in the sheets' legend column (and on SLD exports)">Legend</button>
         )}
-        <label className="row" title="The design on the left, this sheet on the right"><input type="checkbox" checked={side} onChange={(e) => { setSide(e.target.checked); try { localStorage.setItem('lvds.sheetSide', e.target.checked ? '1' : '0'); } catch { /* ignore */ } }} /> Side by side</label>
+        {s.kind !== 'earthing' && drawable(s) && (
+          <button className={`chip${showMarkup ? ' on' : ''}`} aria-pressed={showMarkup} title="Show the markup tools: clouds, arrows, text and callouts on this sheet" onClick={() => toggleMarkup(!showMarkup)}>
+            Markup{markups.length ? ` (${markups.length})` : ''}
+          </button>
+        )}
+        <button className={`chip${side ? ' on' : ''}`} aria-pressed={side} title="The design on the left, this sheet on the right" onClick={() => toggleSide(!side)}>Side by side</button>
         <button className="chip primary" onClick={() => setPublish(true)}>Publish…</button>
       </div>
-      {s.kind !== 'earthing' && drawable(s) && (
+      {s.kind !== 'earthing' && drawable(s) && showMarkup && (
         <MarkupToolbar anchored={s.kind === 'system'} tool={tool} color={selected?.color ?? mColor} size={mSize} selected={selected} count={markups.length}
           onTool={(t) => { setTool(t); if (t !== 'select') setSelId(null); }}
           onColor={(c) => { setMColor(c); restyle({ color: c }); }}
@@ -245,7 +273,8 @@ export function SheetWorkspace({ project, run, sheetId, design, onChange, onStat
             </div>
           ) : <p className="m">Drawing the sheet…</p>}
         </div>
-        <aside className="sheet-side">
+        {(() => {
+          const settings = <>
           <details open><summary>Sheet</summary>
             <div className="form-kv">
               <label>Title<input className="bi-text" defaultValue={s.title} key={`t${s.title}`} onBlur={(e) => e.target.value.trim() && e.target.value.trim() !== s.title && patch({ title: e.target.value.trim() })} /></label>
@@ -310,7 +339,7 @@ export function SheetWorkspace({ project, run, sheetId, design, onChange, onStat
                 </div>
               ))}
               {markups.length > 0 && <button className="linkish" onClick={() => { if (window.confirm(`Remove all ${markups.length} markups from ${s.number}?`)) { setMarkups([]); setSelId(null); } }}>Remove all</button>}
-              <p className="m">Draw on the sheet with the Markup tools above. They stay on this sheet when the design changes and print in the PDF and DXF.</p>
+              <p className="m">Draw on the sheet with the Markup button above it. They stay on this sheet when the design changes and print in the PDF and DXF.</p>
             </details>
           )}
           <details><summary>Arrows and callouts ({(s.arrows ?? []).length})</summary>
@@ -330,7 +359,9 @@ export function SheetWorkspace({ project, run, sheetId, design, onChange, onStat
               )}
             </div>
           </details>
-        </aside>
+          </>;
+          return settingsHost ? createPortal(settings, settingsHost) : <aside className="sheet-side">{settings}</aside>;
+        })()}
       </div>
       {publish && <PublishDialog project={project} run={run} onClose={() => setPublish(false)} onChange={onChange} onStatus={onStatus} onOpen={(id) => { setPublish(false); onActive(id); }} />}
     </div>
