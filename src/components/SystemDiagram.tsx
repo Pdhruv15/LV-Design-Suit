@@ -401,8 +401,8 @@ export default function SystemDiagram({
   }, [lod]);
   // Screen pixels per drawing unit (the viewBox is fitted with "meet").
   const pxPerUnit = box.w && box.h ? Math.min(box.w / vb.w, box.h / vb.h) : 1;
-  // Text detail: 'auto' follows the zoom, 'all' always shows every label (remembered).
-  const [detail, setDetail] = useState<'auto' | 'all'>(() => { try { return localStorage.getItem('lvds.sldDetail') === 'all' ? 'all' : 'auto'; } catch { return 'auto'; } });
+  // Text detail: 'all' (the default) shows every label at every zoom, 'auto' follows the zoom (remembered).
+  const [detail, setDetail] = useState<'auto' | 'all'>(() => { try { return localStorage.getItem('lvds.sldDetail') === 'auto' ? 'auto' : 'all'; } catch { return 'all'; } });
   const toggleDetail = () => setDetail((d) => { const v = d === 'auto' ? 'all' : 'auto'; try { localStorage.setItem('lvds.sldDetail', v); } catch { /* ignore */ } return v; });
   const lodLevel = !lod || detail === 'all' ? '' : pxPerUnit < 0.55 ? ' lod-far' : pxPerUnit < 0.8 ? ' lod-mid' : '';
   // On screen, squeeze any label wider than its slot so it can't run over the neighbouring feeder.
