@@ -93,15 +93,17 @@ export const renumber = (set: DrawingSet, force = false): DrawingSet => {
 };
 /** A sheet that has something to draw. */
 export const drawable = (s: DrawingSheet) => (s.kind === 'earthing' ? true : s.kind === 'riser' ? !!s.buildingId : s.boards.length > 0);
+/** A new sheet starts PRELIMINARY unless the set has a status of its own (sheets without one follow the set). */
+const startStatus = (set: DrawingSet) => (set.status ? undefined : 'PRELIMINARY');
 /** The earthing schematic sheet (one per project). */
 export function addEarthingSheet(set: DrawingSet): { set: DrawingSet; id: string } {
   const id = `sh-${Date.now().toString(36)}`;
-  return { id, set: renumber({ ...set, sheets: [...set.sheets, { id, number: '', title: 'Earthing schematic diagram', kind: 'earthing', boards: [], size: 'auto' }] }) };
+  return { id, set: renumber({ ...set, sheets: [...set.sheets, { id, number: '', title: 'Earthing schematic diagram', kind: 'earthing', boards: [], size: 'auto', status: startStatus(set) }] }) };
 }
 /** A riser diagram sheet for a building. */
 export function addRiserSheet(set: DrawingSet, buildingId: string, buildingName: string): { set: DrawingSet; id: string } {
   const id = `sh-${Date.now().toString(36)}`;
-  return { id, set: renumber({ ...set, sheets: [...set.sheets, { id, number: '', title: `Riser diagram — ${buildingName}`, kind: 'riser', buildingId, boards: [], size: 'auto' }] }) };
+  return { id, set: renumber({ ...set, sheets: [...set.sheets, { id, number: '', title: `Riser diagram — ${buildingName}`, kind: 'riser', buildingId, boards: [], size: 'auto', status: startStatus(set) }] }) };
 }
 
 const isDb = (b: Board) => (b.kind ?? (b.upstreamId ? 'DB' : 'MDB')) === 'DB';
@@ -435,7 +437,7 @@ export const applyTemplate = (s: DrawingSheet, t: SheetTemplate): DrawingSheet =
 /** A new system sheet with these panels (e.g. a selected panel and its branch). */
 export function addSheet(set: DrawingSet, boards: string[], title: string): { set: DrawingSet; id: string } {
   const id = `sh-${Date.now().toString(36)}`;
-  return { id, set: renumber({ ...set, sheets: [...set.sheets, { id, number: '', title, kind: 'system', boards, size: 'auto' }] }) };
+  return { id, set: renumber({ ...set, sheets: [...set.sheets, { id, number: '', title, kind: 'system', boards, size: 'auto', status: startStatus(set) }] }) };
 }
 
 /** Moves a panel to another sheet (Design: drag it into that sheet's

@@ -81,7 +81,7 @@ export function SheetTabs({ project, active, selectedBoardId, outlinesOn, onActi
       <div className="st-add">
         <button className="st-tab" onClick={() => setAddOpen(!addOpen)} title="Add a sheet">+</button>
         {addOpen && (
-          <div className="dw-menu st-menu-up">
+          <div className="dw-menu st-menu-down">
             <button onClick={newFromSelection}>Selected panel and its branch{selectedBoardId ? ` (${selectedBoardId})` : ''}</button>
             <button onClick={() => { close(); const r = addSheet(set, [], `SLD — sheet ${set.sheets.length + 1}`); save(r.set); onActive(r.id); }}>Empty sheet (tick panels)</button>
             {(project.building?.buildings ?? []).map((b) => (
@@ -101,7 +101,7 @@ export function SheetTabs({ project, active, selectedBoardId, outlinesOn, onActi
       {menu && (
         <>
           <div className="st-cover" onClick={close} onContextMenu={(e) => { e.preventDefault(); close(); }} />
-          <div className="dw-menu st-ctx" style={{ left: menu.x, top: Math.max(8, menu.y - 330) }}>
+          <div className="dw-menu st-ctx" style={{ left: menu.x, top: Math.max(8, Math.min(menu.y, window.innerHeight - 340)) }}>
             <button onClick={() => act('rename', menu.id)}>Rename…</button>
             <button onClick={() => act('number', menu.id)}>Drawing number…</button>
             <button onClick={() => act('dup', menu.id)}>Duplicate</button>
@@ -224,6 +224,10 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
     <div className={`sheet-ws${side ? ' side' : ''}`}>
       <div className="sheet-bar">
         <b>{s.number}</b> <span className="m">{s.title}</span>
+        {(() => {
+          const r = sheetRev(s, rev?.id), st = s.status || set.status;
+          return <span className="chip-lite" title={r ? `Revision ${r}` : 'Not issued yet — Publish → Issue gives it revision A'}>{r ? `Rev ${r}` : 'Not issued'}{st ? ` · ${st}` : ''}</span>;
+        })()}
         {page && <span className="chip-lite">{page.size}{page.refs ? ' · cable numbers' : ''}{!page.fits ? ' · crowded' : ''}</span>}
         {busy && <span className="m">Updating…</span>}
         {(() => {
@@ -279,8 +283,8 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
             <div className="form-kv">
               <label>Title<input className="bi-text" defaultValue={s.title} key={`t${s.title}`} onBlur={(e) => e.target.value.trim() && e.target.value.trim() !== s.title && patch({ title: e.target.value.trim() })} /></label>
               <label>Paper<select value={s.size} onChange={(e) => patch({ size: e.target.value as DrawingSheet['size'] })}><option value="auto">Auto (smallest readable)</option>{SIZES.map((z) => <option key={z}>{z}</option>)}</select></label>
-              <label>Status<select value={s.status ?? ''} onChange={(e) => patch({ status: e.target.value || undefined })}><option value="">{set.status ? `(${set.status})` : '—'}</option>{SHEET_STATUSES.map((x) => <option key={x}>{x}</option>)}</select></label>
-              <label>Revision<input className="bi-text" defaultValue={s.rev ?? ''} key={`r${s.rev}`} placeholder={sheetRev(s, rev?.id) || '—'} onBlur={(e) => e.target.value !== (s.rev ?? '') && patch({ rev: e.target.value.trim() || undefined })} /></label>
+              <label>Status<select value={s.status ?? ''} onChange={(e) => patch({ status: e.target.value || undefined })}><option value="">{set.status ? `As the set (${set.status})` : 'Not set'}</option>{SHEET_STATUSES.map((x) => <option key={x}>{x}</option>)}</select></label>
+              <label>Revision<input className="bi-text" defaultValue={s.rev ?? ''} key={`r${s.rev}`} placeholder={sheetRev(s, rev?.id) || 'Not issued — first issue is A'} onBlur={(e) => e.target.value !== (s.rev ?? '') && patch({ rev: e.target.value.trim() || undefined })} /></label>
               <label>Cable text<select value={s.cableLabels ?? ''} onChange={(e) => patch({ cableLabels: (e.target.value || undefined) as DrawingSheet['cableLabels'] })}>
                 <option value="">As the project ({project.drawing?.cableLabels ?? 'auto'})</option><option value="auto">Auto (numbers when crowded)</option><option value="ref">Numbers + cable schedule</option><option value="full">Full description</option>
               </select></label>

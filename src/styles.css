@@ -1017,13 +1017,14 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .sysdiag .rev-cloud path{fill:none;stroke:#d33;stroke-width:1.4}
 .sysdiag .rev-cloud .rev-tri{fill:var(--panel,#fff)}
 /* SLD tabs: Design + one tab per drawing sheet */
-.sheet-tabs{display:flex;align-items:center;gap:2px;flex-wrap:wrap;padding:4px 6px;border-top:1px solid var(--line);background:var(--p2,transparent);position:relative;flex:0 0 100%}
+.sheet-tabs{display:flex;align-items:flex-end;gap:2px;flex-wrap:wrap;padding:4px 6px 0;border-bottom:1px solid var(--line);background:var(--p2,transparent);position:relative;flex:0 0 100%;order:-1;z-index:5}
+.sheet-tabs .st-tab{margin-bottom:-1px}
 .st-tab{border:1px solid transparent;background:transparent;color:inherit;font:inherit;font-size:12px;padding:4px 12px;border-radius:6px 6px 0 0;cursor:pointer;display:inline-flex;align-items:center;gap:2px}
 .st-tab:hover{background:color-mix(in srgb,var(--acc,#2563eb) 10%,transparent)}
 .st-tab.on{background:var(--panel,#fff);border-color:var(--line);border-bottom-color:var(--panel,#fff);font-weight:700}
 .st-add{position:relative}
-.st-menu-up{top:auto;bottom:calc(100% + 4px);left:0;right:auto}
-.st-outline{font-size:12px}
+.st-menu-down{top:calc(100% + 4px);bottom:auto;left:0;right:auto}
+.st-outline{font-size:12px;align-self:center;padding-bottom:3px}
 .st-cover{position:fixed;inset:0;z-index:40}
 .st-ctx{position:fixed;z-index:41;right:auto;top:auto}
 .st-sub{display:flex;flex-wrap:wrap;gap:2px;padding:4px 10px;font-size:12px}
@@ -1097,6 +1098,10 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .rd-chip{font-size:11px;padding:1px 8px;border-radius:999px;border:1px solid var(--line)}
 .rd-chip.bad{border-color:var(--bad);color:var(--bad)}.rd-chip.warn{border-color:var(--warn);color:var(--warn)}
 .results-src{display:inline-flex;align-items:center;gap:6px}
+.calc-chip{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;white-space:nowrap;padding:0 8px;min-height:26px;border-radius:6px;border:1px solid transparent}
+.calc-chip.ok{color:var(--ok)}.calc-chip.bad{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,transparent)}
+button.calc-chip.warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 50%,transparent);background:color-mix(in srgb,var(--warn) 10%,transparent);cursor:pointer}
+.calc-chip .m{font-weight:400}
 .results-src select.chip{width:auto;max-width:260px;padding:0 26px 0 10px;border-radius:6px;color:var(--tx);background-color:var(--p2);cursor:pointer}
 .results-src select.chip:disabled{opacity:.6;cursor:default}
 /* Results tabs under the SLD: always in the window, open on demand */

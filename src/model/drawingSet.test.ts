@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { autoSheets, autoSize, renumber, sheetProject, sheetsByCount } from './drawingSet';
+import { addEarthingSheet, addRiserSheet, addSheet, autoSheets, autoSize, issueSheets, renumber, sheetProject, sheetsByCount } from './drawingSet';
 import type { Project } from '../types';
 
 const two: Project = { ...sampleProject, boards: [...sampleProject.boards, { id: 'MDB-2', name: 'MDB 2', kind: 'MDB', sourceKva: 1000, sourceImpedancePct: 5 }] };
@@ -86,5 +86,21 @@ describe('sheet exports use the whole network', async () => {
   it('sizes for the legend column and checks a chosen paper', () => {
     expect(scaleOn('A3', 1800, 700, LEGEND_RESERVE_MM)).toBeLessThan(scaleOn('A3', 1800, 700));
     expect(autoSize(1800, 700, LEGEND_RESERVE_MM).size).not.toBe('A4');
+  });
+});
+
+describe('new sheet status', () => {
+  it('starts PRELIMINARY, or follows the set when the set has a status', () => {
+    const empty = { prefix: 'E-SLD-', sheets: [] };
+    const a = addSheet(empty, [], 'A');
+    expect(a.set.sheets[0].status).toBe('PRELIMINARY');
+    expect(addRiserSheet(empty, 'b1', 'Block 1').set.sheets[0].status).toBe('PRELIMINARY');
+    expect(addEarthingSheet(empty).set.sheets[0].status).toBe('PRELIMINARY');
+    expect(addSheet({ ...empty, status: 'FOR TENDER' }, [], 'B').set.sheets[0].status).toBeUndefined();
+  });
+  it('a first issue of a new sheet is revision A', () => {
+    const { set, id } = addSheet({ prefix: 'E-SLD-', sheets: [] }, [], 'A');
+    const out = issueSheets(set, [id], { date: '2026-10-12', purpose: 'FOR APPROVAL', description: '', bump: true });
+    expect(out.set.sheets[0].rev).toBe('A');
   });
 });
