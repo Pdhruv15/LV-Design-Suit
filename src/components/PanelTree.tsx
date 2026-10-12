@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, IndentDecrease, IndentIncrease, PanelLeftClose, PanelLeftOpen, Plus, Power, Waves } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, IndentDecrease, IndentIncrease, Info, PanelLeftClose, PanelLeftOpen, Plus, Power, Waves } from 'lucide-react';
 import type { Board, Project } from '../types';
 import type { FeederResult, Status } from '../calc/electrical';
 import { boardSummary } from '../calc/summary';
@@ -70,6 +70,7 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
   const [collapsed, setCollapsed] = useStored<string[]>('tree.collapsed', []);
   const [width, setWidth] = useStored('tree.width', 230);
   const [q, setQ] = useState('');
+  const [keyOpen, setKeyOpen] = useState(() => { try { return localStorage.getItem('lvds.treeKey') === '1'; } catch { return false; } });
   const [ctx, setCtx] = useState<{ id: string; x: number; y: number } | null>(null);
   const ref = useRef<HTMLElement>(null);
   const [drag, setDrag] = useState<{ id: string; over?: string; why?: string } | null>(null);
@@ -262,7 +263,22 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
         {roots.map((b) => node(b, 0))}
         {shown && shown.size === 0 && <p className="m tree-tip">No board matches.</p>}
       </div>
-      <p className="m tree-tip">{TREE_HINT[view] ?? 'Double-click a board to open it on the SLD'}</p>
+      {keyOpen && (
+        <dl className="tree-key" aria-label="What the colours mean">
+          <div><dt><span className="tree-dot ok" /><span className="tree-dot warn" /><span className="tree-dot bad" /></dt><dd>Its circuits' checks: all pass · some to check · some fail (grey: no results)</dd></div>
+          <div><dt><span className="tree-load" style={{ '--pct': '60%' } as CSSProperties}>60%</span></dt><dd>Loading: demand current ÷ board rating — amber over 80 %, red over 100 %</dd></div>
+          <div><dt><span className="tree-tx"><Waves size={11} />kVA</span></dt><dd>Fed from a transformer</dd></div>
+          <div><dt><span className="tree-tx"><Power size={11} /></span></dt><dd>Has a standby generator (ATS)</dd></div>
+          <div><dt><span className="tree-check">len?</span></dt><dd>Moved to another source — check the incomer cable length</dd></div>
+        </dl>
+      )}
+      <div className="tree-foot">
+        <p className="m tree-tip">{TREE_HINT[view] ?? 'Double-click a board to open it on the SLD'}</p>
+        <button className={`linkish tree-key-btn${keyOpen ? ' on' : ''}`} aria-expanded={keyOpen} title="What the dots, bars and badges mean"
+          onClick={() => setKeyOpen((o) => { try { localStorage.setItem('lvds.treeKey', o ? '0' : '1'); } catch { /* ignore */ } return !o; })}>
+          <Info size={12} /> Key
+        </button>
+      </div>
       <div className="tree-resize" onPointerDown={startResize} onDoubleClick={() => setWidth(230)} title="Drag to resize" />
       {ctx && ctxBoard && (
         <div className="tree-menu" role="menu" style={{ left: ctx.x, top: ctx.y }} onMouseDown={(e) => e.stopPropagation()}>
