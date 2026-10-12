@@ -16,11 +16,14 @@ export default function SingleLineDiagram({
   incomerLabel,
   results,
   selected,
-  onSelect
+  onSelect,
+  summary
 }: {
   board: Board;
   voltageV?: number;
   incomerLabel?: string;
+  /** The panel's summary box (LOC, TCL, DF, MDL) — drawn on the single-panel view only, not on the system tree. */
+  summary?: { loc: string; tclKw: number; df: number; mdlKw: number };
   results: FeederResult[];
   selected: string | null;
   onSelect: (feederId: string) => void;
@@ -68,6 +71,16 @@ export default function SingleLineDiagram({
           {dev && <SwitchSym x={cx} y={94} kind={incKind} />}
           {dev && <line x1={cx} y1="110" x2={cx} y2="118" className="ln" />}
         </>
+      )}
+      {summary && (
+        <g className="panel-sum">
+          <title>{`${board.id}: TCL ${summary.tclKw.toFixed(2)} kW × DF ${summary.df.toFixed(2)} = MDL ${summary.mdlKw.toFixed(2)} kW`}</title>
+          <rect x="8" y="8" width="150" height="70" rx="6" className="sum-box" />
+          <text x="14" y="21" className="b" style={{ textDecoration: 'underline' }}>{board.id.length > 22 ? `${board.id.slice(0, 21)}…` : board.id}</text>
+          {[`LOC : ${summary.loc.length > 20 ? `${summary.loc.slice(0, 19)}…` : summary.loc || '—'}`, `TCL : ${summary.tclKw.toFixed(2)} kW`, `DF : ${summary.df.toFixed(2)}`, `MDL : ${summary.mdlKw.toFixed(2)} kW`].map((t, i) => (
+            <text key={i} x="14" y={35 + i * 12} className="m">{t}</text>
+          ))}
+        </g>
       )}
       <text className="b" x={cx - 16} y="106" textAnchor="end" style={{ fill: 'var(--bus)' }}>
         {board.id} · {voltageV} V{board.ratedCurrentA ? ` · ${board.ratedCurrentA} A` : ''} busbar

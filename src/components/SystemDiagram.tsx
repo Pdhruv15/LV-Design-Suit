@@ -1106,20 +1106,6 @@ export default function SystemDiagram({
                   </g>
                 );
               })()}
-              {dewa && n.terminal && (() => {
-                // Summary box: name, LOC, TCL, DF, MDL = TCL × DF (the panel's own DF); framed panels carry it in their header.
-                const sm = panelSummary(project, b);
-                const bx = n.x + 12, by = n.busY - 150;
-                const lines = [`LOC : ${trunc(boardLocation(project, b) || '—', 16)}`, `TCL : ${sm.tclKw.toFixed(2)} kW`, `DF : ${sm.df.toFixed(2)}`, `MDL : ${sm.mdlKw.toFixed(2)} kW`];
-                return (
-                  <g className="panel-sum">
-                    <title>{`${b.id}: TCL ${sm.tclKw.toFixed(2)} kW × DF ${sm.df.toFixed(2)} = MDL ${sm.mdlKw.toFixed(2)} kW`}</title>
-                    <rect x={bx} y={by} width="118" height="70" rx="6" className="sum-box" />
-                    <text x={bx + 6} y={by + 13} className="b" style={{ textDecoration: 'underline' }}>{trunc(b.id, 16)}</text>
-                    {lines.map((t, i) => <text key={i} x={bx + 6} y={by + 27 + i * 12} className="acc-t">{t}</text>)}
-                  </g>
-                );
-              })()}
               {incomerDeviceOf(b) && !b.standby && (() => {
                 const dev = incomerDeviceOf(b)!;
                 // Incomer switching device on the line above the name box.
