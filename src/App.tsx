@@ -6,6 +6,8 @@ import { Feeder, Board, Project, newProject } from './types';
 import { sampleProject } from './data/sampleProject';
 import { evaluateProject, type Status } from './calc/electrical';
 import { boardIncomerLabel } from './docs/loadScheduleDoc';
+import { panelSummary } from './docs/mdSheet';
+import { boardLocation } from './model/levels';
 import SingleLineDiagram from './components/SingleLineDiagram';
 import ResultsTable from './components/ResultsTable';
 import SidePanel from './components/SidePanel';
@@ -1212,7 +1214,8 @@ export default function App() {
                     onActive={setSheetTab} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onToggleOutlines={() => setSheetOutlinesOn((v) => !v)} />
                   </div>
                 ) : (
-                  <SingleLineDiagram board={board} voltageV={project.voltageV} incomerLabel={boardIncomerLabel(project, board)} results={boardResults} selected={selected} onSelect={selectFeeder} />
+                  <SingleLineDiagram board={board} voltageV={project.voltageV} incomerLabel={boardIncomerLabel(project, board)} results={boardResults} selected={selected} onSelect={selectFeeder}
+                    summary={project.drawing?.sldStyle === 'standard' ? undefined : { loc: boardLocation(project, board), ...panelSummary(project, board) }} />
                 )}
               </section>
               <section className={`res-drawer${resTab ? ' open' : ''}`}>
