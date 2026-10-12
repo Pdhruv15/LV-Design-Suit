@@ -1038,6 +1038,11 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .sheet-side details{border-bottom:1px solid var(--line);padding:6px 0}
 .sheet-side summary{cursor:pointer;font-weight:700;margin-bottom:6px}
 .sheet-side .form-kv{grid-template-columns:1fr}
+.side-tabs{display:flex;gap:2px;padding:var(--space-2) var(--space-2) 0;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:2;background:var(--panel)}
+.side-tabs [role=tab]{flex:1;min-width:0;background:none;border:0;border-bottom:2px solid transparent;color:var(--mut);font:inherit;font-weight:600;font-size:var(--fs-sm);min-height:32px;padding:0 var(--space-2);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.side-tabs [role=tab]:hover{color:var(--tx)}.side-tabs [role=tab].on{color:var(--acc);border-bottom-color:var(--acc)}
+.side .sheet-side{width:auto;flex:none;overflow:visible;border-left:0;padding:8px var(--gutter)}
+.side .sheet-side[hidden]{display:none}
 .sheet-notes{width:100%;font:inherit;font-size:12px;background:transparent;color:inherit;border:1px solid var(--line);border-radius:6px;padding:6px}
 .sheet-ws.side .sheet-design{flex:1;min-width:0;overflow:hidden;border-right:1px solid var(--line)}
 .sheet-ws.side .sheet-page{flex:1}

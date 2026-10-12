@@ -262,6 +262,11 @@ export default function App() {
   const [boardPreset, setBoardPreset] = useState<{ kind: BoardKind; ratingA: number } | undefined>();
   const [diagramMode, setDiagramMode] = useState<DiagramMode>('system');
   const [panel, setPanel] = useState<'feeder' | 'board'>('board');
+  // With a drawing sheet open, the right panel holds that sheet's settings (portalled from SheetWorkspace) beside the board / circuit inspector.
+  const [sideTab, setSideTab] = useState<'sheet' | 'item'>('sheet');
+  const [sheetHost, setSheetHost] = useState<HTMLDivElement | null>(null);
+  useEffect(() => { setSideTab('item'); }, [activeBoardId, selected, panel]);
+  useEffect(() => { setSideTab('sheet'); }, [sheetTab]);
 
   // Network studies run on demand (Run calculations / F5): results come from
   // the last run, and a study shows as out of date once one of its own
@@ -1207,7 +1212,7 @@ export default function App() {
                   />
                     );
                     return sheetTab && setOf(project).sheets.some((x) => x.id === sheetTab)
-                      ? <SheetWorkspace project={project} run={run} sheetId={sheetTab} design={diagram} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onActive={setSheetTab} />
+                      ? <SheetWorkspace project={project} run={run} sheetId={sheetTab} design={diagram} settingsHost={sheetHost} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onActive={setSheetTab} />
                       : diagram;
                   })()}
                   <SheetTabs project={project} run={run} active={sheetTab} selectedBoardId={panel === 'board' ? board.id : null} outlinesOn={sheetOutlinesOn}
@@ -1248,7 +1253,21 @@ export default function App() {
             </main>
 
             <aside className="side">
-              {panel === 'board' ? (
+              {(() => {
+                const sheet = sheetTab ? setOf(project).sheets.find((x) => x.id === sheetTab) : undefined;
+                if (!sheet) return null;
+                const item = panel === 'board' ? board.id : selected ?? 'Circuit';
+                return (
+                  <>
+                    <div className="side-tabs" role="tablist" aria-label="Inspector">
+                      <button role="tab" aria-selected={sideTab === 'sheet'} className={sideTab === 'sheet' ? 'on' : ''} onClick={() => setSideTab('sheet')}>Sheet <span className="m">{sheet.number}</span></button>
+                      <button role="tab" aria-selected={sideTab === 'item'} className={sideTab === 'item' ? 'on' : ''} onClick={() => setSideTab('item')}>{panel === 'board' ? 'Board' : 'Circuit'} <span className="m">{item}</span></button>
+                    </div>
+                    <div ref={setSheetHost} className="sheet-side" hidden={sideTab !== 'sheet'} />
+                  </>
+                );
+              })()}
+              {sheetTab && setOf(project).sheets.some((x) => x.id === sheetTab) && sideTab === 'sheet' ? null : panel === 'board' ? (
                 <BoardPanel project={calcProject.boards.some((b) => b.id === board.id) ? calcProject : project} board={board} results={allResults} onChange={updateBoard} onSelectFeeder={selectFeeder} tab={boardTab} onTab={setBoardTab} onEnclosure={() => setView('enclosure')} />
               ) : (
                 <>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { Project } from '../../types';
 import type { CalcRun } from '../../calc/runs';
 import { LAYER_LABELS, SHEET_LAYERS, type ResultLayers } from '../../diagram/annotations';
@@ -119,8 +120,10 @@ export function SheetTabs({ project, active, selectedBoardId, outlinesOn, onActi
 }
 
 /** One sheet as it prints, live, with its settings beside it. */
-export function SheetWorkspace({ project, run, sheetId, design, onChange, onStatus, onActive }: {
+export function SheetWorkspace({ project, run, sheetId, design, settingsHost, onChange, onStatus, onActive }: {
   project: Project; run?: CalcRun; sheetId: string; design: React.ReactNode;
+  /** Where the sheet settings go (the app's right panel); beside the page when absent. */
+  settingsHost?: HTMLElement | null;
   onChange: (p: Project) => void; onStatus: (m: string) => void; onActive: (id: string | null) => void;
 }) {
   const set = setOf(project);
@@ -270,7 +273,8 @@ export function SheetWorkspace({ project, run, sheetId, design, onChange, onStat
             </div>
           ) : <p className="m">Drawing the sheet…</p>}
         </div>
-        <aside className="sheet-side">
+        {(() => {
+          const settings = <>
           <details open><summary>Sheet</summary>
             <div className="form-kv">
               <label>Title<input className="bi-text" defaultValue={s.title} key={`t${s.title}`} onBlur={(e) => e.target.value.trim() && e.target.value.trim() !== s.title && patch({ title: e.target.value.trim() })} /></label>
@@ -335,7 +339,7 @@ export function SheetWorkspace({ project, run, sheetId, design, onChange, onStat
                 </div>
               ))}
               {markups.length > 0 && <button className="linkish" onClick={() => { if (window.confirm(`Remove all ${markups.length} markups from ${s.number}?`)) { setMarkups([]); setSelId(null); } }}>Remove all</button>}
-              <p className="m">Draw on the sheet with the Markup tools above. They stay on this sheet when the design changes and print in the PDF and DXF.</p>
+              <p className="m">Draw on the sheet with the Markup button above it. They stay on this sheet when the design changes and print in the PDF and DXF.</p>
             </details>
           )}
           <details><summary>Arrows and callouts ({(s.arrows ?? []).length})</summary>
@@ -355,7 +359,9 @@ export function SheetWorkspace({ project, run, sheetId, design, onChange, onStat
               )}
             </div>
           </details>
-        </aside>
+          </>;
+          return settingsHost ? createPortal(settings, settingsHost) : <aside className="sheet-side">{settings}</aside>;
+        })()}
       </div>
       {publish && <PublishDialog project={project} run={run} onClose={() => setPublish(false)} onChange={onChange} onStatus={onStatus} onOpen={(id) => { setPublish(false); onActive(id); }} />}
     </div>
