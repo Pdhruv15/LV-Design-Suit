@@ -5,6 +5,7 @@ Ideas and features agreed for later. One note per idea; link it here.
 ## On hold — explicit user confirmation required
 
 - [[International authority profiles - review - 2026-10-04]] — retain the UAE/India configuration, calculation and submission-format research for future use. Develop for **Dubai / DEWA first**. International support must not start until the user confirms proceeding.
+  - 2026-10-12: the user asked for **design references** (DEWA, IEC, BS 7671, ADDC, EtihadWE + user-defined) that fill project settings — built. ADDC / EtihadWE values are copied from DEWA and marked "to verify". Full authority packs (forms, SLD notes, checklists per authority) remain on hold.
 
 ## Planned
 - [[Project management plan]] — project identity, creation wizard, safe saving and conflict detection, search/archive, setup templates, per-project recovery and backups (plan drafted 2026-10-05, awaiting decisions D1–D7)

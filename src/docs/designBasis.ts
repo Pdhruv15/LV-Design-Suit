@@ -3,6 +3,7 @@ import { REPORT_STATUS_TEXT } from '../calc/statusText';
 import { systemSummary } from '../calc/summary';
 import { sizeGeneratorByBoards, sizeTransformers, txGenPlanOf } from '../calc/txGen';
 import { SCOPE_ITEMS } from '../model/brief';
+import { referenceSourceOf, type RefKey } from '../model/designReference';
 import { STUDY_DEFAULTS, settingsOf, type Project, type StudyReportKind } from '../types';
 import { esc } from './report';
 import { NOT_DEFINED, valueOrMissing } from './reportFrame';
@@ -40,7 +41,7 @@ export interface DesignBasis {
   summary: ExecutiveSummary;
   scope: { included: string[]; excluded: string[]; boundaries: string[]; defined: boolean };
   system: { supply: string[]; transformers: string[]; distribution: string[]; emergency: string[]; ups: string[]; other: string[] };
-  standards: { project: string[]; authority?: string; methods: { standard: string; used: string }[] };
+  standards: { project: string[]; authority?: string; reference?: string; methods: { standard: string; used: string }[] };
   criteria: CriteriaRow[];
 }
 
@@ -134,19 +135,21 @@ export function buildDesignBasis(project: Project, studies: { key: StudyReportKi
   const standards = {
     project: (project.standards ?? []).map((s) => s.trim()).filter(Boolean),
     authority: brief?.authority?.trim() || undefined,
+    reference: project.designReference ? `${project.designReference.name} (version ${project.designReference.version}, applied ${new Date(project.designReference.appliedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })})` : undefined,
     methods: METHOD_STANDARDS.filter((m) => m.studies.some((k) => keys.has(k))).map(({ standard, used }) => ({ standard, used }))
   };
 
   // Design criteria
   const set = settingsOf(project), own = project.studySettings ?? {};
+  const src = (k: RefKey, fallback: string) => referenceSourceOf(project, k) ?? fallback;
   const fromSettings = (k: keyof typeof STUDY_DEFAULTS, value: string, parameter: string): CriteriaRow =>
-    own[k] === undefined ? { parameter, value, source: 'App default', flag: 'Not set for the project — app default used' } : { parameter, value, source: 'Study settings' };
+    own[k] === undefined ? { parameter, value, source: 'App default', flag: 'Not set for the project — app default used' } : { parameter, value, source: src(k, 'Study settings') };
   const criteria: CriteriaRow[] = [
-    { parameter: 'System voltage (line-line)', value: `${project.voltageV} V`, source: 'Project settings' },
-    { parameter: 'Frequency', value: `${project.frequencyHz} Hz`, source: 'Project settings' },
+    { parameter: 'System voltage (line-line)', value: `${project.voltageV} V`, source: src('voltageV', 'Project settings') },
+    { parameter: 'Frequency', value: `${project.frequencyHz} Hz`, source: src('frequencyHz', 'Project settings') },
     { parameter: 'Earthing arrangement', value: 'TN-S', source: 'Calculation basis (fixed)' },
-    { parameter: 'Design ambient temperature', value: `${project.ambientC} °C`, source: 'Project settings' },
-    { parameter: 'Voltage drop limit (source to load)', value: `${project.vdLimitPct} %`, source: 'Project settings' },
+    { parameter: 'Design ambient temperature', value: `${project.ambientC} °C`, source: src('ambientC', 'Project settings') },
+    { parameter: 'Voltage drop limit (source to load)', value: `${project.vdLimitPct} %`, source: src('vdLimitPct', 'Project settings') },
     project.vdTempC === undefined
       ? { parameter: 'Conductor temperature for voltage drop', value: '1.2 × R20', source: 'Calculation basis', flag: 'Not set for the project' }
       : { parameter: 'Conductor temperature for voltage drop', value: `${project.vdTempC} °C`, source: 'Project settings' },
@@ -157,7 +160,7 @@ export function buildDesignBasis(project: Project, studies: { key: StudyReportKi
     fromSettings('generatorMaxLoadingPct', `${set.generatorMaxLoadingPct} %`, 'Generator maximum design loading'),
     project.info?.mdDemandFactor === undefined
       ? { parameter: 'Maximum demand factor (authority forms)', source: 'Project information', flag: NOT_DEFINED }
-      : { parameter: 'Maximum demand factor (authority forms)', value: String(project.info.mdDemandFactor), source: 'Project information' },
+      : { parameter: 'Maximum demand factor (authority forms)', value: String(project.info.mdDemandFactor), source: src('mdDemandFactor', 'Project information') },
     sys.connectedKw > 0
       ? { parameter: 'Overall demand ÷ connected load', value: `${n(sys.demandKw / sys.connectedKw, 2)} (${n(sys.demandKw)} ÷ ${n(sys.connectedKw)} kW)`, source: 'Load assessment (calculated)' }
       : { parameter: 'Overall demand ÷ connected load', source: 'Load assessment (calculated)', flag: 'No connected load' }
@@ -227,7 +230,7 @@ export function designBasisSections(b: DesignBasis): { title: string; html: stri
   const st = b.standards;
   const standards = `
   <h3>Project and authority requirements</h3>
-  <table class="meta"><tbody><tr><th>Approving authority</th><td>${valueOrMissing(st.authority)}</td></tr></tbody></table>
+  <table class="meta"><tbody><tr><th>Approving authority</th><td>${valueOrMissing(st.authority)}</td></tr>${st.reference ? `<tr><th>Design reference</th><td>${esc(st.reference)}</td></tr>` : ''}</tbody></table>
   ${st.project.length ? list(st.project, '') : '<p class="warning">No project standards or specifications are defined (Reports → Study reports → Output). None are assumed.</p>'}
   <h3>Calculation basis</h3>
   ${st.methods.length ? `<table><thead><tr><th>Standard</th><th>Used for</th></tr></thead><tbody>${st.methods.map((m) => `<tr><td>${esc(m.standard)}</td><td>${esc(m.used)}</td></tr>`).join('')}</tbody></table>

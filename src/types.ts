@@ -1,4 +1,5 @@
 import { CURRENT_SCHEMA, newProjectId } from './model/projectMigrate';
+import type { AppliedReference } from './model/designReference';
 export type FeederStatus = 'ok' | 'warn' | 'bad';
 
 export type LoadType = 'general' | 'lighting' | 'sockets' | 'hvac' | 'motor' | 'fire-pump' | 'ev' | 'it' | 'pv' | 'capacitor';
@@ -342,6 +343,8 @@ export interface Project {
   studyReportPresets?: StudyReportPreset[]; // saved scopes / study sets for repeat submissions
   calc?: { autoRun?: boolean }; // run the network studies on every change (default: on Run / F5 only)
   studySettings?: StudySettings;
+  /** The design reference applied (Standards → Design references): which one, its version and the values written. */
+  designReference?: AppliedReference;
   /** Project standards and specifications listed in the design report (Codes and standards). Never assumed when empty. */
   standards?: string[];
   /** People, dates and your own values used as {Name} in title blocks, notes and labels. */

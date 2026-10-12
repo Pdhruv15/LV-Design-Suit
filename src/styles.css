@@ -822,6 +822,10 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 /* Parameters, title block designer, components */
 .param-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:12px}
 @media (max-width:1000px){.param-grid{grid-template-columns:1fr}}
+.ref-grid{display:grid;grid-template-columns:260px minmax(0,1fr);gap:12px;align-items:start}
+.ref-list h4{margin:8px 0 4px}.ref-list h4:first-child{margin-top:0}.ref-list table{min-width:0}
+.ref-scroll{overflow-x:auto}.ref-scroll table{min-width:0}
+@media (max-width:900px){.ref-grid{grid-template-columns:1fr}}
 .param-table td{padding:4px 8px;white-space:normal}
 .param-chip{font:12px ui-monospace,monospace;padding:1px 6px;border:1px solid var(--line);border-radius:5px;background:var(--p2);color:var(--acc)}
 .param-chip:hover{border-color:var(--acc)}
