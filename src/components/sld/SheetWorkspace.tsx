@@ -254,7 +254,16 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
           </button>
         )}
         <button className={`chip${side ? ' on' : ''}`} aria-pressed={side} title="The design on the left, this sheet on the right" onClick={() => toggleSide(!side)}>Side by side</button>
-        <button className="chip primary" onClick={() => setPublish(true)}>Publish…</button>
+        {(() => {
+          // Say what publishing would issue for this sheet: its first revision, or the next one once it has changed since its last issue.
+          const cur = sheetRev(s, rev?.id), issued = !!(s.history?.length || s.rev);
+          const changed = !!s.issuedHash && s.issuedHash !== sheetHash(project, set, s);
+          const next = issued ? nextRev(cur) : cur || 'A';
+          const label = !s.history?.length || changed ? `Publish · Rev ${next}…` : 'Publish…';
+          const title = !s.history?.length ? `Not issued yet — issuing gives this sheet Rev ${next}`
+            : changed ? `Changed since Rev ${cur} was issued — the next issue is Rev ${next}` : `No changes since Rev ${cur} was issued — exports and the issue register`;
+          return <button className={`chip primary${changed ? ' publish-changed' : ''}`} title={title} onClick={() => setPublish(true)}>{changed && <span className="pub-dot" aria-label="changed since issue" />}{label}</button>;
+        })()}
       </div>
       {s.kind !== 'earthing' && drawable(s) && showMarkup && (
         <MarkupToolbar anchored={s.kind === 'system'} tool={tool} color={selected?.color ?? mColor} size={mSize} selected={selected} count={markups.length}

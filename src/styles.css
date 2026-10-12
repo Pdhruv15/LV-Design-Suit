@@ -192,7 +192,10 @@ tr.total td{background:var(--p2);font-weight:600}
 .report-preview{width:100%;height:70vh;border:1px solid var(--line);border-radius:8px;background:#fff}
 /* ---- Ribbon ---- */
 .ribbon{position:relative;z-index:20;background:var(--panel);border-bottom:1px solid var(--line)}
-.ribbon-tabs{display:flex;gap:var(--space-1);padding:var(--space-2) var(--gutter) 0;overflow-x:auto}
+.ribbon-tabs{display:flex;align-items:center;gap:var(--space-1);padding:var(--space-2) var(--gutter) 0;overflow-x:auto}
+.ribbon-tabs .ribbon-pin{min-height:28px;min-width:28px;padding:0;justify-content:center;border-radius:var(--radius-sm);flex:none}
+.ribbon.collapsed .ribbon-tabs{padding-bottom:var(--space-1)}.ribbon.collapsed .ribbon-tabs button[role=tab]{border-radius:var(--radius-sm)}
+.ribbon-tools.peek{position:absolute;left:0;right:0;top:100%;box-shadow:0 10px 24px rgba(0,0,0,.45);border-bottom:1px solid var(--line)}
 .ribbon-tabs button{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--control-h);padding:0 var(--space-4);border-radius:var(--radius-sm) var(--radius-sm) 0 0;color:var(--mut);white-space:nowrap}
 .ribbon-tabs button:hover{color:var(--tx);background:var(--p2)}
 .ribbon-tabs button.on{background:var(--acc);color:var(--on-acc);font-weight:600}
@@ -1032,6 +1035,7 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .dw-menu .danger{color:var(--bad,#c21f32)}
 .sheet-ws{display:flex;flex-direction:column;min-height:560px;flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .sheet-bar{display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--line)}
+.pub-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--warn);margin-right:6px;box-shadow:0 0 0 2px color-mix(in srgb,var(--warn) 30%,transparent)}
 .chip-lite{font-size:11px;padding:1px 8px;border-radius:999px;border:1px solid var(--line)}
 .sheet-body{flex:1;display:flex;min-height:0}
 .sheet-page{flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:12px;background:color-mix(in srgb,var(--bg,#000) 70%,#888 30%);min-height:520px}
