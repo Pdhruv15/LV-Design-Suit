@@ -69,6 +69,7 @@ const hasBridge = typeof window !== 'undefined' && !!window.lvds;
 const hasDatabase = hasBridge && !!window.lvds.database;
 
 import type { MainView } from './views';
+import CommandPalette, { ShortcutHelp, type Command } from './components/CommandPalette';
 import Ribbon, { type BomCommand, tabForView, type DiagramTool, type RibbonTab } from './components/Ribbon';
 import ProjectSettings from './components/ProjectSettings';
 import type { BoardTab } from './components/BoardPanel';
@@ -133,6 +134,22 @@ const STUDY_VIEWS: MainView[] = ['voltage-drop', 'earthing', 'selection', 'coord
 /** A project as the app holds it once opened: with its id and version, earth pit IDs and cable reference
  * numbers already in place — so opening never counts as an unsaved change (these are bookkeeping, not edits). */
 const normalised = (p: Project, file?: string): Project => withCableRefs(withEarthPitIds(migrateProject(p, file)));
+
+/** The shortcut modifier as the platform writes it. */
+const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';
+
+/** Pages the ⌘K palette can open, named as on the ribbon. */
+const PALETTE_PAGES: [MainView, string][] = [
+  ['design', 'Design (SLD)'], ['dashboard', 'Overview'], ['building', 'Building'], ['load-schedule', 'Load schedule'], ['panels', 'Panels'],
+  ['space-planning', 'Space plan'], ['substation-area', 'Substation area'], ['enclosure', 'Enclosure sizing'], ['earth-schematic', 'Earth pits'],
+  ['busbar', 'Busbar riser'], ['calculators', 'Quick calcs'], ['voltage-drop', 'Voltage drop'], ['engines', 'Load flow'], ['earthing', 'Earthing'],
+  ['coordination', 'Protection coordination'], ['selection', 'Breaker & cable selection'], ['sizing', 'Transformer & generator sizing'], ['pfc', 'Power factor'],
+  ['ups', 'UPS & battery'], ['solar', 'Solar PV'], ['drawings', 'Drawings'], ['drawing-register', 'Drawing register'], ['db-schedule', 'DB schedule'],
+  ['cable-schedule', 'Cable schedule'], ['cable-tray', 'Cable trays'], ['equipment', 'Equipment schedule'], ['boq', 'Bill of quantities (BOQ)'],
+  ['study-reports', 'Study reports'], ['report', 'Calculation report'], ['revisions', 'Revisions'], ['modifications', 'Changes'], ['review', 'Review'],
+  ['received-docs', 'Received documents'], ['parameters', 'Parameters'], ['titleblock', 'Title block'], ['database', 'Database'],
+  ['design-references', 'Design references'], ['help', 'Help']
+];
 
 export default function App() {
   // The project, with undo / redo. Opening or starting a project clears the history.
@@ -202,6 +219,8 @@ export default function App() {
   const [feederPreset, setFeederPreset] = useState<Partial<Feeder>>({});
   const [boardTab, setBoardTab] = useState<BoardTab>('general');
   const [showSettings, setShowSettings] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [editBoardId, setEditBoardId] = useState<string | null>(null);
   const [layers, setLayers] = useState<ResultLayers>(DEFAULT_LAYERS);
   const [resultSource, setResultSource] = useState<ResultSource>('builtin');
@@ -819,6 +838,34 @@ export default function App() {
     const { list, added, updated } = mergePresets(userPresets, arr);
     savePresets(list, `Imported presets: ${added} new, ${updated} updated`);
   }
+  /** What the ⌘K palette offers: boards, drawing sheets, pages and commands. */
+  function commands(): Command[] {
+    const design = () => setView('design');
+    const out: Command[] = [];
+    const cmd = (label: string, run: () => void, keys?: string, hint?: string) => out.push({ id: `c:${label}`, group: 'Commands', label, run, keys, hint });
+    const mod = MOD;
+    cmd('Run calculations', runNow, 'F5', 'network studies');
+    cmd('Save', () => { void saveProject(); }, `${mod}S`);
+    cmd('Save as…', () => saveAs(), `⇧${mod}S`);
+    cmd('Undo', () => history.undo(), `${mod}Z`);
+    cmd('Redo', () => history.redo(), `⇧${mod}Z`);
+    cmd('Add a board…', () => { design(); setBoardPreset(undefined); setShowBoardForm(true); });
+    if (board) cmd(`Add a feeder on ${board.id}…`, () => { design(); openAddFeeder({}); }, undefined, 'circuit load');
+    cmd('Export the SLD…', () => { design(); setDiagramMode('system'); setShowExport(true); }, undefined, 'PDF DXF SVG');
+    cmd('System diagram', () => { design(); setDiagramMode('system'); }, `${mod}1`, 'SLD');
+    if (board) cmd(`Board diagram — ${board.id}`, () => { design(); setDiagramMode('board'); }, `${mod}2`);
+    cmd('Project settings…', () => setShowSettings(true));
+    cmd('Keyboard shortcuts', () => setHelpOpen(true), '?', 'help keys');
+    for (const b of boardsInSupplyOrder(project)) {
+      out.push({ id: `b:${b.id}`, group: 'Boards', label: b.id, hint: b.name && b.name !== b.id ? b.name : undefined, run: () => { design(); setSheetTab(null); selectBoard(b.id); setSldFocus({ kind: 'board', id: b.id, n: Date.now() }); } });
+    }
+    for (const sh of setOf(project).sheets) {
+      out.push({ id: `s:${sh.id}`, group: 'Drawing sheets', label: sh.number, hint: sh.title, run: () => { design(); setDiagramMode('system'); setSheetTab(sh.id); } });
+    }
+    for (const [v, label] of PALETTE_PAGES) out.push({ id: `p:${v}`, group: 'Pages', label, run: () => setView(v) });
+    return out;
+  }
+
   function saveAsPreset(f: Feeder) {
     // Opens the preset editor (the desktop app has no prompt box) with the feeder's parts.
     const name = f.feedsBoardId ? `${project.boards.find((b) => b.id === f.feedsBoardId)?.kind ?? 'DB'} ${f.breakerRatingA} A` : `${f.name} ${f.loadKw} kW`;
@@ -876,6 +923,13 @@ export default function App() {
   // field or a sheet keeps its own undo and delete.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k' && view !== 'projects') {
+        // Command palette, from anywhere (also while typing).
+        e.preventDefault();
+        setHelpOpen(false);
+        setPaletteOpen((o) => !o);
+        return;
+      }
       if (e.key === 'F5') {
         // Run the network studies, from anywhere (also while typing).
         e.preventDefault();
@@ -897,6 +951,24 @@ export default function App() {
       if (typing) return;
       if (inGrid && !((e.metaKey || e.ctrlKey) && /^[zy]$/i.test(e.key))) return;
       const mod = e.metaKey || e.ctrlKey;
+      if (e.key === '?' && !mod && !e.altKey && view !== 'projects') {
+        e.preventDefault();
+        setHelpOpen((o) => !o);
+        return;
+      }
+      if (mod && !e.shiftKey && !e.altKey && (e.key === '1' || e.key === '2') && view === 'design') {
+        e.preventDefault();
+        setDiagramMode(e.key === '1' ? 'system' : 'board');
+        return;
+      }
+      if (!mod && !e.altKey && (e.key === '[' || e.key === ']') && view === 'design' && diagramMode === 'system') {
+        // Previous / next drawing sheet (Design first).
+        const ids = [null, ...setOf(project).sheets.map((x) => x.id)];
+        const i = Math.max(0, ids.indexOf(sheetTab));
+        const next = ids[Math.min(ids.length - 1, Math.max(0, i + (e.key === ']' ? 1 : -1)))];
+        if (next !== sheetTab) { e.preventDefault(); setSheetTab(next); }
+        return;
+      }
       if (mod && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         if (e.shiftKey) history.redo();
@@ -979,6 +1051,7 @@ export default function App() {
         {home
           ? <button className="chip" onClick={() => setView('help')} title="Help">Help</button>
           : <>
+            <button className="chip cmdk-open" onClick={() => setPaletteOpen(true)} title="Find a board, sheet or page, or run a command (? lists every shortcut)">Search <kbd>{MOD}K</kbd></button>
             {saveState.kind === 'failed' && <span className="save-failed" role="alert" title={saveState.msg}>Not saved — {saveState.msg && saveState.msg.length > 60 ? `${saveState.msg.slice(0, 60)}…` : saveState.msg}</span>}
             <button className="chip" disabled={saveState.kind === 'saving'} onClick={() => saveProject()} title="Save (Ctrl+S / ⌘S) — New, Open and Save as are on the Project tab">{saveState.kind === 'saving' ? 'Saving…' : saveState.kind === 'failed' ? 'Retry save' : `Save${dirty ? ' ●' : ''}`}</button>
           </>}
@@ -1086,10 +1159,10 @@ export default function App() {
               <section className="stage">
                 <div className="stage-head">
                   <div className="seg" role="tablist" aria-label="Diagram">
-                    <button role="tab" aria-selected={diagramMode === 'system'} className={diagramMode === 'system' ? 'on' : ''} onClick={() => setDiagramMode('system')}>
+                    <button role="tab" aria-selected={diagramMode === 'system'} className={diagramMode === 'system' ? 'on' : ''} onClick={() => setDiagramMode('system')} title={`Every board on one diagram (${MOD}1)`}>
                       System diagram
                     </button>
-                    <button role="tab" aria-selected={diagramMode === 'board'} className={diagramMode === 'board' ? 'on' : ''} onClick={() => setDiagramMode('board')}>
+                    <button role="tab" aria-selected={diagramMode === 'board'} className={diagramMode === 'board' ? 'on' : ''} onClick={() => setDiagramMode('board')} title={`The selected board's own diagram (${MOD}2)`}>
                       Board: {board.id}
                     </button>
                   </div>
@@ -1527,6 +1600,8 @@ export default function App() {
           onOk={(n) => { const then = nameAsk.then; setNameAsk(null); then(n); }}
         />
       )}
+      {paletteOpen && <CommandPalette commands={commands()} onClose={() => setPaletteOpen(false)} />}
+      {helpOpen && <ShortcutHelp onClose={() => setHelpOpen(false)} />}
       {showSettings && (
         <ProjectSettings
           project={project}
