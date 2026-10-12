@@ -1218,6 +1218,8 @@ export default function App() {
                     // The design canvas is not published: the symbol legend is on the drawing sheets. The
                     // Export dialog prints the canvas as a drawing, so the legend is drawn while it is open.
                     hideLegend={!showExport}
+                    // Zoom-dependent detail is for the screen only: the Export dialog copies the live drawing.
+                    lod={!showExport}
                     project={project}
                     calcProject={calcProject}
                     stale={staleKeys.length > 0}
@@ -1274,7 +1276,7 @@ export default function App() {
                     onActive={setSheetTab} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onToggleOutlines={() => setSheetOutlinesOn((v) => !v)} />
                   </div>
                 ) : (
-                  <SingleLineDiagram board={board} voltageV={project.voltageV} incomerLabel={boardIncomerLabel(project, board)} results={boardResults} selected={selected} onSelect={selectFeeder}
+                  <SingleLineDiagram board={board} voltageV={project.voltageV} incomerLabel={boardIncomerLabel(project, board)} project={project} results={boardResults} selected={selected} onSelect={selectFeeder}
                     summary={project.drawing?.sldStyle === 'standard' ? undefined : { loc: boardLocation(project, board), ...panelSummary(project, board) }} />
                 )}
               </section>

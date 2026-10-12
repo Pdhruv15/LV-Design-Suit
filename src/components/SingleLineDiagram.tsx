@@ -1,19 +1,40 @@
-import { incomerDeviceOf, type Board } from '../types';
+import { incomerDeviceOf, type Board, type Project } from '../types';
 import { SwitchSym, switchKindOf, type SwitchKind } from '../diagram/IecSymbols';
 import type { FeederResult } from '../calc/electrical';
 import { circuitRef } from '../calc/loadSchedule';
+import { runsOf } from '../calc/electrical';
+import { cpcOf } from '../calc/cableTable';
+import { cableTypeOf } from '../model/cableTypes';
+import { deviceKind, devicePoles } from '../diagram/deviceText';
 
-const SPACING = 138; // horizontal slot per feeder
-const MARGIN = 70;
+const SPACING = 172; // horizontal slot per feeder
+const MARGIN = 80;
+const CARD_W = SPACING - 20;
+const NAME_CHARS = 24; // per line on a card (12 px text)
 
-/** Single-board view: the incoming supply (transformer or incomer) drops
- * onto the centre of the busbar, and the outgoing feeders are spread evenly
- * either side of it, so the incomer always lands on the busbar whatever
- * the number of feeders. */
+/** Words onto at most `lines` lines of `max` characters; text that doesn't fit ends in an ellipsis. */
+export function wrapText(text: string, max: number, lines = 2): string[] {
+  const all: string[] = [];
+  for (const w of text.split(/\s+/).filter(Boolean)) {
+    const last = all.length - 1;
+    if (last >= 0 && `${all[last]} ${w}`.length <= max) all[last] = `${all[last]} ${w}`;
+    else all.push(w);
+  }
+  if (!all.length) return [''];
+  const out = all.slice(0, lines);
+  const cut = all.length > lines || out.some((l) => l.length > max);
+  if (cut) {
+    const k = out.length - 1;
+    out[k] = `${out[k].slice(0, max - 1).trimEnd()}…`;
+  }
+  return out.map((l) => (l.length > max && !l.endsWith('…') ? `${l.slice(0, max - 1)}…` : l));
+}
+
 export default function SingleLineDiagram({
   board,
   voltageV = 415,
   incomerLabel,
+  project,
   results,
   selected,
   onSelect,
@@ -22,6 +43,8 @@ export default function SingleLineDiagram({
   board: Board;
   voltageV?: number;
   incomerLabel?: string;
+  /** For each circuit's cable type (insulation, armour) on the cards. */
+  project?: Project;
   /** The panel's summary box (LOC, TCL, DF, MDL) — drawn on the single-panel view only, not on the system tree. */
   summary?: { loc: string; tclKw: number; df: number; mdlKw: number };
   results: FeederResult[];
@@ -29,7 +52,12 @@ export default function SingleLineDiagram({
   onSelect: (feederId: string) => void;
 }) {
   const n = results.length;
+  const locLines = summary ? wrapText(`LOC : ${summary.loc || '—'}`, 34, 2) : [];
+  const sumH = 18 + (locLines.length + 3) * 12;
+  const H = 372;
   const width = Math.max(n, 4) * SPACING + 2 * MARGIN;
+  // Never below 85 % scale: a board with many ways scrolls sideways rather than shrinking past reading.
+  const minWidth = Math.round(width * 0.85);
   const cx = width / 2; // incomer / transformer position
   const xs = results.map((_, i) => cx + (i - (n - 1) / 2) * SPACING);
   const busX1 = Math.min(cx - 60, (xs[0] ?? cx) - 60);
@@ -39,7 +67,7 @@ export default function SingleLineDiagram({
   const incKind: SwitchKind = dev === 'ISOL' ? 'isolator' : dev === 'ACB' ? 'acb' : dev === 'MCCB-NA' ? 'nonauto' : 'breaker';
 
   return (
-    <svg viewBox={`0 0 ${width} 345`} style={{ minWidth: Math.min(width, 1100), width: '100%', height: 'auto', display: 'block' }} role="img" aria-label={`Single line diagram of ${board.name}`}>
+    <svg viewBox={`0 0 ${width} ${H}`} style={{ minWidth, width: '100%', height: 'auto', display: 'block' }} role="img" aria-label={`Single line diagram of ${board.name}`}>
       {isMain ? (
         <>
           <line x1={cx} y1="0" x2={cx} y2="17" className="ln" />
@@ -75,10 +103,10 @@ export default function SingleLineDiagram({
       {summary && (
         <g className="panel-sum">
           <title>{`${board.id}: TCL ${summary.tclKw.toFixed(2)} kW × DF ${summary.df.toFixed(2)} = MDL ${summary.mdlKw.toFixed(2)} kW`}</title>
-          <rect x="8" y="8" width="150" height="70" rx="6" className="sum-box" />
-          <text x="14" y="21" className="b" style={{ textDecoration: 'underline' }}>{board.id.length > 22 ? `${board.id.slice(0, 21)}…` : board.id}</text>
-          {[`LOC : ${summary.loc.length > 20 ? `${summary.loc.slice(0, 19)}…` : summary.loc || '—'}`, `TCL : ${summary.tclKw.toFixed(2)} kW`, `DF : ${summary.df.toFixed(2)}`, `MDL : ${summary.mdlKw.toFixed(2)} kW`].map((t, i) => (
-            <text key={i} x="14" y={35 + i * 12} className="m">{t}</text>
+          <rect x="8" y="8" width="214" height={sumH} rx="6" className="sum-box" />
+          <text x="14" y="21" className="b" style={{ textDecoration: 'underline' }}>{board.id.length > 32 ? `${board.id.slice(0, 31)}…` : board.id}</text>
+          {[...locLines, `TCL : ${summary.tclKw.toFixed(2)} kW`, `DF : ${summary.df.toFixed(2)}`, `MDL : ${summary.mdlKw.toFixed(2)} kW`].map((t, i) => (
+            <text key={i} x="14" y={35 + i * 12} className="m" xmlSpace="preserve">{i > 0 && i < locLines.length ? `      ${t}` : t}</text>
           ))}
         </g>
       )}
@@ -95,32 +123,45 @@ export default function SingleLineDiagram({
           <g key={f.id} tabIndex={0} style={{ cursor: 'pointer' }} onClick={() => onSelect(f.id)} onKeyDown={(e) => e.key === 'Enter' && onSelect(f.id)}>
             <line x1={x} y1="118" x2={x} y2="152" className="ln" />
             <SwitchSym x={x} y={152} kind={switchKindOf(f)} />
-            <line x1={x} y1="168" x2={x} y2="232" className="ln" />
-            <text className="b" x={x + 11} y="163">
-              {f.breakerRatingA} A
-            </text>
-            <text className="m" x={x + 8} y="200" data-dxf-max-width={SPACING - 24}>
-              {f.cableCsaMm2}mm² · {f.lengthM}m
-            </text>
-            <text className="m" x={x + 8} y="213" data-dxf-max-width={SPACING - 24}>
-              Vd {r.vdTotalPct.toFixed(1)}% total
-            </text>
-            <rect x={x - 59} y="232" width="118" height="64" rx="6" className="box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
-            <circle cx={x + 48} cy="244" r="4" fill={col} />
-            <text className="b" x={x - 51} y="251">
-              {circuitRef(f) ?? f.id}
-            </text>
-            <text className="m" x={x - 51} y="267">
-              {(() => { const n = f.room || f.name || '—'; return n.length > 19 ? n.slice(0, 18) + '…' : n; })()}
-            </text>
-            <text x={x - 51} y="287">
-              {r.ib.toFixed(0)} A{f.feedsBoardId ? ` · → ${f.feedsBoardId}` : ` · ${(f.loadKw * f.demandFactor).toFixed(0)} kW${f.generation ? ' gen' : ''}`}
-            </text>
-            <rect x={x - 59} y="304" width="118" height="6" rx="3" fill="var(--line)" />
-            <rect x={x - 59} y="304" width={Math.min(118, (1.18 * r.loadingPct))} height="6" rx="3" fill={col} />
-            <text className="m" x={x - 59} y="328">
-              {r.loadingPct.toFixed(0)}% of {f.breakerRatingA} A
-            </text>
+            <line x1={x} y1="168" x2={x} y2="236" className="ln" />
+            {/* Protective device: rating, poles and kind, then breaking capacity and any RCD */}
+            <text className="b" x={x + 11} y="160">{f.breakerRatingA} A {devicePoles(f)} {deviceKind(f)}</text>
+            <text className="m" x={x + 11} y="173">{f.breakerIcuKa ? `${f.breakerIcuKa} kA` : ''}{f.rcdMa ? `${f.breakerIcuKa ? ' · ' : ''}${f.rcdMa} mA RCD` : ''}</text>
+            {/* Cable: size and length, its type, then the voltage drop */}
+            {(() => {
+              const t = project ? cableTypeOf(project, f) : undefined;
+              // One fact per line, so nothing runs into the next circuit's column.
+              const lines = [
+                `${runsOf(f) > 1 ? `${runsOf(f)} × ` : ''}${f.cores}C × ${f.cableCsaMm2}mm² · ${f.lengthM} m`,
+                ...(t ? [`CU/${t.code}`] : []),
+                ...(t?.armoured ? [`+1C ${cpcOf(f)}mm² ECC`] : []),
+                `Vd ${r.vdTotalPct.toFixed(1)}% total`
+              ];
+              return lines.map((l, k) => (
+                <text key={k} className="m" x={x + 8} y={190 + k * 12} style={{ fontSize: 10.5 }}>{k === 1 && t ? <title>{t.label}</title> : null}{l}</text>
+              ));
+            })()}
+            {(() => {
+              const name = wrapText(f.room || f.name || '—', NAME_CHARS, 2);
+              const top = 236, cardH = 68 + (name.length - 1) * 13, bottom = top + cardH;
+              return (
+                <>
+                  <rect x={x - CARD_W / 2} y={top} width={CARD_W} height={cardH} rx="6" className="box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
+                  <title>{`${circuitRef(f) ?? f.id} — ${f.room || f.name || ''}`}</title>
+                  <circle cx={x + CARD_W / 2 - 10} cy={top + 12} r="4" fill={col} />
+                  <text className="b" x={x - CARD_W / 2 + 8} y={top + 19}>{circuitRef(f) ?? f.id}</text>
+                  {name.map((l, k) => <text key={k} className="m" x={x - CARD_W / 2 + 8} y={top + 35 + k * 13}>{l}</text>)}
+                  <text x={x - CARD_W / 2 + 8} y={bottom - 12}>
+                    {r.ib.toFixed(0)} A{f.feedsBoardId ? ` · → ${f.feedsBoardId}` : ` · ${(f.loadKw * f.demandFactor).toFixed(0)} kW${f.generation ? ' gen' : ''}`}
+                  </text>
+                  <rect x={x - CARD_W / 2} y={bottom + 8} width={CARD_W} height="6" rx="3" fill="var(--line)" />
+                  <rect x={x - CARD_W / 2} y={bottom + 8} width={Math.min(CARD_W, (CARD_W / 100) * r.loadingPct)} height="6" rx="3" fill={col} />
+                  <text className="m" x={x - CARD_W / 2} y={bottom + 32}>
+                    {r.loadingPct.toFixed(0)}% of {f.breakerRatingA} A
+                  </text>
+                </>
+              );
+            })()}
           </g>
         );
       })}

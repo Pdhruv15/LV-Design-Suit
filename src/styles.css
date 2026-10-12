@@ -1362,3 +1362,10 @@ kbd{display:inline-block;font:11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospa
 .kbd-cols h4{margin:10px 0 6px;font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
 .kbd-cols dl{margin:0;display:grid;gap:4px}.kbd-cols dl > div{display:grid;grid-template-columns:120px 1fr;gap:8px;align-items:baseline;font-size:13px}
 .kbd-cols dt{margin:0}.kbd-cols dd{margin:0}
+
+/* System diagram level of detail (screen only; off while exporting). Part-way out: names and breaker ratings, no cable,
+   result or accessory text. Far out: panel and load names only, drawn larger so the overview reads. */
+.sysdiag.lod-mid svg .fd text:not(.lod-name):not(.b):not(.dev),.sysdiag.lod-mid svg .fd .cable-ref,
+.sysdiag.lod-mid svg .acc text,.sysdiag.lod-mid svg text.res,.sysdiag.lod-mid svg .panel-frame text:not(.lod-name){display:none}
+.sysdiag.lod-far svg text:not(.lod-name),.sysdiag.lod-far svg .acc,.sysdiag.lod-far svg .cable-ref,.sysdiag.lod-far svg .sum-box{display:none}
+.sysdiag.lod-far svg text.lod-name{font-size:var(--lod-fs,11px);font-weight:700}
