@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Activity, BatteryCharging, Building2, Cable, Calculator, ClipboardCheck, MessageSquareWarning, Inbox, Car, CircuitBoard, Cog, Ellipsis, FileDown, FileSpreadsheet, FileText,
   Gauge, Hand, LayoutGrid, ListTree, MousePointer2, Pencil, Receipt, Scale, Settings2, ShieldCheck, Sun,
-  Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box } from 'lucide-react';
+  ChevronDown, ChevronUp, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box } from 'lucide-react';
 import type { BoardKind, Feeder } from '../types';
 import type { MainView } from '../views';
 
@@ -108,6 +108,24 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   const [menuLeft, setMenuLeft] = useState(0);
   const [splitOpen, setSplitOpen] = useState<string | null>(null);
   const [splitAt, setSplitAt] = useState({ x: 0, y: 0 });
+  // Collapsed: only the tabs show; a tab click drops its tools over the page until a tool is used or you click elsewhere.
+  const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem('lvds.ribbonCollapsed') === '1'; } catch { return false; } });
+  const [peek, setPeek] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const toggleCollapsed = () => setCollapsed((c) => { try { localStorage.setItem('lvds.ribbonCollapsed', c ? '0' : '1'); } catch { /* ignore */ } setPeek(false); return !c; });
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => { if (e.key === 'F1' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); toggleCollapsed(); } };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, []);
+  useEffect(() => {
+    if (!peek) return;
+    const away = (e: MouseEvent) => !rootRef.current?.contains(e.target as Node) && setPeek(false);
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setPeek(false);
+    document.addEventListener('mousedown', away);
+    document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', esc); };
+  }, [peek]);
   useEffect(() => {
     if (!splitOpen) return;
     const close = () => setSplitOpen(null);
@@ -263,10 +281,12 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   };
 
   return (
-    <div className="ribbon">
+    <div className={`ribbon${collapsed ? ' collapsed' : ''}`} ref={rootRef}>
       <div className="ribbon-tabs" role="tablist" aria-label="Ribbon">
         {TABS.map(({ id, label, icon: I }, ti) => (
-          <button key={id} role="tab" aria-selected={tab === id} tabIndex={tab === id ? 0 : -1} className={tab === id ? 'on' : ''} onClick={() => onTab(id)}
+          <button key={id} role="tab" aria-selected={tab === id} tabIndex={tab === id ? 0 : -1} className={tab === id ? 'on' : ''}
+            onClick={() => { if (collapsed) setPeek(tab === id ? !peek : true); onTab(id); }}
+            onDoubleClick={toggleCollapsed} title={collapsed ? 'Click to show its tools · double-click to keep the ribbon open' : 'Double-click to collapse the ribbon (Ctrl+F1)'}
             onKeyDown={(e) => {
               // Arrow keys move between tabs; Home / End to the first / last.
               const k = e.key === 'ArrowRight' ? ti + 1 : e.key === 'ArrowLeft' ? ti - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? TABS.length - 1 : null;
@@ -280,8 +300,17 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
             {label}
           </button>
         ))}
+        <span className="sp" />
+        <button className="ribbon-pin" onClick={toggleCollapsed} aria-pressed={!collapsed} aria-label={collapsed ? 'Expand the ribbon' : 'Collapse the ribbon'}
+          title={collapsed ? 'Keep the ribbon open (Ctrl+F1)' : 'Collapse the ribbon to its tabs (Ctrl+F1)'}>
+          {collapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+        </button>
       </div>
-      <div className="ribbon-tools" role="toolbar" aria-label={`${TABS.find((t) => t.id === tab)?.label} tools`}>
+      {(!collapsed || peek) && <div className={`ribbon-tools${collapsed ? ' peek' : ''}`} onClick={(e) => {
+        // A tool was used: put the dropped-down tools away (not for buttons that open a menu of their own).
+        const b = (e.target as HTMLElement).closest('button');
+        if (collapsed && b && !b.hasAttribute('aria-haspopup') && !b.hasAttribute('aria-expanded')) setPeek(false);
+      }} role="toolbar" aria-label={`${TABS.find((t) => t.id === tab)?.label} tools`}>
         {groups[tab].map((group, gi) => (
           <div key={gi} className="ribbon-group" role="group" aria-label={CAPTIONS[tab]?.[gi]}>
             <div className="ribbon-group-btns">
@@ -366,7 +395,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
             )}
           </div>
         )}
-      </div>
+      </div>}
     </div>
   );
 }
