@@ -1069,7 +1069,13 @@ export default function App() {
               setStatus(`${id} is now supplied from ${to} — check the incomer cable length.`);
             },
             onReorder: (id, dir) => setProject(reorderBoard(project, id, dir), { step: true }),
-            onLengthChecked: (id) => setProject({ ...project, feeders: project.feeders.map((f) => (f.feedsBoardId === id ? { ...f, lengthToCheck: undefined } : f)) }, { step: true })
+            onLengthChecked: (id) => setProject({ ...project, feeders: project.feeders.map((f) => (f.feedsBoardId === id ? { ...f, lengthToCheck: undefined } : f)) }, { step: true }),
+            cableTypes: CABLE_TYPE_DEFS.filter((d) => d.value !== 'XLPE/SWA/PVC'),
+            onCableType: (id, t) => {
+              const ids = project.feeders.filter((f) => f.boardId === id && !isScheduleCircuit(f)).map((f) => f.id);
+              setProject((p) => ({ ...p, feeders: p.feeders.map((f) => (ids.includes(f.id) ? { ...f, cableType: t === 'auto' ? undefined : t } : f)) }), { step: true });
+              setStatus(`${ids.length} cable${ids.length === 1 ? '' : 's'} from ${id}: ${t === 'auto' ? 'automatic type (fire-rated for life safety)' : cableTypeDef(t).label}`);
+            }
           }}
         />}
 
@@ -1097,31 +1103,6 @@ export default function App() {
                         </>
                       )}
                     </MenuButton>
-                    {panel === 'board' && board && (
-                      <MenuButton label={board.id} title={`${board.id}: copy, cable type of its outgoing cables`}>
-                        {(close) => (
-                          <>
-                            <button onClick={() => { close(); setEditBoardId(board.id); }}>Edit {board.id}…</button>
-                            <button onClick={() => { close(); copyBoard(board.id); }}>Copy with sub-boards (⌘C)</button>
-                            <div className="mp-h">Cable type for all outgoing cables</div>
-                            <label>
-                              <select value="" onChange={(e) => {
-                                const t = e.target.value;
-                                if (!t) return;
-                                close();
-                                const ids = project.feeders.filter((f) => f.boardId === board.id && !isScheduleCircuit(f)).map((f) => f.id);
-                                setProject((p) => ({ ...p, feeders: p.feeders.map((f) => (ids.includes(f.id) ? { ...f, cableType: t === 'auto' ? undefined : t } : f)) }), { step: true });
-                                setStatus(`${ids.length} cable${ids.length === 1 ? '' : 's'} from ${board.id}: ${t === 'auto' ? 'automatic type (fire-rated for life safety)' : cableTypeDef(t).label}`);
-                              }}>
-                                <option value="">Choose…</option>
-                                <option value="auto">Automatic (fire-rated for life safety)</option>
-                                {CABLE_TYPE_DEFS.filter((d) => d.value !== 'XLPE/SWA/PVC').map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
-                              </select>
-                            </label>
-                          </>
-                        )}
-                      </MenuButton>
-                    )}
                     {selectedFeeder && panel === 'feeder' && (
                       <MenuButton label={selectedFeeder.id} title={`${selectedFeeder.id}: edit, save as preset`}>
                         {(close) => (

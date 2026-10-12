@@ -30,6 +30,9 @@ export interface TreeMenuActions {
   onReorder?: (boardId: string, dir: -1 | 1) => void;
   /** The moved board's incomer length was checked. */
   onLengthChecked?: (boardId: string) => void;
+  /** Set the cable type of all the board's outgoing cables ('auto' = automatic). */
+  onCableType?: (boardId: string, type: string) => void;
+  cableTypes?: { value: string; label: string }[];
 }
 
 function useStored<T>(key: string, initial: T): [T, (v: T) => void] {
@@ -274,6 +277,15 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
           {menu.onMove && ctxBoard.upstreamId && <button role="menuitem" onClick={act((id) => { setMoveFor(id); setMoveQ(''); })}>Move under…</button>}
           {menu.onLengthChecked && incomerOf(project, ctxBoard.id)?.lengthToCheck && <button role="menuitem" onClick={act(menu.onLengthChecked)}>Incomer length checked</button>}
           <button role="menuitem" onClick={act(menu.onCopy)}>Copy with everything below</button>
+          {menu.onCableType && (
+            <label className="tree-menu-field">Outgoing cable type
+              <select value="" onChange={(e) => { const t = e.target.value; if (t) act((id) => menu.onCableType!(id, t))(); }}>
+                <option value="">Choose…</option>
+                <option value="auto">Automatic (fire-rated for life safety)</option>
+                {(menu.cableTypes ?? []).map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+              </select>
+            </label>
+          )}
           {menu.onPaste && copiedId && copiedId !== ctxBoard.id && <button role="menuitem" onClick={act(menu.onPaste)}>Paste {copiedId} here</button>}
           <button role="menuitem" className="bad" onClick={act(menu.onDelete)}>Delete…</button>
         </div>
