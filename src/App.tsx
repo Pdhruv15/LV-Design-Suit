@@ -53,7 +53,9 @@ const ReportView = lazy(() => documents().then((m) => ({ default: m.ReportView }
 const LoadScheduleView = lazy(() => import('./components/docs/LoadScheduleView'));
 import { refreshBoard } from './model/schedule';
 const DatabaseView = lazy(() => import('./components/docs/DatabaseView'));
+const DesignReferencesView = lazy(() => import('./components/docs/DesignReferencesView'));
 import { pullLibrary } from './database/librarySync';
+import { applyReference } from './model/designReference';
 import { applyDatabase, applyParameters, databaseSeeds, EMPTY_DATABASE, parseDatabase, syncLibrary, type Database, type RawDatabase } from './database/database';
 
 // window.lvds is only present when running inside Electron. Fall back to
@@ -949,7 +951,7 @@ export default function App() {
                     onEditComponent={(id) => setEditComponent(id ? project.components?.find((c) => c.id === id) ?? null : newComponent(`c${Date.now().toString(36)}`))}
                     onDeleteComponent={(id) => setProject((p) => ({ ...p, components: (p.components ?? []).filter((c) => c.id !== id), feeders: p.feeders.map((f) => (f.componentId === id ? { ...f, componentId: undefined, componentValues: undefined } : f)) }), { step: true })} />
   );
-  const showTree = !['projects', 'dashboard', 'help', 'parameters', 'titleblock', 'database', 'calculators'].includes(view);
+  const showTree = !['projects', 'dashboard', 'help', 'parameters', 'titleblock', 'database', 'design-references', 'calculators'].includes(view);
 
   return (
     <div className={`app-root${home ? ' home' : ''}`}>
@@ -1271,6 +1273,13 @@ export default function App() {
                   setProject((p) => p.boards.reduce((q, b) => refreshBoard(q, b.id), applyParameters(p, db)));
                   setStatus('Applied Parameters.xlsx to this project');
                 }}
+                onStatus={setStatus}
+              />
+            )}
+            {view === 'design-references' && (
+              <DesignReferencesView
+                project={project}
+                onApply={(ref) => setProject((p) => p.boards.reduce((q, b) => refreshBoard(q, b.id), applyReference(p, ref)), { step: true })}
                 onStatus={setStatus}
               />
             )}
