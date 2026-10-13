@@ -146,7 +146,7 @@ export const DATA_SETS: Fields<Snapshot> = [
   ['building', 'Building information (levels, rooms)'], ['trays', 'Cable trays'], ['busRisers', 'Busbar risers'], ['busbarData', 'Busbar data'],
   ['ties', 'Bus couplers'], ['pv', 'Solar PV'], ['substations', 'Substation rooms'], ['txGen', 'Transformer & generator plan'], ['pfc', 'Power factor correction plan'],
   ['spacePlan', 'Space plan'], ['pfcCalc', 'Power factor calculator'], ['containmentCalc', 'Containment calculator'], ['components', 'Own components'],
-  ['drawing', 'SLD title block and drawing settings'], ['titleTemplates', 'Title block templates'], ['params', 'Parameters'], ['studyReport', 'Study report setup'], ['panelPrefixes', 'Panel naming'],
+  ['drawing', 'SLD title block and drawing settings'], ['titleTemplates', 'Title block templates'], ['params', 'Parameters'], ['studyReport', 'Study report setup'], ['calcReportDocNo', 'Calculation report document no.'], ['panelPrefixes', 'Panel naming'],
   ['tags', 'Tags'], ['notes', 'Notes'], ['brief', 'Scope and deliverables'], ['modifications', 'Modification records'], ['reviewComments', 'Review comments'], ['reviewReport', 'Review report setup'], ['receivedDocs', 'Received documents'], ['vdSelection', 'Circuits chosen for voltage drop'], ['feederPresets', 'Feeder presets'],
   ['studyReportPresets', 'Study report presets'], ['calc', 'Calculation options']
 ];

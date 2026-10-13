@@ -1410,7 +1410,8 @@ export default function App() {
             {view === 'db-schedule' && <DbScheduleView project={calcProject} board={dbScheduleAll ? '' : board?.id} onBoard={(id) => { setDbScheduleAll(!id); if (id) setActiveBoardId(id); }} onStatus={setStatus} />}
             {view === 'cable-schedule' && <CableScheduleView project={calcProject} focus={focus} onClearFocus={() => setFocus(null)} onStatus={setStatus} />}
             {view === 'equipment' && <EquipmentScheduleView project={calcProject} onStatus={setStatus} />}
-            {view === 'report' && <ReportView project={calcProject} stale={staleKeys.length > 0} onRun={runNow} onStatus={setStatus} />}
+            {view === 'report' && <ReportView project={calcProject} stale={staleKeys.length > 0} onRun={runNow} onStatus={setStatus}
+              docNo={project.calcReportDocNo} onDocNo={(v) => setProject((p) => ({ ...p, calcReportDocNo: v || undefined }))} />}
             {view === 'space-planning' && (
               <SpacePlanView
                 project={project}
