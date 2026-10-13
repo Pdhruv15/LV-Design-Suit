@@ -1,13 +1,13 @@
 import { AddBoardIcon, BoardPropsIcon, TransformerIcon, TxGenSizingIcon } from './icons/elecIcons';
 import { useEffect, useRef, useState } from 'react';
 import {
-  Activity, BatteryCharging, Building2, Cable, Calculator, ClipboardCheck, MessageSquareWarning, Inbox, Car, CircuitBoard, Cog, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText,
+  Activity, BatteryCharging, Building2, Cable, Calculator, ClipboardCheck, MessageSquareWarning, Inbox, Car, CircuitBoard, Cog, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText, Stamp,
   Gauge, Hand, LayoutGrid, ListTree, MousePointer2, Pencil, Receipt, Scale, Settings2, ShieldCheck, Sun,
   ChevronDown, ChevronUp, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box } from 'lucide-react';
 import type { BoardKind, Feeder } from '../types';
 import type { MainView } from '../views';
 
-export type BomCommand = 'boq' | 'scope' | 'changes' | 'circuits' | 'excel' | 'pdf' | 'summary-pdf' | 'rates-sheet' | 'import' | 'save-list' | 'add-item' | 'add-section' | 'extras' | 'wastage' | 'markup' | 'document';
+export type BomCommand = 'boq' | 'scope' | 'changes' | 'circuits' | 'excel' | 'pdf' | 'summary-pdf' | 'rates-sheet' | 'import' | 'save-list' | 'add-item' | 'add-section' | 'extras' | 'wastage' | 'markup' | 'document' | 'issue-rev';
 export type RibbonTab = 'home' | 'design' | 'calculate' | 'simulate' | 'reports' | 'cost' | 'standards';
 export type DiagramTool = 'select' | 'pan';
 
@@ -70,7 +70,6 @@ export interface RibbonActions {
   /** BOM / Cost tab: a command for the bill of quantities page. */
   onBom: (cmd: BomCommand) => void;
   hasPriceList: boolean;
-  hasRevisions: boolean;
 }
 
 /** Group captions under the ribbon groups (same order as the groups). */
@@ -250,7 +249,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       [
         { label: 'Bill of quantities', icon: Receipt, title: 'Full BOQ by tender section, priced from your price list', onClick: () => a.onBom('boq'), active: a.view === 'boq' },
         { label: 'Scope', icon: ClipboardCheck, title: 'Fit-out / new installation, schedule point quantities, responsibility and tender checks', onClick: () => a.onBom('scope') },
-        { label: 'Changes', icon: History, title: a.hasRevisions ? 'Design quantity change at current rates; contract scope changes are not compared' : 'Issue a revision first (Reports → Revisions)', onClick: () => a.onBom('changes') },
+        { label: 'Revisions', icon: History, title: 'BOQ revisions (Rev 0, 1, 2…) and every line changed between them', onClick: () => a.onBom('changes') },
         { label: 'Per circuit', icon: Table2, title: 'Cable and breaker cost of every circuit', onClick: () => a.onBom('circuits') }
       ],
       [
@@ -267,6 +266,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       ],
       [
         { label: 'Excel BOQ', icon: FileDown, title: 'Tender BOQ in Excel: summary, bill with section totals, changes since the revision', onClick: () => a.onBom('excel') },
+        { label: 'Issue revision', icon: Stamp, title: 'Record the bill as issued: BOQ Rev 0, 1, 2… — later changes are marked △ in the next revision', onClick: () => a.onBom('issue-rev') },
         { label: 'BOQ document', icon: FileSignature, title: 'Document no., status and prepared / checked / approved names for the PDF cover', onClick: () => a.onBom('document') },
         { label: 'PDF BOQ', icon: FileText, title: 'Tender-format PDF: cover, notes, grand summary with page numbers, bills — your logo on every page', onClick: () => a.onBom('pdf') },
         { label: 'Summary only', icon: Scale, title: 'One-page PDF: bill totals, markup, discount, VAT and grand total', onClick: () => a.onBom('summary-pdf') }

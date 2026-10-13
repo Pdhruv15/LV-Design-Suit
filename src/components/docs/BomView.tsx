@@ -4,8 +4,8 @@ import type { Project } from '../../types';
 import type { FeederResult } from '../../calc/electrical';
 import { buildBom, BOM_SECTIONS } from '../../calc/bom';
 import {
-  compareBom, designQty, validVat, EXTRA_SECTIONS, EXTRAS, fallbackPriceEntry, loadPriceLists, newPriceList, nextSectionId, priceBom, savePriceLists, sectionTitles,
-  type BoqCustom, type BoqDocument, type BoqOverride, type ManualItem, type PriceList, type PricedItem
+  designQty, validVat, EXTRA_SECTIONS, EXTRAS, fallbackPriceEntry, loadPriceLists, newPriceList, nextSectionId, priceBom, savePriceLists, sectionTitles,
+  type BoqCustom, type BoqDocument, type BoqOverride, type ManualItem, type PriceList, type PricedBom, type PricedItem
 } from '../../model/priceList';
 import { boqReview, SCOPE_CHECKS, scopeSummary, type BoqLineScope } from '../../model/boqScope';
 import { boqBookmarks, buildBoqHtml, buildBoqWorkbook, buildPriceTemplate, readPriceWorkbook } from '../../docs/boqWorkbook';
@@ -13,6 +13,7 @@ import { workbookBytes } from '../../docs/formWorkbook';
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
 import BoqTable from '../BoqTable';
 import { toggleIn } from '../../util/sets';
+import { boqRevisionsOf, changeNote, CHANGE_LABEL, compareLines, issueBoqRevision, linesOf, numberBom, type BoqLine, type BoqRevision } from '../../model/boqRevisions';
 
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const money = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -27,26 +28,27 @@ type Dialog =
   | { kind: 'extras' }
   | { kind: 'wastage' }
   | { kind: 'markup' }
-  | { kind: 'document' };
+  | { kind: 'document' }
+  | { kind: 'issue' };
 
 /** BOM / Cost → Bill of quantities: everything in the design rolled up by
  * tender section, your own lines and sections, quantity adjustments,
  * wastage and pricing from your price list; Excel and PDF output, and the
- * change since an issued revision. */
-export default function BomView({ command, project, results, onChange, onStatus }: { command?: { cmd: BomCommand; n: number }; project: Project; results: FeederResult[]; onChange: (p: Project) => void; onStatus: (m: string) => void }) {
+ * BOQ revisions (Rev 0, 1, 2…) with what changed between them. */
+export default function BomView({ command, project, results, me = '', onChange, onStatus }: { command?: { cmd: BomCommand; n: number }; project: Project; results: FeederResult[]; /** The user's initials, the default "by" of a BOQ revision. */ me?: string; onChange: (p: Project) => void; onStatus: (m: string) => void }) {
   const [tab, setTab] = useState<'boq' | 'scope' | 'changes' | 'circuits'>('boq');
   const [library, setLibrary] = useState<PriceList[]>(loadPriceLists);
-  const [since, setSince] = useState<string>(() => project.revisions?.[project.revisions.length - 1]?.id ?? '');
   const [filter, setFilter] = useState('');
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const list = project.priceList;
   const custom = project.boq;
   const items = useMemo(() => buildBom(project), [project]);
-  const bom = useMemo(() => priceBom(items, list, custom), [items, list, custom]);
+  const revisions = boqRevisionsOf(project);
+  const bom = useMemo(() => numberBom(priceBom(items, list, custom), project.boqRevisions), [items, list, custom, project.boqRevisions]);
+  const latestIssue = revisions[revisions.length - 1];
+  const pending = useMemo(() => new Map(latestIssue ? compareLines(latestIssue.lines, linesOf(bom)).map((c) => [c.key, c]) : []), [latestIssue, bom]);
   const review = useMemo(() => boqReview(project, bom), [project, bom]);
-  const rev = project.revisions?.find((r) => r.id === since);
-  const changes = useMemo(() => (rev ? compareBom(buildBom(rev.snapshot as Project), items, list) : []), [rev, items, list]);
   const titles = sectionTitles(custom);
   const cur = list?.currency ?? 'AED';
 
@@ -96,7 +98,7 @@ export default function BomView({ command, project, results, onChange, onStatus 
   function nextManualSection() { return custom?.sections?.[custom.sections.length - 1]?.id ?? 'K'; }
 
   async function exportBoq() {
-    const wb = buildBoqWorkbook(project, bom, list, rev ? { since: rev.id, rows: changes } : undefined);
+    const wb = buildBoqWorkbook(project, bom, list);
     const m = await saveBinary(`${safeFileName(project.name)} - BOQ.xlsx`, await workbookBytes(wb), 'Excel', 'xlsx', XLSX);
     if (m) onStatus(m);
   }
@@ -151,6 +153,7 @@ export default function BomView({ command, project, results, onChange, onStatus 
     else if (c === 'wastage') setDialog({ kind: 'wastage' });
     else if (c === 'markup') setDialog({ kind: 'markup' });
     else if (c === 'document') setDialog({ kind: 'document' });
+    else if (c === 'issue-rev') setDialog({ kind: 'issue' });
   }, [command]);
 
   const q = filter.trim().toLowerCase();
@@ -167,13 +170,14 @@ export default function BomView({ command, project, results, onChange, onStatus 
         <div className="bom-tabs">
           <button className={`chip${!dialog && tab === 'boq' ? ' on' : ''}`} aria-pressed={!dialog && tab === 'boq'} onClick={() => showTab('boq')}>Bill of quantities</button>
           <button className={`chip${!dialog && tab === 'scope' ? ' on' : ''}`} aria-pressed={!dialog && tab === 'scope'} onClick={() => showTab('scope')}>Scope & review{review.length ? ` (${review.length})` : ''}</button>
-          <button className={`chip${!dialog && tab === 'changes' ? ' on' : ''}`} aria-pressed={!dialog && tab === 'changes'} onClick={() => showTab('changes')}>Changes since a revision</button>
+          <button className={`chip${!dialog && tab === 'changes' ? ' on' : ''}`} aria-pressed={!dialog && tab === 'changes'} onClick={() => showTab('changes')}>Revisions{latestIssue ? ` (Rev ${latestIssue.id}${pending.size ? ` + ${pending.size} changes` : ''})` : ''}</button>
           <button className={`chip${!dialog && tab === 'circuits' ? ' on' : ''}`} aria-pressed={!dialog && tab === 'circuits'} onClick={() => showTab('circuits')}>Per circuit</button>
-          {dialog && <button className="chip on" type="button">{dialog.kind === 'item' || dialog.kind === 'design' ? 'Edit item' : dialog.kind === 'extras' ? 'Extra scope' : dialog.kind === 'section' ? 'Section' : dialog.kind === 'wastage' ? 'Wastage' : dialog.kind === 'document' ? 'BOQ document' : 'Markup'}</button>}
+          {dialog && <button className="chip on" type="button">{dialog.kind === 'item' || dialog.kind === 'design' ? 'Edit item' : dialog.kind === 'extras' ? 'Extra scope' : dialog.kind === 'section' ? 'Section' : dialog.kind === 'wastage' ? 'Wastage' : dialog.kind === 'document' ? 'BOQ document' : dialog.kind === 'issue' ? 'Issue revision' : 'Markup'}</button>}
         </div>
         <span className="sp" />
         <button className="chip" onClick={() => setDialog({ kind: 'item', item: newItem(), isNew: true })}>+ Item</button>
         <button className="chip" onClick={() => setDialog({ kind: 'extras' })}>+ Extras</button>
+        <button className="chip" onClick={() => setDialog({ kind: 'issue' })} title="Record the bill as issued: the next BOQ revision">Issue Rev {revisions.length}</button>
         <button className="chip primary" onClick={exportBoq}>Excel BOQ</button>
       </section>
 
@@ -228,7 +232,7 @@ export default function BomView({ command, project, results, onChange, onStatus 
                       const cls = [it.missingRate ? 'bom-missing' : '', it.source === 'excluded' ? 'bom-excluded' : '', it.changed ? 'bom-changed' : ''].filter(Boolean).join(' ');
                       return (
                         <tr key={it.key} className={cls || undefined}>
-                          <td className="m bom-no">{s.section}.{s.items.indexOf(it) + 1}<button className="icon-btn" title="Edit quantity, work action and responsibilities" onClick={() => openRow(it)}>✎</button></td>
+                          <td className="m bom-no">{it.no ?? `${s.section}.${s.items.indexOf(it) + 1}`}<button className="icon-btn" title="Edit quantity, work action and responsibilities" onClick={() => openRow(it)}>✎</button></td>
                           <td>
                             {it.description || <span className="m">(no description)</span>}
                             {manual && <span className="bom-tag">manual</span>}
@@ -237,6 +241,7 @@ export default function BomView({ command, project, results, onChange, onStatus 
                             {it.missingRate && <span className="bom-tag warn">rate required</span>}
                             <div className="m">Supply: {it.supplyBy} · Installation: {it.installBy}</div>
                             {it.changed && <span className="bom-tag warn" title="The design quantity changed since you adjusted this line">design changed</span>}
+                            {pending.get(it.key) && <span className="bom-tag" title={`Changed since BOQ Rev ${latestIssue!.id}: marked △${revisions.length} in the next issue`}>△{revisions.length} {changeNote(pending.get(it.key)!, money, qtyText)}</span>}
                           </td>
                           <td>{it.unit}</td>
                           <td className="num">{qtyText(it.qty)}{it.designQty !== undefined && <div className="m" title="Quantity from the design">design {qtyText(it.designQty)}</div>}</td>
@@ -262,36 +267,7 @@ export default function BomView({ command, project, results, onChange, onStatus 
 
       {!dialog && tab === 'scope' && <ScopePage custom={custom} review={review} items={bom.items} onEdit={openRow} onChange={setCustom} onExtras={() => setDialog({ kind: 'extras' })} />}
 
-      {!dialog && tab === 'changes' && (
-        <section className="card">
-          <p className="m">Design quantity changes at current rates. Scope actions, responsibilities, package inclusions and manual BOQ changes are not compared here.</p>
-          {!project.revisions?.length ? <p className="m">No revision issued yet — issue one (Reports → Revisions) and the changes since then show here.</p> : (
-            <>
-              <label className="row" style={{ gap: 6 }}>Since revision
-                <select className="chip" value={since} onChange={(e) => setSince(e.target.value)}>
-                  {project.revisions.map((r) => <option key={r.id} value={r.id}>{r.id} — {r.date} {r.description}</option>)}
-                </select>
-                {rev && <b style={{ marginLeft: 12 }}>Net change: {changes.reduce((a, c) => a + c.cost, 0) >= 0 ? '+' : '−'}{cur} {money(Math.abs(changes.reduce((a, c) => a + c.cost, 0)))}</b>}
-              </label>
-              {!changes.length ? <p className="ok">✓ No change in design quantities since revision {since}.</p> : (
-                <table className="bom-table" style={{ marginTop: 8 }}>
-                  <thead><tr><th>Sec.</th><th>Description</th><th>Unit</th><th>Rev {since}</th><th>Now</th><th>Change</th><th>Cost change</th></tr></thead>
-                  <tbody>
-                    {changes.map((c) => (
-                      <tr key={c.key}>
-                        <td>{c.section}</td><td>{c.description}</td><td>{c.unit}</td>
-                        <td className="num">{qtyText(c.before)}</td><td className="num">{qtyText(c.after)}</td>
-                        <td className={`num ${c.delta > 0 ? 'ok' : 'bad'}`}>{c.delta > 0 ? '+' : ''}{qtyText(c.delta)}</td>
-                        <td className="num">{c.cost ? `${c.cost > 0 ? '+' : '−'}${money(Math.abs(c.cost))}` : '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </>
-          )}
-        </section>
-      )}
+      {!dialog && tab === 'changes' && <RevisionsPage revisions={revisions} bom={bom} cur={cur} onIssue={() => setDialog({ kind: 'issue' })} />}
 
       {!dialog && tab === 'circuits' && <BoqTable results={results} projectName={project.name} project={project} />}
 
@@ -300,7 +276,7 @@ export default function BomView({ command, project, results, onChange, onStatus 
           <div className="bom-dialog">
             {dialog.kind === 'item' && <ItemForm key={dialog.item.id} item={dialog.item} isNew={dialog.isNew} titles={titles} packages={bom.items}
               onSave={(m) => { onChange({ ...project, boq: { ...custom, sections: ensureSection(m.section), manual: [...(custom?.manual ?? []).filter((x) => x.id !== m.id), m] } }); setDialog(null); }}
-              onDelete={() => { deleteManual(dialog.item.id); setDialog(null); }} onClose={() => setDialog(null)} />}
+              onDelete={() => { deleteManual(dialog.item.id); setDialog(null); if (revisions.some((r) => r.lines.some((l) => l.key === `manual:${dialog.item.id}`))) onStatus(`Deleted — it was issued before, so BOQ Rev ${revisions.length} lists it as omitted under its number`); }} onClose={() => setDialog(null)} />}
             {dialog.kind === 'design' && <DesignForm key={dialog.it.key} it={dialog.it} design={dialog.design} o={custom?.overrides?.[dialog.it.key]} raw={items.find((x) => x.key === dialog.it.key)?.description ?? ''} packages={bom.items}
               onSave={(o) => { setOverride(dialog.it.key, o); setDialog(null); }} onClose={() => setDialog(null)} />}
             {dialog.kind === 'section' && <SectionForm id={dialog.section?.id ?? nextSectionId(custom)} title={dialog.section?.title}
@@ -318,6 +294,8 @@ export default function BomView({ command, project, results, onChange, onStatus 
               onSave={(w) => { setCustom({ wastage: w }); setDialog(null); }} onClose={() => setDialog(null)} />}
             {dialog.kind === 'markup' && <MarkupForm markup={list?.markupPct ?? 0} discount={custom?.discountPct ?? 0} vat={custom?.vatPct}
               onSave={(mk, d, v) => { onChange({ ...project, priceList: { ...(list ?? newPriceList()), markupPct: mk }, boq: { ...custom, discountPct: d || undefined, vatPct: v } }); setDialog(null); }} onClose={() => setDialog(null)} />}
+            {dialog.kind === 'issue' && <IssueForm next={String(revisions.length)} latest={latestIssue?.id} changes={pending.size} netChange={latestIssue ? bom.total - latestIssue.total : undefined} total={bom.total} cur={cur} unchanged={!!latestIssue && !pending.size && Math.abs(latestIssue.grandTotal - bom.grandTotal) < 0.005} me={me}
+              onSave={(r) => { onChange(issueBoqRevision(project, bom, r, cur)); setDialog(null); setTab('changes'); onStatus(`BOQ Rev ${revisions.length} issued — export the PDF or Excel BOQ to send it`); }} onClose={() => setDialog(null)} />}
             {dialog.kind === 'document' && <DocumentForm value={custom?.document ?? {}} fallback={{ preparedBy: project.params?.designedBy, checkedBy: project.params?.checkedBy ?? project.drawing?.checkedBy, approvedBy: project.params?.approvedBy ?? project.drawing?.approvedBy }}
               onSave={(document) => { setCustom({ document }); setDialog(null); }} onClose={() => setDialog(null)} />}
           </div>
@@ -574,5 +552,83 @@ function DocumentForm({ value, fallback, onSave, onClose }: { value: BoqDocument
       <p className="m">A status with “tender” adds the tenderer’s signature block to the grand summary.</p>
       <Actions onClose={onClose} onSave={save} />
     </>
+  );
+}
+
+function IssueForm({ next, latest, changes, netChange, total, cur, unchanged, me, onSave, onClose }: { next: string; latest?: string; changes: number; netChange?: number; total: number; cur: string; unchanged: boolean; me: string; onSave: (r: { description: string; by?: string; date: string }) => void; onClose: () => void }) {
+  const [description, setDescription] = useState(latest === undefined ? 'Issued for tender' : '');
+  const [by, setBy] = useState(me);
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  return (
+    <>
+      <h3>Issue BOQ Rev {next}</h3>
+      <p className="m">Records the bill as it is now — every line, rate and total — as BOQ Rev {next}. BOQ revisions are numbered separately from the design revisions. Issued item numbers stay fixed; lines changed afterwards are shaded and marked △ in the next revision, and deleted lines are listed as omitted.</p>
+      {latest === undefined ? <p>First issue · total excluding VAT {cur} {money(total)}</p>
+        : unchanged ? <p className="warn">Nothing changed since BOQ Rev {latest}.</p>
+        : <p>{changes} line(s) changed since Rev {latest} · net change {netChange! >= 0 ? '+' : '−'}{cur} {money(Math.abs(netChange!))} (excluding VAT)</p>}
+      <div className="form-kv">
+        <label>Description <input className="bi-text" autoFocus value={description} placeholder="e.g. Addendum 1: cable quantities revised" onChange={(e) => setDescription(e.target.value)} /></label>
+        <label>By <input className="bi-text" value={by} onChange={(e) => setBy(e.target.value)} /></label>
+        <label>Date <input className="bi-text" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
+      </div>
+      <Actions onClose={onClose} ok={!!description.trim() && !!date && !unchanged} onSave={() => onSave({ description, by, date })} />
+    </>
+  );
+}
+
+const CURRENT = 'current';
+/** BOQ revisions: the issued history, and what changed between any two of them (or since the latest issue). */
+function RevisionsPage({ revisions, bom, cur, onIssue }: { revisions: BoqRevision[]; bom: PricedBom; cur: string; onIssue: () => void }) {
+  const last = revisions[revisions.length - 1];
+  const [from, setFrom] = useState(revisions.length > 1 ? revisions[revisions.length - 2].id : last?.id ?? '');
+  const [to, setTo] = useState(CURRENT);
+  const lines = (id: string): BoqLine[] | undefined => (id === CURRENT ? linesOf(bom) : revisions.find((r) => r.id === id)?.lines);
+  const a = lines(from), b = lines(to);
+  const rows = a && b ? compareLines(a, b) : [];
+  const totalOf = (id: string) => (id === CURRENT ? bom.total : revisions.find((r) => r.id === id)?.total ?? 0);
+  const rate = (l?: BoqLine) => (l && (l.rate !== undefined || l.labour !== undefined) ? money((l.rate ?? 0) + (l.labour ?? 0)) : '—');
+  if (!last) return (
+    <section className="card">
+      <p>No BOQ revision issued yet. Issue Rev 0 when the bill goes out (for tender, review or approval); from then on every change is tracked line by line and marked △ in the next revision.</p>
+      <button className="chip primary" onClick={onIssue}>Issue Rev 0…</button>
+    </section>
+  );
+  return (
+    <section className="card">
+      <table className="bom-table">
+        <thead><tr><th>Rev</th><th>Date</th><th>Description</th><th>Design rev</th><th>Total excl. VAT</th><th>Grand total</th><th>By</th></tr></thead>
+        <tbody>{[...revisions].reverse().map((r) => <tr key={r.id}><td><b>{r.id}</b></td><td>{r.date}</td><td>{r.description}</td><td>{r.designRev ?? '—'}</td><td className="num">{money(r.total)}</td><td className="num">{money(r.grandTotal)}</td><td>{r.by ?? ''}</td></tr>)}</tbody>
+      </table>
+      <div className="row" style={{ gap: 8, margin: '10px 0' }}>
+        <label className="row" style={{ gap: 6 }}>Compare Rev
+          <select className="chip" value={from} onChange={(e) => setFrom(e.target.value)}>{revisions.map((r) => <option key={r.id} value={r.id}>{r.id}</option>)}</select>
+        </label>
+        <label className="row" style={{ gap: 6 }}>with
+          <select className="chip" value={to} onChange={(e) => setTo(e.target.value)}>
+            <option value={CURRENT}>Current (not issued)</option>
+            {revisions.map((r) => <option key={r.id} value={r.id}>Rev {r.id}</option>)}
+          </select>
+        </label>
+        <b>Net change: {totalOf(to) - totalOf(from) >= 0 ? '+' : '−'}{cur} {money(Math.abs(totalOf(to) - totalOf(from)))}</b>
+        <span className="sp" />
+        <button className="chip" onClick={onIssue}>Issue Rev {revisions.length}…</button>
+      </div>
+      {!rows.length ? <p className="ok">✓ No line changed{to === CURRENT ? ` since Rev ${from}` : ''}.</p> : (
+        <table className="bom-table">
+          <thead><tr><th>Item</th><th>Description</th><th>Change</th><th>Qty</th><th>Rate</th><th>Amount change</th></tr></thead>
+          <tbody>{rows.map((c) => (
+            <tr key={c.key}>
+              <td>{c.no}</td>
+              <td>{c.kinds.includes('omitted') ? <s>{c.description}</s> : c.description}</td>
+              <td>{c.kinds.map((k) => CHANGE_LABEL[k]).join(', ')}</td>
+              <td className="num">{c.before ? qtyText(c.before.qty) : '—'} → {c.after ? qtyText(c.after.qty) : '—'}</td>
+              <td className="num">{rate(c.before)} → {rate(c.after)}</td>
+              <td className="num">{c.delta ? `${c.delta > 0 ? '+' : '−'}${money(Math.abs(c.delta))}` : '—'}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      )}
+      <p className="m">Lines are matched by their item; quantity, rate (supply + installation), description and scope (responsibility, action, by others) changes are listed. Markup, discount and VAT show in the totals.</p>
+    </section>
   );
 }

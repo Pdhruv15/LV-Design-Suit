@@ -156,12 +156,6 @@ describe('BOQ scope exports', () => {
     expect(html).toContain('<td>Data, fire alarm, CCTV, access control and other ELV scope</td><td>Not applicable</td>');
   });
 
-  it('states the limits of revision quantity comparisons in the workbook', () => {
-    const wb = buildBoqWorkbook(project(), empty, undefined, { since: 'A', rows: [{ ...item, before: 1, after: 2, delta: 1, cost: 100 }] });
-    const notes: string[] = [];
-    wb.getWorksheet('Changes since A')!.eachRow((row) => row.eachCell((cell) => { if (typeof cell.value === 'string') notes.push(cell.value); }));
-    expect(notes).toContain('Design quantity changes at current rates; scope actions, responsibility, package inclusions and manual BOQ changes are not compared.');
-  });
 
   it('discloses critical migration and data checks for legacy projects without adding a template checklist', () => {
     const custom: BoqCustom = { includeSchedulePoints: true, overrides: { 'panel:DB:100:-': { excluded: true } }, manual: [
@@ -238,7 +232,7 @@ describe('tender-format PDF BOQ', () => {
     expect(html).toContain('<tr><td>Document no.</td><td>VC-ELE-BOQ-001</td></tr>');
     expect(html).toContain('<tr><td>Status</td><td>Issued for tender</td></tr>');
     for (const name of ['P. Engineer', 'C. Lead', 'A. Director']) expect(html).toContain(name);
-    expect(html).toMatch(/@bottom-left \{ content: "VC-ELE-BOQ-001 · \d{2} \w{3} \d{4}"/);
+    expect(html).toMatch(/@bottom-left \{ content: "VC-ELE-BOQ-001 · Draft · \d{2} \w{3} \d{4}"/);
     expect(html).toContain('Tenderer’s name');
     expect(buildBoqHtml(project({ document: { status: 'Cost estimate' } }), priceBom([item], list), list)).not.toContain('Tenderer’s name');
   });

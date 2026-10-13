@@ -13,7 +13,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe('BOQ rendered scope and pricing', () => {
   it('keeps the BOQ table and navigation, with scope review inside the existing page', () => {
     const html = render();
-    for (const label of ['Bill of quantities', 'Scope &amp; review', 'Changes since a revision', 'Per circuit', 'Supply rate', 'Install rate', 'Location / note']) expect(html).toContain(label);
+    for (const label of ['Bill of quantities', 'Scope &amp; review', 'Revisions', 'Per circuit', 'Supply rate', 'Install rate', 'Location / note']) expect(html).toContain(label);
     expect(html).not.toContain('modal-backdrop');
     expect(html).toContain('Load schedule ELCB groups');
   });

@@ -1082,7 +1082,6 @@ export default function App() {
           onView: setView,
           onBom: (cmd) => { setView('boq'); setBomCmd((c) => ({ cmd, n: (c?.n ?? 0) + 1 })); },
           hasPriceList: !!project.priceList,
-          hasRevisions: !!project.revisions?.length,
           tool,
           onTool: setTool,
           boardId: board?.id ?? '',
@@ -1465,7 +1464,7 @@ export default function App() {
             {view === 'boq' && (
               <>
                 <section className="stage"><h3>Bill of quantities — whole project</h3></section>
-                <BomView command={bomCmd} project={project} results={allResults} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />
+                <BomView command={bomCmd} project={project} results={allResults} me={prefs.profile.name ? initialsOf(prefs.profile.name) : ''} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />
               </>
             )}
             </Suspense>
