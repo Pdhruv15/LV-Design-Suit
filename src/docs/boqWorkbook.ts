@@ -1,8 +1,9 @@
 import ExcelJS from 'exceljs';
 import type { Project } from '../types';
 import type { BomItem } from '../calc/bom';
-import { pricingBasis, type BomChange, type PriceList, type PricedBom, type PricedItem } from '../model/priceList';
+import { pricingBasis, validVat, type BomChange, type PriceList, type PricedBom, type PricedItem } from '../model/priceList';
 import { revisionStamp } from '../model/revisions';
+import { reportDoc } from './reportFrame';
 import { boqReview, SCOPE_CHECKS } from '../model/boqScope';
 
 /** The BOQ as an Excel workbook in tender format: a summary sheet, the
@@ -32,9 +33,9 @@ const reviewCategories: Record<string, string> = {
   evidence: 'Allowances or product details to confirm', package: 'Package links to review', changed: 'Design quantities changed',
   'schedule-points': 'Schedule points to confirm', 'schedule-omitted': 'Omitted schedule point counts',
   'orphan-override': 'Saved BOQ overrides to review', 'legacy-wire-rate': 'Wire quotes require the new unit', 'legacy-panel-rate': 'Panel quotes require the current specification',
-  wastage: 'Wastage allowances to review', markup: 'Markup to review', discount: 'Discount to review'
+  wastage: 'Wastage allowances to review', markup: 'Markup to review', discount: 'Discount to review', vat: 'VAT to review'
 };
-const legacyCriticalChecks = new Set(['orphan-override', 'legacy-wire-rate', 'legacy-panel-rate', 'package', 'schedule-omitted', 'schedule-points', 'quantity', 'invalid-rate', 'wastage', 'markup', 'discount', 'device-mismatch']);
+const legacyCriticalChecks = new Set(['orphan-override', 'legacy-wire-rate', 'legacy-panel-rate', 'package', 'schedule-omitted', 'schedule-points', 'quantity', 'invalid-rate', 'wastage', 'markup', 'discount', 'vat', 'device-mismatch']);
 /** New templates disclose the whole scope review; older projects must still
  * disclose migration and data issues without acquiring a template checklist. */
 const exportReview = (project: Project, bom: PricedBom) => boqReview(project, bom).filter((check) => templateLabel(project) || legacyCriticalChecks.has(check.id.split(':')[0]));
@@ -100,7 +101,12 @@ export function buildBoqWorkbook(project: Project, bom: PricedBom, list?: PriceL
   line('Subtotal', bom.subtotal, true);
   if (list?.markupPct) line(`Overheads and profit (${list.markupPct} %)`, bom.markup);
   if (bom.discount) line('Discount', -bom.discount);
-  line('Total', bom.total, true);
+  const vatPct = validVat(project.boq?.vatPct);
+  if (vatPct) {
+    line('Total (excluding VAT)', bom.total, true);
+    line(`VAT (${vatPct} %)`, bom.vat);
+    line('Grand total (including VAT)', bom.grandTotal, true);
+  } else line('Total', bom.total, true);
   sum.getColumn(3).numFmt = MONEY;
   r++;
   sum.getCell(r++, 2).value = 'Pricing basis';
@@ -264,30 +270,115 @@ export async function readPriceWorkbook(bytes: ArrayBuffer, items: BomItem[]): P
 const escH = (v: string) => v.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 const m2 = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-function billRow(it: PricedItem, number: string): string {
-  const rate = (charge: boolean, missing: boolean | undefined, value: number | undefined) => !charge ? '—' : missing || value === undefined ? '<span class="flag">NO RATE</span>' : m2(value);
-  const amount = it.source === 'excluded' ? escH(noChargeLabel(it)) : `${m2(it.amount)}${!validQuantity(it) ? ' <span class="flag">INVALID QUANTITY</span>' : ''}${unpriced(it) ? ' <span class="flag">NO RATE — partial / incomplete</span>' : ''}`;
-  const detail = [responsibilityDetails(it), quantityDetails(it)].filter(Boolean).map(escH).join('<br>');
-  return `<tr><td>${escH(number)}</td><td>${escH(it.description)}${detail ? `<div class="m">${detail}</div>` : ''}${it.source === 'typical' ? ' <span class="flag">typical rate</span>' : ''}${it.designQty !== undefined ? ` <span class="flag">qty changed (design ${m2(it.designQty)})${it.changed ? ' — design moved, review' : ''}</span>` : ''}</td><td>${escH(it.unit)}</td><td class="n">${validQuantity(it) ? m2(it.qty) : '<span class="flag">INVALID</span>'}</td><td class="n">${rate(supplyCharge(it), it.supplyRateMissing, it.rate)}</td><td class="n">${rate(installCharge(it), it.installRateMissing, it.labour)}</td><td class="n">${amount}</td></tr>`;
+const qtyH = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+/** A quoted CSS string for `content:` inside the <style> element. */
+const cssStr = (v: string) => `"${v.replace(/[\\"]/g, '\\$&').replace(/[\r\n]+/g, ' ').replace(/</g, '\\3c ')}"`;
+/** Only plain base64 images go into the stylesheet (running-header logo). */
+const cssImage = (v?: string) => (v && /^data:image\/(png|jpe?g|gif|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$/.test(v) ? v : undefined);
+const billId = (section: string) => `bill-${section.replace(/[^A-Za-z0-9_-]/g, '_')}`;
+const shortDate = (iso?: string) => {
+  const d = iso && /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(`${iso}T00:00:00`) : undefined;
+  return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : iso ?? '';
+};
+
+const CURRENCY_NAMES: Record<string, string> = {
+  AED: 'UAE Dirhams', SAR: 'Saudi Riyals', QAR: 'Qatari Riyals', OMR: 'Omani Rials', KWD: 'Kuwaiti Dinars', BHD: 'Bahraini Dinars',
+  USD: 'US Dollars', EUR: 'Euros', GBP: 'Pounds Sterling', INR: 'Indian Rupees'
+};
+const ONES = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+const TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+function below1000(n: number): string {
+  if (n < 20) return ONES[n];
+  if (n < 100) return TENS[Math.floor(n / 10)] + (n % 10 ? `-${ONES[n % 10]}` : '');
+  return `${ONES[Math.floor(n / 100)]} hundred${n % 100 ? ` and ${below1000(n % 100)}` : ''}`;
+}
+/** "UAE Dirhams Two hundred and two thousand … and 50/100 only" — the amount in words of the grand summary. */
+export function amountInWords(amount: number, currency: string): string {
+  const cents = Math.round(Math.abs(amount) * 100);
+  let whole = Math.floor(cents / 100);
+  const parts: string[] = [];
+  for (const [size, name] of [[1e12, 'trillion'], [1e9, 'billion'], [1e6, 'million'], [1e3, 'thousand'], [1, '']] as const) {
+    if (whole >= size) { parts.push(`${below1000(Math.floor(whole / size))}${name ? ` ${name}` : ''}`); whole %= size; }
+  }
+  const text = `${amount < 0 ? 'minus ' : ''}${parts.join(' ') || 'zero'}${cents % 100 ? ` and ${cents % 100}/100` : ''}`;
+  return `${CURRENCY_NAMES[currency.toUpperCase()] ?? currency} ${text.charAt(0).toUpperCase()}${text.slice(1)} only`;
 }
 
-/** The BOQ as a printable page (PDF): header with logo, summary, and — unless
- * summaryOnly — the full bill with section totals. */
-export function buildBoqHtml(project: Project, bom: PricedBom, list?: PriceList, summaryOnly = false): string {
+const ACTIONS: Record<string, string> = { retain: 'Existing — retain', relocate: 'Existing — relocate', remove: 'Existing — remove', replace: 'Replace existing' };
+/** The small grey line under a description: what a tenderer needs (where, by whom, evidence), not the takeoff trail. */
+function itemNotes(it: PricedItem): string {
+  return [
+    ACTIONS[it.action ?? 'new'],
+    (it.supplyBy ?? 'contractor') !== 'contractor' ? `Supply by ${it.supplyBy}` : undefined,
+    (it.installBy ?? 'contractor') !== 'contractor' ? `Installation by ${it.installBy}` : undefined,
+    it.where.length ? `Ref: ${it.where.slice(0, 6).join(', ')}${it.where.length > 6 ? ' …' : ''}` : undefined,
+    it.evidence ? `Evidence: ${it.evidence}` : undefined,
+    it.note,
+    it.designQty !== undefined ? `Qty adjusted (design ${qtyH(it.designQty)})${it.changed ? ' — design changed, review' : ''}` : undefined,
+    !validQuantity(it) ? 'Invalid quantity — omitted from the total' : undefined
+  ].filter(Boolean).map((x) => escH(x!)).join(' · ');
+}
+
+function billRow(it: PricedItem, number: string): string {
+  const rate = (charge: boolean, missing: boolean | undefined, value: number | undefined) => !charge ? '—' : missing || value === undefined ? '<i>TBA</i>' : m2(value);
+  const valid = validQuantity(it);
+  const amount = it.source === 'excluded' ? `<i>${escH(noChargeLabel(it))}</i>`
+    : !valid ? '<i>Omitted</i>'
+    : unpriced(it) ? (it.amount ? `${m2(it.amount)}<sup>*</sup>` : '<i>Not priced</i>')
+    : m2(it.amount);
+  const notes = itemNotes(it);
+  return `<tr><td>${escH(number)}</td><td>${escH(it.description)}${it.source === 'typical' ? '<sup>†</sup>' : ''}${notes ? `<div class="ref">${notes}</div>` : ''}</td><td class="c">${escH(it.unit)}</td><td class="n">${valid ? qtyH(it.qty) : '<i>Invalid</i>'}</td><td class="n">${rate(supplyCharge(it), it.supplyRateMissing, it.rate)}</td><td class="n">${rate(installCharge(it), it.installRateMissing, it.labour)}</td><td class="n">${amount}</td></tr>`;
+}
+
+/** Outline of the PDF BOQ (bookmarks), from the pages its anchors landed on. */
+export const boqBookmarks = (bom: PricedBom) => (pages: Record<string, number>): { title: string; page: number }[] => [
+  { title: 'Cover', page: 0 },
+  ...(pages['boq-notes'] ? [{ title: 'General notes', page: pages['boq-notes'] - 1 }] : []),
+  ...(pages['boq-summary'] ? [{ title: 'Grand summary', page: pages['boq-summary'] - 1 }] : []),
+  ...bom.sections.filter((s) => pages[billId(s.section)]).map((s) => ({ title: `Bill ${s.section} — ${s.title}`, page: pages[billId(s.section)] - 1 })),
+  ...(pages['boq-appendix'] ? [{ title: 'Scope review appendix', page: pages['boq-appendix'] - 1 }] : [])
+];
+
+/** The BOQ as a printable document (PDF, A4 portrait), plain black and white:
+ * cover with document control, general notes and pricing basis, grand summary
+ * (page of each bill, VAT, amount in words), the bills, and the scope review
+ * appendix. The company logo heads every page after the cover. `summaryOnly`
+ * prints the grand summary on its own. `pages` are the pages of the anchors
+ * from a first print, for the page column of the summary and contents. */
+export function buildBoqHtml(project: Project, bom: PricedBom, list?: PriceList, summaryOnly = false, pages: Record<string, number> = {}): string {
   const basis = pricingBasis(bom, list);
   const cur = list?.currency ?? 'AED';
+  const vatPct = validVat(project.boq?.vatPct);
+  const doc = project.boq?.document ?? {};
+  const d = reportDoc(project, { title: 'Bill of quantities', docNo: doc.docNo, preparedBy: doc.preparedBy, checkedBy: doc.checkedBy, approvedBy: doc.approvedBy });
+  const date = d.revisionDate ? shortDate(d.revisionDate) : shortDate(new Date().toISOString().slice(0, 10));
+  const company = project.drawing?.company?.trim() || d.consultant || '';
+  const status = doc.status?.trim();
   const template = templateLabel(project);
   const review = exportReview(project, bom);
-  const logo = project.drawing?.logo?.startsWith('data:image/') ? `<img class="logo" src="${escH(project.drawing.logo)}" alt="">` : '';
-  const summary = `<table class="t"><thead><tr><th>Section</th><th>Description</th><th class="n">Amount (${escH(cur)})</th></tr></thead><tbody>
-    ${bom.sections.map((s) => `<tr><td>${escH(s.section)}</td><td>${escH(s.title)}</td><td class="n">${m2(s.amount)}</td></tr>`).join('')}
-    <tr class="b"><td></td><td>Subtotal</td><td class="n">${m2(bom.subtotal)}</td></tr>
-    ${list?.markupPct ? `<tr><td></td><td>Overheads and profit (${list.markupPct} %)</td><td class="n">${m2(bom.markup)}</td></tr>` : ''}
-    ${bom.discount ? `<tr><td></td><td>Discount</td><td class="n">−${m2(bom.discount)}</td></tr>` : ''}
-    <tr class="b"><td></td><td>Total</td><td class="n">${escH(cur)} ${m2(bom.total)}</td></tr></tbody></table>`;
-  const bill = summaryOnly ? '' : `<h2>Bill of quantities</h2><table class="t"><thead><tr><th>Item</th><th>Description</th><th>Unit</th><th class="n">Qty</th><th class="n">Supply</th><th class="n">Install</th><th class="n">Amount</th></tr></thead><tbody>
-    ${bom.sections.map((s) => `<tr class="sec"><td>${escH(s.section)}</td><td colspan="6">${escH(s.title.toUpperCase())}</td></tr>${s.items.map((it, i) => billRow(it, `${s.section}.${i + 1}`)).join('')}<tr class="b"><td></td><td colspan="5">Total section ${escH(s.section)} carried to summary</td><td class="n">${m2(s.amount)}</td></tr>`).join('')}
-    </tbody></table>`;
+  const headLogo = cssImage(d.logo);
+  const pg = (id: string) => (pages[id] ? String(pages[id]) : '');
+  const footer = [d.docNo, d.revision ? `Rev ${d.revision}` : undefined, date].filter(Boolean).join(' · ');
+
+  const totals = `
+    <tbody class="tot"><tr><td></td><td colspan="${summaryOnly ? 1 : 2}">Subtotal</td><td class="n">${m2(bom.subtotal)}</td></tr></tbody>
+    <tbody>${list?.markupPct ? `<tr><td></td><td colspan="${summaryOnly ? 1 : 2}">Overheads and profit (${list.markupPct} %)</td><td class="n">${m2(bom.markup)}</td></tr>` : ''}
+    ${bom.discount ? `<tr><td></td><td colspan="${summaryOnly ? 1 : 2}">Discount (${project.boq?.discountPct} %)</td><td class="n">−${m2(bom.discount)}</td></tr>` : ''}</tbody>
+    ${vatPct ? `<tbody class="tot"><tr><td></td><td colspan="${summaryOnly ? 1 : 2}">Total excluding VAT</td><td class="n">${m2(bom.total)}</td></tr></tbody>
+    <tbody><tr><td></td><td colspan="${summaryOnly ? 1 : 2}">VAT (${vatPct} %)</td><td class="n">${m2(bom.vat)}</td></tr></tbody>` : ''}
+    <tbody class="gt"><tr><td></td><td colspan="${summaryOnly ? 1 : 2}">GRAND TOTAL (${escH(cur)}, ${vatPct ? 'including' : 'excluding'} VAT)</td><td class="n">${m2(bom.grandTotal)}</td></tr></tbody>`;
+  const summary = `<section id="boq-summary" class="${summaryOnly ? '' : 'page'}">
+    <h2>${summaryOnly ? 'Bill of quantities — summary' : 'Grand summary'}</h2>
+    <table class="b sum"><colgroup><col style="width:14mm"><col>${summaryOnly ? '' : '<col style="width:14mm">'}<col style="width:34mm"></colgroup>
+      <thead><tr><th>Bill</th><th>Description</th>${summaryOnly ? '' : '<th>Page</th>'}<th>Amount (${escH(cur)})</th></tr></thead>
+      <tbody>${bom.sections.map((s) => `<tr><td class="c">${escH(s.section)}</td><td>${summaryOnly ? escH(s.title) : `<a href="#${billId(s.section)}">${escH(s.title)}</a>`}</td>${summaryOnly ? '' : `<td class="c">${pg(billId(s.section))}</td>`}<td class="n">${m2(s.amount)}</td></tr>`).join('')}</tbody>
+      ${totals}
+    </table>
+    <div class="words"><b>Amount in words:</b> ${escH(amountInWords(bom.grandTotal, cur))}.</div>
+    ${bom.missing ? `<p class="small">${bom.missing} item(s) have a rate to be advised (TBA); their unpriced part is not included in the total.</p>` : ''}
+    ${status && /tender/i.test(status) ? '<table class="grid sign"><tbody><tr><td style="width:42mm">Tenderer’s name</td><td></td></tr><tr><td>Signature and stamp</td><td class="sig"></td></tr><tr><td>Date</td><td></td></tr></tbody></table>' : ''}
+  </section>`;
+
   const decisions = template ? scopeDecisions(project) : [];
   const unreviewed = decisions.filter((check) => check.decision === 'not-reviewed').length;
   const categories = new Map<string, number>();
@@ -295,28 +386,119 @@ export function buildBoqHtml(project: Project, bom: PricedBom, list?: PriceList,
     const category = reviewCategories[check.id.split(':')[0]] ?? 'Other checks';
     categories.set(category, (categories.get(category) ?? 0) + 1);
   }
-  const scopeBrief = template || review.length ? `<div class="basis scope-brief${review.length ? ' warn' : ''}"><b>${template ? `Scope template: ${escH(template)}` : 'BOQ data review'}</b>${review.length ? `<p>${review.length} ${template ? `scope check(s) need review; ${unreviewed} checklist area(s) not reviewed` : 'data check(s) need review'}.</p><ul>${[...categories].slice(0, 3).map(([category, count]) => `<li>${escH(category)}: ${count}</li>`).join('')}</ul>` : '<p>No pending checklist entries. Validate quantities, specification and contract documents before tender.</p>'}<p>${summaryOnly ? 'Full review details and complete exclusions are in the full BOQ appendix.' : 'Full review details follow the bill in the BOQ appendix.'}</p><p>This is a design-based estimate; checklist completion is not contract approval.</p></div>` : '';
-  const appendix = (template || review.length || project.boq?.scopeNotes) && !summaryOnly ? `<section class="scope-appendix"><h2>${template ? `Scope review appendix — ${escH(template)}` : 'BOQ data review appendix'}</h2>
-    ${template ? `<h2>Scope checklist decisions</h2><table class="t"><thead><tr><th>Scope area</th><th>Decision</th></tr></thead><tbody>${decisions.map((check) => `<tr><td>${escH(check.title)}</td><td>${escH(check.label)}</td></tr>`).join('')}</tbody></table>` : ''}
-    ${project.boq?.scopeNotes ? `<h2>Scope exclusions / assumptions</h2><p class="scope-notes">${escH(project.boq.scopeNotes)}</p>` : ''}
-    <h2>Outstanding checks (${review.length})</h2>${review.length ? `<ul>${review.map((check) => `<li>${escH(check.message)}</li>`).join('')}</ul>` : '<p>No pending checklist entries.</p>'}
-    <p>This is a design-based estimate; checklist completion is not contract approval.</p></section>` : '';
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${escH(project.name)} — BOQ</title><style>
-    @page { size: A4; margin: 12mm; } body { font: 9.5px/1.35 Arial, sans-serif; color: #111; margin: 0; }
-    header { display: flex; align-items: center; gap: 10px; border-bottom: 2px solid #111; padding-bottom: 4px; margin-bottom: 8px; }
-    header h1 { font-size: 15px; margin: 0; } .logo { max-height: 12mm; max-width: 45mm; } .sp { flex: 1; } .m { color: #555; }
-    h2 { font-size: 12px; margin: 12px 0 4px; }
-    .t { width: 100%; border-collapse: collapse; } .t th, .t td { border: 0.2mm solid #999; padding: 2px 4px; vertical-align: top; }
-    .t th { background: #1d4f8f; color: #fff; text-align: left; } .n { text-align: right; white-space: nowrap; }
-    .sec td { background: #dbe7f7; font-weight: 700; } .b td { font-weight: 700; } thead { display: table-header-group; } tr { break-inside: avoid; }
-  .basis{border:1px solid #999;border-radius:4px;padding:5px 9px;margin:6px 0 10px;font-size:10px}.basis.warn{border-color:#b45309;background:#fef3c7}.basis ul{margin:3px 0 0 16px;padding:0}.basis p{margin:3px 0 0}
-  .flag{font-size:8.5px;font-weight:600;color:#9a3412}
-  .scope-appendix{break-before:page}.scope-appendix li{break-inside:avoid}.scope-notes{white-space:pre-wrap;overflow-wrap:anywhere}
-  </style></head><body>
-  <header>${logo}<div><h1>${escH(project.name)}</h1><div class="m">Bill of quantities · ${escH(revisionStamp(project))}${project.info?.owner ? ` · ${escH(project.info.owner)}` : ''}</div></div><span class="sp"></span><div class="m">Rates: ${list ? `${escH(list.name)}, ${escH(list.date)}${basis.typical ? ` + ${basis.typical} at typical rates` : ''}` : 'typical built-in rates (illustrative)'}</div></header>
-  <div class="basis${basis.missing || basis.typical || basis.designMoved ? ' warn' : ''}"><b>Pricing basis</b><ul>${basis.lines.map((l) => `<li>${escH(l)}</li>`).join('')}</ul>${summaryOnly && (basis.missing || basis.typical) ? '<p>Items without a list rate are named in the full BOQ.</p>' : ''}</div>
-  ${scopeBrief}
-  ${project.boq?.scopeNotes ? `<div class="basis"><b>Scope exclusions / assumptions</b><p class="scope-notes">${escH(briefText(project.boq.scopeNotes))}</p>${project.boq.scopeNotes.length > 200 ? '<p>See the full BOQ appendix for complete notes.</p>' : ''}</div>` : ''}
-  <h2>Summary</h2>${summary}${bill}${appendix}
-  </body></html>`;
+  const scopeBrief = template || review.length ? `<div class="box scope-brief"><b>${template ? `Scope template: ${escH(template)}` : 'BOQ data review'}</b>${review.length ? `<p>${review.length} ${template ? `scope check(s) need review; ${unreviewed} checklist area(s) not reviewed` : 'data check(s) need review'}.</p><ul>${[...categories].slice(0, 3).map(([category, count]) => `<li>${escH(category)}: ${count}</li>`).join('')}</ul>` : '<p>No pending checklist entries. Validate quantities, specification and contract documents before tender.</p>'}<p>${summaryOnly ? 'Full review details and complete exclusions are in the full BOQ appendix.' : 'Full review details are in the appendix.'} This is a design-based estimate; checklist completion is not contract approval.</p></div>` : '';
+  const scopeNotes = project.boq?.scopeNotes ? `<div class="box"><b>Scope exclusions / assumptions</b><p class="pre">${escH(summaryOnly ? briefText(project.boq.scopeNotes) : project.boq.scopeNotes)}</p>${summaryOnly && project.boq.scopeNotes.length > 200 ? '<p>See the full BOQ appendix for complete notes.</p>' : ''}</div>` : '';
+  const legend = `<table class="legend"><tbody>
+    <tr><td>†</td><td>Priced at a built-in typical rate — illustrative; replace with a quoted rate.</td></tr>
+    <tr><td><i>TBA</i></td><td>Rate to be advised; not included in the total.</td></tr>
+    <tr><td>*</td><td>Amount incomplete: a charge marked TBA is not included.</td></tr>
+    <tr><td>—</td><td>No charge under this item (by others, retained or included elsewhere).</td></tr>
+    <tr><td>Ref:</td><td>Boards and locations the quantity is taken from.</td></tr></tbody></table>`;
+  const basisList = `<ol class="notes">
+      <li>This bill of quantities shall be read with the drawings, specification and conditions of contract. Quantities are taken from the design model and are approximate; the tenderer shall verify them before pricing.</li>
+      <li>Rates include supply, delivery, installation, termination, testing and commissioning, and all labour, plant and sundries needed to complete the work, unless stated otherwise.</li>
+      <li>Amount = quantity × (supply rate + installation rate). Amounts are in ${escH(cur)}${vatPct ? `; VAT at ${vatPct} % is added in the grand summary` : ' and exclude VAT'}.</li>
+      ${basis.lines.map((l) => `<li>${escH(l)}</li>`).join('')}
+    </ol>`;
+
+  if (summaryOnly) return page(`
+    ${summary.replace('</h2>', `</h2><p class="small sub">${escH([d.client ? `Client: ${d.client}` : '', footer].filter(Boolean).join(' · '))}</p>`)}
+    <h3>Pricing basis</h3>${basisList}
+    ${summaryOnly && (basis.missing || basis.typical) ? '<p class="small">Items without a list rate are named in the full BOQ.</p>' : ''}
+    ${scopeBrief}${scopeNotes}`);
+
+  const revisions = d.revisions.length ? d.revisions.slice(-5) : [{ id: '—', date: '', description: status ?? 'Draft', by: undefined }];
+  const cover = `<section class="cover">
+    <div class="top">${d.logo ? `<img class="logo" src="${escH(d.logo)}" alt="">` : '<span></span>'}<div class="co">${escH(company)}</div></div>
+    <div class="mid">
+      <div class="k">ELECTRICAL LV WORKS</div>
+      <h1>BILL OF QUANTITIES</h1>
+      <div class="pn">${escH(project.name)}</div>
+      <table class="kv"><tbody>
+        ${([['Client', d.client], ['Location', d.location], ['Consultant', d.consultant], ['Contractor', d.contractor], ['Document no.', d.docNo], ['Revision', d.revision ? `Rev ${d.revision} — ${date}` : undefined],
+          ['Currency', `${CURRENCY_NAMES[cur.toUpperCase()] ? `${CURRENCY_NAMES[cur.toUpperCase()]} (${cur})` : cur}, ${vatPct ? `VAT ${vatPct} % added in the grand summary` : 'excluding VAT'}`], ['Status', status]] as [string, string | undefined][])
+          .filter(([, v]) => v).map(([k, v]) => `<tr><td>${k}</td><td>${escH(v!)}</td></tr>`).join('')}
+      </tbody></table>
+    </div>
+    <table class="grid"><thead><tr><th style="width:12mm">Rev</th><th style="width:24mm">Date</th><th>Description</th><th style="width:25mm">Prepared</th><th style="width:25mm">Checked</th><th style="width:25mm">Approved</th></tr></thead>
+      <tbody>${revisions.map((r, i) => {
+        const last = i === revisions.length - 1;
+        return `<tr><td>${escH(r.id)}</td><td>${escH(shortDate(r.date))}</td><td>${escH(r.description)}</td><td class="sig">${escH((last ? d.preparedBy : undefined) ?? r.by ?? '')}</td><td>${escH(last ? d.checkedBy ?? '' : '')}</td><td>${escH(last ? d.approvedBy ?? '' : '')}</td></tr>`;
+      }).join('')}</tbody></table>
+  </section>`;
+
+  const contents = `<table class="contents"><tbody>
+    <tr><td><a href="#boq-summary">Grand summary</a></td><td class="n">${pg('boq-summary')}</td></tr>
+    ${bom.sections.map((s) => `<tr><td><a href="#${billId(s.section)}">Bill ${escH(s.section)} — ${escH(s.title)}</a></td><td class="n">${pg(billId(s.section))}</td></tr>`).join('')}
+    ${template || review.length || project.boq?.scopeNotes ? `<tr><td><a href="#boq-appendix">Scope review appendix</a></td><td class="n">${pg('boq-appendix')}</td></tr>` : ''}
+  </tbody></table>`;
+  const notes = `<section id="boq-notes" class="page"><a class="dest" href="#boq-notes"></a>
+    <h2>General notes and pricing basis</h2>${basisList}
+    <h3>Legend</h3>${legend}
+    ${scopeBrief}${scopeNotes}
+    <h3>Contents</h3>${contents}
+  </section>`;
+
+  const bills = `<section class="page"><table class="b bill"><colgroup><col style="width:12mm"><col><col style="width:11mm"><col style="width:15mm"><col style="width:20mm"><col style="width:20mm"><col style="width:25mm"></colgroup>
+    <thead><tr><th>Item</th><th>Description</th><th>Unit</th><th>Qty</th><th>Supply<br>rate</th><th>Install<br>rate</th><th>Amount<br>(${escH(cur)})</th></tr></thead>
+    ${bom.sections.map((s) => `
+      <tbody class="sec" id="${billId(s.section)}"><tr><td>${escH(s.section)}</td><td colspan="6">BILL ${escH(s.section)} — ${escH(s.title.toUpperCase())}</td></tr></tbody>
+      <tbody>${s.items.length ? s.items.map((it, i) => billRow(it, `${s.section}.${i + 1}`)).join('') : '<tr><td></td><td colspan="6"><i>No items</i></td></tr>'}</tbody>
+      <tbody class="tot"><tr><td></td><td colspan="5">Total Bill ${escH(s.section)} carried to grand summary</td><td class="n">${m2(s.amount)}</td></tr></tbody>`).join('')}
+  </table></section>`;
+
+  const appendix = template || review.length || project.boq?.scopeNotes ? `<section id="boq-appendix" class="page"><h2>${template ? `Scope review appendix — ${escH(template)}` : 'BOQ data review appendix'}</h2>
+    ${template ? `<h3>Scope checklist decisions</h3><table class="b"><thead><tr><th>Scope area</th><th style="width:40mm">Decision</th></tr></thead><tbody>${decisions.map((check) => `<tr><td>${escH(check.title)}</td><td>${escH(check.label)}</td></tr>`).join('')}</tbody></table>` : ''}
+    ${project.boq?.scopeNotes ? `<h3>Scope exclusions / assumptions</h3><p class="pre">${escH(project.boq.scopeNotes)}</p>` : ''}
+    <h3>Outstanding checks (${review.length})</h3>${review.length ? `<ul>${review.map((check) => `<li>${escH(check.message)}</li>`).join('')}</ul>` : '<p>No pending checklist entries.</p>'}
+    <p class="small">This is a design-based estimate; checklist completion is not contract approval.</p></section>` : '';
+
+  return page(`${cover}${notes}${summary}${bills}${appendix}`);
+
+  function page(body: string): string {
+    const box = (where: string, content: string, extra = '') => `@${where} { content: ${content}; ${extra} }`;
+    const rule = 'font: 7.5pt Arial, Helvetica, sans-serif; color: #444;';
+    const top = `${rule} vertical-align: bottom; padding-bottom: 2.5mm; border-bottom: 0.4pt solid #000;`;
+    const bottom = `${rule} vertical-align: top; padding-top: 2.5mm; border-top: 0.4pt solid #000;`;
+    return `<!doctype html><html><head><meta charset="utf-8"><title>${escH(project.name)} — ${summaryOnly ? 'BOQ summary' : 'Bill of quantities'}</title><style>
+  @page { size: A4; margin: 21mm 14mm 16mm 16mm;
+    ${headLogo ? box('top-left', '""', `width: 45mm; background: url("${headLogo}") no-repeat left bottom 2.5mm / auto 9mm; ${top}`) : box('top-left', cssStr(company || project.name), top)}
+    ${box('top-right', cssStr(`${headLogo || company ? `${project.name}   ·   ` : ''}${summaryOnly ? 'BOQ SUMMARY' : 'BILL OF QUANTITIES'}`), top)}
+    ${box('bottom-left', cssStr(footer), bottom)}
+    ${box('bottom-right', '"Page " counter(page) " of " counter(pages)', bottom)}
+  }
+  @page cover { margin: 16mm; @top-left { content: none; } @top-right { content: none; } @bottom-left { content: none; } @bottom-right { content: none; } }
+  * { box-sizing: border-box; }
+  body { font: 8.5pt/1.35 Arial, Helvetica, sans-serif; color: #000; margin: 0; }
+  a { color: inherit; text-decoration: none; } a.dest { display: block; height: 0; }
+  h1 { margin: 0; } h2 { font-size: 11pt; margin: 0 0 3mm; text-transform: uppercase; letter-spacing: .02em; } h3 { font-size: 9pt; margin: 5mm 0 2mm; text-transform: uppercase; }
+  p { margin: 1.5mm 0; } .small { font-size: 7.6pt; color: #444; } .pre { white-space: pre-wrap; overflow-wrap: anywhere; } ul { margin: 1mm 0 1mm 5mm; padding: 0; }
+  .page { break-before: page; }
+  .k { font-size: 8.5pt; letter-spacing: .2em; color: #444; text-transform: uppercase; }
+  .cover { page: cover; height: 264mm; display: flex; flex-direction: column; }
+  .cover .top { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 1.2pt solid #000; padding-bottom: 4mm; min-height: 18mm; }
+  .cover .logo { max-height: 18mm; max-width: 60mm; } .cover .co { font-size: 10pt; font-weight: 700; text-align: right; }
+  .cover .mid { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+  .cover h1 { font-size: 24pt; margin: 2mm 0 1mm; letter-spacing: .02em; } .cover .pn { font-size: 14pt; margin-bottom: 8mm; }
+  .kv { border-collapse: collapse; width: 100%; font-size: 9pt; } .kv td { padding: 1.6mm 2mm; border-bottom: 0.3pt solid #bbb; } .kv td:first-child { width: 40mm; color: #444; }
+  .grid { border-collapse: collapse; width: 100%; font-size: 8pt; margin-top: 5mm; } .grid th, .grid td { border: 0.4pt solid #000; padding: 1.4mm 2mm; text-align: left; vertical-align: top; }
+  .grid th { background: #f2f2f2; } .grid td.sig { height: 10mm; } .sign { margin-top: 10mm; }
+  .sub { margin: -2mm 0 3mm; }
+  ol.notes { margin: 0; padding-left: 5mm; } ol.notes li { margin: 0 0 1.5mm; }
+  .legend td { padding: 0.6mm 3mm 0.6mm 0; vertical-align: top; }
+  .box { border: 0.4pt solid #000; padding: 2mm 3mm; margin: 4mm 0; break-inside: avoid; }
+  .contents { border-collapse: collapse; width: 100%; } .contents td { padding: 1mm 0; border-bottom: 0.3pt dotted #999; } .contents td.n { width: 15mm; }
+  table.b { width: 100%; border-collapse: collapse; }
+  table.b th, table.b td { border-left: 0.4pt solid #000; border-right: 0.4pt solid #000; padding: 1.1mm 1.5mm; vertical-align: top; text-align: left; }
+  table.b thead { display: table-header-group; } table.b thead th { border: 0.4pt solid #000; background: #f2f2f2; font-size: 7.6pt; text-align: center; vertical-align: middle; }
+  table.b tr { break-inside: avoid; } table.b tbody tr + tr td { border-top: 0.2pt dotted #aaa; } table.b tbody:last-child tr:last-child td { border-bottom: 0.4pt solid #000; }
+  .c { text-align: center !important; } .n { text-align: right !important; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .sec { break-after: avoid; } .sec td { font-weight: 700; border-top: 0.4pt solid #000; border-bottom: 0.4pt solid #000; padding-top: 1.8mm !important; padding-bottom: 1.8mm !important; }
+  .tot td { font-weight: 700; border-top: 0.4pt solid #000 !important; border-bottom: 0.4pt solid #000; }
+  .gt td { font-weight: 700; font-size: 9.5pt; border-top: 1.5pt double #000 !important; border-bottom: 1pt solid #000 !important; }
+  .sum td { padding: 1.8mm 2mm; }
+  .ref { font-size: 7.1pt; color: #555; margin-top: 0.5mm; } sup { font-size: 6.3pt; line-height: 0; } i { color: #333; }
+  .words { margin-top: 3mm; border: 0.4pt solid #000; padding: 2mm 3mm; }
+  </style></head><body>${body}</body></html>`;
+  }
 }

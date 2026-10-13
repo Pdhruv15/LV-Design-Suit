@@ -1,5 +1,5 @@
 import type { Project } from '../types';
-import type { PricedBom, PricedItem } from './priceList';
+import { validVat, type PricedBom, type PricedItem } from './priceList';
 import { isScheduleCircuit } from '../calc/loadSchedule';
 import { breakerTypeOf } from '../calc/earthing';
 
@@ -179,6 +179,7 @@ export function boqReview(project: Project, bom: PricedBom): { id: string; messa
   if (!Number.isFinite(custom?.discountPct ?? 0) || (custom?.discountPct ?? 0) < 0 || (custom?.discountPct ?? 0) > 100) {
     add('discount', 'Discount must be between 0% and 100%; the invalid value is not applied.');
   }
+  if (custom?.vatPct !== undefined && validVat(custom.vatPct) !== custom.vatPct) add('vat', 'VAT must be between 0% and 100%; the invalid value is not applied.');
   for (const it of bom.items) {
     const label = it.description;
     if (!Number.isFinite(it.qty) || it.qty < 0) add(`quantity:${it.key}`, `${label}: invalid quantity; it is not included in the priced total.`);

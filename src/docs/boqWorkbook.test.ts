@@ -5,7 +5,7 @@ import type { BoqCustom, PricedBom } from '../model/priceList';
 import { newPriceList, priceBom } from '../model/priceList';
 import { boqReview, SCOPE_CHECKS } from '../model/boqScope';
 import { sampleProject } from '../data/sampleProject';
-import { buildBoqHtml, buildBoqWorkbook, buildPriceTemplate, readPriceWorkbook } from './boqWorkbook';
+import { amountInWords, boqBookmarks, buildBoqHtml, buildBoqWorkbook, buildPriceTemplate, readPriceWorkbook } from './boqWorkbook';
 
 const item: BomItem = { key: 'test:cable', section: 'E', description: 'Measured cable', unit: 'm', qty: 2, where: ['DB-1'] };
 const project = (boq?: BoqCustom) => ({ ...sampleProject, boq });
@@ -16,7 +16,7 @@ const itemRow = (wb: ExcelJS.Workbook) => {
   return rows;
 };
 const bodyRow = (html: string, text: string) => html.split('<tr>').find((row) => row.includes(text))!;
-const empty: PricedBom = { items: [], sections: [], subtotal: 0, markup: 0, discount: 0, total: 0, missing: 0, changed: 0 };
+const empty: PricedBom = { items: [], sections: [], subtotal: 0, markup: 0, discount: 0, total: 0, vat: 0, grandTotal: 0, missing: 0, changed: 0 };
 
 describe('BOQ scope exports', () => {
   it('keeps the established worksheets for legacy projects and adds scope evidence only with a selected template', () => {
@@ -35,11 +35,11 @@ describe('BOQ scope exports', () => {
     expect(row.getCell(6).value).toBe(15);
     expect(row.getCell(7).value).toEqual({ formula: `D${row.number}*(E${row.number}+F${row.number})`, result: 30 });
     const html = bodyRow(buildBoqHtml(project(custom), bom, list), item.description);
-    expect(html).toContain('supply: client');
+    expect(html).toContain('Supply by client');
     expect(html).toContain('Site survey drawing E-101');
     expect(html).toContain('15.00');
     expect(html).not.toContain('100.00');
-    expect(html).not.toContain('NO RATE');
+    expect(html).not.toContain('TBA');
   });
 
   it('keeps explicit zero quotes priced and flags only missing legs', () => {
@@ -52,11 +52,12 @@ describe('BOQ scope exports', () => {
     const html = buildBoqHtml(project(custom), bom);
     const zero = bodyRow(html, 'Quoted zero allowance');
     expect(zero).toContain('0.00');
-    expect(zero).not.toContain('NO RATE');
+    expect(zero).not.toContain('TBA');
     const partial = bodyRow(html, 'Supply quote outstanding');
     expect(partial).toContain('20.00');
-    expect(partial).toContain('NO RATE — partial / incomplete');
-    expect(bodyRow(html, 'Installation quote outstanding')).toContain('NO RATE');
+    expect(partial).toContain('20.00<sup>*</sup>');
+    expect(partial).toContain('<i>TBA</i>');
+    expect(bodyRow(html, 'Installation quote outstanding')).toContain('Not priced');
     const rows = itemRow(buildBoqWorkbook(project(custom), bom));
     expect(rows[0].getCell(5).value).toBe(0);
     expect(rows[0].getCell(6).value).toBe(0);
@@ -104,7 +105,7 @@ describe('BOQ scope exports', () => {
     expect(row.getCell(4).value).toBeNull();
     expect(row.getCell(7).value).toBe(0);
     expect(row.getCell(2).value).toContain('INVALID QUANTITY');
-    expect(buildBoqHtml(project(custom), bom)).toContain('INVALID QUANTITY');
+    expect(buildBoqHtml(project(custom), bom)).toContain('Invalid quantity — omitted from the total');
     const back = new ExcelJS.Workbook();
     await back.xlsx.load(await wb.xlsx.writeBuffer());
     expect(itemRow(back)[0].getCell(7).value).toBe(0);
@@ -118,12 +119,12 @@ describe('BOQ scope exports', () => {
     const checks = boqReview(project(custom), bom);
     expect(checks.length).toBeGreaterThan(130);
     const html = buildBoqHtml(project(custom), bom, undefined, true);
-    const brief = html.match(/<div class="basis scope-brief[\s\S]*?<\/div>/)![0];
+    const brief = html.match(/<div class="box scope-brief[\s\S]*?<\/div>/)![0];
     expect(brief.match(/<li>/g)?.length).toBeLessThanOrEqual(3);
     expect(brief).toContain(`${checks.length} scope check(s) need review`);
     expect(brief).toContain('checklist area(s) not reviewed');
     expect(brief).toContain('Scope areas not reviewed');
-    expect(html).not.toContain('<section class="scope-appendix">');
+    expect(html).not.toContain('id="boq-appendix"');
     expect(html).not.toContain('Unquoted scope item 59:');
     expect(html).not.toContain('detailed exclusions end marker');
     expect(html).toContain('full BOQ appendix');
@@ -133,8 +134,8 @@ describe('BOQ scope exports', () => {
     const custom: BoqCustom = { projectType: 'fit-out', manual: [{ id: 'x', section: 'J', description: 'Unquoted luminaire', unit: 'no', qty: 1 }] };
     const bom = priceBom([], undefined, custom);
     const html = buildBoqHtml(project(custom), bom);
-    const appendixStart = html.indexOf('<section class="scope-appendix">');
-    expect(appendixStart).toBeGreaterThan(html.indexOf('Total section J carried to summary'));
+    const appendixStart = html.indexOf('<section id="boq-appendix"');
+    expect(appendixStart).toBeGreaterThan(html.indexOf('Total Bill J carried to grand summary'));
     const appendix = html.slice(appendixStart);
     for (const check of boqReview(project(custom), bom)) expect(appendix).toContain(check.message);
     expect(html.slice(0, appendixStart)).not.toContain('Scope not reviewed: Emergency lighting and exit signs.');
@@ -178,13 +179,13 @@ describe('BOQ scope exports', () => {
     const summaryNotes: string[] = [];
     wb.getWorksheet('Summary')!.eachRow((row) => { const text = row.getCell(2).value; if (typeof text === 'string') summaryNotes.push(text); });
     const html = buildBoqHtml(p, bom, list);
-    const appendix = html.slice(html.indexOf('<section class="scope-appendix">'));
+    const appendix = html.slice(html.indexOf('<section id="boq-appendix"'));
     for (const check of checks) {
       expect(summaryNotes).toContain(check.message);
       expect(appendix).toContain(check.message);
     }
     expect(html).not.toContain('Scope not reviewed:');
-    expect(html).not.toContain('<h2>Scope checklist decisions</h2>');
+    expect(html).not.toContain('Scope checklist decisions');
     expect(buildBoqHtml(p, bom, list, true)).toContain('BOQ data review');
   });
 });
@@ -204,5 +205,68 @@ describe('installation-only price sheet quotes', () => {
     expect(read.rates['test:install']).toMatchObject({ labour: 45 });
     expect(read.rates['test:install'].rate).toBeUndefined();
     expect(read.rates['test:blank']).toBeUndefined();
+  });
+});
+
+describe('tender-format PDF BOQ', () => {
+  const list = { ...newPriceList(), rates: { [item.key]: { rate: 100, labour: 15 } } };
+
+  it('adds VAT after markup and discount, in the PDF, Excel and the totals', () => {
+    const custom: BoqCustom = { discountPct: 10, vatPct: 5 };
+    const bom = priceBom([item], { ...list, markupPct: 20 }, custom);
+    expect(bom.total).toBeCloseTo(230 * 1.2 * 0.9);
+    expect(bom.vat).toBeCloseTo(bom.total * 0.05);
+    expect(bom.grandTotal).toBeCloseTo(bom.total * 1.05);
+    const html = buildBoqHtml(project(custom), bom, list);
+    expect(html).toContain('VAT (5 %)');
+    expect(html).toContain('GRAND TOTAL (AED, including VAT)');
+    const labels: unknown[] = [];
+    buildBoqWorkbook(project(custom), bom, list).getWorksheet('Summary')!.eachRow((row) => labels.push(row.getCell(2).value));
+    expect(labels).toEqual(expect.arrayContaining(['Total (excluding VAT)', 'VAT (5 %)', 'Grand total (including VAT)']));
+    expect(priceBom([item], list, { vatPct: 150 }).vat).toBe(0);
+  });
+
+  it('writes the grand total in words', () => {
+    expect(amountInWords(202787, 'AED')).toBe('UAE Dirhams Two hundred and two thousand seven hundred and eighty-seven only');
+    expect(amountInWords(1250.5, 'USD')).toBe('US Dollars One thousand two hundred and fifty and 50/100 only');
+    expect(amountInWords(0, 'XYZ')).toBe('XYZ Zero only');
+  });
+
+  it('puts the document number, status and sign-off names on the cover and footer', () => {
+    const custom: BoqCustom = { document: { docNo: 'VC-ELE-BOQ-001', status: 'Issued for tender', preparedBy: 'P. Engineer', checkedBy: 'C. Lead', approvedBy: 'A. Director' } };
+    const html = buildBoqHtml(project(custom), priceBom([item], list, custom), list);
+    expect(html).toContain('<tr><td>Document no.</td><td>VC-ELE-BOQ-001</td></tr>');
+    expect(html).toContain('<tr><td>Status</td><td>Issued for tender</td></tr>');
+    for (const name of ['P. Engineer', 'C. Lead', 'A. Director']) expect(html).toContain(name);
+    expect(html).toMatch(/@bottom-left \{ content: "VC-ELE-BOQ-001 · \d{2} \w{3} \d{4}"/);
+    expect(html).toContain('Tenderer’s name');
+    expect(buildBoqHtml(project({ document: { status: 'Cost estimate' } }), priceBom([item], list), list)).not.toContain('Tenderer’s name');
+  });
+
+  it('heads every page after the cover with the company logo', () => {
+    const logo = 'data:image/png;base64,iVBORw0KGgo=';
+    const html = buildBoqHtml({ ...project(), drawing: { ...sampleProject.drawing, logo } }, priceBom([item], list), list);
+    expect(html).toContain(`@top-left { content: ""; width: 45mm; background: url("${logo}")`);
+    expect(html).toContain('@page cover');
+    expect(html).toContain(`<img class="logo" src="${logo}"`);
+    const unsafe = buildBoqHtml({ ...project(), drawing: { ...sampleProject.drawing, logo: 'data:image/png;base64,x");}body{color:red' } }, priceBom([item], list), list);
+    expect(unsafe.slice(unsafe.indexOf('<style>'), unsafe.indexOf('</style>'))).not.toContain('color:red');
+  });
+
+  it('keeps project text inside the stylesheet strings', () => {
+    const html = buildBoqHtml({ ...project(), name: 'A "quoted" \\ name </style><script>x</script>' }, priceBom([item], list), list);
+    const style = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
+    expect(style).toContain('"A \\"quoted\\" \\\\ name \\3c /style>\\3c script>x\\3c /script>   ·   BILL OF QUANTITIES"');
+    expect(html).not.toContain('<script>');
+  });
+
+  it('shows the page of each bill in the summary and contents, and bookmarks them', () => {
+    const bom = priceBom([item], list);
+    const html = buildBoqHtml(project(), bom, list, false, { 'bill-E': 4, 'boq-summary': 3, 'boq-notes': 2 });
+    expect(html).toContain('<a href="#bill-E">Cables</a></td><td class="c">4</td>');
+    expect(html).toContain('<tbody class="sec" id="bill-E">');
+    expect(boqBookmarks(bom)({ 'bill-E': 4, 'boq-summary': 3, 'boq-notes': 2 })).toEqual([
+      { title: 'Cover', page: 0 }, { title: 'General notes', page: 1 }, { title: 'Grand summary', page: 2 }, { title: 'Bill E — Cables', page: 3 }
+    ]);
   });
 });
