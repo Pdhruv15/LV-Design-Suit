@@ -1396,3 +1396,21 @@ kbd{display:inline-block;font:11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospa
 .lod-hint .linkish{margin-left:0}
 button.rd-chip{background:none;font:inherit;font-size:11px;cursor:pointer;min-height:0}
 button.rd-chip:hover{background:color-mix(in srgb,currentColor 12%,transparent)}
+/* ---- Board-wise SLD (Design ▸ Board) ---- */
+.board-sheet{display:flex;flex-direction:column;gap:var(--space-2);margin-top:8px}
+.bs-bar{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
+.bs-bar b{font-size:14px}
+.bs-phases{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:var(--space-2) var(--space-4);align-items:center;padding:var(--space-2) var(--space-3);border:1px solid var(--line);border-radius:8px;font-size:12px}
+.bs-ph{display:grid;grid-template-columns:14px minmax(40px,1fr) auto;gap:var(--space-2);align-items:center;white-space:nowrap}
+.bs-track{height:8px;border-radius:4px;background:var(--line);overflow:hidden}
+.bs-fill{display:block;height:100%;border-radius:4px;background:currentColor}
+.bs-ph-sum{display:flex;flex-direction:column;gap:2px;white-space:nowrap}
+.bs-ph-sum .warn,.bs-ph-sum b.warn{color:var(--warn)}.bs-ph-sum b.ok{color:var(--ok)}
+.bs-table{overflow-x:auto}
+.bs-table td.num,.bs-table th.num{text-align:right}
+.bs-table tr{cursor:pointer}.bs-table tr.sel td{background:color-mix(in srgb,var(--acc) 14%,transparent)}
+.bs-table td.bad{color:var(--bad)}.bs-table td.warn{color:var(--warn)}.bs-table td.ok{color:var(--ok)}
+svg .ph-tag.ph-r{color:#ff6b6b}svg .ph-tag.ph-y{color:#f5c04a}svg .ph-tag.ph-b{color:#4aa8ff}svg .ph-tag.ph-ryb{color:#b784ff}svg .ph-tag.unset{color:var(--warn)}
+svg .ph-tag text{fill:currentColor}svg .ph-tag rect{fill:transparent;stroke:currentColor;stroke-width:1;opacity:.7}
+svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in srgb,currentColor 20%,transparent);opacity:1}
+@media (max-width:1000px){.bs-phases{grid-template-columns:minmax(0,1fr)}}
