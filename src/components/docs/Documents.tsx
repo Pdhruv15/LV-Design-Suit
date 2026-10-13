@@ -99,7 +99,8 @@ export function ReportView({ project, onStatus, stale = false, docNo, onDocNo }:
   async function exportPdf() {
     setBusy(true);
     try {
-      const m = await savePdf(`${safeFileName(project.name)}-calculation-report.pdf`, html);
+      // Landscape and the document's own header / page numbers (CSS @page boxes), as the BOQ.
+      const m = await savePdf(`${safeFileName(project.name)}-calculation-report.pdf`, html, { pageSize: 'A4', landscape: true, cssPages: true, selfNumbered: true });
       if (m) onStatus(m);
     } finally {
       setBusy(false);

@@ -95,7 +95,7 @@ export default function VoltageDropStudy({ project, calcProject = project, stale
   async function exportPdf() {
     setBusy(true);
     try {
-      const m = await savePdf(`${safeFileName(`${project.name} voltage drop ${scope || 'system'}`)}.pdf`, buildVdReportHtml(calcProject, allRows, scopeName, risers));
+      const m = await savePdf(`${safeFileName(`${project.name} voltage drop ${scope || 'system'}`)}.pdf`, buildVdReportHtml(calcProject, allRows, scopeName, risers), { pageSize: 'A4', landscape: true });
       if (m) onStatus(m);
     } finally {
       setBusy(false);
