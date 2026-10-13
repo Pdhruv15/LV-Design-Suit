@@ -1,6 +1,6 @@
 import { withNetwork } from '../calc/network';
 import { txTag } from '../model/transformers';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { STATUS_TEXT } from '../calc/statusText';
 import { componentLabel } from '../model/components';
 import type { DrawingInfo, Project } from '../types';
@@ -22,6 +22,7 @@ import { cables } from '../calc/cableTable';
 import { upsLoadingPct } from '../calc/sizing';
 import { isMotor, starterInfo, starterOf } from '../calc/motor';
 import { sldDevices } from '../diagram/sldDevices';
+import { deviceKind, devicePoles } from '../diagram/deviceText';
 import { cableSizeText, faultCurrentKA, impedanceToBoard, runsOf, upstreamVoltageDropPct } from '../calc/electrical';
 import { MOTOR_START_DIP_LIMIT_PCT, type GeneratorRun, type OutageScenario } from '../calc/scenario';
 import { boardRatio, COLOR_BY, earthRatio, feederRatio, heatColor, type ColorBy } from '../diagram/heatmap';
@@ -79,8 +80,8 @@ export function earthConductorOf(project: Project, b: Board): number {
 }
 
 /** DEWA wording of poles and device. */
-const dewaPoles = (f: Feeder) => (f.phase && f.phase !== 'RYB' ? 'SP' : f.cores === 2 ? 'SPN' : f.cores === 3 ? 'TP' : 'TPN');
-const dewaDevice = (f: Feeder) => { const t = f.breakerType ?? (f.breakerRatingA <= 63 ? 'C' : 'MCCB'); return t === 'ACB' ? 'ACB' : t === 'MCCB' ? 'MCCB' : 'MCB'; };
+const dewaPoles = devicePoles;
+const dewaDevice = deviceKind;
 
 const trunc = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
 
@@ -103,6 +104,7 @@ export default function SystemDiagram({
   layers,
   cableRefs: cableRefsProp,
   hideLegend = false,
+  lod = false,
   outlines,
   clouds,
   anchors,
@@ -146,6 +148,9 @@ export default function SystemDiagram({
   cableRefs?: boolean;
   /** Leave the symbol legend out (drawing sheets put it in their legend column). */
   hideLegend?: boolean;
+  /** Level of detail by zoom (the interactive canvas only): zoomed out, only panel and load names, larger;
+   * part-way, no cable, result or accessory text. Off for anything exported — exports copy the live styles. */
+  lod?: boolean;
   /** Sheet outlines on the design canvas: which panels go on which sheet. */
   outlines?: { id: string; label: string; boards: string[]; color: string }[];
   /** Revision clouds around panels (drawing sheets). */
@@ -338,6 +343,7 @@ export default function SystemDiagram({
   const H = Math.max(layout.height, legend.length ? 80 + legend.length * LEGEND_ROW : 0);
   const full: ViewBox = { x: 0, y: 0, w: W, h: H };
   const [vb, setVb] = useState<ViewBox>(full);
+  const [box, setBox] = useState({ w: 0, h: 0 });
   // Visible span (drawing units) with a margin of half a screen each side, so panning shows no gaps.
   const viewX1 = vb.x - Math.max(vb.w * 0.5, 400), viewX2 = vb.x + vb.w * 1.5 + 400;
   // Hover card: a circuit's or panel's results, with quick fixes for a failing circuit.
@@ -386,6 +392,19 @@ export default function SystemDiagram({
     return () => window.removeEventListener('keydown', esc);
   }, [fullScreen, onToggleFullScreen]);
   const svgRef = useRef<SVGSVGElement>(null);
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el || !lod) return;
+    const ro = new ResizeObserver(() => setBox({ w: el.clientWidth, h: el.clientHeight }));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [lod]);
+  // Screen pixels per drawing unit (the viewBox is fitted with "meet").
+  const pxPerUnit = box.w && box.h ? Math.min(box.w / vb.w, box.h / vb.h) : 1;
+  // Text detail: 'all' (the default) shows every label at every zoom, 'auto' follows the zoom (remembered).
+  const [detail, setDetail] = useState<'auto' | 'all'>(() => { try { return localStorage.getItem('lvds.sldDetail') === 'auto' ? 'auto' : 'all'; } catch { return 'all'; } });
+  const toggleDetail = () => setDetail((d) => { const v = d === 'auto' ? 'all' : 'auto'; try { localStorage.setItem('lvds.sldDetail', v); } catch { /* ignore */ } return v; });
+  const lodLevel = !lod || detail === 'all' ? '' : pxPerUnit < 0.55 ? ' lod-far' : pxPerUnit < 0.8 ? ' lod-mid' : '';
   // On screen, squeeze any label wider than its slot so it can't run over the neighbouring feeder.
   useLayoutEffect(() => {
     svgRef.current?.querySelectorAll<SVGTextElement>('text[data-dxf-max-width], text[data-fit-width]').forEach((t) => {
@@ -573,19 +592,29 @@ export default function SystemDiagram({
   return (
     <div
       ref={rootRef}
-      className={`sysdiag ${tool === 'pan' ? 'pan' : ''}${dropCls('canvas')}${stale ? ' stale' : ''}`}
-      style={resizable && height && !fullScreen ? { height } : undefined}
+      className={`sysdiag ${tool === 'pan' ? 'pan' : ''}${dropCls('canvas')}${stale ? ' stale' : ''}${lodLevel}`}
+      style={{ ...(resizable && height && !fullScreen ? { height } : {}), ...(lodLevel === ' lod-far' ? { '--lod-fs': `${Math.min(22, 10 / pxPerUnit).toFixed(1)}px` } : {}) } as CSSProperties}
     >
       <div className="sysdiag-tools" role="toolbar" aria-label="Diagram zoom">
         {onDrawing && <button className="chip" onClick={() => onDrawing({ symbols: iec ? 'simple' : 'iec' })} title={iec ? 'IEC 60617 symbols — switch to simple icons' : 'Simple icons — switch to IEC 60617 symbols'}>{iec ? 'IEC' : 'Icons'}</button>}
         {onDrawing && <button className={`chip${dewa ? ' on' : ''}`} onClick={() => onDrawing({ sldStyle: dewa ? 'standard' : undefined })} title="DEWA submission style: a frame around each panel with its summary (LOC, TCL, DF, MDL), way numbers and DEWA wording">DEWA</button>}
         {onDrawing && <button className={`chip${project.drawing?.cableLabels === 'ref' ? ' on' : ''}`} onClick={() => onDrawing({ cableLabels: project.drawing?.cableLabels === 'ref' ? undefined : 'ref' })} title="Cable text as reference numbers (CABLE SCHEDULE legend). Off: full description on screen; drawing sheets switch to numbers by themselves when crowded.">Cable no.</button>}
+        {lod && <button className={`chip${detail === 'all' ? ' on' : ''}`} onClick={toggleDetail} aria-pressed={detail === 'all'}
+          title={detail === 'auto' ? 'Text follows the zoom: names only when zoomed out, ratings and cables closer in. Click to always show all text.' : 'All text shown at every zoom. Click to let the text follow the zoom.'}>
+          {detail === 'auto' ? 'Text: Auto' : 'Text: All'}
+        </button>}
         <button className="chip" onClick={nextGrid} title="Grid: lines, dots or none">{grid === 'lines' ? '▦' : grid === 'dots' ? '⁙' : '□'}</button>
         <button className="chip" onClick={() => zoom(1 / 1.25)} aria-label="Zoom in">+</button>
         <button className="chip" onClick={() => zoom(1.25)} aria-label="Zoom out">−</button>
         <button className="chip" onClick={() => setVb(full)}>Fit</button>
         {onToggleFullScreen && <button className="chip" onClick={onToggleFullScreen} title={fullScreen ? 'Exit full screen (Esc)' : 'Full screen'}>{fullScreen ? '✕' : '⤢'}</button>}
       </div>
+      {lodLevel && (
+        <div className="lod-hint" role="status">
+          {lodLevel === ' lod-far' ? 'Zoomed out: names only' : 'Zoomed out: cables and results hidden'} — zoom in to see more, or
+          <button className="linkish" onClick={toggleDetail}>show all text</button>
+        </div>
+      )}
       {resizable && !fullScreen && (
         <div className="sysdiag-resize" onPointerDown={startResize} onDoubleClick={() => { setHeight(undefined); try { localStorage.removeItem('sld.height'); } catch { /* ignore */ } }} title="Drag to make the drawing taller or shorter — double-click for the default height" />
       )}
@@ -949,7 +978,7 @@ export default function SystemDiagram({
                       </g>
                     </>
                   )}
-                  <text className="b" x={n.x} y={y + 132} textAnchor="middle">{trunc(f.id, 16)}</text>
+                  <text className="b lod-name" x={n.x} y={y + 132} textAnchor="middle" data-fit-width={cadSlot - 6}>{trunc(f.id, 16)}</text>
                   <text className="m" x={n.x} y={y + 146} textAnchor="middle">{trunc(f.name, 19)}</text>
                   <text x={n.x} y={y + 160} textAnchor="middle" data-fit-width={cadSlot - 6}>
                     {f.componentId && project.components?.some((c) => c.id === f.componentId) ? trunc(componentLabel(project, project.components!.find((c) => c.id === f.componentId)!, f), 30) : f.kvar ? `${f.capSteps && f.capSteps > 1 ? `${f.capSteps} × ${+(f.kvar / f.capSteps).toFixed(1)}` : f.kvar} kvar${f.detunedPct ? ` · ${f.detunedPct}% det.` : ''}` : `${dewa && !f.generation ? `TCL : ${f.loadKw.toFixed(2)}` : (f.loadKw * f.demandFactor).toFixed(0)} kW${f.generation ? ' gen' : ''}${isMotor(f) ? ` · ${starterInfo(starterOf(f)).short}` : ''}`}
@@ -1100,7 +1129,7 @@ export default function SystemDiagram({
                     <rect x={x1} y={y1} width={x2 - x1} height={y2 - y1} className="frame-ln" />
                     {gland(n.x, y1)}
                     <rect x={x1 + 5} y={y1 + 5} width={nb.w} height={18 + rows.length * 11} className="sum-box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
-                    <text x={x1 + 11} y={y1 + 18} className="acc-t b">{trunc(b.id, Math.floor((nb.w - 12) / 5.5))}</text>
+                    <text x={x1 + 11} y={y1 + 18} className="acc-t b lod-name">{trunc(b.id, Math.floor((nb.w - 12) / 5.5))}</text>
                     {rows.map((t, i) => <text key={i} x={x1 + 11} y={y1 + 29 + i * 11} className="acc-t" data-dxf-max-width={nb.w - 12} xmlSpace="preserve">{t}</text>)}
                     {outs.map((f) => gland(f.x, y2))}
                   </g>
@@ -1140,7 +1169,7 @@ export default function SystemDiagram({
               {dewa && !n.terminal ? <line x1={n.x} y1={n.busY - 58} x2={n.x} y2={n.busY - 22} className="ln" /> : (
                 <>
                   <rect x={n.x - 62} y={n.busY - 58} width="124" height="36" rx="6" className="box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
-                  <text className="b" x={n.x - 54} y={n.busY - 42}>{trunc(b.id, 14)}</text>
+                  <text className="b lod-name" x={n.x - 54} y={n.busY - 42}>{trunc(b.id, 14)}</text>
                   <text className="m" x={n.x - 54} y={n.busY - 28}>{b.kind ?? (b.upstreamId ? 'DB' : 'MDB')}</text>
                   <circle cx={n.x + 52} cy={n.busY - 46} r="4" style={{ fill: `var(--${status})` }} />
                 </>
