@@ -45,6 +45,7 @@ function counts(statuses: Status[]) {
  * and the page-1 document block. */
 export const PLAIN_CSS = `<style>
 html, body { background: #fff; color-scheme: light; }
+@media screen { body { padding: 21mm 14mm 16mm 16mm; } } /* on-screen preview: the printed page's margins */
 table.grid { margin: 1mm 0 3mm; font-size: 7.6pt; } table.grid thead { display: table-header-group; } table.grid tr { break-inside: avoid; }
 table.grid tr.total td { font-weight: 700; background: #f2f2f2; } h2 { margin: 5mm 0 2mm; break-after: avoid; }
 .bad { font-weight: 700; } .m, .note { color: #444; }
