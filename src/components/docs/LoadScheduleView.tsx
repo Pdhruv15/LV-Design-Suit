@@ -147,7 +147,7 @@ export default function LoadScheduleView({
           </button>
           {form === 'db' && <>
           <button className="chip" onClick={async () => { const c = loadScheduleCsv(project, board.id); const m = await saveCsv(`${project.name} ${board.id} load schedule`, c.headers, c.rows); if (m) onStatus(m); }}>Export CSV</button>
-          <button className="chip primary" onClick={async () => { const m = await savePdf(`${safeFileName(board.id)}-load-schedule.pdf`, buildLoadScheduleHtml(project, board.id)); if (m) onStatus(m); }}>Export PDF</button>
+          <button className="chip primary" onClick={async () => { const m = await savePdf(`${safeFileName(board.id)}-load-schedule.pdf`, buildLoadScheduleHtml(project, board.id), { pageSize: 'A4', landscape: true }); if (m) onStatus(m); }}>Export PDF</button>
           </>}
         </>
       }
