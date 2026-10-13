@@ -15,7 +15,8 @@ import BoqTable from '../BoqTable';
 import VariationsView from './VariationsView';
 import { variationsOf } from '../../model/variations';
 import { toggleIn } from '../../util/sets';
-import { boqRevisionsOf, changeNote, CHANGE_LABEL, compareLines, issueBoqRevision, linesOf, numberBom, type BoqLine, type BoqRevision } from '../../model/boqRevisions';
+import { offerSubmission } from '../../model/submissions';
+import { boqRevisionsOf, boqRevisionState, changeNote, CHANGE_LABEL, compareLines, issueBoqRevision, linesOf, numberBom, type BoqLine, type BoqRevision } from '../../model/boqRevisions';
 
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const money = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -111,7 +112,13 @@ export default function BomView({ command, project, results, me = '', onChange, 
       const m = await savePdf(name, make({}), summaryOnly
         ? { pageSize: 'A4', cssPages: true, selfNumbered: true }
         : { pageSize: 'A4', cssPages: true, selfNumbered: true, paginate: make, bookmarks: boqBookmarks(bom) });
-      if (m) onStatus(m);
+      if (m) {
+        onStatus(m);
+        const state = boqRevisionState(project, bom);
+        const status = custom?.document?.status ?? '';
+        offerSubmission({ kind: 'BOQ', title: `Bill of quantities${summaryOnly ? ' — summary' : ''}`, purpose: /tender/i.test(status) ? 'For tender' : 'For approval',
+          docs: [{ number: custom?.document?.docNo ?? 'BOQ', title: `Bill of quantities${summaryOnly ? ' — summary' : ''}`, rev: state.rev === undefined ? 'Draft' : `${state.rev}${state.draft ? ' (draft)' : ''}` }] });
+      }
     } catch (e) {
       onStatus(`PDF export failed: ${e instanceof Error ? e.message : String(e)}`);
     }

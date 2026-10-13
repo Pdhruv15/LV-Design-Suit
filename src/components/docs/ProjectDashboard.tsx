@@ -10,6 +10,7 @@ import { projectReadiness, splitTodo } from '../../calc/projectReadiness';
 import { deliverableProgress, PARTY_LABEL, ROLE_LABEL, SCOPE_ITEMS } from '../../model/brief';
 
 import type { MainView } from '../../views';
+import { isOverdue, submissionCounts, submissionsOf, timeText } from '../../model/submissions';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const f1 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 1 });
@@ -194,6 +195,19 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
               <p className="m">{o.counts.draft} draft · {o.counts.awaitingDecision} awaiting a decision · {o.counts.acceptedNotApplied} accepted, not applied{o.counts.conflicts ? ` · ${o.counts.conflicts} with changed values` : ''}{o.counts.needRerun ? ` · ${o.counts.needRerun} applied, studies to run again` : ''}</p>
               {o.pending.slice(0, 5).map((x) => <p key={x.id} className="m">• {x.text}</p>)}
               <button className="chip" onClick={() => onGo({ view: 'modifications' })}>Open modifications</button>
+            </section>
+          );
+        })()}
+        {submissionsOf(project).length > 0 && (() => {
+          const now = new Date().toISOString().slice(0, 10);
+          const c = submissionCounts(project, now);
+          const late = submissionsOf(project).filter((s) => isOverdue(project, s, now));
+          return (
+            <section className="card">
+              <h4>Submissions <span className="m">({c.total})</span></h4>
+              <p className="m">{c.open} awaiting response{c.overdue ? <> · <b className="warn">{c.overdue} overdue</b></> : ''} · {c.approved + c.withComments} approved{c.resubmit ? ` · ${c.resubmit} to resubmit` : ''}{c.openComments ? ` · ${c.openComments} open comment${c.openComments > 1 ? 's' : ''}` : ''}</p>
+              {late.slice(0, 5).map((s) => <p key={s.id} className="m">• {s.id} {s.title} — {s.to}, {timeText(project, s, now).toLowerCase()}</p>)}
+              <button className="chip" onClick={() => onGo({ view: 'submissions' })}>Open submissions</button>
             </section>
           );
         })()}

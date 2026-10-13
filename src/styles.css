@@ -900,6 +900,14 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .bom-tag.warn{border-color:var(--warn);color:var(--warn)}
 .bom-excluded td{opacity:.6}
 .bom-changed td:first-child{box-shadow:inset 3px 0 var(--warn)}
+/* Submissions: status strip and overdue rows */
+.sub-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));border:1px solid var(--line);border-radius:var(--radius-sm)}
+.sub-strip>div{padding:6px 10px;border-left:1px solid var(--line);display:flex;flex-direction:column}
+.sub-strip>div:first-child{border-left:0}
+.sub-strip b{font-size:18px}
+.sub-strip span{font-size:var(--fs-xs);color:var(--mut)}
+.sub-strip .warn b{color:var(--warn)}
+.sub-late td:first-child{box-shadow:inset 3px 0 var(--warn)}
 .bom-table td.acts{white-space:nowrap;text-align:right}
 .bom-dialog{max-width:560px;width:100%}
 .bom-dialog textarea{width:100%;resize:vertical}
