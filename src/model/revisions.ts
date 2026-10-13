@@ -9,11 +9,11 @@ import { withEarthPitIds } from './earthingPlan';
  * project file, to compare with the current design or go back to. */
 
 /** The project as frozen in a revision: everything except the revision
- * histories themselves (design and BOQ). */
-export type Snapshot = Omit<Project, 'revisions' | 'boqRevisions'>;
+ * histories themselves (design and BOQ) and the variation account. */
+export type Snapshot = Omit<Project, 'revisions' | 'boqRevisions' | 'variations'>;
 
 export const snapshotOf = (p: Project): Snapshot => {
-  const { revisions: _omit, boqRevisions: _boq, ...rest } = p;
+  const { revisions: _omit, boqRevisions: _boq, variations: _vo, ...rest } = p;
   return JSON.parse(JSON.stringify(rest));
 };
 
