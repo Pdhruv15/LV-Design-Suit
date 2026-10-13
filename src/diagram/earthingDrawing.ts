@@ -73,8 +73,9 @@ const separation = (x1: number, x2: number, y: number, label: string) =>
 /** Earth pit: inspection pit (hollow square) and electrode (earth symbol); the conductor runs through. */
 const pitSymbol = (x: number, y: number) => `<rect x="${x - 7}" y="${y}" width="14" height="10" fill="none" stroke="#111" stroke-width="1.3"/>${ln(x - 7, y + 28, x + 7, y + 28)}${ln(x - 4.5, y + 31, x + 4.5, y + 31)}${ln(x - 2, y + 34, x + 2, y + 34)}`;
 
-/** mono: black on white for the printed sheet (plain report style) — results are written (FAIL), not coloured. */
-export function earthingDrawing(project: Project, L: EarthLayout = earthingLayout(project), includeSchedule = true, opts: { mono?: boolean } = {}): { svg: string; w: number; h: number } {
+/** mono: black on white for the printed sheet (plain report style) — results are written (FAIL), not coloured.
+ * working: the on-screen working view — the schematic only, without the legend and notes (sheet furniture). */
+export function earthingDrawing(project: Project, L: EarthLayout = earthingLayout(project), includeSchedule = true, opts: { mono?: boolean; working?: boolean } = {}): { svg: string; w: number; h: number } {
   const out: string[] = [];
   const pitX = new Map<string, number>(), pitY = new Map<string, number>();
   const pitsOf = (it: EarthItem) => L.pits.filter((p) => p.itemKey === it.key);
@@ -381,13 +382,13 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
     row([p.id, `${it.equipment} / ${it.point}`, `${kindInfo(p.kind).label} / ${it.group}`, `${kindInfo(p.kind).limitOhm} ohm`, `1C ${mm} mm² Cu/PVC, ${L.electrodeM} m Cu-bonded rod`,
       p.measured === undefined ? blank || 'Not tested' : `${p.measured} ohm`, [p.date, p.by].filter(Boolean).join(', ') || blank, st === 'pass' ? 'PASS' : st === 'fail' ? 'FAIL' : blank]);
   }
-  const h = includeSchedule ? tableY + 20 : ly + legendH + 20;
+  const h = includeSchedule ? tableY + 20 : opts.working ? ly + 10 : ly + legendH + 20;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" font-family="Arial" font-size="10" fill="#111">
   <rect width="${w}" height="${h}" fill="#fff"/>
   <text x="${w / 2}" y="30" text-anchor="middle" font-size="14" font-weight="bold">EARTHING SCHEMATIC DIAGRAM</text>
   ${out.join('\n')}
-  ${legend}
-  ${noteSvg}
+  ${opts.working ? '' : `${legend}
+  ${noteSvg}`}
   ${includeSchedule ? schedule : ''}
 </svg>`;
   // Printed sheet: every colour to black, tints to white.

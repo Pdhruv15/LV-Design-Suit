@@ -63,7 +63,8 @@ export default function EarthingView({ project, onChange, onStatus, embedded = f
   embedded?: boolean;
 }) {
   const L = useMemo(() => earthingLayout(project), [project]);
-  const svg = useMemo(() => earthingDrawing(project, L, false).svg, [project, L]);
+  // Working view: the schematic only — legend, notes and pit schedule are on the exported sheet.
+  const svg = useMemo(() => earthingDrawing(project, L, false, { working: true }).svg, [project, L]);
   const plan = project.earthingPlan ?? {};
   const [tab, setTabState] = useState<Tab>(() => stored('earth.tab', 'drawing'));
   const setTab = (t: Tab) => { setTabState(t); store('earth.tab', t); };
