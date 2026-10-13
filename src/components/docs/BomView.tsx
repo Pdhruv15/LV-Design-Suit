@@ -4,11 +4,11 @@ import type { Project } from '../../types';
 import type { FeederResult } from '../../calc/electrical';
 import { buildBom, BOM_SECTIONS } from '../../calc/bom';
 import {
-  compareBom, designQty, EXTRA_SECTIONS, EXTRAS, fallbackPriceEntry, loadPriceLists, newPriceList, nextSectionId, priceBom, savePriceLists, sectionTitles,
-  type BoqCustom, type BoqOverride, type ManualItem, type PriceList, type PricedItem
+  compareBom, designQty, validVat, EXTRA_SECTIONS, EXTRAS, fallbackPriceEntry, loadPriceLists, newPriceList, nextSectionId, priceBom, savePriceLists, sectionTitles,
+  type BoqCustom, type BoqDocument, type BoqOverride, type ManualItem, type PriceList, type PricedItem
 } from '../../model/priceList';
 import { boqReview, SCOPE_CHECKS, scopeSummary, type BoqLineScope } from '../../model/boqScope';
-import { buildBoqHtml, buildBoqWorkbook, buildPriceTemplate, readPriceWorkbook } from '../../docs/boqWorkbook';
+import { boqBookmarks, buildBoqHtml, buildBoqWorkbook, buildPriceTemplate, readPriceWorkbook } from '../../docs/boqWorkbook';
 import { workbookBytes } from '../../docs/formWorkbook';
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
 import BoqTable from '../BoqTable';
@@ -26,7 +26,8 @@ type Dialog =
   | { kind: 'section'; section?: { id: string; title: string } }
   | { kind: 'extras' }
   | { kind: 'wastage' }
-  | { kind: 'markup' };
+  | { kind: 'markup' }
+  | { kind: 'document' };
 
 /** BOM / Cost → Bill of quantities: everything in the design rolled up by
  * tender section, your own lines and sections, quantity adjustments,
@@ -100,8 +101,16 @@ export default function BomView({ command, project, results, onChange, onStatus 
     if (m) onStatus(m);
   }
   async function exportPdf(summaryOnly: boolean) {
-    const m = await savePdf(`${safeFileName(project.name)} - BOQ${summaryOnly ? ' summary' : ''}.pdf`, buildBoqHtml(project, bom, list, summaryOnly), { pageSize: 'A4' });
-    if (m) onStatus(m);
+    try {
+      const make = (pages: Record<string, number>) => buildBoqHtml(project, bom, list, summaryOnly, pages);
+      const name = `${safeFileName([project.name, custom?.document?.docNo].filter(Boolean).join(' '))} - BOQ${summaryOnly ? ' summary' : ''}.pdf`;
+      const m = await savePdf(name, make({}), summaryOnly
+        ? { pageSize: 'A4', cssPages: true, selfNumbered: true }
+        : { pageSize: 'A4', cssPages: true, selfNumbered: true, paginate: make, bookmarks: boqBookmarks(bom) });
+      if (m) onStatus(m);
+    } catch (e) {
+      onStatus(`PDF export failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
   async function exportTemplate() {
     const m = await saveBinary(`${safeFileName(list?.name ?? 'Price list')}.xlsx`, await workbookBytes(buildPriceTemplate(items, list)), 'Excel', 'xlsx', XLSX);
@@ -141,6 +150,7 @@ export default function BomView({ command, project, results, onChange, onStatus 
     else if (c === 'extras') setDialog({ kind: 'extras' });
     else if (c === 'wastage') setDialog({ kind: 'wastage' });
     else if (c === 'markup') setDialog({ kind: 'markup' });
+    else if (c === 'document') setDialog({ kind: 'document' });
   }, [command]);
 
   const q = filter.trim().toLowerCase();
@@ -159,7 +169,7 @@ export default function BomView({ command, project, results, onChange, onStatus 
           <button className={`chip${!dialog && tab === 'scope' ? ' on' : ''}`} aria-pressed={!dialog && tab === 'scope'} onClick={() => showTab('scope')}>Scope & review{review.length ? ` (${review.length})` : ''}</button>
           <button className={`chip${!dialog && tab === 'changes' ? ' on' : ''}`} aria-pressed={!dialog && tab === 'changes'} onClick={() => showTab('changes')}>Changes since a revision</button>
           <button className={`chip${!dialog && tab === 'circuits' ? ' on' : ''}`} aria-pressed={!dialog && tab === 'circuits'} onClick={() => showTab('circuits')}>Per circuit</button>
-          {dialog && <button className="chip on" type="button">{dialog.kind === 'item' || dialog.kind === 'design' ? 'Edit item' : dialog.kind === 'extras' ? 'Extra scope' : dialog.kind === 'section' ? 'Section' : dialog.kind === 'wastage' ? 'Wastage' : 'Markup'}</button>}
+          {dialog && <button className="chip on" type="button">{dialog.kind === 'item' || dialog.kind === 'design' ? 'Edit item' : dialog.kind === 'extras' ? 'Extra scope' : dialog.kind === 'section' ? 'Section' : dialog.kind === 'wastage' ? 'Wastage' : dialog.kind === 'document' ? 'BOQ document' : 'Markup'}</button>}
         </div>
         <span className="sp" />
         <button className="chip" onClick={() => setDialog({ kind: 'item', item: newItem(), isNew: true })}>+ Item</button>
@@ -173,7 +183,8 @@ export default function BomView({ command, project, results, onChange, onStatus 
         </label>
         <label>Rates dated <input className="bi-text" type="date" value={list?.date ?? ''} onChange={(e) => edit({ date: e.target.value })} /></label>
         <label>Currency <input className="bi-text" style={{ width: 60 }} value={cur} onChange={(e) => edit({ currency: e.target.value })} /></label>
-        <button className="chip" onClick={() => setDialog({ kind: 'markup' })}>Markup {list?.markupPct ?? 0} % · Discount {custom?.discountPct ?? 0} %</button>
+        <button className="chip" onClick={() => setDialog({ kind: 'markup' })}>Markup {list?.markupPct ?? 0} % · Discount {custom?.discountPct ?? 0} % · VAT {validVat(custom?.vatPct)} %</button>
+        <button className="chip" onClick={() => setDialog({ kind: 'document' })}>{custom?.document?.docNo ? `Doc ${custom.document.docNo}` : 'BOQ document…'}</button>
         <select className="chip" value="" onChange={(e) => e.target.value && applySavedList(e.target.value)}>
           <option value="">Use a saved price list…</option>
           {library.map((l) => <option key={l.id} value={l.id}>{l.name} ({Object.keys(l.rates).length} rates, {l.date})</option>)}
@@ -189,7 +200,7 @@ export default function BomView({ command, project, results, onChange, onStatus 
             {bom.changed > 0 && <span className="warn">⚠ {bom.changed} adjusted items: design changed — check</span>}
             {bom.missing > 0 && <span className="warn">⚠ {bom.missing} items without a rate</span>}
             {review.length > 0 && <button className="chip" onClick={() => showTab('scope')}>Review {review.length} checks</button>}
-            <span>Subtotal <b>{money(bom.subtotal)}</b>{list?.markupPct ? <> · +{list.markupPct} % <b>{money(bom.markup)}</b></> : null}{bom.discount ? <> · −{custom?.discountPct} % <b>{money(bom.discount)}</b></> : null} · Total <b>{cur} {money(bom.total)}</b></span>
+            <span>Subtotal <b>{money(bom.subtotal)}</b>{list?.markupPct ? <> · +{list.markupPct} % <b>{money(bom.markup)}</b></> : null}{bom.discount ? <> · −{custom?.discountPct} % <b>{money(bom.discount)}</b></> : null}{bom.vat ? <> · Total excl. VAT <b>{money(bom.total)}</b> · VAT {validVat(custom?.vatPct)} % <b>{money(bom.vat)}</b></> : null} · {bom.vat ? 'Grand total' : 'Total'} <b>{cur} {money(bom.grandTotal)}</b></span>
           </div>
           <input className="bi-text" style={{ width: 260, margin: '6px 0' }} placeholder="Filter items…" value={filter} onChange={(e) => setFilter(e.target.value)} />
           <div className="tw">
@@ -305,8 +316,10 @@ export default function BomView({ command, project, results, onChange, onStatus 
               }} onClose={() => setDialog(null)} />}
             {dialog.kind === 'wastage' && <WastageForm titles={Object.fromEntries(Object.entries(BOM_SECTIONS))} value={custom?.wastage ?? {}}
               onSave={(w) => { setCustom({ wastage: w }); setDialog(null); }} onClose={() => setDialog(null)} />}
-            {dialog.kind === 'markup' && <MarkupForm markup={list?.markupPct ?? 0} discount={custom?.discountPct ?? 0}
-              onSave={(mk, d) => { onChange({ ...project, priceList: { ...(list ?? newPriceList()), markupPct: mk }, boq: { ...custom, discountPct: d || undefined } }); setDialog(null); }} onClose={() => setDialog(null)} />}
+            {dialog.kind === 'markup' && <MarkupForm markup={list?.markupPct ?? 0} discount={custom?.discountPct ?? 0} vat={custom?.vatPct}
+              onSave={(mk, d, v) => { onChange({ ...project, priceList: { ...(list ?? newPriceList()), markupPct: mk }, boq: { ...custom, discountPct: d || undefined, vatPct: v } }); setDialog(null); }} onClose={() => setDialog(null)} />}
+            {dialog.kind === 'document' && <DocumentForm value={custom?.document ?? {}} fallback={{ preparedBy: project.params?.designedBy, checkedBy: project.params?.checkedBy ?? project.drawing?.checkedBy, approvedBy: project.params?.approvedBy ?? project.drawing?.approvedBy }}
+              onSave={(document) => { setCustom({ document }); setDialog(null); }} onClose={() => setDialog(null)} />}
           </div>
         </section>
       )}
@@ -515,19 +528,51 @@ function WastageForm({ titles, value, onSave, onClose }: { titles: Record<string
   );
 }
 
-function MarkupForm({ markup, discount, onSave, onClose }: { markup: number; discount: number; onSave: (m: number, d: number) => void; onClose: () => void }) {
+function MarkupForm({ markup, discount, vat, onSave, onClose }: { markup: number; discount: number; vat?: number; onSave: (m: number, d: number, v: number | undefined) => void; onClose: () => void }) {
   const [m, setM] = useState(String(markup));
   const [d, setD] = useState(String(discount));
-  const mn = numOr(m) ?? 0, dn = numOr(d) ?? 0;
+  const [v, setV] = useState(vat === undefined ? '' : String(vat));
+  const mn = numOr(m) ?? 0, dn = numOr(d) ?? 0, vn = numOr(v);
+  const vatOk = vn === undefined || (!Number.isNaN(vn) && vn >= 0 && vn <= 100);
   return (
     <>
-      <h3>Markup and discount</h3>
+      <h3>Markup, discount and VAT</h3>
       <div className="form-kv">
         <label>Overheads and profit (%) <input autoFocus inputMode="decimal" value={m} onChange={(e) => setM(e.target.value)} /></label>
         <label>Discount (%) <input inputMode="decimal" value={d} onChange={(e) => setD(e.target.value)} /></label>
+        <label>VAT (%) <input inputMode="decimal" value={v} placeholder="none (e.g. 5)" onChange={(e) => setV(e.target.value)} /></label>
       </div>
-      <p className="m">Total = subtotal + overheads and profit − discount (on the total with markup).</p>
-      <Actions onClose={onClose} ok={!Number.isNaN(mn) && !Number.isNaN(dn) && mn >= 0 && dn >= 0 && dn <= 100} onSave={() => onSave(mn, dn)} />
+      <p className="m">Total = subtotal + overheads and profit − discount (on the total with markup). VAT is added on that total; leave it empty for a BOQ excluding VAT.</p>
+      <Actions onClose={onClose} ok={!Number.isNaN(mn) && !Number.isNaN(dn) && mn >= 0 && dn >= 0 && dn <= 100 && vatOk} onSave={() => onSave(mn, dn, vn || undefined)} />
+    </>
+  );
+}
+
+const BOQ_STATUSES = ['Issued for tender', 'For review', 'For approval', 'For construction', 'Priced BOQ', 'Cost estimate'];
+
+function DocumentForm({ value, fallback, onSave, onClose }: { value: BoqDocument; fallback: BoqDocument; onSave: (d: BoqDocument | undefined) => void; onClose: () => void }) {
+  const [d, setD] = useState<BoqDocument>(value);
+  const field = (k: keyof BoqDocument, label: string, placeholder?: string, list?: string) => (
+    <label>{label} <input className="bi-text" list={list} value={d[k] ?? ''} placeholder={placeholder} onChange={(e) => setD({ ...d, [k]: e.target.value })} /></label>
+  );
+  const save = () => {
+    const out = Object.fromEntries(Object.entries(d).map(([k, v]) => [k, v?.trim()]).filter(([, v]) => v)) as BoqDocument;
+    onSave(Object.keys(out).length ? out : undefined);
+  };
+  return (
+    <>
+      <h3>BOQ document</h3>
+      <p className="m">Cover page and page footer of the PDF BOQ. Names left empty use the project parameters and the drawing title block; the revision comes from the project’s issued revisions.</p>
+      <div className="form-kv">
+        {field('docNo', 'Document no.', 'e.g. VC-ELE-BOQ-001')}
+        {field('status', 'Status', 'e.g. Issued for tender', 'boq-statuses')}
+        {field('preparedBy', 'Prepared by', fallback.preparedBy)}
+        {field('checkedBy', 'Checked by', fallback.checkedBy)}
+        {field('approvedBy', 'Approved by', fallback.approvedBy)}
+      </div>
+      <datalist id="boq-statuses">{BOQ_STATUSES.map((s) => <option key={s} value={s} />)}</datalist>
+      <p className="m">A status with “tender” adds the tenderer’s signature block to the grand summary.</p>
+      <Actions onClose={onClose} onSave={save} />
     </>
   );
 }

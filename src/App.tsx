@@ -239,6 +239,8 @@ export default function App() {
   const [focus, setFocus] = useState<string | null>(null);
   const [dbScheduleAll, setDbScheduleAll] = useState(true);
   const [bomCmd, setBomCmd] = useState<{ cmd: BomCommand; n: number } | undefined>();
+  // A ribbon command belongs to the visit it was given in: leaving the BOQ drops it, so it does not run again when the view opens next time.
+  useEffect(() => { if (view !== 'boq') setBomCmd(undefined); }, [view]);
 
   // LV Database: Excel workbooks in the projects folder. Every save in Excel
   // arrives here; the data is applied to the calculations, library-linked

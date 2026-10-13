@@ -102,6 +102,17 @@ export interface BoqCustom {
   overrides?: Record<string, BoqOverride>;
   wastage?: Record<string, number>; // % per section, on design quantities
   discountPct?: number;
+  vatPct?: number; // VAT on the total after markup and discount, e.g. 5 (UAE)
+  document?: BoqDocument; // cover page and footer of the PDF BOQ
+}
+
+/** Document control of the PDF BOQ: number, status and sign-off names. */
+export interface BoqDocument {
+  docNo?: string;
+  status?: string; // e.g. "Issued for tender"
+  preparedBy?: string;
+  checkedBy?: string;
+  approvedBy?: string;
 }
 
 export interface PricedItem extends BomItem {
@@ -130,7 +141,9 @@ export interface PricedBom {
   subtotal: number;
   markup: number;
   discount: number;
-  total: number;
+  total: number; // excluding VAT
+  vat: number;
+  grandTotal: number; // total + VAT
   missing: number;
   changed: number;
   projectType?: BoqCustom['projectType'];
@@ -218,12 +231,17 @@ export function priceBom(items: BomItem[], list?: PriceList, custom?: BoqCustom)
   const discountPct = custom?.discountPct ?? 0;
   const markup = subtotal * (Number.isFinite(markupPct) && markupPct >= 0 ? markupPct / 100 : 0);
   const discount = (subtotal + markup) * (Number.isFinite(discountPct) && discountPct >= 0 && discountPct <= 100 ? discountPct / 100 : 0);
+  const total = subtotal + markup - discount;
+  const vat = total * validVat(custom?.vatPct) / 100;
   return {
-    items: priced, sections, subtotal, markup, discount, total: subtotal + markup - discount,
+    items: priced, sections, subtotal, markup, discount, total, vat, grandTotal: total + vat,
     missing: priced.filter((x) => x.missingRate).length,
     changed: priced.filter((x) => x.changed).length, projectType: custom?.projectType
   };
 }
+
+/** VAT % in use: 0 when unset or invalid (below 0 or above 100). */
+export function validVat(pct: number | undefined): number { return pct !== undefined && Number.isFinite(pct) && pct >= 0 && pct <= 100 ? pct : 0; }
 
 /** Ready-made extra scope lines (one click to add). */
 export const EXTRAS: ({ section: string; description: string; unit: string; qty: number } & BoqLineScope)[] = [

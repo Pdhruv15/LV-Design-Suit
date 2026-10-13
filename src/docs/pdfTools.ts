@@ -102,12 +102,12 @@ export function addBookmarks(doc: PDFDocument, items: Bookmark[]): void {
   doc.catalog.set(PDFName.of('PageMode'), PDFName.of('UseOutlines'));
 }
 
-export interface FinishOptions { title: string; stamp?: string; /** Height of the stamp above the page foot (pt), e.g. below a report's own footer. */ stampY?: number; frame?: { headerLeft: string; headerRight: string; footerLeft: string }; author?: string; subject?: string; bookmarks?: Bookmark[] }
+export interface FinishOptions { title: string; /** Foot label; false when the document prints its own page numbers. */ stamp?: string | false; /** Height of the stamp above the page foot (pt), e.g. below a report's own footer. */ stampY?: number; frame?: { headerLeft: string; headerRight: string; footerLeft: string }; author?: string; subject?: string; bookmarks?: Bookmark[] }
 
 /** Document information, page numbers, bookmarks; saved compactly. */
 export async function finishPdf(doc: PDFDocument, o: FinishOptions): Promise<Uint8Array> {
   if (o.frame) await stampFrame(doc, o.frame);
-  else await stampPages(doc, o.stamp ?? o.title, false, o.stampY);
+  else if (o.stamp !== false) await stampPages(doc, o.stamp ?? o.title, false, o.stampY);
   if (o.bookmarks?.length) addBookmarks(doc, o.bookmarks);
   doc.setTitle(o.title, { showInWindowTitleBar: true });
   if (o.author) doc.setAuthor(o.author);

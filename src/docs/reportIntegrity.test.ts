@@ -134,11 +134,11 @@ describe('BOQ PDF discloses how it was priced', () => {
     expect(bom.missing).toBeGreaterThan(0); // no list: only cables and breakers have typical rates
     for (const summaryOnly of [false, true]) {
       const html = buildBoqHtml(p0, bom, undefined, summaryOnly);
-      expect(html).toMatch(/Pricing basis/);
+      expect(html).toMatch(/pricing basis/i);
       expect(html).toMatch(/unquoted supply or installation charge — the total is incomplete; known charges remain included/);
       expect(html).toMatch(/built-in typical rates/);
     }
-    expect(buildBoqHtml(p0, bom)).toMatch(/class="flag">NO RATE/);
+    expect(buildBoqHtml(p0, bom)).toMatch(/<i>TBA<\/i>/);
   });
 });
 

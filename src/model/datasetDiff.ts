@@ -19,7 +19,7 @@ export const LEAF_LABELS: Record<string, string> = {
   markups: 'Markups', cableLabels: 'Cable text', tags: 'Values printed', drawnBy: 'Drawn by', checkedBy: 'Checked by', approvedBy: 'Approved by', remarks: 'Remarks',
   // BOQ and rates
   projectType: 'Project type', includeSchedulePoints: 'Schedule points included', scopeReview: 'Scope review', scopeNotes: 'Scope notes', sections: 'Sections', manual: 'Manual lines',
-  overrides: 'Quantity changes', wastage: 'Wastage (%)', discountPct: 'Discount (%)', markupPct: 'Overheads and profit (%)', currency: 'Currency', rates: 'Rates', rate: 'Rate'
+  overrides: 'Quantity changes', wastage: 'Wastage (%)', discountPct: 'Discount (%)', vatPct: 'VAT (%)', markupPct: 'Overheads and profit (%)', currency: 'Currency', rates: 'Rates', rate: 'Rate'
 };
 
 const humanize = (k: string) => {
