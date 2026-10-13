@@ -116,6 +116,7 @@ export interface BoqDocument {
 }
 
 export interface PricedItem extends BomItem {
+  no?: string; // item number in the bill (fixed once issued, see numberBom)
   rate?: number;
   labour: number;
   amount: number; // qty × (rate + labour)

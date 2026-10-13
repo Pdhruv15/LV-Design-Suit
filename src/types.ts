@@ -305,6 +305,8 @@ export interface Project {
   reviewComments?: import('./model/reviewComments').ReviewComment[];
   /** Saved setup of the design review report (sections, names, recorded reviewer decision). */
   reviewReport?: import('./docs/reviewReport').ReviewReportSetup;
+  /** Issued BOQ revisions (Rev 0, 1, 2…), numbered separately from the design revisions (BOM / Cost → Revisions). */
+  boqRevisions?: import('./model/boqRevisions').BoqRevision[];
   /** Documents received from others (Reports → Received documents). */
   receivedDocs?: import('./model/receivedDocs').ReceivedDoc[];
   /** The issued revision this working draft is measured against (Revisions → Use as baseline). */
