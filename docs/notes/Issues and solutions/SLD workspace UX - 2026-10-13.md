@@ -66,4 +66,10 @@ Notes:
 
 Retest (2026-10-13, sample project, 1440 × 900): drawing tab crisp, pits grey; E3 = 2.6 Ω via the pit editor → red, "over limit", Checks lists it, Pits tab shows 1 tested / 1 over limit; settings drawer opens beside the drawing (widened to 390 px so Linked fits); SMDB-GF board view shows "Via incomer CPC to MDB-1 MET → pits E5, E6 (not tested)" and "CPC 150 mm² Cu · I²t needs 34.9 mm² — OK"; rendered E-EARTH-01 sheet black and white with FAIL and blank lines for untested pits. Test edits undone. typecheck, lint, test (158 files, 1191 tests) pass.
 
+### 2026-10-14 follow-up (same branch)
+
+- User asked for the earthing schematic beside the SLD tabs: Design ▸ SLD now has **System diagram | Board | Earthing** (⌘1 / ⌘2 / ⌘3); the Earthing tab is the same screen as Design ▸ Earth pits, without the page title. The board view's "Earthing schematic ›" link opens this tab.
+- The earthing **sheet** already existed in the drawing set (sheet row ＋ ▸ Earthing schematic, numbered E-ERT-001). The Phase 3 number E-EARTH-01 was replaced: the board sheets and the export now use the drawing set's earthing sheet number (or E-ERT-001 before it is added). That drawing-set sheet now prints black and white too.
+- Retest: Earthing tab renders in the SLD workspace (settings drawer, export, zoom in its own bar); typecheck, lint, tests pass.
+
 Project: [[LV Design Studio]] · Module: [[Diagrams]]

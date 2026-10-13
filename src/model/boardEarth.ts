@@ -3,6 +3,7 @@ import type { Status } from '../calc/electrical';
 import { evaluateEarthing } from '../calc/earthing';
 import { cpcOf } from '../calc/cableTable';
 import { earthingLayout, kindInfo, type EarthLayout } from './earthingPlan';
+import { EARTH_PREFIX, setOf, sheetNumber } from './drawingSet';
 
 /** How a board is earthed, for its board view and board sheet: the earth bar
  * and pits it reaches (its own SMDB pits, else its main board's LV pits), the
@@ -12,8 +13,12 @@ import { earthingLayout, kindInfo, type EarthLayout } from './earthingPlan';
  * TN-S they carry no LV fault current, and an HV fault needs the authority's
  * HV earth-fault level. */
 
-/** Drawing number of the earthing schematic sheet, from the SLD drawing number (E-EARTH-01 by default). */
-export const earthSheetNo = (project: Project) => `${project.drawing?.number?.trim() || 'E'}-EARTH-01`;
+/** Drawing number of the earthing schematic: its sheet in the drawing set, else the number that sheet
+ * will take when added (E-ERT-001 with the default prefix). */
+export function earthSheetNo(project: Project): string {
+  const set = setOf(project);
+  return set.sheets.find((x) => x.kind === 'earthing')?.number || sheetNumber(set, 0, set.earthPrefix ?? EARTH_PREFIX);
+}
 
 export interface BoardEarth {
   /** Earth bar → pits, limit, test result and sheet. */

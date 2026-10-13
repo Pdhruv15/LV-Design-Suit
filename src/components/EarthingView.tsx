@@ -44,7 +44,11 @@ const STATUS_LABEL = { pass: 'pass', fail: 'over limit', untested: 'not tested' 
  * result, click a pit to record its test — with the pit test schedule and the
  * checks on their own tabs, the plan's settings in a side drawer, and the
  * schematic as a titled A3 sheet (PDF, DXF; black and white). */
-export default function EarthingView({ project, onChange, onStatus }: { project: Project; onChange: (p: Project) => void; onStatus: (m: string) => void }) {
+export default function EarthingView({ project, onChange, onStatus, embedded = false }: {
+  project: Project; onChange: (p: Project) => void; onStatus: (m: string) => void;
+  /** Inside the SLD workspace (Design ▸ SLD ▸ Earthing tab): no page title or intro. */
+  embedded?: boolean;
+}) {
   const L = useMemo(() => earthingLayout(project), [project]);
   const svg = useMemo(() => earthingDrawing(project, L, false).svg, [project, L]);
   const plan = project.earthingPlan ?? {};
@@ -121,9 +125,7 @@ export default function EarthingView({ project, onChange, onStatus }: { project:
     );
   };
 
-  return (
-    <Page title="Earthing schematic"
-      actions={<>
+  const actions = (<>
         <button className={`chip${drawer ? ' on' : ''}`} aria-pressed={drawer} onClick={() => setDrawer(!drawer)} title="Pits per equipment, electrode, conductor and bonding">Settings {drawer ? '◂' : '▸'}</button>
         <MenuButton label="Export sheet" title={`Earthing schematic as drawing sheet ${earthSheetNo(project)} (A3, black and white, with the pit schedule)`} align="right">
           {(close) => (
@@ -133,8 +135,8 @@ export default function EarthingView({ project, onChange, onStatus }: { project:
             </>
           )}
         </MenuButton>
-      </>}
-      intro="Earth pits of the RMUs, transformers, generators and main boards (DEWA practice). RMU, transformer neutral, transformer body and LV earths are separate systems; pits of the same kind are linked. Lightning protection is not part of this schematic.">
+      </>);
+  const body = (
       <div className={`earth-ws${drawer ? ' with-drawer' : ''}`}>
         <div className="earth-main">
           <div className="earth-bar">
@@ -145,6 +147,7 @@ export default function EarthingView({ project, onChange, onStatus }: { project:
             </div>
             <span className="m">{L.pits.length} pits · {counts.tested} tested{counts.fail > 0 && <> · <span className="bad">{counts.fail} over limit</span></>}</span>
             <span className="sp" />
+            {actions}
             {tab === 'drawing' && <>
               <button className="chip" aria-label="Zoom out" onClick={() => setZoom((z) => Math.max(0.5, +(z / 1.25).toFixed(2)))}>−</button>
               <button className="chip" onClick={() => setZoom(1)}>Fit</button>
@@ -211,6 +214,11 @@ export default function EarthingView({ project, onChange, onStatus }: { project:
           </aside>
         )}
       </div>
+  );
+  if (embedded) return <div className="earth-embedded">{body}</div>;
+  return (
+    <Page title="Earthing schematic" intro="Earth pits of the RMUs, transformers, generators and main boards (DEWA practice). RMU, transformer neutral, transformer body and LV earths are separate systems; pits of the same kind are linked. Lightning protection is not part of this schematic.">
+      {body}
     </Page>
   );
 }

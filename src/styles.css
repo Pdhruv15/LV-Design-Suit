@@ -1437,3 +1437,4 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .earth-drawer{border:1px solid var(--line);border-radius:8px;padding:var(--space-2) var(--space-3);background:var(--panel);align-self:start;max-height:calc(100vh - 260px);overflow:auto}
 .earth-drawer h4{margin:0 0 6px}
 @media (max-width:1000px){.earth-ws.with-drawer{grid-template-columns:minmax(0,1fr)}}
+.earth-embedded .earth-ws{padding:var(--space-2) 0 0}

@@ -4,6 +4,7 @@ import { sampleProject } from '../data/sampleProject';
 import { runCalculations } from '../calc/runs';
 import { boardsInSupplyOrder } from '../calc/summary';
 import { boardSheetSvg } from '../diagram/boardSheet';
+import { earthSheetNo } from '../model/boardEarth';
 import { boardSheetHtml, boardSheetPages } from './boardSheets';
 import { buildSheetDxfPages } from './sheetDxf';
 
@@ -36,7 +37,7 @@ describe('board sheet drawing', () => {
     const { svg } = boardSheetSvg(run.project, board('MDB-1'), run.results);
     expect(svg).toMatch(/TRANSFORMER \d+ kVA/);
     expect(svg).toContain('MDB-1 MET → pits');
-    expect(svg).toContain('Earthing schematic: sheet E-EARTH-01');
+    expect(svg).toContain(`Earthing schematic: sheet ${earthSheetNo(run.project)}`);
   });
 });
 

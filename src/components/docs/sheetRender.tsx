@@ -29,7 +29,7 @@ export async function renderSheet(project: Project, set: DrawingSet, s: DrawingS
   document.body.appendChild(host);
   const root = createRoot(host);
   try {
-    if (s.kind === 'earthing') return earthingDrawing(project);
+    if (s.kind === 'earthing') return earthingDrawing(project, undefined, true, { mono: true }); // printed sheet: black and white
     if (s.kind === 'riser') {
       if (!s.buildingId) return undefined;
       flushSync(() => root.render(<RiserDiagram project={project} buildingId={s.buildingId!} />));

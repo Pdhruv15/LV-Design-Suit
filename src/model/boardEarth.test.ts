@@ -5,6 +5,7 @@ import { earthingDrawing } from '../diagram/earthingDrawing';
 import { runCalculations } from '../calc/runs';
 import { boardEarth, earthSheetNo } from './boardEarth';
 import { earthingLayout, pitStatus, setPitTest } from './earthingPlan';
+import { addEarthingSheet, setOf } from './drawingSet';
 
 const board = (id: string) => sampleProject.boards.find((b) => b.id === id)!;
 const lvPits = () => earthingLayout(sampleProject).pits.filter((p) => p.itemKey === 'lv:MDB-1').map((p) => p.id);
@@ -49,9 +50,12 @@ describe('board earth line', () => {
     expect(e.status).toBe('pass');
     expect(e.conductor?.text).toMatch(/^CPC .* mm² Cu · I²t needs [\d.]+ mm² — (OK|CHECK|FAIL)$/);
   });
-  it('the earthing sheet number follows the SLD drawing number', () => {
-    expect(earthSheetNo(sampleProject)).toMatch(/-EARTH-01$/);
-    expect(earthSheetNo({ ...sampleProject, drawing: { ...sampleProject.drawing, number: 'E-100' } })).toBe('E-100-EARTH-01');
+  it('the earthing sheet number is the drawing set\'s earthing sheet, or the number it will take', () => {
+    const none = { ...sampleProject, drawingSet: { prefix: 'E-SLD-', sheets: [], register: true } };
+    expect(earthSheetNo(none)).toBe('E-ERT-001');
+    const { set } = addEarthingSheet(setOf(none));
+    const withSheet = { ...none, drawingSet: set };
+    expect(earthSheetNo(withSheet)).toBe(set.sheets.find((x) => x.kind === 'earthing')!.number);
   });
   it('the board sheet carries the earth path and the incomer conductor check', () => {
     const run = runCalculations(sampleProject);
