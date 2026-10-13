@@ -16,6 +16,19 @@ const stored = <T,>(key: string, initial: T): T => { try { const s = localStorag
 const store = (key: string, v: unknown) => { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* preference only */ } };
 const PIT_FILL = { pass: '#7cc68d', fail: '#e5736b', untested: '#d5d8de' } as const;
 
+/** The printed drawing (black on white) restyled for the canvas, like the SLD: transparent over the grid,
+ * lines and text in the theme's colours, earth conductors in the OK green. Theme variables reach into the
+ * shadow root; the exported sheet is built separately and stays black and white. */
+const DARK = [
+  'svg{width:100%;height:auto;display:block;fill:var(--tx)}',
+  'svg>rect:first-child{fill:transparent}',
+  '[fill="#111"]{fill:var(--tx)}[stroke="#111"]{stroke:var(--tx)}',
+  '[fill="#fff"]{fill:var(--bg)}[stroke="#999"]{stroke:var(--line)}',
+  '[fill="#1a7f37"]{fill:var(--ok)}[stroke="#1a7f37"]{stroke:var(--ok)}',
+  '[fill="#5b6b82"]{fill:var(--mut)}[stroke="#5b6b82"]{stroke:var(--mut)}',
+  '[fill="#1d4f8f"]{fill:var(--acc)}[stroke="#1d4f8f"]{stroke:var(--acc)}'
+].join('');
+
 /** The drawing in a shadow root: its own black-on-white text and sizes, untouched by the app's
  * dark-theme SVG styles. A click on a pit reports the pit's group (data-pit); elsewhere, null. */
 function ShadowSvg({ svg, css, width, onPit }: { svg: string; css: string; width: string; onPit: (pit: Element | null) => void }) {
@@ -25,7 +38,7 @@ function ShadowSvg({ svg, css, width, onPit }: { svg: string; css: string; width
   useEffect(() => {
     const root = host.current?.shadowRoot ?? host.current?.attachShadow({ mode: 'open' });
     if (!root) return;
-    root.innerHTML = `<style>svg{width:100%;height:auto;display:block}[data-pit]{cursor:pointer}[data-pit]:hover>rect:first-child{stroke:#2f6fd0;stroke-width:2.5}${css}</style>${svg}`;
+    root.innerHTML = `<style>${DARK}[data-pit]{cursor:pointer}[data-pit]:hover>rect:first-child{stroke:var(--acc);stroke-width:2.5}${css}</style>${svg}`;
   }, [svg, css]);
   useEffect(() => {
     const root = host.current?.shadowRoot;
@@ -50,7 +63,8 @@ export default function EarthingView({ project, onChange, onStatus, embedded = f
   embedded?: boolean;
 }) {
   const L = useMemo(() => earthingLayout(project), [project]);
-  const svg = useMemo(() => earthingDrawing(project, L, false).svg, [project, L]);
+  // Working view: the schematic only — legend, notes and pit schedule are on the exported sheet.
+  const svg = useMemo(() => earthingDrawing(project, L, false, { working: true }).svg, [project, L]);
   const plan = project.earthingPlan ?? {};
   const [tab, setTabState] = useState<Tab>(() => stored('earth.tab', 'drawing'));
   const setTab = (t: Tab) => { setTabState(t); store('earth.tab', t); };

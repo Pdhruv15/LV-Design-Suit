@@ -1423,7 +1423,11 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .earth-bar{display:flex;align-items:center;gap:var(--space-2) var(--space-3);flex-wrap:wrap}
 .earth-bar .bad,.earth-table .bad{color:var(--bad)}.earth-table .ok{color:var(--ok)}
 .earth-badge{display:inline-block;margin-left:5px;min-width:16px;padding:0 4px;border-radius:8px;background:var(--warn);color:#000;font-size:10.5px;line-height:16px;text-align:center}
-.earth-canvas{position:relative;overflow:auto;max-height:calc(100vh - 300px);min-height:360px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.earth-canvas{position:relative;overflow:auto;max-height:calc(100vh - 300px);min-height:360px;border:1px solid var(--line);border-radius:8px;
+  /* The SLD canvas: dark, CAD-like grid (major every 100 px, minor every 20 px), scrolling with the drawing. */
+  background-color:var(--bg);background-attachment:local;background-size:100px 100px,100px 100px,20px 20px,20px 20px;
+  background-image:linear-gradient(to right,var(--line) 1px,transparent 1px),linear-gradient(to bottom,var(--line) 1px,transparent 1px),
+    linear-gradient(to right,color-mix(in srgb,var(--line) 55%,transparent) 1px,transparent 1px),linear-gradient(to bottom,color-mix(in srgb,var(--line) 55%,transparent) 1px,transparent 1px)}
 .earth-pop{position:absolute;z-index:4;display:grid;gap:6px;width:250px;padding:8px 10px;background:var(--panel);color:var(--tx);border:1px solid var(--acc);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-size:12px}
 .earth-pop-h{display:flex;gap:6px;align-items:baseline}.earth-pop-h .icon-btn{margin-left:auto}
 .earth-pop label{display:grid;grid-template-columns:90px 1fr;align-items:center;gap:6px;color:var(--mut)}

@@ -77,6 +77,13 @@ describe('printed earthing sheet', () => {
     expect(svg).toContain('__________');
     expect(svg).toContain(`data-pit="${a}"`);
   });
+  it('the working view leaves the legend and notes to the sheet', () => {
+    const work = earthingDrawing(sampleProject, earthingLayout(sampleProject), false, { working: true });
+    const sheet = earthingDrawing(sampleProject, earthingLayout(sampleProject), true, { mono: true });
+    for (const t of ['LEGEND', 'NOTES']) { expect(work.svg).not.toContain(`>${t}<`); expect(sheet.svg).toContain(`>${t}<`); }
+    expect(work.h).toBeLessThan(sheet.h);
+    expect(work.svg).toContain('data-pit=');
+  });
   it('the screen drawing keeps its colours', () => {
     expect(earthingDrawing(sampleProject).svg).toContain('#1a7f37');
   });

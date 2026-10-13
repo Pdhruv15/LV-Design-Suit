@@ -45,13 +45,16 @@ describe('board sheet set', () => {
   const pages = boardSheetPages(run.project, run.results);
   it('has one sheet per board in supply order, numbered from the SLD drawing number, each pointing to its supply', () => {
     expect(pages.map((p) => p.boardId)).toEqual(boardsInSupplyOrder(run.project).map((b) => b.id));
-    expect(pages[0].info.no).toBe('E-SLD-01');
+    expect(pages[0].info.no).toBe('E-DB-001');
+    expect(pages[1].info.no).toBe('E-DB-002');
     expect(pages.every((p, i) => p.info.index === i + 1 && p.info.count === pages.length)).toBe(true);
     const gf1 = pages.find((p) => p.boardId === 'DB-GF1')!, up = pages.find((p) => p.boardId === 'SMDB-GF')!;
     expect(gf1.svg).toContain(`SHEET ${up.info.no}`);
-    const numbered = boardSheetPages({ ...run.project, drawing: { ...run.project.drawing, number: 'E-100' } }, run.results, ['MCC-1']);
+    // Own prefix from the drawing set, with its digits and suffix.
+    const set = { prefix: 'E-SLD-', sheets: [], register: true, dbPrefix: 'DB-', digits: 2, suffix: '-EL' };
+    const numbered = boardSheetPages({ ...run.project, drawingSet: set }, run.results, ['MCC-1']);
     expect(numbered).toHaveLength(1);
-    expect(numbered[0].info.no).toMatch(/^E-100-\d\d$/);
+    expect(numbered[0].info.no).toMatch(/^DB-\d\d-EL$/);
   });
   it('prints on the drawing sheet with the title block', () => {
     const html = boardSheetHtml(run.project, pages[1]);

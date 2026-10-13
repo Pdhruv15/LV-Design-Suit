@@ -72,4 +72,11 @@ Retest (2026-10-13, sample project, 1440 × 900): drawing tab crisp, pits grey; 
 - The earthing **sheet** already existed in the drawing set (sheet row ＋ ▸ Earthing schematic, numbered E-ERT-001). The Phase 3 number E-EARTH-01 was replaced: the board sheets and the export now use the drawing set's earthing sheet number (or E-ERT-001 before it is added). That drawing-set sheet now prints black and white too.
 - Retest: Earthing tab renders in the SLD workspace (settings drawer, export, zoom in its own bar); typecheck, lint, tests pass.
 
+### 2026-10-14 — board sheet prefix and dark earthing canvas (v1.35)
+
+- Board sheets numbered in their own sequence **E-DB-001, E-DB-002 …** with the drawing set's digits / suffix; prefix editable in Drawings (Board sheet prefix), next to Riser and Earthing. Replaces E-SLD-01…, which could repeat the drawing set's SLD numbers.
+- Earthing drawing on screen (Design ▸ SLD ▸ Earthing and Design ▸ Earth pits) on the SLD canvas look: dark background, CAD grid (100 / 20 px), lines and text in theme colours, earth conductors green, tags blue. Exported / drawing-set sheets unchanged (black and white).
+- Working view shows the schematic only: legend and notes (with the pit schedule) appear on the exported / drawing-set sheet, not on screen.
+- Retest: sample project, Earthing tab dark with grid, text readable, pit editor unchanged; typecheck, lint, tests pass.
+
 Project: [[LV Design Studio]] · Module: [[Diagrams]]
