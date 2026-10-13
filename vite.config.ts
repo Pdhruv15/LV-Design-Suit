@@ -1,6 +1,7 @@
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 
 /** Content Security Policy for the built app (not the dev server, whose hot
  * reload needs inline scripts): only the app's own code runs; no remote
@@ -60,7 +61,10 @@ self.addEventListener('message', (e) => { if (e.data === 'version') e.source.pos
   }
 });
 
-import pkg from './package.json';
+// Read, not imported: an imported package.json is a config dependency, so the dev server
+// restarted on every version bump or branch switch (and a quick second change left it
+// down). The dev server now shows the version it started with until it is restarted.
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
 
 export default defineConfig({
   // App version shown in the title and header: v1.2 (major.minor of package.json).
