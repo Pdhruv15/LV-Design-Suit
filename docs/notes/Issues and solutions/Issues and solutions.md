@@ -13,6 +13,7 @@ Record investigation findings, proposed solutions and retest evidence here. Keep
 |---|---|---|---|
 | DB enclosure sizing | [[DB enclosure issues and solutions]] | [[DB enclosure verification - 2026-10-04]] | Open — corrections not verified |
 | Contractor BOQ | [[BOQ contractor scope issues and solutions]] | [[BOQ verification - 2026-10-04]] · [[BOQ implementation and retest - 2026-10-04]] | Implemented and retested on branch — contractor scope partially complete |
+| SLD workspace UX | [[SLD workspace UX - 2026-10-13]] | same note (retest evidence) | Phase 1 verified fixed on branch; phases 2–3 not started |
 | DXF / CAD export | [[DXF export issues and solutions]] | [[DXF export verification - 2026-10-04]] | Verified fixed in automated/browser tests and LibreCAD sample; kept local |
 
 ## How to record future work
