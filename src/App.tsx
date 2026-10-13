@@ -11,6 +11,7 @@ import { boardLocation } from './model/levels';
 import SingleLineDiagram from './components/SingleLineDiagram';
 import ResultsTable from './components/ResultsTable';
 import SidePanel from './components/SidePanel';
+import InspectorPanel from './components/InspectorPanel';
 import FeederForm from './components/FeederForm';
 import BoardForm from './components/BoardForm';
 const BomView = lazy(() => import('./components/docs/BomView'));
@@ -1293,7 +1294,23 @@ export default function App() {
                       onClick={() => setResTab((t) => { const v = t === k ? null : k; try { localStorage.setItem('lvds.resTab', v ?? ''); } catch { /* ignore */ } return v; })}>{label}</button>
                   ))}
                   <span className="sp" />
-                  {(() => { const bad = allResults.filter((r) => r.status === 'bad').length, warn = allResults.filter((r) => r.status === 'warn').length; return <>{bad > 0 && <span className="rd-chip bad">{bad} fail</span>}{warn > 0 && <span className="rd-chip warn">{warn} to check</span>}{!bad && !warn && <span className="rd-chip">all within limits</span>}</>; })()}
+                  {(() => {
+                    const bad = allResults.filter((r) => r.status === 'bad'), warn = allResults.filter((r) => r.status === 'warn');
+                    // Each click selects the next circuit of that kind and centres it on the drawing.
+                    const next = (list: typeof bad) => {
+                      const i = list.findIndex((r) => panel === 'feeder' && r.feeder.id === selected);
+                      const id = list[(i + 1) % list.length].feeder.id;
+                      setSheetTab(null);
+                      selectFeeder(id);
+                      setSldFocus({ kind: 'feeder', id, n: Date.now() });
+                    };
+                    const at = (list: typeof bad) => { const i = list.findIndex((r) => panel === 'feeder' && r.feeder.id === selected); return i < 0 ? '' : ` · ${i + 1} of ${list.length}`; };
+                    return <>
+                      {bad.length > 0 && <button className="rd-chip bad" onClick={() => next(bad)} title="Show the next failing circuit on the drawing">{bad.length} fail{at(bad)} ›</button>}
+                      {warn.length > 0 && <button className="rd-chip warn" onClick={() => next(warn)} title="Show the next circuit to check on the drawing">{warn.length} to check{at(warn)} ›</button>}
+                      {!bad.length && !warn.length && <span className="rd-chip">all within limits</span>}
+                    </>;
+                  })()}
                   {resTab && <button className="icon-btn" title="Close" onClick={() => { setResTab(null); try { localStorage.setItem('lvds.resTab', ''); } catch { /* ignore */ } }}>✕</button>}
                 </div>
                 {resTab && (
@@ -1315,7 +1332,7 @@ export default function App() {
               </section>
             </main>
 
-            <aside className="side">
+            <InspectorPanel label={panel === 'board' ? 'Board properties' : 'Circuit results'}>
               {(() => {
                 const sheet = sheetTab ? setOf(project).sheets.find((x) => x.id === sheetTab) : undefined;
                 if (!sheet) return null;
@@ -1341,7 +1358,7 @@ export default function App() {
                   )}
                 </>
               )}
-            </aside>
+            </InspectorPanel>
           </>
         ) : (
           <main className="mid wide">

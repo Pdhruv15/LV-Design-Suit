@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-12_
+_Last updated: 2026-10-13_
 
 ## Current development focus
 
@@ -16,6 +16,12 @@ _Last updated: 2026-10-12_
 - Enclosure sizing from supplier chart
 - SLD speed: only draws what is in view (1,000 boards: 6.6 s → 0.43 s)
 - Update script: `npm run update-app` (compares with installed version)
+
+## In progress
+- SLD UX redesign in 3 phases — [[SLD workspace UX - 2026-10-13]]
+  - Phase 1 (branch `sld-workspace-ux`, v1.32): drawing fills the free height, inspector can be hidden / resized, inspector tabs wrap, zoom kept while editing, fail / check chips jump to the next circuit
+  - Phase 2: board-wise SLD sheets with R / Y / B phase loading, auto-balance — not started
+  - Phase 3: earthing screen (full-width drawing, pit schedule tab, settings drawer, board sheets link to earthing) — not started
 
 ## Next (not started)
 - Emergency ATS arrangement details

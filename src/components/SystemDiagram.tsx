@@ -385,6 +385,33 @@ export default function SystemDiagram({
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
   }
+  // Without a height of the user's own, the drawing takes the room left in the
+  // scrolling page (after the toolbars above and the results tabs below), so a
+  // collapsed ribbon or hidden banner gives it the space. Never below 420 px.
+  const [autoHeight, setAutoHeight] = useState<number | undefined>();
+  useLayoutEffect(() => {
+    const el = rootRef.current, page = el?.closest<HTMLElement>('.mid');
+    if (!resizable || fullScreen || height || !el || !page) { setAutoHeight(undefined); return; }
+    const fit = () => {
+      // Heights of everything else on the page (not positions: the results
+      // drawer is pushed to the bottom by an auto margin).
+      const er = el.getBoundingClientRect();
+      let other = 0;
+      for (const c of Array.from(page.children)) {
+        const r = c.getBoundingClientRect(), cs = getComputedStyle(c);
+        // An auto margin reads back as the gap it fills: count at most 16 px.
+        const margins = (c.contains(el) ? 0 : Math.min(16, parseFloat(cs.marginTop) || 0)) + Math.min(16, parseFloat(cs.marginBottom) || 0);
+        other += margins + (c.contains(el) ? r.height - er.height : r.height);
+      }
+      const h = Math.max(420, Math.floor(page.clientHeight - other - 12));
+      setAutoHeight((o) => (o !== undefined && Math.abs(o - h) < 2 ? o : h));
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(page);
+    for (const c of Array.from(page.children)) if (!c.contains(el)) ro.observe(c);
+    return () => ro.disconnect();
+  }, [resizable, fullScreen, height]);
   useEffect(() => {
     if (!fullScreen || !onToggleFullScreen) return;
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onToggleFullScreen(); };
@@ -416,8 +443,15 @@ export default function SystemDiagram({
   });
   const drag = useRef<{ px: number; py: number; vb: ViewBox; moved: boolean } | null>(null);
 
-  // Re-fit when the network's overall size changes (boards/feeders added).
-  useEffect(() => setVb({ x: 0, y: 0, w: W, h: H }), [W, H]);
+  // Re-fit when the network's overall size changes (boards/feeders added) only
+  // while the whole drawing is in view: an edit keeps the user's zoom and
+  // position. Another project always opens fitted.
+  const fitted = useRef({ w: W, h: H, project: project.id });
+  useEffect(() => {
+    const was = fitted.current;
+    fitted.current = { w: W, h: H, project: project.id };
+    setVb((v) => (was.project !== project.id || (v.x === 0 && v.y === 0 && v.w === was.w && v.h === was.h) ? { x: 0, y: 0, w: W, h: H } : v));
+  }, [W, H, project.id]);
 
   // Centre on a panel or circuit picked in the results below the drawing.
   const lastFocus = useRef<number | undefined>(undefined);
@@ -593,7 +627,7 @@ export default function SystemDiagram({
     <div
       ref={rootRef}
       className={`sysdiag ${tool === 'pan' ? 'pan' : ''}${dropCls('canvas')}${stale ? ' stale' : ''}${lodLevel}`}
-      style={{ ...(resizable && height && !fullScreen ? { height } : {}), ...(lodLevel === ' lod-far' ? { '--lod-fs': `${Math.min(22, 10 / pxPerUnit).toFixed(1)}px` } : {}) } as CSSProperties}
+      style={{ ...(resizable && !fullScreen && (height ?? autoHeight) ? { height: height ?? autoHeight } : {}), ...(lodLevel === ' lod-far' ? { '--lod-fs': `${Math.min(22, 10 / pxPerUnit).toFixed(1)}px` } : {}) } as CSSProperties}
     >
       <div className="sysdiag-tools" role="toolbar" aria-label="Diagram zoom">
         {onDrawing && <button className="chip" onClick={() => onDrawing({ symbols: iec ? 'simple' : 'iec' })} title={iec ? 'IEC 60617 symbols — switch to simple icons' : 'Simple icons — switch to IEC 60617 symbols'}>{iec ? 'IEC' : 'Icons'}</button>}
