@@ -1,4 +1,4 @@
-import { AddBoardIcon, BoardPropsIcon, TransformerIcon, TxGenSizingIcon } from './icons/elecIcons';
+import { AddBoardIcon, BoardPropsIcon, TxGenSizingIcon } from './icons/elecIcons';
 import { useEffect, useRef, useState } from 'react';
 import {
   Activity, BatteryCharging, Building2, Cable, Calculator, ClipboardCheck, MessageSquareWarning, Inbox, Car, CircuitBoard, Cog, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText, GitPullRequestArrow, Send, Stamp,
@@ -25,8 +25,10 @@ interface Tool {
   /** Opens a page (lighter highlight when it's the page shown); tools such
    * as Select / Pan get the solid highlight. */
   page?: boolean;
-  /** Split button: the ▾ part offers these. */
-  menu?: { label: string; title: string; onClick: () => void }[];
+  /** Small second line under the label (e.g. the board it acts on). */
+  sub?: string;
+  /** Split button: the ▾ part offers these; `sep` draws a line above an item. */
+  menu?: { label: string; title: string; onClick: () => void; sep?: boolean }[];
 }
 
 export interface RibbonActions {
@@ -38,12 +40,9 @@ export interface RibbonActions {
   selectedFeederId: string | null;
   /** What Edit / Delete / Properties act on. */
   selection: { kind: 'board' | 'feeder'; id: string } | null;
-  /** The main board whose transformer the Transformer button opens. */
-  transformerBoardId?: string;
   onAddFeeder: (preset: Partial<Feeder>) => void;
   /** Add a board; with a kind and rating, the form starts with them. */
   onAddBoard: (preset?: { kind: BoardKind; ratingA: number }) => void;
-  onTransformer: () => void;
   onBoardProperties: () => void;
   onEditSelected: () => void;
   onDeleteSelected: () => void;
@@ -186,11 +185,12 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'Pan', icon: Hand, title: 'Pan tool — drag to move around the diagram without selecting (H)', onClick: () => { a.onView('design'); a.onTool('pan'); }, active: a.view === 'design' && a.tool === 'pan' }
       ],
       [
-        { label: 'Add board', icon: AddBoardIcon, title: `Add a board fed from ${a.boardId || 'an existing board'} — ▾ for a DB, SMDB, MCC or EMDB with its usual rating`, onClick: () => a.onAddBoard(),
-          menu: ADD_BOARD.map((x) => ({ label: `${x.kind} · ${x.ratingA} A`, title: `Add a ${x.kind} rated ${x.ratingA} A fed from ${a.boardId || 'the selected board'}`, onClick: () => a.onAddBoard(x) })) },
-        { label: 'Build hierarchy', icon: Network, title: 'Panels: create by count (levels later), edit levels and connections in one list, rename by level; typical floors, repeat group, templates', onClick: go('panels'), active: a.view === 'panels', page: true },
-        { label: 'Board properties', icon: BoardPropsIcon, title: a.boardId ? `Board properties — ${a.boardId}` : 'Board properties — select a board first', onClick: a.onBoardProperties, disabled: !a.boardId },
-        { label: 'Transformer data', icon: TransformerIcon, title: a.transformerBoardId ? `Transformer data of ${a.transformerBoardId} (the main board supplying ${a.boardId})` : 'No main board', onClick: a.onTransformer, disabled: !a.transformerBoardId },
+        { label: 'Boards', icon: AddBoardIcon, title: `Add a board fed from ${a.boardId || 'an existing board'} — ▾ for a DB, SMDB, MCC or EMDB with its usual rating, or Build hierarchy to create many at once`, onClick: () => a.onAddBoard(), active: a.view === 'panels', page: true,
+          menu: [
+            ...ADD_BOARD.map((x) => ({ label: `${x.kind} · ${x.ratingA} A`, title: `Add a ${x.kind} rated ${x.ratingA} A fed from ${a.boardId || 'the selected board'}`, onClick: () => a.onAddBoard(x) })),
+            { label: 'Build hierarchy…', title: 'Panels: create by count (levels later), edit levels and connections in one list, rename by level; typical floors, repeat group, templates', onClick: go('panels'), sep: true }
+          ] },
+        { label: 'Board', icon: BoardPropsIcon, sub: a.boardId || undefined, title: a.boardId ? `Properties of ${a.boardId}: general, supply (its transformer and feed chain), electrical, protection, location` : 'Board properties — select a board first', onClick: a.onBoardProperties, disabled: !a.boardId },
         { label: 'Schedule', icon: Table2, title: `Load distribution schedule of ${a.boardId}`, onClick: go('load-schedule'), active: a.view === 'load-schedule', page: true },
         view('building', 'Building', Building2, 'Building information: GFA, levels, typical floors, rooms and room types'),
         { label: 'Space plan', icon: LayoutGrid, title: 'Space planning: areas → panels → transformers → RMUs', onClick: go('space-planning'), active: a.view === 'space-planning', page: true },
@@ -316,22 +316,23 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         {groups[tab].map((group, gi) => (
           <div key={gi} className="ribbon-group" role="group" aria-label={CAPTIONS[tab]?.[gi]}>
             <div className="ribbon-group-btns">
-              {group.map(({ label, icon: I, title, onClick, active, disabled, stale, page, menu }) => {
+              {group.map(({ label, icon: I, title, onClick, active, disabled, stale, page, menu, sub }) => {
                 const btn = (
                   <button key={label} className={`${active ? (page ? 'page-on' : 'on') : ''}${stale ? ' stale' : ''}`} title={title} aria-pressed={page ? undefined : active} aria-current={page && active ? 'page' : undefined} disabled={disabled} onClick={onClick}>
                     <I size={20} strokeWidth={1.6} />
                     <span>{label}</span>
+                    {sub && <span className="ribbon-sub">{sub}</span>}
                   </button>
                 );
                 if (!menu) return btn;
                 return (
                   <span key={label} className="ribbon-split">
                     {btn}
-                    <button className="ribbon-split-arrow" title={`${label}: choose a type`} aria-haspopup="menu" aria-expanded={splitOpen === label} disabled={disabled}
+                    <button className="ribbon-split-arrow" title={`${label}: more options`} aria-haspopup="menu" aria-expanded={splitOpen === label} disabled={disabled}
                       onClick={(e) => { e.stopPropagation(); const r = (e.currentTarget.parentElement ?? e.currentTarget).getBoundingClientRect(); setSplitAt({ x: r.left, y: r.bottom + 2 }); setSplitOpen(splitOpen === label ? null : label); }}>▾</button>
                     {splitOpen === label && (
                       <div className="ribbon-split-menu" role="menu" style={{ left: splitAt.x, top: splitAt.y }} onMouseDown={(e) => e.stopPropagation()}>
-                        {menu.map((m) => <button key={m.label} role="menuitem" title={m.title} onClick={() => { setSplitOpen(null); m.onClick(); }}>{m.label}</button>)}
+                        {menu.map((m) => <span key={m.label} style={{ display: 'contents' }}>{m.sep && <hr />}<button role="menuitem" title={m.title} onClick={() => { setSplitOpen(null); m.onClick(); }}>{m.label}</button></span>)}
                       </div>
                     )}
                   </span>
