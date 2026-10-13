@@ -10,6 +10,7 @@ import {
 import { buildVariationHtml, buildVariationWorkbook } from '../../docs/variationReport';
 import { workbookBytes } from '../../docs/formWorkbook';
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
+import { offerSubmission } from '../../model/submissions';
 
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const money = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -32,7 +33,12 @@ export default function VariationsView({ project, items, bom, cur, onChange, onS
       const single = sheets?.length === 1;
       const html = buildVariationHtml(project, single ? { register: false, sheets } : {});
       const m = await savePdf(`${base} - ${single ? sheets![0] : 'Variation register'}.pdf`, html, { pageSize: 'A4', cssPages: true, selfNumbered: true });
-      if (m) onStatus(m);
+      if (m) {
+        onStatus(m);
+        const v = single ? vos.find((x) => x.id === sheets![0]) : undefined;
+        offerSubmission(v ? { kind: 'Variation', title: `${v.id} — ${v.title}`, purpose: 'For approval', docs: [{ number: v.id, title: v.title, rev: '—' }] }
+          : { kind: 'Variation', title: 'Variation register', purpose: 'For information', docs: [{ number: project.boq?.document?.docNo ? `${project.boq.document.docNo} VOR` : 'Variation register', title: 'Variation register', rev: '—' }] });
+      }
     } catch (e) { onStatus(`PDF export failed: ${e instanceof Error ? e.message : String(e)}`); }
   }
   async function excel() {

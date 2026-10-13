@@ -542,7 +542,7 @@ export function buildBoqHtml(project: Project, bom: PricedBom, list?: PriceList,
 /** A plain A4 print document in the BOQ style: running header with the company logo (or
  * company name) and project · `headRight`, footer with `footer` and Page n of N, and the
  * shared typography and table styles. Used by the BOQ and the variation register. */
-export function printDoc(project: Project, o: { title: string; headRight: string; footer: string; body: string }): string {
+export function printDoc(project: Project, o: { title: string; headRight: string; footer: string; body: string; landscape?: boolean }): string {
   const company = project.drawing?.company?.trim() || project.info?.consultant?.trim() || '';
   const headLogo = cssImage(project.drawing?.logo);
   const { footer, body } = o;
@@ -551,7 +551,7 @@ export function printDoc(project: Project, o: { title: string; headRight: string
   const top = `${rule} vertical-align: bottom; padding-bottom: 2.5mm; border-bottom: 0.4pt solid #000;`;
   const bottom = `${rule} vertical-align: top; padding-top: 2.5mm; border-top: 0.4pt solid #000;`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>${escH(o.title)}</title><style>
-@page { size: A4; margin: 21mm 14mm 16mm 16mm;
+@page { size: A4${o.landscape ? ' landscape' : ''}; margin: 21mm 14mm 16mm 16mm;
   ${headLogo ? box('top-left', '""', `width: 45mm; background: url("${headLogo}") no-repeat left bottom 2.5mm / auto 9mm; ${top}`) : box('top-left', cssStr(company || project.name), top)}
   ${box('top-right', cssStr(`${headLogo || company ? `${project.name}   ·   ` : ''}${o.headRight}`), top)}
   ${box('bottom-left', cssStr(footer), bottom)}

@@ -309,6 +309,10 @@ export interface Project {
   boqRevisions?: import('./model/boqRevisions').BoqRevision[];
   /** Variations to the contract scope, VO-001… (BOM / Cost → Variations). */
   variations?: import('./model/variations').Variation[];
+  /** Documents sent out and their responses (Reports → Submissions). */
+  submissions?: import('./model/submissions').Submission[];
+  /** Default response time in days by recipient group (Client, Consultant, Authority…). */
+  submissionDays?: Record<string, number>;
   /** Documents received from others (Reports → Received documents). */
   receivedDocs?: import('./model/receivedDocs').ReceivedDoc[];
   /** The issued revision this working draft is measured against (Revisions → Use as baseline). */

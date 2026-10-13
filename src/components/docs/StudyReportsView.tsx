@@ -25,6 +25,8 @@ import { ISSUE_STATUSES, missingFields, pageFrame, reportDoc, type ReportMeta } 
 import SystemDiagram from '../SystemDiagram';
 import { Page, StaleBanner } from '../ui';
 import { useStable } from '../../util/useStable';
+import { offerSubmission } from '../../model/submissions';
+import { currentRevision } from '../../model/revisions';
 
 const noop = () => {};
 /** A table row with a status cell that is a warning or worse. */
@@ -139,9 +141,10 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
           if (m) saved++;
         }
         onStatus(`Saved ${saved} of ${sections.length} study reports`);
+        if (saved) offerSubmission({ kind: 'Report', title: title || 'Study reports', purpose: 'For approval', docs: sections.map((s) => ({ number: setup.docNo ?? '', title: s.title, rev: currentRevision(project)?.id ?? '' })) });
       } else {
         const m = await savePdf(`${base} - ${safeFileName(title + scopeTag)}.pdf`, buildStudyReportHtml(project, scope, sections, meta, slds, { ...basisOpt, pages: {} }), { cssPages: true, frame: pageFrame(reportDoc(project, meta)), paginate: (pages) => buildStudyReportHtml(project, scope, sections, meta, slds, { ...basisOpt, pages }) });
-        if (m) onStatus(m);
+        if (m) { onStatus(m); offerSubmission({ kind: 'Report', title: title || 'Study report', purpose: 'For approval', docs: [{ number: setup.docNo ?? '', title: title || 'Study report', rev: currentRevision(project)?.id ?? '' }] }); }
       }
     } catch (e) {
       onStatus(`Export failed: ${e instanceof Error ? e.message : String(e)}`);

@@ -101,6 +101,7 @@ import PanelsPage from './components/PanelsPage';
 import DiscriminationPanel from './components/DiscriminationPanel';
 import { discriminationChain } from './calc/protection';
 import { pasteBoard } from './model/copyBoard';
+import { draftFromOffer, onSubmissionOffer, type Submission, type SubmissionOffer } from './model/submissions';
 import { applyDefaults, applyProfile, initialsOf, loadPrefs, savePrefs, signature, type Preferences } from './model/profile';
 import { clearRecovery, deleteProjectFile, inDesktop, listProjects, loadProject, emptyTrash, listTrash, loadProjectStamped, readRecoveries, recentFiles, restoreProject, saveProjectFile, statProject, touchRecent, whenText, writeRecovery, type ProjectMeta, type Recovery, type TrashedProject } from './model/projectStore';
 import { applyDetails, withArchived, type ProjectDetails } from './model/projectList';
@@ -112,6 +113,7 @@ const ReviewView = lazy(() => import('./components/docs/ReviewView'));
 import { applyTemplateSystem, loadTemplates, saveTemplates, templateFrom, type SetupTemplate } from './model/setupTemplate';
 import CheckpointsPanel from './components/docs/CheckpointsPanel';
 const ReceivedDocsView = lazy(() => import('./components/docs/ReceivedDocsView'));
+const SubmissionsView = lazy(() => import('./components/docs/SubmissionsView'));
 import { applyBrief, type ProjectBrief } from './model/brief';
 import { defaultsPreview } from './model/setupPreview';
 import { copyProject, isFutureSchema, migrateProject } from './model/projectMigrate';
@@ -147,7 +149,7 @@ const PALETTE_PAGES: [MainView, string][] = [
   ['ups', 'UPS & battery'], ['solar', 'Solar PV'], ['drawings', 'Drawings'], ['drawing-register', 'Drawing register'], ['db-schedule', 'DB schedule'],
   ['cable-schedule', 'Cable schedule'], ['cable-tray', 'Cable trays'], ['equipment', 'Equipment schedule'], ['boq', 'Bill of quantities (BOQ)'],
   ['study-reports', 'Study reports'], ['report', 'Calculation report'], ['revisions', 'Revisions'], ['modifications', 'Changes'], ['review', 'Review'],
-  ['received-docs', 'Received documents'], ['parameters', 'Parameters'], ['titleblock', 'Title block'], ['database', 'Database'],
+  ['received-docs', 'Received documents'], ['submissions', 'Submissions'], ['parameters', 'Parameters'], ['titleblock', 'Title block'], ['database', 'Database'],
   ['design-references', 'Design references'], ['help', 'Help']
 ];
 
@@ -213,6 +215,10 @@ export default function App() {
   const [activeBoardId, setActiveBoardId] = useState<string>(project.boards[0]?.id ?? '');
   const [selected, setSelected] = useState<string | null>(null);
   const [status, setStatus] = useState<string>('');
+  // After a BOQ, variation or report PDF: offer to record it as a submission.
+  const [subOffer, setSubOffer] = useState<SubmissionOffer | null>(null);
+  const [subDraft, setSubDraft] = useState<Submission | undefined>();
+  useEffect(() => onSubmissionOffer(setSubOffer), []);
   const [view, setViewState] = useState<MainView>('projects'); // the app starts on the projects list
   const [ribbonTab, setRibbonTab] = useState<RibbonTab>('home');
   const [tool, setTool] = useState<DiagramTool>('select');
@@ -1071,6 +1077,14 @@ export default function App() {
         </div>
       )}
 
+      {!home && subOffer && (
+        <div className="recover-bar" role="status">
+          <span>Saved <b>{subOffer.title}</b>. Record it as a submission (to whom, purpose, due date)?</span>
+          <button className="chip primary" onClick={() => { setSubDraft(draftFromOffer(project, subOffer, new Date().toISOString().slice(0, 10))); setSubOffer(null); setView('submissions'); }}>Record submission</button>
+          <button className="chip" onClick={() => setSubOffer(null)}>Skip</button>
+        </div>
+      )}
+
       {!home && external && <ExternalChangeBar kind={external} dirty={dirty} onReload={() => currentFile && reloadFromDisk(currentFile)} onReview={reviewDiskChanges} onDismiss={() => setExternal(null)} />}
       {!home && readOnly && <div className="recover-bar" role="alert"><span>{readOnly} Use Save as to keep your own copy.</span></div>}
 
@@ -1432,6 +1446,7 @@ export default function App() {
               <TrayScheduleView project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />
             )}
             {view === 'received-docs' && <ReceivedDocsView project={project} onChange={(p) => setProject(p)} onStatus={setStatus} />}
+            {view === 'submissions' && <SubmissionsView project={project} draft={subDraft} me={prefs.profile.name ? initialsOf(prefs.profile.name) : ''} onChange={(p) => { setProject(p, { step: true }); setSubDraft(undefined); }} onStatus={setStatus} />}
             {view === 'review' && <ReviewView project={project} me={prefs.profile.name} run={run} stale={staleKeys} onChange={(p) => setProject(p)} onStatus={setStatus} onGo={(v) => setView(v)} />}
             {view === 'modifications' && <ChangesView project={project} me={prefs.profile.name} run={run} onChange={(p) => setProject(p)} onApply={(p) => setProject(p, { step: true })} onStatus={setStatus} onGo={(v) => setView(v)} />}
             {view === 'revisions' && <><RevisionsView project={project} me={prefs.profile.name ? initialsOf(prefs.profile.name) : ''} onChange={setProject} onStatus={setStatus} /><div style={{ padding: '0 16px 16px' }}><CheckpointsPanel project={project} onRestore={(p) => setProject(p, { step: true })} onStatus={setStatus} /></div></>}

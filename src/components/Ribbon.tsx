@@ -1,7 +1,7 @@
 import { AddBoardIcon, BoardPropsIcon, TransformerIcon, TxGenSizingIcon } from './icons/elecIcons';
 import { useEffect, useRef, useState } from 'react';
 import {
-  Activity, BatteryCharging, Building2, Cable, Calculator, ClipboardCheck, MessageSquareWarning, Inbox, Car, CircuitBoard, Cog, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText, GitPullRequestArrow, Stamp,
+  Activity, BatteryCharging, Building2, Cable, Calculator, ClipboardCheck, MessageSquareWarning, Inbox, Car, CircuitBoard, Cog, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText, GitPullRequestArrow, Send, Stamp,
   Gauge, Hand, LayoutGrid, ListTree, MousePointer2, Pencil, Receipt, Scale, Settings2, ShieldCheck, Sun,
   ChevronDown, ChevronUp, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box } from 'lucide-react';
 import type { BoardKind, Feeder } from '../types';
@@ -243,7 +243,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         view('cable-tray', 'Cable trays', Rows3, 'Cable tray schedule: routes A, B, C… with the cables on each and the tray size'),
         view('equipment', 'Equipment', FileSpreadsheet, 'Transformers and boards')
       ],
-      [view('drawings', 'Drawings', Files, 'SLD sheets and register in one place: panels per sheet, status, revisions, title block, issues and transmittals, PDF / Excel exports'), view('study-reports', 'Study reports', ClipboardCheck, 'Submission reports: chosen studies (short circuit, load flow…) for chosen boards, with their SLD'), view('report', 'Calc report', FileText, 'Calculation report (PDF)'), view('revisions', 'Revisions', History, 'Issue Rev A, B, C… and see what changed'), view('modifications', 'Changes', GitCompare, 'What the working draft changes against its baseline: panels, studies to run again, drawings, schedules and BOQ quantities'), view('review', 'Review', MessageSquareWarning, 'Design review comments: raise, answer and close them; closed ones are flagged when the design changes'), view('received-docs', 'Received docs', Inbox, 'Register of documents received from others, with revisions and the baseline the work started from')]
+      [view('drawings', 'Drawings', Files, 'SLD sheets and register in one place: panels per sheet, status, revisions, title block, issues and transmittals, PDF / Excel exports'), view('study-reports', 'Study reports', ClipboardCheck, 'Submission reports: chosen studies (short circuit, load flow…) for chosen boards, with their SLD'), view('report', 'Calc report', FileText, 'Calculation report (PDF)'), view('revisions', 'Revisions', History, 'Issue Rev A, B, C… and see what changed'), view('modifications', 'Changes', GitCompare, 'What the working draft changes against its baseline: panels, studies to run again, drawings, schedules and BOQ quantities'), view('review', 'Review', MessageSquareWarning, 'Design review comments: raise, answer and close them; closed ones are flagged when the design changes'), view('received-docs', 'Received docs', Inbox, 'Register of documents received from others, with revisions and the baseline the work started from'), view('submissions', 'Submissions', Send, 'Documents sent out — BOQ, drawings, reports, variations — with due dates, responses, comments and transmittals')]
     ],
     cost: [
       [
