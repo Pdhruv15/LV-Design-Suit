@@ -68,6 +68,7 @@ export interface DrawingSet {
   suffix?: string; // after the number, e.g. "-EL"
   riserPrefix?: string; // riser diagram sheets have their own sequence (default E-RSR-)
   earthPrefix?: string; // earthing schematic sheets (default E-ERT-)
+  dbPrefix?: string; // board sheets (Design ▸ Board ▸ Export sheets), one per board (default E-DB-)
   status?: string; // default status of every sheet
   issues?: DrawingIssue[]; // transmittals, oldest first
 }
@@ -78,6 +79,7 @@ export const SIZES: SheetSize[] = ['A4', 'A3', 'A2', 'A1'];
 export const setOf = (p: Project): DrawingSet => p.drawingSet ?? { prefix: 'E-SLD-', sheets: [], register: true };
 export const RISER_PREFIX = 'E-RSR-';
 export const EARTH_PREFIX = 'E-ERT-';
+export const DB_PREFIX = 'E-DB-';
 export const sheetNumber = (set: DrawingSet, i: number, prefix = set.prefix) => `${prefix}${String((set.start ?? 1) + i).padStart(set.digits ?? 3, '0')}${set.suffix ?? ''}`;
 /** Numbers in order (prefix, start, digits, suffix); riser sheets count in
  * their own sequence (E-RSR-001 …). With manual numbers only blanks are filled. */

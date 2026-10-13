@@ -365,6 +365,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
               <label>Suffix{txt(set.suffix, (v) => setNumbering({ suffix: v || undefined }), 'e.g. -EL')}</label>
               <label>Riser prefix{txt(set.riserPrefix, (v) => setNumbering({ riserPrefix: v || undefined }), 'E-RSR-')}</label>
               <label>Earthing prefix{txt(set.earthPrefix, (v) => setNumbering({ earthPrefix: v || undefined }), 'E-ERT-')}</label>
+              <label title="Board sheets: Design ▸ SLD ▸ Board ▸ Export sheets, one per board">Board sheet prefix{txt(set.dbPrefix, (v) => setNumbering({ dbPrefix: v || undefined }), 'E-DB-')}</label>
             </div>
             <p className="m">Example: <b>{sheetNumber(set, 0)}</b>, {sheetNumber(set, 1)} …</p>
             <label className="row"><input type="checkbox" checked={!!set.manualNumbers} onChange={(e) => save({ ...set, manualNumbers: e.target.checked || undefined })} /> Type numbers by hand (keep them when sheets move)</label>
