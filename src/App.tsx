@@ -8,7 +8,6 @@ import { evaluateProject, type Status } from './calc/electrical';
 import { boardIncomerLabel } from './docs/loadScheduleDoc';
 import { panelSummary } from './docs/mdSheet';
 import { boardLocation } from './model/levels';
-import SingleLineDiagram from './components/SingleLineDiagram';
 import ResultsTable from './components/ResultsTable';
 import SidePanel from './components/SidePanel';
 import InspectorPanel from './components/InspectorPanel';
@@ -18,6 +17,7 @@ const BomView = lazy(() => import('./components/docs/BomView'));
 import { exportDss } from './engines/opendss/exportDss';
 const EngineCompare = lazy(() => import('./components/EngineCompare'));
 import SystemDiagram from './components/SystemDiagram';
+import BoardSheetView from './components/BoardSheetView';
 import SystemSummaryCards from './components/SystemSummaryCards';
 import BoardPanel from './components/BoardPanel';
 const EarthingStudy = lazy(() => import('./components/studies/EarthingStudy'));
@@ -1283,8 +1283,9 @@ export default function App() {
                     onActive={setSheetTab} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onToggleOutlines={() => setSheetOutlinesOn((v) => !v)} />
                   </div>
                 ) : (
-                  <SingleLineDiagram board={board} voltageV={project.voltageV} incomerLabel={boardIncomerLabel(project, board)} project={project} results={boardResults} selected={selected} onSelect={selectFeeder}
-                    summary={project.drawing?.sldStyle === 'standard' ? undefined : { loc: boardLocation(project, board), ...panelSummary(project, board) }} />
+                  <BoardSheetView project={project} board={board} results={allResults} selected={panel === 'feeder' ? selected : null} onSelect={selectFeeder} onBoard={selectBoard}
+                    onChange={(p) => setProject(p, { step: true })} onStatus={setStatus}
+                    diagram={{ incomerLabel: boardIncomerLabel(project, board), summary: project.drawing?.sldStyle === 'standard' ? undefined : { loc: boardLocation(project, board), ...panelSummary(project, board) } }} />
                 )}
               </section>
               <section className={`res-drawer${resTab ? ' open' : ''}`}>

@@ -6,6 +6,7 @@ import { runsOf } from '../calc/electrical';
 import { cpcOf } from '../calc/cableTable';
 import { cableTypeOf } from '../model/cableTypes';
 import { deviceKind, devicePoles } from '../diagram/deviceText';
+import { nextPhase, phaseTag } from '../model/phases';
 
 const SPACING = 172; // horizontal slot per feeder
 const MARGIN = 80;
@@ -38,6 +39,7 @@ export default function SingleLineDiagram({
   results,
   selected,
   onSelect,
+  onPhase,
   summary
 }: {
   board: Board;
@@ -50,6 +52,8 @@ export default function SingleLineDiagram({
   results: FeederResult[];
   selected: string | null;
   onSelect: (feederId: string) => void;
+  /** Click on a circuit's phase tag: move a single-phase circuit to the next phase. Without it the tag is not shown. */
+  onPhase?: (feederId: string) => void;
 }) {
   const n = results.length;
   const locLines = summary ? wrapText(`LOC : ${summary.loc || '—'}`, 34, 2) : [];
@@ -150,6 +154,19 @@ export default function SingleLineDiagram({
                   <title>{`${circuitRef(f) ?? f.id} — ${f.room || f.name || ''}`}</title>
                   <circle cx={x + CARD_W / 2 - 10} cy={top + 12} r="4" fill={col} />
                   <text className="b" x={x - CARD_W / 2 + 8} y={top + 19}>{circuitRef(f) ?? f.id}</text>
+                  {onPhase && (() => {
+                    const tag = phaseTag(f);
+                    const single = tag !== 'RYB';
+                    const w = tag === 'RYB' ? 30 : tag ? 22 : 36, right = x + CARD_W / 2 - 18;
+                    return (
+                      <g className={`ph-tag ${tag ? `ph-${tag.toLowerCase()}` : 'unset'}${single ? ' click' : ''}`}
+                        onClick={single ? (e) => { e.stopPropagation(); onPhase(f.id); } : undefined}>
+                        <title>{single ? `Phase ${tag || 'not set'} — click to move to ${nextPhase(tag)}` : '3-phase circuit'}</title>
+                        <rect x={right - w} y={top + 6} width={w} height={17} rx="4" />
+                        <text x={right - w / 2} y={top + 18} textAnchor="middle" className="b">{tag || 'PH ?'}</text>
+                      </g>
+                    );
+                  })()}
                   {name.map((l, k) => <text key={k} className="m" x={x - CARD_W / 2 + 8} y={top + 35 + k * 13}>{l}</text>)}
                   <text x={x - CARD_W / 2 + 8} y={bottom - 12}>
                     {r.ib.toFixed(0)} A{f.feedsBoardId ? ` · → ${f.feedsBoardId}` : ` · ${(f.loadKw * f.demandFactor).toFixed(0)} kW${f.generation ? ' gen' : ''}`}
