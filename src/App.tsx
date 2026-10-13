@@ -774,13 +774,6 @@ export default function App() {
     for (let i = 0; b?.upstreamId && i < 50; i++) { const up: string = b.upstreamId; b = project.boards.find((x) => x.id === up); }
     return b ?? project.boards.find((x) => !x.upstreamId);
   };
-  function openTransformer() {
-    const main = mainOfSelected();
-    if (!main) return;
-    setView('design');
-    selectBoard(main.id);
-    setBoardTab('electrical');
-  }
 
   function confirmDeleteSelected() {
     if (panel === 'feeder' && selectedFeeder) { if (window.confirm(`Delete feeder ${selectedFeeder.id}?`)) deleteFeeder(selectedFeeder.id); return; }
@@ -1101,10 +1094,8 @@ export default function App() {
           boardId: board?.id ?? '',
           selectedFeederId: panel === 'feeder' ? selected : null,
           selection: panel === 'feeder' && selected ? { kind: 'feeder', id: selected } : board ? { kind: 'board', id: board.id } : null,
-          transformerBoardId: mainOfSelected()?.id,
           onAddFeeder: openAddFeeder,
           onAddBoard: (preset) => { setBoardPreset(preset); setShowBoardForm(true); },
-          onTransformer: openTransformer,
           onBoardProperties: () => { setView('design'); if (board) selectBoard(board.id); setBoardTab('general'); },
           onEditSelected: () => { setView('design'); if (panel === 'feeder' && selectedFeeder) setShowFeederForm('edit'); else if (board) setEditBoardId(board.id); },
           onDeleteSelected: confirmDeleteSelected,
@@ -1340,7 +1331,7 @@ export default function App() {
                 );
               })()}
               {sheetTab && setOf(project).sheets.some((x) => x.id === sheetTab) && sideTab === 'sheet' ? null : panel === 'board' ? (
-                <BoardPanel project={calcProject.boards.some((b) => b.id === board.id) ? calcProject : project} board={board} results={allResults} onChange={updateBoard} onSelectFeeder={selectFeeder} tab={boardTab} onTab={setBoardTab} onEnclosure={() => setView('enclosure')} />
+                <BoardPanel project={calcProject.boards.some((b) => b.id === board.id) ? calcProject : project} board={board} results={allResults} onChange={updateBoard} onSelectFeeder={selectFeeder} tab={boardTab} onTab={setBoardTab} onEnclosure={() => setView('enclosure')} main={mainOfSelected()} />
               ) : (
                 <>
                   <SidePanel results={boardResults} selected={selected} />

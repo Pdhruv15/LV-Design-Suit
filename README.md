@@ -144,8 +144,9 @@ header of the exported file.
   with zoom/pan, load-type icons, and click-to-select boards and feeders
 - System summary (connected/demand load, kVA, power factor, transformer
   loading) and a bus voltage / board loading table
-- Board properties panel (General / Electrical / Protection) with editable
-  equipment data and board loading against its rating
+- Board properties panel (General / Supply / Electrical / Protection /
+  Location) with editable equipment data and board loading against its
+  rating; Supply shows the feed chain and edits the transformer at its head
 - Studies: earthing (Zs, disconnection time, CPC adiabatic check), breaker
   and cable selection (fix-only or optimise, apply per row or all),
   protection coordination (time-current curves, current-based selectivity),

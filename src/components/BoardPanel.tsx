@@ -5,16 +5,17 @@ import { boardSummary } from '../calc/summary';
 import BoardFields from './BoardFields';
 import { roleOf } from '../model/emergency';
 
-export type BoardTab = 'general' | 'electrical' | 'protection' | 'location';
+export type BoardTab = 'general' | 'supply' | 'electrical' | 'protection' | 'location';
 type Tab = BoardTab;
 
 const statusLabel = { ok: 'Within limits', warn: 'Near rating (> 80 %)', bad: 'Overloaded' } as const;
 
-/** Properties of a board: editable equipment data (General), supply and
- * computed electrical values (Electrical), the incomer's settings and its
- * protective device's checks (Protection), and where it is and who makes it
- * (Location), plus a loading summary. What the SLD draws sits under General. */
-const TABS: [Tab, string][] = [['general', 'General'], ['electrical', 'Electrical'], ['protection', 'Protection'], ['location', 'Location']];
+/** Properties of a board: editable equipment data (General), the chain that
+ * feeds it and the transformer at its head (Supply), computed electrical
+ * values (Electrical), the incomer's settings and its protective device's
+ * checks (Protection), and where it is and who makes it (Location), plus a
+ * loading summary. What the SLD draws sits under General. */
+const TABS: [Tab, string][] = [['general', 'General'], ['supply', 'Supply'], ['electrical', 'Electrical'], ['protection', 'Protection'], ['location', 'Location']];
 
 export default function BoardPanel({
   project,
@@ -24,7 +25,8 @@ export default function BoardPanel({
   onSelectFeeder,
   tab: tabProp,
   onTab,
-  onEnclosure
+  onEnclosure,
+  main
 }: {
   project: Project;
   board: Board;
@@ -33,7 +35,10 @@ export default function BoardPanel({
   onSelectFeeder: (id: string) => void;
   /** Opens Design → Enclosure sizing for this board. */
   onEnclosure?: () => void;
-  /** Optional controlled tab (the ribbon's Transformer button opens Electrical). */
+  /** The live main board at the head of this board's chain: its transformer
+   * is edited on the Supply tab (for a main board, the board itself). */
+  main?: Board;
+  /** Optional controlled tab (the ribbon's Board button opens General). */
   tab?: Tab;
   onTab?: (t: Tab) => void;
 }) {
@@ -43,6 +48,13 @@ export default function BoardPanel({
   const s = useMemo(() => boardSummary(project, board), [project, board]);
   const incomerResult = s.incomer ? results.find((r) => r.feeder.id === s.incomer!.id) : undefined;
   const isMain = !board.upstreamId;
+  // Transformer → main board → … → this board.
+  const chain = useMemo(() => {
+    const out: Board[] = [];
+    for (let b: Board | undefined = board; b && out.length < 50; b = b.upstreamId ? project.boards.find((x) => x.id === b!.upstreamId) : undefined) out.unshift(b);
+    return out;
+  }, [project, board]);
+  const head = main ?? (isMain ? board : undefined);
 
   return (
     <>
@@ -67,9 +79,34 @@ export default function BoardPanel({
             {onEnclosure && <> <button className="chip" onClick={onEnclosure}>Enclosure sizing…</button></>}</p>
         )}
 
+        {tab === 'supply' && (
+          <>
+            <p className="supply-chain">
+              <span>{head?.sourceKva ? `Transformer · ${head.sourceKva} kVA` : 'Transformer'}</span>
+              {chain.map((b) => <span key={b.id}><i aria-hidden="true">→</i><b className={b.id === board.id ? 'on' : ''}>{b.id}</b></span>)}
+            </p>
+            {head ? (
+              <>
+                <h4>Transformer{isMain ? '' : ` (supplies ${head.id})`}</h4>
+                {!head.sourceKva && <p className="m warn">No transformer rating yet — enter it below.</p>}
+                <BoardFields board={head} onChange={onChange} section="source" />
+                {!isMain && <p className="m">Changes here apply to every board {head.id} supplies.</p>}
+              </>
+            ) : <p className="m">No main board found above {board.id}.</p>}
+            <h4>At this board</h4>
+            <dl className="kv">
+              <dt>Incoming feeder</dt>
+              <dd>{s.incomer ? <><button className="linkish" onClick={() => onSelectFeeder(s.incomer!.id)}>{s.incomer.id}</button> · {s.incomer.cableCsaMm2} mm² × {s.incomer.lengthM} m</> : isMain ? 'Transformer secondary' : '—'}</dd>
+              <dt>Fault level Ik″</dt>
+              <dd>{s.faultKA.toFixed(1)} kA</dd>
+              <dt>Voltage drop</dt>
+              <dd>{(100 - s.voltagePct).toFixed(1)} % (cumulative)</dd>
+            </dl>
+          </>
+        )}
+
         {tab === 'electrical' && (
           <>
-            {isMain && <BoardFields board={board} onChange={onChange} section="source" />}
             <dl className="kv">
               <dt>System voltage</dt>
               <dd>{project.voltageV} V, 3-phase</dd>
