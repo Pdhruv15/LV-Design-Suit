@@ -307,6 +307,8 @@ export interface Project {
   reviewReport?: import('./docs/reviewReport').ReviewReportSetup;
   /** Issued BOQ revisions (Rev 0, 1, 2…), numbered separately from the design revisions (BOM / Cost → Revisions). */
   boqRevisions?: import('./model/boqRevisions').BoqRevision[];
+  /** Variations to the contract scope, VO-001… (BOM / Cost → Variations). */
+  variations?: import('./model/variations').Variation[];
   /** Documents received from others (Reports → Received documents). */
   receivedDocs?: import('./model/receivedDocs').ReceivedDoc[];
   /** The issued revision this working draft is measured against (Revisions → Use as baseline). */

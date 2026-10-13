@@ -12,6 +12,8 @@ import { boqBookmarks, buildBoqHtml, buildBoqWorkbook, buildPriceTemplate, readP
 import { workbookBytes } from '../../docs/formWorkbook';
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
 import BoqTable from '../BoqTable';
+import VariationsView from './VariationsView';
+import { variationsOf } from '../../model/variations';
 import { toggleIn } from '../../util/sets';
 import { boqRevisionsOf, changeNote, CHANGE_LABEL, compareLines, issueBoqRevision, linesOf, numberBom, type BoqLine, type BoqRevision } from '../../model/boqRevisions';
 
@@ -36,7 +38,7 @@ type Dialog =
  * wastage and pricing from your price list; Excel and PDF output, and the
  * BOQ revisions (Rev 0, 1, 2…) with what changed between them. */
 export default function BomView({ command, project, results, me = '', onChange, onStatus }: { command?: { cmd: BomCommand; n: number }; project: Project; results: FeederResult[]; /** The user's initials, the default "by" of a BOQ revision. */ me?: string; onChange: (p: Project) => void; onStatus: (m: string) => void }) {
-  const [tab, setTab] = useState<'boq' | 'scope' | 'changes' | 'circuits'>('boq');
+  const [tab, setTab] = useState<'boq' | 'scope' | 'changes' | 'variations' | 'circuits'>('boq');
   const [library, setLibrary] = useState<PriceList[]>(loadPriceLists);
   const [filter, setFilter] = useState('');
   const [dialog, setDialog] = useState<Dialog | null>(null);
@@ -140,7 +142,7 @@ export default function BomView({ command, project, results, me = '', onChange, 
     const { exportBoq, exportPdf, exportTemplate, saveToLibrary, newItem } = actions.current;
     last.current = command.n;
     const c = command.cmd;
-    if (c === 'boq' || c === 'scope' || c === 'changes' || c === 'circuits') { setTab(c); setDialog(null); }
+    if (c === 'boq' || c === 'scope' || c === 'changes' || c === 'variations' || c === 'circuits') { setTab(c); setDialog(null); }
     else if (c === 'excel') exportBoq();
     else if (c === 'pdf') exportPdf(false);
     else if (c === 'summary-pdf') exportPdf(true);
@@ -171,6 +173,7 @@ export default function BomView({ command, project, results, me = '', onChange, 
           <button className={`chip${!dialog && tab === 'boq' ? ' on' : ''}`} aria-pressed={!dialog && tab === 'boq'} onClick={() => showTab('boq')}>Bill of quantities</button>
           <button className={`chip${!dialog && tab === 'scope' ? ' on' : ''}`} aria-pressed={!dialog && tab === 'scope'} onClick={() => showTab('scope')}>Scope & review{review.length ? ` (${review.length})` : ''}</button>
           <button className={`chip${!dialog && tab === 'changes' ? ' on' : ''}`} aria-pressed={!dialog && tab === 'changes'} onClick={() => showTab('changes')}>Revisions{latestIssue ? ` (Rev ${latestIssue.id}${pending.size ? ` + ${pending.size} changes` : ''})` : ''}</button>
+          <button className={`chip${!dialog && tab === 'variations' ? ' on' : ''}`} aria-pressed={!dialog && tab === 'variations'} onClick={() => showTab('variations')}>Variations{variationsOf(project).length ? ` (${variationsOf(project).length})` : ''}</button>
           <button className={`chip${!dialog && tab === 'circuits' ? ' on' : ''}`} aria-pressed={!dialog && tab === 'circuits'} onClick={() => showTab('circuits')}>Per circuit</button>
           {dialog && <button className="chip on" type="button">{dialog.kind === 'item' || dialog.kind === 'design' ? 'Edit item' : dialog.kind === 'extras' ? 'Extra scope' : dialog.kind === 'section' ? 'Section' : dialog.kind === 'wastage' ? 'Wastage' : dialog.kind === 'document' ? 'BOQ document' : dialog.kind === 'issue' ? 'Issue revision' : 'Markup'}</button>}
         </div>
@@ -268,6 +271,8 @@ export default function BomView({ command, project, results, me = '', onChange, 
       {!dialog && tab === 'scope' && <ScopePage custom={custom} review={review} items={bom.items} onEdit={openRow} onChange={setCustom} onExtras={() => setDialog({ kind: 'extras' })} />}
 
       {!dialog && tab === 'changes' && <RevisionsPage revisions={revisions} bom={bom} cur={cur} onIssue={() => setDialog({ kind: 'issue' })} />}
+
+      {!dialog && tab === 'variations' && <VariationsView project={project} items={items} bom={bom} cur={cur} onChange={onChange} onStatus={onStatus} />}
 
       {!dialog && tab === 'circuits' && <BoqTable results={results} projectName={project.name} project={project} />}
 
@@ -597,7 +602,7 @@ function RevisionsPage({ revisions, bom, cur, onIssue }: { revisions: BoqRevisio
     <section className="card">
       <table className="bom-table">
         <thead><tr><th>Rev</th><th>Date</th><th>Description</th><th>Design rev</th><th>Total excl. VAT</th><th>Grand total</th><th>By</th></tr></thead>
-        <tbody>{[...revisions].reverse().map((r) => <tr key={r.id}><td><b>{r.id}</b></td><td>{r.date}</td><td>{r.description}</td><td>{r.designRev ?? '—'}</td><td className="num">{money(r.total)}</td><td className="num">{money(r.grandTotal)}</td><td>{r.by ?? ''}</td></tr>)}</tbody>
+        <tbody>{[...revisions].reverse().map((r) => <tr key={r.id}><td><b>{r.id}</b>{r.contract && <span className="bom-tag">contract</span>}</td><td>{r.date}</td><td>{r.description}</td><td>{r.designRev ?? '—'}</td><td className="num">{money(r.total)}</td><td className="num">{money(r.grandTotal)}</td><td>{r.by ?? ''}</td></tr>)}</tbody>
       </table>
       <div className="row" style={{ gap: 8, margin: '10px 0' }}>
         <label className="row" style={{ gap: 6 }}>Compare Rev

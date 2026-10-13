@@ -40,6 +40,8 @@ export interface BoqRevision {
   total: number; // excluding VAT
   vat: number;
   grandTotal: number;
+  /** Marked as the contract BOQ: the original contract sum of the variation account. */
+  contract?: boolean;
 }
 
 export type BoqChangeKind = 'added' | 'omitted' | 'quantity' | 'rate' | 'description' | 'scope';
