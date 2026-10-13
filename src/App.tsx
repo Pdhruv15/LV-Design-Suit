@@ -1283,7 +1283,7 @@ export default function App() {
                     onActive={setSheetTab} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onToggleOutlines={() => setSheetOutlinesOn((v) => !v)} />
                   </div>
                 ) : (
-                  <BoardSheetView project={project} board={board} results={allResults} selected={panel === 'feeder' ? selected : null} onSelect={selectFeeder} onBoard={selectBoard}
+                  <BoardSheetView project={project} board={board} results={allResults} selected={panel === 'feeder' ? selected : null} onSelect={selectFeeder} onBoard={selectBoard} onOpenEarthing={() => setView('earth-schematic')}
                     onChange={(p) => setProject(p, { step: true })} onStatus={setStatus}
                     diagram={{ incomerLabel: boardIncomerLabel(project, board), summary: project.drawing?.sldStyle === 'standard' ? undefined : { loc: boardLocation(project, board), ...panelSummary(project, board) } }} />
                 )}

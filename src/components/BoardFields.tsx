@@ -153,9 +153,9 @@ export default function BoardFields({ board, onChange, section, building, groups
             </label>
             {(board.earthing?.show ?? isMain) && (
               <div className="earth-kv">
-                <label>Pits <input inputMode="numeric" value={board.earthing?.pits ?? ''} placeholder="2" onChange={(e) => setEarth({ pits: numOrU(e.target.value) })} /></label>
+                <label title="Blank: the count from Design ▸ Earth pits">Pits <input inputMode="numeric" value={board.earthing?.pits ?? ''} placeholder="plan" onChange={(e) => setEarth({ pits: numOrU(e.target.value) })} /></label>
                 <label>Earth conductor mm² <input inputMode="decimal" value={board.earthing?.conductorMm2 ?? ''} placeholder="auto" onChange={(e) => setEarth({ conductorMm2: numOrU(e.target.value) })} /></label>
-                <label>Electrode m <input inputMode="decimal" value={board.earthing?.electrodeM ?? ''} placeholder="3" onChange={(e) => setEarth({ electrodeM: numOrU(e.target.value) })} /></label>
+                <label title="Blank: the electrode length from Design ▸ Earth pits">Electrode m <input inputMode="decimal" value={board.earthing?.electrodeM ?? ''} placeholder="plan" onChange={(e) => setEarth({ electrodeM: numOrU(e.target.value) })} /></label>
                 <label>Spacing m <input inputMode="decimal" value={board.earthing?.spacingM ?? ''} placeholder="6" onChange={(e) => setEarth({ spacingM: numOrU(e.target.value) })} /></label>
               </div>
             )}

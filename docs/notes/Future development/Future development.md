@@ -13,10 +13,10 @@ Ideas and features agreed for later. One note per idea; link it here.
 - Enclosure charts for SMDB, MDB, LV MDB, MCC — waiting for supplier data (DB chart done)
 - Transformers: one LV panel fed by two transformers with a coupler (to confirm)
 - Earthing on the riser diagram (LV pits at the base, main earth conductor up the floors)
-- Panel SLD "EARTH PITS (2 NO.)" detail: keep or replace with "see earthing schematic"
+- ~~Panel SLD "EARTH PITS (2 NO.)" detail: keep or replace~~ — kept, now follows the earthing plan (v1.34)
 - Combining with an existing DEWA system (existing transformers / spare capacity)
 - Emergency ATS arrangement details
-- Earthing I²t check
+- Earthing I²t check — incomer CPC check shown per board (v1.34); pit / electrode conductors still need the HV earth-fault level from DEWA
 - UPS leading kvar
 - Unbalanced load flow
 - Clickable links in PDF reports

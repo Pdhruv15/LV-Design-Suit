@@ -9,6 +9,7 @@ import { panelSummary } from '../docs/mdSheet';
 import { boardLocation } from '../model/levels';
 import { cableTypeOf } from '../model/cableTypes';
 import { feederPhaseKw, phaseTag } from '../model/phases';
+import { boardEarth, type BoardEarth } from '../model/boardEarth';
 import { deviceKind, devicePoles } from './deviceText';
 
 /** One board's single line diagram as a printable drawing (black on white,
@@ -46,13 +47,21 @@ function switchSym(x: number, y: number, kind: 'breaker' | 'acb' | 'isolator' | 
 const kindOf = (f: Feeder) => (f.device === 'ISOL' ? 'isolator' : f.device === 'ACB' || deviceKind(f) === 'ACB' ? 'acb' : 'breaker');
 const deviceText = (f: Feeder) => `${f.breakerRatingA} A ${devicePoles(f)} ${deviceKind(f)}`;
 const cableText = (project: Project, f: Feeder) => `${runsOf(f) > 1 ? `${runsOf(f)}×` : ''}${f.cores}C×${f.cableCsaMm2} mm² CU/${cableTypeOf(project, f).code}`;
+/** The earth path, split over two summary lines when long, and the incomer CPC's I²t check. */
+function earthRows(e: BoardEarth): [string, string][] {
+  const [path, sheet] = e.text.split(' · sheet ');
+  const lines: [string, string][] = path.length > 52 && path.includes(' → ')
+    ? [['EARTH', path.slice(0, path.indexOf(' → '))], ['', `→ ${path.slice(path.indexOf(' → ') + 3)}`]]
+    : [['EARTH', path]];
+  if (sheet) lines.push(['', `Earthing schematic: sheet ${sheet}`]);
+  if (e.conductor) lines.push(['EARTH CONDUCTOR', e.conductor.text]);
+  return lines;
+}
 const statusText = (r?: FeederResult) => (!r ? '' : r.status === 'bad' ? 'FAIL' : r.status === 'warn' ? 'CHECK' : 'OK');
 
 export interface BoardSheetOptions {
   /** Drawing number of the sheet showing the board above, for the "FROM" note. */
   fromSheet?: string;
-  /** Drawing number of the earthing schematic, for the earth note. */
-  earthSheet?: string;
 }
 
 export function boardSheetSvg(project: Project, board: Board, results: FeederResult[], opts: BoardSheetOptions = {}): { svg: string; w: number; h: number } {
@@ -136,7 +145,7 @@ export function boardSheetSvg(project: Project, board: Board, results: FeederRes
     ['NEUTRAL CURRENT', `${pb.neutralA.toFixed(1)} A`],
     ['CURRENT UNBALANCE', `${pb.unbalancePct.toFixed(1)} % (check ≤ ${PHASE_UNBALANCE_CHECK_PCT} %)${over ? ' — CHECK' : ''}`],
     ...(pb.unassigned.length ? [['NO PHASE SET', `${pb.unassigned.length} single-phase circuit${pb.unassigned.length === 1 ? '' : 's'}`] as [string, string]] : []),
-    ['EARTH', board.upstreamId ? `Via incomer CPC from ${board.upstreamId}${opts.earthSheet ? `, see ${opts.earthSheet}` : ', see earthing schematic'}` : `Main earth terminal, see ${opts.earthSheet ?? 'earthing schematic'}`]
+    ...earthRows(boardEarth(project, board))
   ];
   const sx = diagramW - MARGIN + GAP; // beside the diagram
   out.push(tx(sx, SUM_Y - 8, 'PANEL SUMMARY', { bold: true, size: 12 }));

@@ -20,8 +20,8 @@ _Last updated: 2026-10-13_
 ## In progress
 - SLD UX redesign in 3 phases — [[SLD workspace UX - 2026-10-13]]
   - Phase 1 (v1.32, merged): drawing fills the free height, inspector can be hidden / resized, inspector tabs wrap, zoom kept while editing, fail / check chips jump to the next circuit
-  - Phase 2 (branch `board-sld-phases`, v1.33): Design ▸ Board view with ◀ ▶ supply-order navigation, R / Y / B loading strip (kW, A, neutral, unbalance vs 10 %), clickable phase tags, Balance phases for any board, circuit table with R / Y / B kW; board sheets (A3, black and white, one per board, E-SLD-01…) as PDF and DXF
-  - Phase 3: earthing screen (full-width drawing, pit schedule tab, settings drawer, board sheets link to earthing) — not started
+  - Phase 2 (v1.33, merged): Design ▸ Board view with ◀ ▶ supply-order navigation, R / Y / B loading strip (kW, A, neutral, unbalance vs 10 %), clickable phase tags, Balance phases for any board, circuit table with R / Y / B kW; board sheets (A3, black and white, one per board, E-SLD-01…) as PDF and DXF
+  - Phase 3 (branch `earthing-screen`, v1.34): earthing drawing full width with zoom, pits shown pass / over limit / not tested, click a pit to record measured Ω, date and tester; Pits and tests and Checks tabs; settings drawer; E-EARTH-01 sheet (A3, black and white, PDF + DXF); live earth line + incomer CPC I²t on board view and board sheets; SLD earth pit detail follows the earthing plan
 
 ## Next (not started)
 - Emergency ATS arrangement details

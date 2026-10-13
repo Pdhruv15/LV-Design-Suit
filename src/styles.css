@@ -1414,3 +1414,26 @@ svg .ph-tag.ph-r{color:#ff6b6b}svg .ph-tag.ph-y{color:#f5c04a}svg .ph-tag.ph-b{c
 svg .ph-tag text{fill:currentColor}svg .ph-tag rect{fill:transparent;stroke:currentColor;stroke-width:1;opacity:.7}
 svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in srgb,currentColor 20%,transparent);opacity:1}
 @media (max-width:1000px){.bs-phases{grid-template-columns:minmax(0,1fr)}}
+.bs-earth{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-4);align-items:baseline;font-size:12px;padding:0 var(--space-1)}
+.bs-earth .ok{color:var(--ok)}.bs-earth .bad{color:var(--bad)}.bs-earth .warn{color:var(--warn)}
+/* ---- Earthing screen (Design ▸ Earth pits) ---- */
+.earth-ws{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-3);padding:0 var(--gutter) var(--space-4)}
+.earth-ws.with-drawer{grid-template-columns:minmax(0,1fr) 390px}
+.earth-main{min-width:0;display:flex;flex-direction:column;gap:var(--space-2)}
+.earth-bar{display:flex;align-items:center;gap:var(--space-2) var(--space-3);flex-wrap:wrap}
+.earth-bar .bad,.earth-table .bad{color:var(--bad)}.earth-table .ok{color:var(--ok)}
+.earth-badge{display:inline-block;margin-left:5px;min-width:16px;padding:0 4px;border-radius:8px;background:var(--warn);color:#000;font-size:10.5px;line-height:16px;text-align:center}
+.earth-canvas{position:relative;overflow:auto;max-height:calc(100vh - 300px);min-height:360px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.earth-pop{position:absolute;z-index:4;display:grid;gap:6px;width:250px;padding:8px 10px;background:var(--panel);color:var(--tx);border:1px solid var(--acc);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-size:12px}
+.earth-pop-h{display:flex;gap:6px;align-items:baseline}.earth-pop-h .icon-btn{margin-left:auto}
+.earth-pop label{display:grid;grid-template-columns:90px 1fr;align-items:center;gap:6px;color:var(--mut)}
+.earth-pop p{margin:0}
+.earth-st.pass{color:var(--ok)}.earth-st.fail{color:var(--bad);font-weight:600}.earth-st.untested{color:var(--mut)}
+.earth-dot{display:inline-block;width:10px;height:10px;border:1px solid var(--mut);vertical-align:-1px}
+.earth-dot.pass{background:#7cc68d}.earth-dot.fail{background:#e5736b}.earth-dot.untested{background:#d5d8de}
+.earth-key{margin:0}
+.earth-table{overflow-x:auto}.earth-table td.num,.earth-table th.num{text-align:right}
+.earth-checks{padding:var(--space-2) 0}
+.earth-drawer{border:1px solid var(--line);border-radius:8px;padding:var(--space-2) var(--space-3);background:var(--panel);align-self:start;max-height:calc(100vh - 260px);overflow:auto}
+.earth-drawer h4{margin:0 0 6px}
+@media (max-width:1000px){.earth-ws.with-drawer{grid-template-columns:minmax(0,1fr)}}

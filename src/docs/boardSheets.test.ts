@@ -35,7 +35,8 @@ describe('board sheet drawing', () => {
   it('a main board starts at its transformer', () => {
     const { svg } = boardSheetSvg(run.project, board('MDB-1'), run.results);
     expect(svg).toMatch(/TRANSFORMER \d+ kVA/);
-    expect(svg).toContain('Main earth terminal');
+    expect(svg).toContain('MDB-1 MET → pits');
+    expect(svg).toContain('Earthing schematic: sheet E-EARTH-01');
   });
 });
 

@@ -776,10 +776,11 @@ export default function SystemDiagram({
           const tx = !!b.sourceKva && !b.upstreamId; // own transformer (an authority supply has none to draw)
           const ox = r.x - 185, oy = 60;
           const mm = earthConductorOf(project, b);
-          const pits = b.earthing?.pits ?? 2;
-          const el = b.earthing?.electrodeM ?? 3;
-          const sp = b.earthing?.spacingM ?? 6;
+          // Pit count and electrode from the earthing plan unless this board sets its own.
           const lvIds = earthPits.get(`lv:${b.id}`);
+          const pits = b.earthing?.pits ?? (lvIds?.length || 2);
+          const el = b.earthing?.electrodeM ?? project.earthingPlan?.electrodeM ?? 3;
+          const sp = b.earthing?.spacingM ?? 6;
           const ids = lvIds?.length === pits ? ` · ${lvIds.join(', ')}` : '';
           // MET: a bar inside the main board's frame, right of its name box.
           const nb = nameBox(b, r), y1 = nb.top;
