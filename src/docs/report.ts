@@ -31,7 +31,7 @@ function table(headers: string[], rows: string[][], totalRows: number[] = []): s
 const scheduleTable = (s: Schedule) =>
   table(s.headers, s.rows.map((r) => r.map((c) => (statusOfText(c) ? st(statusOfText(c)!) : esc(c)))), s.totalRows);
 
-const tally = (statuses: Status[]) => {
+export const tally = (statuses: Status[]) => {
   const n = (s: Status) => statuses.filter((x) => x === s).length;
   return { ok: n('ok'), warn: n('warn'), bad: n('bad') };
 };
@@ -40,9 +40,10 @@ function counts(statuses: Status[]) {
   return `${t.ok} pass · ${t.warn} warning · <span class="bad">${t.bad} fail</span>`;
 }
 
-/** Black-and-white additions to the plain print document: status in words (fails bold),
- * tables that repeat their header on each page, and the page-1 document block. */
-const CALC_CSS = `<style>
+/** Black-and-white additions to the plain print document (calculation and voltage drop
+ * reports): status in words (fails bold), tables that repeat their header on each page,
+ * and the page-1 document block. */
+export const PLAIN_CSS = `<style>
 html, body { background: #fff; color-scheme: light; }
 table.grid { margin: 1mm 0 3mm; font-size: 7.6pt; } table.grid thead { display: table-header-group; } table.grid tr { break-inside: avoid; }
 table.grid tr.total td { font-weight: 700; background: #f2f2f2; } h2 { margin: 5mm 0 2mm; break-after: avoid; }
@@ -54,7 +55,24 @@ table.grid tr.total td { font-weight: 700; background: #f2f2f2; } h2 { margin: 5
 </style>`;
 
 /** How many failing / warning items page 1 lists before pointing to the tables. */
-const ATTENTION_MAX = 10;
+export const ATTENTION_MAX = 10;
+
+/** Page-1 heading of a plain report: title and project on the left, the document block on
+ * the right (doc no., rev from the current revision, date, prepared / checked / approved
+ * from Parameters). Blank cells are left for signing by hand. */
+export function reportHead(project: Project, title: string, docNo?: string, extra = ''): string {
+  const date = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+  const rev = currentRevision(project);
+  const prm = project.params ?? {};
+  const cell = (v?: string, span = 1) => `<td${span > 1 ? ` colspan="${span}"` : ''}${v?.trim() ? '' : ' class="sig"'}>${esc(v?.trim() ?? '')}</td>`;
+  const place = [project.info?.plotNo && `Plot ${project.info.plotNo}`, project.info?.area].filter(Boolean).join(', ');
+  return `<div class="head"><div><div class="k">LV electrical</div><h1>${esc(title)}</h1><p>${esc(project.name)}${place ? ` · ${esc(place)}` : ''}${extra ? ` · ${esc(extra)}` : ''}</p></div>
+<table class="grid doc">
+    <tr><th>Doc no.</th>${cell(docNo)}<th>Rev</th>${cell(rev?.id)}</tr>
+    <tr><th>Date</th>${cell(date, 3)}</tr>
+    <tr><th>Prepared</th>${cell(prm.designedBy)}<th>Checked</th>${cell(prm.checkedBy)}</tr>
+    <tr><th>Approved</th>${cell(prm.approvedBy, 3)}</tr></table></div>`;
+}
 
 /** Print styles shared by the PDF reports (A4 landscape). */
 export const REPORT_CSS = `
@@ -81,22 +99,11 @@ export function buildReportHtml(project: Project): string {
   const settings = settingsOf(project);
   const pfcRes = planPfc(project);
   const boards = boardsInSupplyOrder(project).map((b) => boardSummary(project, b));
-  const date = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
 
 
 
 
   const section = (title: string, body: string) => `<h2>${esc(title)}</h2>${body}`;
-  const rev = currentRevision(project);
-  const prm = project.params ?? {};
-  // Blank cells are left for signing by hand.
-  const cell = (v?: string, span = 1) => `<td${span > 1 ? ` colspan="${span}"` : ''}${v?.trim() ? '' : ' class="sig"'}>${esc(v?.trim() ?? '')}</td>`;
-  const docTable = `<table class="grid doc">
-    <tr><th>Doc no.</th>${cell(project.calcReportDocNo)}<th>Rev</th>${cell(rev?.id)}</tr>
-    <tr><th>Date</th>${cell(date, 3)}</tr>
-    <tr><th>Prepared</th>${cell(prm.designedBy)}<th>Checked</th>${cell(prm.checkedBy)}</tr>
-    <tr><th>Approved</th>${cell(prm.approvedBy, 3)}</tr></table>`;
-
   // Page 1 lists what fails or needs a look, worst first, so nobody has to scan the tables.
   const attention: { st: Status; where: string; what: string }[] = [
     ...results.filter((r) => r.status !== 'ok').map((r) => ({ st: r.status, where: `${r.feeder.boardId} / ${r.feeder.id}`, what: `Feeder — ${[
@@ -117,10 +124,9 @@ export function buildReportHtml(project: Project): string {
     <div class="box"><b>${attention.length ? `Needs attention (${attention.length})` : 'Nothing needs attention — every check passes'}</b>${shown.length ? `<table>${shown.map((a) => `<tr><td>${esc(a.where)}</td><td><span class="${a.st}">${LABEL[a.st]}</span> — ${esc(a.what)}</td></tr>`).join('')}</table>` : ''}
     ${attention.length > ATTENTION_MAX ? `<p class="note">…and ${attention.length - ATTENTION_MAX} more — see the tables below.</p>` : ''}</div></div>`;
   const cableTypes = [...new Set(project.feeders.map((x) => x.cableType || DEFAULT_CABLE_TYPE))];
-  const place = [project.info?.plotNo && `Plot ${project.info.plotNo}`, project.info?.area].filter(Boolean).join(', ');
 
-  const body = `${CALC_CSS}
-<div class="head"><div><div class="k">LV electrical</div><h1>Calculation report</h1><p>${esc(project.name)}${place ? ` · ${esc(place)}` : ''}</p></div>${docTable}</div>
+  const body = `${PLAIN_CSS}
+${reportHead(project, 'Calculation report', project.calcReportDocNo)}
 
 ${section('Results summary', summary)}
 

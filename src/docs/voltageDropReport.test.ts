@@ -26,6 +26,37 @@ describe('voltage drop report', () => {
   });
 });
 
+describe('voltage drop report page 1', () => {
+  const rows = vdRows(sampleProject, vdCandidates(sampleProject).map((f) => f.id));
+  const html = buildVdReportHtml({ ...sampleProject, vdReportDocNo: 'VD-001' }, rows, 'Entire system');
+
+  it('is black and white with page numbers and its own document number', () => {
+    const colours = [...new Set(html.match(/#[0-9a-f]{3}(?:[0-9a-f]{3})?\b/gi) ?? [])];
+    const grey = (h: string) => { const x = h.length === 4 ? h.slice(1).split('').map((c) => c + c) : [h.slice(1, 3), h.slice(3, 5), h.slice(5, 7)]; return x.every((c) => c.toLowerCase() === x[0].toLowerCase()); };
+    expect(colours.filter((c) => !grey(c))).toEqual([]);
+    expect(html).toContain('counter(pages)');
+    expect(html).toContain('VD-001');
+  });
+
+  it('leaves out From panel, a single limit and empty columns', () => {
+    const tables = html.split('<table class="grid vd">').slice(1).map((t) => t.slice(0, t.indexOf('</thead>')));
+    expect(tables.length).toBeGreaterThan(0);
+    for (const t of tables) {
+      expect(t).not.toContain('From panel');
+      if (new Set(rows.map((r) => r.limitPct)).size === 1) expect(t).not.toContain('Limit (%)');
+      expect(t).toContain('Total Vd (%)');
+    }
+  });
+
+  it('lists at most 10 cables needing attention', () => {
+    const p = { ...sampleProject, vdLimitPct: 0.01 };
+    const tight = buildVdReportHtml(p, vdRows(p, vdCandidates(p).map((f) => f.id)), 'x');
+    const n = Number(tight.match(/Needs attention \((\d+)\)/)?.[1]);
+    expect(n).toBeGreaterThan(10);
+    expect(tight).toContain(`…and ${n - 10} more`);
+  });
+});
+
 describe('typed numbers', () => {
   it('accepts plain numbers, a decimal point or comma', () => {
     expect([parseNumber('45'), parseNumber('0.85'), parseNumber('.5'), parseNumber('2,5'), parseNumber(' 12 '), parseNumber('12.')]).toEqual([45, 0.85, 0.5, 2.5, 12, 12]);

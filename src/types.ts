@@ -349,6 +349,7 @@ export interface Project {
   substations?: DmSubstationRoom[]; // DM-D-013 minimum substation / LV room areas
   studyReport?: StudyReportSetup; // the study report being prepared (Reports → Study reports)
   calcReportDocNo?: string; // document number on page 1 of the calculation report
+  vdReportDocNo?: string; // document number on page 1 of the voltage drop report
   studyReportPresets?: StudyReportPreset[]; // saved scopes / study sets for repeat submissions
   calc?: { autoRun?: boolean }; // run the network studies on every change (default: on Run / F5 only)
   studySettings?: StudySettings;

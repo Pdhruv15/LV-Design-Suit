@@ -95,7 +95,7 @@ export default function VoltageDropStudy({ project, calcProject = project, stale
   async function exportPdf() {
     setBusy(true);
     try {
-      const m = await savePdf(`${safeFileName(`${project.name} voltage drop ${scope || 'system'}`)}.pdf`, buildVdReportHtml(calcProject, allRows, scopeName, risers), { pageSize: 'A4', landscape: true });
+      const m = await savePdf(`${safeFileName(`${project.name} voltage drop ${scope || 'system'}`)}.pdf`, buildVdReportHtml({ ...calcProject, vdReportDocNo: project.vdReportDocNo }, allRows, scopeName, risers), { pageSize: 'A4', landscape: true, cssPages: true, selfNumbered: true });
       if (m) onStatus(m);
     } finally {
       setBusy(false);
@@ -139,6 +139,8 @@ export default function VoltageDropStudy({ project, calcProject = project, stale
             {panels.map(({ board }) => <option key={board.id} value={board.id}>Report: panel {board.id}</option>)}
           </select>
           <button className="chip" onClick={addCable} title={`Add a cable to equipment (AHU, isolator, motor…) on ${scope || panels[0]?.board.id}`}>+ Add equipment cable</button>
+          <input className="chip" value={project.vdReportDocNo ?? ''} placeholder="Doc no." aria-label="Document number" title="Document number on page 1 of the PDF"
+            onChange={(e) => onChange({ ...project, vdReportDocNo: e.target.value || undefined })} />
           <button className="chip" onClick={exportCsv} disabled={!allRows.length || stale} title={stale ? 'Run the calculations first (F5)' : undefined}>Export CSV (Excel)</button>
           <button className="chip primary" onClick={exportPdf} disabled={busy || !allRows.length || stale} title={stale ? 'Run the calculations first (F5)' : undefined}>{busy ? 'Exporting…' : 'Export PDF'}</button>
         </>
