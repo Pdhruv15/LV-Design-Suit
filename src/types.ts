@@ -681,6 +681,8 @@ export interface EarthingPlan {
   unlinked?: string[];
   /** Measured resistance per pit (Ω), from site tests. */
   measured?: Record<string, number>;
+  /** Site test record per pit: when it was tested and by whom (with measured). */
+  tests?: Record<string, { date?: string; by?: string }>;
   electrodeM?: number; // electrode length (m), default 3
   conductorMm2?: number; // pit link / earth conductor (mm² Cu), default 70
   /** Metal parts bonded to each main earth bar (shown on the schematic); default room earth bar, containment, pipework, ductwork. */

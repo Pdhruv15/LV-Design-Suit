@@ -45,7 +45,7 @@ export const EARTH_KINDS: { kind: EarthKind; label: string; limitOhm: number }[]
 export const kindInfo = (k: EarthKind) => EARTH_KINDS.find((x) => x.kind === k)!;
 
 export interface EarthItem { key: string; legacyKey?: string; kind: EarthKind; group: string; equipment: string; point: string; pits: number; defaultPits: number; linked: boolean }
-export interface EarthPit { id: string; kind: EarthKind; itemKey: string; measured?: number }
+export interface EarthPit { id: string; kind: EarthKind; itemKey: string; measured?: number; date?: string; by?: string }
 export interface EarthNet { kind: EarthKind; group: string; pits: string[]; items: string[]; effectiveOhm?: number; ok?: boolean }
 export interface EarthCheck { level: 'ok' | 'warn' | 'bad'; text: string }
 export interface EarthLayout { items: EarthItem[]; pits: EarthPit[]; links: [string, string][]; nets: EarthNet[]; checks: EarthCheck[]; electrodeM: number; conductorMm2: number; bonding: string[] }
@@ -154,7 +154,7 @@ export function earthingLayout(project: Project): EarthLayout {
   for (const it of items) {
     const ids = (normalized.earthPitIds?.[it.key] ?? []).slice(0, it.pits);
     byItem.set(it.key, ids);
-    for (const id of ids) pits.push({ id, kind: it.kind, itemKey: it.key, ...(plan.measured?.[id] !== undefined ? { measured: plan.measured[id] } : {}) });
+    for (const id of ids) pits.push({ id, kind: it.kind, itemKey: it.key, ...(plan.measured?.[id] !== undefined ? { measured: plan.measured[id] } : {}), ...plan.tests?.[id] });
     for (let i = 1; i < ids.length; i++) links.push([ids[i - 1], ids[i]]); // pits of one equipment are always linked
   }
   // Pits are interconnected per kind within one substation; different substations are never linked.
@@ -189,6 +189,11 @@ export function earthingLayout(project: Project): EarthLayout {
   else if (!items.some((i) => i.kind === 'txn')) checks.push({ level: 'warn', text: 'No transformer on any main board — only the LV earth is shown' });
   if (pits.length) checks.push({ level: 'ok', text: 'Transformer neutral and body earths are separate (never interconnected)' });
   if (items.some((i) => i.kind === 'gn')) checks.push({ level: 'ok', text: 'Generator neutral and body earths are separate (never interconnected)' });
+  // The SLD's earth pit detail follows this plan unless a board sets its own count.
+  for (const it of lv) {
+    const own = project.boards.find((b) => b.id === it.equipment)?.earthing?.pits;
+    if (own !== undefined && own !== it.pits) checks.push({ level: 'warn', text: `${it.equipment}: the SLD earth pit detail shows ${own} pits, this plan has ${it.pits} — clear Pits in the board's properties to follow the plan` });
+  }
   if (pits.length > 1) checks.push({ level: 'warn', text: 'Layout: keep earth pits at least 6 m apart' });
   return { items, pits, links, nets, checks, electrodeM: plan.electrodeM ?? 3, conductorMm2: plan.conductorMm2 ?? 70, bonding: plan.bonding ?? DEFAULT_BONDING };
 }
@@ -197,4 +202,26 @@ export function earthingLayout(project: Project): EarthLayout {
 export function patchEarthing(project: Project, fn: (p: NonNullable<Project['earthingPlan']>) => NonNullable<Project['earthingPlan']>): Project {
   const before = withEarthPitIds(project);
   return withEarthPitIds({ ...before, earthingPlan: fn({ ...before.earthingPlan }) }, before);
+}
+
+/** A pit's test result: its own reading against the limit of its kind — 'pass', 'fail' (above the
+ * limit), or 'untested'. The group value (pits in parallel) is judged separately on each net. */
+export type PitStatus = 'pass' | 'fail' | 'untested';
+export const pitStatus = (p: EarthPit): PitStatus => (p.measured === undefined ? 'untested' : p.measured <= kindInfo(p.kind).limitOhm + 1e-9 ? 'pass' : 'fail');
+
+/** Records a pit's site test: measured Ω (blank clears it), date and tester; empty fields are removed. */
+export function setPitTest(project: Project, id: string, t: { measured?: string; date?: string; by?: string }): Project {
+  const plan = project.earthingPlan ?? {};
+  const num = (v: string) => (v.trim() === '' || !(Number(v) > 0) ? undefined : Number(v));
+  const same = (t.measured === undefined || num(t.measured) === plan.measured?.[id])
+    && (t.date === undefined || (t.date.trim() || undefined) === plan.tests?.[id]?.date)
+    && (t.by === undefined || (t.by.trim() || undefined) === plan.tests?.[id]?.by);
+  if (same) return project; // nothing changed: no edit, no undo step
+  return patchEarthing(project, (p) => {
+    const measured = { ...p.measured }, tests = { ...p.tests };
+    if (t.measured !== undefined) { const n = Number(t.measured); if (t.measured.trim() === '' || !(n > 0)) delete measured[id]; else measured[id] = n; }
+    const rec = { ...tests[id], ...(t.date !== undefined ? { date: t.date.trim() || undefined } : {}), ...(t.by !== undefined ? { by: t.by.trim() || undefined } : {}) };
+    if (rec.date || rec.by) tests[id] = { ...(rec.date ? { date: rec.date } : {}), ...(rec.by ? { by: rec.by } : {}) }; else delete tests[id];
+    return { ...p, measured, tests };
+  });
 }

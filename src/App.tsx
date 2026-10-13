@@ -126,7 +126,7 @@ import { moveBoard, moveSummary, reorderBoard } from './model/moveBoard';
 const ProjectsDashboard = lazy(() => import('./components/ProjectsDashboard'));
 import { NameDialog, UnsavedDialog } from './components/FileDialogs';
 import type { BoardKind, ProjectStatus } from './types';
-type DiagramMode = 'system' | 'board';
+type DiagramMode = 'system' | 'board' | 'earthing';
 
 /** Pages that show network study results (they follow the last run). */
 /** Pages the panel tree filters to a board and the boards below it. */
@@ -958,9 +958,9 @@ export default function App() {
         setHelpOpen((o) => !o);
         return;
       }
-      if (mod && !e.shiftKey && !e.altKey && (e.key === '1' || e.key === '2') && view === 'design') {
+      if (mod && !e.shiftKey && !e.altKey && (e.key === '1' || e.key === '2' || e.key === '3') && view === 'design') {
         e.preventDefault();
-        setDiagramMode(e.key === '1' ? 'system' : 'board');
+        setDiagramMode(e.key === '1' ? 'system' : e.key === '2' ? 'board' : 'earthing');
         return;
       }
       if (!mod && !e.altKey && (e.key === '[' || e.key === ']') && view === 'design' && diagramMode === 'system') {
@@ -1172,6 +1172,9 @@ export default function App() {
                     <button role="tab" aria-selected={diagramMode === 'board'} className={diagramMode === 'board' ? 'on' : ''} onClick={() => setDiagramMode('board')} title={`The selected board's own diagram (${MOD}2)`}>
                       Board: {board.id}
                     </button>
+                    <button role="tab" aria-selected={diagramMode === 'earthing'} className={diagramMode === 'earthing' ? 'on' : ''} onClick={() => setDiagramMode('earthing')} title={`Earth pits: earthing schematic, pit tests and checks (${MOD}3)`}>
+                      Earthing
+                    </button>
                   </div>
                   <div className="sld-bar">
                     <MenuButton label="+ Add" title="Add a feeder, a board, or paste a copied board">
@@ -1282,8 +1285,10 @@ export default function App() {
                   <SheetTabs project={project} run={run} active={sheetTab} selectedBoardId={panel === 'board' ? board.id : null} outlinesOn={sheetOutlinesOn}
                     onActive={setSheetTab} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onToggleOutlines={() => setSheetOutlinesOn((v) => !v)} />
                   </div>
+                ) : diagramMode === 'earthing' ? (
+                  <EarthingView embedded project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />
                 ) : (
-                  <BoardSheetView project={project} board={board} results={allResults} selected={panel === 'feeder' ? selected : null} onSelect={selectFeeder} onBoard={selectBoard}
+                  <BoardSheetView project={project} board={board} results={allResults} selected={panel === 'feeder' ? selected : null} onSelect={selectFeeder} onBoard={selectBoard} onOpenEarthing={() => setDiagramMode('earthing')}
                     onChange={(p) => setProject(p, { step: true })} onStatus={setStatus}
                     diagram={{ incomerLabel: boardIncomerLabel(project, board), summary: project.drawing?.sldStyle === 'standard' ? undefined : { loc: boardLocation(project, board), ...panelSummary(project, board) } }} />
                 )}

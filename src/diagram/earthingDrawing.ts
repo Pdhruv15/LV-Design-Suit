@@ -1,5 +1,5 @@
 import type { Project } from '../types';
-import { earthingLayout, genTag, kindInfo, txUnits, unitKey, unitName, type EarthItem, type EarthLayout } from '../model/earthingPlan';
+import { earthingLayout, genTag, kindInfo, pitStatus, txUnits, unitKey, unitName, type EarthItem, type EarthLayout } from '../model/earthingPlan';
 import { mainBoards, txTag } from '../model/transformers';
 
 /** Earthing schematic drawing (printable SVG), in the SLD drawing style.
@@ -73,7 +73,8 @@ const separation = (x1: number, x2: number, y: number, label: string) =>
 /** Earth pit: inspection pit (hollow square) and electrode (earth symbol); the conductor runs through. */
 const pitSymbol = (x: number, y: number) => `<rect x="${x - 7}" y="${y}" width="14" height="10" fill="none" stroke="#111" stroke-width="1.3"/>${ln(x - 7, y + 28, x + 7, y + 28)}${ln(x - 4.5, y + 31, x + 4.5, y + 31)}${ln(x - 2, y + 34, x + 2, y + 34)}`;
 
-export function earthingDrawing(project: Project, L: EarthLayout = earthingLayout(project), includeSchedule = true): { svg: string; w: number; h: number } {
+/** mono: black on white for the printed sheet (plain report style) — results are written (FAIL), not coloured. */
+export function earthingDrawing(project: Project, L: EarthLayout = earthingLayout(project), includeSchedule = true, opts: { mono?: boolean } = {}): { svg: string; w: number; h: number } {
   const out: string[] = [];
   const pitX = new Map<string, number>(), pitY = new Map<string, number>();
   const pitsOf = (it: EarthItem) => L.pits.filter((p) => p.itemKey === it.key);
@@ -296,13 +297,13 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
   const badge = (x: number, y: number, p: (typeof L.pits)[number]) => {
     const net = netOf.get(p.id);
     const [fill, stroke] = net?.ok === undefined ? ['#fff', '#5b6b82'] : net.ok ? ['#e8f5ec', GREEN] : ['#fdecea', '#c0392b'];
-    const t = `${p.measured} Ω`, w = 10 + t.length * 5.4;
+    const t = `${p.measured} Ω${opts.mono && net?.ok === false ? ' FAIL' : ''}`, w = 10 + t.length * 5.4;
     return `<rect x="${x}" y="${y}" width="${w}" height="13" rx="2" fill="${fill}" stroke="${stroke}" stroke-width="0.8"/><text x="${x + w / 2}" y="${y + 9.5}" text-anchor="middle" font-size="8" font-weight="bold" fill="${stroke}">${esc(t)}</text>`;
   };
   for (const p of L.pits) {
     if (!pitX.has(p.id)) continue;
     const px = pitX.get(p.id)!, py = pitY.get(p.id)!;
-    out.push(`${pitSymbol(px, py)}<text x="${px + 10}" y="${py + 9}" font-weight="bold">${p.id}</text>${p.measured !== undefined ? badge(px + 10, py + 13, p) : ''}`);
+    out.push(`<g data-pit="${p.id}">${pitSymbol(px, py)}<text x="${px + 10}" y="${py + 9}" font-weight="bold">${p.id}</text>${p.measured !== undefined ? badge(px + 10, py + 13, p) : ''}</g>`);
   }
 
   // ---- Legend and notes -------------------------------------------------------
@@ -314,7 +315,7 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
     [testLink(30, 0), 'Test link between the earth bar and its pits', 26],
     [`${ln(8, -5, 44, -5, 2.6)}${ln(8, 5, 44, 5, 2.6, GREEN)}${ln(20, 5, 20, 12, 1.4, GREEN)}`, 'Panel N bar (isolated from earth) and E bar with the panel body bonded to it', 26],
     [separation(8, 44, 4, '≥ 6 m'), 'Minimum separation between pits', 26],
-    [`<rect x="12" y="-7" width="30" height="13" rx="2" fill="#e8f5ec" stroke="${GREEN}" stroke-width="0.8"/>`, 'Measured resistance: green within the limit for its pit group, red above', 26],
+    [`<rect x="12" y="-7" width="30" height="13" rx="2" fill="#e8f5ec" stroke="${GREEN}" stroke-width="0.8"/>`, opts.mono ? 'Measured resistance of the pit; FAIL when its pit group is above the limit' : 'Measured resistance: green within the limit for its pit group, red above', 26],
     [`<path d="M8 0 H44" stroke="${GREEN}" stroke-width="1.6"/>`, `Earth conductor 1C ${mm} mm² CU/PVC`, 26],
     [`<path d="M8 0 H44" stroke="${GREEN}" stroke-width="1.6" stroke-dasharray="1.5 3" stroke-linecap="round"/>`, 'Pit interconnection, dotted (same kind, same substation)', 26],
     [`<path d="M8 0 H30" stroke="${GREEN}" stroke-width="1.6" stroke-dasharray="1.5 3" stroke-linecap="round"/><path d="M30 -5 q5 5 0 10" stroke="${GREEN}" stroke-width="1.4" fill="none"/>`, 'Interconnection continues to a pit on another row (to E…)', 26],
@@ -344,7 +345,7 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
   // The schedule is part of the SVG so every drawing export carries the same
   // pit IDs and test information. Wrap long cells rather than compressing text.
   const tableX = 40, tableW = w - 80;
-  const columns = [0.06, 0.27, 0.23, 0.17, 0.16, 0.11].map((f) => f * tableW);
+  const columns = [0.05, 0.2, 0.18, 0.06, 0.16, 0.09, 0.16, 0.1].map((f) => f * tableW);
   const wrap = (text: string, width: number) => {
     const max = Math.max(1, Math.floor((width - 12) / 6));
     const lines: string[] = [];
@@ -371,10 +372,14 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
     });
     tableY += rh;
   };
-  row(['Pit', 'Equipment / connection', 'Earth system / substation', 'Conductor', 'Electrode', 'Measured'], true);
+  // Untested pits print a line to fill in on site.
+  const blank = opts.mono ? '__________' : '';
+  row(['Pit', 'Equipment / connection', 'Earth system / substation', 'Limit', 'Conductor / electrode', 'Measured', 'Tested (date, by)', 'Result'], true);
   for (const p of L.pits) {
     const it = L.items.find((item) => item.key === p.itemKey)!;
-    row([p.id, `${it.equipment} / ${it.point}`, `${kindInfo(p.kind).label} / ${it.group}`, `1C ${mm} mm² Cu/PVC`, `${L.electrodeM} m Cu-bonded rod`, p.measured === undefined ? 'Not tested' : `${p.measured} ohm`]);
+    const st = pitStatus(p);
+    row([p.id, `${it.equipment} / ${it.point}`, `${kindInfo(p.kind).label} / ${it.group}`, `${kindInfo(p.kind).limitOhm} ohm`, `1C ${mm} mm² Cu/PVC, ${L.electrodeM} m Cu-bonded rod`,
+      p.measured === undefined ? blank || 'Not tested' : `${p.measured} ohm`, [p.date, p.by].filter(Boolean).join(', ') || blank, st === 'pass' ? 'PASS' : st === 'fail' ? 'FAIL' : blank]);
   }
   const h = includeSchedule ? tableY + 20 : ly + legendH + 20;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" font-family="Arial" font-size="10" fill="#111">
@@ -385,5 +390,6 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
   ${noteSvg}
   ${includeSchedule ? schedule : ''}
 </svg>`;
-  return { svg, w, h };
+  // Printed sheet: every colour to black, tints to white.
+  return { svg: opts.mono ? svg.replace(/#(1a7f37|1d4f8f|5b6b82|b86b2b|c0392b)/gi, '#111').replace(/#(e8f5ec|fdecea)/gi, '#fff') : svg, w, h };
 }

@@ -5,6 +5,7 @@ import { evaluateFeeder, type FeederResult } from '../calc/electrical';
 import { circuitRef } from '../calc/loadSchedule';
 import { phaseBalance, PHASE_UNBALANCE_CHECK_PCT } from '../calc/phaseBalance';
 import { boardsInSupplyOrder } from '../calc/summary';
+import { boardEarth } from '../model/boardEarth';
 import { balanceBoardPhases, feederPhaseKw, nextPhase, phaseTag, setCircuitPhase } from '../model/phases';
 import { boardSheetHtml, boardSheetPages } from '../docs/boardSheets';
 import { buildSheetDxfPages } from '../docs/sheetDxf';
@@ -20,7 +21,7 @@ const PH = ['R', 'Y', 'B'] as const;
  * in supply order, R / Y / B loading against the unbalance check, a phase tag
  * on each circuit (click to move it to the next phase), Balance phases, the
  * circuit table with R / Y / B kW, and the printed board sheets (PDF, DXF). */
-export default function BoardSheetView({ project, board, results, selected, onSelect, onBoard, onChange, onStatus, diagram }: {
+export default function BoardSheetView({ project, board, results, selected, onSelect, onBoard, onChange, onStatus, onOpenEarthing, diagram }: {
   project: Project;
   board: Board;
   /** Results of every feeder (the table and the sheets use this board's). */
@@ -30,6 +31,8 @@ export default function BoardSheetView({ project, board, results, selected, onSe
   onBoard: (boardId: string) => void;
   onChange: (p: Project) => void;
   onStatus: (m: string) => void;
+  /** Opens Design ▸ Earth pits (the earthing schematic). */
+  onOpenEarthing?: () => void;
   /** Extra props for the drawing (incomer label, panel summary box). */
   diagram: Pick<React.ComponentProps<typeof SingleLineDiagram>, 'incomerLabel' | 'summary'>;
 }) {
@@ -44,6 +47,7 @@ export default function BoardSheetView({ project, board, results, selected, onSe
     const byId = new Map(results.map((r) => [r.feeder.id, r]));
     return project.feeders.filter((f) => f.boardId === board.id).map((f) => ({ ...(byId.get(f.id) ?? evaluateFeeder(project, f)), feeder: f }));
   }, [results, project, board.id]);
+  const earth = useMemo(() => boardEarth(project, board), [project, board]);
   const maxA = Math.max(1, ...PH.map((p) => pb.currentA[p]));
   const over = pb.unbalancePct > PHASE_UNBALANCE_CHECK_PCT + 1e-9;
 
@@ -151,6 +155,13 @@ export default function BoardSheetView({ project, board, results, selected, onSe
           <span>Unbalance <b className={over ? 'warn' : 'ok'}>{pb.unbalancePct.toFixed(1)} %</b> <span className="m">(check ≤ {PHASE_UNBALANCE_CHECK_PCT} %)</span></span>
           {pb.unassigned.length > 0 && <span className="warn" title={pb.unassigned.map((f) => f.id).join(', ')}>{pb.unassigned.length} single-phase circuit{pb.unassigned.length === 1 ? '' : 's'} with no phase</span>}
         </div>
+      </div>
+
+      <div className="bs-earth">
+        <span className="m">Earth</span>
+        <span className={earth.status === 'fail' ? 'bad' : earth.status === 'pass' ? 'ok' : earth.status === 'none' ? 'warn' : ''}>{earth.text.split(' · sheet ')[0]}</span>
+        {earth.conductor && <span className={earth.conductor.status}>{earth.conductor.text}</span>}
+        {onOpenEarthing && <button className="linkish" onClick={onOpenEarthing}>Earthing schematic ›</button>}
       </div>
 
       <SingleLineDiagram board={board} voltageV={project.voltageV} project={project} results={own} selected={selected} onSelect={onSelect} onPhase={cyclePhase} {...diagram} />

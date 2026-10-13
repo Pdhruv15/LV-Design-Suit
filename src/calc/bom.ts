@@ -146,7 +146,7 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
       add('C', 'lamps-ryb', 'Indicating lamps R-Y-B, LED, with fuses', 'set', 1, b.id);
     }
     if (b.earthing?.show ?? !b.upstreamId) {
-      const el = b.earthing?.electrodeM ?? 3;
+      const el = b.earthing?.electrodeM ?? p.earthingPlan?.electrodeM ?? 3;
       // With an earthing schematic, its pits are counted below instead.
       if (!p.earthingPlan) add('I', `earth-pit:${el}`, `Earth pit: ${el} m copper-bonded earth electrode with inspection pit and cover, tested`, 'no', b.earthing?.pits ?? 2, b.id);
       const inc = p.feeders.find((f) => f.feedsBoardId === b.id);
