@@ -92,8 +92,9 @@ export function EquipmentScheduleView({ project, onStatus }: { project: Project;
   );
 }
 
-export function ReportView({ project, onStatus, stale = false }: { project: Project; onStatus: Status; stale?: boolean; onRun?: () => void }) {
-  const html = useMemo(() => buildReportHtml(project), [project]);
+export function ReportView({ project, onStatus, stale = false, docNo, onDocNo }: { project: Project; onStatus: Status; stale?: boolean; onRun?: () => void;
+  /** The live document number (the report itself may show the last calculated project). */ docNo?: string; onDocNo?: (v: string) => void }) {
+  const html = useMemo(() => buildReportHtml({ ...project, calcReportDocNo: docNo }), [project, docNo]);
   const [busy, setBusy] = useState(false);
   async function exportPdf() {
     setBusy(true);
@@ -107,8 +108,8 @@ export function ReportView({ project, onStatus, stale = false }: { project: Proj
   return (
     <Page
       title="Calculation report"
-      intro="Design basis, system summary, sizing, feeder, earthing and coordination results, DB and cable schedules, and assumptions — A4 landscape."
-      actions={<button className="chip primary" disabled={busy || stale} title={stale ? 'Run the calculations first (F5)' : undefined} onClick={exportPdf}>{busy ? 'Exporting…' : 'Export PDF'}</button>}
+      intro="Results summary, design basis, system summary, sizing, feeder, earthing and coordination results, DB and cable schedules, and assumptions — A4 landscape, black and white. Prepared / checked / approved come from Parameters; blank ones are left for signing."
+      actions={<>{onDocNo && <input className="chip" value={docNo ?? ''} placeholder="Doc no." aria-label="Document number" onChange={(e) => onDocNo(e.target.value)} />}<button className="chip primary" disabled={busy || stale} title={stale ? 'Run the calculations first (F5)' : undefined} onClick={exportPdf}>{busy ? 'Exporting…' : 'Export PDF'}</button></>}
     >
       <iframe className="report-preview" title="Report preview" srcDoc={html} sandbox="" />
     </Page>

@@ -152,7 +152,8 @@ header of the exported file.
   protection coordination (time-current curves, current-based selectivity),
   transformer and generator sizing, power factor correction
 - Documents: DB schedule, cable schedule, equipment schedule (CSV for
-  Excel), and a PDF calculation report
+  Excel), and a black-and-white PDF calculation report (results summary and
+  items needing attention on page 1, document block, page numbers)
 - Editing feeders and boards from the UI, multi-level board hierarchy,
   cable-size suggestion that respects the breaker rating and the voltage-drop
   budget left after upstream drops
