@@ -1,16 +1,22 @@
-# LV Design Studio (v0.1 — working scaffold)
+# LV Design Studio
 
-An offline desktop app for LV electrical design: single-line diagram, voltage
-drop, cable sizing, short-circuit and discrimination checks, and project
-files saved as plain JSON so they sync cleanly through a Google Drive /
-OneDrive / Dropbox desktop folder.
+An offline desktop app (Electron) for LV electrical design: single line
+diagram, load schedules, cable and breaker sizing, voltage drop, short
+circuit, earthing, protection coordination, transformer / generator sizing,
+power factor correction, drawings and submission reports. Projects are plain
+JSON files, so they sync cleanly through a Google Drive / OneDrive / Dropbox
+desktop folder.
 
-This is a real, running scaffold — not a mockup. The calculations in
-`src/calc/` are genuine formulas (IEC 60228 cable resistance data, IEC
-60364-5-52 ambient derating, standard voltage-drop and fault-current
-equations), not fake numbers. Treat the reference cable/ampacity table as a
-starting point to replace with your manufacturer's datasheets or exact
-DEWA/IEC tables before relying on it for real projects.
+**Version 1.35** (see `package.json`). The app is in active use and active
+development.
+
+> **Engineering status.** The calculations are first-pass design checks, not
+> a substitute for an engineer's verified study. Cable data starts from
+> built-in approximate reference values (replace them with manufacturer data in
+> `Cables.xlsx`), and fault levels use a simplified method (voltage factor
+> c = 1, infinite MV source), not a full IEC 60909 study. Nothing in the app
+> constitutes approval by DEWA or any other authority. Methods, assumptions and
+> limits are in [docs/engineering/calculation-methods.md](docs/engineering/calculation-methods.md).
 
 ## Screenshots
 
@@ -45,22 +51,21 @@ The built-in demo project (a 415 V villa complex).
 
 ## Setup
 
-Requires [Node.js](https://nodejs.org) 18 or later.
+Requires [Node.js](https://nodejs.org) 20 or later (CI uses Node 24).
 
 ```bash
-cd lv-design-studio
-npm install
+npm ci
 npm run dev
 ```
 
-This opens the app in an Electron window with a sample project loaded
-(the same villa-complex scenario from the earlier mockup, now computed for
-real). Click any feeder in the diagram or table to see its properties.
+This opens the app in an Electron window (with the Vite dev server on
+http://localhost:5173). Click **Explore sample** for a worked 415 V villa
+complex, or start a new project.
 
 ## Saving projects to Google Drive
 
 On first run the app creates `~/LV Design Studio Projects`. Click the
-**projects folder** button on the ribbon's **Home** tab and point it at a folder
+**Folder** button on the ribbon's **Project** tab and point it at a folder
 inside your Google Drive desktop-sync folder (e.g.
 `~/Google Drive/My Drive/LV Projects`). Every "Save" writes a plain `.json`
 file there, which Drive then syncs automatically — no login or API needed
@@ -73,16 +78,27 @@ npm run dist
 ```
 
 Produces a `.dmg` (mac), `.exe` installer (Windows), or `.AppImage` (Linux)
-in `release/`, depending on the platform you build on.
+in `release/`, depending on the platform you build on. `npm run dist:mac`
+builds an Apple-silicon `.dmg` only.
 
-## Tests
+## Checks and tests
 
 ```bash
-npm test
+npm run typecheck   # TypeScript
+npm run lint        # ESLint, no warnings allowed
+npm test            # unit tests (Vitest), src/**/*.test.ts
+npm run build       # production build
+npm run test:pdf    # reports printed through Electron's Chromium (needs Electron's binary)
+npm run bench       # calculation performance on large networks
 ```
 
-Unit tests (Vitest) in `src/**/*.test.ts` check the calculation engine
-against hand-worked values and cover the OpenDSS exporter.
+The unit tests include hand-calculated reference cases for voltage drop,
+short circuit, earth fault loop, maximum demand, power factor correction and
+transformer sizing (`src/calc/referenceCalcs.test.ts`). The expected values are
+worked out by hand in the test comments, not produced by the code. They check
+that the code follows its documented method; they do not certify the method
+against a standard. CI (`.github/workflows/ci.yml`) runs all of the above plus a
+dependency audit of the shipped packages.
 
 ## Database (Excel, synced by Google Drive)
 
@@ -93,7 +109,7 @@ sharing the folder:
 | Workbook | Contents | Starts with |
 |---|---|---|
 | `Loads.xlsx` | Your equipment: name, category, schedule column, power (W), PF, phases, demand factor, starting, manufacturer/model | Empty — user input only |
-| `Cables.xlsx` | Size, R at 20 °C, X, current rating, rate per m — used by every calculation | The app's reference values, to replace with manufacturer data |
+| `Cables.xlsx` | Size, R at 20 °C, X, current rating, rate per m, manufacturer, cable type, installation method, reference document — used by every calculation | The app's reference values, to replace with manufacturer data |
 | `Breakers.xlsx` | Ratings the sizing may choose, Icu, price | Standard ratings |
 | `Parameters.xlsx` | Design defaults for new projects (VD limit, ambient, min wires, ELCB mA, ...) | Parameter names, blank values |
 
@@ -103,10 +119,17 @@ Library items can be picked for a load schedule's WATT/UNIT column or in the
 feeder form; columns linked to a library item follow it when it changes.
 Problems (bad rows, missing columns) are listed on the Database screen.
 
+A cable row counts as **manufacturer data** only when it names a
+Manufacturer and a Reference document. Reports name every cable size that
+still uses reference values, user-entered values without a source, or a
+reference value because the size is missing from `Cables.xlsx`. For a final
+design, tick **Project settings → Final design: require manufacturer cable
+data**: those sizes then become failures in the To do list.
+
 ## Calculation engines
 
 The built-in TypeScript engine (`src/calc/`) drives the live UI. Two external
-engines can be run on demand from **Reports → Engine comparison**, which
+engines can be run on demand from **Simulate → Load flow**, which
 shows their results next to the built-in engine's for every feeder:
 
 | Engine | What it adds |
@@ -122,50 +145,60 @@ pip install opendssdirect.py pandapower
 ```
 
 The app uses `python` on Windows and `python3` elsewhere; pick a different
-interpreter with **Choose Python…** on the comparison screen.
+interpreter with **Choose Python…** on the comparison screen. The external
+engines are optional and need a separate Python setup; treat them as a
+cross-check of the built-in engine.
 
-**OpenDSS script export:** *Reports → Export OpenDSS (.dss)* writes the
+**OpenDSS script export:** *Export OpenDSS (.dss)* (ribbon **More** menu) writes the
 network as a self-contained OpenDSS script (load flow + fault study) that
 you can open in OpenDSS itself. The modelling assumptions are listed in the
 header of the exported file.
 
-## What's real vs. what's next
+## What it does
 
-**Working now:**
-- Data model (`src/types.ts`) — boards, feeders, cable, breaker fields
-- Calculation engine (`src/calc/electrical.ts`, `cableTable.ts`):
-  - design current and ambient-derated ampacity
-  - voltage drop per feeder **and cumulative from the source**, which is the
-    value checked against the limit
-  - overload protection check Ib ≤ In ≤ Iz (IEC 60364-4-43)
-  - fault levels from R+jX impedance: at the breaker's busbar (checked
-    against Icu) and at the cable end
-- Whole-system single line diagram (utility → transformer → boards → loads)
-  with zoom/pan, load-type icons, and click-to-select boards and feeders
-- System summary (connected/demand load, kVA, power factor, transformer
-  loading) and a bus voltage / board loading table
-- Board properties panel (General / Supply / Electrical / Protection /
-  Location) with editable equipment data and board loading against its
-  rating; Supply shows the feed chain and edits the transformer at its head
-- Studies: earthing (Zs, disconnection time, CPC adiabatic check), breaker
-  and cable selection (fix-only or optimise, apply per row or all),
-  protection coordination (time-current curves, current-based selectivity),
-  transformer and generator sizing, power factor correction
-- Documents: DB schedule, cable schedule, equipment schedule (CSV for
-  Excel), and a black-and-white PDF calculation report (results summary and
-  items needing attention on page 1, document block, page numbers)
-- Editing feeders and boards from the UI, multi-level board hierarchy,
-  cable-size suggestion that respects the breaker rating and the voltage-drop
-  budget left after upstream drops
-- BOQ CSV export, OpenDSS script export, and side-by-side comparison with
-  OpenDSS and pandapower
-- Project save/load as JSON, Drive-sync friendly
+- **Design**: boards and circuits in a multi-level hierarchy, load schedules
+  (DEWA connected load / maximum demand form), building and room data,
+  feeder presets and an Excel-based equipment library.
+- **Calculations** (`src/calc/`, run on every change or with F5): design
+  current, derated cable rating (ambient and grouping), voltage drop per
+  circuit and cumulative from the source, overload protection Ib ≤ In ≤ Iz,
+  fault levels at each busbar and cable end, earth fault loop and
+  disconnection time, protective conductor adiabatic check, selectivity,
+  transformer and generator sizing, power factor correction, busbar risers,
+  UPS and solar PV.
+- **Checks**: a To do list on the dashboard with everything that fails or
+  needs checking, including invalid inputs (for example a zero breaker rating
+  or a power factor of 0), supply loops, inputs outside a method's range and
+  unverified cable data. Project readiness stages track setup, design,
+  calculation, issues, drawings and issue.
+- **Drawings and documents**: single line diagram, board sheets, earthing
+  and riser drawings, DB / cable / equipment schedules, BOQ, study reports
+  (PDF and Word), calculation report, Excel exports, revisions and
+  transmittals.
+- **Projects**: JSON files with backup (`.bak`), recovery copies of unsaved
+  work, trash (30 days), conflict detection for synced folders, and a file
+  version with migration of older files. A file without the structure the app
+  needs is refused when opened, with a message saying why.
 
-**Not built yet — natural next steps:**
-- Grouping/installation-method correction factors for cable sizing
-  (only ambient temperature is modelled right now)
-- Manufacturer breaker curves / selectivity tables (curves are generic now)
-- Exact DEWA panel-schedule template (current DB schedule is a generic layout)
+## Limitations
+
+- **Cable data**: the built-in values (Cu/XLPE/SWA multicore, free air,
+  30 °C) are approximate. Ratings use ambient and grouping derating only;
+  other installation-method factors are not applied.
+- **Ambient temperature**: the derating table covers 25–70 °C. Above 70 °C the
+  result is flagged as a failure, below 25 °C as a warning.
+- **Short circuit**: c = 1 and cable R at 1.2 × R20 give a maximum that can be
+  5–20 % below an IEC 60909 maximum; the MV network is treated as infinite and
+  motor contribution is ignored. Use the pandapower comparison or a full study
+  for final breaking-capacity checks.
+- **Voltage drop**: first-order formulas summed along the radial path; the
+  incomer to a sub-board uses per-phase P and Q but is not an unbalanced load
+  flow.
+- **Selectivity** is current-based only; confirm with the breaker
+  manufacturer's selectivity tables. Breaker curves are generic.
+- **Web version** (browser, no Electron): projects stay in the browser; the
+  Excel database, full PDF printing and the external engines need the desktop
+  app.
 
 ## Licence
 
