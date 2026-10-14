@@ -1,8 +1,9 @@
 import { pageTitleBlock } from './sldSheet';
+import { factorsText } from '../calc/installation';
 import ExcelJS from 'exceljs';
 import { cableDataNotice } from '../calc/cableTable';
 import { CALC_DISCLAIMER } from '../calc/statusText';
-import { STATUS_TEXT, statusOfText, type ReportStatus } from '../calc/statusText';
+import { REPORT_STATUS_TEXT, STATUS_TEXT, statusOfText, type ReportStatus } from '../calc/statusText';
 import type { FeederResult, Status } from '../calc/electrical';
 import { cableSizeText } from '../calc/electrical';
 import type { EarthingResult } from '../calc/earthing';
@@ -54,7 +55,7 @@ export const STUDIES: StudyInfo[] = [
   { key: 'load', label: 'Load assessment', title: 'Load assessment', description: 'Connected load, demand, maximum demand and the design load of each main board', sld: undefined },
   { key: 'sizing', label: 'Transformer & generator', title: 'Transformer and standby generator sizing', description: 'Transformer per main board (size, loading, fault level, main breaker) and the standby generator from the boards on it', sld: undefined },
   { key: 'dist', label: 'LV distribution', title: 'LV distribution', description: 'Boards with bus ratings and loading, and the major feeders between them', sld: undefined },
-  { key: 'cable', label: 'Cable & breaker sizing', title: 'Cable and breaker sizing', description: 'Ib ≤ In ≤ Iz with ambient and grouping derating, voltage drop',
+  { key: 'cable', label: 'Cable & breaker sizing', title: 'Cable and breaker sizing', description: 'Ib ≤ In ≤ Iz with installation method, ambient / ground and grouping derating, voltage drop',
     sld: { layers: { ...NO_LAYERS, current: true, loading: true }, colorBy: 'utilisation', note: 'Current and breaker loading; colour = design current ÷ cable rating' } },
   { key: 'lf', label: 'Load flow & voltage drop', title: 'Load flow and voltage drop study', description: 'Busbar demand, current, power factor and voltage; feeder current and voltage drop from the source',
     sld: { layers: { ...NO_LAYERS, current: true, voltage: true, vd: true }, colorBy: 'vd', note: 'Current, busbar voltage and total voltage drop; colour = voltage drop ÷ limit' } },
@@ -244,7 +245,7 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
     return {
       key, title: info.title, statuses,
       method: [
-        'Cu/XLPE/SWA multicore cable, reference rating in free air; derated for the ambient temperature and for grouping (the cable tray the cable runs on, else its own parallel runs).',
+        `Cu/XLPE/SWA multicore cable, rated for each circuit's IEC 60364-5-52 installation method (E free air / tray unless set); derated for air ambient (methods A–E) or ground temperature and soil thermal resistivity (D1 / D2, reference 20 °C and 2.5 K·m/W), and for grouping (the cable tray route for method E, else the circuit's own parallel runs: bunched for A–C, in ducts / in the ground for D1 / D2).`,
         'Overload protection per IEC 60364-4-43: Ib ≤ In ≤ Iz. Voltage drop from the main board to the load within the limit. Breaker Icu ≥ the fault at its terminals.'
       ],
       summary: [
@@ -256,8 +257,8 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
         })()
       ],
       tables: [{
-        title: 'Cables and breakers', headers: ['Circuit', 'From', 'To', 'Cable', 'Ib (A)', 'Breaker In (A)', 'Iz (A)', 'Grouping', 'Ib ≤ In ≤ Iz', 'ΔV total (%)', 'Result'],
-        rows: rs.map((r, i) => [tag(r.feeder), r.feeder.boardId, to(r.feeder), `${cableSizeText(r.feeder)} ${cableTypeOf(p, r.feeder).code} + ${cpcOf(r.feeder)} CPC`, n(r.ib, 1), `${r.feeder.breakerRatingA} ${breakerTypeOf(r.feeder)}`, n(r.ampacity, 0), r.tray ? `${r.tray.factor.toFixed(2)} (tray ${r.tray.route})` : '—', S(r.protectionStatus), n(r.vdTotalPct, 2), S(statuses[i])])
+        title: 'Cables and breakers', headers: ['Circuit', 'From', 'To', 'Cable', 'Installation', 'Derating', 'Ib (A)', 'Breaker In (A)', 'Iz (A)', 'Ib ≤ In ≤ Iz', 'ΔV total (%)', 'Result'],
+        rows: rs.map((r, i) => [tag(r.feeder), r.feeder.boardId, to(r.feeder), `${cableSizeText(r.feeder)} ${cableTypeOf(p, r.feeder).code} + ${cpcOf(r.feeder)} CPC`, r.rating.method, `${factorsText(r.rating)}${r.tray && r.rating.method === 'E' ? ` (tray ${r.tray.route})` : ''}`, n(r.ib, 1), `${r.feeder.breakerRatingA} ${breakerTypeOf(r.feeder)}`, n(r.ampacity, 0), r.rating.missing ? { v: REPORT_STATUS_TEXT.data, s: 'data' as const } : S(r.protectionStatus), n(r.vdTotalPct, 2), S(statuses[i])])
       }]
     };
   }

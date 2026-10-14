@@ -17,7 +17,29 @@ export interface CableSpec {
   cableType?: string; // e.g. "Cu/XLPE/SWA/PVC 0.6/1 kV, 4-core"
   installMethod?: string; // e.g. "IEC 60364-5-52 method E, free air"
   referenceDoc?: string; // datasheet or table the values were taken from
+  /** Current rating (A, 30 °C air / 20 °C ground, before derating) for other installation methods. */
+  methodRatings?: Partial<Record<InstallMethod, number>>;
 }
+
+/** IEC 60364-5-52 reference installation methods. `ampacityA` is method E. */
+export type InstallMethod = 'E' | 'C' | 'B1' | 'B2' | 'A1' | 'A2' | 'D1' | 'D2';
+export const INSTALL_METHODS: { id: InstallMethod; label: string; ground: boolean }[] = [
+  { id: 'E', label: 'E — in free air / on a tray', ground: false },
+  { id: 'C', label: 'C — clipped direct to a wall', ground: false },
+  { id: 'B1', label: 'B1 — single cores in conduit / trunking on a wall', ground: false },
+  { id: 'B2', label: 'B2 — multicore in conduit / trunking on a wall', ground: false },
+  { id: 'A1', label: 'A1 — single cores in conduit in an insulated wall', ground: false },
+  { id: 'A2', label: 'A2 — multicore in conduit in an insulated wall', ground: false },
+  { id: 'D1', label: 'D1 — in ducts in the ground', ground: true },
+  { id: 'D2', label: 'D2 — direct in the ground', ground: true }
+];
+export const methodOf = (f: Pick<Feeder, 'installMethod'>): InstallMethod => f.installMethod ?? 'E';
+export const isBuried = (m: InstallMethod) => m === 'D1' || m === 'D2';
+
+/** Built-in reference ratings for the methods other than E, by size (A). Empty until the IEC 60364-5-52
+ * Annex B tables are added from a verified copy of the standard; without a value (here or in Cables.xlsx) a
+ * circuit on that method has no rating and shows DATA REQUIRED — nothing is substituted. */
+export const REFERENCE_METHOD_RATINGS: Partial<Record<Exclude<InstallMethod, 'E'>, Record<number, number>>> = {};
 
 /** Where a cable size's values come from:
  * - reference: the app's built-in approximate values (or a Cables.xlsx row still holding them unchanged)
@@ -133,41 +155,64 @@ export function getCable(csaMm2: number): CableSpec {
   return c.spec;
 }
 
+/** The current rating of a size for an installation method (before derating), and where it comes from;
+ * null when neither Cables.xlsx nor the built-in reference has one. Method E is the cable data's own rating. */
+export function methodRating(csaMm2: number, method: InstallMethod): { a: number; source: CableSource } | null {
+  const r = resolveCable(csaMm2);
+  if (!r) return null;
+  if (method === 'E') return { a: r.spec.ampacityA, source: r.source };
+  const own = r.source === 'fallback' ? undefined : r.spec.methodRatings?.[method];
+  if (own !== undefined && Number.isFinite(own) && own > 0) return { a: own, source: r.source === 'manufacturer' ? 'manufacturer' : usingReferenceCables() ? 'reference' : 'user' };
+  const ref = REFERENCE_METHOD_RATINGS[method]?.[csaMm2];
+  return ref ? { a: ref, source: usingReferenceCables() ? 'reference' : 'fallback' } : null;
+}
+
 /** Where the data for each cable size the project uses comes from (phase and
  * protective conductors), smallest size first. `missing`: sizes no data has. */
-export function cableDataStatus(project: Pick<Project, 'feeders'>): { sizes: { csaMm2: number; source: CableSource }[]; missing: number[] } {
-  const used = new Set<number>();
-  for (const f of project.feeders) { used.add(f.cableCsaMm2); if (f.cpcMm2 !== undefined) used.add(f.cpcMm2); }
+export function cableDataStatus(project: Pick<Project, 'feeders'>): { sizes: { csaMm2: number; source: CableSource }[]; missing: number[]; methods: { csaMm2: number; method: InstallMethod; source?: CableSource }[] } {
+  const used = new Set<number>(), byMethod = new Map<string, { csaMm2: number; method: InstallMethod }>();
+  for (const f of project.feeders) {
+    used.add(f.cableCsaMm2); if (f.cpcMm2 !== undefined) used.add(f.cpcMm2);
+    const m = methodOf(f); if (m !== 'E') byMethod.set(`${f.cableCsaMm2}|${m}`, { csaMm2: f.cableCsaMm2, method: m });
+  }
   const sizes: { csaMm2: number; source: CableSource }[] = [], missing: number[] = [];
   for (const csa of [...used].sort((a, b) => a - b)) {
     const r = resolveCable(csa);
     if (r) sizes.push({ csaMm2: csa, source: r.source }); else missing.push(csa);
   }
-  return { sizes, missing };
+  /** Ratings for the installation methods other than E, by size and method; no source = no rating. */
+  const methods = [...byMethod.values()].sort((a, b) => a.csaMm2 - b.csaMm2 || a.method.localeCompare(b.method))
+    .map((x) => ({ ...x, source: methodRating(x.csaMm2, x.method)?.source }));
+  return { sizes, missing, methods };
 }
 
-/** One line for reports: which sizes are not manufacturer data, by source; '' when all are. */
+/** One line for reports: which sizes (and installation-method ratings) are not manufacturer data, by source; '' when all are. */
 export function cableDataNotice(project: Pick<Project, 'feeders'>): string {
-  const { sizes, missing } = cableDataStatus(project);
-  const by = (s: CableSource) => sizes.filter((x) => x.source === s).map((x) => x.csaMm2);
-  const list = (xs: number[]) => `${xs.join(', ')} mm²`;
+  const { sizes, missing, methods } = cableDataStatus(project);
+  const by = (s: CableSource) => [...sizes.filter((x) => x.source === s).map((x) => `${x.csaMm2}`), ...methods.filter((x) => x.source === s).map((x) => `${x.csaMm2} (${x.method})`)];
+  const list = (xs: string[]) => `${xs.join(', ')} mm²`;
   const parts = (['reference', 'fallback', 'user'] as const).filter((s) => by(s).length).map((s) => `${list(by(s))}: ${CABLE_SOURCE_TEXT[s]}`);
-  if (missing.length) parts.push(`${list(missing)}: no cable data`);
+  if (missing.length) parts.push(`${list(missing.map(String))}: no cable data`);
+  const noRating = methods.filter((x) => !x.source);
+  if (noRating.length) parts.push(`${list(noRating.map((x) => `${x.csaMm2} (${x.method})`))}: no rating for the installation method`);
   return parts.length ? `Cable data — ${parts.join('; ')}. Verify against the manufacturer's datasheet before relying on these results.` : '';
 }
 
 /** To-do findings about the cable data: a size taken from the reference table
- * because Cables.xlsx lacks it is always flagged; with `strictCableData` (final
- * design) every size without manufacturer data must be fixed. */
+ * because Cables.xlsx lacks it is always flagged; a circuit whose installation
+ * method has no rating fails (DATA REQUIRED); with `strictCableData` (final
+ * design) every size or method rating without manufacturer data must be fixed. */
 export function cableDataFindings(project: Pick<Project, 'feeders' | 'strictCableData'>): { status: 'warn' | 'bad'; text: string }[] {
-  const { sizes, missing } = cableDataStatus(project);
+  const { sizes, missing, methods } = cableDataStatus(project);
   const strict = !!project.strictCableData;
   const out: { status: 'warn' | 'bad'; text: string }[] = [];
-  const of = (s: CableSource) => sizes.filter((x) => x.source === s).map((x) => x.csaMm2);
+  const of = (s: CableSource) => [...sizes.filter((x) => x.source === s).map((x) => `${x.csaMm2}`), ...methods.filter((x) => x.source === s).map((x) => `${x.csaMm2} (${x.method})`)];
   if (missing.length) out.push({ status: 'bad', text: `Cable data: ${missing.join(', ')} mm² not in Cables.xlsx or the reference table` });
+  const noRating = methods.filter((x) => !x.source).map((x) => `${x.csaMm2} mm² ${x.method}`);
+  if (noRating.length) out.push({ status: 'bad', text: `Cable data required: no current rating for ${noRating.join(', ')} — add the installation-method rating in Cables.xlsx` });
   if (of('fallback').length) out.push({ status: strict ? 'bad' : 'warn', text: `Cable data: ${of('fallback').join(', ')} mm² missing from Cables.xlsx — approximate app reference values used` });
   if (strict) {
-    const unverified = [...of('reference'), ...of('user')].sort((a, b) => a - b);
+    const unverified = [...of('reference'), ...of('user')];
     if (unverified.length) out.push({ status: 'bad', text: `Cable data: ${unverified.join(', ')} mm² without manufacturer data (manufacturer and reference document in Cables.xlsx) — required for final design` });
   }
   return out;

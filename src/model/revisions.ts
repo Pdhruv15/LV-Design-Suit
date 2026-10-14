@@ -115,7 +115,7 @@ type Fields<T> = [keyof T & string, string][];
 export const FEEDER_FIELDS: Fields<Feeder> = [
   ['name', 'Name'], ['room', 'Room'], ['points', 'Points'], ['loadKw', 'Load (kW)'], ['demandFactor', 'Demand factor'],
   ['powerFactor', 'PF'], ['breakerRatingA', 'Breaker (A)'], ['breakerType', 'Breaker type'], ['breakerIcuKa', 'Breaking capacity (kA)'],
-  ['device', 'Device'], ['cableCsaMm2', 'Cable (mm²)'], ['cores', 'Cores'], ['cableType', 'Cable type'], ['cpcMm2', 'ECC (mm²)'],
+  ['device', 'Device'], ['cableCsaMm2', 'Cable (mm²)'], ['cores', 'Cores'], ['cableType', 'Cable type'], ['cpcMm2', 'ECC (mm²)'], ['installMethod', 'Installation method'],
   ['lengthM', 'Length (m)'], ['parallel', 'Parallel runs'], ['trayRoute', 'Tray route'], ['breakerImMultiple', 'Instantaneous (× In)'],
   ['rcdMa', 'RCD (mA)'], ['essential', 'Essential (generator)'], ['standbyUnit', 'Standby unit'], ['kvar', 'Capacitor (kvar)'], ['starter', 'Starter'],
   ['loadType', 'Load type'], ['phase', 'Phase'], ['way', 'Way'], ['kwhMeter', 'kWh meter'], ['feedsBoardId', 'Feeds'], ['remarks', 'Remarks'],
@@ -138,7 +138,7 @@ export const BOARD_FIELDS: Fields<Board> = [
 export const PROJECT_FIELDS: Fields<Snapshot> = [
   ['name', 'Project name'], ['voltageV', 'Voltage (V)'], ['frequencyHz', 'Frequency (Hz)'], ['ambientC', 'Ambient (°C)'], ['vdLimitPct', 'VD limit (%)'],
   ['pointTemplate', 'Schedule columns'], ['studySettings', 'Design settings'], ['designReference', 'Design reference'], ['standards', 'Project standards'], ['vdTempC', 'Cable temperature for voltage drop (°C)'],
-  ['strictFinalDisconnection', 'Strict final-circuit disconnection'], ['strictCableData', 'Require manufacturer cable data'], ['vdFinalCircuits', 'Voltage drop: include final circuits'], ['status', 'Status'], ['archivedAt', 'Archived']
+  ['strictFinalDisconnection', 'Strict final-circuit disconnection'], ['strictCableData', 'Require manufacturer cable data'], ['groundTempC', 'Ground temperature (°C)'], ['soilResistivityKmW', 'Soil thermal resistivity (K·m/W)'], ['vdFinalCircuits', 'Voltage drop: include final circuits'], ['status', 'Status'], ['archivedAt', 'Archived']
 ];
 
 /** Larger data sets: a summary line (with a count where it helps) and then the individual differences. */

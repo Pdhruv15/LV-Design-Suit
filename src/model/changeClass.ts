@@ -19,7 +19,7 @@ const E = 'engineering', D = 'drawing', C = 'commercial', A = 'admin', B = 'book
 
 export const FEEDER_CLASS: Record<keyof Feeder, ChangeClass> = {
   id: E, boardId: E, name: D, loadKw: E, demandFactor: E, powerFactor: E, lengthM: E, cableCsaMm2: E, parallel: E, cores: E, breakerRatingA: E, breakerIcuKa: E,
-  generation: E, loadType: E, breakerType: E, breakerImMultiple: E, cpcMm2: E, componentId: E, componentValues: E, standbyUnit: E, fromRoom: D, essential: E, phase: E, way: E,
+  generation: E, loadType: E, breakerType: E, breakerImMultiple: E, cpcMm2: E, installMethod: E, componentId: E, componentValues: E, standbyUnit: E, fromRoom: D, essential: E, phase: E, way: E,
   room: D, points: E, remarks: D, manualSize: E, starter: E, kvar: E, device: E, cableType: E, kwhMeter: E, circuitPurpose: E, rcdMa: E, localIsolator: E, capSteps: E,
   detunedPct: E, trayRoute: E, lengthToCheck: B, sizingPending: B, feedsBoardId: E
 };
@@ -32,7 +32,7 @@ export const BOARD_CLASS: Record<keyof Board, ChangeClass> = {
 
 export const PROJECT_CLASS: Record<keyof Project, ChangeClass> = {
   id: B, schemaVersion: B, createdAt: B, archivedAt: A, tags: A, notes: A, brief: A, baseline: B, modifications: A, reviewComments: A, reviewReport: A, receivedDocs: A, origin: B, name: A, voltageV: E, frequencyHz: E, ambientC: E, vdLimitPct: E,
-  strictFinalDisconnection: E, strictCableData: E, panelPrefixes: D, vdTempC: E, vdFinalCircuits: E, vdSelection: A, pointTemplate: D, info: A, revisions: B, drawing: D, ties: E, earthingPlan: E,
+  strictFinalDisconnection: E, strictCableData: E, groundTempC: E, soilResistivityKmW: E, panelPrefixes: D, vdTempC: E, vdFinalCircuits: E, vdSelection: A, pointTemplate: D, info: A, revisions: B, drawing: D, ties: E, earthingPlan: E,
   earthPitIds: B, spacePlan: E, upsSystems: E, feederPresets: A, pv: E, trays: E, substations: E, studyReport: D, calcReportDocNo: D, vdReportDocNo: D, studyReportPresets: A, calc: A, studySettings: E, designReference: D, standards: D, params: D,
   titleTemplates: D, drawingSet: D, cableRefs: B, components: E, building: E, boq: C, boqRevisions: B, variations: B, submissions: B, submissionDays: B, priceList: C, pfcCalc: E, containmentCalc: E, busRisers: E, busbarData: E, txGen: E, pfc: E,
   status: A, createdBy: B, updatedBy: B, boards: E, feeders: E, updatedAt: B

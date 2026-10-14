@@ -19,7 +19,7 @@ import pkg from '../../package.json';
 
 export const esc = (v: unknown) =>
   String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
-const f = (v: number, d = 0) => v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+const f = (v: number, d = 0) => (Number.isFinite(v) ? v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—');
 const LABEL: Record<Status, string> = STATUS_TEXT;
 const st = (s: Status) => `<td class="${s}">${LABEL[s]}</td>`;
 
@@ -136,7 +136,7 @@ ${section('Design basis', table(['Parameter', 'Value'], [
     ['System', `${project.voltageV} V, 3-phase + N, ${project.frequencyHz} Hz, TN-S (as calculated)`],
     ['Design ambient temperature', `${project.ambientC} °C`],
     ['Voltage drop limit (source to load)', `${project.vdLimitPct} %`],
-    ['Cable', `Copper; ${cableTypes.join(', ')}; reference installation in free air`],
+    ['Cable', `Copper; ${cableTypes.join(', ')}; rated for each circuit's installation method (IEC 60364-5-52)`],
     ['Standards', 'IEC 60364-4-41, 4-43, 5-52, 5-54; IEC 60909-based simplified fault levels (preliminary); IEC 60898 / 60947-2 (breakers)'],
     ['Sizing targets', `Transformer ≤ ${settings.transformerMaxLoadingPct}% with ${settings.futureGrowthPct}% growth; generator ≤ ${settings.generatorMaxLoadingPct}%; PF target ${settings.pfTarget}`]
   ].map((r) => r.map(esc))))}
@@ -178,7 +178,7 @@ ${section('Cable schedule', scheduleTable(cableSchedule(project)))}
 ${section('Assumptions and limitations', `<ul>
   <li>Upstream MV network treated as infinite; transformer %Z split into R and X by its X/R ratio (default 5).</li>
   <li>Fault levels follow IEC 60909-0 in a simplified form, not a full study: maximum currents for breaking capacity with c<sub>max</sub> = 1.05 and cable R at 20 °C; minimum currents for earth-fault disconnection with c<sub>min</sub> = ${0.95} and cable R at operating temperature; transformer correction K<sub>T</sub> not applied; loads, motor contribution and generation are neglected.</li>
-  <li>Cable ratings: reference ampacities derated for ambient temperature and for grouping (the cable tray route the cable runs on, else its own parallel runs); other installation-method factors are not applied.</li>
+  <li>Cable ratings: the rating for each circuit's IEC 60364-5-52 installation method (E free air / tray unless set), derated for air ambient or, for buried cables, ground temperature and soil thermal resistivity, and for grouping (the cable tray route for method E, else the circuit's own parallel runs). A circuit without a rating for its method is DATA REQUIRED.</li>
   <li>Cable resistance at operating temperature = 1.2 × R20 (IEC 60228)${project.vdTempC === undefined ? '' : `; voltage drop at ${project.vdTempC} °C = R20 × ${resistanceFactor(project.vdTempC).toFixed(3)}`}; protective conductor per IEC 60364-5-54 Table 54.2 unless specified. Maximum fault levels use R at 20 °C.</li>
   <li>Selectivity is assessed from current thresholds only; confirm with the breaker manufacturer's selectivity tables.</li>
   <li>Busbar voltages are measured from the main board busbar and exclude transformer regulation.</li>

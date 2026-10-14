@@ -1,4 +1,5 @@
 import type { FeederResult, Status } from '../calc/electrical';
+import { factorsText } from '../calc/installation';
 import { cableSizeText } from '../calc/electrical';
 import { breakerTypeOf } from '../calc/earthing';
 import { REPORT_STATUS_TEXT, STATUS_TEXT } from '../calc/statusText';
@@ -70,14 +71,14 @@ export function structureSection(s: Section, data: CalcData, scope: Scope): Sect
     }
     case 'cable': {
       const rs = res([...circuits, ...scope.finals]);
-      s.inputs = [['Cable', 'Cu / XLPE multicore, reference installation in free air'], ['Ambient temperature', `${p.ambientC} °C`], ['Grouping', 'From the cable tray route, else the circuit\'s own parallel runs']];
+      s.inputs = [['Cable', 'Cu / XLPE multicore, rated for each circuit\'s installation method (IEC 60364-5-52)'], ['Ambient temperature', `${p.ambientC} °C`], ['Ground (buried cables)', `${p.groundTempC ?? 20} °C, soil ${p.soilResistivityKmW ?? 2.5} K·m/W${p.groundTempC === undefined || p.soilResistivityKmW === undefined ? ' (IEC reference where not set)' : ''}`], ['Grouping', 'From the cable tray route (method E), else the circuit\'s own parallel runs']];
       s.criteria = [['Overload protection', 'Ib ≤ In ≤ Iz (IEC 60364-4-43)'], ['Voltage drop limit', `${p.vdLimitPct} %`], ['Breaking capacity', 'Icu ≥ Ik″ at the breaker']];
       // Major feeders: those supplying a board (the full list is in the appendix).
       s.cards = res(circuits.filter((f) => f.feedsBoardId)).map((r) => ({
         title: `Feeder: ${r.feeder.boardId} → ${r.feeder.feedsBoardId}`,
         rows: [
           ['Design current (Ib)', `${n(r.ib, 0)} A`], ['Protective device (In)', `${r.feeder.breakerRatingA} A ${breakerTypeOf(r.feeder)}`],
-          ['Selected cable', cableSizeText(r.feeder)], ['Derated capacity (Iz)', `${n(r.ampacity, 0)} A`],
+          ['Selected cable', cableSizeText(r.feeder)], ['Installation', `${r.rating.method} · derating ${factorsText(r.rating)}`], ['Derated capacity (Iz)', r.rating.missing ? `DATA REQUIRED — ${r.rating.missing}` : `${n(r.ampacity, 0)} A`],
           ['Ib ≤ In ≤ Iz', S(r.protectionStatus)], ['Voltage drop (total)', `${n(r.vdTotalPct, 2)} % (limit ${p.vdLimitPct} %)`],
           ['Breaking capacity check', S(r.icuStatus)], ['Overall status', S(cableStatus(r))]
         ]

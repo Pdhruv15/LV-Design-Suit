@@ -63,7 +63,9 @@ export function validateReport(v: ValidationInput): ReportIssue[] {
     }
   }
   if (v.data) {
-    const invalid = v.data.results.filter((r: FeederResult) => ![r.ib, r.ampacity, r.vdTotalPct, r.breakerFaultKA].every(Number.isFinite));
+    const noRating = v.data.results.filter((r: FeederResult) => r.rating?.missing);
+    if (noRating.length) add('error', 'Cable data required', `No current rating for the installation method of ${noRating.length} circuit(s): ${noRating.slice(0, 6).map((r) => `${r.feeder.id} (${r.feeder.cableCsaMm2} mm² ${r.rating.method})`).join(', ')}${noRating.length > 6 ? ' …' : ''} — add the rating in Cables.xlsx.`);
+    const invalid = v.data.results.filter((r: FeederResult) => !r.rating?.missing && ![r.ib, r.ampacity, r.vdTotalPct, r.breakerFaultKA].every(Number.isFinite));
     if (invalid.length) add('error', 'Invalid results', `No valid result for ${invalid.length} circuit(s): ${invalid.slice(0, 6).map((r) => r.feeder.id).join(', ')}${invalid.length > 6 ? ' …' : ''}.`);
     if (v.resultsSummary) for (const c of buildResults(v.data, v.scope).compliance.filter((x) => x.status === 'data')) add('warning', 'Undefined equipment', `${c.check} — ${c.item}: ${c.requirement}.`);
   }

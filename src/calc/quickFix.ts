@@ -12,9 +12,10 @@ const rank = { ok: 0, warn: 1, bad: 2 } as const;
 /** Why a circuit fails, in words. */
 export function failReasons(project: Project, r: FeederResult): string[] {
   const f = r.feeder, out: string[] = [];
-  if (r.ampacityStatus === 'bad') out.push(`Cable too small: Iz ${r.ampacity.toFixed(0)} A < Ib ${r.ib.toFixed(0)} A`);
+  if (r.rating.missing) out.push(`Cable data required: ${r.rating.missing}`);
+  else if (r.ampacityStatus === 'bad') out.push(`Cable too small: Iz ${r.ampacity.toFixed(0)} A < Ib ${r.ib.toFixed(0)} A`);
   if (r.ib > f.breakerRatingA) out.push(`Breaker too small: Ib ${r.ib.toFixed(0)} A > In ${f.breakerRatingA} A`);
-  else if (r.protectionStatus === 'bad') out.push(`Cable not protected: In ${f.breakerRatingA} A > Iz ${r.ampacity.toFixed(0)} A`);
+  else if (r.protectionStatus === 'bad' && !r.rating.missing) out.push(`Cable not protected: In ${f.breakerRatingA} A > Iz ${r.ampacity.toFixed(0)} A`);
   if (r.vdStatus !== 'ok') out.push(`Voltage drop ${r.vdTotalPct.toFixed(2)} % (limit ${project.vdLimitPct} %)`);
   if (r.icuStatus === 'bad') out.push(`Breaking capacity: Icu ${f.breakerIcuKa} kA < fault ${r.breakerFaultKA.toFixed(1)} kA`);
   return out;

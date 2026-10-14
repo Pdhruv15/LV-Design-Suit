@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { STATUS_TEXT } from '../calc/statusText';
-import type { FeederResult } from '../calc/electrical';
+import { izText, type FeederResult } from '../calc/electrical';
 
 type TabKey = 'vd' | 'load' | 'sc' | 'prot';
 
@@ -45,6 +45,7 @@ export default function ResultsTable({
   };
 
   function protectionNote(r: FeederResult): string {
+    if (r.rating.missing) return 'DATA REQUIRED — no rating for the installation method';
     if (r.ib > r.feeder.breakerRatingA) return 'Breaker undersized (Ib > In)';
     if (r.feeder.breakerRatingA > r.ampacity) return 'Cable not protected (In > Iz)';
     return 'Holds';
@@ -101,7 +102,7 @@ export default function ResultsTable({
             <td>{f.id}</td>
             <td className="num">{r.ib.toFixed(0)}</td>
             <td className="num">{f.breakerRatingA}</td>
-            <td className="num">{r.ampacity.toFixed(0)}</td>
+            <td className="num">{izText(r.ampacity)}</td>
             <td>{protectionNote(r)}</td>
             {statusCell(r.protectionStatus)}
           </>

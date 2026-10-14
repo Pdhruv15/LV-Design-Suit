@@ -284,6 +284,9 @@ const GROUP_TABLE = {
 // IEC 60364-5-52 Table B.52.17 item 1: bunched in air / on a surface.
 const BUNCHED: [number, number][] = [[1, 1], [2, 0.8], [3, 0.7], [4, 0.65], [5, 0.6], [6, 0.57], [7, 0.54], [8, 0.52], [9, 0.5], [12, 0.45], [16, 0.41], [20, 0.38]];
 
+/** Bunched / enclosed grouping (Table B.52.17 item 1) for n circuits. */
+export const bunchedFactor = (n: number) => (n <= 1 ? 1 : (BUNCHED.find(([k]) => k >= n) ?? BUNCHED[BUNCHED.length - 1])[1]);
+
 export type GroupArrangement = 'touching' | 'spaced' | 'bunched';
 
 /** Grouping factor for n loaded cables per tier. Between table columns the

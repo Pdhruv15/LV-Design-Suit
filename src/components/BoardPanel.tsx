@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { Board, Project } from '../types';
-import type { FeederResult } from '../calc/electrical';
+import { izText, type FeederResult } from '../calc/electrical';
 import { boardSummary } from '../calc/summary';
 import BoardFields from './BoardFields';
 import { roleOf } from '../model/emergency';
@@ -139,7 +139,7 @@ export default function BoardPanel({
                   <>
                     <dt>Ib ≤ In ≤ Iz</dt>
                     <dd className={incomerResult.protectionStatus}>
-                      {incomerResult.ib.toFixed(0)} ≤ {s.incomer.breakerRatingA} ≤ {incomerResult.ampacity.toFixed(0)} A
+                      {incomerResult.ib.toFixed(0)} ≤ {s.incomer.breakerRatingA} ≤ {izText(incomerResult.ampacity)} A
                     </dd>
                     <dt>Icu vs fault</dt>
                     <dd className={incomerResult.icuStatus}>

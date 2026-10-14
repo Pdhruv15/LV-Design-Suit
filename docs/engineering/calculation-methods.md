@@ -25,6 +25,23 @@ R / X = conductor resistance / reactance (Ω/km), n = parallel runs, cos φ / si
 The app does not check the manufacturer values themselves. "Manufacturer" means only that the row
 says where its numbers came from.
 
+## Installation method (IEC 60364-5-52)
+
+Each circuit has a reference installation method. Blank means **E**, free air or on a tray, which is how every circuit was rated before. The methods are E, C (clipped direct), B1 / B2 (conduit or trunking on a wall), A1 / A2 (conduit in an insulated wall), D1 (ducts in the ground) and D2 (direct in the ground).
+
+Iz = It(method) × correction factors × runs:
+
+| Method | It from | Temperature | Soil | Grouping (own parallel runs) |
+|---|---|---|---|---|
+| E | cable data `Rating (A)` | air, Table B.52.14 | — | tray route factor, else one layer on a tray |
+| A1–C | `Rating <method> (A)` | air, Table B.52.14 | — | bunched, Table B.52.17 item 1 (on the safe side for C) |
+| D1 | `Rating D1 (A)` | ground, Table B.52.15 (ref. 20 °C) | ducts, Table B.52.16 (ref. 2.5 K·m/W) | one cable per duct |
+| D2 | `Rating D2 (A)` | ground, Table B.52.15 | direct, Table B.52.16 | touching, direct in the ground |
+
+- **Rating source:** It for methods other than E comes from the `Rating A1 … D2` columns in Cables.xlsx, with the row's own source (manufacturer / user). The built-in reference table (`REFERENCE_METHOD_RATINGS`) is empty until the IEC 60364-5-52 Annex B tables are added from a verified copy of the standard. With no rating, Iz is not a number: the circuit fails with **DATA REQUIRED**, cable selection skips the size, and the to-do list and the report's pre-export check name it. No value is substituted.
+- **Ground conditions:** ground temperature and soil thermal resistivity come from Project settings. Blank means the IEC reference (20 °C, 2.5 K·m/W), which the to-do list flags whenever a circuit is buried. Values outside the tables (10–50 °C, 0.5–3 K·m/W) are failures.
+- **Not modelled:** depth of laying, spacing between buried circuits other than touching, and grouping between different circuits that are not on a tray route.
+
 ## Ambient temperature derating
 
 The factor is interpolated from the 90 °C XLPE column of IEC 60364-5-52 Table B.52.14 (reference

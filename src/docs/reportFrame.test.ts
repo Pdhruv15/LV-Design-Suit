@@ -103,7 +103,7 @@ describe('calculation sections (phase 3)', () => {
   it('cable section shows a card per major feeder, in the standard format', () => {
     const cable = secs.find((s) => s.key === 'cable')!;
     expect(cable.cards!.length).toBeGreaterThan(0);
-    expect(cable.cards![0].rows.map((r) => r[0])).toEqual(['Design current (Ib)', 'Protective device (In)', 'Selected cable', 'Derated capacity (Iz)', 'Ib ≤ In ≤ Iz', 'Voltage drop (total)', 'Breaking capacity check', 'Overall status']);
+    expect(cable.cards![0].rows.map((r) => r[0])).toEqual(['Design current (Ib)', 'Protective device (In)', 'Selected cable', 'Installation', 'Derated capacity (Iz)', 'Ib ≤ In ≤ Iz', 'Voltage drop (total)', 'Breaking capacity check', 'Overall status']);
     expect(cable.cards![0].title).toMatch(/^Feeder: .+ → .+/);
   });
   it('long per-circuit tables move to lettered appendices, listed in the contents', () => {

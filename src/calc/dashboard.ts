@@ -1,5 +1,6 @@
 import { checkReferences } from '../model/integrity';
 import { ambientCheck, cableDataFindings } from './cableTable';
+import { groundChecks } from './installation';
 import { projectInputIssues } from '../model/projectValidate';
 import { proposalOutstanding } from '../model/proposalStatus';
 import type { BoardKind, Project } from '../types';
@@ -200,6 +201,7 @@ export function buildDashboard(project: Project, run?: CalcRun, stale: StudyKey[
   const amb = ambientCheck(project.ambientC);
   if (amb.problem) todo.push({ status: amb.status === 'bad' ? 'bad' : 'warn', text: amb.problem });
   for (const c of cableDataFindings(project)) todo.push({ ...c, go: { view: 'database' } });
+  for (const c of groundChecks(project)) todo.push({ ...c });
   for (const b of project.boards) if (!b.upstreamId && !(b.sourceKva && b.sourceImpedancePct)) todo.push({ status: 'warn', text: `${b.id}: no transformer kVA / %Z — fault levels below it use a placeholder source impedance (0.01 Ω), not a real fault level`, go: { view: 'sizing' } });
   // References to panels and circuits that no longer exist (a deleted panel that a riser, plan or selection still names).
   for (const i of checkReferences(project)) if (i.view !== 'ups') todo.push({ status: 'bad', text: `${i.where}: ${i.problem} (“${i.ref}”) — reassign or remove it`, go: i.view ? { view: i.view } : undefined });
