@@ -79,7 +79,7 @@ describe('results are marked out of date when report inputs change', () => {
   });
 });
 
-import { buildReportHtml } from './report';
+import { buildReportHtml } from './calcReport';
 import { sizeGeneratorByBoards, sizeTransformers } from '../calc/txGen';
 
 describe('the main calculation report sizes like the study pages', () => {
@@ -87,9 +87,9 @@ describe('the main calculation report sizes like the study pages', () => {
     const p = { ...p0, txGen: { ...(p0.txGen ?? {}), sizeList: 'dewa' } } as Project;
     const html = buildReportHtml(p);
     const tx = sizeTransformers(p)[0];
-    expect(html).toContain(`recommended ${tx.recommendedKva} kVA`);
+    expect(html).toContain(`<td>${tx.recommendedKva} kVA</td>`);
     const gen = sizeGeneratorByBoards(p);
-    if (gen.recommendedKva) expect(html).toContain(`recommended ${gen.recommendedKva} kVA`);
+    if (gen.recommendedKva) expect(html).toContain(`${gen.recommendedKva} kVA / `);
   });
 });
 

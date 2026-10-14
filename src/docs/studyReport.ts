@@ -486,11 +486,11 @@ export function sldStudies(keys: StudyReportKind[]): StudyReportKind[] {
   return withResults.length ? withResults : keys.filter((k) => k === 'schedules');
 }
 
-const cellHtml = (c: Cell) => (typeof c === 'object' ? `<td class="${c.s}">${statusSpan(esc(c.v))}</td>` : `<td>${esc(c)}</td>`);
-const tableHtml = (t: Table) => `${t.title ? `<h3>${esc(t.title)}</h3>` : ''}${t.rows.length
+export const cellHtml = (c: Cell) => (typeof c === 'object' ? `<td class="${c.s}">${statusSpan(esc(c.v))}</td>` : `<td>${esc(c)}</td>`);
+export const tableHtml = (t: Table) => `${t.title ? `<h3>${esc(t.title)}</h3>` : ''}${t.rows.length
   ? `<table><thead><tr>${t.headers.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${t.rows.map((r) => `<tr>${r.map(cellHtml).join('')}</tr>`).join('')}</tbody></table>`
   : '<p class="note">Nothing in scope.</p>'}`;
-const kvHtml = (rows: [string, string][]) => `<table class="kv"><tbody>${rows.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}</tbody></table>`;
+export const kvHtml = (rows: [string, string][]) => `<table class="kv"><tbody>${rows.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}</tbody></table>`;
 const cardHtml = (c: NonNullable<Section['cards']>[number]) => `<div class="card"><b>${esc(c.title)}</b><table><tbody>${c.rows.map(([k, v]) => `<tr><th>${esc(k)}</th>${cellHtml(v)}</tr>`).join('')}</tbody></table></div>`;
 
 /** One SLD page of the report: a framed drawing sheet with the same title block as the drawing set (the project's own template

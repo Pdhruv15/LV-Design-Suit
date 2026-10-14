@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { statusOfText } from '../../calc/statusText';
 import type { Project } from '../../types';
 import { cableSchedule, dbSchedule, equipmentSchedule, type Schedule } from '../../docs/schedules';
-import { buildReportHtml } from '../../docs/report';
+import { buildReportHtml } from '../../docs/calcReport';
 import { scheduleHtml } from '../../docs/sheetPdf';
 import { saveCsv, savePdf, safeFileName } from '../../util/files';
 import { FocusChip, Page } from '../ui';
@@ -109,7 +109,7 @@ export function ReportView({ project, onStatus, stale = false, docNo, onDocNo }:
   return (
     <Page
       title="Calculation report"
-      intro="Results summary, design basis, system summary, sizing, feeder, earthing and coordination results, DB and cable schedules, and assumptions — A4 landscape, black and white. Prepared / checked / approved come from Parameters; blank ones are left for signing."
+      intro="Results summary and design basis, then load assessment, transformer and generator sizing, cable and breaker sizing, load flow and voltage drop, short circuit, earth fault loop, discrimination, power factor correction, DB and cable schedules, and assumptions — the same sections and figures as the study reports, A4 landscape, black and white. Prepared / checked / approved come from Parameters; blank ones are left for signing."
       actions={<>{onDocNo && <input className="chip" value={docNo ?? ''} placeholder="Doc no." aria-label="Document number" onChange={(e) => onDocNo(e.target.value)} />}<button className="chip primary" disabled={busy || stale} title={stale ? 'Run the calculations first (F5)' : undefined} onClick={exportPdf}>{busy ? 'Exporting…' : 'Export PDF'}</button></>}
     >
       <iframe className="report-preview" title="Report preview" srcDoc={html} sandbox="" />

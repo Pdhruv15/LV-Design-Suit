@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { cableSchedule, dbSchedule, equipmentSchedule } from './schedules';
-import { buildReportHtml } from './report';
+import { buildReportHtml } from './calcReport';
 import { toCsv } from '../util/files';
 import { sampleProject } from '../data/sampleProject';
 
@@ -46,7 +46,8 @@ describe('calculation report', () => {
     expect(html.startsWith('<!doctype html>')).toBe(true);
     expect(html).toContain('Tower &lt;A&amp;B&gt;');
     expect(html).not.toContain('Tower <A&B>');
-    for (const h of ['Design basis', 'System summary', 'Feeder calculations', 'Earthing', 'Protection coordination', 'Cable schedule', 'Assumptions']) {
+    for (const h of ['Design basis', 'Load assessment', 'Transformer and standby generator sizing', 'Cable and breaker sizing', 'Short circuit study', 'Earth fault loop',
+      'Protection discrimination study', 'Power factor correction', 'DB schedule', 'Cable schedule', 'Assumptions', 'Calculation record']) {
       expect(html).toContain(h);
     }
   });
