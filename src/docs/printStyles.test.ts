@@ -1,13 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { runCalculations } from '../calc/runs';
-import { buildReportHtml, PLAIN_CSS, REPORT_CSS } from './report';
+import { readFileSync } from 'node:fs';
+import { PLAIN_CSS, REPORT_CSS } from './report';
 import { REPORT_DOC_CSS } from './reportFrame';
 import { printDoc } from './printDoc';
-import { buildSection, buildStudyReportHtml, scopeOf, STUDIES, type CalcData } from './studyReport';
-import { buildReviewDoc, defaultSetup, reviewHtml } from './reviewReport';
-import { buildClarificationDoc } from './clarificationReport';
 import { PRINT_BASE_CSS, statusSpan } from './printStyles';
+import { printDocs } from '../../tests/fixtures/printDocs';
 
 const colours = (html: string) => [...new Set(html.match(/#[0-9a-f]{3}(?:[0-9a-f]{3})?\b/gi) ?? [])];
 const grey = (h: string) => {
@@ -29,18 +27,8 @@ describe('shared print styles', () => {
   });
 });
 
-describe('reports on the shared print styles', () => {
-  const run = runCalculations(sampleProject);
-  const data: CalcData = { project: run.project, results: run.results, earthing: run.earthing, selectivity: run.selectivity };
-  const scope = scopeOf(run.project, { boards: [], downstream: true });
-  const now = new Date('2026-10-15T10:00:00Z');
-  const docs: Record<string, string> = {
-    'calculation report': buildReportHtml(run.project),
-    'study report': buildStudyReportHtml(run.project, scope, STUDIES.map((s) => buildSection(s.key, data, scope)), { title: 'Design report' }, {}, { designBasis: true, results: true, data }),
-    'technical review': reviewHtml(buildReviewDoc(run.project, defaultSetup(), { ran: true, stale: [], findings: [] }, now)),
-    'clarification': reviewHtml(buildClarificationDoc(run.project, { title: 'Clarification' }, now)),
-    'print document': printDoc(run.project, { title: 'T', headRight: 'H', footer: 'F', body: '' })
-  };
+describe('every PDF document is black and white', () => {
+  const docs = printDocs();
   for (const [name, html] of Object.entries(docs)) {
     it(`${name}: no colour and no unfilled tokens`, () => {
       expect(colours(html).filter((c) => !grey(c))).toEqual([]);
@@ -49,6 +37,13 @@ describe('reports on the shared print styles', () => {
   }
 
   it('prints the running header / footer in the report font', () => {
-    expect(docs['print document']).toMatch(/@top-right \{ content: [^}]*font: 7\.5pt Arial/);
+    expect(printDoc(sampleProject, { title: 'T', headRight: 'H', footer: 'F', body: '' })).toMatch(/@top-right \{ content: [^}]*font: 7\.5pt Arial/);
+  });
+
+  // Builders the fixture does not construct: their print styles, read from the source.
+  it.each([['buildingSummary.ts', 'src/docs/buildingSummary.ts'], ['EnclosureSizing.tsx (PDF style)', 'src/components/EnclosureSizing.tsx']])('%s', (_, file) => {
+    const src = readFileSync(file, 'utf-8');
+    const css = file.endsWith('.tsx') ? src.slice(src.indexOf('async function exportSheet()'), src.indexOf('</style>', src.indexOf('async function exportSheet()'))) : src;
+    expect(colours(css).filter((c) => !grey(c))).toEqual([]);
   });
 });

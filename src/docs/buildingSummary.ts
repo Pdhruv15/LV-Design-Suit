@@ -70,7 +70,7 @@ export function buildingSummaryHtml(project: Project, ids: string[]): string {
   header { display: flex; gap: 10px; align-items: center; border-bottom: 2px solid #111; padding-bottom: 4px; margin-bottom: 8px; }
   h1 { font-size: 15px; margin: 0; } h2 { font-size: 12px; margin: 12px 0 4px; } .logo { max-height: 12mm; max-width: 45mm; } .m { color: #555; }
   table { width: 100%; border-collapse: collapse; } th, td { border: 0.2mm solid #999; padding: 2px 5px; text-align: left; }
-  thead th { background: #1d4f8f; color: #fff; } .n { text-align: right; } .b td { font-weight: 700; } .kv th { background: #eef2f7; width: 13%; } .tot { margin-top: 10px; font-size: 12px; }
+  thead th { background: #f2f2f2; color: #000; } .n { text-align: right; } .b td { font-weight: 700; } .kv th { background: #f2f2f2; width: 13%; } .tot { margin-top: 10px; font-size: 12px; }
   </style></head><body>${sheets.map(page).join('')}</body></html>`;
 }
 

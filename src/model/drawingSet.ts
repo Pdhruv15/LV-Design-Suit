@@ -242,8 +242,8 @@ export function registerHtml(p: Project, rows: RegisterRow[], rev: string, date:
   @page { size: A4 portrait; margin: 16mm; } body { font: 11px Arial, sans-serif; color: #000; }
   .co { font-weight: bold; font-size: 13px; } h1 { font-size: 18px; margin: 2px 0 8px; } h2 { font-size: 13px; margin: 14px 0 0; } .m { color: #555; }
   table { width: 100%; border-collapse: collapse; margin-top: 6px; }
-  th, td { border: 1px solid #000; padding: 4px 6px; text-align: left; } th { background: #eef2f7; }
-  .kv td:first-child { width: 24%; background: #f6f8fb; font-weight: bold; }
+  th, td { border: 1px solid #000; padding: 4px 6px; text-align: left; } th { background: #f2f2f2; }
+  .kv td:first-child { width: 24%; background: #f2f2f2; font-weight: bold; }
   </style></head><body><div class="co">${esc(company)}</div><h1>Drawing register — single line diagrams</h1>
   <table class="kv"><tbody>
   <tr><td>Project</td><td>${esc(p.name)}</td></tr>
@@ -351,8 +351,8 @@ export function transmittalHtml(p: Project, issue: DrawingIssue, company = ''): 
   return `<!doctype html><html><head><meta charset="utf-8"><title>Transmittal ${escH(issue.id)}</title><style>
   @page { size: A4 portrait; margin: 16mm; } body { font: 11px Arial, sans-serif; color: #000; }
   h1 { font-size: 18px; margin: 0; } .co { font-weight: bold; font-size: 13px; } .m { color: #555; }
-  table { width: 100%; border-collapse: collapse; margin-top: 10px; } th, td { border: 1px solid #000; padding: 4px 6px; text-align: left; } th { background: #eef2f7; }
-  .kv td:first-child { width: 28%; background: #f6f8fb; font-weight: bold; } .sign { margin-top: 28px; display: flex; gap: 40px; } .sign div { flex: 1; border-top: 1px solid #000; padding-top: 4px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; } th, td { border: 1px solid #000; padding: 4px 6px; text-align: left; } th { background: #f2f2f2; }
+  .kv td:first-child { width: 28%; background: #f2f2f2; font-weight: bold; } .sign { margin-top: 28px; display: flex; gap: 40px; } .sign div { flex: 1; border-top: 1px solid #000; padding-top: 4px; }
   </style></head><body>
   <div class="co">${escH(company)}</div><h1>Drawing transmittal ${escH(issue.id)}</h1>
   <table class="kv"><tbody>

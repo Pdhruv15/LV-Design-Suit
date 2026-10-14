@@ -26,25 +26,25 @@ All PDFs go through one save path: `src/util/files.ts` `savePdf` → `renderPdf`
 | 5 | Submission register | `docs/SubmissionsView.tsx:28` | `submissionReport.ts` | A | A4 | None | ✅ On tokens (`printDoc`) |
 | 6 | Document transmittal | `docs/SubmissionsView.tsx:32` | `submissionReport.ts` | A | A4 | None | ✅ On tokens (`printDoc`) |
 | 7 | Study report (single / combined) | `docs/StudyReportsView.tsx:140,146` | `studyReport.ts` | B | A4 L | Yes | ✅ Done (incl. charts in `compliance.ts`) |
-| 8 | Issue package (merged) | `docs/StudyReportsView.tsx:210` | `studyReport.ts` + `issuePackage.ts` | B/C | A4 L | Yes | Report part ✅; package cover (`issuePackage.ts`) still to do |
+| 8 | Issue package (merged) | `docs/StudyReportsView.tsx:210` | `studyReport.ts` + `issuePackage.ts` | B/C | A4 L | Yes | ✅ Done (report + cover) |
 | 9 | Cable sizing study | `studies/SizingStudy.tsx:64` | `studyReport.ts` | B | A4 L | Yes | ✅ Done (via #7) |
 | 10 | PFC study | `studies/PfcStudy.tsx:62` | `studyReport.ts` | B | A4 L | Yes | ✅ Done (via #7) |
 | 11 | Busbar study | `studies/BusbarStudy.tsx:69` | `studyReport.ts` | B | A4 L | Yes | ✅ Done (via #7) |
 | 12 | Technical review / clarification | `docs/ReviewView.tsx:54` | `reviewReport.ts` | B | A4 L | Yes | ✅ Done |
-| 13 | Project summary (dashboard) | `docs/ProjectDashboard.tsx:79` | `dashboardPdf.ts` | C | A4 L | Yes (13 colours) | **Remove colour** |
-| 14 | Building summary | `docs/BuildingView.tsx:45` | `buildingSummary.ts` | C | A4 | Yes | **Remove colour** |
-| 15 | PFC calculation | `studies/PfcCalculator.tsx:30` | `pfcReport.ts` | C | A4 | Yes | **Remove colour** |
-| 16 | Solar PV sizing | `studies/SolarStudy.tsx:50` | `upsSolarReport.ts` | C | A4 | Yes | **Remove colour** |
-| 17 | UPS / battery sizing | `studies/UpsStudy.tsx:42` | `upsSolarReport.ts` | C | A4 | Yes | **Remove colour** |
-| 18 | Containment calculation | `docs/ContainmentCalculator.tsx:32` | `containmentReport.ts` | C | A4 | Yes | **Remove colour** |
-| 19 | Cable tray schedule | `docs/TrayScheduleView.tsx:120` | `trayReport.ts` | C | A4 | Yes | **Remove colour** |
-| 20 | Enclosure sizing | `EnclosureSizing.tsx:146` | inline in component | C | A4 | Yes | **Remove colour; move builder to `src/docs/`** |
-| 21 | DB load schedule | `docs/LoadScheduleView.tsx:150` | `loadScheduleDoc.ts` | C | A4 L | Yes (amber/red) | **Remove colour** |
-| 22 | Drawing register | `docs/DrawingsView.tsx:110` | `model/drawingSet.ts` `registerHtml` | C | A4 | Yes | **Remove colour** |
-| 23 | Drawing issue transmittal | `docs/DrawingsView.tsx:112` | `model/drawingSet.ts` `transmittalHtml` | C | A4 | Yes | **Remove colour** |
-| 24 | Authority workbook (MD / TCL / riser) | `docs/LoadScheduleView.tsx:103` | `sheetPdf.ts` `workbookHtml` | D | A4 L | Light-blue header | Grey header only; **keep form layout** |
-| 25 | DB / cable / equipment schedules | `docs/Documents.tsx:37` | `sheetPdf.ts` `scheduleHtml` | D | A4 L | Light-blue header | Grey header only |
-| 26 | DM-D-013 substation areas | `docs/SubstationAreaView.tsx:43` | `dmForm.ts` | D | A4 | Yes | Remove colour; **keep prescribed layout** |
+| 13 | Project summary (dashboard) | `docs/ProjectDashboard.tsx:79` | `dashboardPdf.ts` | C | A4 L | Yes (13 colours) | ✅ Done |
+| 14 | Building summary | `docs/BuildingView.tsx:45` | `buildingSummary.ts` | C | A4 | Yes | ✅ Done |
+| 15 | PFC calculation | `studies/PfcCalculator.tsx:30` | `pfcReport.ts` | C | A4 | Yes | ✅ Done |
+| 16 | Solar PV sizing | `studies/SolarStudy.tsx:50` | `upsSolarReport.ts` | C | A4 | Yes | ✅ Done |
+| 17 | UPS / battery sizing | `studies/UpsStudy.tsx:42` | `upsSolarReport.ts` | C | A4 | Yes | ✅ Done |
+| 18 | Containment calculation | `docs/ContainmentCalculator.tsx:32` | `containmentReport.ts` | C | A4 | Yes | ✅ Done |
+| 19 | Cable tray schedule | `docs/TrayScheduleView.tsx:120` | `trayReport.ts` | C | A4 | Yes | ✅ Done |
+| 20 | Enclosure sizing | `EnclosureSizing.tsx:146` | inline in component | C | A4 | Yes | ✅ Done (PDF drawing in mono); builder still inline in the component |
+| 21 | DB load schedule | `docs/LoadScheduleView.tsx:150` | `loadScheduleDoc.ts` | C | A4 L | Yes (amber/red) | ✅ Done |
+| 22 | Drawing register | `docs/DrawingsView.tsx:110` | `model/drawingSet.ts` `registerHtml` | C | A4 | Yes | ✅ Done |
+| 23 | Drawing issue transmittal | `docs/DrawingsView.tsx:112` | `model/drawingSet.ts` `transmittalHtml` | C | A4 | Yes | ✅ Done |
+| 24 | Authority workbook (MD / TCL / riser) | `docs/LoadScheduleView.tsx:103` | `sheetPdf.ts` `workbookHtml` | D | A4 L | Light-blue header | ✅ Grey header; form layout unchanged |
+| 25 | DB / cable / equipment schedules | `docs/Documents.tsx:37` | `sheetPdf.ts` `scheduleHtml` | D | A4 L | Light-blue header | ✅ Grey header |
+| 26 | DM-D-013 substation areas | `docs/SubstationAreaView.tsx:43` | `dmForm.ts` | D | A4 | Yes | ✅ Done; prescribed layout unchanged |
 | 27 | SLD | `SldExportDialog.tsx:46` | `sldSheet.ts` | E | A1–A3 | Red mark | Out of Phase 1 (drawings) |
 | 28 | Earthing schematic | `EarthingView.tsx:107` | `sldSheet.ts` | E | A3 | — | Out of Phase 1 |
 | 29 | DB circuit diagram (single / batch) | `BoardSheetView.tsx:89,102` | `boardSheets.ts` | E | A3 | — | Out of Phase 1 |
@@ -76,4 +76,19 @@ Not PDF (out of scope): Word exports (`studyWord.ts`, `reviewWord.ts`), DXF (`dx
 - Samples: `samples/before-*.pdf`, `samples/after-*.pdf`, and `samples/after-study-report-with-fails.pdf` (VD limit 0.5 % to show boxed FAIL).
 - Page counts (body 9 pt, tables 8 pt, was ~7.5 pt): study report 45 → 51, calculation report 14 → 15, technical review 2 → 3, clarification 1 → 2. No table overflow in any of them.
 
-**Remaining for Phase 1:** family C (#13–#23 and the issue-package cover) and family D (#24–#26).
+**Remaining for Phase 1 after step 1:** family C (#13–#23 and the issue-package cover) and family D (#24–#26).
+
+## Progress — step 2 (remaining builders), 15 Oct 2026
+
+- Families C and D are black and white. Blue headings / header fills become black on `#f2f2f2`; slate text becomes `#444`; green / amber / red status becomes black, with WARNING and FAIL in bold. These one-off builders do not box FAIL; only the shared-style reports do.
+- Drawings shared with the screens get a print-only `mono` option, so the on-screen views keep their colours:
+  - `powerTriangleSvg` / `phasorSvg`: "before" is dashed, "after" solid, and the PFC PDF heading says so;
+  - `containmentSvg`: cables are grey-filled;
+  - `traySectionSvg`: outlines are black, earth cores grey, spare hatched grey, and a cable that does not fit is drawn dashed and heavy;
+  - enclosure preview: equipment grey-filled, spare dashed, allowance dotted.
+- Authority forms (MD / TCL / riser workbook, schedules, DM-D-013): only the colour changed; layout and wording are unchanged.
+- New `tests/fixtures/printDocs.ts` builds 17 PDF documents from the sample project. `printStyles.test.ts` checks every one for colour and unfilled tokens; it fails on the old builders (15 failures) and passes now. The building summary and the enclosure PDF style are checked from their source.
+- Samples for all 13 documents in this step are in `samples/before-*.pdf` and `samples/after-*.pdf`.
+- Version 1.39.0.
+
+**Not in Phase 1:** drawings (#27–#30, including the `sheet.ts` status colours) go to Phase 3. Moving the enclosure builder out of the component goes to Phase 3 as well.

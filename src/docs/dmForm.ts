@@ -49,20 +49,20 @@ export function buildDmFormHtml(project: Project, substations: DmSubstationRoom[
   }).join('');
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(project.name)} — DM-D-013 substation areas</title><style>
     @page { size: A4 portrait; margin: 14mm 14mm; }
-    body { font: 10.5px/1.45 Arial, sans-serif; color: #17202e; margin: 0; }
+    body { font: 10.5px/1.45 Arial, sans-serif; color: #000; margin: 0; }
     .page { break-after: page; } .page:last-child { break-after: auto; }
-    header { display: flex; justify-content: space-between; border-bottom: 2px solid #17202e; padding-bottom: 4px; }
-    header div { display: grid; } header span { color: #5b6b82; font-size: 9px; } header .r { text-align: right; font-size: 9px; }
+    header { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 4px; }
+    header div { display: grid; } header span { color: #444; font-size: 9px; } header .r { text-align: right; font-size: 9px; }
     h1 { font-size: 15px; margin: 12px 0 10px; text-align: center; }
-    h2 { font-size: 11.5px; margin: 14px 0 5px; color: #1d4f8f; border-bottom: 1px solid #1d4f8f; padding-bottom: 2px; }
-    table { border-collapse: collapse; width: 100%; } th, td { border: 1px solid #9aa6b8; padding: 4px 6px; text-align: center; }
-    th { background: #eef2f7; font-weight: 600; } .l { text-align: left; }
+    h2 { font-size: 11.5px; margin: 14px 0 5px; color: #000; border-bottom: 1px solid #000; padding-bottom: 2px; }
+    table { border-collapse: collapse; width: 100%; } th, td { border: 1px solid #000; padding: 4px 6px; text-align: center; }
+    th { background: #f2f2f2; font-weight: 600; } .l { text-align: left; }
     .meta th { width: 20%; text-align: left; } .meta td { text-align: left; }
-    .rooms tfoot td { background: #f5f7fa; font-weight: 600; }
+    .rooms tfoot td { background: #f2f2f2; font-weight: 600; }
     ol { margin: 4px 0; padding-left: 18px; } li { margin-bottom: 3px; }
-    .box { border: 1px solid #9aa6b8; min-height: 60px; padding: 6px; white-space: pre-wrap; }
+    .box { border: 1px solid #000; min-height: 60px; padding: 6px; white-space: pre-wrap; }
     .sign th { width: 18%; } .sign td { height: 40px; text-align: left; }
-    .err { color: #c21f32; font-weight: 700; font-size: 12px; }
-    .foot { color: #6a7689; font-size: 8.5px; margin-top: 12px; }
+    .err { color: #000; font-weight: 700; font-size: 12px; }
+    .foot { color: #444; font-size: 8.5px; margin-top: 12px; }
   </style></head><body>${pages}</body></html>`;
 }

@@ -68,7 +68,7 @@ const FORM_CSS = `@page { size: A4 landscape; margin: 9mm; }
   table.form td { border: 1px solid #444; padding: 1.5px 3px; vertical-align: middle; overflow-wrap: anywhere; }
   table.form td.v { writing-mode: vertical-rl; transform: rotate(180deg); }
   table.sched { border-collapse: collapse; width: 100%; } table.sched th, table.sched td { border: 1px solid #444; padding: 2px 3px; }
-  table.sched th { background: #e8edf5; font-size: 8px; } table.sched thead { display: table-header-group; } table.sched tr { break-inside: avoid; }
+  table.sched th { background: #f2f2f2; font-size: 8px; } table.sched thead { display: table-header-group; } table.sched tr { break-inside: avoid; }
   tr.total td { font-weight: 700; background: #f2f2f2; }`;
 
 /** Every sheet of a forms workbook as one printable page set. */
