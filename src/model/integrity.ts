@@ -19,6 +19,24 @@ export function checkReferences(p: Project): RefIssue[] {
     while (x && n++ <= p.boards.length) x = p.boards.find((y) => y.id === x)?.upstreamId;
     if (x) out.push({ where: `Panel ${b.id}`, ref: b.id, problem: 'is fed in a loop' });
   }
+  // The same through the circuits: a circuit that feeds the panel it is on, or a chain of sub-board circuits
+  // that comes back to where it started (the panels' "fed from" can be fine while the circuits loop).
+  const feeds = new Map<string, string[]>();
+  for (const f of p.feeders) if (f.feedsBoardId) {
+    if (f.feedsBoardId === f.boardId) out.push({ where: `Circuit ${f.id}`, ref: f.boardId, problem: 'feeds the panel it is on' });
+    else feeds.set(f.boardId, [...(feeds.get(f.boardId) ?? []), f.feedsBoardId]);
+  }
+  const state = new Map<string, 1 | 2>(); // 1 on the current path, 2 done
+  const inLoop = new Set<string>();
+  const walk = (id: string, path: string[]) => {
+    state.set(id, 1);
+    for (const next of feeds.get(id) ?? []) {
+      if (state.get(next) === 1) { const loop = path.slice(path.indexOf(next)); if (!loop.some((x) => inLoop.has(x))) { loop.forEach((x) => inLoop.add(x)); out.push({ where: `Panel ${next}`, ref: next, problem: `is fed in a loop through its circuits (${[...loop, next].join(' → ')})` }); } }
+      else if (!state.has(next)) walk(next, [...path, next]);
+    }
+    state.set(id, 2);
+  };
+  for (const id of feeds.keys()) if (!state.has(id)) walk(id, [id]);
   const ids = new Set<string>();
   for (const b of p.boards) { if (ids.has(b.id)) out.push({ where: `Panel ${b.id}`, ref: b.id, problem: 'has the same name as another panel' }); ids.add(b.id); }
   const fids = new Set<string>();

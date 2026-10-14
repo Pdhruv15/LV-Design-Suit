@@ -1,5 +1,6 @@
 import { checkReferences } from '../model/integrity';
 import { ambientCheck, cableDataFindings } from './cableTable';
+import { projectInputIssues } from '../model/projectValidate';
 import { proposalOutstanding } from '../model/proposalStatus';
 import type { BoardKind, Project } from '../types';
 import { BOARD_KINDS, LOAD_TYPES, PROJECT_STATUSES, settingsOf } from '../types';
@@ -195,6 +196,7 @@ export function buildDashboard(project: Project, run?: CalcRun, stale: StudyKey[
     else if (u.chargerCurrentA === undefined) add('warn', 'charger and recharge time are not checked');
   }
   // Calculation inputs outside what the method covers.
+  todo.push(...projectInputIssues(project));
   const amb = ambientCheck(project.ambientC);
   if (amb.problem) todo.push({ status: amb.status === 'bad' ? 'bad' : 'warn', text: amb.problem });
   for (const c of cableDataFindings(project)) todo.push({ ...c, go: { view: 'database' } });
