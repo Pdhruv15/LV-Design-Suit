@@ -45,7 +45,7 @@ describe('quick calculators', () => {
   it('transformer, motor, power factor correction', () => {
     const t = transformer(1000, 415, 5);
     expect(t.flc).toBeCloseTo(1391.2, 1);
-    expect(t.faultKA).toBeCloseTo(27.82, 2);
+    expect(t.faultKA).toBeCloseTo(29.22, 2); // 1.05 × 1391.2 A ÷ 0.05
     const m = motor(11, 415, 3, 0.85, 0.9, 'DOL');
     expect(m.flc).toBeCloseTo(11000 / (0.9 * 0.85 * Math.sqrt(3) * 415), 6);
     expect(m.startA).toBeCloseTo(m.flc * 6, 6);
@@ -60,7 +60,7 @@ describe('quick calculators', () => {
     expect(f.endKA).toBeGreaterThan(5);
     const t = faultFromTransformer(1000, 5, 415, 240, 0);
     expect(t.endKA).toBeCloseTo(t.startKA, 6);
-    expect(t.startKA).toBeCloseTo(27.82, 1);
+    expect(t.startKA).toBeCloseTo(29.22, 1);
   });
 
   it("Ohm's law, energy, wire gauges", () => {

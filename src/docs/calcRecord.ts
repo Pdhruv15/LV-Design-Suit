@@ -65,8 +65,8 @@ export function buildCalcRecord(project: Project, i: CalcRecordInput): CalcRecor
       label: 'Key assumptions', list: true, lines: [
         `${project.voltageV} V, 3-phase + N, ${project.frequencyHz} Hz, TN-S · design ambient ${project.ambientC} °C · voltage drop limit ${project.vdLimitPct} % source to load`,
         project.vdTempC === undefined ? 'Cable resistance at operating temperature 1.2 × R20 (not set for the project)' : `Cable resistance for voltage drop at ${project.vdTempC} °C = R20 × ${resistanceFactor(project.vdTempC).toFixed(3)}; for fault levels 1.2 × R20`,
-        'Fault levels: simplified method, voltage factor c = 1, MV network infinite — preliminary, not an IEC 60909 study'
-      ], strong: ['preliminary, not an IEC 60909 study']
+        'Fault levels: maximum Ik″ with c max = 1.05 and cable R at 20 °C, MV network infinite, transformer correction KT not applied — simplified, preliminary, not a full IEC 60909 study'
+      ], strong: ['simplified, preliminary, not a full IEC 60909 study']
     },
     { label: 'Cable data', lines: [cableLine, `Final-design requirement for manufacturer cable data: ${project.strictCableData ? 'set' : 'not set'}`], strong: unverified ? [cableLine] : [] },
     { label: 'Input checks', lines: [inputLine] },

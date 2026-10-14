@@ -187,8 +187,8 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
     return {
       key, title: info.title, statuses,
       method: [
-        'Prospective symmetrical 3-phase fault current, simplified method based on IEC 60909 (preliminary — not a full IEC 60909 study): voltage factor c = 1.0 (IEC 60909 uses c max = 1.05 / 1.10 at LV and cable R at 20 °C, which give a higher maximum), upstream MV network infinite.',
-        'Source impedance from the transformer rating and %Z (split by its X/R ratio); cable R at operating temperature (1.2 × R20) and X per km; parallel runs divide the impedance.',
+        'Maximum prospective symmetrical 3-phase fault current Ik″, simplified method based on IEC 60909-0 (preliminary — not a full IEC 60909 study): voltage factor c max = 1.05, cable R at 20 °C, upstream MV network infinite, transformer correction factor KT not applied.',
+        'Source impedance from the transformer rating and %Z (split by its X/R ratio); cable R at 20 °C and X per km; parallel runs divide the impedance.',
         'Breaking capacity check: the fault at the breaker terminals (supply busbar) must not exceed the breaker Icu. Fault at the cable end: 3-phase for 3/4-core circuits, line-to-neutral for 2-core.',
         'Motor contribution and generation are neglected.'
       ],

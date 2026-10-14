@@ -154,7 +154,7 @@ export default function EngineCompare({ project }: { project: Project }) {
             <li>
               Expected differences: the external engines solve the actual load flow, so currents come out a few percent
               higher than the built-in engine's nominal-voltage figure; PV feeders show a voltage rise; pandapower fault
-              levels include the IEC 60909 voltage factor (c = 1.10), the built-in engine uses c = 1.
+              levels use c = 1.10 and the transformer correction KT, the built-in engine c = 1.05 without KT.
             </li>
           </ul>
         </>

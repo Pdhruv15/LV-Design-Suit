@@ -235,10 +235,13 @@ export function transformerImpedance(sourceKva: number, impedancePct: number, vo
   return { r, x: r * xr };
 }
 
-/** Cable phase impedance for a given length, at operating temperature. */
+/** Cable phase impedance for the maximum short-circuit current: R at 20 °C
+ * (IEC 60909-0 uses the conductor at 20 °C for maximum currents — a cold
+ * cable gives the highest fault). Minimum faults (earthing) use the
+ * operating temperature instead. */
 export function cableImpedance(csaMm2: number, lengthM: number, runs = 1): Impedance {
   return {
-    r: (rOperatingOhmPerKm(csaMm2) * (lengthM / 1000)) / runs,
+    r: (getCable(csaMm2).rOhmPerKm20C * (lengthM / 1000)) / runs,
     x: (getCable(csaMm2).xOhmPerKm * (lengthM / 1000)) / runs
   };
 }
@@ -268,14 +271,21 @@ function impedanceToBoardOf(project: Project, board: Board, seen: Set<string>): 
   return addZ(impedanceToBoard(project, board.upstreamId!, seen), incomerZ);
 }
 
-/** Prospective symmetrical 3-phase fault current (kA rms) for a given
- * source-to-fault impedance. Voltage factor c = 1 and an infinite upstream
- * (MV) network are assumed — a first-pass estimate, not a full IEC 60909
- * study. */
-export function faultCurrentKA(z: Impedance, systemVoltageV: number): number {
+/** Maximum voltage factor for LV short-circuit currents, IEC 60909-0
+ * Table 1: 1.05 for LV systems with a +6 % voltage tolerance (1.10 applies
+ * to systems with +10 %). */
+export const C_MAX = 1.05;
+
+/** Prospective symmetrical initial short-circuit current Ik″ (kA rms) for a
+ * given source-to-fault impedance: c · U ÷ (√3 · |Z|), with c = C_MAX. The
+ * upstream (MV) network is taken as infinite and the transformer correction
+ * factor KT is not applied — a simplified method based on IEC 60909-0, not a
+ * full study. For a line-to-neutral fault pass the loop impedance (the result
+ * is then c · U0 ÷ |Z|). */
+export function faultCurrentKA(z: Impedance, systemVoltageV: number, c = C_MAX): number {
   const zm = zMagnitude(z);
   if (zm <= 0) return Infinity;
-  return systemVoltageV / (SQRT3 * zm) / 1000;
+  return (c * systemVoltageV) / (SQRT3 * zm) / 1000;
 }
 
 export type Status = 'ok' | 'warn' | 'bad';

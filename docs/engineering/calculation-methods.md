@@ -52,26 +52,23 @@ temperature coefficient. Skin and proximity effects are ignored.
 - **Incomer to a sub-board** (ENG-005): each phase conductor uses the downstream board's real and reactive power on that phase. ΔU% = L · (R · P/U0 + X · Q/U0) / n / U0 × 100, and the worst phase is used. For balanced load this equals the three-phase formula. It is a phase-conductor approximation, not an unbalanced load flow, and it ignores neutral displacement.
 - **Cumulative**: the drop at a feeder's end is the sum of the percentage drops of every incomer above it plus its own drop. This is a radial, first-order sum, not a load-flow solution.
 
-## Short circuit — simplified, preliminary
+## Short circuit — simplified IEC 60909-0, preliminary
 
 - **Transformer**: |Z| = U² · uk / S. It is split into R and X by the X/R ratio (default 5).
-- **Upstream MV network**: treated as infinite (zero impedance).
-- **Three-phase fault**: Ik3 = U / (√3 · |Z|), where Z is the phasor sum of the transformer and every cable above the point. Voltage factor **c = 1**. Cable R is taken at operating temperature (1.2 × R20).
-- **Line-to-neutral fault at the end of a 2-core circuit**: Ik1 = U0 / |Z_T + 2 · Z_cable|.
-- **Earth-fault disconnection** (earthing study): c_min = 0.95.
-- **Main board without transformer kVA / %Z**: a placeholder impedance of 0.01 Ω is used (≈ 24 kA at 415 V), and the to-do list shows a warning.
-- Motor contribution, generation and loads are neglected.
+- **Upstream MV network**: treated as infinite (zero impedance). This gives a higher maximum, so it is conservative for breaking capacity.
+- **Maximum three-phase fault** (breaking capacity, selectivity, busbar ratings): Ik″ = c_max · U / (√3 · |Z|), where Z is the phasor sum of the transformer and every cable above the point. **c_max = 1.05**, which IEC 60909-0 Table 1 gives for LV systems with a +6 % tolerance (1.10 for +10 %). Cable R is taken at **20 °C**: a cold cable gives the highest current.
+- **Line-to-neutral fault at the end of a 2-core circuit**: Ik1 = c_max · U0 / |Z_T + 2 · Z_cable|, with the cable at 20 °C.
+- **Minimum fault for earth-fault disconnection** (earthing study): c_min = 0.95, with the phase and protective conductors at operating temperature (1.2 × R20).
+- **Main board without transformer kVA / %Z**: a placeholder impedance of 0.01 Ω is used (≈ 25 kA at 415 V with c_max), and the to-do list shows a warning.
+- **Not applied**: the transformer correction factor K_T, motor contribution, generation and loads. For this reason the method is described as simplified and preliminary, not a full IEC 60909 study.
 
-### Difference from IEC 60909 (maximum currents)
+### Change in v1.37
 
-IEC 60909 calculates the maximum short-circuit current with c_max = 1.05 (LV, ±6 % tolerance) or
-1.10 (±10 %), and with conductor resistance at 20 °C. The app uses c = 1 and 1.2 × R20. Both give a
-**lower** maximum than IEC 60909, so the breaking-capacity (Icu) check is on the optimistic side:
+Up to v1.36 the maximum used c = 1 and cable R at 1.2 × R20, which gave results below an IEC 60909 maximum. Now:
 
-| Case (1000 kVA, 5 %, 415 V) | App | c = 1.05, R20 | Difference |
+| Case (1000 kVA, 5 %, 415 V) | Before (c = 1, 1.2 × R20) | Now (c_max = 1.05, R20) | Increase |
 |---|---|---|---|
 | LV busbar | 27.82 kA | 29.22 kA | +5 % |
 | End of 50 m, 4C 50 mm² | 8.61 kA | 10.29 kA | +20 % |
 
-This is why the reports describe the fault levels as a simplified, preliminary estimate. Changing
-the method would change results in existing projects, so it is left as a decision for the project owner.
+Breakers whose breaking capacity Icu sat just above the old value can now fail the check. For example, the sample project's DB-GF1 busbar rose from 9.00 kA to 10.66 kA, so its 10 kA MCBs were changed to 15 kA. The pandapower comparison applies c = 1.10 and K_T, so it can come out slightly higher again.

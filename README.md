@@ -7,14 +7,15 @@ power factor correction, drawings and submission reports. Projects are plain
 JSON files, so they sync cleanly through a Google Drive / OneDrive / Dropbox
 desktop folder.
 
-**Version 1.36** (see `package.json`). The app is in active use and active
+**Version 1.37** (see `package.json`). The app is in active use and active
 development.
 
 > **Engineering status.** The calculations are first-pass design checks, not
 > a substitute for an engineer's verified study. Cable data starts from
 > built-in approximate reference values (replace them with manufacturer data in
-> `Cables.xlsx`), and fault levels use a simplified method (voltage factor
-> c = 1, infinite MV source), not a full IEC 60909 study. Nothing in the app
+> `Cables.xlsx`), and fault levels use a simplified IEC 60909-0 method
+> (c max = 1.05, cable R at 20 °C, infinite MV source, no KT), not a full
+> IEC 60909 study. Nothing in the app
 > constitutes approval by DEWA or any other authority. Methods, assumptions and
 > limits are in [docs/engineering/calculation-methods.md](docs/engineering/calculation-methods.md).
 
@@ -187,10 +188,11 @@ header of the exported file.
   other installation-method factors are not applied.
 - **Ambient temperature**: the derating table covers 25–70 °C. Above 70 °C the
   result is flagged as a failure, below 25 °C as a warning.
-- **Short circuit**: c = 1 and cable R at 1.2 × R20 give a maximum that can be
-  5–20 % below an IEC 60909 maximum; the MV network is treated as infinite and
-  motor contribution is ignored. Use the pandapower comparison or a full study
-  for final breaking-capacity checks.
+- **Short circuit**: maximum currents use c max = 1.05 (LV systems with a
+  +6 % tolerance; IEC 60909-0 gives 1.10 for +10 %) and cable R at 20 °C. The
+  MV network is treated as infinite, the transformer correction factor KT is
+  not applied and motor contribution is ignored. Use the pandapower comparison
+  or a full study for final breaking-capacity checks.
 - **Voltage drop**: first-order formulas summed along the radial path; the
   incomer to a sub-board uses per-phase P and Q but is not an unbalanced load
   flow.
