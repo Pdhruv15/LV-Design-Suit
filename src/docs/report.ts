@@ -177,9 +177,9 @@ ${section('Cable schedule', scheduleTable(cableSchedule(project)))}
 
 ${section('Assumptions and limitations', `<ul>
   <li>Upstream MV network treated as infinite; transformer %Z split into R and X by its X/R ratio (default 5).</li>
-  <li>Fault levels are a simplified estimate, not an IEC 60909 study: voltage factor c = 1 for breaking capacity (IEC 60909 uses c<sub>max</sub> = 1.05 / 1.10 at LV, and cable R at 20 °C, so its maximum can be higher) and c = ${0.95} (minimum) for earth-fault disconnection; loads, motor contribution and generation are neglected.</li>
+  <li>Fault levels follow IEC 60909-0 in a simplified form, not a full study: maximum currents for breaking capacity with c<sub>max</sub> = 1.05 and cable R at 20 °C; minimum currents for earth-fault disconnection with c<sub>min</sub> = ${0.95} and cable R at operating temperature; transformer correction K<sub>T</sub> not applied; loads, motor contribution and generation are neglected.</li>
   <li>Cable ratings: reference ampacities derated for ambient temperature and for grouping (the cable tray route the cable runs on, else its own parallel runs); other installation-method factors are not applied.</li>
-  <li>Cable resistance at operating temperature = 1.2 × R20 (IEC 60228)${project.vdTempC === undefined ? '' : `; voltage drop at ${project.vdTempC} °C = R20 × ${resistanceFactor(project.vdTempC).toFixed(3)}`}; protective conductor per IEC 60364-5-54 Table 54.2 unless specified.</li>
+  <li>Cable resistance at operating temperature = 1.2 × R20 (IEC 60228)${project.vdTempC === undefined ? '' : `; voltage drop at ${project.vdTempC} °C = R20 × ${resistanceFactor(project.vdTempC).toFixed(3)}`}; protective conductor per IEC 60364-5-54 Table 54.2 unless specified. Maximum fault levels use R at 20 °C.</li>
   <li>Selectivity is assessed from current thresholds only; confirm with the breaker manufacturer's selectivity tables.</li>
   <li>Busbar voltages are measured from the main board busbar and exclude transformer regulation.</li>
 </ul>

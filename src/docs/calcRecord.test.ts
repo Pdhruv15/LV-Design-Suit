@@ -24,7 +24,8 @@ describe('calculation record', () => {
     expect(row(r, 'Software')).toBe(`LV Design Studio ${pkg.version} · built-in calculation engine (no external engine used)`);
     expect(row(r, 'Calculation basis')).toContain('not verified against a specific edition');
     expect(row(r, 'Key assumptions')).toContain('415 V, 3-phase + N, 50 Hz, TN-S');
-    expect(row(r, 'Key assumptions')).toContain('not an IEC 60909 study');
+    expect(row(r, 'Key assumptions')).toContain('c max = 1.05 and cable R at 20 °C');
+    expect(row(r, 'Key assumptions')).toContain('not a full IEC 60909 study');
     expect(row(r, 'Cable data')).toMatch(/^\d+ sizes used: \d+ app reference value/);
     expect(row(r, 'Input checks')).toBe('No invalid inputs, no supply loops, no missing references');
     expect(row(r, 'Calculation warnings')).toBe('0 failures · 2 to check');
@@ -50,7 +51,7 @@ describe('calculation record', () => {
     const html = calcRecordHtml(buildCalcRecord({ ...sampleProject, name: 'A <b>&</b>' }, { statuses: [] }));
     expect(html).toContain('A &lt;b&gt;&amp;&lt;/b&gt;');
     expect(html).toMatch(/<b>\d+ sizes used: /);
-    expect(html).toContain('<b>preliminary, not an IEC 60909 study</b>');
+    expect(html).toContain('<b>simplified, preliminary, not a full IEC 60909 study</b>');
     expect(html).toContain('Validation status: PRELIMINARY.');
   });
 

@@ -42,7 +42,7 @@ export function structureSection(s: Section, data: CalcData, scope: Scope): Sect
     case 'sc': {
       const rs = res([...circuits, ...scope.finals]);
       s.inputs = [['Supply', sourceText(data, scope)], ['System', `${p.voltageV} V, ${p.frequencyHz} Hz`]];
-      s.criteria = [['Voltage factor', 'c = 1.0 (maximum fault)'], ['Breaking capacity', 'Breaker Icu ≥ prospective fault at its terminals (Ik″)']];
+      s.criteria = [['Voltage factor', 'c max = 1.05 (maximum fault, cable R at 20 °C)'], ['Breaking capacity', 'Breaker Icu ≥ prospective fault at its terminals (Ik″)']];
       // The governing breaker is the one with the smallest Icu ÷ Ik″: its own Icu, fault and margin are shown together.
       s.verification = { title: 'Breaking capacity at each busbar', headers: ['Location', 'Ik″ busbar (kA)', 'Governing circuit', 'Ik″ at breaker (kA)', 'Icu (kA)', 'Margin (kA)', 'Breakers pass / check / fail', 'Status'],
         rows: scope.boards.map((b) => {

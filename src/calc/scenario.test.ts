@@ -26,7 +26,7 @@ describe('generator scenario', () => {
     const s = generatorScenario(withGen('SMDB-GF', 250));
     const onGen = faultCurrentKA(impedanceToBoard(s.project, 'SMDB-GF'), 415);
     expect(onGen).toBeLessThan(normal / 4);
-    expect(onGen).toBeCloseTo(250 / (Math.sqrt(3) * 0.415) / 0.15 / 1000, 1); // ≈ In / X″d
+    expect(onGen).toBeCloseTo((1.05 * 250) / (Math.sqrt(3) * 0.415) / 0.15 / 1000, 1); // ≈ c max · In / X″d
   });
 
   it('reports generator loading and the largest motor start dip', () => {

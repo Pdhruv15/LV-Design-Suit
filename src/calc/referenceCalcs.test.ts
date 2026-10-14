@@ -80,7 +80,7 @@ describe('voltage drop — hand calculations', () => {
   });
 });
 
-describe('short circuit — hand calculations (simplified method: c = 1, infinite MV source)', () => {
+describe('short circuit — hand calculations (maximum Ik″: c max = 1.05, cable R at 20 °C, infinite MV source, no KT)', () => {
   // Transformer 1000 kVA, uk 5 %, 415 V, X/R 5:
   // |Z| = 415² × 0.05 / 1 000 000 = 0.0086113 Ω; R = |Z| / √26 = 0.0016888 Ω; X = 5R = 0.0084440 Ω
   it('transformer impedance referred to LV', () => {
@@ -90,28 +90,28 @@ describe('short circuit — hand calculations (simplified method: c = 1, infinit
   });
 
   it('three-phase fault at the LV busbar', () => {
-    // Ik3 = 415 / (√3 × 0.0086113) = 27 824 A = 27.82 kA
-    expect(faultCurrentKA(transformerImpedance(1000, 5, 415, 5), 415)).toBeCloseTo(27.824, 2);
+    // Ik″ = 1.05 × 415 / (√3 × 0.0086113) = 29 215 A = 29.22 kA
+    expect(faultCurrentKA(transformerImpedance(1000, 5, 415, 5), 415)).toBeCloseTo(29.215, 2);
     const r = evaluateFeeder(project([feeder({})]), feeder({}));
-    expect(r.breakerFaultKA).toBeCloseTo(27.824, 2);
+    expect(r.breakerFaultKA).toBeCloseTo(29.215, 2);
   });
 
   it('three-phase fault at the end of 50 m of 4C 50 mm²', () => {
-    // Cable: R = 0.4644 × 0.05 = 0.02322 Ω, X = 0.08 × 0.05 = 0.004 Ω
-    // |Z| = √((0.0016888 + 0.02322)² + (0.008444 + 0.004)²) = 0.027844 Ω → 415 / (√3 × 0.027844) = 8.605 kA
+    // Cable at 20 °C: R = 0.387 × 0.05 = 0.01935 Ω, X = 0.08 × 0.05 = 0.004 Ω
+    // |Z| = √((0.0016888 + 0.01935)² + (0.008444 + 0.004)²) = 0.024444 Ω → 1.05 × 415 / (√3 × 0.024444) = 10.292 kA
     const f = feeder({});
-    expect(evaluateFeeder(project([f]), f).endFaultKA).toBeCloseTo(8.605, 2);
+    expect(evaluateFeeder(project([f]), f).endFaultKA).toBeCloseTo(10.292, 2);
   });
 
   it('line-to-neutral fault at the end of 30 m of 2C 4 mm² (phase + neutral)', () => {
-    // Cable each way: R = 5.532 × 0.03 = 0.16596 Ω, X = 0.0027 Ω; loop = 2 ×
-    // |Z| = √((0.0016888 + 0.33192)² + (0.008444 + 0.0054)²) = 0.33390 Ω → 239.60 / 0.33390 = 0.7176 kA
+    // Cable each way at 20 °C: R = 4.61 × 0.03 = 0.1383 Ω, X = 0.0027 Ω; loop = 2 ×
+    // |Z| = √((0.0016888 + 0.2766)² + (0.008444 + 0.0054)²) = 0.27863 Ω → 1.05 × 239.60 / 0.27863 = 0.9029 kA
     const f = feeder({ loadKw: 3, powerFactor: 0.9, cableCsaMm2: 4, lengthM: 30, cores: 2, breakerRatingA: 20 });
-    expect(evaluateFeeder(project([f]), f).endFaultKA).toBeCloseTo(0.7176, 3);
+    expect(evaluateFeeder(project([f]), f).endFaultKA).toBeCloseTo(0.9029, 3);
   });
 
   it('breaker breaking capacity check: Icu below the busbar fault fails', () => {
-    const f = feeder({ breakerIcuKa: 25 }); // 25 kA < 27.82 kA
+    const f = feeder({ breakerIcuKa: 25 }); // 25 kA < 29.22 kA
     expect(evaluateFeeder(project([f]), f).icuStatus).toBe('bad');
   });
 });
@@ -164,14 +164,14 @@ describe('demand, power factor correction and transformer — hand calculations'
   });
 
   it('transformer 1000 kVA, 415 V, 5 %: full-load current, fault level, regulation at 800 kVA, cos φ 0.85', () => {
-    // In = 1 000 000 / (√3 × 415) = 1391.2 A; Ik = In / 0.05 = 27.82 kA
+    // In = 1 000 000 / (√3 × 415) = 1391.2 A; Ik″ = 1.05 × In / 0.05 = 29.22 kA
     // ur = 5 / √26 = 0.9806 %, ux = 4.9029 %; regulation = 0.8 × (0.9806 × 0.85 + 4.9029 × 0.5268) = 2.733 %
     expect(transformer(1000, 415, 5).flc).toBeCloseTo(1391.2, 1);
-    expect(transformer(1000, 415, 5).faultKA).toBeCloseTo(27.82, 2);
+    expect(transformer(1000, 415, 5).faultKA).toBeCloseTo(29.22, 2);
     const p = project([]);
     const c = transformerChecks(p, p.boards[0], 1000, 800, 0.85, 5);
     expect(c.flcA).toBeCloseTo(1391.2, 1);
-    expect(c.faultKa).toBeCloseTo(27.82, 2);
+    expect(c.faultKa).toBeCloseTo(29.22, 2);
     expect(c.regulationPct).toBeCloseTo(2.733, 3);
   });
 });

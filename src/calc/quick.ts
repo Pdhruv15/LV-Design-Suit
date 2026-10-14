@@ -1,5 +1,5 @@
 import { ambientCorrectionFactor, cables, getCable } from './cableTable';
-import { cableImpedance, faultCurrentKA, rOperatingOhmPerKm, selectCableRuns, transformerImpedance, zMagnitude } from './electrical';
+import { C_MAX, cableImpedance, faultCurrentKA, rOperatingOhmPerKm, selectCableRuns, transformerImpedance, zMagnitude } from './electrical';
 import { STARTERS } from './motor';
 import { breakerRatings } from './sizing';
 import type { StarterType } from '../types';
@@ -141,11 +141,11 @@ export function cableFor(currentA: number, opts: { lengthM: number; phases: Phas
 }
 
 /** Transformer full-load current and the fault at its LV terminals
- * (infinite MV source, c = 1). */
+ * (infinite MV source, c max = 1.05: Ik″ = c · In ÷ uk). */
 export function transformer(kva: number, voltageV: number, impedancePct: number): { flc: number; faultKA: number; invalid?: string } {
   if (!positive(kva) || !positive(voltageV) || !positive(impedancePct)) return { flc: NaN, faultKA: NaN, invalid: 'Transformer rating, voltage and impedance must be finite and above 0' };
   const flc = (kva * 1000) / (SQRT3 * voltageV);
-  const faultKA = flc / (impedancePct / 100) / 1000;
+  const faultKA = (C_MAX * flc) / (impedancePct / 100) / 1000;
   return { flc, faultKA };
 }
 
@@ -178,8 +178,8 @@ export function pfCorrection(kw: number, pfNow: number, pfTarget: number): PfCor
 /** Fault level at the end of a cable, from the fault at its start. */
 export function faultAtCableEnd(startKA: number, voltageV: number, csaMm2: number, lengthM: number, runs = 1, sourceXr = 5): { endKA: number; cableOhm: number; invalid?: string } {
   if (!positive(startKA) || !positive(voltageV) || !nonnegative(lengthM) || !parallelRuns(runs) || !nonnegative(sourceXr) || !cableData(csaMm2)) return { endKA: NaN, cableOhm: NaN, invalid: 'Enter positive source fault current and voltage, nonnegative length and X/R, whole positive runs and a supported cable size' };
-  // Source impedance from the fault at the start, split with X/R.
-  const zs = voltageV / (SQRT3 * startKA * 1000);
+  // Source impedance from the fault at the start (Ik″ = c · U ÷ √3·Z), split with X/R.
+  const zs = (C_MAX * voltageV) / (SQRT3 * startKA * 1000);
   const rs = zs / Math.sqrt(1 + sourceXr * sourceXr);
   const zc = cableImpedance(csaMm2, lengthM, runs);
   const z = { r: rs + zc.r, x: rs * sourceXr + zc.x };

@@ -54,11 +54,12 @@ describe('design current', () => {
 });
 
 describe('transformer and fault level', () => {
-  it('1000 kVA, 5% at 415 V → |Z| = 8.61 mΩ, Ik ≈ 27.8 kA', () => {
+  it('1000 kVA, 5% at 415 V → |Z| = 8.61 mΩ, Ik″ = 1.05 × 27.82 ≈ 29.22 kA (c max = 1.05)', () => {
     const z = transformerImpedance(1000, 5, 415);
     expect(zMagnitude(z)).toBeCloseTo(0.00861125, 8);
     expect(z.x / z.r).toBeCloseTo(5, 9);
-    expect(faultCurrentKA(z, 415)).toBeCloseTo(27.82, 2);
+    expect(faultCurrentKA(z, 415)).toBeCloseTo(29.22, 2);
+    expect(faultCurrentKA(z, 415, 1)).toBeCloseTo(27.82, 2); // c = 1
   });
 
   it('adds cable impedance to the transformer as R+jX phasors', () => {
@@ -75,10 +76,10 @@ describe('transformer and fault level', () => {
 
   it('checks breaker Icu against the fault at its own busbar, not the cable end', () => {
     // 25 kA breaker on a long feeder: fault at the cable end is well below
-    // 25 kA, but the busbar sees ~27.8 kA, so the breaker is underrated.
+    // 25 kA, but the busbar sees ~29.2 kA, so the breaker is underrated.
     const f = feeder({ lengthM: 150, breakerIcuKa: 25 });
     const r = evaluateFeeder(project([f]), f);
-    expect(r.breakerFaultKA).toBeCloseTo(27.82, 1);
+    expect(r.breakerFaultKA).toBeCloseTo(29.22, 1);
     expect(r.endFaultKA).toBeLessThan(25);
     expect(r.icuStatus).toBe('bad');
     expect(r.status).toBe('bad');
@@ -87,11 +88,11 @@ describe('transformer and fault level', () => {
 
 describe('single-phase end fault', () => {
   it('flows through phase + neutral (2 × cable Z)', () => {
-    // 2.5 mm², 25 m: cable R = 8.892 × 0.025 = 0.2223 Ω, X = 0.0025 Ω per conductor.
+    // 2.5 mm², 25 m, maximum fault: cable R at 20 °C = 7.41 × 0.025 = 0.18525 Ω, X = 0.0025 Ω per conductor.
     const f = feeder({ loadKw: 3, cores: 2, cableCsaMm2: 2.5, lengthM: 25, breakerRatingA: 20, breakerIcuKa: 10 });
     const zt = transformerImpedance(1000, 5, 415);
-    const z = { r: zt.r + 2 * 0.2223, x: zt.x + 2 * 0.0025 };
-    const expected = 415 / SQRT3 / zMagnitude(z) / 1000; // ≈ 0.53 kA
+    const z = { r: zt.r + 2 * 0.18525, x: zt.x + 2 * 0.0025 };
+    const expected = (1.05 * 415) / SQRT3 / zMagnitude(z) / 1000; // ≈ 0.68 kA
     expect(evaluateFeeder(project([f]), f).endFaultKA).toBeCloseTo(expected, 3);
   });
 });
