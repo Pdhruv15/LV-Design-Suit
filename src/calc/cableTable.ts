@@ -1,4 +1,4 @@
-import type { Feeder } from '../types';
+import type { Feeder, Project } from '../types';
 
 // Reference data for copper, XLPE-insulated, steel-wire-armoured (SWA) cable,
 // 4-core, laid in free air at 30°C ambient — a common LV distribution cable
@@ -12,7 +12,25 @@ export interface CableSpec {
   xOhmPerKm: number; // reactance, ohm/km (typical, multicore)
   ampacityA: number; // current rating in free air, 30°C ambient, XLPE 90°C
   ratePerM?: number; // supply + install rate for the BOQ (from Cables.xlsx)
+  /** Where the row's values come from (Cables.xlsx; blank on the built-in reference rows). */
+  manufacturer?: string;
+  cableType?: string; // e.g. "Cu/XLPE/SWA/PVC 0.6/1 kV, 4-core"
+  installMethod?: string; // e.g. "IEC 60364-5-52 method E, free air"
+  referenceDoc?: string; // datasheet or table the values were taken from
 }
+
+/** Where a cable size's values come from:
+ * - reference: the app's built-in approximate values (or a Cables.xlsx row still holding them unchanged)
+ * - user: a Cables.xlsx row edited without naming a manufacturer and reference document
+ * - manufacturer: a Cables.xlsx row naming its manufacturer and reference document
+ * - fallback: the size is missing from Cables.xlsx, so the built-in reference value was used. */
+export type CableSource = 'reference' | 'user' | 'manufacturer' | 'fallback';
+export const CABLE_SOURCE_TEXT: Record<CableSource, string> = {
+  reference: 'app reference value (approximate, not manufacturer-verified)',
+  user: 'user-entered in Cables.xlsx (no manufacturer / reference document given)',
+  manufacturer: 'manufacturer data (Cables.xlsx)',
+  fallback: 'not in Cables.xlsx; app reference value used instead (approximate)'
+};
 
 /** Built-in reference data; replaced by Cables.xlsx when that has rows. */
 export const REFERENCE_CABLE_TABLE: CableSpec[] = [
@@ -41,7 +59,15 @@ const AMBIENT_POINTS: [number, number][] = [
   [50, 0.82], [55, 0.76], [60, 0.71], [65, 0.65], [70, 0.58]
 ];
 
+/** Range the correction table covers. Outside it the factor is held at the
+ * end value (no extrapolation): conservative below 25 °C, NOT conservative
+ * above 70 °C — see ambientCheck. */
+export const AMBIENT_RANGE_C = { min: AMBIENT_POINTS[0][0], max: AMBIENT_POINTS[AMBIENT_POINTS.length - 1][0] } as const;
+
+/** Ambient correction factor, interpolated in the table. Not a number in →
+ * NaN out (never a made-up 1.0), so a missing ambient fails every rating check. */
 export function ambientCorrectionFactor(ambientC: number): number {
+  if (!Number.isFinite(ambientC)) return NaN;
   const pts = AMBIENT_POINTS;
   if (ambientC <= pts[0][0]) return pts[0][1];
   if (ambientC >= pts[pts.length - 1][0]) return pts[pts.length - 1][1];
@@ -53,7 +79,18 @@ export function ambientCorrectionFactor(ambientC: number): number {
       return f1 + frac * (f2 - f1);
     }
   }
-  return 1;
+  return NaN;
+}
+
+/** Whether an ambient temperature is inside the correction table, and what
+ * using it means: 'bad' when the factor would be optimistic or there is no
+ * number, 'warn' when it is held at the (conservative) 25 °C value. */
+export function ambientCheck(ambientC: number): { status: 'ok' | 'warn' | 'bad'; problem?: string } {
+  const { min, max } = AMBIENT_RANGE_C;
+  if (!Number.isFinite(ambientC)) return { status: 'bad', problem: 'Design ambient temperature is not a number — cable ratings cannot be derated' };
+  if (ambientC > max) return { status: 'bad', problem: `Design ambient ${ambientC} °C is above the ${max} °C the derating table covers — the ${max} °C factor would overstate the cable rating` };
+  if (ambientC < min) return { status: 'warn', problem: `Design ambient ${ambientC} °C is below the ${min} °C the derating table covers — the ${min} °C factor is used (conservative)` };
+  return { status: 'ok' };
 }
 
 let active: CableSpec[] = REFERENCE_CABLE_TABLE;
@@ -75,12 +112,65 @@ export const cablesSource = () => (usingReferenceCables() ? 'app reference value
 /** Notice printed on outputs made with the reference values. */
 export const REFERENCE_DATA_NOTICE = 'Cable data: app reference values (approximate, not manufacturer-verified). Replace them in Cables.xlsx before relying on these results.';
 
+const sameValues = (a: CableSpec, b: CableSpec) => a.rOhmPerKm20C === b.rOhmPerKm20C && a.xOhmPerKm === b.xOhmPerKm && a.ampacityA === b.ampacityA;
+
+/** A cable size's data and where it comes from; null when no data has the size. */
+export function resolveCable(csaMm2: number): { spec: CableSpec; source: CableSource } | null {
+  const ref = REFERENCE_CABLE_TABLE.find((c) => c.csaMm2 === csaMm2);
+  if (usingReferenceCables()) return ref ? { spec: ref, source: 'reference' } : null;
+  const db = active.find((c) => c.csaMm2 === csaMm2);
+  if (!db) return ref ? { spec: ref, source: 'fallback' } : null;
+  if (db.manufacturer?.trim() && db.referenceDoc?.trim()) return { spec: db, source: 'manufacturer' };
+  return { spec: db, source: ref && sameValues(db, ref) ? 'reference' : 'user' };
+}
+
 export function getCable(csaMm2: number): CableSpec {
-  // A project may use a size the database doesn't list; fall back to the
-  // reference data for it rather than failing the whole calculation.
-  const c = active.find((c) => c.csaMm2 === csaMm2) ?? REFERENCE_CABLE_TABLE.find((c) => c.csaMm2 === csaMm2);
+  // A project may use a size the database doesn't list; the reference value
+  // is used for it rather than failing the whole calculation — resolveCable /
+  // cableDataStatus report that it happened.
+  const c = resolveCable(csaMm2);
   if (!c) throw new Error(`No cable data for ${csaMm2} mm²`);
-  return c;
+  return c.spec;
+}
+
+/** Where the data for each cable size the project uses comes from (phase and
+ * protective conductors), smallest size first. `missing`: sizes no data has. */
+export function cableDataStatus(project: Pick<Project, 'feeders'>): { sizes: { csaMm2: number; source: CableSource }[]; missing: number[] } {
+  const used = new Set<number>();
+  for (const f of project.feeders) { used.add(f.cableCsaMm2); if (f.cpcMm2 !== undefined) used.add(f.cpcMm2); }
+  const sizes: { csaMm2: number; source: CableSource }[] = [], missing: number[] = [];
+  for (const csa of [...used].sort((a, b) => a - b)) {
+    const r = resolveCable(csa);
+    if (r) sizes.push({ csaMm2: csa, source: r.source }); else missing.push(csa);
+  }
+  return { sizes, missing };
+}
+
+/** One line for reports: which sizes are not manufacturer data, by source; '' when all are. */
+export function cableDataNotice(project: Pick<Project, 'feeders'>): string {
+  const { sizes, missing } = cableDataStatus(project);
+  const by = (s: CableSource) => sizes.filter((x) => x.source === s).map((x) => x.csaMm2);
+  const list = (xs: number[]) => `${xs.join(', ')} mm²`;
+  const parts = (['reference', 'fallback', 'user'] as const).filter((s) => by(s).length).map((s) => `${list(by(s))}: ${CABLE_SOURCE_TEXT[s]}`);
+  if (missing.length) parts.push(`${list(missing)}: no cable data`);
+  return parts.length ? `Cable data — ${parts.join('; ')}. Verify against the manufacturer's datasheet before relying on these results.` : '';
+}
+
+/** To-do findings about the cable data: a size taken from the reference table
+ * because Cables.xlsx lacks it is always flagged; with `strictCableData` (final
+ * design) every size without manufacturer data must be fixed. */
+export function cableDataFindings(project: Pick<Project, 'feeders' | 'strictCableData'>): { status: 'warn' | 'bad'; text: string }[] {
+  const { sizes, missing } = cableDataStatus(project);
+  const strict = !!project.strictCableData;
+  const out: { status: 'warn' | 'bad'; text: string }[] = [];
+  const of = (s: CableSource) => sizes.filter((x) => x.source === s).map((x) => x.csaMm2);
+  if (missing.length) out.push({ status: 'bad', text: `Cable data: ${missing.join(', ')} mm² not in Cables.xlsx or the reference table` });
+  if (of('fallback').length) out.push({ status: strict ? 'bad' : 'warn', text: `Cable data: ${of('fallback').join(', ')} mm² missing from Cables.xlsx — approximate app reference values used` });
+  if (strict) {
+    const unverified = [...of('reference'), ...of('user')].sort((a, b) => a - b);
+    if (unverified.length) out.push({ status: 'bad', text: `Cable data: ${unverified.join(', ')} mm² without manufacturer data (manufacturer and reference document in Cables.xlsx) — required for final design` });
+  }
+  return out;
 }
 
 /** Protective conductor size from IEC 60364-5-54 Table 54.2 (same material

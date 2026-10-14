@@ -32,7 +32,7 @@ export const BOARD_CLASS: Record<keyof Board, ChangeClass> = {
 
 export const PROJECT_CLASS: Record<keyof Project, ChangeClass> = {
   id: B, schemaVersion: B, createdAt: B, archivedAt: A, tags: A, notes: A, brief: A, baseline: B, modifications: A, reviewComments: A, reviewReport: A, receivedDocs: A, origin: B, name: A, voltageV: E, frequencyHz: E, ambientC: E, vdLimitPct: E,
-  strictFinalDisconnection: E, panelPrefixes: D, vdTempC: E, vdFinalCircuits: E, vdSelection: A, pointTemplate: D, info: A, revisions: B, drawing: D, ties: E, earthingPlan: E,
+  strictFinalDisconnection: E, strictCableData: E, panelPrefixes: D, vdTempC: E, vdFinalCircuits: E, vdSelection: A, pointTemplate: D, info: A, revisions: B, drawing: D, ties: E, earthingPlan: E,
   earthPitIds: B, spacePlan: E, upsSystems: E, feederPresets: A, pv: E, trays: E, substations: E, studyReport: D, calcReportDocNo: D, vdReportDocNo: D, studyReportPresets: A, calc: A, studySettings: E, designReference: D, standards: D, params: D,
   titleTemplates: D, drawingSet: D, cableRefs: B, components: E, building: E, boq: C, boqRevisions: B, variations: B, submissions: B, submissionDays: B, priceList: C, pfcCalc: E, containmentCalc: E, busRisers: E, busbarData: E, txGen: E, pfc: E,
   status: A, createdBy: B, updatedBy: B, boards: E, feeders: E, updatedAt: B

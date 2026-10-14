@@ -329,6 +329,9 @@ export interface Project {
   /** Project / authority rule stricter than IEC 60364-4-41: every final circuit up to 63 A disconnects
    * in 0.4 s, fixed equipment too. Shown as an override wherever the required time is shown. */
   strictFinalDisconnection?: boolean;
+  /** Final design: every cable size must have manufacturer data in Cables.xlsx (reference, user-entered
+   * and fallback values become failures in the to-do list instead of notes). */
+  strictCableData?: boolean;
   /** Panel naming table: prefix per panel role (default the role itself, e.g. EDB). */
   panelPrefixes?: Partial<Record<import('./model/emergency').PanelRole, string>>;
   vdTempC?: number; // conductor temperature for voltage drop (°C); blank = R20 × 1.2

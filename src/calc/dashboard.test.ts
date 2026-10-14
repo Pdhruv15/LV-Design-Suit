@@ -46,3 +46,21 @@ describe('project dashboard', () => {
     expect(html).toContain('MDB-1');
   });
 });
+
+describe('dashboard: calculation-input findings', () => {
+  const texts = (p: Project) => buildDashboard(p).todo;
+  it('the sample project raises none of them', () => {
+    expect(texts(sampleProject).filter((t) => /Design ambient|Cable data|placeholder source/.test(t.text))).toEqual([]);
+  });
+  it('ambient above the derating table fails; below it warns', () => {
+    expect(texts({ ...sampleProject, ambientC: 75 }).find((t) => /Design ambient 75/.test(t.text))?.status).toBe('bad');
+    expect(texts({ ...sampleProject, ambientC: 20 }).find((t) => /Design ambient 20/.test(t.text))?.status).toBe('warn');
+  });
+  it('strict cable data fails sizes still on reference values', () => {
+    expect(texts({ ...sampleProject, strictCableData: true }).find((t) => /without manufacturer data/.test(t.text))?.status).toBe('bad');
+  });
+  it('a main board without transformer data warns that its fault level is a placeholder', () => {
+    const boards = sampleProject.boards.map((b) => (b.upstreamId ? b : { ...b, sourceKva: undefined }));
+    expect(texts({ ...sampleProject, boards }).some((t) => /placeholder source impedance/.test(t.text))).toBe(true);
+  });
+});
