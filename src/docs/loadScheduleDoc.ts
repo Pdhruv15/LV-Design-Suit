@@ -107,7 +107,7 @@ export function buildLoadScheduleHtml(project: Project, boardId: string): string
     thead { display: table-header-group; } tr { break-inside: avoid; }
     th { font-weight: 600; font-size: 8px; } th.rot { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; height: 58px; }
     td.l { text-align: left; } td.v { font-size: 8px; } .shade { background: #e4e4e4; }
-    tr.total td { font-weight: 700; } .foot { margin-top: 6px; font-size: 9px; } .bad { color: #b00; } .warn { color: #a60; }
+    tr.total td { font-weight: 700; } .foot { margin-top: 6px; font-size: 9px; } .bad, .warn { color: #000; font-weight: 700; }
   </style></head><body>
   <div class="hdr">
     <div><p>PROJECT: VILLA / BUILDING: <b>${esc(project.name)}</b></p><p>DB No.: <b>${esc(board.id)}</b> — ${esc(board.name)}</p>

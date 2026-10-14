@@ -11,13 +11,13 @@ import { esc } from './report';
 const n = (v: number, d = 1) => (Number.isFinite(v) ? v.toLocaleString('en-US', { maximumFractionDigits: d }) : '—');
 const CSS = `
   @page { size: A4 portrait; margin: 14mm; }
-  body { font: 10.5px/1.45 Arial, sans-serif; color: #17202e; margin: 0; }
-  header { display: flex; justify-content: space-between; border-bottom: 2px solid #17202e; padding-bottom: 4px; margin-bottom: 8px; }
-  h1 { font-size: 16px; margin: 0; } h2 { font-size: 12px; margin: 14px 0 5px; color: #1d4f8f; border-bottom: 1px solid #1d4f8f; }
-  table { border-collapse: collapse; width: 100%; margin-bottom: 6px; } th, td { border: 1px solid #9aa6b8; padding: 3px 6px; text-align: left; }
-  th { background: #eef2f7; width: 42%; font-weight: 600; } td b { font-size: 11.5px; }
-  .ok { color: #13803d; font-weight: 700; } .bad { color: #c21f32; font-weight: 700; }
-  .note { color: #5b6b82; font-size: 9px; } .page { break-after: page; } .page:last-child { break-after: auto; }`;
+  body { font: 10.5px/1.45 Arial, sans-serif; color: #000; margin: 0; }
+  header { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 4px; margin-bottom: 8px; }
+  h1 { font-size: 16px; margin: 0; } h2 { font-size: 12px; margin: 14px 0 5px; color: #000; border-bottom: 1px solid #000; }
+  table { border-collapse: collapse; width: 100%; margin-bottom: 6px; } th, td { border: 1px solid #000; padding: 3px 6px; text-align: left; }
+  th { background: #f2f2f2; width: 42%; font-weight: 600; } td b { font-size: 11.5px; }
+  .ok { color: #000; } .bad { color: #000; font-weight: 700; }
+  .note { color: #444; font-size: 9px; } .page { break-after: page; } .page:last-child { break-after: auto; }`;
 const head = (project: Project, title: string) => `<header><div><h1>${esc(title)}</h1><div>${esc(project.name)}</div></div><div>${esc(revisionStamp(project))}</div></header>`;
 const rows = (r: [string, string][]) => `<table>${r.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${v}</td></tr>`).join('')}</table>`;
 

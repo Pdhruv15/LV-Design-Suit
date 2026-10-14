@@ -175,13 +175,16 @@ export function calcPfc(i: PfcCalcInput): PfcCalcResult {
 
 // ---- Diagrams (SVG markup: the same picture on screen and in the report) ----
 
-const BEFORE = '#d6453d', AFTER = '#1f9d55', CAP = '#2a78d6';
+/** Before / after / bank colours. `mono` (the PDF): all black, "before" drawn dashed so it reads in black and white. */
+interface Pen { before: string; after: string; cap: string; dash: string }
+const pen = (mono = false): Pen => (mono ? { before: '#000', after: '#000', cap: '#555', dash: ' stroke-dasharray="7 4"' } : { before: '#d6453d', after: '#1f9d55', cap: '#2a78d6', dash: '' });
 const n0 = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 0 });
-const arrowDefs = `<defs>${[['b', BEFORE], ['a', AFTER], ['c', CAP], ['k', 'currentColor']].map(([id, c]) => `<marker id="ar-${id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="${c}"/></marker>`).join('')}</defs>`;
+const arrowDefs = (c: Pen) => `<defs>${[['b', c.before], ['a', c.after], ['c', c.cap], ['k', 'currentColor']].map(([id, col]) => `<marker id="ar-${id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="${col}"/></marker>`).join('')}</defs>`;
 
 /** Power triangle, before and after on the same axes, to scale: P along the
  * bottom, Q up, S the hypotenuse; the bank's kvar takes Q1 down to Q2. */
-export function powerTriangleSvg(r: PfcCalcResult): string {
+export function powerTriangleSvg(r: PfcCalcResult, mono = false): string {
+  const c = pen(mono);
   const W = 560, H = 366, ox = 70;
   // Q up for lagging (positive), down for leading (negative): the origin sits so both fit.
   const qHi = Math.max(r.q1, r.q2, 0), qLo = Math.min(r.q1, r.q2, 0);
@@ -190,12 +193,12 @@ export function powerTriangleSvg(r: PfcCalcResult): string {
   const k = Math.min(sx, sy); // same scale both ways: angles are true
   const oy = 30 + qHi * k + (qHi - qLo < r.p * 0.2 ? 0 : 0);
   const X = (v: number) => ox + v * k, Y = (v: number) => oy - v * k;
-  const arc = (deg: number, rad: number, color: string) => {
+  const arc = (deg: number, rad: number, color: string, dash = '') => {
     const a = (deg * Math.PI) / 180;
-    return `<path d="M${ox + rad} ${oy} A${rad} ${rad} 0 0 ${deg < 0 ? 1 : 0} ${ox + rad * Math.cos(a)} ${oy - rad * Math.sin(a)}" fill="none" stroke="${color}" stroke-width="1.5"/>`;
+    return `<path d="M${ox + rad} ${oy} A${rad} ${rad} 0 0 ${deg < 0 ? 1 : 0} ${ox + rad * Math.cos(a)} ${oy - rad * Math.sin(a)}" fill="none" stroke="${color}" stroke-width="1.5"${dash}/>`;
   };
   const px = X(r.p);
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" font-family="Arial, sans-serif" font-size="12" style="color:inherit">${arrowDefs}
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" font-family="Arial, sans-serif" font-size="12" style="color:inherit">${arrowDefs(c)}
   <line x1="${ox - 10}" y1="${oy}" x2="${W - 20}" y2="${oy}" stroke="currentColor" stroke-opacity=".35"/>
   <line x1="${ox}" y1="${oy + 10}" x2="${ox}" y2="16" stroke="currentColor" stroke-opacity=".35"/>
   <text x="${W - 22}" y="${oy + 16}" text-anchor="end" fill="currentColor" opacity=".7">P (kW)</text>
@@ -203,27 +206,27 @@ export function powerTriangleSvg(r: PfcCalcResult): string {
   ${qLo < 0 ? `<text x="${ox + 6}" y="${H - 22}" fill="currentColor" opacity=".7">Q below the axis: leading (capacitive)</text>` : ''}
   <line x1="${ox}" y1="${oy}" x2="${px}" y2="${oy}" stroke="currentColor" stroke-width="3" marker-end="url(#ar-k)"/>
   <text x="${(ox + px) / 2}" y="${oy + 18}" text-anchor="middle" fill="currentColor" font-weight="700">P = ${n0(r.p)} kW</text>
-  <line x1="${ox}" y1="${oy}" x2="${px}" y2="${Y(r.q1)}" stroke="${BEFORE}" stroke-width="2.5" marker-end="url(#ar-b)"/>
-  <line x1="${px}" y1="${oy}" x2="${px}" y2="${Y(r.q1)}" stroke="${BEFORE}" stroke-width="2" stroke-dasharray="5 3"/>
-  <text x="${(ox + px) / 2 - 8}" y="${(oy + Y(r.q1)) / 2 - 8}" text-anchor="end" fill="${BEFORE}" font-weight="700">S1 = ${n0(r.s1)} kVA</text>
-  <text x="${px - 6}" y="${Y(r.q1) - 6}" text-anchor="end" fill="${BEFORE}">Q1 = ${n0(r.q1)} kvar</text>
+  <line x1="${ox}" y1="${oy}" x2="${px}" y2="${Y(r.q1)}" stroke="${c.before}" stroke-width="2.5"${c.dash} marker-end="url(#ar-b)"/>
+  <line x1="${px}" y1="${oy}" x2="${px}" y2="${Y(r.q1)}" stroke="${c.before}" stroke-width="2" stroke-dasharray="5 3"/>
+  <text x="${(ox + px) / 2 - 8}" y="${(oy + Y(r.q1)) / 2 - 8}" text-anchor="end" fill="${c.before}" font-weight="700">S1 = ${n0(r.s1)} kVA</text>
+  <text x="${px - 6}" y="${Y(r.q1) - 6}" text-anchor="end" fill="${c.before}">Q1 = ${n0(r.q1)} kvar</text>
   ${r.activeKvar > 0 ? `
-  <line x1="${ox}" y1="${oy}" x2="${px}" y2="${Y(r.q2)}" stroke="${AFTER}" stroke-width="2.5" marker-end="url(#ar-a)"/>
-  <text x="${(ox + px) / 2 + 10}" y="${(oy + Y(r.q2)) / 2 + 18}" fill="${AFTER}" font-weight="700">S2 = ${n0(r.s2)} kVA</text>
-  <line x1="${px + 26}" y1="${Y(r.q1)}" x2="${px + 26}" y2="${Y(r.q2)}" stroke="${CAP}" stroke-width="3" marker-end="url(#ar-c)"/>
-  <text x="${px + 34}" y="${(Y(r.q1) + Y(r.q2)) / 2 + 4}" fill="${CAP}" font-weight="700">Qc = ${n0(r.activeKvar)} kvar (${r.activeSteps} × ${n0(r.stepKvar)})</text>
-  <text x="${px - 6}" y="${Y(r.q2) - 6}" text-anchor="end" fill="${AFTER}">Q2 = ${n0(r.q2)} kvar</text>
-  ${arc(r.phi2Deg, 46, AFTER)}` : ''}
-  ${arc(r.phi1Deg, 34, BEFORE)}
-  ${angleLabels(r, ox, oy, px - ox)}
-  <text x="${ox}" y="${H - 6}" font-size="12"><tspan fill="${BEFORE}" font-weight="700">φ1 = ${r.phi1Deg.toFixed(1)}°</tspan><tspan fill="currentColor"> · PF ${pfText(r.pf1, r.leading1)} (before)</tspan>${r.activeKvar > 0 ? `<tspan fill="currentColor">   </tspan><tspan fill="${AFTER}" font-weight="700">φ2 = ${r.phi2Deg.toFixed(1)}°</tspan><tspan fill="currentColor"> · PF ${pfText(r.pf2, r.leading2)} (after)</tspan>` : ''}</text>
+  <line x1="${ox}" y1="${oy}" x2="${px}" y2="${Y(r.q2)}" stroke="${c.after}" stroke-width="2.5" marker-end="url(#ar-a)"/>
+  <text x="${(ox + px) / 2 + 10}" y="${(oy + Y(r.q2)) / 2 + 18}" fill="${c.after}" font-weight="700">S2 = ${n0(r.s2)} kVA</text>
+  <line x1="${px + 26}" y1="${Y(r.q1)}" x2="${px + 26}" y2="${Y(r.q2)}" stroke="${c.cap}" stroke-width="3" marker-end="url(#ar-c)"/>
+  <text x="${px + 34}" y="${(Y(r.q1) + Y(r.q2)) / 2 + 4}" fill="${c.cap}" font-weight="700">Qc = ${n0(r.activeKvar)} kvar (${r.activeSteps} × ${n0(r.stepKvar)})</text>
+  <text x="${px - 6}" y="${Y(r.q2) - 6}" text-anchor="end" fill="${c.after}">Q2 = ${n0(r.q2)} kvar</text>
+  ${arc(r.phi2Deg, 46, c.after)}` : ''}
+  ${arc(r.phi1Deg, 34, c.before, c.dash)}
+  ${angleLabels(r, ox, oy, px - ox, c)}
+  <text x="${ox}" y="${H - 6}" font-size="12"><tspan fill="${c.before}" font-weight="700">φ1 = ${r.phi1Deg.toFixed(1)}°</tspan><tspan fill="currentColor"> · PF ${pfText(r.pf1, r.leading1)} (before)</tspan>${r.activeKvar > 0 ? `<tspan fill="currentColor">   </tspan><tspan fill="${c.after}" font-weight="700">φ2 = ${r.phi2Deg.toFixed(1)}°</tspan><tspan fill="currentColor"> · PF ${pfText(r.pf2, r.leading2)} (after)</tspan>` : ''}</text>
   </svg>`;
 }
 
 /** "φ1" and "φ2" placed where there is room: φ1 halfway between the green
  * and red lines, φ2 halfway between the P axis and the green line — moved out
  * until the gap between the lines is at least one text line high. */
-function angleLabels(r: PfcCalcResult, ox: number, oy: number, pLen: number): string {
+function angleLabels(r: PfcCalcResult, ox: number, oy: number, pLen: number, c: Pen): string {
   const at = (fromDeg: number, toDeg: number, minR: number, text: string, color: string) => {
     const span = Math.max(0.5, toDeg - fromDeg);
     const mid = ((fromDeg + toDeg) / 2) * (Math.PI / 180);
@@ -234,11 +237,12 @@ function angleLabels(r: PfcCalcResult, ox: number, oy: number, pLen: number): st
     return `<text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="middle" fill="${color}" font-weight="700" font-size="12">${text}</text>`;
   };
   const after = r.activeKvar > 0;
-  return (after ? at(0, r.phi2Deg, 62, 'φ2', AFTER) : '') + at(after ? r.phi2Deg : 0, r.phi1Deg, 50, 'φ1', BEFORE);
+  return (after ? at(0, r.phi2Deg, 62, 'φ2', c.after) : '') + at(after ? r.phi2Deg : 0, r.phi1Deg, 50, 'φ1', c.before);
 }
 
 /** Current phasors: V as the reference, I lagging by φ — before and after. */
-export function phasorSvg(r: PfcCalcResult, voltageV: number): string {
+export function phasorSvg(r: PfcCalcResult, voltageV: number, mono = false): string {
+  const c = pen(mono);
   const W = 320, H = 290, cx = 40, L = 220;
   const k = L / Math.max(r.i1, 1);
   // Lagging current is drawn below V, leading above it (signed angle): leave room above for a leading one.
@@ -246,19 +250,20 @@ export function phasorSvg(r: PfcCalcResult, voltageV: number): string {
   const cy = Math.max(70, 30 + above);
   const tip = (i: number, deg: number) => [cx + i * k * Math.cos((deg * Math.PI) / 180), cy + i * k * Math.sin((deg * Math.PI) / 180)];
   const [b1x, b1y] = tip(r.i1, r.phi1Deg), [a1x, a1y] = tip(r.i2, r.phi2Deg);
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" font-family="Arial, sans-serif" font-size="12">${arrowDefs}
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" font-family="Arial, sans-serif" font-size="12">${arrowDefs(c)}
   <line x1="${cx}" y1="${cy}" x2="${cx + L + 20}" y2="${cy}" stroke="currentColor" stroke-width="2.5" marker-end="url(#ar-k)"/>
   <text x="${cx + L + 18}" y="${cy - 8}" text-anchor="end" fill="currentColor" font-weight="700">V ${voltageV} V</text>
-  <line x1="${cx}" y1="${cy}" x2="${b1x}" y2="${b1y}" stroke="${BEFORE}" stroke-width="2.5" marker-end="url(#ar-b)"/>
-  <text x="${Math.min(b1x + 6, W - 70)}" y="${b1y + 16}" fill="${BEFORE}" font-weight="700">I1 ${n0(r.i1)} A</text>
-  ${r.activeKvar > 0 ? `<line x1="${cx}" y1="${cy}" x2="${a1x}" y2="${a1y}" stroke="${AFTER}" stroke-width="2.5" marker-end="url(#ar-a)"/>
-  <text x="${a1x + 6}" y="${a1y - 4}" fill="${AFTER}" font-weight="700">I2 ${n0(r.i2)} A</text>` : ''}
+  <line x1="${cx}" y1="${cy}" x2="${b1x}" y2="${b1y}" stroke="${c.before}" stroke-width="2.5"${c.dash} marker-end="url(#ar-b)"/>
+  <text x="${Math.min(b1x + 6, W - 70)}" y="${b1y + 16}" fill="${c.before}" font-weight="700">I1 ${n0(r.i1)} A</text>
+  ${r.activeKvar > 0 ? `<line x1="${cx}" y1="${cy}" x2="${a1x}" y2="${a1y}" stroke="${c.after}" stroke-width="2.5" marker-end="url(#ar-a)"/>
+  <text x="${a1x + 6}" y="${a1y - 4}" fill="${c.after}" font-weight="700">I2 ${n0(r.i2)} A</text>` : ''}
   <text x="${cx}" y="${H - 8}" fill="currentColor" opacity=".7" font-size="11">${r.leading1 ? 'I leads V (drawn above V): the load is capacitive.' : 'I lags V by φ; the bank pulls it in and down.'}</text>
   </svg>`;
 }
 
 /** PF as each step switches in, against the target. */
 export function stepsSvg(r: PfcCalcResult): string {
+  const c = pen();
   const W = 560, H = 220, L = 50, R = 16, T = 16, B = 40;
   const pts = r.stepTable;
   if (pts.length < 2) return '';
@@ -268,10 +273,10 @@ export function stepsSvg(r: PfcCalcResult): string {
   const path = pts.map((p, i) => `${i ? 'L' : 'M'}${x(i)} ${y(Math.max(lo, p.pf))}`).join(' ');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" font-family="Arial, sans-serif" font-size="11">
   ${[lo, (lo + 1) / 2, 1].map((v) => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="currentColor" stroke-opacity=".15"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end" fill="currentColor" opacity=".7">${v.toFixed(2)}</text>`).join('')}
-  <line x1="${L}" x2="${W - R}" y1="${y(r.targetPf)}" y2="${y(r.targetPf)}" stroke="${AFTER}" stroke-dasharray="6 4"/>
-  <text x="${L + 6}" y="${y(r.targetPf) - 5}" fill="${AFTER}">target ${r.targetPf}</text>
-  <path d="${path}" fill="none" stroke="${CAP}" stroke-width="2.5"/>
-  ${pts.map((p, i) => `<circle cx="${x(i)}" cy="${y(Math.max(lo, p.pf))}" r="3.5" fill="${p.pf >= r.targetPf ? AFTER : BEFORE}"/><text x="${x(i)}" y="${H - B + 16}" text-anchor="middle" fill="currentColor" opacity=".8">${p.kvar}</text>`).join('')}
+  <line x1="${L}" x2="${W - R}" y1="${y(r.targetPf)}" y2="${y(r.targetPf)}" stroke="${c.after}" stroke-dasharray="6 4"/>
+  <text x="${L + 6}" y="${y(r.targetPf) - 5}" fill="${c.after}">target ${r.targetPf}</text>
+  <path d="${path}" fill="none" stroke="${c.cap}" stroke-width="2.5"/>
+  ${pts.map((p, i) => `<circle cx="${x(i)}" cy="${y(Math.max(lo, p.pf))}" r="3.5" fill="${p.pf >= r.targetPf ? c.after : c.before}"/><text x="${x(i)}" y="${H - B + 16}" text-anchor="middle" fill="currentColor" opacity=".8">${p.kvar}</text>`).join('')}
   <text x="${(W + L) / 2}" y="${H - 6}" text-anchor="middle" fill="currentColor" opacity=".7">kvar switched in</text>
   </svg>`;
 }

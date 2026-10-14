@@ -78,11 +78,11 @@ export function packageCoverHtml(project: Project, m: PackageMeta, parts: Packag
   const kv = (rows: [string, string | undefined][]) => `<table class="kv">${rows.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v || '—')}</td></tr>`).join('')}</table>`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(project.name)} — issue package</title><style>
   @page { size: A4; margin: 14mm 14mm 16mm; } body { font: 10.5px/1.45 Arial, sans-serif; color: #111; margin: 0; }
-  h1 { font-size: 20px; margin: 0 0 2px; } h2 { font-size: 13px; color: #1d4f8f; border-bottom: 1px solid #1d4f8f; margin: 16px 0 6px; break-after: avoid; }
+  h1 { font-size: 20px; margin: 0 0 2px; } h2 { font-size: 13px; color: #000; border-bottom: 1px solid #000; margin: 16px 0 6px; break-after: avoid; }
   .kicker { color: #555; margin: 0 0 10px; } .logo { max-height: 16mm; max-width: 60mm; float: right; }
   table { width: 100%; border-collapse: collapse; } th, td { border: 0.2mm solid #999; padding: 3px 6px; text-align: left; vertical-align: top; }
-  thead th { background: #1d4f8f; color: #fff; } .kv th { background: #eef2f7; width: 30%; } td.num { text-align: right; white-space: nowrap; }
-  .bad { color: #b00020; font-weight: 700; } .warn { color: #a15c00; font-weight: 700; } .ok { color: #1b7a3a; font-weight: 700; }
+  thead th { background: #f2f2f2; color: #000; } .kv th { background: #f2f2f2; width: 30%; } td.num { text-align: right; white-space: nowrap; }
+  .bad { color: #000; font-weight: 700; } .warn { color: #000; font-weight: 700; } .ok { color: #000; }
   .snap { font: 700 12px monospace; letter-spacing: 1px; } ul { margin: 4px 0 8px 18px; padding: 0; } li { margin: 2px 0; } tr { break-inside: avoid; }
   </style></head><body>
   ${project.drawing?.logo?.startsWith('data:image/') ? `<img class="logo" src="${esc(project.drawing.logo)}" alt="">` : ''}

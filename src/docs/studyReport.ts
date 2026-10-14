@@ -24,6 +24,7 @@ import type { ColorBy } from '../diagram/heatmap';
 import { currentRevision } from '../model/revisions';
 import type { Board, Feeder, Project, StudyReportKind, StudyReportSetup } from '../types';
 import { esc, REPORT_CSS } from './report';
+import { PRINT, statusSpan } from './printStyles';
 import { buildResults, resultsSections } from './compliance';
 import { equipmentData, planAppendices } from './appendices';
 import { cableStatus, distributionSection, loadSection, structureSection } from './calcSections';
@@ -485,7 +486,7 @@ export function sldStudies(keys: StudyReportKind[]): StudyReportKind[] {
   return withResults.length ? withResults : keys.filter((k) => k === 'schedules');
 }
 
-const cellHtml = (c: Cell) => (typeof c === 'object' ? `<td class="${c.s}">${esc(c.v)}</td>` : `<td>${esc(c)}</td>`);
+const cellHtml = (c: Cell) => (typeof c === 'object' ? `<td class="${c.s}">${statusSpan(esc(c.v))}</td>` : `<td>${esc(c)}</td>`);
 const tableHtml = (t: Table) => `${t.title ? `<h3>${esc(t.title)}</h3>` : ''}${t.rows.length
   ? `<table><thead><tr>${t.headers.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${t.rows.map((r) => `<tr>${r.map(cellHtml).join('')}</tr>`).join('')}</tbody></table>`
   : '<p class="note">Nothing in scope.</p>'}`;
@@ -594,10 +595,10 @@ ${a.slds.map((k, i) => sldPage(project, scope, sections.find((s) => s.key === k)
     .study, .basis, .appendix { break-before: page; }
     .chart { margin: 8px 0 12px; break-inside: avoid; } .chart figcaption { margin-top: 2px; }
     .kv { width: 70%; } .kv th { width: 32%; }
-    .overall { margin: 0 0 6px; font-size: 11px; } .overall span { color: #5b6b82; }
-    .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; } .card { break-inside: avoid; border: 1px solid #d5dce6; border-radius: 6px; padding: 6px 8px; }
-    .card > b { display: block; margin-bottom: 4px; } .card table { margin: 0; } .card th { width: 55%; background: none; font-weight: 500; } .scope { color: #5b6b82; margin: 0 0 6px; }
-    .grid { grid-template-columns: repeat(3, 1fr); } .grid.grid4 { grid-template-columns: repeat(4, 1fr); } td.nc, .nc { color: #5b6b82; } td.data, .data { color: #a86500; font-weight: 600; }
+    .overall { margin: 0 0 6px; font-size: 10pt; } .overall span { color: ${PRINT.ink2}; }
+    .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; } .card { break-inside: avoid; border: ${PRINT.thin} solid ${PRINT.rule}; padding: 1.6mm 2.4mm; }
+    .card > b { display: block; margin-bottom: 4px; } .card table { margin: 0; } .card th { width: 55%; background: none; font-weight: 400; } .scope { color: ${PRINT.ink2}; margin: 0 0 6px; }
+    .grid { grid-template-columns: repeat(3, 1fr); } .grid.grid4 { grid-template-columns: repeat(4, 1fr); }
     .sld { page: sld; break-before: page; height: 270mm; break-inside: avoid; overflow: hidden; }
     .sld-frame { position: relative; box-sizing: border-box; height: 100%; border: 0.7mm solid #000; }
     .sld-body { position: absolute; inset: 3mm 3mm 48mm 3mm; display: flex; align-items: center; justify-content: center; } .sld-body svg { width: 100%; height: 100%; }

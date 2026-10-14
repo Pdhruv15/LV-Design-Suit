@@ -15,13 +15,14 @@ import type { Project } from '../types';
 import { DEFAULT_CABLE_TYPE } from '../types';
 import { currentRevision } from '../model/revisions';
 import { printDoc } from './printDoc';
+import { PRINT, PRINT_BASE_CSS, STATUS_CSS, statusSpan } from './printStyles';
 import pkg from '../../package.json';
 
 export const esc = (v: unknown) =>
   String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 const f = (v: number, d = 0) => (Number.isFinite(v) ? v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—');
 const LABEL: Record<Status, string> = STATUS_TEXT;
-const st = (s: Status) => `<td class="${s}">${LABEL[s]}</td>`;
+const st = (s: Status) => `<td class="${s}">${statusSpan(LABEL[s])}</td>`;
 
 function table(headers: string[], rows: string[][], totalRows: number[] = []): string {
   return `<table class="grid"><thead><tr>${headers.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows
@@ -47,9 +48,9 @@ function counts(statuses: Status[]) {
 export const PLAIN_CSS = `<style>
 html, body { background: #fff; color-scheme: light; }
 @media screen { body { padding: 21mm 14mm 16mm 16mm; } } /* on-screen preview: the printed page's margins */
-table.grid { margin: 1mm 0 3mm; font-size: 7.6pt; } table.grid thead { display: table-header-group; } table.grid tr { break-inside: avoid; }
+table.grid { margin: 1mm 0 3mm; font-size: ${PRINT.table}; } table.grid thead { display: table-header-group; } table.grid tr { break-inside: avoid; }
 table.grid tr.total td { font-weight: 700; background: #f2f2f2; } h2 { margin: 5mm 0 2mm; break-after: avoid; }
-.bad { font-weight: 700; } .m, .note { color: #444; }
+.m, .note { color: #444; }${STATUS_CSS}
 .head { display: flex; justify-content: space-between; gap: 8mm; align-items: flex-start; margin-bottom: 2mm; }
 .head h1 { font-size: 18pt; margin: 0.5mm 0 1mm; } table.doc { width: 95mm; margin: 0; font-size: 8pt; } table.doc th { width: 20mm; }
 .sum { display: grid; grid-template-columns: 70mm 1fr; gap: 4mm; align-items: start; } .sum .box { margin: 1mm 0 3mm; }
@@ -76,17 +77,10 @@ export function reportHead(project: Project, title: string, docNo?: string, extr
     <tr><th>Approved</th>${cell(prm.approvedBy, 3)}</tr></table></div>`;
 }
 
-/** Print styles shared by the PDF reports (A4 landscape). */
+/** Print styles shared by the PDF reports (A4 landscape): the shared black-and-white print tokens. */
 export const REPORT_CSS = `
     @page { size: A4 landscape; margin: 14mm 12mm; }
-    body { font: 10px/1.45 "Segoe UI", system-ui, sans-serif; color: #17202e; margin: 0; }
-    h1 { font-size: 20px; margin: 0 0 2px; } h2 { font-size: 13px; margin: 18px 0 6px; padding-bottom: 3px; border-bottom: 2px solid #1d4f8f; color: #1d4f8f; break-after: avoid; }
-    .sub { color: #5b6b82; margin: 0 0 12px; } .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 8px 0; }
-    .kpi { border: 1px solid #d5dce6; border-radius: 6px; padding: 6px 8px; } .kpi b { display: block; font-size: 14px; } .kpi span { color: #5b6b82; }
-    table { border-collapse: collapse; width: 100%; margin: 4px 0 8px; } th, td { border: 1px solid #d5dce6; padding: 3px 5px; text-align: left; }
-    th { background: #eef2f7; font-weight: 600; } tr { break-inside: avoid; } tr.total td { background: #f5f7fa; font-weight: 600; }
-    .ok { color: #13803d; } .warn { color: #a86500; } .bad { color: #c21f32; font-weight: 600; }
-    ul { margin: 4px 0; padding-left: 18px; } .note { color: #5b6b82; }`;
+    ${PRINT_BASE_CSS}`;
 
 /** Self-contained, print-ready HTML calculation report (A4 landscape). */
 export function buildReportHtml(project: Project): string {

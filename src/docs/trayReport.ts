@@ -26,7 +26,7 @@ export function buildTrayReportHtml(project: Project, plan: TrayPlan, results: T
   <h2>Route ${esc(r.route.name)} <small>${esc(r.route.from ?? '—')} → ${esc(r.route.to ?? '—')}${r.route.lengthM ? ` · ${r.route.lengthM} m` : ''}</small></h2>
   <div class="grid">
     <table><thead><tr><th>No.</th><th>From (panel)</th><th>To</th><th>Cable</th><th>Path</th><th>Qty</th><th>OD (mm)</th><th>kg/m</th></tr></thead><tbody>${rows || '<tr><td colspan="8">No cables</td></tr>'}</tbody></table>
-    ${r.cableCount ? `<figure>${traySectionSvg(r, plan, 330)}<figcaption>Cross-section to scale — hatched = spare</figcaption></figure>` : ''}
+    ${r.cableCount ? `<figure>${traySectionSvg(r, plan, 330, true)}<figcaption>Cross-section to scale — hatched = spare</figcaption></figure>` : ''}
   </div>
   <p>${esc(basis)}; + ${e.sparePct} % spare → required ${r1(r.requiredMm)} mm.</p>
   <p class="sel ${r.status}">Selected tray: ${trayText(r)} mm${r.manual ? ' (chosen)' : ''} — spare ${Math.round(r.sparePctActual)} %, cable weight ${r1(r.kgPerM)} kg/m, grouping factor ${r.groupFactor.toFixed(2)} (${r.loadedPerTier} per tier, ${r.arrangement}), bend radius ≥ ${r.bendMm} mm${r.notes.length ? ` — ${esc(r.notes.join('; '))}` : ''}</p>
@@ -38,16 +38,16 @@ export function buildTrayReportHtml(project: Project, plan: TrayPlan, results: T
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(project.name)} — cable tray schedule</title>
 <style>
 @page{size:A4 landscape;margin:12mm}
-body{font:10px/1.35 Arial,sans-serif;color:#17202e;margin:0}
-header{display:flex;justify-content:space-between;border-bottom:2px solid #17202e;padding-bottom:4px;margin-bottom:8px}
-h1{font-size:15px;margin:0}h2{font-size:12.5px;margin:10px 0 4px}h2 small{font-weight:400;color:#4a5568;margin-left:8px}
-table{border-collapse:collapse;width:100%}th,td{border:1px solid #9aa6b8;padding:2px 4px;text-align:center}th{background:#e9edf3}
-td.l{text-align:left}tr.ecc td{color:#6a7689}
-.route{page-break-inside:avoid;border-top:1px solid #cfd6e0;padding-top:4px}
+body{font:10px/1.35 Arial,sans-serif;color:#000;margin:0}
+header{display:flex;justify-content:space-between;border-bottom:2px solid #000;padding-bottom:4px;margin-bottom:8px}
+h1{font-size:15px;margin:0}h2{font-size:12.5px;margin:10px 0 4px}h2 small{font-weight:400;color:#444;margin-left:8px}
+table{border-collapse:collapse;width:100%}th,td{border:1px solid #000;padding:2px 4px;text-align:center}th{background:#f2f2f2}
+td.l{text-align:left}tr.ecc td{color:#444}
+.route{page-break-inside:avoid;border-top:1px solid #999;padding-top:4px}
 .grid{display:flex;gap:10px;align-items:flex-start}.grid table{flex:1}.grid figure{margin:0;flex:0 0 auto;text-align:center}
-figcaption{font-size:8.5px;color:#6a7689}
-.sel{font-weight:700}.ok{color:#13803d}.warn{color:#a86500}.bad{color:#c21f32}
-.basis{font-size:8.5px;color:#4a5568;margin-top:8px}
+figcaption{font-size:8.5px;color:#444}
+.sel{font-weight:700}.ok{color:#000}.warn,.bad{color:#000;font-weight:700}
+.basis{font-size:8.5px;color:#444;margin-top:8px}
 </style></head><body>
 <header><h1>${esc(project.name)} — Cable tray schedule</h1><span>${esc(revisionStamp(project))}</span></header>
 <p>${esc(s.trayType ?? '')}: default spare ${s.sparePct} %, ${s.method === 'spacing' ? `single layer, spacing ${SPACING_LABEL[s.spacing]}` : `fill ${s.fillPct} %`}, depth ${s.depthMm} mm, max width ${s.maxWidthMm} mm${s.includeEcc ? ', separate 1C ECC with each feeder' : ''}.</p>

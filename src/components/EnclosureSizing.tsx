@@ -15,7 +15,7 @@ const CLS: Record<Candidate['result'], string> = { fits: 'ok', 'too-small': 'bad
 
 /** Front and side view of the enclosure, dimensioned. Modular boards: rows of modules with
  * equipment, spare and the supplier's allowance marked (illustrative, not a manufacturing drawing). */
-function preview(cat: EnclosureCatalogue, c: Candidate | undefined, i: SizingInput): string {
+function preview(cat: EnclosureCatalogue, c: Candidate | undefined, i: SizingInput, mono = false): string {
   if (!c?.dims) return '';
   const { h, w, d } = c.dims;
   const k = Math.min(300 / h, 220 / w);
@@ -29,7 +29,9 @@ function preview(cat: EnclosureCatalogue, c: Candidate | undefined, i: SizingInp
     for (let n = 0; n < total; n++) {
       const r = Math.floor(n / per), m = n % per;
       const kind = n >= total - allow ? 'allow' : n < i.equipmentModules ? 'eq' : n < i.equipmentModules + i.spareModules ? 'spare' : 'free';
-      const style = kind === 'eq' ? 'fill="#2a78d6" fill-opacity=".55" stroke="#2a78d6"' : kind === 'spare' ? 'fill="none" stroke="#2a78d6" stroke-dasharray="2 2"' : kind === 'allow' ? 'fill="none" stroke="#c8a000" stroke-dasharray="2 2"' : `fill="none" stroke="${S}" stroke-opacity=".15"`;
+      // mono: the PDF — equipment grey-filled, spare dashed, allowance dotted, so it reads in black and white
+      const eq = mono ? '#000' : '#2a78d6', al = mono ? '#000' : '#c8a000';
+      const style = kind === 'eq' ? `fill="${eq}" fill-opacity="${mono ? '.3' : '.55'}" stroke="${eq}"` : kind === 'spare' ? `fill="none" stroke="${eq}" stroke-dasharray="2 2"` : kind === 'allow' ? `fill="none" stroke="${al}" stroke-dasharray="${mono ? '0.5 2.5' : '2 2'}" stroke-linecap="round"` : `fill="none" stroke="${S}" stroke-opacity=".15"`;
       cells.push(`<rect x="${x0 + pad + m * mw + 1}" y="${y0 + pad + r * rh + rh * 0.25}" width="${mw - 2}" height="${rh * 0.5}" ${style}/>`);
     }
   } else {
@@ -131,15 +133,15 @@ export default function EnclosureSizing({ project, boardId, onChange, onStatus }
     const d = chosen.dims;
     const row = (k: string, v: string) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`;
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(panel)} enclosure</title><style>
-    @page { size: A4; margin: 14mm; } body { font: 10.5px/1.45 Arial, sans-serif; color: #111; } h1 { font-size: 16px; margin: 0 0 4px; } h2 { font-size: 12px; color: #1d4f8f; border-bottom: 1px solid #1d4f8f; margin: 12px 0 5px; }
-    table { width: 100%; border-collapse: collapse; } th, td { border: .2mm solid #999; padding: 3px 6px; text-align: left; } th { background: #eef2f7; width: 34%; } thead th { background: #1d4f8f; color: #fff; width: auto; }
-    .warn { color: #a15c00; font-weight: 700; } svg { width: 100%; max-height: 110mm; color: #111; } .m { color: #555; }
+    @page { size: A4; margin: 14mm; } body { font: 10.5px/1.45 Arial, sans-serif; color: #111; } h1 { font-size: 16px; margin: 0 0 4px; } h2 { font-size: 12px; color: #000; border-bottom: 1px solid #000; margin: 12px 0 5px; }
+    table { width: 100%; border-collapse: collapse; } th, td { border: .2mm solid #999; padding: 3px 6px; text-align: left; } th { background: #f2f2f2; width: 34%; } thead th { background: #f2f2f2; color: #000; width: auto; }
+    .warn { color: #000; font-weight: 700; } svg { width: 100%; max-height: 110mm; color: #111; } .m { color: #555; }
     </style></head><body>
     <h1>${esc(project.name)} — ${esc(panel)} enclosure size</h1><p class="m">${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} · preliminary space estimate</p>
     <h2>Selected enclosure</h2><table>${row('Catalogue', `${cat.supplier} — ${cat.range}, rev. ${cat.revision}`)}${row('Source', cat.source)}${row('Size', `${chosen.config.ref}${cat.family === 'modular' ? ` (${chosen.config.rows} row${chosen.config.rows === 1 ? "" : "s"} × ${chosen.config.modulesPerRow} modules)` : ''}`)}${row('Mounting', cat.family === 'modular' ? mounting : 'fabricated')}${row('Dimensions', `H ${d.h} × W ${d.w} × D ${d.d} mm`)}${row('Allowance case', chosen.rule.label)}${chosen.rule.extra ? row('Add to the estimate', chosen.rule.extra) : ''}</table>
     <h2>Space</h2><table>${row('Method', method === 'schedule' ? 'From the load schedule (device records)' : 'Manual estimate')}${row('Equipment', `${input.equipmentModules} modules`)}${row('Future spare', `${input.spareModules} modules${input.sparePct !== undefined ? ` (${input.sparePct} % of equipment)` : ''}`)}${row('Required', `${r.required} modules`)}${row('Available', `${chosen.config.grossModules} − ${chosen.rule.deductModules} = ${chosen.usable} modules (supplier figure after allowance)`)}${row('Left over', `${chosen.spareAfter} modules`)}${row('ELCB count', String(input.elcbCount))}${input.incomerA !== undefined ? row('Incomer', `${input.incomerA} A`) : ''}</table>
     ${method === 'schedule' ? `<h2>Devices</h2><table><thead><tr><th>Device</th><th>Qty</th><th>Record</th><th>Modules</th></tr></thead><tbody>${needed.map((x) => `<tr><td>${esc(x.key)} — ${esc(x.what)}</td><td>${x.count}</td><td>${x.device ? esc(`${x.device.manufacturer} ${x.device.model}`) : '<span class="warn">needs dimensions</span>'}</td><td>${x.device ? x.device.modules * x.count : '—'}</td></tr>`).join('')}</tbody></table>` : ''}
-    <h2>Preview (illustrative, not a manufacturing drawing)</h2>${svg}
+    <h2>Preview (illustrative, not a manufacturing drawing)</h2>${preview(cat, chosen, input, true)}
     <h2>Other candidates</h2><table><thead><tr><th>Size</th><th>Usable</th><th>Left</th><th>Result</th></tr></thead><tbody>${shown.filter((c) => c.result !== 'not-listed').map((c) => `<tr><td>${esc(c.config.ref)}</td><td>${c.usable}</td><td>${c.spareAfter}</td><td>${esc(RESULT[c.result])}</td></tr>`).join('')}</tbody></table>
     <p class="warn">Preliminary space fit by module count. Depth, wiring access, busbars, device compatibility and temperature rise (IEC TR 60890) are separate checks${chosen.result === 'confirm' ? '; the supplier must confirm which allowance case governs' : ''}. Supplier review pending.</p>
     </body></html>`;

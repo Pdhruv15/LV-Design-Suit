@@ -52,28 +52,28 @@ export function buildDashboardHtml(project: Project, d: Dashboard): string {
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(project.name)} — project summary</title><style>
   @page { size: A4 landscape; margin: 10mm; }
   * { box-sizing: border-box; }
-  body { font: 9.5px/1.35 Arial, sans-serif; color: #17202e; margin: 0; }
-  header { display: flex; align-items: center; gap: 12px; border-bottom: 2px solid #17202e; padding-bottom: 5px; margin-bottom: 6px; }
+  body { font: 9.5px/1.35 Arial, sans-serif; color: #000; margin: 0; }
+  header { display: flex; align-items: center; gap: 12px; border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 6px; }
   header h1 { font-size: 16px; margin: 0; } header .sp { flex: 1; } .logo { max-height: 12mm; max-width: 45mm; }
   .meta { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-bottom: 7px; }
-  .m { color: #5b6b82; }
+  .m { color: #444; }
   .tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 7px; }
-  .tile { border: 1px solid #c9d1dd; border-radius: 4px; padding: 5px 7px; }
-  .tile .l { font-size: 8px; text-transform: uppercase; letter-spacing: .03em; color: #5b6b82; }
+  .tile { border: 1px solid #000; padding: 5px 7px; }
+  .tile .l { font-size: 8px; text-transform: uppercase; letter-spacing: .03em; color: #444; }
   .tile .v { font-size: 15px; font-weight: 700; margin: 1px 0; }
-  .tile .s { font-size: 8.5px; color: #3d4a5c; }
+  .tile .s { font-size: 8.5px; color: #444; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; }
-  h2 { font-size: 11px; margin: 0 0 4px; border-bottom: 1px solid #1d4f8f; color: #1d4f8f; }
+  h2 { font-size: 11px; margin: 0 0 4px; border-bottom: 1px solid #000; color: #000; }
   .bars { width: 100%; border-collapse: collapse; }
   .bars td { padding: 1.5px 3px; vertical-align: middle; }
   .bl { width: 34%; white-space: nowrap; overflow: hidden; } .bv { width: 24%; white-space: nowrap; }
-  .bt { position: relative; } .bf { height: 7px; background: #2a78d6; border-radius: 0 3px 3px 0; }
-  .track { background: #dbe7f7; border-radius: 3px; }
-  .lim { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1.5px dashed #17202e; }
+  .bt { position: relative; } .bf { height: 7px; background: #444; border-radius: 0 3px 3px 0; }
+  .track { background: #f2f2f2; border-radius: 3px; }
+  .lim { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1.5px dashed #000; }
   .todo { margin: 0; padding-left: 0; list-style: none; } .todo li { margin: 2px 0; }
-  .ok { color: #13803d; } .warn { color: #a86500; } .bad { color: #c21f32; }
-  footer { position: fixed; bottom: 0; left: 0; right: 0; font-size: 7.5px; color: #5b6b82; display: flex; justify-content: space-between; }
-  .stale-banner{border:1.5px solid #b45309;background:#fef3c7;color:#78350f;padding:6px 10px;border-radius:6px;font-weight:600;margin:6px 0}
+  .ok { color: #000; } .warn, .bad { color: #000; font-weight: 700; }
+  footer { position: fixed; bottom: 0; left: 0; right: 0; font-size: 7.5px; color: #444; display: flex; justify-content: space-between; }
+  .stale-banner{border:1px solid #000;border-left:3px solid #000;background:#fff;color:#000;padding:6px 10px;font-weight:600;margin:6px 0}
   </style></head><body>
   <header>${logo}<div><h1>${esc(i.name)}</h1><div class="m">Project summary · ${esc(revisionStamp(project))}</div></div><span class="sp"></span><div class="m">${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</div></header>
   <div class="meta">${meta}</div>

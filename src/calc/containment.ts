@@ -202,8 +202,8 @@ function noFit(base: Omit<ContainmentResult, 'size' | 'widthMm' | 'heightMm' | '
 }
 
 /** Cross-section to scale (SVG markup), the same on screen and in the report. */
-export function containmentSvg(r: ContainmentResult, i: ContainmentInput, width = 520): string {
-  const C = '#2a78d6', S = 'currentColor';
+export function containmentSvg(r: ContainmentResult, i: ContainmentInput, width = 520, mono = false): string {
+  const C = mono ? '#000' : '#2a78d6', S = 'currentColor'; // mono (the PDF): cables grey-filled
   if (!r.count || r.status === 'fail') return ''; // nothing drawn for containment that doesn't fit
   if (r.type === 'conduit') {
     const id = r.widthMm, k = Math.min(160 / id, 6), R = (id * k) / 2, cx = R + 20, cy = R + 20;

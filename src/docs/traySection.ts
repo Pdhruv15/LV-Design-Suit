@@ -22,7 +22,9 @@ interface Placed { x: number; y: number; d: number; label: string; }
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-export function traySectionSvg(res: TrayResult, plan: TrayPlan, maxPx = 560): string {
+export function traySectionSvg(res: TrayResult, plan: TrayPlan, maxPx = 560, mono = false): string {
+  // mono (the PDF): black outlines, earth cores grey, spare hatched grey, cables that do not fit drawn dashed and heavy.
+  const ink = mono ? '#000' : '#17202e', wallInk = mono ? '#000' : '#26303d', dimInk = mono ? '#444' : '#6a7689';
   const s = routeSettings(plan, res.route);
   const nums = lineNumbers(res.lines);
   const W = res.widthMm;
@@ -87,7 +89,7 @@ export function traySectionSvg(res: TrayResult, plan: TrayPlan, maxPx = 560): st
   const height = padT + tierH.reduce((a, b) => a + b, 0) + 6;
   const parts: string[] = [];
   parts.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width.toFixed(1)} ${height.toFixed(1)}" width="${width.toFixed(0)}" height="${height.toFixed(0)}" font-family="Arial, sans-serif">`);
-  parts.push('<defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#9ec5a8" stroke-width="2"/></pattern></defs>');
+  parts.push(`<defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="${mono ? '#999' : '#9ec5a8'}" stroke-width="2"/></pattern></defs>`);
   parts.push(`<rect width="100%" height="100%" fill="#ffffff"/>`);
 
   // Tiers from top to bottom: tier 1 is the top one, as usually drawn.
@@ -100,16 +102,16 @@ export function traySectionSvg(res: TrayResult, plan: TrayPlan, maxPx = 560): st
     // Spare width (after the last cable, inside the tray).
     if (t.used < W) parts.push(`<rect x="${(x0 + t.used * k).toFixed(1)}" y="${(bottom - wall).toFixed(1)}" width="${((W - t.used) * k).toFixed(1)}" height="${wall.toFixed(1)}" fill="url(#hatch)" opacity="0.7"/>`);
     // Tray: side walls and bottom.
-    parts.push(`<path d="M${x0} ${(bottom - wall).toFixed(1)} V${bottom.toFixed(1)} H${x1.toFixed(1)} V${(bottom - wall).toFixed(1)}" fill="none" stroke="#26303d" stroke-width="2.5"/>`);
+    parts.push(`<path d="M${x0} ${(bottom - wall).toFixed(1)} V${bottom.toFixed(1)} H${x1.toFixed(1)} V${(bottom - wall).toFixed(1)}" fill="none" stroke="${wallInk}" stroke-width="2.5"/>`);
     for (const c of t.cables) {
       const cx = x0 + c.x * k, cy = bottom - c.y * k, r = (c.d / 2) * k;
       const over = c.x + c.d / 2 > W + 1e-6;
-      parts.push(`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${Math.max(0.8, r - 0.4).toFixed(1)}" fill="${over ? '#f6c9cf' : c.label.endsWith('E') ? '#d9f0dc' : '#dbe6f5'}" stroke="${over ? '#c21f32' : '#3b5b86'}" stroke-width="1"/>`);
-      if (r >= 6.5) parts.push(`<text x="${cx.toFixed(1)}" y="${(cy + Math.min(r * 0.45, 4)).toFixed(1)}" text-anchor="middle" style="fill:#17202e;font:${Math.min(11, r).toFixed(1)}px Arial,sans-serif">${esc(c.label)}</text>`);
+      parts.push(`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${Math.max(0.8, r - 0.4).toFixed(1)}" fill="${mono ? (c.label.endsWith('E') ? '#ddd' : '#fff') : over ? '#f6c9cf' : c.label.endsWith('E') ? '#d9f0dc' : '#dbe6f5'}" stroke="${mono ? '#000' : over ? '#c21f32' : '#3b5b86'}" stroke-width="${mono && over ? 1.6 : 1}"${mono && over ? ' stroke-dasharray="2 1.5"' : ''}/>`);
+      if (r >= 6.5) parts.push(`<text x="${cx.toFixed(1)}" y="${(cy + Math.min(r * 0.45, 4)).toFixed(1)}" text-anchor="middle" style="fill:${ink};font:${Math.min(11, r).toFixed(1)}px Arial,sans-serif">${esc(c.label)}</text>`);
     }
     // Dimensions.
-    parts.push(`<text x="${((x0 + x1) / 2).toFixed(1)}" y="${(bottom + 14).toFixed(1)}" text-anchor="middle" style="fill:#26303d;font:11px Arial,sans-serif">${W} mm${tiers > 1 ? ` — tier ${i + 1} of ${tiers}` : ''}${t.used > W ? ' — cables do not fit' : ''}</text>`);
-    parts.push(`<text x="${padL - 6}" y="${(bottom - wall / 2 + 4).toFixed(1)}" text-anchor="end" style="fill:#6a7689;font:10px Arial,sans-serif">${D}</text>`);
+    parts.push(`<text x="${((x0 + x1) / 2).toFixed(1)}" y="${(bottom + 14).toFixed(1)}" text-anchor="middle" style="fill:${wallInk};font:11px Arial,sans-serif">${W} mm${tiers > 1 ? ` — tier ${i + 1} of ${tiers}` : ''}${t.used > W ? ' — cables do not fit' : ''}</text>`);
+    parts.push(`<text x="${padL - 6}" y="${(bottom - wall / 2 + 4).toFixed(1)}" text-anchor="end" style="fill:${dimInk};font:10px Arial,sans-serif">${D}</text>`);
     top += tierH[i];
   });
   parts.push('</svg>');
