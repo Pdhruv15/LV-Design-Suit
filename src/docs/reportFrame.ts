@@ -1,6 +1,7 @@
 import { currentRevision } from '../model/revisions';
 import type { Project, ReportIssueStatus } from '../types';
 import { esc } from './report';
+import { PRINT as P } from './printStyles';
 
 /** The document frame of the design report: cover page, document control,
  * contents, running header / footer and the report typography. Presentation
@@ -196,23 +197,22 @@ export const pageFrame = (d: ReportDoc): PageFrame => ({
  * page layout. Added after REPORT_CSS by the design report. */
 export const REPORT_DOC_CSS = `
     @page { size: A4 landscape; margin: 16mm 14mm 14mm; }
-    body { font-size: 10px; line-height: 1.45; }
-    h1 { font-size: 24px; line-height: 1.2; margin: 4px 0 14px; color: #0f2a4d; }
-    h2 { font-size: 15px; margin: 0 0 8px; padding-bottom: 3px; border-bottom: 2px solid #1d4f8f; color: #1d4f8f; break-after: avoid; }
-    h3 { font-size: 11.5px; margin: 12px 0 4px; color: #17202e; break-after: avoid; }
+    body { font-size: ${P.body}; line-height: 1.4; }
+    h1 { font-size: ${P.h1}; line-height: 1.2; margin: 4px 0 14px; color: ${P.ink}; }
+    h2 { font-size: ${P.h2}; margin: 0 0 3mm; }
+    h3 { font-size: ${P.h3}; margin: 12px 0 4px; color: ${P.ink}; break-after: avoid; }
     p { margin: 3px 0 6px; } ul { margin: 3px 0 8px; }
     table { break-inside: auto; } thead { display: table-header-group; } tr { break-inside: avoid; }
-    th { font-size: 9.5px; text-transform: none; }
-    .note { color: #5b6b82; font-size: 9px; }
-    .warning { border-left: 3px solid #a86500; background: #fff7e8; color: #6b4200; padding: 4px 8px; margin: 6px 0; }
-    .caption { color: #5b6b82; font-size: 9px; font-style: italic; margin: -4px 0 8px; }
-    .sn { color: #5b6b82; margin-right: 6px; } caption { caption-side: top; text-align: left; font-size: 8.5px; color: #5b6b82; padding: 0 0 2px; }
-    .missing { color: #a86500; font-style: italic; }
+    th { font-size: ${P.table}; text-transform: none; }
+    .note { color: ${P.ink2}; font-size: ${P.small}; }
+    .caption { color: ${P.ink2}; font-size: ${P.small}; font-style: italic; margin: -4px 0 8px; }
+    .sn { margin-right: 6px; } caption { caption-side: top; text-align: left; font-size: ${P.small}; font-weight: 700; color: ${P.ink}; padding: 0 0 1mm; }
     .cover, .doc-control, .toc { break-after: page; }
-    .cover .kicker { color: #5b6b82; margin: 30px 0 0; font-size: 12px; }
+    .cover { border-top: ${P.heavy} solid ${P.rule}; padding-top: 4mm; }
+    .cover .kicker { color: ${P.ink2}; margin: 30px 0 0; font-size: 8pt; letter-spacing: .2em; text-transform: uppercase; }
     .cover-logo { float: right; max-height: 22mm; max-width: 70mm; margin-top: 20px; }
-    .meta { width: 70%; } .meta th { width: 28%; }
+    .meta { width: 70%; } .meta th { width: 28%; background: none; font-weight: 400; color: ${P.ink2}; } .meta th, .meta td { border-width: 0 0 0.3pt 0; border-color: ${P.ruleLight}; }
     .sign { width: 70%; margin-top: 10px; } .sign th:first-child { width: 20%; } .sign td { height: 18px; }
     .toc-list { list-style: none; padding: 0; margin: 6px 0; width: 70%; }
-    .toc-list li { padding: 3px 0; border-bottom: 1px dotted #c9d2de; } .toc-list a { color: inherit; text-decoration: none; display: flex; } .toc-list .pg { margin-left: auto; padding-left: 12px; }
-    .toc-list .n { display: inline-block; min-width: 34px; margin-right: 8px; font-weight: 600; } .toc-list .l2 { padding-left: 24px; } .toc-list .l3 { padding-left: 48px; }`;
+    .toc-list li { padding: 3px 0; border-bottom: 0.3pt dotted ${P.ruleLight}; } .toc-list a { color: inherit; text-decoration: none; display: flex; } .toc-list .pg { margin-left: auto; padding-left: 12px; }
+    .toc-list .n { display: inline-block; min-width: 34px; margin-right: 8px; font-weight: 700; } .toc-list .l2 { padding-left: 24px; } .toc-list .l3 { padding-left: 48px; }`;

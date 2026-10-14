@@ -8,6 +8,7 @@ import { sizeGeneratorByBoards, sizeTransformers, txGenPlanOf } from '../calc/tx
 import { sizeUps } from '../calc/ups';
 import { settingsOf } from '../types';
 import { esc } from './report';
+import { PRINT, statusSpan } from './printStyles';
 import type { CalcData, Cell, Scope, Table } from './studyReport';
 
 /** Results and compliance layer of the design report: equipment, load and
@@ -125,8 +126,8 @@ export function buildResults(data: CalcData, scope: Scope): Results {
 
 // ---- Charts: horizontal bars, print-ready inline SVG ----------------------------------------------
 
-const INK = '#17202e', MUTED = '#5b6b82', GRID = '#e3e8ef';
-const SERIES = ['#9db7d9', '#1d4f8f']; // one hue, light → dark (connected → demand)
+const INK = PRINT.ink, MUTED = PRINT.ink2, GRID = '#ddd';
+const SERIES = ['#bbb', '#000']; // grey → black (connected → demand): reads the same on a mono printer
 
 function barChart(rows: { label: string; bars: number[]; cap?: number; limit?: number }[], series: string[], unit: string): string {
   const W = 760, left = 90, right = 70, bh = 9, gap = 2, rowH = series.length * (bh + gap) + 12, top = series.length > 1 ? 26 : 8;
@@ -149,12 +150,12 @@ function barChart(rows: { label: string; bars: number[]; cap?: number; limit?: n
     const lim = r.limit !== undefined ? `<line x1="${x(r.limit)}" x2="${x(r.limit)}" y1="${y0 - 3}" y2="${y0 + r.bars.length * (bh + gap) + 1}" stroke="${MUTED}" stroke-width="1.2" stroke-dasharray="3 2"/>` : '';
     return `<text x="${left - 6}" y="${yMid + 3}" font-size="10" fill="${INK}" text-anchor="end">${esc(r.label)}</text>${bars}${cap}${lim}`;
   }).join('');
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px" role="img" font-family="Segoe UI, system-ui, sans-serif">${legend}${grid}${body}</svg>`;
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px" role="img" font-family="${PRINT.font}">${legend}${grid}${body}</svg>`;
 }
 
 // ---- HTML ------------------------------------------------------------------------
 
-const cell = (c: Cell) => (typeof c === 'object' ? `<td class="${c.s}">${esc(c.v)}</td>` : `<td>${esc(c)}</td>`);
+const cell = (c: Cell) => (typeof c === 'object' ? `<td class="${c.s}">${statusSpan(esc(c.v))}</td>` : `<td>${esc(c)}</td>`);
 const table = (t: Table) => `${t.title ? `<h3>${esc(t.title)}</h3>` : ''}${t.rows.length ? `<table><thead><tr>${t.headers.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${t.rows.map((r) => `<tr>${r.map(cell).join('')}</tr>`).join('')}</tbody></table>` : '<p class="caption">Nothing in scope.</p>'}`;
 
 /** "Results summary" and "Compliance summary" sections, each {title, html}; numbered by the report. */
@@ -170,7 +171,7 @@ export function resultsSections(r: Results, figureStart = 1): { title: string; h
   const compliance = `
   <p class="overall">Overall design status: <b class="${overall}">${REPORT_STATUS_TEXT[overall]}</b> <span>(${counts.map(([s, k]) => `${k} ${REPORT_STATUS_TEXT[s]}`).join(' · ') || 'no checks'})</span></p>
   <table><thead><tr><th>Design check</th><th>Governing item</th><th>Calculated</th><th>Requirement / selected</th><th>Margin</th><th>Status</th></tr></thead><tbody>
-  ${r.compliance.map((c) => `<tr><td>${esc(c.check)}</td><td>${esc(c.item)}</td><td>${esc(c.calculated)}</td><td>${esc(c.requirement)}</td><td>${esc(c.margin)}</td><td class="${c.status}">${REPORT_STATUS_TEXT[c.status]}</td></tr>`).join('')}
+  ${r.compliance.map((c) => `<tr><td>${esc(c.check)}</td><td>${esc(c.item)}</td><td>${esc(c.calculated)}</td><td>${esc(c.requirement)}</td><td>${esc(c.margin)}</td><td class="${c.status}">${statusSpan(REPORT_STATUS_TEXT[c.status])}</td></tr>`).join('')}
   </tbody></table>
   <p class="caption">Each row shows the item with the least margin; the status is the worst over all items of that check. PASS / WARNING / FAIL are the app's calculated checks against the project limits; NOT CHECKED: nothing installed or selected to check against; DATA REQUIRED: a rating or input is missing. Engineering review and approval are separate.</p>`;
   return [{ title: 'Results summary', html: results }, { title: 'Compliance summary', html: compliance }];
