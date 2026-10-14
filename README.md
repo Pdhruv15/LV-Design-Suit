@@ -52,7 +52,7 @@ The built-in demo project (a 415 V villa complex).
 
 ## Setup
 
-Requires [Node.js](https://nodejs.org) 20 or later (CI uses Node 24).
+Requires [Node.js](https://nodejs.org) 20.19+ or 22.12+ (CI uses Node 24).
 
 ```bash
 npm ci
