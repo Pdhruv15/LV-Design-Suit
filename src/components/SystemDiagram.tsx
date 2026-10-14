@@ -7,7 +7,7 @@ import type { DrawingInfo, Project } from '../types';
 import { cableTypeOf, CABLE_TYPE_DEFS, labelCode, needsFireRated } from '../model/cableTypes';
 import { cableRefOf } from '../model/cableRefs';
 import { LEGEND_ROW, LEGEND_SYM_X, LEGEND_TEXT_X, legendEntries, legendWidth, LoadSym, polesText, SwitchSym, switchKindOf } from '../diagram/IecSymbols';
-import type { FeederResult, Status } from '../calc/electrical';
+import { izText, type FeederResult, type Status } from '../calc/electrical';
 import { boardSummary, loadTypeOf } from '../calc/summary';
 import { failReasons, quickFixes } from '../calc/quickFix';
 import { boardLocation } from '../model/levels';
@@ -1436,7 +1436,7 @@ export default function SystemDiagram({
             <div className="hc-head"><b>{f.id}</b> <span className="m">{f.name}</span><span className={`hc-st ${r.status}`}>{STATUS_TEXT[r.status]}</span></div>
             <dl className="hc-kv">
               <dt>Cable</dt><dd>{runsOf(f) > 1 ? `${runsOf(f)}× ` : ''}{f.cores}C {f.cableCsaMm2} mm² · {f.lengthM} m</dd>
-              <dt>Ib / In / Iz</dt><dd className={r.protectionStatus === 'bad' || r.ampacityStatus === 'bad' ? 'bad' : ''}>{r.ib.toFixed(0)} / {f.breakerRatingA} / {r.ampacity.toFixed(0)} A</dd>
+              <dt>Ib / In / Iz</dt><dd className={r.protectionStatus === 'bad' || r.ampacityStatus === 'bad' ? 'bad' : ''}>{r.ib.toFixed(0)} / {f.breakerRatingA} / {izText(r.ampacity)} A</dd>
               <dt>Voltage drop</dt><dd className={r.vdStatus}>{r.vdPct.toFixed(2)} % cable · {r.vdTotalPct.toFixed(2)} % total</dd>
               <dt>Fault / Icu</dt><dd className={r.icuStatus === 'bad' ? 'bad' : ''}>{r.breakerFaultKA.toFixed(1)} kA / {f.breakerIcuKa} kA</dd>
             </dl>
@@ -1445,7 +1445,7 @@ export default function SystemDiagram({
               <div className="hc-fix">
                 <span className="m">Quick fix:</span>
                 {fixes.map((x) => (
-                  <button key={x.label} className={`chip ${x.after.status}`} title={`After: Vd ${x.after.vdTotalPct.toFixed(2)} %, Iz ${x.after.ampacity.toFixed(0)} A — ${x.after.status === 'ok' ? 'passes' : 'still to check'}`}
+                  <button key={x.label} className={`chip ${x.after.status}`} title={`After: Vd ${x.after.vdTotalPct.toFixed(2)} %, Iz ${izText(x.after.ampacity)} A — ${x.after.status === 'ok' ? 'passes' : 'still to check'}`}
                     onClick={() => { onFixFeeder!(f.id, x.patch, x.label); setCard(null); }}>{x.label}</button>
                 ))}
               </div>

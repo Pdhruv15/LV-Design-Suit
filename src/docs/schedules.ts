@@ -14,7 +14,7 @@ export interface Schedule {
   totalRows?: number[];
 }
 
-const n = (v: number, d = 0) => Number(v.toFixed(d));
+const n = (v: number, d = 0) => (Number.isFinite(v) ? Number(v.toFixed(d)) : '—');
 const poles = (f: Feeder) => (f.cores === 2 ? 'SP+N' : f.cores === 3 ? 'TP' : 'TP+N');
 const loadLabel = (f: Feeder) => LOAD_TYPES.find((t) => t.value === loadTypeOf(f))?.label ?? '';
 const cableText = (p: Project, f: Feeder) => `${cableSizeText(f)} ${cableTypeOf(p, f).code} + ${runsOf(f) > 1 ? `${runsOf(f)} × ` : ''}${cpcOf(f)} mm² CPC`;

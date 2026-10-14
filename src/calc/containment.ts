@@ -55,6 +55,16 @@ const interp = (t: [number, number][], x: number) => {
   return t[t.length - 1][1];
 };
 
+/** Ground temperature and soil resistivity covered by the tables above. */
+export const GROUND_TEMP_RANGE_C = { min: GROUND_TEMP[0][0], max: GROUND_TEMP[GROUND_TEMP.length - 1][0] } as const;
+export const SOIL_RANGE_KMW = { min: SOIL_DIRECT[0][0], max: SOIL_DIRECT[SOIL_DIRECT.length - 1][0] } as const;
+/** Ground temperature factor (reference 20 °C). */
+export const groundTempFactor = (tC: number) => (Number.isFinite(tC) ? interp(GROUND_TEMP, tC) : NaN);
+/** Soil thermal resistivity factor (reference 2.5 K·m/W): cables in ducts, or direct in ground. */
+export const soilFactor = (kmw: number, ducts: boolean) => (Number.isFinite(kmw) ? interp(ducts ? SOIL_DUCTS : SOIL_DIRECT, kmw) : NaN);
+/** Grouping in the ground for n circuits: one cable per duct, or direct buried touching. */
+export const buriedGroupFactor = (n: number, ducts: boolean) => (ducts ? GROUP_DUCTS : GROUP_DIRECT.touching)[Math.min(Math.max(1, Math.round(n)), 6) - 1];
+
 export interface ContainmentLine extends ContainmentCable { od: number; kg: number; estimated: boolean }
 export interface ContainmentResult {
   type: ContainmentType;

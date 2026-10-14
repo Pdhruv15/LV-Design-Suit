@@ -73,7 +73,7 @@ export function buildCalcRecord(project: Project, i: CalcRecordInput): CalcRecor
     { label: 'Calculation warnings', lines: [`${plural(fails, 'failure')} · ${warns} to check${i.warningsAt ? ` (${i.warningsAt})` : ''}`] },
     {
       label: 'Limitations', list: true, lines: [
-        'Cable ratings: ambient and grouping derating only; other installation-method factors not applied',
+        'Cable ratings: per installation method with ambient / ground, soil and grouping factors; grouping with other circuits is counted only on cable tray routes',
         "Selectivity from current thresholds only — confirm with the manufacturer's tables",
         'Voltage drop: first-order, summed along the radial path; not an unbalanced load flow'
       ]

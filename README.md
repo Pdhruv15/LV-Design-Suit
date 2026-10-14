@@ -7,7 +7,7 @@ power factor correction, drawings and submission reports. Projects are plain
 JSON files, so they sync cleanly through a Google Drive / OneDrive / Dropbox
 desktop folder.
 
-**Version 1.37** (see `package.json`). The app is in active use and active
+**Version 1.38** (see `package.json`). The app is in active use and active
 development.
 
 > **Engineering status.** The calculations are first-pass design checks, not
@@ -184,8 +184,12 @@ header of the exported file.
 ## Limitations
 
 - **Cable data**: the built-in values (Cu/XLPE/SWA multicore, free air,
-  30 °C) are approximate. Ratings use ambient and grouping derating only;
-  other installation-method factors are not applied.
+  30 °C) are approximate. Each circuit has an IEC 60364-5-52 installation
+  method (E free air / tray unless set; C, B1, B2, A1, A2, D1, D2). Ratings for
+  methods other than E come from the `Rating A1 … D2` columns of `Cables.xlsx`;
+  the built-in reference has none yet, so a circuit on such a method shows
+  DATA REQUIRED until its rating is entered. Grouping with other circuits is
+  counted only on cable tray routes; otherwise a circuit's own parallel runs.
 - **Ambient temperature**: the derating table covers 25–70 °C. Above 70 °C the
   result is flagged as a failure, below 25 °C as a warning.
 - **Short circuit**: maximum currents use c max = 1.05 (LV systems with a

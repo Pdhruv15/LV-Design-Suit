@@ -1,4 +1,4 @@
-import type { FeederResult } from '../calc/electrical';
+import { izText, type FeederResult } from '../calc/electrical';
 import { useState } from 'react';
 import { STATUS_TEXT } from '../calc/statusText';
 
@@ -49,7 +49,7 @@ export default function SidePanel({ results, selected }: { results: FeederResult
               <dt>Length</dt>
               <dd>{r.feeder.lengthM} m</dd>
               <dt>Cable rating Iz</dt>
-              <dd className={r.protectionStatus}>{r.ampacity.toFixed(0)} A {r.protectionStatus === 'ok' ? '(Ib ≤ In ≤ Iz)' : '(Ib ≤ In ≤ Iz fails)'}</dd>
+              <dd className={r.protectionStatus}>{izText(r.ampacity)} A {r.protectionStatus === 'ok' ? '(Ib ≤ In ≤ Iz)' : '(Ib ≤ In ≤ Iz fails)'}</dd>
               {r.tray && (
                 <>
                   <dt>Grouping</dt>
@@ -65,7 +65,7 @@ export default function SidePanel({ results, selected }: { results: FeederResult
               <dt>Breaker</dt>
               <dd>{r.feeder.breakerRatingA} A, {r.feeder.breakerIcuKa} kA</dd>
               <dt>Ib ≤ In ≤ Iz</dt>
-              <dd className={r.protectionStatus}>{r.ib.toFixed(0)} ≤ {r.feeder.breakerRatingA} ≤ {r.ampacity.toFixed(0)} A</dd>
+              <dd className={r.protectionStatus}>{r.ib.toFixed(0)} ≤ {r.feeder.breakerRatingA} ≤ {izText(r.ampacity)} A</dd>
               <dt>Fault at breaker</dt>
               <dd className={r.icuStatus}>{r.breakerFaultKA.toFixed(1)} kA vs Icu {r.feeder.breakerIcuKa} kA</dd>
               <dt>Fault at cable end</dt>

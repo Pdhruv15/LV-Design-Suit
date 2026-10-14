@@ -126,6 +126,12 @@ export function parseDatabase(raw: RawDatabase): Database {
     });
   }
 
+  /** The row's ratings for installation methods other than E (positive numbers only). */
+  const methodRatingsOf = (r: Record<string, unknown>) => {
+    const out: CableSpec['methodRatings'] = {};
+    for (const m of ['C', 'B1', 'B2', 'A1', 'A2', 'D1', 'D2'] as const) { const v = num(r[`rating${m}`]); if (v !== undefined && Number.isFinite(v) && v > 0) out[m] = v; }
+    return Object.keys(out).length ? out : undefined;
+  };
   const cables: CableSpec[] = [];
   const cb = book('cables');
   for (const r of cb.rows) {
@@ -136,7 +142,8 @@ export function parseDatabase(raw: RawDatabase): Database {
     }
     if (cables.some((c) => c.csaMm2 === csa)) { bad(cb.file, r._row, `duplicate size ${csa} mm²`); continue; }
     cables.push({ csaMm2: csa!, rOhmPerKm20C: rr!, xOhmPerKm: x!, ampacityA: amp!, ratePerM: rate !== undefined && !Number.isNaN(rate) ? rate : undefined,
-      manufacturer: str(r.manufacturer) || undefined, cableType: str(r.cableType) || undefined, installMethod: str(r.installMethod) || undefined, referenceDoc: str(r.referenceDoc) || undefined });
+      manufacturer: str(r.manufacturer) || undefined, cableType: str(r.cableType) || undefined, installMethod: str(r.installMethod) || undefined, referenceDoc: str(r.referenceDoc) || undefined,
+      methodRatings: methodRatingsOf(r) });
   }
 
   const breakers: BreakerRow[] = [];

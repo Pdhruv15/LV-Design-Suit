@@ -180,6 +180,8 @@ export interface Feeder {
   breakerType?: BreakerType; // default: MCB type C up to 63 A, MCCB above
   breakerImMultiple?: number; // MCCB/ACB instantaneous setting as a multiple of In (default 10)
   cpcMm2?: number; // protective (earth) conductor size; default per IEC 60364-5-54 Table 54.2
+  /** IEC 60364-5-52 reference installation method; blank = E (free air / on a tray). */
+  installMethod?: import('./calc/cableTable').InstallMethod;
   componentId?: string; // made from a user component (edits to the component update it)
   componentValues?: Record<string, number>; // this copy's values of the component's inputs
   standbyUnit?: boolean;
@@ -335,6 +337,9 @@ export interface Project {
   /** Panel naming table: prefix per panel role (default the role itself, e.g. EDB). */
   panelPrefixes?: Partial<Record<import('./model/emergency').PanelRole, string>>;
   vdTempC?: number; // conductor temperature for voltage drop (°C); blank = R20 × 1.2
+  /** Buried cables (methods D1 / D2): ground temperature (°C) and soil thermal resistivity (K·m/W); blank = the IEC reference 20 °C / 2.5 K·m/W, flagged when used. */
+  groundTempC?: number;
+  soilResistivityKmW?: number;
   vdFinalCircuits?: boolean; // voltage drop page: include each DB's worst final circuit // allowable voltage drop, e.g. 4.0 per DEWA/IEC
   vdSelection?: string[]; // feeder ids chosen for the voltage drop calculation
   pointTemplate?: string; // load schedule point columns (POINT_TEMPLATES id)

@@ -124,7 +124,8 @@
         "Pre-filled with the app's reference values (Cu/XLPE multicore, free air, 30 °C) - replace them with your manufacturer's datasheet.",
         "R at 20 °C in ohm/km (IEC 60228), reactance X in ohm/km, current rating in A before ambient derating. Rate per m is used for the BOQ.",
         "If this sheet is empty or unreadable the app falls back to its reference values and says so on the Database screen.",
-        "Rows that name a Manufacturer and a Reference document are treated as manufacturer data; other rows are reported as user-entered (or as app reference values when unchanged)."
+        "Rows that name a Manufacturer and a Reference document are treated as manufacturer data; other rows are reported as user-entered (or as app reference values when unchanged).",
+        "Rating (A) is for method E (free air / on a tray, 30 °C). The Rating A1 … D2 columns are the ratings for the other IEC 60364-5-52 installation methods, from the same datasheet; a circuit on a method with no rating shows DATA REQUIRED."
       ],
       "columns": [
         {
@@ -189,6 +190,55 @@
           "key": "notes",
           "header": "Notes",
           "width": 30
+        },
+        {
+          "key": "ratingC",
+          "header": "Rating C (A)",
+          "width": 12,
+          "number": true,
+          "help": "Current rating for installation method C, clipped direct, before derating. Blank = no rating for that method."
+        },
+        {
+          "key": "ratingB1",
+          "header": "Rating B1 (A)",
+          "width": 12,
+          "number": true,
+          "help": "Current rating for installation method B1, single cores in conduit / trunking on a wall, before derating. Blank = no rating for that method."
+        },
+        {
+          "key": "ratingB2",
+          "header": "Rating B2 (A)",
+          "width": 12,
+          "number": true,
+          "help": "Current rating for installation method B2, multicore in conduit / trunking on a wall, before derating. Blank = no rating for that method."
+        },
+        {
+          "key": "ratingA1",
+          "header": "Rating A1 (A)",
+          "width": 12,
+          "number": true,
+          "help": "Current rating for installation method A1, single cores in conduit in an insulated wall, before derating. Blank = no rating for that method."
+        },
+        {
+          "key": "ratingA2",
+          "header": "Rating A2 (A)",
+          "width": 12,
+          "number": true,
+          "help": "Current rating for installation method A2, multicore in conduit in an insulated wall, before derating. Blank = no rating for that method."
+        },
+        {
+          "key": "ratingD1",
+          "header": "Rating D1 (A)",
+          "width": 12,
+          "number": true,
+          "help": "Current rating for installation method D1, in ducts in the ground (20 °C, 2.5 K·m/W), before derating. Blank = no rating for that method."
+        },
+        {
+          "key": "ratingD2",
+          "header": "Rating D2 (A)",
+          "width": 12,
+          "number": true,
+          "help": "Current rating for installation method D2, direct in the ground (20 °C, 2.5 K·m/W), before derating. Blank = no rating for that method."
         }
       ]
     },

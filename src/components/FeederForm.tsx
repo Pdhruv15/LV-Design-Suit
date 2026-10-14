@@ -14,8 +14,9 @@ function libraryLoadType(item: LibraryLoad): LoadType | undefined {
   if (c === 'motor' || c === 'pump' || item.column === 'pump') return 'motor';
   return item.category ? 'general' : undefined;
 }
-import { cables } from '../calc/cableTable';
-import { designCurrentA, incomerBasis, selectCable, upstreamVoltageDropPct, vdEvaluator, voltageDropPct } from '../calc/electrical';
+import { cables, INSTALL_METHODS, isBuried, methodOf, type InstallMethod } from '../calc/cableTable';
+import { factorsText, REFERENCE_GROUND_C, REFERENCE_SOIL_KMW } from '../calc/installation';
+import { designCurrentA, feederRating, incomerBasis, izEvaluator, selectCable, upstreamVoltageDropPct, vdEvaluator, voltageDropPct } from '../calc/electrical';
 
 type FeederTab = 'general' | 'cable' | 'protection' | 'metering';
 const FEEDER_TABS: [FeederTab, string][] = [['general', 'General & load'], ['cable', 'Cable'], ['protection', 'Protection'], ['metering', 'Metering']];
@@ -76,7 +77,7 @@ export default function FeederForm({
     const ib = designCurrentA(f, project);
     const upstream = upstreamVoltageDropPct(project, f.boardId);
     const budget = project.vdLimitPct - upstream;
-    const size = selectCable(ib, f.lengthM, project.voltageV, f.cores, f.powerFactor, project.ambientC, budget, f.breakerRatingA, project.vdTempC, vdEvaluator(f, project));
+    const size = selectCable(ib, f.lengthM, project.voltageV, f.cores, f.powerFactor, project.ambientC, budget, f.breakerRatingA, project.vdTempC, vdEvaluator(f, project), izEvaluator(f, project));
     const budgetNote = upstream > 0 ? ` (${upstream.toFixed(2)}% already used upstream, ${budget.toFixed(2)}% left)` : '';
     if (size) {
       set('cableCsaMm2', size);
@@ -196,6 +197,18 @@ export default function FeederForm({
             <select value={f.parallel ?? 1} onChange={(e) => set('parallel', +e.target.value > 1 ? +e.target.value : undefined)}>
               {[1, 2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>{n === 1 ? 'Single cable' : `${n} cables in parallel`}</option>)}
             </select>
+          </label>
+          <label>Installation
+            <select value={methodOf(f)} onChange={(e) => set('installMethod', e.target.value === 'E' ? undefined : e.target.value as InstallMethod)}>
+              {INSTALL_METHODS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+            </select>
+            {(() => {
+              const r = feederRating(project, f);
+              const ground = isBuried(r.method) ? `Ground ${project.groundTempC ?? REFERENCE_GROUND_C} °C · soil ${project.soilResistivityKmW ?? REFERENCE_SOIL_KMW} K·m/W (Project settings). ` : '';
+              return r.missing
+                ? <small className="warn">{ground}DATA REQUIRED — {r.missing}</small>
+                : <small>{ground}Iz = {r.baseA} A × {factorsText(r)}{r.runs > 1 ? ` × ${r.runs} runs` : ''} = {r.iz.toFixed(0)} A</small>;
+            })()}
           </label>
           <label>Cable type
             <select value={f.cableType ?? ''} onChange={(e) => set('cableType', e.target.value || undefined)}>

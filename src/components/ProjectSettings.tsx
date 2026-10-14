@@ -51,6 +51,8 @@ export default function ProjectSettings({ project, onSave, onClose }: { project:
             </select>
           </label>
           <label>Design ambient (°C)<input type="number" min="20" max="70" value={p.ambientC} onChange={(e) => set('ambientC', num(e.target.value, p.ambientC))} /></label>
+          <label title="Buried cables (installation D1 / D2). Blank = IEC reference 20 °C, flagged in To do">Ground temperature, buried cables (°C)<input type="number" step="1" min="10" max="50" placeholder="20 (IEC reference)" value={p.groundTempC ?? ''} onChange={(e) => set('groundTempC', e.target.value === '' ? undefined : +e.target.value)} /></label>
+          <label title="Buried cables (installation D1 / D2). Blank = IEC reference 2.5 K·m/W, flagged in To do">Soil thermal resistivity (K·m/W)<input type="number" step="0.1" min="0.5" max="3" placeholder="2.5 (IEC reference)" value={p.soilResistivityKmW ?? ''} onChange={(e) => set('soilResistivityKmW', e.target.value === '' ? undefined : +e.target.value)} /></label>
           <label>Voltage drop limit, source to load (%)<input type="number" step="0.5" min="1" max="10" value={p.vdLimitPct} onChange={(e) => set('vdLimitPct', num(e.target.value, p.vdLimitPct))} /></label>
           <label>Conductor temperature for voltage drop
             <select value={p.vdTempC ?? ''} onChange={(e) => set('vdTempC', e.target.value === '' ? undefined : +e.target.value)}>

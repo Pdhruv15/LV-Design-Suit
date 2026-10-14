@@ -1,6 +1,7 @@
 import { memoized, networkOf, withNetwork } from './network';
 import { ambientCorrectionFactor, cables, getCable } from './cableTable';
 import { trayGrouping } from './cableTray';
+import { feederRatingBasis, type RatingBasis } from './installation';
 import type { Board, Feeder, Project } from '../types';
 import { boardPhasePQ, type PhasePQ } from './loadSchedule';
 
@@ -129,6 +130,16 @@ export function deratedAmpacityA(csaMm2: number, ambientC: number, runs = 1, tra
   return getCable(csaMm2).ampacityA * ambientCorrectionFactor(ambientC) * runs * (trayFactor ?? groupFactor(runs));
 }
 
+/** A circuit's current rating for its installation method (IEC 60364-5-52), at its own or a candidate size and
+ * number of runs: the method's tabulated rating × ambient / ground and grouping factors × runs. Iz is NaN when
+ * there is no rating for the method (DATA REQUIRED). */
+export function feederRating(project: Project, feeder: Feeder, csaMm2 = feeder.cableCsaMm2, runs = runsOf(feeder)): RatingBasis {
+  return feederRatingBasis(project, feeder, csaMm2, runs, trayFactorOf(project, feeder)?.factor, groupFactor);
+}
+
+/** The Iz evaluator for cable selection: every candidate size and runs on the circuit's own installation method. */
+export const izEvaluator = (feeder: Feeder, project: Project): ((csaMm2: number, runs: number) => number) => (csa, runs) => feederRating(project, feeder, csa, runs).iz;
+
 /** Grouping factor of a feeder from the cable trays it runs on (the worst
  * route), if it is on any. */
 export const trayFactorOf = (project: Project, feeder: Feeder) => trayGrouping(project).get(feeder.id);
@@ -191,9 +202,11 @@ export function selectCable(
   /** Conductor temperature for the voltage drop (the project's vdTempC); blank = R20 × 1.2. */
   tempC?: number,
   /** The feeder's own voltage-drop evaluator (an incomer's downstream P / Q basis). */
-  vdAt?: (csaMm2: number, runs: number) => number
+  vdAt?: (csaMm2: number, runs: number) => number,
+  /** The feeder's own rating evaluator (its installation method); default: method E at ambientC. */
+  izAt?: (csaMm2: number, runs: number) => number
 ): number | null {
-  return selectCableRuns(ib, lengthM, systemVoltageV, cores, cosPhi, ambientC, vdBudgetPct, breakerRatingA, 1, undefined, tempC, vdAt)?.csaMm2 ?? null;
+  return selectCableRuns(ib, lengthM, systemVoltageV, cores, cosPhi, ambientC, vdBudgetPct, breakerRatingA, 1, undefined, tempC, vdAt, izAt)?.csaMm2 ?? null;
 }
 
 /** Like selectCable, but when no single cable fits, tries 2, 3… runs in
@@ -213,14 +226,17 @@ export function selectCableRuns(
   /** Conductor temperature for the voltage drop (the project's vdTempC), as the displayed drop uses; blank = R20 × 1.2. */
   tempC?: number,
   /** The feeder's own voltage-drop evaluator (an incomer's downstream P / Q basis); default: Ib and cos φ at tempC. */
-  vdAt?: (csaMm2: number, runs: number) => number
+  vdAt?: (csaMm2: number, runs: number) => number,
+  /** The feeder's own rating evaluator (its installation method); default: method E at ambientC. A size with no
+   * rating (NaN) is never chosen. */
+  izAt?: (csaMm2: number, runs: number) => number
 ): { csaMm2: number; runs: number } | null {
   const requiredIz = Math.max(ib, breakerRatingA);
   for (let runs = 1; runs <= maxRuns; runs++) {
     for (const c of cables()) {
       if (runs > 1 && c.csaMm2 < 50) continue;
-      const iz = c.ampacityA * ambientCorrectionFactor(ambientC) * runs * (trayFactor ?? groupFactor(runs));
-      if (iz < requiredIz) continue;
+      const iz = izAt ? izAt(c.csaMm2, runs) : c.ampacityA * ambientCorrectionFactor(ambientC) * runs * (trayFactor ?? groupFactor(runs));
+      if (!(iz >= requiredIz)) continue;
       if ((vdAt ? vdAt(c.csaMm2, runs) : vdPctFor(ib, c.csaMm2, lengthM, cores, cosPhi, systemVoltageV, runs, tempC)) <= vdBudgetPct) return { csaMm2: c.csaMm2, runs };
     }
   }
@@ -290,12 +306,17 @@ export function faultCurrentKA(z: Impedance, systemVoltageV: number, c = C_MAX):
 
 export type Status = 'ok' | 'warn' | 'bad';
 
+/** Iz for display: whole amps, or '—' when there is no rating for the installation method. */
+export const izText = (iz: number) => (Number.isFinite(iz) ? iz.toFixed(0) : '—');
+
 export interface FeederResult {
   feeder: Feeder;
   ib: number; // design current
   ampacity: number; // Iz, derated cable rating
   /** Grouping factor from the cable tray the cable runs on (worst route). */
   tray?: { factor: number; route: string };
+  /** How Iz was found: installation method, tabulated rating, factors; `missing` when there is no rating. */
+  rating: RatingBasis;
   loadingPct: number; // Ib as % of breaker In
   vdPct: number; // this feeder's own cable run
   vdUpstreamPct: number; // source to this feeder's supply board
@@ -330,7 +351,8 @@ export function evaluateFeeder(project: Project, feeder: Feeder): FeederResult {
 function evaluateFeederOf(project: Project, feeder: Feeder): FeederResult {
   const ib = designCurrentA(feeder, project);
   const tray = trayFactorOf(project, feeder);
-  const ampacity = deratedAmpacityA(feeder.cableCsaMm2, project.ambientC, runsOf(feeder), tray?.factor);
+  const rating = feederRating(project, feeder);
+  const ampacity = rating.iz;
   const loadingPct = (ib / feeder.breakerRatingA) * 100;
 
   const vdPct = voltageDropPct(feeder, project);
@@ -355,7 +377,7 @@ function evaluateFeederOf(project: Project, feeder: Feeder): FeederResult {
   const status: Status = statuses.includes('bad') ? 'bad' : statuses.includes('warn') ? 'warn' : 'ok';
 
   return {
-    feeder, ib, ampacity, tray, loadingPct, vdPct, vdUpstreamPct, vdTotalPct, vdStatus,
+    feeder, ib, ampacity, tray, rating, loadingPct, vdPct, vdUpstreamPct, vdTotalPct, vdStatus,
     ampacityStatus, protectionStatus, breakerFaultKA, endFaultKA, icuStatus, status
   };
 }
