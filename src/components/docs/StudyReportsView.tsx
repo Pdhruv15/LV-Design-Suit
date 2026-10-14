@@ -87,7 +87,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
   const boards = boardsInSupplyOrder(project);
   const scope = useMemo(() => scopeOf(calc, setup), [calc, setup]);
   const data: CalcData | undefined = useMemo(() => run && { project: run.project, results: run.results, earthing: run.earthing, selectivity: run.selectivity }, [run]);
-  const basisOpt = { designBasis: setup.designBasis !== false, results: setup.resultsSummary !== false, data };
+  const basisOpt = { designBasis: setup.designBasis !== false, results: setup.resultsSummary !== false, data, calculatedAt: run?.at, current: !!run && !stale.length };
   const sections: Section[] = useMemo(
     () => (data ? setup.studies.map((k) => buildSection(k, data, scope)) : []),
     [data, scope, setup.studies]

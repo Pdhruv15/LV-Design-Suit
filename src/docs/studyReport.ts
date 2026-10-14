@@ -28,6 +28,7 @@ import { equipmentData, planAppendices } from './appendices';
 import { cableStatus, distributionSection, loadSection, structureSection } from './calcSections';
 import { buildDesignBasis, designBasisSections } from './designBasis';
 import type { ReportType } from './reportTypes';
+import { buildCalcRecord, calcRecordHtml } from './calcRecord';
 import { numberSubsections, coverPageHtml, documentControlHtml, numberSections, REPORT_DOC_CSS, reportDoc, tocHtml, type ReportMeta } from './reportFrame';
 import { cableTypeOf, fireRatingIssues } from '../model/cableTypes';
 import { cableSchedule, dbSchedule } from './schedules';
@@ -506,7 +507,7 @@ function sldPage(project: Project, scope: Scope, s: Section, svg: string, meta: 
 
 /** The report as print-ready HTML: cover, then per study its method, results
  * summary, SLD (A3 page) and tables (A4 landscape). */
-export interface ReportOptions { designBasis?: boolean; results?: boolean; data?: CalcData; /** Page of each contents entry (anchor → page), from a first print. */ pages?: Record<string, number> }
+export interface ReportOptions { designBasis?: boolean; results?: boolean; data?: CalcData; /** When the results were calculated, and whether the inputs are unchanged since (calculation record). */ calculatedAt?: number; current?: boolean; /** Page of each contents entry (anchor → page), from a first print. */ pages?: Record<string, number> }
 
 /** Everything the design report contains, numbered — shared by the PDF (HTML) and Word builders. */
 export function planReport(project: Project, scope: Scope, sections: Section[], meta: ReportMeta, sldKeys: StudyReportKind[], opts: ReportOptions = {}) {
@@ -522,7 +523,8 @@ export function planReport(project: Project, scope: Scope, sections: Section[], 
   const basisNo = numbered.slice(0, basis.length), secNo = numbered.slice(basis.length, basis.length + sections.length), resNo = numbered.slice(basis.length + sections.length);
   /** The appendices holding a section's detail tables or its SLD. */
   const appendixOf = (s: Section) => appendices.filter((a) => a.tables.some((t) => t.section === s) || a.slds.includes(s.key));
-  return { doc, basisData, basis, resultsData, results, appendices, entries, basisNo, secNo, resNo, appendixOf };
+  const record = buildCalcRecord(project, { calculatedAt: opts.calculatedAt, current: opts.current, statuses: sections.flatMap((s) => s.statuses), warningsAt: 'see the Results summary under Contents' });
+  return { doc, basisData, basis, resultsData, results, appendices, entries, basisNo, secNo, resNo, appendixOf, record };
 }
 
 /** The report as print-ready HTML: cover, document control, contents, design basis, the studies, results and
@@ -600,7 +602,7 @@ ${a.slds.map((k, i) => sldPage(project, scope, sections.find((s) => s.key === k)
     .sld-body { position: absolute; inset: 3mm 3mm 48mm 3mm; display: flex; align-items: center; justify-content: center; } .sld-body svg { width: 100%; height: 100%; }
     .sld-meta { position: absolute; left: 3mm; bottom: 3mm; width: calc(100% - 190mm); font-size: 9px; line-height: 1.4; color: #222; } .sld-meta b { font-size: 11px; display: block; color: #000; }
     ${tbCss}
-  </style></head><body>${cover}${documentControlHtml(doc)}${contents}${basisHtml}${body}${resultsHtml}${appendixHtml}
+  </style></head><body>${cover}${documentControlHtml(doc)}${calcRecordHtml(plan.record)}${contents}${basisHtml}${body}${resultsHtml}${appendixHtml}
 
 </body></html>`;
 }
