@@ -81,6 +81,10 @@ export function buildStudyDocx(project: Project, scope: Scope, sections: Section
   out.push(doc.revisions.length ? table(['Rev.', 'Date', 'Description', 'By'], [...doc.revisions].reverse().map((r) => [r.id, r.date, r.description, missing(r.by)])) : P('No revision has been issued for this project. This report is an unissued draft.', { color: COLOR.warn }));
   h3('Prepared, checked and approved');
   out.push(sign());
+  out.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun('Calculation record')] }));
+  out.push(P('What these results were calculated from, with what, and how far they can be relied on.', { italics: true, size: 16 }));
+  kvT(plan.record.rows.map((r) => [r.label, r.lines.join('; ')]));
+  out.push(new Paragraph({ children: [new TextRun({ text: `Validation status: ${plan.record.status}. `, bold: true }), new TextRun(plan.record.statusText)] }));
   out.push(new Paragraph({ heading: HeadingLevel.HEADING_2, pageBreakBefore: true, children: [new TextRun('Contents')] }),
     new TableOfContents('Contents', { hyperlink: true, headingStyleRange: '1-1' }),
     P('If the page numbers are missing, right-click the contents and choose Update field.', { italics: true, size: 16, color: '5B6B82' }));
