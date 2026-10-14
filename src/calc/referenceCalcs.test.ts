@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { evaluateFeeder, faultCurrentKA, resistanceFactor, transformerImpedance, upstreamVoltageDropPct, voltageDropPct, designCurrentA } from './electrical';
+import { evaluateEarthing } from './earthing';
+import { boardTotals } from './summary';
+import { pfCorrection, transformer } from './quick';
+import { transformerChecks } from './txGen';
 import type { Feeder, Project } from '../types';
 
 /** Hand-calculated reference values. Every expected number below was worked
@@ -109,5 +113,65 @@ describe('short circuit — hand calculations (simplified method: c = 1, infinit
   it('breaker breaking capacity check: Icu below the busbar fault fails', () => {
     const f = feeder({ breakerIcuKa: 25 }); // 25 kA < 27.82 kA
     expect(evaluateFeeder(project([f]), f).icuStatus).toBe('bad');
+  });
+});
+
+describe('earth fault loop (TN-S) — hand calculations, c min = 0.95', () => {
+  // Ze at the main board = transformer impedance (Dyn, Z0 ≈ Z1): R 0.0016888, X 0.0084440 Ω.
+  it('2C 4 mm² (CPC 4 mm²), 30 m, type C 20 A: instantaneous trip, adiabatic pass', () => {
+    // Loop R = (5.532 + 5.532) × 0.03 = 0.33192 Ω, X = 0.09 × 0.03 = 0.0027 Ω
+    // Zs = √((0.0016888 + 0.33192)² + (0.008444 + 0.0027)²) = 0.33379 Ω
+    // If = 0.95 × 239.60 / 0.33379 = 681.9 A ≥ Ia = 10 × 20 = 200 A → instantaneous (t = 0.1 s)
+    // Max Zs = 0.95 × 239.60 / 200 = 1.1381 Ω; adiabatic S = 681.9 × √0.1 / 143 = 1.508 mm² ≤ 4 mm²
+    const f = feeder({ loadKw: 3, powerFactor: 0.9, cableCsaMm2: 4, lengthM: 30, cores: 2, breakerRatingA: 20, breakerType: 'C' });
+    const r = evaluateEarthing(project([f]), f);
+    expect(r.zsOhm).toBeCloseTo(0.33379, 4);
+    expect(r.faultA).toBeCloseTo(681.9, 0);
+    expect(r.tripA).toBe(200);
+    expect(r.maxZsOhm).toBeCloseTo(1.1381, 3);
+    expect(r.adiabaticMinMm2).toBeCloseTo(1.508, 2);
+    expect(r.disconnection).toBe('ok');
+    expect(r.adiabatic).toBe('ok');
+  });
+
+  it('2C 2.5 mm², 150 m, type C 32 A: fault current below the magnetic trip → not instantaneous', () => {
+    // Loop R = 2 × 7.41 × 1.2 × 0.15 = 2.6676 Ω, X = 0.015 Ω → Zs = 2.6694 Ω
+    // If = 0.95 × 239.60 / 2.6694 = 85.27 A < Ia = 320 A
+    const f = feeder({ loadKw: 3, powerFactor: 0.9, cableCsaMm2: 2.5, lengthM: 150, cores: 2, breakerRatingA: 32, breakerType: 'C' });
+    const r = evaluateEarthing(project([f]), f);
+    expect(r.zsOhm).toBeCloseTo(2.6694, 3);
+    expect(r.faultA).toBeCloseTo(85.27, 1);
+    expect(r.disconnection).not.toBe('ok');
+  });
+});
+
+describe('demand, power factor correction and transformer — hand calculations', () => {
+  it('maximum demand of a board: connected kW, demand kW (× demand factor) and kvar', () => {
+    // 20 kW × 0.8 at cos φ 0.8 → 16 kW, 16 × tan(acos 0.8) = 16 × 0.75 = 12 kvar; 10 kW × 1 at cos φ 1 → 10 kW, 0 kvar
+    const p = project([feeder({ id: 'A', loadKw: 20, demandFactor: 0.8, powerFactor: 0.8 }), feeder({ id: 'B', loadKw: 10, powerFactor: 1 })]);
+    const t = boardTotals(p, 'MDB');
+    expect(t.connectedKw).toBe(30);
+    expect(t.demandKw).toBeCloseTo(26, 10);
+    expect(t.demandKvar).toBeCloseTo(12, 6);
+  });
+
+  it('capacitor kvar to raise 100 kW from cos φ 0.8 to 0.95: Q = P (tan φ1 − tan φ2)', () => {
+    // tan φ1 = 0.75, tan φ2 = 0.32868 → Q = 100 × 0.42132 = 42.13 kvar; S 125 → 105.26 kVA
+    const r = pfCorrection(100, 0.8, 0.95);
+    expect(r.kvar).toBeCloseTo(42.13, 2);
+    expect(r.kvaBefore).toBe(125);
+    expect(r.kvaAfter).toBeCloseTo(105.26, 2);
+  });
+
+  it('transformer 1000 kVA, 415 V, 5 %: full-load current, fault level, regulation at 800 kVA, cos φ 0.85', () => {
+    // In = 1 000 000 / (√3 × 415) = 1391.2 A; Ik = In / 0.05 = 27.82 kA
+    // ur = 5 / √26 = 0.9806 %, ux = 4.9029 %; regulation = 0.8 × (0.9806 × 0.85 + 4.9029 × 0.5268) = 2.733 %
+    expect(transformer(1000, 415, 5).flc).toBeCloseTo(1391.2, 1);
+    expect(transformer(1000, 415, 5).faultKA).toBeCloseTo(27.82, 2);
+    const p = project([]);
+    const c = transformerChecks(p, p.boards[0], 1000, 800, 0.85, 5);
+    expect(c.flcA).toBeCloseTo(1391.2, 1);
+    expect(c.faultKa).toBeCloseTo(27.82, 2);
+    expect(c.regulationPct).toBeCloseTo(2.733, 3);
   });
 });

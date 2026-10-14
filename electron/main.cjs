@@ -1,7 +1,8 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, session, ipcMain, dialog, shell } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
+const check = require('./ipcValidate.cjs');
 const { spawn } = require('node:child_process');
 const database = require('./database.cjs');
 const projectFiles = require('./projectFiles.cjs');
@@ -95,6 +96,8 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // Pages get no device or browser permissions (camera, location, notifications…) except writing to the clipboard.
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => callback(check.ALLOWED_PERMISSIONS.has(permission)));
   ensureProjectsFolder();
   createWindow();
 
@@ -124,7 +127,7 @@ ipcMain.handle('settings:chooseProjectsFolder', async () => {
 /** The Excel database in its own folder (e.g. on Google Drive); projects stay where they are.
  * reset: back to "LV Database" inside the projects folder. */
 ipcMain.handle('settings:chooseDatabaseFolder', async (_evt, reset) => {
-  if (reset) { const { databaseFolder: _d, ...rest } = readSettings(); writeSettings(rest); return readSettings(); }
+  if (reset === true) { const { databaseFolder: _d, ...rest } = readSettings(); writeSettings(rest); return readSettings(); }
   const result = await dialog.showOpenDialog(win, {
     title: 'Choose the folder with the LV Database workbooks (e.g. a Google Drive folder)',
     properties: ['openDirectory', 'createDirectory']
@@ -183,7 +186,8 @@ ipcMain.handle('projects:stat', (_evt, file) => projectFiles.stampOf(projectPath
 /** Saves a project. `expected` is what the file was when this app opened or last saved it; when the file
  * now holds something else (another computer, a sync tool, another program) nothing is written and the
  * answer is a conflict — unless `force`, which keeps the other version as name.json.theirs-….bak. */
-ipcMain.handle('projects:save', (_evt, { file, data, expected, force }) => {
+ipcMain.handle('projects:save', (_evt, args) => {
+  const { file, data, expected, force } = check.projectSaveArgs(args);
   const folder = ensureProjectsFolder();
   const idPart = String((data && data.id) || Date.now()).replace(/[^a-z0-9]/gi, '').slice(0, 8);
   const safeFile = file || projectFiles.uniqueFileName(folder, `${slugify(data.name || 'untitled')}-${idPart}`);
@@ -227,17 +231,18 @@ ipcMain.handle('projects:emptyTrash', () => projectFiles.purgeTrash(ensureProjec
 // ---- IPC: recovery copies of unsaved work (autosave), one file per project ----
 const recoveryDir = path.join(app.getPath('userData'), 'recovery');
 const legacyRecoveryPath = path.join(app.getPath('userData'), 'recovery.json');
-ipcMain.handle('recovery:write', (_evt, r) => projectFiles.writeRecovery(recoveryDir, r));
+ipcMain.handle('recovery:write', (_evt, r) => projectFiles.writeRecovery(recoveryDir, check.recoveryArgs(r)));
 ipcMain.handle('recovery:readAll', () => projectFiles.readRecoveries(recoveryDir, ensureProjectsFolder(), legacyRecoveryPath));
 ipcMain.handle('recovery:read', () => projectFiles.readRecoveries(recoveryDir, ensureProjectsFolder(), legacyRecoveryPath)[0] || null);
-ipcMain.handle('recovery:clear', (_evt, id) => (id ? projectFiles.clearRecovery(recoveryDir, id) : true));
+ipcMain.handle('recovery:clear', (_evt, id) => (typeof id === 'string' && id ? projectFiles.clearRecovery(recoveryDir, id) : true));
 
 // ---- IPC: export a generated text file (e.g. OpenDSS script) ----
-ipcMain.handle('files:saveText', async (_evt, { defaultName, content, filterName, extensions }) => {
+ipcMain.handle('files:saveText', async (_evt, args) => {
+  const { defaultName, content, filter } = check.saveTextArgs(args);
   const result = await dialog.showSaveDialog(win, {
     title: 'Export',
     defaultPath: path.join(ensureProjectsFolder(), defaultName),
-    filters: [{ name: filterName, extensions }]
+    filters: [filter]
   });
   if (result.canceled || !result.filePath) return null;
   fs.writeFileSync(result.filePath, content, 'utf-8');
@@ -245,14 +250,15 @@ ipcMain.handle('files:saveText', async (_evt, { defaultName, content, filterName
 });
 
 // ---- IPC: export a generated binary file (e.g. an .xlsx workbook) ----
-ipcMain.handle('files:saveBinary', async (_evt, { defaultName, bytes, filterName, extensions }) => {
+ipcMain.handle('files:saveBinary', async (_evt, args) => {
+  const { defaultName, bytes, filter } = check.saveBinaryArgs(args);
   const result = await dialog.showSaveDialog(win, {
     title: 'Export',
     defaultPath: path.join(ensureProjectsFolder(), defaultName),
-    filters: [{ name: filterName, extensions }]
+    filters: [filter]
   });
   if (result.canceled || !result.filePath) return null;
-  fs.writeFileSync(result.filePath, Buffer.from(bytes));
+  fs.writeFileSync(result.filePath, bytes);
   return result.filePath;
 });
 
@@ -275,9 +281,9 @@ async function initDatabase(seeds) {
 
 ipcMain.handle('database:init', (_evt, seeds) => initDatabase(seeds));
 ipcMain.handle('database:read', () => database.readDatabase(ensureProjectsFolder()));
-ipcMain.handle('database:write', (_evt, bookId, rows) => database.writeBook(ensureProjectsFolder(), bookId, rows));
+ipcMain.handle('database:write', (_evt, bookId, rows) => database.writeBook(ensureProjectsFolder(), bookId, check.workbookRows(bookId, rows)));
 ipcMain.handle('database:library:read', () => database.readLibrary(ensureProjectsFolder()));
-ipcMain.handle('database:library:write', (_evt, data) => database.writeLibrary(ensureProjectsFolder(), data));
+ipcMain.handle('database:library:write', (_evt, data) => database.writeLibrary(ensureProjectsFolder(), check.libraryData(data)));
 ipcMain.handle('database:open', (_evt, file) => {
   const folder = database.folderFor(ensureProjectsFolder());
   // Only files the spec knows about, or the folder itself.
@@ -289,7 +295,8 @@ ipcMain.handle('database:open', (_evt, file) => {
 // Sheet sizes in inches (A-series); Electron knows A3/A4 by name only.
 const SHEETS = { A1: { width: 33.11, height: 23.39 }, A2: { width: 23.39, height: 16.54 } };
 
-ipcMain.handle('files:savePdf', async (_evt, { defaultName, html, pageSize = 'A4', landscape = true, cssPages = false }) => {
+ipcMain.handle('files:savePdf', async (_evt, args) => {
+  const { defaultName, html, pageSize, landscape, cssPages } = check.pdfArgs(args);
   const result = await dialog.showSaveDialog(win, {
     title: 'Save PDF report',
     defaultPath: path.join(ensureProjectsFolder(), defaultName),
@@ -298,7 +305,8 @@ ipcMain.handle('files:savePdf', async (_evt, { defaultName, html, pageSize = 'A4
   if (result.canceled || !result.filePath) return null;
   // Render in a hidden window with no preload/bridge: the report is plain
   // HTML generated by the app and never needs Node or IPC access.
-  const pdfWin = new BrowserWindow({ show: false, webPreferences: { contextIsolation: true, nodeIntegration: false, javascript: false } });
+  const pdfWin = new BrowserWindow({ show: false, webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, javascript: false } });
+  pdfWin.webContents.on('will-navigate', (e) => e.preventDefault());
   try {
     const tmp = path.join(os.tmpdir(), `lvds-report-${Date.now()}.html`);
     fs.writeFileSync(tmp, html, 'utf-8');
@@ -318,8 +326,10 @@ ipcMain.handle('files:savePdf', async (_evt, { defaultName, html, pageSize = 'A4
 });
 
 // ---- IPC: HTML → PDF bytes (no dialog), to merge several parts into one file ----
-ipcMain.handle('files:pdfBytes', async (_evt, { html, pageSize = 'A4', landscape = true, cssPages = false }) => {
-  const pdfWin = new BrowserWindow({ show: false, webPreferences: { contextIsolation: true, nodeIntegration: false, javascript: false } });
+ipcMain.handle('files:pdfBytes', async (_evt, args) => {
+  const { html, pageSize, landscape, cssPages } = check.pdfArgs(args);
+  const pdfWin = new BrowserWindow({ show: false, webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, javascript: false } });
+  pdfWin.webContents.on('will-navigate', (e) => e.preventDefault());
   const tmp = path.join(os.tmpdir(), `lvds-part-${Date.now()}-${Math.random().toString(36).slice(2)}.html`);
   try {
     fs.writeFileSync(tmp, html, 'utf-8');
@@ -380,7 +390,7 @@ function runEngine(request, timeoutMs = 120000) {
 }
 
 ipcMain.handle('engines:probe', () => runEngine({ engine: 'probe' }, 30000));
-ipcMain.handle('engines:run', (_evt, request) => runEngine(request));
+ipcMain.handle('engines:run', (_evt, request) => runEngine(check.engineRequest(request)));
 
 ipcMain.handle('settings:choosePython', async () => {
   const result = await dialog.showOpenDialog(win, {

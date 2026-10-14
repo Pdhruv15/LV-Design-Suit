@@ -22,10 +22,16 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # Known high / critical advisories in what the app ships (runtime dependencies). Build and test
+      # tooling (devDependencies) is not part of the installed app and is reviewed separately.
+      - name: Dependency audit (shipped packages)
+        run: npm audit --omit=dev --audit-level=high
       - name: Type check
         run: npm run typecheck
       - name: Lint
         run: npm run lint
+      # Includes the engineering reference tests (src/calc/referenceCalcs.test.ts, hand-calculated values)
+      # and the Python engine's OpenDSS allow-list test, which needs python3 (preinstalled on the runner).
       - name: Unit tests
         run: npm test
       - name: Build

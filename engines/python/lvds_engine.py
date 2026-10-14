@@ -70,6 +70,25 @@ def probe():
 # OpenDSS — runs the script produced by src/engines/opendss/exportDss.ts
 # --------------------------------------------------------------------------
 
+# The only OpenDSS commands the app's own script uses (src/engines/opendss/exportDss.ts). Anything else —
+# Redirect / Compile (read files), Export / Save (write files), DOScmd (runs a shell command), CD … — is
+# refused, so a script can only build and solve a circuit.
+ALLOWED_DSS = {"clear", "new", "set", "calcvoltagebases", "solve"}
+ALLOWED_DSS_SET = {"defaultbasefrequency", "voltagebases", "mode"}
+
+
+def check_dss_line(line):
+    """Raise ValueError when a script line is not one the app generates."""
+    words = line.split(None, 1)
+    verb = words[0].lower() if words else ""
+    if verb not in ALLOWED_DSS:
+        raise ValueError(f"OpenDSS command not allowed: {words[0] if words else repr(line)}")
+    if verb == "set":
+        key = (words[1] if len(words) > 1 else "").split("=", 1)[0].strip().lower()
+        if key not in ALLOWED_DSS_SET:
+            raise ValueError(f"OpenDSS option not allowed: Set {key}")
+
+
 def run_opendss(project, script):
     import opendssdirect as dss
 
@@ -86,6 +105,7 @@ def run_opendss(project, script):
         low = line.lower()
         if not line or line.startswith("!") or low.startswith("show") or "mode=faultstudy" in low:
             continue
+        check_dss_line(line)
         cmd(line)
     if not dss.Solution.Converged():
         raise RuntimeError("OpenDSS load flow did not converge.")
