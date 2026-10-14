@@ -123,7 +123,8 @@
         "Cable data used by every calculation: one row per conductor size.",
         "Pre-filled with the app's reference values (Cu/XLPE multicore, free air, 30 °C) - replace them with your manufacturer's datasheet.",
         "R at 20 °C in ohm/km (IEC 60228), reactance X in ohm/km, current rating in A before ambient derating. Rate per m is used for the BOQ.",
-        "If this sheet is empty or unreadable the app falls back to its reference values and says so on the Database screen."
+        "If this sheet is empty or unreadable the app falls back to its reference values and says so on the Database screen.",
+        "Rows that name a Manufacturer and a Reference document are treated as manufacturer data; other rows are reported as user-entered (or as app reference values when unchanged)."
       ],
       "columns": [
         {
@@ -159,6 +160,30 @@
           "header": "Rate per m",
           "width": 12,
           "number": true
+        },
+        {
+          "key": "manufacturer",
+          "header": "Manufacturer",
+          "width": 18,
+          "help": "With a reference document, marks the row as manufacturer data"
+        },
+        {
+          "key": "cableType",
+          "header": "Cable type",
+          "width": 24,
+          "help": "e.g. Cu/XLPE/SWA/PVC 0.6/1 kV, 4-core"
+        },
+        {
+          "key": "installMethod",
+          "header": "Installation method",
+          "width": 22,
+          "help": "e.g. IEC 60364-5-52 method E, free air, 30 °C"
+        },
+        {
+          "key": "referenceDoc",
+          "header": "Reference document",
+          "width": 24,
+          "help": "Datasheet / table the values were taken from"
         },
         {
           "key": "notes",

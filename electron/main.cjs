@@ -168,7 +168,10 @@ function readProject(file) {
     // A damaged file: offer the last good version kept beside it.
     const bak = `${full}.bak`;
     if (fs.existsSync(bak)) {
-      const p = JSON.parse(fs.readFileSync(bak, 'utf-8'));
+      let p;
+      try { p = JSON.parse(fs.readFileSync(bak, 'utf-8')); } catch (e2) {
+        throw new Error(`${file} is damaged and could not be read (${e.message}); its backup ${file}.bak is damaged too (${e2.message}).`);
+      }
       return { project: { ...p, _restoredFromBackup: true }, stamp };
     }
     throw new Error(`${file} is damaged and could not be read (${e.message}).`);
@@ -206,8 +209,9 @@ ipcMain.handle('projects:pick', async () => {
   if (result.canceled || result.filePaths.length === 0) return null;
   const full = result.filePaths[0];
   if (path.dirname(path.resolve(full)) === path.resolve(folder)) return { file: path.basename(full) };
-  const data = JSON.parse(fs.readFileSync(full, 'utf-8'));
-  if (!data || !Array.isArray(data.boards)) throw new Error(`${path.basename(full)} is not an LV Design Studio project.`);
+  let data;
+  try { data = JSON.parse(fs.readFileSync(full, 'utf-8')); } catch (e) { throw new Error(`${path.basename(full)} could not be read as a project (${e.message}).`); }
+  if (!data || typeof data !== 'object' || !Array.isArray(data.boards) || !Array.isArray(data.feeders)) throw new Error(`${path.basename(full)} is not an LV Design Studio project.`);
   return { data, from: full };
 });
 

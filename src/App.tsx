@@ -118,6 +118,7 @@ const SubmissionsView = lazy(() => import('./components/docs/SubmissionsView'));
 import { applyBrief, type ProjectBrief } from './model/brief';
 import { defaultsPreview } from './model/setupPreview';
 import { copyProject, isFutureSchema, migrateProject } from './model/projectMigrate';
+import { checkProjectShape } from './model/projectValidate';
 import { projectFingerprint, type FileStamp } from './model/saveSafety';
 import { CompareDialog, ConflictDialog, ExternalChangeBar } from './components/SaveDialogs';
 import PreferencesDialog from './components/PreferencesDialog';
@@ -566,6 +567,13 @@ export default function App() {
   }
 
   function loadIntoApp(p: Project, file: string | undefined, message: string, stamp?: FileStamp | null) {
+    // A file without the structure the app needs is not opened (the current project stays as it is).
+    try { checkProjectShape(p, file ?? 'The file'); } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setStatus(msg);
+      window.alert(msg);
+      return;
+    }
     // Older files get an id and version here; opening alone never counts as an unsaved change.
     const opened = normalised(p, file);
     history.load(opened);

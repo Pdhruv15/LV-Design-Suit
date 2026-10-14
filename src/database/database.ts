@@ -135,7 +135,8 @@ export function parseDatabase(raw: RawDatabase): Database {
       continue;
     }
     if (cables.some((c) => c.csaMm2 === csa)) { bad(cb.file, r._row, `duplicate size ${csa} mm²`); continue; }
-    cables.push({ csaMm2: csa!, rOhmPerKm20C: rr!, xOhmPerKm: x!, ampacityA: amp!, ratePerM: rate !== undefined && !Number.isNaN(rate) ? rate : undefined });
+    cables.push({ csaMm2: csa!, rOhmPerKm20C: rr!, xOhmPerKm: x!, ampacityA: amp!, ratePerM: rate !== undefined && !Number.isNaN(rate) ? rate : undefined,
+      manufacturer: str(r.manufacturer) || undefined, cableType: str(r.cableType) || undefined, installMethod: str(r.installMethod) || undefined, referenceDoc: str(r.referenceDoc) || undefined });
   }
 
   const breakers: BreakerRow[] = [];
@@ -282,7 +283,7 @@ export function applyDatabase(db: Database): void {
 export function databaseSeeds(): Record<string, (string | number)[][]> {
   return {
     loads: [],
-    cables: REFERENCE_CABLE_TABLE.map((c) => [c.csaMm2, c.rOhmPerKm20C, c.xOhmPerKm, c.ampacityA, CABLE_RATE_PER_M[c.csaMm2] ?? '', 'App reference value — replace with manufacturer data']),
+    cables: REFERENCE_CABLE_TABLE.map((c) => [c.csaMm2, c.rOhmPerKm20C, c.xOhmPerKm, c.ampacityA, CABLE_RATE_PER_M[c.csaMm2] ?? '', '', '', '', '', 'App reference value — replace with manufacturer data']),
     breakers: STANDARD_BREAKER_A.map((a) => [a, a <= 63 ? 'MCB' : a <= 1600 ? 'MCCB' : 'ACB', '', breakerRateAed(a), '', '']),
     parameters: PARAMETERS.map((p) => [p.label, '', p.unit, p.key]),
     transformers: BUILT_IN.tx.map((k) => [k, typicalImpedancePct(k), 5, 'Dyn11', '', '', '', '', '', '', 'Typical — replace with your supplier data']),

@@ -48,11 +48,17 @@ export const groupFactor = (runs: number) => PARALLEL_GROUP_FACTOR[Math.min(runs
 
 /** Total demand (kW) flowing through a board: the sum of its own end-load
  * feeders' demand, plus (recursively) the demand of every downstream board
- * fed through an incomer feeder on this board. */
-export function boardDemandKw(project: Project, boardId: string): number {
-  return project.feeders
+ * fed through an incomer feeder on this board. A board already on the path
+ * (a supply loop, or a board feeding itself) is not counted again — the loop
+ * is invalid data, reported by checkReferences ("is fed in a loop"). */
+export function boardDemandKw(project: Project, boardId: string, path = new Set<string>()): number {
+  if (path.has(boardId)) return 0;
+  path.add(boardId);
+  const kw = project.feeders
     .filter((f) => f.boardId === boardId)
-    .reduce((sum, f) => sum + (f.feedsBoardId ? boardDemandKw(project, f.feedsBoardId) : f.loadKw * f.demandFactor), 0);
+    .reduce((sum, f) => sum + (f.feedsBoardId ? boardDemandKw(project, f.feedsBoardId, path) : f.loadKw * f.demandFactor), 0);
+  path.delete(boardId);
+  return kw;
 }
 
 /** Design current (A) for a feeder: balanced 3-phase for 3/4-core
