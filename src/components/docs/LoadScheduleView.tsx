@@ -24,6 +24,7 @@ import TxSummaryView from './TxSummaryView';
 import RiserFormView from './RiserFormView';
 import { SCHEDULE_GROUPS, scheduleGroupOf, scheduleGroups, type ScheduleGroup } from '../../model/scheduleGroups';
 import { scheduleCircuits } from '../../calc/loadSchedule';
+import CircuitEditDialog from './CircuitEditDialog';
 
 const num = (v: string) => (v === '' ? 0 : Math.max(0, Math.round(+v) || 0));
 
@@ -83,6 +84,17 @@ export default function LoadScheduleView({
   const incomplete = (b: Board) => (scheduleGroupOf(project, b) === 'db' || (b.kind ?? 'DB') === 'DB' ? !scheduleCircuits(project, b.id).length : !project.feeders.some((f) => f.boardId === b.id));
   const form: 'db' | 'md' | 'tx' | 'riser' = txForm ? txForm : pick?.board === board.id ? pick.form : data.rows.length || !mdAvailable ? 'db' : 'md';
   const [exporting, setExporting] = useState(false);
+  // Circuit open in the double-click edit dialog, and the field to focus.
+  const [editing, setEditing] = useState<{ id: string; focus?: string } | null>(null);
+  const editRow = editing && data.rows.find((r) => r.f.id === editing.id);
+  /** Double-click on a row opens its edit dialog, focused on the clicked field. */
+  const openEdit = (e: React.MouseEvent, id: string) => {
+    const t = e.target as HTMLElement;
+    if (t.closest('button')) return;
+    const key = t.closest<HTMLElement>('[data-cell]')?.dataset.cell;
+    const col = key ? dbs.sheetCols[+key.split(':')[1]]?.key : undefined;
+    setEditing({ id, focus: col });
+  };
   async function exportExcel(scope: WorkbookScope, name: string) {
     setExporting(true);
     try {
@@ -287,7 +299,7 @@ export default function LoadScheduleView({
                     const f = r.f;
                     const first = r.group && data.rows.findIndex((x) => x.group === r.group) === i;
                     return (
-                      <tr key={f.id} className={r.group && r.group.index % 2 === 0 ? 'alt' : ''}>
+                      <tr key={f.id} className={r.group && r.group.index % 2 === 0 ? 'alt' : ''} title="Double-click to edit this circuit" onDoubleClick={(e) => openEdit(e, f.id)}>
                         {first ? (
                           <td rowSpan={data.rows.filter((x) => x.group === r.group).length} className={`elcb ${r.group!.category === 'mixed' ? 'warn' : ''}`}
                             title={r.group!.category === 'mixed' ? 'Lighting and power share this ELCB — use Balance phases to separate them' : undefined}>
@@ -348,6 +360,12 @@ export default function LoadScheduleView({
                 </tbody>
               </table>
             </div>
+          )}
+          {editRow && (
+            <CircuitEditDialog project={project} board={board} feeder={editRow.f} circuitRef={editRow.ref} columns={columns} focus={editing!.focus}
+              onSave={(pt) => { patch(editRow.f.id, pt); setEditing(null); }}
+              onDelete={() => { onChange(deleteCircuit(project, editRow.f.id)); setEditing(null); }}
+              onClose={() => setEditing(null)} />
           )}
           <p className="m note">
             ECC: the plain number is the IEC 60364-5-54 default; a starred size was chosen by hand ({data.rows.filter((r) => r.f.cpcMm2 !== undefined).length} set).
