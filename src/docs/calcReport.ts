@@ -12,7 +12,7 @@ import { unresolvedChecks } from './issuePackage';
 import { printDoc } from './printDoc';
 import { PRINT, statusSpan } from './printStyles';
 import { ATTENTION_MAX, esc, PLAIN_CSS, reportHead, tally } from './report';
-import { buildSection, kvHtml, scopeOf, tableHtml, type CalcData, type Section } from './studyReport';
+import { buildSection, kvHtml, scopeOf, tableHtml, type CalcData, type Scope, type Section } from './studyReport';
 import pkg from '../../package.json';
 
 /** The standalone calculation report: a compact A4-landscape print with the document block,
@@ -27,13 +27,16 @@ const LABEL: Record<Status, string> = STATUS_TEXT;
 const worst = (xs: Status[]): Status => (xs.includes('bad') ? 'bad' : xs.includes('warn') ? 'warn' : 'ok');
 const counts = (xs: Status[]) => { const t = tally(xs); return `${t.ok} pass · ${t.warn} warning · ${t.bad} fail`; };
 
-/** The sections of the calculation report, from one calculation of the whole network. */
-export function calcReportSections(project: Project): Section[] {
+/** One calculation of the whole network: what the report prints and the pre-export check reads. */
+export function calcReportData(project: Project): { data: CalcData; scope: Scope; sections: Section[] } {
   const { results, earthing, selectivity } = withNetwork(project, () => ({ results: evaluateProject(project), earthing: evaluateEarthingAll(project), selectivity: evaluateSelectivity(project) }));
   const data: CalcData = { project, results, earthing, selectivity };
   const scope = scopeOf(project, { boards: [], downstream: true });
-  return CALC_REPORT_STUDIES.map((k) => buildSection(k, data, scope));
+  return { data, scope, sections: CALC_REPORT_STUDIES.map((k) => buildSection(k, data, scope)) };
 }
+
+/** The sections of the calculation report, from one calculation of the whole network. */
+export const calcReportSections = (project: Project): Section[] => calcReportData(project).sections;
 
 /** One section, compact: status, input and criteria, method, results, then every table (no appendices here). */
 function sectionHtml(s: Section, no: number): string {
@@ -72,7 +75,10 @@ export function buildReportHtml(project: Project): string {
     return `<tr><td>${esc(s.title)}</td><td>${t.ok}</td><td>${t.warn}</td><td class="bad">${t.bad}</td></tr>`;
   }).join('')}</tbody></table>
     <div class="box"><b>${attention.length ? `Needs attention (${attention.length})` : 'Nothing needs attention — every check passes'}</b>${shown.length ? `<table>${shown.map((a) => `<tr><td>${esc(a.item === '—' ? a.study : a.item)}</td><td><span class="${a.status}">${LABEL[a.status]}</span> — ${esc(a.study)}: ${esc(a.check)}${a.value && a.value !== LABEL[a.status] ? ` — ${esc(a.value)}` : ''}</td></tr>`).join('')}</table>` : ''}
-    ${attention.length > ATTENTION_MAX ? `<p class="note">…and ${attention.length - ATTENTION_MAX} more — see the sections below.</p>` : ''}</div></div>`;
+    ${attention.length > ATTENTION_MAX ? `<p class="note">…and ${attention.length - ATTENTION_MAX} more — all ${attention.length} are listed under “Items needing attention” below.</p>` : ''}</div></div>`;
+  // Every failed or unverified check, none left out: the page-1 box shows the first ones, this lists them all.
+  const allItems = attention.length > ATTENTION_MAX ? `<h2>Items needing attention (all ${attention.length})</h2>
+<table class="grid"><thead><tr><th>Status</th><th>Study</th><th>Item</th><th>Check</th><th>Value</th></tr></thead><tbody>${attention.map((a) => `<tr><td class="${a.status}">${statusSpan(LABEL[a.status])}</td><td>${esc(a.study)}</td><td>${esc(a.item)}</td><td>${esc(a.check)}</td><td>${esc(a.value)}</td></tr>`).join('')}</tbody></table>` : '';
   const cableTypes = [...new Set(project.feeders.map((x) => x.cableType || DEFAULT_CABLE_TYPE))];
   const basis = [
     ['System', `${project.voltageV} V, 3-phase + N, ${project.frequencyHz} Hz, TN-S (as calculated)`],
@@ -88,6 +94,7 @@ export function buildReportHtml(project: Project): string {
 ${reportHead(project, 'Calculation report', project.calcReportDocNo)}
 
 <h2>Results summary</h2>${summary}
+${allItems}
 
 <h2>Design basis</h2><table class="grid"><thead><tr><th>Parameter</th><th>Value</th></tr></thead><tbody>${basis.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('')}</tbody></table>
 

@@ -2,6 +2,7 @@ import { groupByPanel, type VdRow } from '../calc/voltageDrop';
 import { STATUS_TEXT } from '../calc/statusText';
 import { cableSizeText } from '../calc/electrical';
 import { ATTENTION_MAX, esc, PLAIN_CSS, reportHead, tally } from './report';
+import { statusSpan } from './printStyles';
 import { printDoc } from './printDoc';
 import pkg from '../../package.json';
 import type { Project } from '../types';
@@ -72,7 +73,11 @@ export function buildVdReportHtml(project: Project, rows: VdRow[], scope: string
     <div class="box"><b>${attention.length ? `Needs attention (${attention.length})` : 'Nothing needs attention — every cable is within the limit'}</b>${shown.length ? `<table class="grid">
       <tr><th>Cable</th><th>From → to</th><th class="n">This cable (%)</th><th class="n">Upstream (%)</th><th class="n">Total (%)</th><th>Result</th></tr>
       ${shown.map((a) => `<tr><td>${esc(a.ref)}</td><td>${esc(a.path)}</td><td class="n">${a.vd}</td><td class="n">${a.up}</td><td class="n">${Number.isFinite(a.total) ? n(a.total, 2) : 'Not calculated'}</td><td class="${a.st}">${STATUS_TEXT[a.st]}</td></tr>`).join('')}</table>` : ''}
-    ${attention.length > ATTENTION_MAX ? `<p class="note">…and ${attention.length - ATTENTION_MAX} more — see the tables below.</p>` : ''}</div></div>`;
+    ${attention.length > ATTENTION_MAX ? `<p class="note">…and ${attention.length - ATTENTION_MAX} more — all ${attention.length} are listed under “Items needing attention” below.</p>` : ''}</div></div>`;
+  // Every cable or riser that fails or needs a look, none left out.
+  const allItems = attention.length > ATTENTION_MAX ? `<h2>Items needing attention (all ${attention.length})</h2><table class="grid"><thead>
+      <tr><th>Cable</th><th>From → to</th><th class="n">This cable (%)</th><th class="n">Upstream (%)</th><th class="n">Total (%)</th><th>Result</th></tr></thead><tbody>
+      ${attention.map((a) => `<tr><td>${esc(a.ref)}</td><td>${esc(a.path)}</td><td class="n">${a.vd}</td><td class="n">${a.up}</td><td class="n">${Number.isFinite(a.total) ? n(a.total, 2) : 'Not calculated'}</td><td class="${a.st}">${statusSpan(STATUS_TEXT[a.st])}</td></tr>`).join('')}</tbody></table>` : '';
 
   const cols = printedColumns(rows);
   const head = `<tr>${cols.map((i) => `<th${cls(VD_HEADERS[i])}>${esc(VD_HEADERS[i])}</th>`).join('')}</tr>`;
@@ -90,6 +95,7 @@ ${reportHead(project, 'Voltage drop calculation', project.vdReportDocNo, `Scope:
 
 <h2>Results summary</h2>
 ${summary}
+${allItems}
 
 <h2>Design basis</h2>
 <table class="grid"><tbody>

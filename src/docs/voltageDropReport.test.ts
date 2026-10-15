@@ -48,12 +48,16 @@ describe('voltage drop report page 1', () => {
     }
   });
 
-  it('lists at most 10 cables needing attention', () => {
+  it('shows 10 cables needing attention on page 1 and lists every one after the summary', () => {
     const p = { ...sampleProject, vdLimitPct: 0.01 };
-    const tight = buildVdReportHtml(p, vdRows(p, vdCandidates(p).map((f) => f.id)), 'x');
+    const rows = vdRows(p, vdCandidates(p).map((f) => f.id));
+    const tight = buildVdReportHtml(p, rows, 'x');
     const n = Number(tight.match(/Needs attention \((\d+)\)/)?.[1]);
     expect(n).toBeGreaterThan(10);
     expect(tight).toContain(`…and ${n - 10} more`);
+    const all = tight.match(/<h2>Items needing attention \(all (\d+)\)<\/h2>[\s\S]*?<\/table>/);
+    expect(Number(all?.[1])).toBe(n);
+    for (const r of rows.filter((x) => x.status !== 'ok')) expect(all![0]).toContain(`<td>${r.feeder.id}</td>`);
   });
 });
 

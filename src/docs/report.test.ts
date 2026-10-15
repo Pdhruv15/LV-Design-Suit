@@ -19,12 +19,17 @@ describe('calculation report page 1', () => {
     for (const v of ['CR-001', 'A. Engineer', 'B. Checker', 'C. Approver']) expect(set).toContain(v);
   });
 
-  it('lists at most 10 items needing attention and counts the rest', () => {
+  it('shows 10 items needing attention on page 1 and lists every one after the summary', () => {
     const p = { ...sampleProject, vdLimitPct: 0.01 };
     const html = buildReportHtml(p);
     const n = Number(html.match(/Needs attention \((\d+)\)/)?.[1]);
     expect(n).toBeGreaterThan(10);
     expect(html).toContain(`…and ${n - 10} more`);
+    // Nothing left out: the full list has one row per unresolved check, each with its status.
+    const all = html.match(/<h2>Items needing attention \(all (\d+)\)<\/h2>\s*<table[\s\S]*?<\/table>/);
+    expect(Number(all?.[1])).toBe(n);
+    expect(all![0].match(/<tr><td class="(bad|warn)">/g)).toHaveLength(n);
+    expect(all![0].match(/<tbody>[\s\S]*<\/tbody>/)![0]).not.toMatch(/>PASS</);
   });
 
   it('has a page-numbered running header and footer', () => {

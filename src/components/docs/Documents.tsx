@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { statusOfText } from '../../calc/statusText';
 import type { Project } from '../../types';
 import { cableSchedule, dbSchedule, equipmentSchedule, type Schedule } from '../../docs/schedules';
-import { buildReportHtml } from '../../docs/calcReport';
+import { buildReportHtml, calcReportData } from '../../docs/calcReport';
+import { issueCounts, validateReport } from '../../docs/reportValidation';
 import { scheduleHtml } from '../../docs/sheetPdf';
 import { saveCsv, savePdf, safeFileName } from '../../util/files';
 import { FocusChip, Page } from '../ui';
@@ -96,7 +97,17 @@ export function ReportView({ project, onStatus, stale = false, docNo, onDocNo }:
   /** The live document number (the report itself may show the last calculated project). */ docNo?: string; onDocNo?: (v: string) => void }) {
   const html = useMemo(() => buildReportHtml({ ...project, calcReportDocNo: docNo }), [project, docNo]);
   const [busy, setBusy] = useState(false);
+  // The same pre-export check as the study reports. Its document-data warnings are left out:
+  // this report has no cover, and blank prepared / checked / approved are left for signing.
+  const issues = useMemo(() => {
+    const { data, scope, sections } = calcReportData(project);
+    const prm = project.params ?? {};
+    return validateReport({ project, meta: { title: 'Calculation report', docNo, preparedBy: prm.designedBy, checkedBy: prm.checkedBy, approvedBy: prm.approvedBy }, scope, sections, data, stale: [], designBasis: false, resultsSummary: false })
+      .filter((x) => x.area !== 'Project data');
+  }, [project, docNo]);
+  const ic = issueCounts(issues);
   async function exportPdf() {
+    if (ic.error && !window.confirm(`The pre-export check found ${ic.error} error(s) and ${ic.warning} warning(s) — listed above the preview.\n\nExport anyway?`)) return;
     setBusy(true);
     try {
       // Landscape and the document's own header / page numbers (CSS @page boxes), as the BOQ.
@@ -112,6 +123,12 @@ export function ReportView({ project, onStatus, stale = false, docNo, onDocNo }:
       intro="Results summary and design basis, then load assessment, transformer and generator sizing, cable and breaker sizing, load flow and voltage drop, short circuit, earth fault loop, discrimination, power factor correction, DB and cable schedules, and assumptions — the same sections and figures as the study reports, A4 landscape, black and white. Prepared / checked / approved come from Parameters; blank ones are left for signing."
       actions={<>{onDocNo && <input className="chip" value={docNo ?? ''} placeholder="Doc no." aria-label="Document number" onChange={(e) => onDocNo(e.target.value)} />}<button className="chip primary" disabled={busy || stale} title={stale ? 'Run the calculations first (F5)' : undefined} onClick={exportPdf}>{busy ? 'Exporting…' : 'Export PDF'}</button></>}
     >
+      <details className="card" open={ic.error > 0}>
+        <summary>Pre-export check — {issues.length ? `${ic.error} error(s), ${ic.warning} warning(s), ${ic.info} note(s)` : 'no issues found'}</summary>
+        {issues.length > 0 && <table className="schedule"><thead><tr><th>Level</th><th>Area</th><th>Issue</th></tr></thead><tbody>
+          {issues.map((x, i) => <tr key={i}><td className={x.level === 'error' ? 'bad' : x.level === 'warning' ? 'warn' : 'm'}>{x.level.toUpperCase()}</td><td>{x.area}</td><td>{x.message}</td></tr>)}
+        </tbody></table>}
+      </details>
       <iframe className="report-preview" title="Report preview" srcDoc={html} sandbox="" />
     </Page>
   );
