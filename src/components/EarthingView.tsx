@@ -231,7 +231,7 @@ export default function EarthingView({ project, onChange, onStatus, embedded = f
   );
   if (embedded) return <div className="earth-embedded">{body}</div>;
   return (
-    <Page title="Earthing schematic" intro="Earth pits of the RMUs, transformers, generators and main boards (DEWA practice). RMU, transformer neutral, transformer body and LV earths are separate systems; pits of the same kind are linked. Lightning protection is not part of this schematic.">
+    <Page title="Earthing schematic" intro="Earth pits of the RMUs, transformers, generators and main boards (DEWA practice). HV body (RMU with the transformer tanks bonded to it, sharing its pits), transformer neutral and LV earths are separate systems; pits of the same kind are linked. Lightning protection is not part of this schematic.">
       {body}
     </Page>
   );

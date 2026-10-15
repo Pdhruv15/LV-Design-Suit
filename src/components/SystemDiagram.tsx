@@ -804,7 +804,7 @@ export default function SystemDiagram({
           const nIds = pitIds(`txn:${b.id}`), bIds = pitIds(`txb:${b.id}`);
           return (
             <g key={`earth-${b.id}`} className="acc earth-pit">
-              <title>{`${b.id} main earthing: ${pits} earth pits${ids}, ${el} m electrodes, min. ${sp} m apart, 1C ${mm} mm² Cu/PVC to the MET through a test link${tx ? '; transformer neutral and body earthed to separate pits, not interconnected' : ''}`}</title>
+              <title>{`${b.id} main earthing: ${pits} earth pits${ids}, ${el} m electrodes, min. ${sp} m apart, 1C ${mm} mm² Cu/PVC to the MET through a test link${tx ? '; transformer neutral to its own pit; body bonded to the RMU earth (shared pits); not interconnected' : ''}`}</title>
               {tx && (
                 <g className="tx-earth">
                   {/* Neutral (star point) to its own pit, on the left */}
@@ -812,11 +812,11 @@ export default function SystemDiagram({
                   <path d={`M${r.x - 14} 100 H${r.x - 36} V130`} className="ln" />
                   {gnd(r.x - 36, 130)}
                   <text x={r.x - 36} y={146} textAnchor="middle" className="acc-t" style={{ fontSize: 7 }}>{`N EARTH${nIds ? ` · ${nIds}` : ''}`}</text>
-                  {/* Tank / body to a separate pit, on the right under the rating text */}
+                  {/* Tank / body earth (bonded to the RMU earth unless it has its own pits), on the right under the rating text */}
                   <rect x={r.x - 18} y={67} width="36" height="51" className="ln interlock" fill="none" />
                   <path d={`M${r.x + 12} 118 V124 H${r.x + 44} V130`} className="ln" />
                   {gnd(r.x + 44, 130)}
-                  <text x={r.x + 44} y={146} textAnchor="middle" className="acc-t" style={{ fontSize: 7 }}>{`BODY EARTH${bIds ? ` · ${bIds}` : ''}`}</text>
+                  <text x={r.x + 44} y={146} textAnchor="middle" className="acc-t" style={{ fontSize: 7 }}>{`BODY EARTH · ${bIds || 'RMU PITS'}`}</text>
                 </g>
               )}
               <text x={ox} y={oy - 6} className="acc-t b">{`LV EARTH PITS (${pits} NO.)${ids}`}</text>

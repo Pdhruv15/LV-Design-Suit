@@ -75,13 +75,15 @@ describe('earthing schematic', () => {
       for (const pit of earthingLayout(project).pits) expect(dxf).toContain(`\r\n${pit.id}\r\n`);
     } finally { vi.unstubAllGlobals(); }
   });
-  it('defaults: RMU 2 pits, transformer 1 neutral + 1 body, MDBs 1 pit each when several', () => {
+  it('defaults: RMU 2 pits, transformer 1 neutral pit with its body on the RMU pits, MDBs 1 pit each when several', () => {
     const p = withTx(2); // sample MDB-1 (1000 kVA) + 2 new → 3 transformers, 3 main boards
     const L = earthingLayout(p);
     const count = (k: string) => L.pits.filter((x) => x.kind === k).length;
     expect(count('txn')).toBe(3);
-    expect(count('txb')).toBe(3);
+    expect(count('txb')).toBe(0); // bodies bonded to their RMU's earth bar, sharing its pits
     expect(count('rmu')).toBe(6); // one RMU per transformer unless named, 2 pits each
+    expect(L.items.filter((i) => i.kind === 'txb').every((i) => i.bondedTo && L.items.some((r) => r.kind === 'rmu' && r.key === i.bondedTo))).toBe(true);
+    expect(L.checks.some((c) => c.level === 'bad' && /no earth pit/.test(c.text))).toBe(false);
     expect(count('lv')).toBe(3);
     // never a link between kinds (neutral ≠ body ≠ RMU ≠ LV)
     const kind = new Map(L.pits.map((x) => [x.id, x.kind]));
@@ -132,7 +134,7 @@ describe('earthing schematic', () => {
     expect(L.items.filter((i) => i.kind === 'txn')).toHaveLength(10);
     expect(L.items.filter((i) => i.kind === 'lv')).toHaveLength(10);
     expect(L.pits.filter((x) => x.kind === 'sub')).toHaveLength(smdbs.length);
-    expect(L.pits).toHaveLength(5 * 2 + 10 * 2 + 10 + smdbs.length);
+    expect(L.pits).toHaveLength(5 * 2 + 10 + 10 + smdbs.length);
     const d = earthingDrawing(p);
     expect(d.svg).not.toMatch(/NaN|undefined|NO PIT/);
     for (const pit of L.pits) expect(d.svg).toContain(`>${pit.id}</text>`);
@@ -158,7 +160,7 @@ describe('earthing schematic', () => {
     }
     const group = new Map(L.pits.map((x) => [x.id, L.items.find((i) => i.key === x.itemKey)!.group]));
     expect(L.links.every(([a, b]) => group.get(a) === group.get(b))).toBe(true);
-    expect(L.pits).toHaveLength(2 * (3 * 2 + 5 * 2 + 5));
+    expect(L.pits).toHaveLength(2 * (3 * 2 + 5 + 5));
     const d = earthingDrawing(p);
     expect(d.svg).toContain('LV ROOM — SS-01');
     expect(d.svg).toContain('LV ROOM — SS-02');
@@ -174,7 +176,7 @@ describe('earthing schematic', () => {
     for (const id of ['EB-RMU-01', 'EB-TX(N)-01', 'EB-TX(B)-01']) expect(svg).toContain(`>${id}</text>`);
     expect(svg.match(/>TL<\/text>/g)!.length).toBeGreaterThanOrEqual(3 + 1); // three bars + the legend
     expect(svg).toContain('1C 70 mm² Cu G/Y');
-    expect(svg).toContain('≥ 6 m  N ↔ body');
+    expect(svg).toContain('bonded to EB-RMU-01');
     // A badge takes its pit group's result, the same as the Checks list: the neutral (2.6 Ω > 2 Ω) is red,
     // the RMU pits are green because together they are within the limit.
     const neutral = L.nets.find((n) => n.kind === 'txn')!, rmu = L.nets.find((n) => n.kind === 'rmu')!;
@@ -229,7 +231,7 @@ describe('earthing schematic', () => {
     for (const t of ['STANDBY GENERATOR', '>GEN-1</text>', '>EB-GEN(N)-01</text>', '>EB-GEN(B)-01</text>', 'BONDED: Fuel tank', 'ATS to SMDB-GF', '8. GENERATOR NEUTRAL AND BODY EARTHS ARE SEPARATE']) expect(svg).toContain(t);
     expect(svg).not.toMatch(/NaN|undefined/);
   });
-  it('two transformers on one main board (N+1 in the sizing): each gets its neutral and body earths; pit IDs kept', () => {
+  it('two transformers on one main board (N+1 in the sizing): each gets its neutral earth, bodies on the RMU; pit IDs kept', () => {
     const before = withEarthPitIds(sampleProject);
     const owner = (q: Project) => Object.fromEntries(earthingLayout(q).pits.map((x) => [x.id, x.itemKey]));
     const was = owner(before);
@@ -239,15 +241,29 @@ describe('earthing schematic', () => {
     // Every existing pit keeps its ID on the same equipment (TX-1A keeps TX-1's); TX-1B gets new IDs.
     const now = owner(p);
     for (const [id, key] of Object.entries(was)) expect(now[id]).toBe(key);
-    expect(Object.keys(now).filter((id) => !(id in was))).toEqual(['E7', 'E8']);
+    expect(Object.keys(now).filter((id) => !(id in was))).toEqual(['E6']);
     expect(L.items.filter((i) => i.kind === 'txn').map((i) => i.equipment)).toEqual(['TX-1A 1000 kVA', 'TX-1B 1000 kVA']);
     expect(L.pits.filter((x) => x.kind === 'txn')).toHaveLength(2);
-    expect(L.pits.filter((x) => x.kind === 'txb')).toHaveLength(2);
+    expect(L.pits.filter((x) => x.kind === 'txb')).toHaveLength(0);
     const svg = earthingDrawing(p).svg;
     for (const t of ['>TX-1A</text>', '>TX-1B</text>', '>EB-TX(N)-01</text>', '>EB-TX(N)-02</text>', '>EB-TX(B)-02</text>', 'feeds TX-1A, TX-1B']) expect(svg).toContain(t);
     // The BOQ prices both transformers.
     expect(buildBom(p).find((it) => it.key.startsWith('tx:'))!.qty).toBe(2);
     // One transformer below the largest standard size is never split into two by the earthing.
     expect(earthingLayout(withEarthPitIds(sampleProject)).items.filter((i) => i.kind === 'txn')).toHaveLength(1);
+  });
+
+  it('transformer bodies share the RMU pits: one net, a bonding conductor each, and at most 2 transformers per RMU', () => {
+    let p = applyTransformers(sampleProject, planTransformers(sampleProject, [{ kva: 1500 }, { kva: 1500 }], false, 2));
+    const L = earthingLayout(p);
+    const rmu = L.items.find((i) => i.kind === 'rmu' && i.equipment === 'RMU-1')!;
+    const bodies = L.items.filter((i) => i.bondedTo === rmu.key);
+    expect(bodies).toHaveLength(2);
+    expect(L.nets.find((n) => n.kind === 'rmu' && n.items.includes(rmu.key))!.items).toEqual(expect.arrayContaining(bodies.map((b) => b.key)));
+    expect(L.nets.some((n) => n.kind === 'txb')).toBe(false);
+    expect(buildBom({ ...p, earthingPlan: {} }).find((i) => i.key.startsWith('earth-bond'))?.qty).toBe(3);
+    expect(L.checks.some((c) => /at most 2/.test(c.text))).toBe(false);
+    p = setRmu(p, 'MDB-1', 'RMU-1'); // a third transformer on RMU-1
+    expect(earthingLayout(p).checks.some((c) => c.level === 'bad' && /RMU-1 feeds 3 transformers/.test(c.text))).toBe(true);
   });
 });

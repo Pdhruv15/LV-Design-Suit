@@ -109,9 +109,23 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
   genBoards.forEach((b, n) => { barId.set(`gn:${b.id}`, `EB-GEN(N)-${two(n + 1)}`); barId.set(`gb:${b.id}`, `EB-GEN(B)-${two(n + 1)}`); });
   /** Equipment → earth bar → test link → pits; the size called out on the conductor to the pits. */
   const BAR_Y = 190;
+  /** Where each RMU's earth bar is, for the transformer bodies bonded to it. */
+  const rmuBar = new Map<string, { x: number; y: number; lane: number }>();
   const viaBar = (it: EarthItem, cx: number, from: string, top: number, py: number) => {
     const by = top + BAR_Y;
     out.push(`<path d="${from} V${by}" stroke="${GREEN}" stroke-width="1.6" fill="none"/>`, earthBar(cx, by, barId.get(it.key) ?? 'EB'));
+    // A transformer body without pits of its own: its bar is bonded to the RMU's earth bar, above the bars.
+    if (it.bondedTo && !pitsOf(it).length) {
+      const r = rmuBar.get(it.bondedTo), to = barId.get(it.bondedTo) ?? 'RMU';
+      if (r && r.y === by) {
+        const lane = by - 22 - r.lane * 9, sx = cx + 22, rx = r.x - 22;
+        out.push(`<path d="M${sx} ${by - 5} V${lane} H${rx} V${by - 5}" stroke="${GREEN}" stroke-width="1.6" fill="none"/><circle cx="${sx}" cy="${by - 5}" r="2.2" fill="${GREEN}"/><circle cx="${rx}" cy="${by - 5}" r="2.2" fill="${GREEN}"/>`);
+      } else {
+        out.push(`<path d="M${cx + 22} ${by - 5} V${by - 22} h22" stroke="${GREEN}" stroke-width="1.6" fill="none"/><text x="${cx + 48}" y="${by - 19}" font-size="8" fill="${GREEN}">to ${esc(to)}</text>`);
+      }
+      out.push(`<text x="${cx}" y="${by + 44}" text-anchor="middle" font-size="8" fill="#5b6b82">bonded to ${esc(to)}</text><text x="${cx}" y="${by + 55}" text-anchor="middle" font-size="8" fill="#5b6b82">(shares its pits)</text>`);
+      return;
+    }
     out.push(`<path d="M${cx} ${by + 10} V${by + 52}" stroke="${GREEN}" stroke-width="1.6" fill="none"/>`, testLink(cx, by + 46));
     drop(it, cx, by + 52, py, `1C ${mm} mm² Cu G/Y`);
   };
@@ -160,6 +174,7 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
         out.push(`<text x="${cx}" y="${TOP + 42}" text-anchor="middle" font-weight="bold">${esc(r.equipment)}</text><text x="${cx}" y="${TOP + 130}" text-anchor="middle" font-size="8">feeds ${esc(fed.join(', ') || '—')}</text>`);
         // Body earth from the enclosure's lower left corner, to its earth bar
         out.push(`<path d="M${cx - 55} ${TOP + 110} H${cx - 64}" stroke="${GREEN}" stroke-width="1.6" fill="none"/><circle cx="${cx - 55}" cy="${TOP + 110}" r="2.5" fill="${GREEN}"/>`);
+        rmuBar.set(r.key, { x: cx - 64, y: TOP + BAR_Y, lane: rmuBar.size % 4 });
         viaBar(r, cx - 64, `M${cx - 64} ${TOP + 110}`, TOP, PY);
         spread(r, PY, 84);
         x += w + 20;
@@ -331,8 +346,8 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
   const legend = `<g transform="translate(${lx} ${ly})"><rect x="0" y="0" width="520" height="${legendH}" fill="#fff" stroke="#111"/><text x="10" y="18" font-weight="bold">LEGEND</text>${ln(0, 24, 520, 24, 0.6)}${legendBody}</g>`;
   const notes = [
     'NOTES',
-    '1. RMU, TRANSFORMER NEUTRAL, TRANSFORMER BODY AND LV EARTHS ARE SEPARATE SYSTEMS.',
-    '2. TRANSFORMER NEUTRAL AND BODY EARTHS ARE NOT INTERCONNECTED.',
+    '1. HV BODY (RMU AND TRANSFORMER TANKS), TRANSFORMER NEUTRAL AND LV EARTHS ARE SEPARATE SYSTEMS.',
+    '2. TRANSFORMER BODY BONDED TO THE EARTH BAR OF ITS RMU AND SHARES THE RMU PITS (MAX. 2 TRANSFORMERS PER RMU); NEUTRAL AND BODY EARTHS ARE NOT INTERCONNECTED.',
     '3. EARTH PITS OF DIFFERENT SUBSTATIONS ARE NOT INTERCONNECTED.',
     '4. SUBSTATION EARTHS < 2 Ω; LV EARTH ≤ 1 Ω PER INCOMING SUPPLY / MDB (DEWA).',
     '5. EARTH PITS AT LEAST 6.0 m APART. LIGHTNING PROTECTION NOT SHOWN.',

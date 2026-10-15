@@ -90,7 +90,7 @@ describe('SVG to CAD export geometry', () => {
     const texts = svgToDxf(drawing.svg, drawing.h).filter((p): p is Text => p.type === 'text');
     expect(texts.find((p) => p.text === 'EARTHING SCHEMATIC DIAGRAM')!.height).toBeCloseTo(14 * 0.72);
     expect(texts.find((p) => p.text.endsWith('EARTH BAR'))!.height).toBeCloseTo(10 * 0.72);
-    expect(texts.find((p) => p.text.startsWith('1. RMU'))!.height).toBeCloseTo(9 * 0.72);
+    expect(texts.find((p) => p.text.startsWith('1. HV BODY'))!.height).toBeCloseTo(9 * 0.72);
     expect(texts.find((p) => p.text === '1C 70 mm² Cu G/Y')!.height).toBeCloseTo(8 * 0.72);
   });
 

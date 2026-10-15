@@ -22,11 +22,13 @@ export const unitName = (tag: string, u: number, n: number) => (n > 1 ? `${tag}$
 
 /** Earthing schematic (DEWA practice, no lightning protection).
  *
- * Four kinds of earth, never mixed with each other:
- *   RMU body · transformer neutral · transformer body · LV (main board MET).
- * Defaults: RMU 2 pits; each transformer 1 pit for the neutral and 1 for the
- * body (neutral and body never interconnected); main boards 2 pits when the
- * site has one, 1 pit each when it has several (as agreed with DEWA). Pits of
+ * Three systems, never mixed with each other:
+ *   HV body (RMU and transformer tanks) · transformer neutral · LV (main board MET).
+ * Defaults: RMU 2 pits; each transformer body bonded to the earth bar of the
+ * RMU feeding it, sharing its pits (an RMU feeds at most 2 transformers);
+ * each transformer 1 pit for the neutral (never joined to the body earth);
+ * main boards 2 pits when the site has one, 1 pit each when it has several
+ * (as agreed with DEWA). Pits of
  * the same kind are linked in a loop (RMUs with RMUs, transformer neutrals
  * with neutrals …) unless the user unlinks a piece of equipment. Limits:
  * substation earths below 2 Ω, the LV earth 1 Ω per incoming supply / MDB
@@ -34,9 +36,9 @@ export const unitName = (tag: string, u: number, n: number) => (n > 1 ? `${tag}$
 
 export type EarthKind = 'rmu' | 'txn' | 'txb' | 'lv' | 'sub' | 'gn' | 'gb';
 export const EARTH_KINDS: { kind: EarthKind; label: string; limitOhm: number }[] = [
-  { kind: 'rmu', label: 'RMU body earth', limitOhm: 2 },
+  { kind: 'rmu', label: 'RMU and transformer body earth', limitOhm: 2 },
   { kind: 'txn', label: 'Transformer neutral earth', limitOhm: 2 },
-  { kind: 'txb', label: 'Transformer body earth', limitOhm: 2 },
+  { kind: 'txb', label: 'Transformer body earth (own pits)', limitOhm: 2 },
   { kind: 'lv', label: 'LV earth (main board MET)', limitOhm: 1 },
   { kind: 'sub', label: 'SMDB earth (own pits)', limitOhm: 1 },
   { kind: 'gn', label: 'Generator neutral earth', limitOhm: 1 },
@@ -44,7 +46,7 @@ export const EARTH_KINDS: { kind: EarthKind; label: string; limitOhm: number }[]
 ];
 export const kindInfo = (k: EarthKind) => EARTH_KINDS.find((x) => x.kind === k)!;
 
-export interface EarthItem { key: string; legacyKey?: string; kind: EarthKind; group: string; equipment: string; point: string; pits: number; defaultPits: number; linked: boolean }
+export interface EarthItem { key: string; legacyKey?: string; kind: EarthKind; group: string; equipment: string; point: string; pits: number; defaultPits: number; linked: boolean; /** Transformer body: the RMU earth it is bonded to (shares its pits). */ bondedTo?: string }
 export interface EarthPit { id: string; kind: EarthKind; itemKey: string; measured?: number; date?: string; by?: string }
 export interface EarthNet { kind: EarthKind; group: string; pits: string[]; items: string[]; effectiveOhm?: number; ok?: boolean }
 export interface EarthCheck { level: 'ok' | 'warn' | 'bad'; text: string }
@@ -66,20 +68,24 @@ function equipment(project: Project): Omit<EarthItem, 'pits' | 'linked'>[] {
   const groups = [...new Set(lv.map(subOf))];
   for (const g of groups) {
     const gTx = txs.filter((b) => subOf(b) === g);
+    const rmuKey = new Map<string, string>();
     for (const r of [...new Set(gTx.map(rmuOf))]) {
       const owner = gTx.find((b) => rmuOf(b) === r)!;
       const legacyKey = `rmu:${g}:${r}`;
       // An automatic RMU label follows the transformer display number, which
       // can change when boards are reordered; ownership uses the board ID.
-      out.push({ key: owner.rmu?.trim() ? legacyKey : `rmu:${g}:@${owner.id}`, legacyKey, kind: 'rmu', group: g, equipment: r, point: 'Body', defaultPits: 2 });
+      const key = owner.rmu?.trim() ? legacyKey : `rmu:${g}:@${owner.id}`;
+      rmuKey.set(r, key);
+      out.push({ key, legacyKey, kind: 'rmu', group: g, equipment: r, point: 'Body', defaultPits: 2 });
     }
-    // Neutral then body of each transformer, so its pits are numbered together (E3 neutral, E4 body …).
+    // Neutral then body of each transformer. The body is bonded to its RMU's earth bar and shares
+    // the RMU pits (none of its own unless the user adds them).
     for (const b of gTx) {
       const n = units.get(b.id) ?? 1;
       for (let u = 1; u <= n; u++) {
         const name = `${unitName(txTag(project, b.id) ?? b.id, u, n)} ${b.sourceKva} kVA`;
         out.push({ key: unitKey(`txn:${b.id}`, u), kind: 'txn', group: g, equipment: name, point: 'Neutral (star point)', defaultPits: 1 });
-        out.push({ key: unitKey(`txb:${b.id}`, u), kind: 'txb', group: g, equipment: name, point: 'Tank / body', defaultPits: 1 });
+        out.push({ key: unitKey(`txb:${b.id}`, u), kind: 'txb', group: g, equipment: name, point: 'Tank / body', defaultPits: 0, bondedTo: rmuKey.get(rmuOf(b)) });
       }
     }
     const gLv = lv.filter((b) => subOf(b) === g);
@@ -158,7 +164,10 @@ export function earthingLayout(project: Project): EarthLayout {
     for (let i = 1; i < ids.length; i++) links.push([ids[i - 1], ids[i]]); // pits of one equipment are always linked
   }
   // Pits are interconnected per kind within one substation; different substations are never linked.
+  // A transformer body is part of the net of the RMU it is bonded to.
+  const bodiesOf = (rmus: EarthItem[]) => items.filter((i) => i.bondedTo && rmus.some((r) => r.key === i.bondedTo));
   for (const sub of [...new Set(items.map((i) => i.group))]) for (const { kind, limitOhm } of EARTH_KINDS) {
+    if (kind === 'txb') continue;
     const ofKind = items.filter((i) => i.kind === kind && i.group === sub && i.pits > 0);
     const joined = ofKind.filter((i) => i.linked);
     // Linked equipment of one kind: a loop through their pits (a chain for two).
@@ -167,7 +176,8 @@ export function earthingLayout(project: Project): EarthLayout {
       if (joined.length > 2) links.push([last(byItem.get(last(joined).key)!), byItem.get(joined[0].key)![0]]);
     }
     const groups = [...(joined.length ? [joined] : []), ...ofKind.filter((i) => !joined.includes(i)).map((i) => [i])];
-    for (const g of groups) {
+    for (const g0 of groups) {
+      const g = kind === 'rmu' ? [...g0, ...bodiesOf(g0)] : g0;
       const ids = g.flatMap((i) => byItem.get(i.key)!);
       const measured = ids.map((id) => plan.measured?.[id]).filter((x): x is number => x !== undefined && x > 0);
       const eff = measured.length === ids.length && ids.length ? parallel(measured) : undefined;
@@ -176,7 +186,11 @@ export function earthingLayout(project: Project): EarthLayout {
   }
 
   const checks: EarthCheck[] = [];
-  for (const it of items) if (it.pits === 0 && it.kind !== 'sub') checks.push({ level: 'bad', text: `${it.equipment} — ${it.point}: no earth pit` });
+  for (const it of items) if (it.pits === 0 && it.kind !== 'sub' && !it.bondedTo) checks.push({ level: 'bad', text: `${it.equipment} — ${it.point}: no earth pit` });
+  for (const r of items.filter((i) => i.kind === 'rmu')) {
+    const n = bodiesOf([r]).length;
+    if (n > 2) checks.push({ level: 'bad', text: `${r.equipment} feeds ${n} transformers — an RMU feeds at most 2` });
+  }
   const lv = items.filter((i) => i.kind === 'lv');
   if (lv.length === 1 && lv[0].pits < 2) checks.push({ level: 'warn', text: `${lv[0].equipment} is the only main board: DEWA asks for 2 pits` });
   const multi = new Set(items.map((i) => i.group)).size > 1;
@@ -188,6 +202,7 @@ export function earthingLayout(project: Project): EarthLayout {
   if (!items.length) checks.push({ level: 'warn', text: 'No transformers or main boards yet — add them in Panels → Transformers' });
   else if (!items.some((i) => i.kind === 'txn')) checks.push({ level: 'warn', text: 'No transformer on any main board — only the LV earth is shown' });
   if (pits.length) checks.push({ level: 'ok', text: 'Transformer neutral and body earths are separate (never interconnected)' });
+  if (items.some((i) => i.bondedTo)) checks.push({ level: 'ok', text: 'Transformer bodies bonded to the earth bar of their RMU (shared HV body pits)' });
   if (items.some((i) => i.kind === 'gn')) checks.push({ level: 'ok', text: 'Generator neutral and body earths are separate (never interconnected)' });
   // The SLD's earth pit detail follows this plan unless a board sets its own count.
   for (const it of lv) {
