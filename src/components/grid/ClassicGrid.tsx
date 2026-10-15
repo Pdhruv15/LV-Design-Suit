@@ -1,7 +1,8 @@
-import { useRef, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { cellName, STYLE, type SheetEdit, type SheetModel } from '../../docs/sheet';
 import { cellKey } from './excelGrid';
 import { useExcelGrid } from './useExcelGrid';
+import RowEditDialog from './RowEditDialog';
 
 /** Cell look from the model's style: input, calculated, label row, muted. */
 function cellClass(style: string | undefined): string {
@@ -30,6 +31,13 @@ export default function ClassicGrid({ model, onEdits, onStatus, children, classN
     if (rejected.length) onStatus(`Not applied — ${rejected.slice(0, 3).join('; ')}${rejected.length > 3 ? ` (+${rejected.length - 3} more)` : ''}`);
   };
   useExcelGrid(root, apply);
+  // Row open in the double-click edit dialog, and the column to focus.
+  const [editing, setEditing] = useState<{ y: number; x?: number } | null>(null);
+  const openEdit = (e: React.MouseEvent, y: number) => {
+    if (!model.data[y]?.some((_, x) => model.editable(y, x))) return;
+    const key = (e.target as HTMLElement).closest<HTMLElement>('[data-cell]')?.dataset.cell;
+    setEditing({ y, x: key ? +key.split(':')[1] : undefined });
+  };
 
   // Merged cells: the top-left cell spans, the others are skipped.
   const covered = new Set<string>();
@@ -54,7 +62,7 @@ export default function ClassicGrid({ model, onEdits, onStatus, children, classN
         </thead>
         <tbody>
           {model.data.map((row, y) => (
-            <tr key={y}>
+            <tr key={y} onDoubleClick={(e) => openEdit(e, y)}>
               {row.map((v, x) => {
                 const k = cellKey(y, x);
                 if (covered.has(k)) return null;
@@ -95,6 +103,10 @@ export default function ClassicGrid({ model, onEdits, onStatus, children, classN
         )}
       </table>
       {children}
+      {editing && model.data[editing.y] && (
+        <RowEditDialog model={model} y={editing.y} focusX={editing.x} hidden={(y, x) => covered.has(cellKey(y, x))}
+          onSave={(edits) => { apply(edits); setEditing(null); }} onClose={() => setEditing(null)} />
+      )}
     </div>
   );
 }
