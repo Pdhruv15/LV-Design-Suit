@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { form4SizeText } from '../calc/form4';
 import type { Board, Project } from '../types';
 import { izText, type FeederResult } from '../calc/electrical';
 import { boardSummary } from '../calc/summary';
@@ -74,7 +75,7 @@ export default function BoardPanel({
         {tab === 'general' && <BoardFields board={board} onChange={onChange} section="general" groups={['board', 'sld']} />}
         {tab === 'location' && <BoardFields board={board} onChange={onChange} section="general" building={project.building} groups={['location']} />}
         {tab === 'general' && ['DB', 'EDB'].includes(roleOf(project, board)) && (
-          <p className="m enc-link">Enclosure: {board.enclosure ? <b>{board.enclosure.range} {board.enclosure.config.ref}{board.enclosure.dims ? ` · H${board.enclosure.dims.h} × W${board.enclosure.dims.w} × D${board.enclosure.dims.d} mm` : ''}</b> : 'not sized'}
+          <p className="m enc-link">Enclosure: {board.enclosure ? <b>{board.enclosure.range} {board.enclosure.config.ref}{board.enclosure.dims ? ` · H${board.enclosure.dims.h} × W${board.enclosure.dims.w} × D${board.enclosure.dims.d} mm` : ''}</b> : board.form4 ? <b>Form-4 · {form4SizeText(board.form4.dims)}</b> : 'not sized'}
             {board.enclosure && <span> ({board.enclosure.supplier} rev. {board.enclosure.revision}{board.enclosure.confirmNeeded ? ', supplier to confirm' : ''})</span>}
             {onEnclosure && <> <button className="chip" onClick={onEnclosure}>Enclosure sizing…</button></>}</p>
         )}

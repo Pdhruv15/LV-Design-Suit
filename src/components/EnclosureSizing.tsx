@@ -1,4 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
+import Form4Sizing from './Form4Sizing';
+import { isForm4Board } from '../model/form4Count';
 import { useStable } from '../util/useStable';
 import type { Project } from '../types';
 import { DEFAULT_SPARE_PCT, applicableRules, selectionFrom, sizeEnclosure, spareFromPct, type Candidate, type EnclosureCatalogue, type Mounting, type SizingInput } from '../calc/enclosure';
@@ -49,9 +51,19 @@ function preview(cat: EnclosureCatalogue, c: Candidate | undefined, i: SizingInp
   </svg>`;
 }
 
-/** Design → Enclosure sizing: physical space of a board from a supplier catalogue (module counting). */
-export default function EnclosureSizing({ project, boardId, onChange, onStatus }: { project: Project; boardId?: string; onChange: (p: Project) => void; onStatus: (m: string) => void }) {
-  // The supplier chart is for distribution boards only (DB, and EDB below an EMDB); SMDB / MDB charts come later.
+type Props = { project: Project; boardId?: string; onChange: (p: Project) => void; onStatus: (m: string) => void };
+
+/** Design → Enclosure sizing: DBs from a supplier catalogue (modules), MDBs / SMDBs from the Form-4 worksheet (line-up width). */
+export default function EnclosureSizing(props: Props) {
+  const b = props.project.boards.find((x) => x.id === props.boardId);
+  const [tab, setTab] = useState<'db' | 'form4'>(b && isForm4Board(props.project, b) ? 'form4' : 'db');
+  const tabs = <div className="seg enc-tabs"><button className={tab === 'db' ? 'on' : ''} onClick={() => setTab('db')}>Distribution boards (DB / EDB)</button><button className={tab === 'form4' ? 'on' : ''} onClick={() => setTab('form4')}>MDB / SMDB — Form-4</button></div>;
+  return tab === 'db' ? <DbSizing {...props} tabs={tabs} /> : <Form4Sizing {...props} tabs={tabs} />;
+}
+
+/** DB tab: physical space of a board from a supplier catalogue (module counting). */
+function DbSizing({ project, boardId, tabs, onChange, onStatus }: Props & { tabs: ReactNode }) {
+  // The supplier chart is for distribution boards only (DB, and EDB below an EMDB); MDBs / SMDBs are on the Form-4 tab.
   const dbs = project.boards.filter((b) => ['DB', 'EDB'].includes(roleOf(project, b)));
   const [panel, setPanel] = useState(dbs.find((b) => b.id === boardId)?.id ?? dbs[0]?.id ?? '');
   const saved = project.boards.find((b) => b.id === panel)?.enclosure;
@@ -151,10 +163,11 @@ export default function EnclosureSizing({ project, boardId, onChange, onStatus }
 
   return (
     <Page title="Enclosure sizing" actions={<><button className="chip" onClick={() => setManager(true)}>Catalogue manager</button> <button className="chip" disabled={!chosen?.dims} onClick={exportSheet}>Export size sheet</button></>} intro="Physical space of a board from a supplier catalogue: equipment + future spare ≤ the enclosure's usable modules for the case that applies (ELCB count, incomer). Separate from current ratings. A preliminary space fit — depth, wiring access, busbars, compatibility and temperature rise (IEC TR 60890) are separate checks.">
+      {tabs}
       <div className="enc-cols">
         <section className="card">
           <h4>Sizing inputs</h4>
-          <p className="m">For DBs only (DB / EDB). {boardId && !dbs.some((b) => b.id === boardId) ? <span className="warn">{boardId} is not a DB — SMDB and MDB enclosures will use their own charts (to be added).</span> : 'SMDB and MDB charts to be added.'}</p>
+          <p className="m">For DBs only (DB / EDB). {boardId && !dbs.some((b) => b.id === boardId) ? <span className="warn">{boardId} is not a DB — size MDBs and SMDBs on the Form-4 tab.</span> : 'MDBs and SMDBs: use the Form-4 tab.'}</p>
           {!dbs.length && <p className="warn">This project has no DBs yet.</p>}
           <div className="form-kv">
             <label>Panel<select value={panel} onChange={(e) => choosePanel(e.target.value)}>{dbs.map((b) => <option key={b.id} value={b.id}>{b.id}{b.enclosure ? ' ✓' : ''}</option>)}</select></label>

@@ -1,4 +1,5 @@
 import type { Board, Feeder, PointType, Project } from '../types';
+import { form4SizeText } from './form4';
 import { BOARD_KINDS, POINT_TYPES } from '../types';
 import { cableTypeOf } from '../model/cableTypes';
 import { breakerTypeOf, cpcOf } from './earthing';
@@ -101,8 +102,11 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
     const rating = b.ratedCurrentA ?? (!b.upstreamId ? b.supply?.ratingA : undefined) ?? p.feeders.find((f) => f.feedsBoardId === b.id)?.breakerRatingA;
     const bus = b.busbarMaterial === 'aluminium' ? 'Al' : 'Cu';
     const enc = b.enclosure;
-    const encText = enc ? `, enclosure ${enc.supplier} ${enc.range} ${enc.config.ref}${enc.mounting ? `, ${enc.mounting} mounted` : ''}, rev. ${enc.revision}${enc.dims ? ` (H${enc.dims.h} × W${enc.dims.w} × D${enc.dims.d} mm)` : ''}` : '';
-    const encKey = enc ? `:${enc.catalogueId}:${enc.config.id}:${enc.mounting ?? '-'}:${enc.dims ? `${enc.dims.h}x${enc.dims.w}x${enc.dims.d}` : '-'}:${encodeURIComponent(enc.revision)}` : '';
+    const f4 = b.form4;
+    const encText = enc ? `, enclosure ${enc.supplier} ${enc.range} ${enc.config.ref}${enc.mounting ? `, ${enc.mounting} mounted` : ''}, rev. ${enc.revision}${enc.dims ? ` (H${enc.dims.h} × W${enc.dims.w} × D${enc.dims.d} mm)` : ''}`
+      : f4 ? `, Form-4 enclosure ${form4SizeText(f4.dims)} (worksheet rev. ${f4.revision}, bottom entry)` : '';
+    const encKey = enc ? `:${enc.catalogueId}:${enc.config.id}:${enc.mounting ?? '-'}:${enc.dims ? `${enc.dims.h}x${enc.dims.w}x${enc.dims.d}` : '-'}:${encodeURIComponent(enc.revision)}`
+      : f4 ? `:form4:${f4.dims.h}+${f4.dims.plinth}x${f4.dims.w}x${f4.dims.d}:${encodeURIComponent(f4.revision)}` : '';
     const make = [b.manufacturer, b.model].filter(Boolean).join(' ');
     const makeKey = [b.manufacturer, b.model].map((s) => encodeURIComponent(s?.trim() || '-')).join(':');
     add('A', `panel:${k}:${rating ?? '-'}:${b.ipRating ?? '-'}:${bus}:${makeKey}${encKey}`,

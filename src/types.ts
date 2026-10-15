@@ -271,6 +271,8 @@ export interface Board {
   generated?: string;
   /** Enclosure chosen in Design → Enclosure sizing: a frozen copy with the catalogue revision used. */
   enclosure?: import('./calc/enclosure').EnclosureSelection;
+  /** MDB / SMDB enclosure from the Form-4 worksheet (Design → Enclosure sizing): a frozen copy with the worksheet revision. */
+  form4?: import('./calc/form4').Form4Selection;
   /** Substation this main board's transformer is in (transformer summary form). */
   substation?: string;
   /** Demand factor of this transformer on the summary form (else the project's). */
