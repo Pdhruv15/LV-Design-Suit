@@ -25,7 +25,9 @@ import { buildFormWorkbook } from '../../src/docs/formWorkbook';
 import { cableSchedule } from '../../src/docs/schedules';
 import { buildDmFormHtml } from '../../src/docs/dmForm';
 import { packageCoverHtml, snapshotId } from '../../src/docs/issuePackage';
-import { registerHtml, transmittalHtml } from '../../src/model/drawingSet';
+import { registerHtml } from '../../src/docs/drawingRegister';
+import { buildTransmittalHtml } from '../../src/docs/submissionReport';
+import { issueAsSubmission } from '../../src/model/submissions';
 
 export function printDocs(project = sampleProject): Record<string, string> {
   const run = runCalculations(project);
@@ -56,6 +58,6 @@ export function printDocs(project = sampleProject): Record<string, string> {
     'dm-d-013': buildDmFormHtml(p, [{ id: 'a', name: 'SS-1', type: 'conventional', transformers: 2 }]),
     'issue-package-cover': packageCoverHtml(p, { title: 'Electrical studies', docNo: 'E-001', calculatedAt: Date.UTC(2026, 9, 15), snapshot: snapshotId(p) }, [{ title: 'Electrical studies', pages: 10 }], 2, sections),
     'drawing-register': registerHtml(p, [{ number: 'E-SLD-001', title: 'SLD — MDB-1', size: 'A3' }], 'A', '2026-10-15', [issue]),
-    'drawing-transmittal': transmittalHtml(p, issue)
+    'drawing-transmittal': buildTransmittalHtml(p, issueAsSubmission(issue))
   };
 }

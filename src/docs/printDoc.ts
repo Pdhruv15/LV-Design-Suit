@@ -50,7 +50,7 @@ table.b { width: 100%; border-collapse: collapse; }
 table.b th, table.b td { border-left: 0.4pt solid ${PRINT.rule}; border-right: 0.4pt solid ${PRINT.rule}; padding: 1.1mm 1.5mm; vertical-align: top; text-align: left; }
 table.b thead { display: table-header-group; } table.b thead th { border: 0.4pt solid ${PRINT.rule}; background: ${PRINT.fill}; font-size: 7.6pt; text-align: center; vertical-align: middle; }
 table.b tr { break-inside: avoid; } table.b tbody tr + tr td { border-top: 0.2pt dotted #aaa; } table.b tbody:last-child tr:last-child td { border-bottom: 0.4pt solid ${PRINT.rule}; }
-.c { text-align: center !important; } .n { text-align: right !important; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.c { text-align: center !important; } .nw { white-space: nowrap; } .n { text-align: right !important; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .sec { break-after: avoid; } .sec td { font-weight: 700; border-top: 0.4pt solid ${PRINT.rule}; border-bottom: 0.4pt solid ${PRINT.rule}; padding-top: 1.8mm !important; padding-bottom: 1.8mm !important; }
 .tot td { font-weight: 700; border-top: 0.4pt solid ${PRINT.rule} !important; border-bottom: 0.4pt solid ${PRINT.rule}; }
 .gt td { font-weight: 700; font-size: 9.5pt; border-top: 1.5pt double #000 !important; border-bottom: 1pt solid ${PRINT.rule} !important; }

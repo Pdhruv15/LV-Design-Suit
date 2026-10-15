@@ -1,11 +1,12 @@
 import { createRoot } from 'react-dom/client';
+import { registerHtml } from '../../docs/drawingRegister';
 import { flushSync } from 'react-dom';
 import type { Project } from '../../types';
 import type { CalcRun } from '../../calc/runs';
 import { evaluateProject } from '../../calc/electrical';
 import { buildAnnotations, SHEET_LAYERS } from '../../diagram/annotations';
 import { printableSvg } from '../../diagram/exportSvg';
-import { autoSize, drawable, LEGEND_RESERVE_MM, MIN_MM_PER_PX, fromSheetLabels, registerHtml, scaleOn, sheetProject, sheetRev, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
+import { autoSize, drawable, LEGEND_RESERVE_MM, MIN_MM_PER_PX, fromSheetLabels, scaleOn, sheetProject, sheetRev, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
 import { buildSldSheetHtml, type SheetInfo } from '../../docs/sldSheet';
 import { buildSheetDxfPages } from '../../docs/sheetDxf';
 import { dxfExportNotice, namedDxfFiles, uniqueDxfFiles, type DxfFile } from '../../docs/dxfFiles';
