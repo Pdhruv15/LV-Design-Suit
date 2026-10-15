@@ -1,8 +1,9 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import type { Project } from '../types';
-import { FORM4_COLUMNS, FORM4_GROUPS, FORM4_REVISION, FORM4_SOURCE, FORM4_STACK, form4Selection, form4SizeText, sizeForm4, stackSections, type Form4Counts, type Form4Result } from '../calc/form4';
+import { FORM4_COLUMNS, FORM4_GROUPS, FORM4_REVISION, FORM4_SOURCE, FORM4_STACK, form4Selection, form4SizeText, sizeForm4, type Form4Counts } from '../calc/form4';
+import { form4DrawingSvg, form4Dxf } from '../diagram/form4Drawing';
 import { form4FromSld, isForm4Board } from '../model/form4Count';
-import { safeFileName, savePdf } from '../util/files';
+import { safeFileName, savePdf, saveText } from '../util/files';
 import { esc } from '../docs/report';
 import { Page } from './ui';
 
@@ -11,45 +12,6 @@ const CONFIRM = [
   'With no riser and more than 1800 mm of stacked outgoings, the worksheet drops the 300 mm cable chamber after the first section — confirm with the panel builder.',
   'No shipping-split limit is applied: a long board is shown as one line-up.'
 ];
-
-/** Front view of the line-up, dimensioned: cubicles, stacked outgoing sections, cable chambers and plinth.
- * Illustrative, not a manufacturing drawing. mono: black and white for the PDF. */
-export function form4Svg(counts: Form4Counts, r: Form4Result, mono = false): string {
-  if (!r.widthMm) return '';
-  const k = Math.min(0.11, 760 / r.widthMm), H = r.dims.h * k, P = r.dims.plinth * k, x0 = 20, y0 = 16;
-  const S = 'currentColor', dev = mono ? '#000' : 'var(--acc)';
-  const stacks = stackSections(counts, r.sections);
-  const out: string[] = [];
-  let x = x0, sec = 0;
-  for (const p of r.parts) {
-    const w = p.mm * k;
-    out.push(`<rect x="${x}" y="${y0}" width="${w}" height="${H}" fill="${S}" fill-opacity="${p.kind === 'chamber' ? '.02' : '.05'}" stroke="${S}" stroke-width="1.2"/>`);
-    if (p.kind === 'device' && p.column && p.qty) {
-      const each = w / p.qty;
-      for (let i = 0; i < p.qty; i++) {
-        const cx = x + each * i + each / 2;
-        if (i) out.push(`<line x1="${x + each * i}" y1="${y0}" x2="${x + each * i}" y2="${y0 + H}" stroke="${S}" stroke-opacity=".5"/>`);
-        out.push(`<rect x="${cx - each * 0.3}" y="${y0 + H * 0.35}" width="${each * 0.6}" height="${H * 0.22}" fill="none" stroke="${dev}"/>`);
-        out.push(`<text x="${cx}" y="${y0 + H * 0.48}" text-anchor="middle" font-size="8" fill="${S}">${esc(p.column.short)}</text>`);
-      }
-    } else if (p.kind === 'section') {
-      let y = y0 + 6;
-      for (const c of stacks[sec++] ?? []) {
-        const h = c.heightMm! * k;
-        out.push(`<rect x="${x + 4}" y="${y}" width="${w - 8}" height="${h - 2}" fill="none" stroke="${dev}"/><text x="${x + w / 2}" y="${y + h / 2 + 3}" text-anchor="middle" font-size="7" fill="${S}">${esc(c.short)}</text>`);
-        y += h;
-      }
-    } else {
-      out.push(`<text x="${x + w / 2}" y="${y0 + H / 2}" text-anchor="middle" font-size="8" fill="${S}" opacity=".6" transform="rotate(-90 ${x + w / 2} ${y0 + H / 2})">cable chamber</text>`);
-    }
-    x += w;
-  }
-  const W = x - x0;
-  out.push(`<rect x="${x0}" y="${y0 + H}" width="${W}" height="${P}" fill="${S}" fill-opacity=".15" stroke="${S}"/>`);
-  out.push(`<line x1="${x0}" y1="${y0 + H + P + 14}" x2="${x}" y2="${y0 + H + P + 14}" stroke="${S}"/><text x="${x0 + W / 2}" y="${y0 + H + P + 28}" text-anchor="middle" font-size="11" fill="${S}">W ${r.widthMm} mm</text>`);
-  out.push(`<text x="${x + 8}" y="${y0 + H / 2}" font-size="11" fill="${S}">H ${r.dims.h}</text><text x="${x + 8}" y="${y0 + H + P - 1}" font-size="9" fill="${S}" opacity=".7">+${r.dims.plinth} plinth</text>`);
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${Math.max(W + 90, 300)} ${y0 + H + P + 40}" font-family="Arial">${out.join('')}</svg>`;
-}
 
 /** Design → Enclosure sizing, MDB / SMDB tab: Form-4 line-up width from the owner's worksheet. */
 export default function Form4Sizing({ project, boardId, tabs, onChange, onStatus }: { project: Project; boardId?: string; tabs: ReactNode; onChange: (p: Project) => void; onStatus: (m: string) => void }) {
@@ -61,7 +23,7 @@ export default function Form4Sizing({ project, boardId, tabs, onChange, onStatus
   const sld = useMemo(() => form4FromSld(project, panel), [project, panel]);
   const counts = manual ?? sld.counts;
   const r = useMemo(() => sizeForm4(counts), [counts]);
-  const svg = useMemo(() => form4Svg(counts, r), [counts, r]);
+  const svg = useMemo(() => form4DrawingSvg(counts, r), [counts, r]);
   const changed = saved && saved.dims.w !== r.widthMm;
 
   const choosePanel = (id: string) => {
@@ -91,13 +53,13 @@ export default function Form4Sizing({ project, boardId, tabs, onChange, onStatus
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(panel)} Form-4 enclosure</title><style>
     @page { size: A4; margin: 14mm; } body { font: 10.5px/1.45 Arial, sans-serif; color: #111; } h1 { font-size: 16px; margin: 0 0 4px; } h2 { font-size: 12px; color: #000; border-bottom: 1px solid #000; margin: 12px 0 5px; }
     table { width: 100%; border-collapse: collapse; } th, td { border: .2mm solid #999; padding: 3px 6px; text-align: left; } th { background: #f2f2f2; width: 34%; } thead th { background: #f2f2f2; color: #000; width: auto; }
-    .warn { color: #000; font-weight: 700; } svg { width: 100%; max-height: 90mm; color: #111; } .m { color: #555; } ul { margin: 4px 0; padding-left: 16px; }
+    .warn { color: #000; font-weight: 700; } svg { width: 100%; max-height: 120mm; color: #111; } .m { color: #555; } ul { margin: 4px 0; padding-left: 16px; }
     </style></head><body>
     <h1>${esc(project.name)} — ${esc(panel)} Form-4 enclosure size</h1><p class="m">${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} · preliminary space estimate</p>
     <h2>Enclosure</h2><table>${row('Form of separation', 'Form 4, incoming and outgoing bottom entry')}${row('Size', form4SizeText(r.dims))}${row('Rules', `${FORM4_SOURCE}, rev. ${FORM4_REVISION}`)}${row('Quantities', manual ? 'Entered or changed by hand' : 'Counted from the SLD')}${row('Stacked outgoings', `${r.stackMm} mm in ${r.sections} section${r.sections === 1 ? '' : 's'} of ${FORM4_STACK} mm`)}</table>
     <h2>Breakers</h2><table><thead><tr><th>Breaker</th><th>Qty</th><th>Each</th><th>Total</th></tr></thead><tbody>${qtyRows}</tbody></table>
     <h2>Width</h2><table><thead><tr><th>Item</th><th>mm</th></tr></thead><tbody>${r.parts.map((p) => `<tr><td>${esc(p.label)}</td><td>${p.mm}</td></tr>`).join('')}<tr><td><b>Total width</b></td><td><b>${r.widthMm}</b></td></tr></tbody></table>
-    <h2>Front view (illustrative, not a manufacturing drawing)</h2>${form4Svg(counts, r, true)}
+    <h2>Front and plan views (illustrative, not a manufacturing drawing)</h2>${form4DrawingSvg(counts, r, true)}
     <h2>To confirm with the panel builder</h2><ul>${CONFIRM.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>
     <p class="warn">Preliminary space estimate. Busbar sizing, shipping splits, temperature rise (IEC 61439) and the panel builder's layout are separate checks.</p>
     </body></html>`;
@@ -105,8 +67,16 @@ export default function Form4Sizing({ project, boardId, tabs, onChange, onStatus
     if (m) onStatus(m);
   }
 
+  /** Front and plan views as an editable R12 DXF at 1:1 (1 unit = 1 mm). */
+  async function exportDxf() {
+    if (!r.widthMm) return;
+    const title = `${project.name} - ${panel} Form-4 enclosure ${form4SizeText(r.dims)}`;
+    const m = await saveText(`${safeFileName(`${project.name} ${panel} Form-4 enclosure`)}.dxf`, form4Dxf(counts, r, title), 'DXF drawing (AutoCAD R12)', 'dxf');
+    if (m) onStatus(m);
+  }
+
   return (
-    <Page title="Enclosure sizing" actions={<button className="chip" disabled={!r.widthMm} onClick={exportSheet}>Export size sheet</button>} intro="Form-4 MDB / SMDB line-up (incoming and outgoing bottom entry) from the owner's worksheet: cubicle widths for incomers, risers, capacitor bank and large outgoings, plus stacked sections of 1800 mm for the smaller outgoings and their cable chambers. Height H2100 + 100 plinth and depth D800 are fixed. A preliminary space estimate.">
+    <Page title="Enclosure sizing" actions={<><button className="chip" disabled={!r.widthMm} onClick={exportDxf} title="Front and plan views, 1:1 in mm, AutoCAD R12">Export DXF</button> <button className="chip" disabled={!r.widthMm} onClick={exportSheet}>Export size sheet</button></>} intro="Form-4 MDB / SMDB line-up (incoming and outgoing bottom entry) from the owner's worksheet: cubicle widths for incomers, risers, capacitor bank and large outgoings, plus stacked sections of 1800 mm for the smaller outgoings and their cable chambers. Height H2100 + 100 plinth and depth D800 are fixed. A preliminary space estimate.">
       {tabs}
       {!boards.length ? <p className="warn">This project has no MDB or SMDB yet.</p> : <>
         <div className="enc-cols">
@@ -135,8 +105,6 @@ export default function Form4Sizing({ project, boardId, tabs, onChange, onStatus
             <h4>Result</h4>
             {r.widthMm ? <p className="f4-size"><b>W {r.widthMm} × H {r.dims.h} (+{r.dims.plinth} plinth) × D {r.dims.d} mm</b></p> : <p className="warn">No breakers counted — enter the quantities.</p>}
             {r.sections > 0 && <p className="m">Stacked outgoings: {r.stackMm} mm → {r.sections} section{r.sections === 1 ? '' : 's'} of {FORM4_STACK} mm ({Math.round((r.stackMm / (r.sections * FORM4_STACK)) * 100)} % of the height used)</p>}
-            {svg && <div className="pfcc-svg" dangerouslySetInnerHTML={{ __html: svg }} />}
-            <p className="m">Illustrative front view, not a manufacturing drawing.</p>
             {changed && <p className="warn">{panel}'s saved size is W{saved.dims.w} — the breakers have changed since. Save the new size.</p>}
             {saved && !changed && <p className="m">{panel} now: Form-4 {form4SizeText(saved.dims)} (rev. {saved.revision}, {saved.selectedOn})</p>}
           </section>
@@ -159,6 +127,10 @@ export default function Form4Sizing({ project, boardId, tabs, onChange, onStatus
             <p className="m">{FORM4_SOURCE}, rev. {FORM4_REVISION}</p>
           </section>
         </div>
+        {svg && <section className="card f4-drawing">
+          <h4>Front and plan views <span className="m">— plan below the front view, front edge at the bottom · dimensions in mm · illustrative, not a manufacturing drawing</span></h4>
+          <div className="pfcc-svg" dangerouslySetInnerHTML={{ __html: svg }} />
+        </section>}
         <div className="modal-actions enc-foot">
           <span className="warn">Preliminary space estimate · busbar, shipping split and thermal checks pending · panel builder review pending</span>
           <span className="sp" />

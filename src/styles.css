@@ -1241,6 +1241,7 @@ button.calc-chip.warn{color:var(--warn);border-color:color-mix(in srgb,var(--war
 .enc-tabs{margin-bottom:10px}
 .f4-group{margin:6px 0 2px;font-size:var(--fs-xs);font-weight:600;letter-spacing:.02em}
 .f4-qty{width:100%;table-layout:fixed}.f4-qty td:nth-child(2){width:64px}.f4-qty td:nth-child(3){width:84px;text-align:right}.f4-qty td:first-child{white-space:normal}
+.f4-drawing{margin-top:10px}.f4-drawing .pfcc-svg svg{max-height:640px}
 .f4-size{font-size:16px;margin:0}
 .enc-cols .pfcc-svg svg{max-height:420px;width:100%}
 
