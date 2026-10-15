@@ -267,9 +267,10 @@ export function routeSettings(plan: TrayPlan, r: TrayRoute) {
 
 // ---- Grouping factors ------------------------------------------------------
 
-// IEC 60364-5-52 Table B.52.20, multicore cables on trays (method E), rows
-// = 1, 2, 3 tiers, columns = 1, 2, 3, 4, 6, 9 cables per tier. Typical
-// published values; spaced = clearance ≥ one cable diameter.
+// Grouping factors for multicore cables on trays (method E), rows = 1, 2, 3
+// tiers, columns = 1, 2, 3, 4, 6, 9 cables per tier. A few rounded design
+// values, to check against IEC 60364-5-52 Table B.52.20 — not a copy of the
+// table. Spaced = clearance ≥ one cable diameter.
 const GROUP_N = [1, 2, 3, 4, 6, 9];
 const GROUP_TABLE = {
   perforated: {
@@ -281,7 +282,8 @@ const GROUP_TABLE = {
     spaced: [[1, 1, 1, 1, 1, 1], [1, 0.99, 0.98, 0.97, 0.96, 0.96], [1, 0.98, 0.97, 0.96, 0.93, 0.93]]
   }
 };
-// IEC 60364-5-52 Table B.52.17 item 1: bunched in air / on a surface.
+// Bunched in air / on a surface: rounded design values, to check against
+// IEC 60364-5-52 Table B.52.17 item 1.
 const BUNCHED: [number, number][] = [[1, 1], [2, 0.8], [3, 0.7], [4, 0.65], [5, 0.6], [6, 0.57], [7, 0.54], [8, 0.52], [9, 0.5], [12, 0.45], [16, 0.41], [20, 0.38]];
 
 /** Bunched / enclosed grouping (Table B.52.17 item 1) for n circuits. */
