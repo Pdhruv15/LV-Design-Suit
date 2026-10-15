@@ -3,7 +3,7 @@ import { sampleProject } from '../data/sampleProject';
 import type { Feeder, Project } from '../types';
 import { evaluateEarthing } from './earthing';
 import { buildSection, scopeOf } from '../docs/studyReport';
-import { buildReportHtml } from '../docs/report';
+import { buildReportHtml } from '../docs/calcReport';
 import { runCalculations } from './runs';
 
 /** ENG-012: parallel CPCs are checked with the current through each one. */
@@ -70,6 +70,7 @@ describe('ENG-012: parallel CPC thermal check against the current in each CPC', 
     expect(sec.tables[0].headers).toContain('CPC min, each (mm²)');
     expect(JSON.stringify(row)).toMatch(/2\.9 \(2 runs, 1291 A each, assumed sharing\)/);
     expect(sec.method.join(' ')).toMatch(/Parallel runs: each CPC carries an equal share/);
-    expect(buildReportHtml(p)).toMatch(/2\.9 <span class="m">\(2 runs, 1291 A each, assumed equal sharing/);
+    // The calculation report prints the study section itself: the same figures and wording.
+    expect(buildReportHtml(p)).toMatch(/2\.9 \(2 runs, 1291 A each, assumed sharing\)/);
   });
 });

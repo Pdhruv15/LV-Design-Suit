@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { disconnectionLabel, earthLoopPath, evaluateEarthing, loopFigures } from './earthing';
-import { buildReportHtml } from '../docs/report';
+import { buildReportHtml } from '../docs/calcReport';
 import type { Board, Feeder, Project } from '../types';
 
 const F = (over: Partial<Feeder> = {}): Feeder => ({
@@ -66,7 +66,8 @@ describe('ENG-019 earthing: missing source loop is unknown, not zero', () => {
   it('report shows the missing-data warning and does not count it as a pass', () => {
     const f = F();
     const html = buildReportHtml(P([{ id: 'MDB', name: 'M' }], [f]));
-    expect(html).toContain('Not verified — no source data at MDB');
+    expect(html).toContain('Not verified — supply loop incomplete');
+    expect(html).toMatch(/no source data at MDB[^<]*\(Ze not assumed 0/);
     expect(html).toContain('≤ 397');
   });
 });

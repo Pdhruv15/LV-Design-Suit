@@ -5,7 +5,7 @@ import { REFERENCE_CABLE_TABLE, setCables } from '../calc/cableTable';
 import { runCalculations } from '../calc/runs';
 import pkg from '../../package.json';
 import { buildCalcRecord, calcRecordHtml } from './calcRecord';
-import { buildReportHtml } from './report';
+import { buildReportHtml } from './calcReport';
 import { buildSection, buildStudyReportHtml, scopeOf } from './studyReport';
 import { buildStudyDocx, docxBytes } from './studyWord';
 

@@ -10,7 +10,7 @@ import { UPS_DEFAULTS } from '../../src/calc/ups';
 import { PV_DEFAULTS, sizePv } from '../../src/calc/solar';
 import { emptyTrayPlan, sizeAll } from '../../src/calc/cableTray';
 import type { TrayPlan } from '../../src/types';
-import { buildReportHtml } from '../../src/docs/report';
+import { buildReportHtml } from '../../src/docs/calcReport';
 import { buildSection, buildStudyReportHtml, scopeOf, STUDIES, type CalcData } from '../../src/docs/studyReport';
 import { buildReviewDoc, defaultSetup, reviewHtml } from '../../src/docs/reviewReport';
 import { buildClarificationDoc } from '../../src/docs/clarificationReport';

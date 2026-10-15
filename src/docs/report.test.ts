@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { buildReportHtml } from './report';
+import { buildReportHtml, calcReportSections, CALC_REPORT_STUDIES } from './calcReport';
+import { runCalculations } from '../calc/runs';
+import { buildSection, scopeOf, tableHtml } from './studyReport';
 
 describe('calculation report page 1', () => {
   it('is black and white: no coloured text or fills', () => {
@@ -29,5 +31,22 @@ describe('calculation report page 1', () => {
     const html = buildReportHtml(sampleProject);
     expect(html).toContain('counter(pages)');
     expect(html).toContain('Calculation report');
+  });
+});
+
+describe('calculation report and study report: one source', () => {
+  // Phase 2 exit criterion: the same inputs give the same figures in every report route.
+  const p = { ...sampleProject, vdLimitPct: 1 }; // some fails, so statuses are compared too
+  const run = runCalculations(p);
+  const data = { project: run.project, results: run.results, earthing: run.earthing, selectivity: run.selectivity };
+  const scope = scopeOf(run.project, { boards: [], downstream: true });
+
+  it('builds each section exactly as the study report does', () => {
+    expect(calcReportSections(p)).toEqual(CALC_REPORT_STUDIES.map((k) => buildSection(k, data, scope)));
+  });
+
+  it('prints every study-report table unchanged', () => {
+    const html = buildReportHtml(p);
+    for (const k of CALC_REPORT_STUDIES) for (const t of buildSection(k, data, scope).tables) expect(html).toContain(tableHtml(t));
   });
 });
