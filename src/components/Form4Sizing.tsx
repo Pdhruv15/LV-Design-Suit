@@ -20,6 +20,10 @@ export default function Form4Sizing({ project, boardId, tabs, onChange, onStatus
   const saved = project.boards.find((b) => b.id === panel)?.form4;
   // Quantities changed by hand; null = as counted from the SLD.
   const [manual, setManual] = useState<Form4Counts | null>(saved?.method === 'manual' ? saved.counts : null);
+  // Breaker types with no quantity are hidden until asked for.
+  const [showAll, setShowAll] = useState(false);
+  // Rows edited here stay listed at 0, so one doesn't vanish while being changed.
+  const [touched, setTouched] = useState<string[]>([]);
   const sld = useMemo(() => form4FromSld(project, panel), [project, panel]);
   const counts = manual ?? sld.counts;
   const r = useMemo(() => sizeForm4(counts), [counts]);
@@ -28,12 +32,14 @@ export default function Form4Sizing({ project, boardId, tabs, onChange, onStatus
 
   const choosePanel = (id: string) => {
     setPanel(id);
+    setTouched([]);
     const sv = project.boards.find((b) => b.id === id)?.form4;
     setManual(sv?.method === 'manual' ? sv.counts : null);
   };
   const setQty = (id: string, v: string) => {
     const n = Math.max(0, Math.floor(Number(v) || 0));
     setManual({ ...counts, [id]: n });
+    if (!touched.includes(id)) setTouched([...touched, id]);
   };
 
   function use() {
@@ -79,63 +85,83 @@ export default function Form4Sizing({ project, boardId, tabs, onChange, onStatus
     <Page title="Enclosure sizing" actions={<><button className="chip" disabled={!r.widthMm} onClick={exportDxf} title="Front and plan views, 1:1 in mm, AutoCAD R12">Export DXF</button> <button className="chip" disabled={!r.widthMm} onClick={exportSheet}>Export size sheet</button></>} intro="Form-4 MDB / SMDB line-up (incoming and outgoing bottom entry) from the owner's worksheet: cubicle widths for incomers, risers, capacitor bank and large outgoings, plus stacked sections of 1800 mm for the smaller outgoings and their cable chambers. Height H2100 + 100 plinth and depth D800 are fixed. A preliminary space estimate.">
       {tabs}
       {!boards.length ? <p className="warn">This project has no MDB or SMDB yet.</p> : <>
-        <div className="enc-cols">
+        <div className="f4-layout">
           <section className="card">
             <h4>Breakers</h4>
             <div className="form-kv"><label>Panel<select value={panel} onChange={(e) => choosePanel(e.target.value)}>{boards.map((b) => <option key={b.id} value={b.id}>{b.id}{b.form4 ? ' ✓' : ''}</option>)}</select></label></div>
-            <div className="seg"><button className={manual ? '' : 'on'} onClick={() => setManual(null)} title="Count the board's breakers on the SLD">Count from SLD</button><button className={manual ? 'on' : ''} onClick={() => setManual(manual ?? { ...sld.counts })}>Enter manually</button></div>
-            {FORM4_GROUPS.map((g) => (
-              <div key={g.id}>
-                <p className="m f4-group">{g.label}</p>
-                <table className="bi-table compact f4-qty">
-                  <tbody>{FORM4_COLUMNS.filter((c) => c.group === g.id).map((c) => (
-                    <tr key={c.id}>
-                      <td>{c.label}</td>
-                      <td><input className="bi-num" style={{ width: 48 }} inputMode="numeric" aria-label={`${g.label}: ${c.label}`} value={counts[c.id] ?? 0} onChange={(e) => setQty(c.id, e.target.value)} /></td>
-                      <td className="m">{c.widthMm ? `${c.widthMm} wide` : `${c.heightMm} high`}</td>
-                    </tr>
-                  ))}</tbody>
-                </table>
+            <div className="seg f4-seg"><button className={manual ? '' : 'on'} onClick={() => setManual(null)} title="Count the board's breakers on the SLD">Count from SLD</button><button className={manual ? 'on' : ''} onClick={() => setManual(manual ?? { ...sld.counts })} title="Start from the SLD count and change any quantity">Enter manually</button></div>
+            <p className="m">{manual ? 'Quantities changed by hand.' : `${sld.items.length} breaker${sld.items.length === 1 ? '' : 's'} counted from ${panel}'s SLD. Change any quantity to enter it by hand.`}</p>
+            {FORM4_GROUPS.map((g) => {
+              const cols = FORM4_COLUMNS.filter((c) => c.group === g.id);
+              const rows = showAll ? cols : cols.filter((c) => (counts[c.id] ?? 0) > 0 || touched.includes(c.id));
+              if (!rows.length) return null;
+              const total = cols.reduce((n, c) => n + (counts[c.id] ?? 0), 0);
+              return (
+                <div key={g.id}>
+                  <p className="m f4-group">{g.label}{total ? ` · ${total}` : ''}</p>
+                  <table className="bi-table compact f4-qty">
+                    <tbody>{rows.map((c) => {
+                      const q = counts[c.id] ?? 0;
+                      return (
+                        <tr key={c.id} className={q ? '' : 'zero'}>
+                          <td>{c.label}</td>
+                          <td><span className="f4-step">
+                            <button aria-label={`One less ${c.label}`} disabled={!q} onClick={() => setQty(c.id, String(q - 1))}>−</button>
+                            <input className="bi-num" inputMode="numeric" aria-label={`${g.label}: ${c.label}`} value={q} onChange={(e) => setQty(c.id, e.target.value)} onFocus={(e) => e.target.select()} />
+                            <button aria-label={`One more ${c.label}`} onClick={() => setQty(c.id, String(q + 1))}>+</button>
+                          </span></td>
+                          <td className="m">{c.widthMm ? `${c.widthMm} wide` : `${c.heightMm} high`}</td>
+                        </tr>
+                      );
+                    })}</tbody>
+                  </table>
+                </div>
+              );
+            })}
+            {!showAll && !FORM4_COLUMNS.some((c) => (counts[c.id] ?? 0) > 0) && <p className="warn">No breakers counted on the SLD.</p>}
+            <button className="chip" onClick={() => setShowAll(!showAll)}>{showAll ? 'Hide unused breaker types' : `Show all ${FORM4_COLUMNS.length} breaker types`}</button>
+          </section>
+
+          <div className="f4-main">
+            <section className="card">
+              <div className="f4-head">
+                <div>
+                  {r.widthMm ? <p className="f4-size"><b>W {r.widthMm} × H {r.dims.h} (+{r.dims.plinth} plinth) × D {r.dims.d} mm</b></p> : <p className="warn">No breakers counted — enter the quantities.</p>}
+                  {r.sections > 0 && <p className="m">Stacked outgoings {r.stackMm} mm → {r.sections} section{r.sections === 1 ? '' : 's'} of {FORM4_STACK} mm, {Math.round((r.stackMm / (r.sections * FORM4_STACK)) * 100)} % used</p>}
+                </div>
+                <span className="sp" />
+                {saved && !changed && <span className="ok">✓ Saved for {panel}</span>}
+                {changed && <span className="warn">Saved W{saved.dims.w} is out of date</span>}
+                <button className="chip primary" disabled={!panel || !r.widthMm} onClick={use}>{changed ? `Update ${panel}` : `Use for ${panel || 'this panel'}`}</button>
               </div>
-            ))}
-            {manual && <p className="m">Quantities changed by hand — <button className="chip" onClick={() => setManual(null)}>Count from SLD again</button></p>}
-          </section>
+              {svg && <div className="pfcc-svg f4-drawing" dangerouslySetInnerHTML={{ __html: svg }} />}
+              {svg && <p className="m">Front view with the plan view below (front edge at the bottom) · dimensions in mm · illustrative, not a manufacturing drawing</p>}
+            </section>
 
-          <section className="card">
-            <h4>Result</h4>
-            {r.widthMm ? <p className="f4-size"><b>W {r.widthMm} × H {r.dims.h} (+{r.dims.plinth} plinth) × D {r.dims.d} mm</b></p> : <p className="warn">No breakers counted — enter the quantities.</p>}
-            {r.sections > 0 && <p className="m">Stacked outgoings: {r.stackMm} mm → {r.sections} section{r.sections === 1 ? '' : 's'} of {FORM4_STACK} mm ({Math.round((r.stackMm / (r.sections * FORM4_STACK)) * 100)} % of the height used)</p>}
-            {changed && <p className="warn">{panel}'s saved size is W{saved.dims.w} — the breakers have changed since. Save the new size.</p>}
-            {saved && !changed && <p className="m">{panel} now: Form-4 {form4SizeText(saved.dims)} (rev. {saved.revision}, {saved.selectedOn})</p>}
-          </section>
-
-          <section className="card">
-            <h4>How the width is built up</h4>
-            <table className="bi-table compact">
-              <tbody>{r.parts.map((p, i) => <tr key={i}><td>{p.label}</td><td className="num">{p.mm}</td></tr>)}<tr><td><b>Total width</b></td><td className="num"><b>{r.widthMm}</b></td></tr></tbody>
-            </table>
-            {!manual && sld.items.length > 0 && <>
-              <h4>Counted from the SLD</h4>
-              <table className="bi-table compact">
-                <tbody>{sld.items.map((x, i) => <tr key={i}><td>{x.what}<br /><span className="m">{x.ratingA} A → {FORM4_COLUMNS.find((c) => c.id === x.column)!.label}</span>{x.note && <><br /><span className="warn">{x.note}</span></>}</td></tr>)}</tbody>
-              </table>
-            </>}
-            {!manual && sld.notes.map((n) => <p key={n} className="m">{n}</p>)}
-            <p className="m">Harmonic feeders are not marked on the SLD — enter them by hand.</p>
-            <h4>To confirm with the panel builder</h4>
-            <ul className="m">{CONFIRM.map((c) => <li key={c}>{c}</li>)}</ul>
-            <p className="m">{FORM4_SOURCE}, rev. {FORM4_REVISION}</p>
-          </section>
+            <div className="f4-sub">
+              <section className="card">
+                <h4>How the width is built up</h4>
+                <table className="bi-table compact">
+                  <tbody>{r.parts.map((p, i) => <tr key={i}><td>{p.label}</td><td className="num">{p.mm}</td></tr>)}<tr><td><b>Total width</b></td><td className="num"><b>{r.widthMm}</b></td></tr></tbody>
+                </table>
+                {!manual && sld.items.length > 0 && <>
+                  <h4>Counted from the SLD</h4>
+                  <table className="bi-table compact">
+                    <tbody>{sld.items.map((x, i) => <tr key={i}><td className="f4-wrap">{x.what}<br /><span className="m">{x.ratingA} A → {FORM4_COLUMNS.find((c) => c.id === x.column)!.label}</span>{x.note && <><br /><span className="warn">{x.note}</span></>}</td></tr>)}</tbody>
+                  </table>
+                </>}
+                {!manual && sld.notes.map((n) => <p key={n} className="m">{n}</p>)}
+                <p className="m">Harmonic feeders are not marked on the SLD — enter them by hand.</p>
+              </section>
+              <section className="card">
+                <h4>To confirm with the panel builder</h4>
+                <ul className="m f4-list">{CONFIRM.map((c) => <li key={c}>{c}</li>)}</ul>
+                <p className="m">Rules: {FORM4_SOURCE}, rev. {FORM4_REVISION}</p>
+              </section>
+            </div>
+          </div>
         </div>
-        {svg && <section className="card f4-drawing">
-          <h4>Front and plan views <span className="m">— plan below the front view, front edge at the bottom · dimensions in mm · illustrative, not a manufacturing drawing</span></h4>
-          <div className="pfcc-svg" dangerouslySetInnerHTML={{ __html: svg }} />
-        </section>}
-        <div className="modal-actions enc-foot">
-          <span className="warn">Preliminary space estimate · busbar, shipping split and thermal checks pending · panel builder review pending</span>
-          <span className="sp" />
-          <button className="chip primary" disabled={!panel || !r.widthMm} onClick={use}>Use for {panel || 'this panel'}</button>
-        </div>
+        <p className="warn enc-foot">Preliminary space estimate · busbar, shipping split and thermal checks pending · panel builder review pending</p>
       </>}
     </Page>
   );
