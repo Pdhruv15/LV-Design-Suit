@@ -25,6 +25,7 @@ import { currentRevision } from '../model/revisions';
 import type { Board, Feeder, Project, StudyReportKind, StudyReportSetup } from '../types';
 import { esc, REPORT_CSS } from './report';
 import { PRINT, statusSpan } from './printStyles';
+import { destMarker } from './outline';
 import { buildResults, resultsSections } from './compliance';
 import { equipmentData, planAppendices } from './appendices';
 import { cableStatus, distributionSection, loadSection, structureSection } from './calcSections';
@@ -542,7 +543,7 @@ export function buildStudyReportHtml(project: Project, scope: Scope, sections: S
   const tableNo = { n: 0 };
   const basisHtml = basis.map((b, i) => `
 <section class="basis" id="${basisNo[i].anchor}">
-  <h2>${basisNo[i].number}. ${esc(b.title)}</h2>${numberSubsections(b.html, basisNo[i].number, tableNo)}
+  <h2>${destMarker(basisNo[i].anchor, `${basisNo[i].number}. ${b.title}`)}${basisNo[i].number}. ${esc(b.title)}</h2>${numberSubsections(b.html, basisNo[i].number, tableNo)}
 </section>`).join('');
   const contents = tocHtml(entries, opts.pages).replace('</section>', `
   <h3>Results summary</h3>
@@ -555,7 +556,7 @@ export function buildStudyReportHtml(project: Project, scope: Scope, sections: S
     const apps = plan.appendixOf(s);
     return `
 <section class="study" id="${secNo[i].anchor}">
-  <h2>${secNo[i].number}. ${esc(s.title)}</h2>${numberSubsections(`
+  <h2>${destMarker(secNo[i].anchor, `${secNo[i].number}. ${s.title}`)}${secNo[i].number}. ${esc(s.title)}</h2>${numberSubsections(`
   <p class="scope">Scope: ${esc(scopeText(project, scope))}</p>
   ${s.statuses.length ? `<p class="overall">Overall status: <b class="${worst(s.statuses)}">${esc(LABEL[worst(s.statuses)])}</b> <span>(${esc(tally(s.statuses))})</span></p>` : ''}
   ${s.inputs?.length ? `<h3>Input</h3>${kvHtml(s.inputs)}` : ''}
@@ -571,10 +572,10 @@ export function buildStudyReportHtml(project: Project, scope: Scope, sections: S
   }).join('');
   const resultsHtml = results.map((r, i) => `
 <section class="basis" id="${resNo[i].anchor}">
-  <h2>${resNo[i].number}. ${esc(r.title)}</h2>${numberSubsections(r.html, resNo[i].number, tableNo)}
+  <h2>${destMarker(resNo[i].anchor, `${resNo[i].number}. ${r.title}`)}${resNo[i].number}. ${esc(r.title)}</h2>${numberSubsections(r.html, resNo[i].number, tableNo)}
 </section>`).join('');
   const appendixHtml = appendices.map((a) => {
-    const head = `<h2>Appendix ${a.letter} — ${esc(a.title)}</h2>`;
+    const head = `<h2>${destMarker(`app-${a.letter}`, `Appendix ${a.letter} — ${a.title}`)}Appendix ${a.letter} — ${esc(a.title)}</h2>`;
     if (a.kind === 'sld') {
       const list = `<table><thead><tr><th>Sheet</th><th>Study</th><th>Shows</th></tr></thead><tbody>${a.slds.map((k, i) => `<tr><td>${i + 1} of ${a.slds.length}</td><td>${esc(studyInfo(k).title)}</td><td>${esc(studyInfo(k).sld?.note ?? '')}</td></tr>`).join('')}</tbody></table>`;
       return `

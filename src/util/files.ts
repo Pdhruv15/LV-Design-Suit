@@ -68,9 +68,11 @@ export async function renderPdf(html: string, page: PdfPage = {}, fallbackTitle 
   const { pageSize, landscape, cssPages, frame, paginate, selfNumbered } = page;
   const render = async (h: string) => PDFDocument.load(await toBytes({ html: h, pageSize, landscape, cssPages }));
   const doc = paginate ? await paginatePdf(render, html, paginate) : await render(html);
+  const { markerBookmarks } = await import('../docs/outline');
   let author: string | undefined;
   try { author = JSON.parse(localStorage.getItem('lvds.preferences') ?? '{}').profile?.name || undefined; } catch { /* none */ }
-  const bookmarks = typeof page.bookmarks === 'function' ? page.bookmarks(destinationPages(doc)) : page.bookmarks;
+  // Explicit bookmarks, else one per section marker in the document (docs/outline.ts).
+  const bookmarks = typeof page.bookmarks === 'function' ? page.bookmarks(destinationPages(doc)) : page.bookmarks ?? markerBookmarks(html, destinationPages(doc));
   return finishPdf(doc, { title: htmlTitle(html) || fallbackTitle, author, bookmarks, frame, stamp: selfNumbered ? false : undefined });
 }
 

@@ -9,8 +9,8 @@ describe('voltage drop report', () => {
 
   it('has one section per panel, with from / to and no final circuits', () => {
     const html = buildVdReportHtml(sampleProject, rows, 'Entire system');
-    for (const id of ['MDB-1', 'SMDB-GF', 'SMDB-FF', 'MCC-1']) expect(html).toContain(`<h2>${id} – `);
-    expect(html).not.toContain('<h2>DB-GF1');
+    for (const id of ['MDB-1', 'SMDB-GF', 'SMDB-FF', 'MCC-1']) expect(html).toMatch(new RegExp(`<h2[^>]*>(?:<a class="dest"[^>]*></a>)?${id} – `));
+    expect(html).not.toMatch(/<h2[^>]*>(?:<a class="dest"[^>]*><\/a>)?DB-GF1/);
     expect(html).not.toContain('DB-GF1-R1');
     expect(html).toContain('<td>Water pump</td>');
   });
