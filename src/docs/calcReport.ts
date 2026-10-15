@@ -11,6 +11,7 @@ import { buildCalcRecord, calcRecordHtml } from './calcRecord';
 import { unresolvedChecks } from './issuePackage';
 import { printDoc } from './printDoc';
 import { PRINT, statusSpan } from './printStyles';
+import { destMarker } from './outline';
 import { ATTENTION_MAX, esc, PLAIN_CSS, reportHead, tally } from './report';
 import { buildSection, kvHtml, scopeOf, tableHtml, type CalcData, type Scope, type Section } from './studyReport';
 import pkg from '../../package.json';
@@ -43,8 +44,8 @@ function sectionHtml(s: Section, no: number): string {
   const w = worst(s.statuses);
   const summary = s.summary.length ? `<table class="kv"><tbody>${s.summary.map((k) => `<tr><th>${esc(k.label)}</th><td${k.status ? ` class="${k.status}"` : ''}>${esc(k.value)}</td></tr>`).join('')}</tbody></table>` : '';
   return `
-<section class="calc">
-<h2>${no}. ${esc(s.title)}</h2>
+<section class="calc" id="calc-${no}">
+<h2>${destMarker(`calc-${no}`, `${no}. ${s.title}`)}${no}. ${esc(s.title)}</h2>
 ${s.statuses.length ? `<p class="overall">Overall status: <b class="${w}">${statusSpan(LABEL[w])}</b> <span class="m">(${counts(s.statuses)})</span></p>` : ''}
 ${s.inputs?.length ? `<h3>Input</h3>${kvHtml(s.inputs)}` : ''}${s.criteria?.length ? `<h3>Design criteria</h3>${kvHtml(s.criteria)}` : ''}
 <h3>Method</h3><ul class="method">${s.method.map((m) => `<li>${esc(m)}</li>`).join('')}</ul>
@@ -77,7 +78,7 @@ export function buildReportHtml(project: Project): string {
     <div class="box"><b>${attention.length ? `Needs attention (${attention.length})` : 'Nothing needs attention — every check passes'}</b>${shown.length ? `<table>${shown.map((a) => `<tr><td>${esc(a.item === '—' ? a.study : a.item)}</td><td><span class="${a.status}">${LABEL[a.status]}</span> — ${esc(a.study)}: ${esc(a.check)}${a.value && a.value !== LABEL[a.status] ? ` — ${esc(a.value)}` : ''}</td></tr>`).join('')}</table>` : ''}
     ${attention.length > ATTENTION_MAX ? `<p class="note">…and ${attention.length - ATTENTION_MAX} more — all ${attention.length} are listed under “Items needing attention” below.</p>` : ''}</div></div>`;
   // Every failed or unverified check, none left out: the page-1 box shows the first ones, this lists them all.
-  const allItems = attention.length > ATTENTION_MAX ? `<h2>Items needing attention (all ${attention.length})</h2>
+  const allItems = attention.length > ATTENTION_MAX ? `<h2 id="attention">${destMarker('attention', `Items needing attention (all ${attention.length})`)}Items needing attention (all ${attention.length})</h2>
 <table class="grid"><thead><tr><th>Status</th><th>Study</th><th>Item</th><th>Check</th><th>Value</th></tr></thead><tbody>${attention.map((a) => `<tr><td class="${a.status}">${statusSpan(LABEL[a.status])}</td><td>${esc(a.study)}</td><td>${esc(a.item)}</td><td>${esc(a.check)}</td><td>${esc(a.value)}</td></tr>`).join('')}</tbody></table>` : '';
   const cableTypes = [...new Set(project.feeders.map((x) => x.cableType || DEFAULT_CABLE_TYPE))];
   const basis = [
@@ -93,15 +94,15 @@ export function buildReportHtml(project: Project): string {
   const body = `${PLAIN_CSS}${CALC_CSS}
 ${reportHead(project, 'Calculation report', project.calcReportDocNo)}
 
-<h2>Results summary</h2>${summary}
+<h2 id="summary">${destMarker('summary', 'Results summary')}Results summary</h2>${summary}
 ${allItems}
 
-<h2>Design basis</h2><table class="grid"><thead><tr><th>Parameter</th><th>Value</th></tr></thead><tbody>${basis.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('')}</tbody></table>
+<h2 id="basis">${destMarker('basis', 'Design basis')}Design basis</h2><table class="grid"><thead><tr><th>Parameter</th><th>Value</th></tr></thead><tbody>${basis.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('')}</tbody></table>
 
 ${sections.map((s, i) => sectionHtml(s, i + 1)).join('')}
 
-<section class="calc">
-<h2>${sections.length + 1}. Assumptions and limitations</h2><ul>
+<section class="calc" id="assumptions">
+<h2>${destMarker('assumptions', `${sections.length + 1}. Assumptions and limitations`)}${sections.length + 1}. Assumptions and limitations</h2><ul>
   <li>Upstream MV network treated as infinite; transformer %Z split into R and X by its X/R ratio (default 5).</li>
   <li>Fault levels follow IEC 60909-0 in a simplified form, not a full study: maximum currents for breaking capacity with c<sub>max</sub> = 1.05 and cable R at 20 °C; minimum currents for earth-fault disconnection with c<sub>min</sub> = ${0.95} and cable R at operating temperature; transformer correction K<sub>T</sub> not applied; loads, motor contribution and generation are neglected.</li>
   <li>Cable ratings: the rating for each circuit's IEC 60364-5-52 installation method (E free air / tray unless set), derated for air ambient or, for buried cables, ground temperature and soil thermal resistivity, and for grouping (the cable tray route for method E, else the circuit's own parallel runs). A circuit without a rating for its method is DATA REQUIRED.</li>
@@ -110,7 +111,7 @@ ${sections.map((s, i) => sectionHtml(s, i + 1)).join('')}
   <li>Busbar voltages are measured from the main board busbar and exclude transformer regulation.</li>
 </ul>
 <p class="note">Generated by LV Design Studio ${esc(pkg.version)}. ${esc(CALC_DISCLAIMER)} Results must be checked by a qualified engineer before use.${cableDataNotice(project) ? ` <b>${esc(cableDataNotice(project))}</b>` : ''}</p>
-${calcRecordHtml(buildCalcRecord(project, { statuses, warningsAt: 'see the results summary on page 1' }), '<h2>Calculation record</h2>')}
+${calcRecordHtml(buildCalcRecord(project, { statuses, warningsAt: 'see the results summary on page 1' }), `<h2 id="record">${destMarker('record', 'Calculation record')}Calculation record</h2>`)}
 </section>
 `;
 

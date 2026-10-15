@@ -2,6 +2,7 @@ import { currentRevision } from '../model/revisions';
 import type { Project, ReportIssueStatus } from '../types';
 import { esc } from './report';
 import { PRINT as P } from './printStyles';
+import { destMarker } from './outline';
 
 /** The document frame of the design report: cover page, document control,
  * contents, running header / footer and the report typography. Presentation
@@ -127,8 +128,8 @@ export function documentControlHtml(d: ReportDoc): string {
       .map((r) => `<tr><td>${esc(r.id)}</td><td>${esc(r.date)}</td><td>${esc(r.description)}</td><td>${valueOrMissing(r.by)}</td></tr>`).join('')}</tbody></table>`
     : `<p class="warning">No revision has been issued for this project (Revisions → Issue revision). This report is an unissued draft.</p>`;
   return `
-<section class="doc-control">
-  <h2 class="unnumbered">Document control</h2>
+<section class="doc-control" id="doc-control">
+  <h2 class="unnumbered">${destMarker('doc-control', 'Document control')}Document control</h2>
   <h3>Document information</h3>
   <table class="meta">${rows([
     ['Document title', esc(d.title)], ['Document no.', valueOrMissing(d.docNo)], ['Project', esc(d.projectName)], ['Project no.', valueOrMissing(d.projectNo)],
@@ -165,8 +166,8 @@ export function numberSections(tree: { title: string; children?: { title: string
 /** `pages`: the page of each entry (anchor → page), when known from a first print; else no page column. */
 export function tocHtml(entries: TocEntry[], pages?: Record<string, number>): string {
   return `
-<section class="toc">
-  <h2 class="unnumbered">Contents</h2>
+<section class="toc" id="contents">
+  <h2 class="unnumbered">${destMarker('contents', 'Contents')}Contents</h2>
   <ol class="toc-list">${entries.map((e) => `<li class="l${e.level}"><a href="#${e.anchor}"><span class="n">${esc(e.number)}</span>${esc(e.title)}${pages ? `<span class="pg">${pages[e.anchor] ?? ''}</span>` : ''}</a></li>`).join('')}</ol>
 </section>`;
 }

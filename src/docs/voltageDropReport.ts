@@ -3,6 +3,7 @@ import { STATUS_TEXT } from '../calc/statusText';
 import { cableSizeText } from '../calc/electrical';
 import { ATTENTION_MAX, esc, PLAIN_CSS, reportHead, tally } from './report';
 import { statusSpan } from './printStyles';
+import { destMarker } from './outline';
 import { printDoc } from './printDoc';
 import pkg from '../../package.json';
 import type { Project } from '../types';
@@ -86,7 +87,7 @@ export function buildVdReportHtml(project: Project, rows: VdRow[], scope: string
       const lines = rs
         .map((r) => { const c = vdCells(r); return `<tr>${cols.map((i) => (VD_HEADERS[i] === 'Result' ? `<td class="${r.status}">${esc(c[i])}</td>` : `<td${cls(VD_HEADERS[i])}>${esc(c[i])}</td>`)).join('')}</tr>`; })
         .join('');
-      return `<h2>${esc(board.id)} – ${esc(board.name)}${board.kind ? ` (${esc(board.kind)})` : ''}</h2><table class="grid vd"><thead>${head}</thead><tbody>${lines}</tbody></table>`;
+      return `<h2 id="vd-${esc(board.id)}">${destMarker(`vd-${board.id}`, `${board.id} – ${board.name}`)}${esc(board.id)} – ${esc(board.name)}${board.kind ? ` (${esc(board.kind)})` : ''}</h2><table class="grid vd"><thead>${head}</thead><tbody>${lines}</tbody></table>`;
     })
     .join('');
 

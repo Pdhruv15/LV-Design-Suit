@@ -115,6 +115,7 @@ import { applyTemplateSystem, loadTemplates, saveTemplates, templateFrom, type S
 import CheckpointsPanel from './components/docs/CheckpointsPanel';
 const ReceivedDocsView = lazy(() => import('./components/docs/ReceivedDocsView'));
 const SubmissionsView = lazy(() => import('./components/docs/SubmissionsView'));
+const ExportCentre = lazy(() => import('./components/docs/ExportCentre'));
 import { applyBrief, type ProjectBrief } from './model/brief';
 import { defaultsPreview } from './model/setupPreview';
 import { copyProject, isFutureSchema, migrateProject } from './model/projectMigrate';
@@ -1469,6 +1470,7 @@ export default function App() {
               <TrayScheduleView project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />
             )}
             {view === 'received-docs' && <ReceivedDocsView project={project} onChange={(p) => setProject(p)} onStatus={setStatus} />}
+            {view === 'export-centre' && <ExportCentre project={project} run={run} stale={staleKeys} onStatus={setStatus} />}
             {view === 'submissions' && <SubmissionsView project={project} draft={subDraft} me={prefs.profile.name ? initialsOf(prefs.profile.name) : ''} onChange={(p) => { setProject(p, { step: true }); setSubDraft(undefined); }} onStatus={setStatus} />}
             {view === 'review' && <ReviewView project={project} me={prefs.profile.name} run={run} stale={staleKeys} onChange={(p) => setProject(p)} onStatus={setStatus} onGo={(v) => setView(v)} />}
             {view === 'modifications' && <ChangesView project={project} me={prefs.profile.name} run={run} onChange={(p) => setProject(p)} onApply={(p) => setProject(p, { step: true })} onStatus={setStatus} onGo={(v) => setView(v)} />}

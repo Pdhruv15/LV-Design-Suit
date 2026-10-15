@@ -26,7 +26,7 @@ describe('calculation report page 1', () => {
     expect(n).toBeGreaterThan(10);
     expect(html).toContain(`…and ${n - 10} more`);
     // Nothing left out: the full list has one row per unresolved check, each with its status.
-    const all = html.match(/<h2>Items needing attention \(all (\d+)\)<\/h2>\s*<table[\s\S]*?<\/table>/);
+    const all = html.match(/<h2[^>]*>(?:<a class="dest"[^>]*><\/a>)?Items needing attention \(all (\d+)\)<\/h2>\s*<table[\s\S]*?<\/table>/);
     expect(Number(all?.[1])).toBe(n);
     expect(all![0].match(/<tr><td class="(bad|warn)">/g)).toHaveLength(n);
     expect(all![0].match(/<tbody>[\s\S]*<\/tbody>/)![0]).not.toMatch(/>PASS</);
