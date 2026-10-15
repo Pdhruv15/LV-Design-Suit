@@ -53,17 +53,19 @@ export function buildSubmissionRegisterHtml(project: Project, today = new Date()
 export function buildTransmittalHtml(project: Project, s: Submission): string {
   const company = project.drawing?.company?.trim() || project.info?.consultant?.trim() || '';
   const due = dueOf(project, s);
+  const drawings = s.kind === 'Drawings';
   const rows: [string, string][] = [
     ['To', `<b>${esc(s.to)}</b>${s.address ? `<br>${esc(s.address)}` : ''}`], ['Attention', esc(s.attention ?? '')], ['From', esc(company)],
     ['Project', esc([project.name, [project.info?.plotNo ? `Plot ${project.info.plotNo}` : '', project.info?.area ?? ''].filter(Boolean).join(', ')].filter(Boolean).join(' · '))],
+    ['Subject', esc(s.title)],
     ['Date', esc(day(s.date))], ['Your reference', esc(s.yourRef ?? '')],
     ['Purpose', `<b>${esc(s.purpose)}</b>${due ? esc(` — response requested by ${day(due)}`) : ''}`]
   ];
   const body = `<section>
-    <h2>Document transmittal ${esc(s.id)}</h2>
+    <h2>${drawings ? 'Drawing' : 'Document'} transmittal ${esc(s.id)}</h2>
     <table class="kv" style="margin-bottom:5mm"><tbody>${rows.filter(([, v]) => v).map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</tbody></table>
     <table class="b"><colgroup><col style="width:10mm"><col style="width:36mm"><col><col style="width:12mm"><col style="width:20mm"><col style="width:14mm"></colgroup>
-      <thead><tr><th>No.</th><th>Document no.</th><th>Title</th><th>Rev</th><th>Format</th><th>Copies</th></tr></thead>
+      <thead><tr><th>No.</th><th>${drawings ? 'Drawing' : 'Document'} no.</th><th>Title</th><th>Rev</th><th>Format</th><th>Copies</th></tr></thead>
       <tbody>${s.docs.length ? s.docs.map((d, i) => `<tr><td class="c">${i + 1}</td><td>${esc(d.number)}</td><td>${esc(d.title)}</td><td class="c">${esc(d.rev)}</td><td>${esc(d.format ?? 'PDF')}</td><td class="c">${d.copies ?? 1}</td></tr>`).join('') : '<tr><td></td><td colspan="5"><i>No documents listed</i></td></tr>'}</tbody>
     </table>
     ${s.remarks || s.resubmissionOf ? `<h3>Remarks</h3><p class="pre">${esc([s.resubmissionOf ? `Resubmission of ${s.resubmissionOf}.` : '', s.remarks ?? ''].filter(Boolean).join(' '))}</p>` : ''}
@@ -71,7 +73,7 @@ export function buildTransmittalHtml(project: Project, s: Submission): string {
       <tbody><tr><td>Sent by</td><td>${esc(s.sentBy ?? '')}</td><td>${esc(day(s.date))}</td><td class="sig"></td></tr>
       <tr><td>Received by</td><td></td><td></td><td class="sig"></td></tr></tbody></table>
   </section>`;
-  return printDoc(project, { title: `${project.name} — Transmittal ${s.id}`, headRight: 'DOCUMENT TRANSMITTAL', footer: `Transmittal ${s.id} · ${day(s.date)}`, body });
+  return printDoc(project, { title: `${project.name} — Transmittal ${s.id}`, headRight: drawings ? 'DRAWING TRANSMITTAL' : 'DOCUMENT TRANSMITTAL', footer: `Transmittal ${s.id} · ${day(s.date)}`, body });
 }
 
 /** The register and the comments log in Excel. */

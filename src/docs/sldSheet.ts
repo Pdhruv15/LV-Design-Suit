@@ -164,7 +164,7 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
     .cs { position: absolute; right: 0; top: 0; width: ${mm(csW)}; max-height: calc(100% - ${mm(47)}); overflow: hidden; border-left: ${mm(0.25)} solid #000; border-bottom: ${mm(0.25)} solid #000; background: #fff; font-size: ${px(7)}; }
     .cs h5 { margin: 0; padding: ${mm(1)} ${mm(2)}; font-size: ${px(9)}; text-align: center; text-decoration: underline; border-bottom: ${mm(0.25)} solid #000; }
     .cs table { width: 100%; border-collapse: collapse; } .cs td { border-bottom: ${mm(0.15)} solid #000; padding: ${mm(0.6)} ${mm(1)}; vertical-align: middle; }
-    .cs .n { width: ${mm(8)}; text-align: center; } .cs .n span { display: inline-block; min-width: ${mm(4.6)}; line-height: ${mm(4.2)}; border: ${mm(0.25)} solid #c00; border-radius: 50%; font-weight: 700; }
+    .cs .n { width: ${mm(8)}; text-align: center; } .cs .n span { display: inline-block; min-width: ${mm(4.6)}; line-height: ${mm(4.2)}; border: ${mm(0.25)} solid #000; border-radius: 50%; font-weight: 700; }
     .cs p { margin: 0; padding: ${mm(1)} ${mm(2)}; font-size: ${px(7)}; }
     .gen { position: absolute; left: ${mm(1.5)}; bottom: ${mm(1)}; font-size: ${px(6.5)}; color: #555; }
   </style></head><body>

@@ -1,4 +1,5 @@
 import type { Project } from '../types';
+import type { DrawingIssue } from './drawingSet';
 
 /** Submissions: every document sent out for approval, review, tender or information — BOQ, drawing
  * sets, study reports, variations, schedules — with its recipient, due date, the response and the
@@ -69,13 +70,23 @@ export function timeText(p: Project, s: Submission, today: string): string {
   return due && due < today ? `Overdue ${daysBetween(due, today)} d` : `${daysBetween(s.date, today)} d open`;
 }
 
+/** A drawing issue as a submission: the record the register lists and the transmittal prints. */
+export const issueAsSubmission = (t: DrawingIssue): Submission => ({
+  id: t.id, kind: 'Drawings', title: t.description || `Drawing issue ${t.id}`, to: t.to ?? '', purpose: purposeOf(t.purpose), date: t.date, status: 'submitted',
+  docs: t.sheets.map((x) => ({ number: x.number, title: x.title, rev: x.rev, format: 'PDF' })), comments: [], transmittal: t.id
+});
+
 /** Drawing transmittals as submissions, unless one is already recorded for them. */
 function fromTransmittals(p: Project, stored: Submission[]): Submission[] {
   const taken = new Set(stored.map((s) => s.transmittal).filter(Boolean));
-  return (p.drawingSet?.issues ?? []).filter((t) => !taken.has(t.id)).map((t) => ({
-    id: t.id, kind: 'Drawings', title: t.description || `Drawing issue ${t.id}`, to: t.to ?? '', purpose: purposeOf(t.purpose), date: t.date, status: 'submitted',
-    docs: t.sheets.map((x) => ({ number: x.number, title: x.title, rev: x.rev, format: 'PDF' })), comments: [], transmittal: t.id
-  }));
+  return (p.drawingSet?.issues ?? []).filter((t) => !taken.has(t.id)).map(issueAsSubmission);
+}
+
+/** The submission a drawing issue is printed from: the one recorded for it (with its address,
+ * attention and remarks) or, if none, the issue itself. */
+export function submissionForIssue(p: Project, issue: DrawingIssue): Submission {
+  const stored = (p.submissions ?? []).find((s) => s.transmittal === issue.id);
+  return stored ? { ...stored, docs: stored.docs.length ? stored.docs : issueAsSubmission(issue).docs } : issueAsSubmission(issue);
 }
 const purposeOf = (s: string) => PURPOSES.find((x) => x.toLowerCase() === s.trim().toLowerCase()) ?? (s.trim() ? s.trim().charAt(0).toUpperCase() + s.trim().slice(1).toLowerCase() : 'For approval');
 

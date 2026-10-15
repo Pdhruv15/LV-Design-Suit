@@ -232,34 +232,9 @@ export function autoSize(widthPx: number, heightPx: number, reserveW = 0): { siz
   return { size: 'A1', scale: scaleOn('A1', widthPx, heightPx, reserveW), fits: false };
 }
 
-/** The drawing register (cover page of the set): project details, every
- * sheet with its revision, date and status, and the issue history. */
+/** One sheet's line in the drawing register (src/docs/drawingRegister.ts). */
 export interface RegisterRow { number: string; title: string; size: string; rev?: string; date?: string; status?: string }
-export function registerHtml(p: Project, rows: RegisterRow[], rev: string, date: string, issues: DrawingIssue[] = [], company = ''): string {
-  const esc = escH;
-  const recent = issues.slice(-8).reverse();
-  return `<!doctype html><html><head><meta charset="utf-8"><title>Drawing register</title><style>
-  @page { size: A4 portrait; margin: 16mm; } body { font: 11px Arial, sans-serif; color: #000; }
-  .co { font-weight: bold; font-size: 13px; } h1 { font-size: 18px; margin: 2px 0 8px; } h2 { font-size: 13px; margin: 14px 0 0; } .m { color: #555; }
-  table { width: 100%; border-collapse: collapse; margin-top: 6px; }
-  th, td { border: 1px solid #000; padding: 4px 6px; text-align: left; } th { background: #f2f2f2; }
-  .kv td:first-child { width: 24%; background: #f2f2f2; font-weight: bold; }
-  </style></head><body><div class="co">${esc(company)}</div><h1>Drawing register — single line diagrams</h1>
-  <table class="kv"><tbody>
-  <tr><td>Project</td><td>${esc(p.name)}</td></tr>
-  <tr><td>Owner / client</td><td>${esc(p.info?.owner ?? '')}</td></tr>
-  <tr><td>Consultant</td><td>${esc(p.info?.consultant ?? '')}</td></tr>
-  <tr><td>Plot no. / area</td><td>${esc([p.info?.plotNo, p.info?.area].filter(Boolean).join(' · '))}</td></tr>
-  <tr><td>Sheets</td><td>${rows.length}</td></tr>
-  </tbody></table>
-  <h2>Drawings</h2>
-  <table><thead><tr><th style="width:5%">#</th><th style="width:18%">Drawing no.</th><th>Title</th><th style="width:7%">Size</th><th style="width:7%">Rev</th><th style="width:12%">Date</th><th style="width:17%">Status</th></tr></thead><tbody>
-  ${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.number)}</td><td>${esc(r.title)}</td><td>${esc(r.size)}</td><td>${esc(r.rev || rev)}</td><td>${esc(r.date || date)}</td><td>${esc(r.status ?? '')}</td></tr>`).join('')}
-  </tbody></table>
-  ${recent.length ? `<h2>Issue history</h2><table><thead><tr><th style="width:11%">Issue</th><th style="width:12%">Date</th><th style="width:20%">Purpose</th><th>Description</th><th style="width:14%">To</th><th style="width:8%">Sheets</th></tr></thead><tbody>
-  ${recent.map((x) => `<tr><td>${esc(x.id)}</td><td>${esc(x.date)}</td><td>${esc(x.purpose)}</td><td>${esc(x.description)}</td><td>${esc(x.to ?? '')}</td><td>${x.sheets.length}</td></tr>`).join('')}</tbody></table>` : ''}
-  </body></html>`;
-}
+
 
 /** Next revision: A→B, Z→AA, 0→1, P1→P2, C2→C3; blank → A. */
 export function nextRev(r?: string): string {
@@ -344,32 +319,7 @@ export function statusColor(status?: string): string {
   return s ? '#6d28d9' : '#94a3b8';
 }
 
-const escH = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
-/** A transmittal: which sheets were issued, at which revision, to whom and why. */
-export function transmittalHtml(p: Project, issue: DrawingIssue, company = ''): string {
-  return `<!doctype html><html><head><meta charset="utf-8"><title>Transmittal ${escH(issue.id)}</title><style>
-  @page { size: A4 portrait; margin: 16mm; } body { font: 11px Arial, sans-serif; color: #000; }
-  h1 { font-size: 18px; margin: 0; } .co { font-weight: bold; font-size: 13px; } .m { color: #555; }
-  table { width: 100%; border-collapse: collapse; margin-top: 10px; } th, td { border: 1px solid #000; padding: 4px 6px; text-align: left; } th { background: #f2f2f2; }
-  .kv td:first-child { width: 28%; background: #f2f2f2; font-weight: bold; } .sign { margin-top: 28px; display: flex; gap: 40px; } .sign div { flex: 1; border-top: 1px solid #000; padding-top: 4px; }
-  </style></head><body>
-  <div class="co">${escH(company)}</div><h1>Drawing transmittal ${escH(issue.id)}</h1>
-  <table class="kv"><tbody>
-  <tr><td>Project</td><td>${escH(p.name)}</td></tr>
-  <tr><td>Owner / client</td><td>${escH(p.info?.owner ?? '')}${p.info?.plotNo ? ` · Plot ${escH(p.info.plotNo)}` : ''}</td></tr>
-  <tr><td>To</td><td>${escH(issue.to ?? '')}</td></tr>
-  <tr><td>Date</td><td>${escH(issue.date)}</td></tr>
-  <tr><td>Purpose of issue</td><td>${escH(issue.purpose)}</td></tr>
-  <tr><td>Description</td><td>${escH(issue.description)}</td></tr>
-  </tbody></table>
-  <table><thead><tr><th style="width:6%">#</th><th style="width:22%">Drawing no.</th><th>Title</th><th style="width:8%">Rev</th><th style="width:10%">Copies</th></tr></thead><tbody>
-  ${issue.sheets.map((s, i) => `<tr><td>${i + 1}</td><td>${escH(s.number)}</td><td>${escH(s.title)}</td><td>${escH(s.rev)}</td><td>1 (PDF)</td></tr>`).join('')}
-  </tbody></table>
-  <p class="m">${issue.sheets.length} drawing(s).</p>
-  <div class="sign"><div>Issued by</div><div>Received by (name, signature, date)</div></div>
-  </body></html>`;
-}
 
 /** Fingerprint of what a sheet draws (its panels, their circuits and the
  * values on them) — compared with the one stored when it was issued. */

@@ -1,7 +1,10 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import ExcelJS from 'exceljs';
-import { filterSheets, issueSheets, moveSheet, nextRev, registerHtml, sheetRev, transmittalHtml, type DrawingSet } from './drawingSet';
+import { filterSheets, issueSheets, moveSheet, nextRev, sheetRev, type DrawingSet } from './drawingSet';
+import { registerHtml } from '../docs/drawingRegister';
+import { buildTransmittalHtml } from '../docs/submissionReport';
+import { submissionForIssue } from './submissions';
 import { buildRegisterWorkbook, buildTransmittalWorkbook } from '../docs/registerWorkbook';
 import type { Project } from '../types';
 
@@ -36,7 +39,16 @@ describe('revisions and issues', () => {
     expect(two.set.sheets[0].history?.map((h) => h.rev)).toEqual(['A', 'B']);
     expect(sheetRev(two.set.sheets[1])).toBe('A');
     expect(two.set.issues).toHaveLength(2);
-    expect(transmittalHtml(project, two.issue)).toContain('DEWA comments');
+    // The drawing transmittal is the document transmittal of the issue's submission record.
+    const tx = buildTransmittalHtml(project, submissionForIssue(project, two.issue));
+    expect(tx).toContain('Drawing transmittal T-002');
+    expect(tx).toContain('DEWA comments');
+    expect(tx).toContain('E-SLD-001');
+    // A submission recorded for the issue (address, attention, remarks) is the one printed.
+    const recorded = { ...project, submissions: [{ id: 'SUB-001', kind: 'Drawings', title: 'DEWA comments', to: 'DEWA', address: 'Al Hudaiba', purpose: 'For construction', date: '2026-10-09', status: 'submitted', docs: [], comments: [], transmittal: 'T-002' }] } as unknown as typeof project;
+    const tx2 = buildTransmittalHtml(recorded, submissionForIssue(recorded, two.issue));
+    expect(tx2).toContain('Al Hudaiba');
+    expect(tx2).toContain('E-SLD-001');
   });
   it('filters, sorts and reorders', () => {
     const s = set();

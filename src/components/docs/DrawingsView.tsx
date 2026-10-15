@@ -4,7 +4,7 @@ import type { CalcRun } from '../../calc/runs';
 import { LAYER_LABELS, SHEET_LAYERS } from '../../diagram/annotations';
 import { boardsInSupplyOrder } from '../../calc/summary';
 import {
-  addEarthingSheet, addRiserSheet, autoSheets, drawable, filterSheets, sheetHash, issueSheets, moveSheet, nextRev, registerHtml, renumber, setOf, SHEET_STATUSES, sheetNumber, sheetRev, sheetsByCount, SIZES, statusColor, transmittalHtml,
+  addEarthingSheet, addRiserSheet, autoSheets, drawable, filterSheets, sheetHash, issueSheets, moveSheet, nextRev, renumber, setOf, SHEET_STATUSES, sheetNumber, sheetRev, sheetsByCount, SIZES, statusColor,
   type DrawingIssue, type DrawingSet, type DrawingSheet, type IssueInput, type SheetFilter, type SheetSize, type SheetSort
 } from '../../model/drawingSet';
 import { currentRevision } from '../../model/revisions';
@@ -12,6 +12,9 @@ import { loadTemplateLibrary } from '../../model/titleBlock';
 /** Excel export loads ExcelJS only when used (this view is part of the SLD workspace, loaded at start). */
 const excel = async () => ({ ...(await import('../../docs/formWorkbook')), ...(await import('../../docs/registerWorkbook')) });
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
+import { registerHtml } from '../../docs/drawingRegister';
+import { buildTransmittalHtml } from '../../docs/submissionReport';
+import { submissionForIssue } from '../../model/submissions';
 import { exportDrawingSet, exportEverythingZip, exportSheetsDxf, registerRows, sheetHtml, SheetPreview } from './sheetRender';
 import SheetGrid from './SheetGrid';
 import { Page } from '../ui';
@@ -107,9 +110,9 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
 
   async function run1(key: string, f: () => Promise<void>) { setBusy(key); setExportOpen(false); try { await f(); } finally { setBusy(''); } }
   const exportSet = (each: boolean, only?: string[]) => run1('set', () => exportDrawingSet(project, set, run, each, onStatus, only, true));
-  const exportRegisterPdf = () => run1('reg', async () => { const m = await savePdf(`${safeFileName(project.name)} - drawing register.pdf`, registerHtml(project, registerRows(set, [], rev?.id), rev?.id ?? '—', rev?.date ?? new Date().toISOString().slice(0, 10), set.issues, company), { pageSize: 'A4' }); if (m) onStatus(m); });
+  const exportRegisterPdf = () => run1('reg', async () => { const m = await savePdf(`${safeFileName(project.name)} - drawing register.pdf`, registerHtml(project, registerRows(set, [], rev?.id), rev?.id ?? '—', rev?.date ?? new Date().toISOString().slice(0, 10), set.issues, company), { pageSize: 'A4', cssPages: true, selfNumbered: true }); if (m) onStatus(m); });
   const exportRegisterXlsx = () => run1('reg', async () => { const m = await saveBinary(`${safeFileName(project.name)} - drawing register.xlsx`, await excel().then((x) => x.workbookBytes(x.buildRegisterWorkbook(project, set))), 'Excel', 'xlsx', XLSX); if (m) onStatus(m); });
-  async function transmittalPdf(x: DrawingIssue) { const m = await savePdf(`${safeFileName(`${project.name} - transmittal ${x.id}`)}.pdf`, transmittalHtml(project, x, company), { pageSize: 'A4' }); if (m) onStatus(m); }
+  async function transmittalPdf(x: DrawingIssue) { const m = await savePdf(`${safeFileName(`${project.name} - transmittal ${x.id}`)}.pdf`, buildTransmittalHtml(project, submissionForIssue(project, x)), { pageSize: 'A4', cssPages: true, selfNumbered: true }); if (m) onStatus(m); }
   async function transmittalExcel(x: DrawingIssue) { const m = await saveBinary(`${safeFileName(`${project.name} - transmittal ${x.id}`)}.xlsx`, await excel().then((e) => e.workbookBytes(e.buildTransmittalWorkbook(project, x))), 'Excel', 'xlsx', XLSX); if (m) onStatus(m); }
   async function preview1(s: DrawingSheet) {
     setBusy(s.id);
