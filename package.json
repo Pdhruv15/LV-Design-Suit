@@ -17,7 +17,8 @@
     "test:watch": "vitest",
     "update-app": "bash scripts/update-app.sh",
     "bench": "vitest run -c tests/performance/vitest.config.ts",
-    "test:pdf": "vitest run -c tests/pdf/vitest.config.ts"
+    "test:pdf": "vitest run -c tests/pdf/vitest.config.ts",
+    "test:pdf:update": "UPDATE_BASELINES=1 vitest run -c tests/pdf/vitest.config.ts tests/pdf/visual.pdf.ts"
   },
   "dependencies": {
     "docx": "^9.8.1",
@@ -30,6 +31,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
+    "@types/pngjs": "^6.0.5",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^6.1.1",
@@ -39,6 +41,9 @@
     "eslint": "^9.39.5",
     "eslint-plugin-react-hooks": "^5.2.0",
     "globals": "^17.13.0",
+    "pdfjs-dist": "^6.4.299",
+    "pixelmatch": "^8.0.0",
+    "pngjs": "^7.0.0",
     "typescript": "^5.5.4",
     "typescript-eslint": "^8.71.1",
     "vite": "^8.3.1",

@@ -89,7 +89,8 @@ npm run typecheck   # TypeScript
 npm run lint        # ESLint, no warnings allowed
 npm test            # unit tests (Vitest), src/**/*.test.ts
 npm run build       # production build
-npm run test:pdf    # reports printed through Electron's Chromium (needs Electron's binary)
+npm run test:pdf    # reports printed through Electron's Chromium (needs Electron's binary); pages compared with tests/pdf/baselines
+npm run test:pdf:update  # new layout baselines, after an intended layout change
 npm run bench       # calculation performance on large networks
 ```
 
