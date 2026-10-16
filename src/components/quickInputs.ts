@@ -37,7 +37,8 @@ export function quickInputErrors(card: string, values: QuickValues, cableSizes: 
     case 'cable': rules = { i: positive('Design current'), v: positive('Voltage'), ph: supply, l: magnitude('Length'), pf: factor('Power factor', true), amb: { label: 'Ambient temperature', min: 25, max: 70 }, g: factor('Grouping factor'), vd: limit }; break;
     case 'vd': rules = { i: magnitude('Current'), v: positive('Voltage'), ph: supply, l: magnitude('Length'), pf: factor('Power factor', true), runs, csa: cable, lim: limit }; break;
     case 'tx': rules = { kva: positive('Transformer rating'), v: positive('Voltage'), z: positive('Impedance') }; break;
-    case 'motor': rules = { p: magnitude('Output power'), v: positive('Voltage'), ph: supply, pf: factor('Power factor'), eff: factor('Efficiency'), unit: { label: 'Unit', choices: ['kW', 'HP'] }, st: { label: 'Starter', choices: ['DOL', 'SD', 'SS', 'VFD'] } }; break;
+    case 'motor': rules = { p: magnitude('Output power'), v: positive('Voltage'), ph: supply, pf: factor('Power factor'), eff: factor('Efficiency'), unit: { label: 'Unit', choices: ['kW', 'HP'] }, st: { label: 'Starter', choices: ['DOL', 'SD', 'SS', 'VFD'] },
+      src: { label: 'Source', choices: ['tx', 'gen'] }, skva: positive('Source rating'), sz: { ...positive(values.src === 'gen' ? 'Generator X″d' : 'Transformer impedance'), max: 100 }, dl: { ...positive('Dip limit'), max: 100 } }; break;
     case 'pfc': rules = { kw: positive('Active power'), now: factor('Present power factor'), target: factor('Target power factor') }; break;
     case 'fault':
       rules = { src: { label: 'Source', choices: ['tx', 'ka'] }, v: positive('Voltage'), l: magnitude('Length'), runs, csa: cable };

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  awgToMm2, cableCandidates, cableFor, pfcBank, currentFromPower, energy, faultAtCableEnd, faultFromTransformer, kcmilToMm2, mm2ToAwg, motor, nextBreaker, ohm, pfCorrection,
+  awgToMm2, cableCandidates, cableFor, pfcBank, startingDip, currentFromPower, energy, faultAtCableEnd, faultFromTransformer, kcmilToMm2, mm2ToAwg, motor, nextBreaker, ohm, pfCorrection,
   powerFromCurrent, transformer, triangle, voltageDrop
 } from './quick';
 
@@ -89,5 +89,11 @@ describe('quick calculators', () => {
     expect(pfcBank(214.6)).toEqual({ stepKvar: 30, steps: 8, totalKvar: 240 });
     expect(pfcBank(40)).toEqual({ stepKvar: 5, steps: 8, totalKvar: 40 });
     expect(pfcBank(0)).toBeUndefined();
+  });
+
+  it('motor starting dip ≈ S start ÷ (S start + S sc)', () => {
+    expect(startingDip(500, 1000, 5)).toBeCloseTo((500 / (500 + 20000)) * 100, 6); // 2.44 %
+    expect(startingDip(500, 500, 15)).toBeCloseTo((500 / (500 + 3333.33)) * 100, 3); // generator, ~13 %
+    expect(startingDip(500, 0, 5)).toBeNaN();
   });
 });

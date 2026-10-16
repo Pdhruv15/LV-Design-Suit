@@ -84,7 +84,7 @@ describe('Quick calculator rendered input and result behavior', () => {
   it.each([
     ['vd', 'Voltage drop along the cable'],
     ['tx', 'Standard ratings at'],
-    ['motor', 'Starting current by starter'],
+    ['motor', 'Starting by starter'],
     ['pfc', 'Before and after correction'],
     ['fault', 'Fault level along the cable'],
     ['energy', 'Per year (365 days)'],
@@ -102,6 +102,15 @@ describe('Quick calculator rendered input and result behavior', () => {
     expect(value(two, 'mV/A/m (2 runs)')).toBeCloseTo(value(one, 'mV/A/m') / 2, 2);
     // ΔV = mV/A/m × I × L ÷ 1000
     expect(value(two, 'Volts')).toBeCloseTo((value(two, 'mV/A/m (2 runs)') * 100 * 100) / 1000, 1);
+  });
+
+  it('motor: voltage dip at the source per starter, flagged against the limit', () => {
+    const tx = card(render({ motor: { p: '11', src: 'tx', skva: '1000', sz: '5', dl: '15' } }), 'Motor');
+    expect(tx).toContain('Voltage dip at source');
+    expect(tx).toContain('Within the 15 % dip limit');
+    const gen = card(render({ motor: { p: '160', st: 'DOL', src: 'gen', skva: '250', sz: '15', dl: '15' } }), 'Motor');
+    expect(gen).toContain('Over the 15 % dip limit');
+    expect(gen).toContain('250 kVA generator, X″d 15 %');
   });
 
   it('hides the right-hand panel while an input is invalid', () => {

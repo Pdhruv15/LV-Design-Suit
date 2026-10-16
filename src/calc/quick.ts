@@ -256,3 +256,13 @@ export function pfcBank(kvar: number, maxSteps = 8): { stepKvar: number; steps: 
   const steps = Math.ceil(kvar / stepKvar - 1e-9);
   return { stepKvar, steps, totalKvar: steps * stepKvar };
 }
+
+/** Approximate voltage dip at the source while a motor starts:
+ * ΔU % ≈ S_start ÷ (S_start + S_sc) × 100, with S_sc = S_source ÷ Z
+ * (transformer uk, or generator X″d). Ignores cable impedance and the
+ * starting power factor, so it is a screening figure, not a study. */
+export function startingDip(startKva: number, sourceKva: number, impedancePct: number): number {
+  if (!nonnegative(startKva) || !positive(sourceKva) || !positive(impedancePct)) return NaN;
+  const scKva = sourceKva / (impedancePct / 100);
+  return (startKva / (startKva + scKva)) * 100;
+}

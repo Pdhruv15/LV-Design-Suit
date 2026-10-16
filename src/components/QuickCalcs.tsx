@@ -2,7 +2,7 @@ import { createContext, useContext, useId, useState, type ReactNode } from 'reac
 import { ambientCorrectionFactor, getCable } from '../calc/cableTable';
 import {
   awgLabel, awgToMm2, cableCandidates, cableFor, cableSizes, currentFromPower, energy, faultAtCableEnd, faultFromTransformer, HP_KW, kcmilToMm2, mm2ToAwg,
-  motor, nextBreaker, ohm, pfCorrection, powerFromCurrent, transformer, triangle, pfcBank, TX_RATINGS_KVA, voltageDrop, type Phases, type PowerUnit, type Triangle
+  motor, nextBreaker, ohm, pfCorrection, powerFromCurrent, transformer, triangle, pfcBank, startingDip, TX_RATINGS_KVA, voltageDrop, type Phases, type PowerUnit, type Triangle
 } from '../calc/quick';
 import { LUX_TARGETS, lumenMethod, REFLECTANCES } from '../calc/lighting';
 import { STARTERS } from '../calc/motor';
@@ -218,7 +218,7 @@ export default function QuickCalcs({ project }: { project: Project }) {
   const tRes = Object.keys(tErrors).length ? undefined : transformer(num(t.kva)!, num(t.v)!, num(t.z)!);
 
   // 7 · Motor
-  const [m, setM, resetM] = useInputs('motor', { p: '11', unit: 'kW', ph: '3', v: V3, pf: '0.85', eff: '0.9', st: 'DOL' });
+  const [m, setM, resetM] = useInputs('motor', { p: '11', unit: 'kW', ph: '3', v: V3, pf: '0.85', eff: '0.9', st: 'DOL', src: 'tx', skva: '1000', sz: '5', dl: '15' });
   const mKw = m.unit === 'HP' ? (num(m.p) ?? NaN) * HP_KW : num(m.p) ?? NaN;
   const mErrors = quickInputErrors('motor', m);
   const mRes = Object.keys(mErrors).length ? undefined : motor(mKw, num(m.v)!, +m.ph as Phases, num(m.pf)!, num(m.eff)!, m.st as StarterType);
@@ -309,16 +309,23 @@ export default function QuickCalcs({ project }: { project: Project }) {
   }
   if (mRes && !mRes.invalid) {
     const V = num(m.v)!, k = m.ph === '3' ? Math.sqrt(3) : 1;
+    const skva = num(m.skva)!, sz = num(m.sz)!, dl = num(m.dl)!;
+    const startKva = (mult: number) => (k * V * mRes.flc * mult) / 1000;
+    const dip = (mult: number) => startingDip(startKva(mult), skva, sz);
+    const src = m.src === 'gen' ? `${fmt(skva, 0)} kVA generator, X″d ${fmt(sz)} %` : `${fmt(skva, 0)} kVA transformer, Z ${fmt(sz)} %`;
     asides.motor = <>
-      <RefTable title="Starting current by starter" head={['Starter', '× FLC', 'Starting current', 'Starting kVA']} highlight={STARTERS.findIndex((x2) => x2.value === m.st)}
-        rows={STARTERS.map((x2) => [x2.label, `× ${x2.multiple}`, `${fmt(mRes.flc * x2.multiple, 0)} A`, `${fmt((k * V * mRes.flc * x2.multiple) / 1000, 0)} kVA`])}
-        note="Typical multiples. Use the starter maker's figures for the final check." />
+      <RefTable title={`Starting by starter — ${src}`} head={['Starter', '× FLC', 'Starting current', 'Starting kVA', 'Voltage dip', `≤ ${fmt(dl)} %`]} highlight={STARTERS.findIndex((x2) => x2.value === m.st)}
+        rows={STARTERS.map((x2) => [x2.label, `× ${x2.multiple}`, `${fmt(mRes.flc * x2.multiple, 0)} A`, `${fmt(startKva(x2.multiple), 0)} kVA`, `${fmt(dip(x2.multiple), 1)} %`, dip(x2.multiple) <= dl ? '✓' : '✗'])}
+        note="Typical starter multiples. The dip is at the source terminals and ignores the cable, so the motor terminals see a little more. Check against the generator maker's and the authority's limits." />
       <Steps lines={[
         ...(m.unit === 'HP' ? [`P = ${fmt(num(m.p)!)} HP × 0.7457 = ${fmt(mKw)} kW`] : []),
         `P in = ${fmt(mKw)} ÷ η ${fmt(num(m.eff)!)} = ${fmt(mRes.inputKw)} kW`,
         `S = ${fmt(mRes.inputKw)} ÷ PF ${fmt(num(m.pf)!)} = ${fmt(mRes.inputKva)} kVA`,
         `FLC = ${fmt(mRes.inputKva)} × 1000 ÷ (${sq3(m.ph)}${fmt(V, 0)}) = ${fmt(mRes.flc, 1)} A`,
-        `I start = ${fmt(mRes.flc, 1)} × ${mRes.multiple} = ${fmt(mRes.startA, 0)} A`
+        `I start = ${fmt(mRes.flc, 1)} × ${mRes.multiple} = ${fmt(mRes.startA, 0)} A`,
+        `S start = ${sq3(m.ph)}${fmt(V, 0)} × ${fmt(mRes.startA, 0)} ÷ 1000 = ${fmt(startKva(mRes.multiple), 0)} kVA`,
+        `S sc = ${fmt(skva, 0)} ÷ ${fmt(sz / 100, 3)} = ${fmt(skva / (sz / 100), 0)} kVA`,
+        `ΔU = ${fmt(startKva(mRes.multiple), 0)} ÷ (${fmt(startKva(mRes.multiple), 0)} + ${fmt(skva / (sz / 100), 0)}) × 100 = ${fmt(dip(mRes.multiple), 1)} %`
       ]} />
     </>;
   }
@@ -455,8 +462,9 @@ export default function QuickCalcs({ project }: { project: Project }) {
           <Field label="Impedance Z" v={t} k="z" set={setT} unit="%" width={60} />
         </Card>
 
-        <Card id="motor" aside={asides.motor} title="Motor" errors={mErrors} onReset={resetM} formula="FLC = P ÷ (√3 · V · PF · η);  starting current = FLC × starter multiple"
-          result={mRes?.invalid ? <Warn>{mRes.invalid}</Warn> : mRes ? <><Out main label="Full-load current" value={fmt(mRes.flc, 1)} unit="A" /><Out main label="Starting current" value={fmt(mRes.startA, 0)} unit="A" /><Out label="Input" value={`${fmt(mRes.inputKw, 1)} kW · ${fmt(mRes.inputKva, 1)} kVA`} /><Out label={m.unit === 'HP' ? 'Output' : 'Output (HP)'} value={m.unit === 'HP' ? `${fmt(mKw, 2)} kW` : `${fmt(mRes.hp, 1)} HP`} /></> : null}>
+        <Card id="motor" aside={asides.motor} title="Motor" errors={mErrors} onReset={resetM} formula="FLC = P ÷ (√3 · V · PF · η);  starting current = FLC × starter multiple;  dip ≈ S start ÷ (S start + S source ÷ Z)"
+          result={mRes?.invalid ? <Warn>{mRes.invalid}</Warn> : mRes ? <><Out main label="Full-load current" value={fmt(mRes.flc, 1)} unit="A" /><Out main label="Starting current" value={fmt(mRes.startA, 0)} unit="A" /><Out label="Input" value={`${fmt(mRes.inputKw, 1)} kW · ${fmt(mRes.inputKva, 1)} kVA`} /><Out label={m.unit === 'HP' ? 'Output' : 'Output (HP)'} value={m.unit === 'HP' ? `${fmt(mKw, 2)} kW` : `${fmt(mRes.hp, 1)} HP`} />
+            {(() => { const dip = startingDip(((m.ph === '3' ? Math.sqrt(3) : 1) * num(m.v)! * mRes.startA) / 1000, num(m.skva)!, num(m.sz)!); return <><Out label="Voltage dip at source" value={fmt(dip, 1)} unit="%" /><p className={dip > num(m.dl)! ? 'qc-bad' : 'qc-ok'}>{dip > num(m.dl)! ? `Over the ${fmt(num(m.dl)!)} % dip limit — try a softer starter or a larger source` : `Within the ${fmt(num(m.dl)!)} % dip limit`}</p></>; })()}</> : null}>
           <Field label="Output power" v={m} k="p" set={setM} />
           <Pick field="unit" label="Unit" value={m.unit} options={[['kW', 'kW'], ['HP', 'HP']]} onChange={(x) => setM('unit', x)} />
           <Pick field="ph" label="Supply" value={m.ph} options={PHASES} onChange={(x) => { setM('ph', x); setM('v', phaseV(x, project)); }} />
@@ -464,6 +472,10 @@ export default function QuickCalcs({ project }: { project: Project }) {
           <Field label="Power factor" v={m} k="pf" set={setM} width={60} />
           <Field label="Efficiency η" v={m} k="eff" set={setM} width={60} />
           <Pick field="st" label="Starter" value={m.st} options={STARTERS.map((s) => [s.value, `${s.label} (× ${s.multiple})`] as [string, string])} onChange={(x) => setM('st', x)} />
+          <Pick field="src" label="Source" value={m.src} options={[['tx', 'Transformer'], ['gen', 'Generator']]} onChange={(x) => { setM('src', x); setM('sz', x === 'gen' ? '15' : '5'); }} />
+          <Field label={m.src === 'gen' ? 'Generator rating' : 'Transformer rating'} v={m} k="skva" set={setM} unit="kVA" />
+          <Field label={m.src === 'gen' ? 'X″d (subtransient)' : 'Impedance Z'} v={m} k="sz" set={setM} unit="%" width={60} />
+          <Field label="Dip limit" v={m} k="dl" set={setM} unit="%" width={60} />
         </Card>
 
         <Card id="pfc" aside={asides.pfc} title="Power factor correction" errors={pErrors} onReset={resetP} formula="kVAr = P · (tan φ1 − tan φ2)"
