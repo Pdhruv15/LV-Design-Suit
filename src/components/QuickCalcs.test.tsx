@@ -5,10 +5,13 @@ import QuickCalcs from './QuickCalcs';
 
 type SavedInputs = Record<string, Record<string, string>>;
 
-/** Renders with the first saved calculator's tab open (or `tab`, if given). */
-function render(saved: SavedInputs = {}, tab = Object.keys(saved)[0]) {
-  const items = new Map(Object.entries(saved).map(([card, values]) => [`lvds.quick.${card}`, JSON.stringify(values)]));
-  if (tab) items.set('lvds.quick.tab', tab);
+const POWER_CARDS = ['amps', 'power', 'triangle'];
+/** Renders with the first saved calculator open (or `card`, if given); the
+ * three power calculators share the Power & current tab. */
+function render(saved: SavedInputs = {}, card = Object.keys(saved)[0]) {
+  const items = new Map(Object.entries(saved).map(([key, values]) => [`lvds.quick.${key}`, JSON.stringify(values)]));
+  if (card) items.set('lvds.quick.tab', POWER_CARDS.includes(card) ? 'power' : card);
+  if (POWER_CARDS.includes(card)) items.set('lvds.quick.powerMode', JSON.stringify({ m: card }));
   vi.stubGlobal('localStorage', {
     getItem: (key: string) => items.get(key) ?? null,
     setItem: vi.fn(),
@@ -40,22 +43,60 @@ beforeEach(() => vi.unstubAllGlobals());
 afterEach(() => vi.unstubAllGlobals());
 
 describe('Quick calculator rendered input and result behavior', () => {
-  const TABS = ['amps', 'power', 'triangle', 'cable', 'vd', 'tx', 'motor', 'pfc', 'fault', 'lux', 'ohm', 'energy', 'units'];
+  const CARDS = ['amps', 'power', 'triangle', 'cable', 'vd', 'tx', 'motor', 'pfc', 'fault', 'lux', 'ohm', 'energy', 'units'];
 
-  it('shows a tab for each of the 13 calculators and only the open one', () => {
+  it('shows 11 tabs (the power calculators share one) and only the open calculator', () => {
     const html = render();
-    expect(html.match(/role="tab"/g)).toHaveLength(13);
+    expect(html.match(/role="tab"/g)).toHaveLength(11);
     expect(html.match(/<section class="qc-card/g)).toHaveLength(1);
     expect(html).toContain('<h4>Current from power</h4>');
   });
 
-  it.each(TABS)('renders the %s calculator with valid defaults', (tab) => {
-    const html = render({}, tab);
+  it.each(CARDS)('renders the %s calculator with valid defaults', (key) => {
+    const html = render({}, key);
     expect(html.match(/<section class="qc-card/g)).toHaveLength(1);
-    expect(html).toContain(`id="qc-panel-${tab}"`);
+    expect(html).toContain(`data-card="${key}"`);
     expect(html).not.toContain('qc-field-error');
     expect(html).not.toContain('aria-invalid="true"');
     expect(html).not.toContain('Correct the highlighted inputs');
+  });
+
+  it.each(POWER_CARDS)('the %s calculator shows the power triangle, worked steps and supply values', (key) => {
+    const html = render({}, key);
+    expect(html).toContain('class="qc-triangle"');
+    expect(html).toContain('Worked steps');
+    expect(html).toContain('Size the cable for');
+  });
+
+  it('kW and PF: worked steps carry the numbers', () => {
+    const html = render({ triangle: { known: 'kw-pf', x: '80', y: '0.8' } });
+    expect(html).toContain('kVA = kW ÷ PF = 80 ÷ 0.8 = 100');
+    expect(html).toContain('φ = acos PF = 36.9°');
+  });
+
+  it('cable: lists the sizes checked with the selected one marked', () => {
+    const section = card(render({ cable: { i: '160', l: '50', amb: '45', g: '1', vd: '4' } }), 'Cable & breaker size');
+    expect(section).toContain('Sizes checked');
+    expect(section.match(/class="chosen"/g)).toHaveLength(1);
+    expect(section).toContain('Worked steps');
+  });
+
+  it.each([
+    ['vd', 'Voltage drop along the cable'],
+    ['tx', 'Standard ratings at'],
+    ['motor', 'Starting current by starter'],
+    ['pfc', 'Before and after correction'],
+    ['fault', 'Fault level along the cable'],
+    ['energy', 'Per year (365 days)'],
+    ['units', 'AWG to mm²']
+  ])('the %s calculator shows its right-hand panel', (key, text) => {
+    const html = render({}, key);
+    expect(html).toContain('class="qc-aside"');
+    expect(html).toContain(text);
+  });
+
+  it('hides the right-hand panel while an input is invalid', () => {
+    expect(render({ vd: { pf: '-0.8' } })).not.toContain('class="qc-aside"');
   });
 
   it('draws the lux layout plan with the grid and setting-out dimensions', () => {
