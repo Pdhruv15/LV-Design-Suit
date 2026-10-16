@@ -168,8 +168,8 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
       const it = L.items.find((i) => i.key === pit.itemKey)!;
       add('I', `earth-pit:${L.electrodeM}:${pit.kind}`, `Earth pit (${kindInfo(pit.kind).label}): ${L.electrodeM} m copper-bonded earth electrode with inspection pit and cover, tested`, 'no', 1, it.equipment);
     }
-    const bonded = L.items.filter((i) => i.bondedTo && i.pits === 0).length;
-    if (bonded) add('I', `earth-bond:${L.conductorMm2}`, `Bonding conductor 1C × ${L.conductorMm2} mm² Cu/PVC G/Y, transformer body earth bar to RMU earth bar (length to site)`, 'no', bonded, 'Earthing schematic');
+    const bodies = L.items.filter((i) => i.sharesPitsOf && i.pits === 0).length;
+    if (bodies) add('I', `earth-body:${L.conductorMm2}`, `Earth conductor 1C × ${L.conductorMm2} mm² Cu/PVC G/Y, transformer tank / body earth bar to the RMU earth bar (length to site)`, 'no', bodies, 'Earthing schematic');
     if (L.links.length) add('I', `earth-link:${L.conductorMm2}`, `Earth pit interconnection 1C × ${L.conductorMm2} mm² Cu (length to site)`, 'no', L.links.length, 'Earthing schematic');
   }
 

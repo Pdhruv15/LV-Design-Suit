@@ -176,6 +176,7 @@ table.compact th,table.compact td{padding:5px 8px}
 .form-kv{display:grid;grid-template-columns:fit-content(42%) minmax(0,1fr);gap:6px 10px;align-items:center;margin-bottom:10px}
 .form-kv label{display:contents;color:var(--mut)}
 .form-kv input,.form-kv select{padding:5px 7px;min-width:0;width:100%}
+.earth-system{display:grid;gap:4px;margin:0 0 10px}.earth-system select{max-width:100%}
 .earth-bonding{display:block;color:var(--mut);margin:4px 0 10px}
 .earth-bonding textarea{display:block;width:100%;margin-top:4px;padding:5px 7px;resize:vertical}
 .bar{position:relative;height:8px;border-radius:4px;background:var(--line);margin:10px 44px 6px 0}

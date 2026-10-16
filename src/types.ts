@@ -685,6 +685,8 @@ export interface TrayPlan {
  * when one of their transformers is out, so the other carries both. */
 /** Earthing schematic settings. The layout itself is worked out from the transformers, RMUs and main boards. */
 export interface EarthingPlan {
+  /** Earthing system the schematic is drawn to (EARTHING_SYSTEMS); 'shared-hv-body' when absent. */
+  system?: string;
   /** Pits per equipment key (rmu:…, txn:…, txb:…, lv:…), where the user changed the default. */
   pits?: Record<string, number>;
   /** Equipment whose pits are NOT linked to the others of the same kind. */

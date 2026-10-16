@@ -243,7 +243,10 @@ export default function SystemDiagram({
   const earthPits = useMemo(() => {
     const m = new Map<string, string[]>();
     if (!layout.roots.some((r) => hasEarthPits(r.board))) return m;
-    for (const pit of earthingLayout(project).pits) { const k = pit.itemKey.replace(/#\d+$/, ''); (m.get(k) ?? m.set(k, []).get(k)!).push(pit.id); }
+    const L = earthingLayout(project);
+    for (const pit of L.pits) { const k = pit.itemKey.replace(/#\d+$/, ''); (m.get(k) ?? m.set(k, []).get(k)!).push(pit.id); }
+    // A transformer body without pits of its own shows the RMU body-earth pits it is connected to.
+    for (const it of L.items) { const k = it.key.replace(/#\d+$/, ''); if (it.sharesPitsOf && !m.has(k) && m.has(it.sharesPitsOf)) m.set(k, m.get(it.sharesPitsOf)!); }
     return m;
   }, [project, layout]);
   const pitIds = (key: string) => m2s(earthPits.get(key));
@@ -804,7 +807,7 @@ export default function SystemDiagram({
           const nIds = pitIds(`txn:${b.id}`), bIds = pitIds(`txb:${b.id}`);
           return (
             <g key={`earth-${b.id}`} className="acc earth-pit">
-              <title>{`${b.id} main earthing: ${pits} earth pits${ids}, ${el} m electrodes, min. ${sp} m apart, 1C ${mm} mm² Cu/PVC from the MET to each pit through its own test link, pits linked in the soil${tx ? '; transformer neutral to its own pit; body bonded to the RMU earth (shared pits); not interconnected' : ''}`}</title>
+              <title>{`${b.id} main earthing: ${pits} earth pits${ids}, ${el} m electrodes, min. ${sp} m apart, 1C ${mm} mm² Cu/PVC from the MET to each pit through its own test link, pits linked in the soil${tx ? '; transformer neutral to its own pit; tank / body earth bar to the RMU earth bar (RMU body-earth pits); neutral and body not interconnected' : ''}`}</title>
               {tx && (
                 <g className="tx-earth">
                   {/* Neutral (star point) to its own pit, on the left */}
@@ -812,11 +815,11 @@ export default function SystemDiagram({
                   <path d={`M${r.x - 14} 100 H${r.x - 36} V130`} className="ln" />
                   {gnd(r.x - 36, 130)}
                   <text x={r.x - 36} y={146} textAnchor="middle" className="acc-t" style={{ fontSize: 7 }}>{`N EARTH${nIds ? ` · ${nIds}` : ''}`}</text>
-                  {/* Tank / body earth (bonded to the RMU earth unless it has its own pits), on the right under the rating text */}
+                  {/* Tank / body earth (via the RMU earth bar to the RMU pits unless it has its own), on the right under the rating text */}
                   <rect x={r.x - 18} y={67} width="36" height="51" className="ln interlock" fill="none" />
                   <path d={`M${r.x + 12} 118 V124 H${r.x + 44} V130`} className="ln" />
                   {gnd(r.x + 44, 130)}
-                  <text x={r.x + 44} y={146} textAnchor="middle" className="acc-t" style={{ fontSize: 7 }}>{`BODY EARTH · ${bIds || 'RMU PITS'}`}</text>
+                  <text x={r.x + 44} y={146} textAnchor="middle" className="acc-t" style={{ fontSize: 7 }}>{`BODY EARTH${bIds ? ` · ${bIds}` : ''}`}</text>
                 </g>
               )}
               <text x={ox} y={oy - 6} className="acc-t b">{`LV EARTH PITS (${pits} NO.)${ids}`}</text>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Project } from '../types';
-import { earthingLayout, kindInfo, patchEarthing, pitStatus, setPitTest, DEFAULT_BONDING, type EarthPit } from '../model/earthingPlan';
+import { earthingLayout, kindInfo, patchEarthing, pitStatus, setPitTest, DEFAULT_BONDING, EARTHING_SYSTEMS, type EarthPit } from '../model/earthingPlan';
 import { earthSheetNo } from '../model/boardEarth';
 import { earthingDrawing } from '../diagram/earthingDrawing';
 import { buildSldSheetHtml, type SheetInfo } from '../docs/sldSheet';
@@ -38,7 +38,7 @@ function ShadowSvg({ svg, css, width, onPit }: { svg: string; css: string; width
   useEffect(() => {
     const root = host.current?.shadowRoot ?? host.current?.attachShadow({ mode: 'open' });
     if (!root) return;
-    root.innerHTML = `<style>${DARK}[data-pit]{cursor:pointer}[data-pit]:hover>rect:first-child{stroke:var(--acc);stroke-width:2.5}${css}</style>${svg}`;
+    root.innerHTML = `<style>${DARK}[data-pit]{cursor:pointer}[data-pit]:hover>.ph{stroke:var(--acc);stroke-width:2.5}${css}</style>${svg}`;
   }, [svg, css]);
   useEffect(() => {
     const root = host.current?.shadowRoot;
@@ -89,7 +89,7 @@ export default function EarthingView({ project, onChange, onStatus, embedded = f
   const issues = L.checks.filter((c) => c.level !== 'ok').length;
 
   // Pit status on the drawing (screen only): the inspection pit square filled pass / fail / untested.
-  const statusCss = L.pits.map((p) => `[data-pit="${p.id}"] > rect:first-child{fill:${PIT_FILL[pitStatus(p)]}}`).join('');
+  const statusCss = L.pits.map((p) => `[data-pit="${p.id}"] > .ph{fill:${PIT_FILL[pitStatus(p)]}}`).join('');
 
   const openPit = (g: Element | null) => {
     const box = canvas.current?.getBoundingClientRect();
@@ -205,6 +205,10 @@ export default function EarthingView({ project, onChange, onStatus, embedded = f
 
         {drawer && (
           <aside className="earth-drawer" aria-label="Earthing settings">
+            <h4>Earthing system</h4>
+            <label className="earth-system"><select value={L.system.id} onChange={(e) => onChange(patchEarthing(project, (p) => ({ ...p, system: e.target.value === EARTHING_SYSTEMS[0].id ? undefined : e.target.value })))}>
+              {EARTHING_SYSTEMS.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select><span className="m">{L.system.description}</span></label>
             <h4>Pits per equipment</h4>
             <table className="bi-table compact">
               <thead><tr><th>Equipment</th><th>Earth</th><th>Pits</th><th title="Link these pits with the others of the same kind">Linked</th></tr></thead>
@@ -224,14 +228,14 @@ export default function EarthingView({ project, onChange, onStatus, embedded = f
             <label className="earth-bonding">Bonded to each main earth bar <span className="m">(one per line; shown on the schematic)</span>
               <textarea rows={4} key={L.bonding.join('\n')} defaultValue={L.bonding.join('\n')}
                 onBlur={(e) => { const v = e.target.value.split('\n').map((x) => x.trim()).filter(Boolean); if (v.join('\n') !== L.bonding.join('\n')) onChange(patchEarthing(project, (p) => ({ ...p, bonding: v.join('\n') === DEFAULT_BONDING.join('\n') ? undefined : v }))); }} /></label>
-            <p className="m">Defaults: RMU 2 pits · transformer 1 neutral + 1 body · main board 2 pits (one MDB) or 1 each (several). The SLD's earth pit detail follows these counts. Measured values: {Object.keys(plan.measured ?? {}).length}.</p>
+            <p className="m">Defaults: RMU 2 body pits (its transformers' tanks connected to its earth bar) · transformer 1 neutral pit · main board 2 pits (one MDB) or 1 each (several). The SLD's earth pit detail follows these counts. Measured values: {Object.keys(plan.measured ?? {}).length}.</p>
           </aside>
         )}
       </div>
   );
   if (embedded) return <div className="earth-embedded">{body}</div>;
   return (
-    <Page title="Earthing schematic" intro="Earth pits of the RMUs, transformers, generators and main boards (DEWA practice). HV body (RMU with the transformer tanks bonded to it, sharing its pits), transformer neutral and LV earths are separate systems; pits of the same kind are linked. Lightning protection is not part of this schematic.">
+    <Page title="Earthing schematic" intro="Earth pits of the RMUs, transformers, generators and main boards (DEWA practice). Earthing system: shared HV body earth — each RMU has 2 body-earth pits and the tank / body earth bars of the transformers it feeds (at most 2) connect to the RMU earth bar; each transformer has its own neutral pit. Body, neutral and LV earths are separate systems, each linked pit to pit. Lightning protection is not part of this schematic.">
       {body}
     </Page>
   );
