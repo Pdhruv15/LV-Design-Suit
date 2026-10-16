@@ -5,7 +5,7 @@ import type { Board, Phase, PointType, Project } from '../../types';
 import { cables } from '../../calc/cableTable';
 import { defaultCpcMm2 } from '../../calc/earthing';
 import { breakerRatings } from '../../calc/sizing';
-import { missingWatts, pointColumns, pointLabel, pointWattsFor, isScheduleCircuit } from '../../calc/loadSchedule';
+import { itemizedTypes, loadItemsText, missingWatts, pointColumns, pointLabel, pointWattsFor, isScheduleCircuit } from '../../calc/loadSchedule';
 import { settingsOf } from '../../types';
 import { loadsForColumn, type Database } from '../../database/database';
 import { buildLoadScheduleHtml, loadScheduleCsv, loadScheduleRows } from '../../docs/loadScheduleDoc';
@@ -328,7 +328,12 @@ export default function LoadScheduleView({
                           </select>
                         </td>
                         <td><input className="room" data-cell={cell(f.id, 'room')} value={f.room ?? ''} placeholder="Room" onChange={(e) => patch(f.id, { room: e.target.value })} /></td>
-                        {columns.map((t) => (
+                        {columns.map((t) => itemizedTypes(f).has(t.value) ? (
+                          // Mixed load items: the count is their sum, edited in the circuit dialog.
+                          <td key={t.value} className="itemized" title={`${loadItemsText(f, t.value)} — double-click to edit the load items`}>
+                            <input readOnly className="pt-in" data-cell={cell(f.id, `pt:${t.value}`)} value={f.points?.[t.value as PointType] || ''} aria-label={`${r.ref} ${t.title} (load items)`} />
+                          </td>
+                        ) : (
                           <td key={t.value}>
                             <input inputMode="numeric" className="pt-in" data-cell={cell(f.id, `pt:${t.value}`)} value={f.points?.[t.value as PointType] || ''} aria-label={`${r.ref} ${t.title}`}
                               onChange={(e) => patch(f.id, { points: { ...f.points, [t.value]: num(e.target.value) } })} />
@@ -362,7 +367,7 @@ export default function LoadScheduleView({
             </div>
           )}
           {editRow && (
-            <CircuitEditDialog project={project} board={board} feeder={editRow.f} circuitRef={editRow.ref} columns={columns} focus={editing!.focus}
+            <CircuitEditDialog project={project} board={board} feeder={editRow.f} circuitRef={editRow.ref} columns={columns} library={db.loads} focus={editing!.focus}
               onSave={(pt) => { patch(editRow.f.id, pt); setEditing(null); }}
               onDelete={() => { onChange(deleteCircuit(project, editRow.f.id)); setEditing(null); }}
               onClose={() => setEditing(null)} />

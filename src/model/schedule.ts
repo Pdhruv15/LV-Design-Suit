@@ -1,4 +1,4 @@
-import { circuitCategory, circuitRef, circuitWatts, dominantLoadType, minWireMm2, nextFreeSlot, scheduleCircuits, SINGLE_PHASES } from '../calc/loadSchedule';
+import { circuitCategory, circuitRef, circuitWatts, dominantLoadType, minWireMm2, nextFreeSlot, normalizeLoadItems, pointsWithItems, scheduleCircuits, SINGLE_PHASES } from '../calc/loadSchedule';
 import { applyRecommendation, recommend } from '../calc/sizing';
 import type { Feeder, Phase, Project } from '../types';
 
@@ -37,7 +37,7 @@ export function addCircuit(project: Project, boardId: string, phase?: Phase, way
   return { project: replaceFeeder(withF, id, refresh(withF, f)), id };
 }
 
-export type CircuitPatch = Partial<Pick<Feeder, 'room' | 'points' | 'remarks' | 'lengthM' | 'powerFactor' | 'demandFactor' | 'breakerRatingA' | 'breakerType' | 'cableCsaMm2' | 'cpcMm2' | 'breakerIcuKa' | 'manualSize'>>;
+export type CircuitPatch = Partial<Pick<Feeder, 'room' | 'points' | 'loadItems' | 'remarks' | 'lengthM' | 'powerFactor' | 'demandFactor' | 'breakerRatingA' | 'breakerType' | 'cableCsaMm2' | 'cpcMm2' | 'breakerIcuKa' | 'manualSize'>>;
 
 /** Applies an edit from the schedule. Changing MCB, wire or ECC by hand
  * marks the circuit as manually sized, so later load edits keep them. */
@@ -48,10 +48,24 @@ export function updateCircuit(project: Project, id: string, patch: CircuitPatch)
   const next: Feeder = {
     ...f,
     ...patch,
+    ...withLoadItems(f, patch),
     name: patch.room !== undefined ? patch.room : f.name,
     manualSize: patch.manualSize ?? (manual ? true : f.manualSize)
   };
   return replaceFeeder(project, id, refresh(project, next));
+}
+
+/** Points and items after an edit, kept consistent: an itemized type's count is
+ * always the sum of its items. A count typed for an itemized type (grid, paste)
+ * replaces that type's items — the type then uses the DB's WATT / UNIT again. */
+function withLoadItems(f: Feeder, patch: CircuitPatch): Pick<Feeder, 'points' | 'loadItems'> {
+  let items = normalizeLoadItems('loadItems' in patch ? patch.loadItems : f.loadItems);
+  const points = patch.points ?? f.points;
+  if (patch.points && !('loadItems' in patch)) {
+    const sum = pointsWithItems({}, items) ?? {};
+    items = items.filter((it) => (patch.points![it.pointType] ?? 0) === sum[it.pointType]);
+  }
+  return { points: pointsWithItems(points, items), loadItems: items.length ? items : undefined };
 }
 
 export function deleteCircuit(project: Project, id: string): Project {

@@ -11,7 +11,7 @@ import { matchDevice, type DeviceKind } from '../model/enclosureLibrary';
 import { scheduleGroupOf } from '../model/scheduleGroups';
 import { mainBoards, txTag } from '../model/transformers';
 import { sizeRoute, trayPlanOf, trayQuantities } from './cableTray';
-import { elcbGroups, pointLabel, scheduleCircuits } from './loadSchedule';
+import { elcbGroups, normalizeLoadItems, pointLabel, scheduleCircuits } from './loadSchedule';
 
 /** Bill of materials: every item the design already knows about, rolled up
  * into tender BOQ sections. Each item has a stable key, so a price list
@@ -227,7 +227,17 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
   if (p.boq?.includeSchedulePoints) {
     const electricalPoints = new Set<PointType>(['ltg', 'shaver', 's13', 's15', 's13t', 'spur', 'isol']);
     for (const b of p.boards) for (const f of scheduleCircuits(p, b.id)) {
+      // Mixed items are listed as themselves (e.g. L1 and L2 separately); their type's count is covered by them.
+      const items = normalizeLoadItems(f.loadItems);
+      for (const it of items) {
+        const point = POINT_TYPES.find((x) => x.value === it.pointType)!;
+        const spec = it.reference && it.reference !== it.name ? `${it.reference} ${it.name}` : it.name;
+        add('J', `point:${it.pointType}:${encodeURIComponent(it.name)}`, `${spec} — load schedule point count`, 'no', it.quantity, b.id,
+          { quantitySource: 'Load schedule circuit load items', supplyBy: electricalPoints.has(point.value) ? 'contractor' : 'client' });
+      }
+      const itemized = new Set(items.map((it) => it.pointType));
       for (const point of POINT_TYPES) {
+        if (itemized.has(point.value)) continue;
         const count = f.points?.[point.value] ?? 0;
         const selected = b.pointItems?.[point.value]?.trim();
         const label = pointLabel(b, point.value, p);

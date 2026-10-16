@@ -7,7 +7,7 @@
       "sheet": "Loads",
       "about": [
         "Your equipment library: one row per item you use repeatedly (light fittings, A/C units, pumps, heaters...).",
-        "Name and Power (W) are required. 'Schedule column' links the item to a column of the DEWA load schedule (e.g. LTG, 'S' A/C).",
+        "Name and Power (W) are required. 'Reference' is a short unique tag (L1, L2, EF1, WH1) that circuits use to link the item; it is optional but recommended. 'Schedule column' links the item to a column of the DEWA load schedule (e.g. LTG, 'S' A/C).",
         "Phases: 1 or 3. Power factor and demand factor are optional (blank = the app's default).",
         "Save the file and the app updates within a second or two. Projects that use an item pick up its new values automatically."
       ],
@@ -17,6 +17,12 @@
           "header": "Name",
           "width": 30,
           "required": true
+        },
+        {
+          "key": "reference",
+          "header": "Reference",
+          "width": 11,
+          "help": "Short unique tag used on drawings and circuits, e.g. L1, L2, EF1, WH1"
         },
         {
           "key": "category",

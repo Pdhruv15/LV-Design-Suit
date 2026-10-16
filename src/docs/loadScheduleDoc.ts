@@ -1,7 +1,7 @@
 import { evaluateFeeder, type Status } from '../calc/electrical';
 import { boardLocation } from '../model/levels';
 import { breakerTypeOf, cpcOf } from '../calc/earthing';
-import { boardPhaseKw, circuitCategory, circuitRef, circuitWatts, elcbGroups, imbalancePct, minWireMm2, pointColumns, pointWattsFor, scheduleCircuits } from '../calc/loadSchedule';
+import { boardPhaseKw, circuitCategory, circuitRef, circuitWatts, elcbGroups, imbalancePct, loadItemsText, minWireMm2, pointColumns, scheduleCircuits, wattUnitText } from '../calc/loadSchedule';
 import { incomerDeviceOf, type Board, type Feeder, type Project } from '../types';
 import { polesOf } from '../calc/bom';
 import { cableTypeOf } from '../model/cableTypes';
@@ -38,6 +38,9 @@ export function incomerCableText(project: Project, incomer: Feeder | undefined):
   return `CABLE SIZE: ${cableBuildText(feederBuild(project, incomer))}${fr}, ${incomer.lengthM} m`;
 }
 
+/** Remarks as printed: the user's remarks, then the mixed load items (e.g. "6×L1 10 W + 4×L2 20 W"). */
+const remarksText = (f: Feeder) => [f.remarks, loadItemsText(f)].filter(Boolean).join('; ');
+
 export function loadScheduleRows(project: Project, boardId: string) {
   const board = project.boards.find((b) => b.id === boardId)!;
   const circuits = scheduleCircuits(project, boardId);
@@ -69,7 +72,6 @@ export function loadScheduleRows(project: Project, boardId: string) {
  * form for a 3-phase DB with R/Y/B circuit references. */
 export function buildLoadScheduleHtml(project: Project, boardId: string): string {
   const { board, incomer, rows, phaseW, connectedW, others, imbalance } = loadScheduleRows(project, boardId);
-  const watts = pointWattsFor(board);
   const columns = pointColumns(project, board);
   const pointCols = columns.map((t) => t.value);
   const incomerText = esc(incomerLabel(board, incomer));
@@ -91,7 +93,7 @@ export function buildLoadScheduleHtml(project: Project, boardId: string): string
       <td class="l">${esc(r.f.room ?? r.f.name)}</td>
       ${pointCols.map((t) => `<td>${r.f.points?.[t] || ''}</td>`).join('')}
       <td>${r.ph.R}</td><td>${r.ph.Y}</td><td>${r.ph.B}</td>
-      <td class="l">${esc(r.f.remarks ?? '')}${r.status !== 'ok' ? ` <span class="${r.status}">(${r.status === 'bad' ? 'fails check' : 'check'})</span>` : ''}</td>
+      <td class="l">${esc(remarksText(r.f))}${r.status !== 'ok' ? ` <span class="${r.status}">(${r.status === 'bad' ? 'fails check' : 'check'})</span>` : ''}</td>
     </tr>`)
     .join('');
 
@@ -127,7 +129,7 @@ export function buildLoadScheduleHtml(project: Project, boardId: string): string
         ${columns.map((t) => `<th class="rot">${esc(t.label)}</th>`).join('')}
         <th class="shade">R</th><th class="shade">Y</th><th class="shade">B</th>
       </tr>
-      <tr><td colspan="8" class="l"><b>WATT / UNIT</b></td>${pointCols.map((t) => `<td>${watts[t] || ''}</td>`).join('')}<td class="shade" colspan="3"></td><td></td></tr>
+      <tr><td colspan="8" class="l"><b>WATT / UNIT</b></td>${pointCols.map((t) => `<td>${esc(wattUnitText(project, board, t))}</td>`).join('')}<td class="shade" colspan="3"></td><td></td></tr>
     </thead>
     <tbody>${body}
       <tr class="total"><td colspan="${8 + pointCols.length}" style="text-align:right">TOTAL CONNECTED LOAD (W) — the circuits above</td>
@@ -149,15 +151,14 @@ export function buildLoadScheduleHtml(project: Project, boardId: string): string
 /** Same schedule as CSV (Excel). */
 export function loadScheduleCsv(project: Project, boardId: string): { headers: string[]; rows: (string | number)[][] } {
   const { board, rows, phaseW, connectedW, others } = loadScheduleRows(project, boardId);
-  const watts = pointWattsFor(board);
   const columns = pointColumns(project, board);
   const pointCols = columns.map((t) => t.value);
   const headers = ['ELCB', 'Sl. No.', 'Cir No.', 'MCB (A)', 'CCT wire (mm²)', 'ECC wire (mm²)', 'Room / area', ...columns.map((t) => t.label), 'R (W)', 'Y (W)', 'B (W)', 'Remarks'];
-  const out: (string | number)[][] = [['', '', '', '', '', '', 'WATT / UNIT', ...pointCols.map((t) => watts[t]), '', '', '', '']];
+  const out: (string | number)[][] = [['', '', '', '', '', '', 'WATT / UNIT', ...pointCols.map((t) => wattUnitText(project, board, t)), '', '', '', '']];
   for (const r of rows) {
     out.push([
       r.group ? `ELCB-${r.group.index} ${r.group.label}` : '', r.sl, r.ref, r.f.breakerRatingA, r.f.cableCsaMm2, cpcOf(r.f), r.f.room ?? '',
-      ...pointCols.map((t) => r.f.points?.[t] ?? ''), r.ph.R, r.ph.Y, r.ph.B, r.f.remarks ?? ''
+      ...pointCols.map((t) => r.f.points?.[t] ?? ''), r.ph.R, r.ph.Y, r.ph.B, remarksText(r.f)
     ]);
   }
   out.push(['', '', '', '', '', '', 'TOTAL CONNECTED', ...pointCols.map(() => ''), Math.round(connectedW.R), Math.round(connectedW.Y), Math.round(connectedW.B), 'circuits above']);

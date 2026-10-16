@@ -1,5 +1,5 @@
 import { boardDemandKw } from '../calc/electrical';
-import { circuitRef, isScheduleCircuit } from '../calc/loadSchedule';
+import { circuitRef, isScheduleCircuit, loadItemsText } from '../calc/loadSchedule';
 import type { Board, Feeder, Project, Revision } from '../types';
 import { BOARD_CLASS, CLASS_LABEL, DESIGN_CLASSES, FEEDER_CLASS, INFO_ENGINEERING, PROJECT_CLASS, type ChangeClass } from './changeClass';
 import { leafChanges, pairText, same, type FieldChange } from './datasetDiff';
@@ -113,7 +113,7 @@ type Fields<T> = [keyof T & string, string][];
 /** Circuit fields compared, with the name shown. Every field of the model that is not an identifier or app bookkeeping
  * has a line here (a test checks this against the classification in changeClass.ts). */
 export const FEEDER_FIELDS: Fields<Feeder> = [
-  ['name', 'Name'], ['room', 'Room'], ['points', 'Points'], ['loadKw', 'Load (kW)'], ['demandFactor', 'Demand factor'],
+  ['name', 'Name'], ['room', 'Room'], ['points', 'Points'], ['loadItems', 'Load items'], ['loadKw', 'Load (kW)'], ['demandFactor', 'Demand factor'],
   ['powerFactor', 'PF'], ['breakerRatingA', 'Breaker (A)'], ['breakerType', 'Breaker type'], ['breakerIcuKa', 'Breaking capacity (kA)'],
   ['device', 'Device'], ['cableCsaMm2', 'Cable (mm²)'], ['cores', 'Cores'], ['cableType', 'Cable type'], ['cpcMm2', 'ECC (mm²)'], ['installMethod', 'Installation method'],
   ['lengthM', 'Length (m)'], ['parallel', 'Parallel runs'], ['trayRoute', 'Tray route'], ['breakerImMultiple', 'Instantaneous (× In)'],
@@ -156,6 +156,8 @@ const sizeOf = (v: unknown) => (Array.isArray(v) ? `${v.length} item(s)` : v ===
 function show(v: unknown, digits = 3): string {
   if (v === undefined || v === null || v === '') return '—';
   if (typeof v === 'number') return String(+v.toFixed(digits));
+  // Circuit load items read as on the schedule: "6×L1 10 W + 4×L2 20 W".
+  if (Array.isArray(v) && v.every((x) => x && typeof x === 'object' && 'quantity' in x && 'unitWatts' in x)) return v.length ? loadItemsText({ loadItems: v }) : '—';
   if (typeof v === 'object') {
     const parts = Object.entries(v as Record<string, unknown>).filter(([, x]) => x !== undefined && x !== '' && x !== 0).map(([k, x]) => `${k} ${show(x, digits)}`);
     return parts.length ? parts.join(', ') : '—';

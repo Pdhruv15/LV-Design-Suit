@@ -1,4 +1,4 @@
-import type { Project } from '../types';
+import { POINT_TYPES, type Project } from '../types';
 import type { MainView } from '../views';
 
 /** Checks on project data at the loading boundary and on the engineering inputs.
@@ -71,6 +71,15 @@ export function projectInputIssues(p: Project): InputIssue[] {
     need([2, 3, 4].includes(f.cores), 'cores', f.cores, '2, 3 or 4');
     need(fin(f.breakerRatingA) && f.breakerRatingA > 0, 'breaker rating A', f.breakerRatingA, 'above 0');
     need(fin(f.breakerIcuKa) && f.breakerIcuKa > 0, 'breaker Icu kA', f.breakerIcuKa, 'above 0');
+    if (f.loadItems !== undefined) {
+      if (!Array.isArray(f.loadItems)) bad.push('load items (not a list)');
+      else f.loadItems.forEach((it, i) => {
+        const label = `load item ${i + 1}${it?.reference || it?.name ? ` (${it.reference || it.name})` : ''}`;
+        need(fin(it?.quantity) && it.quantity >= 1 && Number.isInteger(it.quantity), `${label} quantity`, it?.quantity, 'a whole number, 1 or more');
+        need(fin(it?.unitWatts) && it.unitWatts >= 0, `${label} watts`, it?.unitWatts, '0 or more');
+        need(POINT_TYPES.some((t) => t.value === it?.pointType), `${label} point type`, it?.pointType, 'a schedule column');
+      });
+    }
     if (bad.length) out.push({ status: 'bad', text: `Circuit ${f.id}: ${bad.join('; ')}`, go: { view: 'design', feederId: f.id } });
   }
   return out;

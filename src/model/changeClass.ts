@@ -20,7 +20,7 @@ const E = 'engineering', D = 'drawing', C = 'commercial', A = 'admin', B = 'book
 export const FEEDER_CLASS: Record<keyof Feeder, ChangeClass> = {
   id: E, boardId: E, name: D, loadKw: E, demandFactor: E, powerFactor: E, lengthM: E, cableCsaMm2: E, parallel: E, cores: E, breakerRatingA: E, breakerIcuKa: E,
   generation: E, loadType: E, breakerType: E, breakerImMultiple: E, cpcMm2: E, installMethod: E, componentId: E, componentValues: E, standbyUnit: E, fromRoom: D, essential: E, phase: E, way: E,
-  room: D, points: E, remarks: D, manualSize: E, starter: E, kvar: E, device: E, cableType: E, kwhMeter: E, circuitPurpose: E, rcdMa: E, localIsolator: E, capSteps: E,
+  room: D, points: E, loadItems: E, remarks: D, manualSize: E, starter: E, kvar: E, device: E, cableType: E, kwhMeter: E, circuitPurpose: E, rcdMa: E, localIsolator: E, capSteps: E,
   detunedPct: E, trayRoute: E, lengthToCheck: B, sizingPending: B, feedsBoardId: E
 };
 

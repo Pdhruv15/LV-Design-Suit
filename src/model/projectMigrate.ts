@@ -1,4 +1,5 @@
-import type { Project } from '../types';
+import type { Feeder, Project } from '../types';
+import { pointsWithItems } from '../calc/loadSchedule';
 
 /** Project identity, file-format version and copying.
  *
@@ -27,12 +28,28 @@ export const legacyIdFor = (file: string): string => `legacy-${fnv(file.toLowerC
 export const isFutureSchema = (p: Project): boolean => (p.schemaVersion ?? 0) > CURRENT_SCHEMA;
 
 /** The project with an id, version and creation date (the same object when it already has them). */
-export function migrateProject(p: Project, file?: string): Project {
-  if (isFutureSchema(p)) return p; // never rewrite what this version does not understand
+export function migrateProject(p0: Project, file?: string): Project {
+  if (isFutureSchema(p0)) return p0; // never rewrite what this version does not understand
+  const p = withItemCounts(p0);
   if (p.id && p.schemaVersion === CURRENT_SCHEMA && p.createdAt) return p;
   const firstRevision = p.revisions?.[0]?.date;
   const created = p.createdAt ?? (firstRevision && !Number.isNaN(Date.parse(firstRevision)) ? new Date(firstRevision).toISOString() : p.updatedAt);
   return { ...p, id: p.id ?? (file ? legacyIdFor(file) : newProjectId()), schemaVersion: CURRENT_SCHEMA, createdAt: created };
+}
+
+/** Circuits with mixed load items: each itemized point count equals the sum of its items
+ * (a file edited by hand, or by an older version that only knew counts). Projects without
+ * load items come back as the same object. */
+function withItemCounts(p: Project): Project {
+  let changed = false;
+  const feeders = p.feeders.map((f): Feeder => {
+    if (!Array.isArray(f.loadItems) || !f.loadItems.length) return f;
+    const points = pointsWithItems(f.points, f.loadItems) ?? {};
+    if (Object.entries(points).every(([t, n]) => (f.points?.[t as keyof typeof points] ?? 0) === (n ?? 0))) return f;
+    changed = true;
+    return { ...f, points };
+  });
+  return changed ? { ...p, feeders } : p;
 }
 
 export type CopyKind = 'save-as' | 'duplicate';
