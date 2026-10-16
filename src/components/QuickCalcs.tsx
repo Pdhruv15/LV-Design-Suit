@@ -435,7 +435,7 @@ export default function QuickCalcs({ project }: { project: Project }) {
 
         <Card id="vd" aside={asides.vd} title="Voltage drop" errors={eErrors} onReset={resetE} formula={`ΔV = ${e.ph === '3' ? '√3' : '2'} · I · L · (R cosφ + X sinφ) ÷ runs;  R at 90 °C (1.2 × R20)`}
           result={eVd?.invalid ? <Warn>{eVd.invalid}</Warn> : eVd
-            ? <><Out main label="Voltage drop" value={fmt(eVd.pct)} unit="%" /><Out label="Volts" value={fmt(eVd.volts)} unit="V" /><Out label="mV/A/m" value={fmt(eVd.mvPerAm / Math.max(1, num(e.runs) ?? 1), 3)} />
+            ? <><Out main label="Voltage drop" value={fmt(eVd.pct)} unit="%" /><Out label="Volts" value={fmt(eVd.volts)} unit="V" /><Out label={num(e.runs)! > 1 ? `mV/A/m (${num(e.runs)} runs)` : 'mV/A/m'} value={fmt(eVd.mvPerAm, 3)} />
               <p className={eVd.pct > eLim ? 'qc-bad' : 'qc-ok'}>{eVd.pct > eLim ? `Over the ${eLim} % limit` : `Within the ${eLim} % limit`}</p></>
             : <Warn>Enter the current, length and voltage.</Warn>}>
           <Field label="Current" v={e} k="i" set={setE} unit="A" />

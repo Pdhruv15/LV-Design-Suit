@@ -95,6 +95,15 @@ describe('Quick calculator rendered input and result behavior', () => {
     expect(html).toContain(text);
   });
 
+  it('voltage drop: mV/A/m with parallel runs is divided by the runs once, matching the volts', () => {
+    const one = card(render({ vd: { i: '100', l: '100', csa: '35', runs: '1', pf: '0.85' } }), 'Voltage drop');
+    const two = card(render({ vd: { i: '100', l: '100', csa: '35', runs: '2', pf: '0.85' } }), 'Voltage drop');
+    const value = (html: string, label: string) => Number(html.split(`<span>${label}</span><b>`)[1].split('<')[0]);
+    expect(value(two, 'mV/A/m (2 runs)')).toBeCloseTo(value(one, 'mV/A/m') / 2, 2);
+    // ΔV = mV/A/m × I × L ÷ 1000
+    expect(value(two, 'Volts')).toBeCloseTo((value(two, 'mV/A/m (2 runs)') * 100 * 100) / 1000, 1);
+  });
+
   it('hides the right-hand panel while an input is invalid', () => {
     expect(render({ vd: { pf: '-0.8' } })).not.toContain('class="qc-aside"');
   });
