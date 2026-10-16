@@ -54,6 +54,15 @@ export function quickInputErrors(card: string, values: QuickValues, cableSizes: 
       break;
     }
     case 'energy': rules = { kw: magnitude('Load'), h: { label: 'Hours per day', min: 0, max: 24 }, days: magnitude('Days'), rate: magnitude('Tariff') }; break;
+    case 'lux':
+      rules = {
+        l: positive('Room length'), w: positive('Room width'), h: positive('Ceiling height'), wp: magnitude('Working plane height'), sus: magnitude('Suspension'),
+        e: positive('Target illuminance'), lm: positive('Luminaire output'), wt: magnitude('Luminaire wattage'), mf: factor('Maintenance factor'),
+        ufMode: { label: 'UF source', choices: ['est', 'man'] }
+      };
+      if (values.ufMode === 'man') rules.uf = factor('Utilisation factor');
+      else rules.refl = { label: 'Reflectances', choices: ['753', '733', '533', '512', '311', '000'] };
+      break;
     case 'units': rules = { hp: magnitude('HP'), kw: magnitude('kW'), awg: { label: 'AWG', min: -3, integer: true }, mm2: positive('Cable area'), kcmil: magnitude('kcmil') }; break;
     default: return {};
   }

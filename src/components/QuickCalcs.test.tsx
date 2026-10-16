@@ -5,8 +5,10 @@ import QuickCalcs from './QuickCalcs';
 
 type SavedInputs = Record<string, Record<string, string>>;
 
-function render(saved: SavedInputs = {}) {
+/** Renders with the first saved calculator's tab open (or `tab`, if given). */
+function render(saved: SavedInputs = {}, tab = Object.keys(saved)[0]) {
   const items = new Map(Object.entries(saved).map(([card, values]) => [`lvds.quick.${card}`, JSON.stringify(values)]));
+  if (tab) items.set('lvds.quick.tab', tab);
   vi.stubGlobal('localStorage', {
     getItem: (key: string) => items.get(key) ?? null,
     setItem: vi.fn(),
@@ -17,7 +19,7 @@ function render(saved: SavedInputs = {}) {
 
 const escaped = (text: string) => text.replace(/&/g, '&amp;').replace(/'/g, '&#x27;');
 function card(html: string, title: string) {
-  const section = html.split('<section class="qc-card">').find((part) => part.includes(`<h4>${escaped(title)}</h4>`));
+  const section = html.split(/<section class="qc-card[^"]*"[^>]*>/).find((part) => part.includes(`<h4>${escaped(title)}</h4>`));
   expect(section, `Missing calculator card: ${title}`).toBeDefined();
   return section!.split('</section>')[0];
 }
@@ -38,12 +40,30 @@ beforeEach(() => vi.unstubAllGlobals());
 afterEach(() => vi.unstubAllGlobals());
 
 describe('Quick calculator rendered input and result behavior', () => {
-  it('renders all 12 calculators with valid defaults', () => {
+  const TABS = ['amps', 'power', 'triangle', 'cable', 'vd', 'tx', 'motor', 'pfc', 'fault', 'lux', 'ohm', 'energy', 'units'];
+
+  it('shows a tab for each of the 13 calculators and only the open one', () => {
     const html = render();
-    expect(html.match(/<section class="qc-card">/g)).toHaveLength(12);
+    expect(html.match(/role="tab"/g)).toHaveLength(13);
+    expect(html.match(/<section class="qc-card/g)).toHaveLength(1);
+    expect(html).toContain('<h4>Current from power</h4>');
+  });
+
+  it.each(TABS)('renders the %s calculator with valid defaults', (tab) => {
+    const html = render({}, tab);
+    expect(html.match(/<section class="qc-card/g)).toHaveLength(1);
+    expect(html).toContain(`id="qc-panel-${tab}"`);
     expect(html).not.toContain('qc-field-error');
     expect(html).not.toContain('aria-invalid="true"');
     expect(html).not.toContain('Correct the highlighted inputs');
+  });
+
+  it('draws the lux layout plan with the grid and setting-out dimensions', () => {
+    const section = card(render({ lux: { l: '10', w: '8' } }), 'Lighting — lux (lumen method)');
+    expect(section).toContain('class="lux-plan"');
+    expect(section.match(/class="lum"/g)).toHaveLength(20); // 4 × 5
+    expect(section).toContain('L = 10.00 m');
+    expect(section).toContain('W = 8.00 m');
   });
 
   it('shows a missing-breaker warning instead of a 0 A breaker or successful cable selection', () => {

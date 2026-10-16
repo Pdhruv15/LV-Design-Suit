@@ -3,8 +3,10 @@ import {
   awgLabel, awgToMm2, cableFor, cableSizes, currentFromPower, energy, faultAtCableEnd, faultFromTransformer, HP_KW, kcmilToMm2, mm2ToAwg,
   motor, nextBreaker, ohm, pfCorrection, powerFromCurrent, transformer, triangle, voltageDrop, type Phases, type PowerUnit
 } from '../calc/quick';
+import { LUX_TARGETS, lumenMethod, REFLECTANCES } from '../calc/lighting';
 import { STARTERS } from '../calc/motor';
 import type { Project, StarterType } from '../types';
+import LuxLayoutPlan from './LuxLayoutPlan';
 import { Page } from './ui';
 import { quickInputErrors, quickNumber as num, type QuickErrors } from './quickInputs';
 
@@ -68,15 +70,31 @@ function Pick<T extends string>({ label, value, options, onChange, field }: { la
   );
 }
 
-function Card({ title, children, result, formula, onReset, errors }: { title: string; children: ReactNode; result: ReactNode; formula?: string; onReset: () => void; errors: QuickErrors }) {
+/** Which calculator tab is showing; every other card renders nothing. */
+const ActiveCard = createContext('');
+
+function Card({ id, title, children, result, formula, aside, onReset, errors }: { id: string; title: string; children: ReactNode; result: ReactNode; formula?: string; aside?: ReactNode; onReset: () => void; errors: QuickErrors }) {
+  if (useContext(ActiveCard) !== id) return null;
   return (
-    <section className="qc-card">
-      <header><h4>{title}</h4><button className="icon-btn" title="Reset to the defaults" aria-label={`Reset ${title} to the defaults`} onClick={onReset}>↺</button></header>
-      <InputErrors.Provider value={errors}><div className="qc-inputs">{children}</div></InputErrors.Provider>
-      <div className="qc-result">{Object.keys(errors).length ? <Warn>Correct the highlighted inputs to calculate.</Warn> : result}</div>
-      {formula && <p className="qc-formula">{formula}</p>}
+    <section className={`qc-card${aside ? ' has-aside' : ''}`} role="tabpanel" id={`qc-panel-${id}`} aria-labelledby={`qc-tab-${id}`}>
+      <div className="qc-main">
+        <header><h4>{title}</h4><button className="icon-btn" title="Reset to the defaults" aria-label={`Reset ${title} to the defaults`} onClick={onReset}>↺</button></header>
+        <InputErrors.Provider value={errors}><div className="qc-inputs">{children}</div></InputErrors.Provider>
+        <div className="qc-result">{Object.keys(errors).length ? <Warn>Correct the highlighted inputs to calculate.</Warn> : result}</div>
+        {formula && <p className="qc-formula">{formula}</p>}
+      </div>
+      {aside && !Object.keys(errors).length && <div className="qc-aside">{aside}</div>}
     </section>
   );
+}
+
+const TABS: [string, string][] = [['amps', "Amps"], ['power', "Power"], ['triangle', "kW ↔ kVA"], ['cable', "Cable & breaker"], ['vd', "Voltage drop"], ['tx', "Transformer"], ['motor', "Motor"], ['pfc', "PF correction"], ['fault', "Fault level"], ['lux', "Lighting lux"], ['ohm', "Ohm's law"], ['energy', "Energy & cost"], ['units', "Units"]];
+const TAB_KEY = 'lvds.quick.tab';
+function useTab(): [string, (t: string) => void] {
+  const [tab, setTab] = useState(() => {
+    try { const t = localStorage.getItem(TAB_KEY); return TABS.some(([k]) => k === t) ? t! : TABS[0][0]; } catch { return TABS[0][0]; }
+  });
+  return [tab, (t) => { setTab(t); try { localStorage.setItem(TAB_KEY, t); } catch { /* not kept */ } }];
 }
 
 const Out = ({ label, value, unit, main }: { label: string; value: string; unit?: string; main?: boolean }) => (
@@ -98,6 +116,7 @@ export default function QuickCalcs({ project }: { project: Project }) {
   const V3 = String(project.voltageV);
   const amb = String(project.ambientC);
   const sizes = cableSizes();
+  const [tab, setTab] = useTab();
 
   // 1 · Current from power
   const [a, setA, resetA] = useInputs('amps', { p: '100', unit: 'kW', ph: '3', v: V3, pf: '0.85', eff: '1' });
@@ -177,17 +196,30 @@ export default function QuickCalcs({ project }: { project: Project }) {
   const nErrors = quickInputErrors('energy', n);
   const nRes = Object.keys(nErrors).length ? undefined : energy(num(n.kw)!, num(n.h)!, num(n.days)!, num(n.rate)!);
 
-  // 12 · Conversions
+  // 12 · Lighting (lumen method)
+  const [x, setX, resetX] = useInputs('lux', { room: 'office', e: '500', l: '10', w: '8', h: '3', wp: '0.85', sus: '0', lm: '3600', wt: '36', mf: '0.8', ufMode: 'est', refl: '753', uf: '0.6' });
+  const xErrors = quickInputErrors('lux', x);
+  const xRes = Object.keys(xErrors).length ? undefined : lumenMethod({
+    lengthM: num(x.l)!, widthM: num(x.w)!, ceilingM: num(x.h)!, workPlaneM: num(x.wp)!, suspensionM: num(x.sus)!,
+    targetLux: num(x.e)!, lumens: num(x.lm)!, watts: num(x.wt)!, mf: num(x.mf)!, reflectance: x.refl, uf: x.ufMode === 'man' ? num(x.uf)! : undefined
+  });
+  const setLux = (k: string, v: string) => { setX(k, v); if (k === 'e') setX('room', 'custom'); };
+
+  // 13 · Conversions
   const [u, setU, resetU] = useInputs('units', { hp: '10', kw: '7.5', awg: '10', mm2: '16', kcmil: '250' });
   const uErrors = quickInputErrors('units', u);
 
   return (
     <Page
       title="Quick calculators"
-      intro="Everyday electrical calculations, separate from the project — nothing here changes your design. Same formulas and cable data as the studies; voltage, ambient and voltage-drop limit start from the project settings. Inputs are remembered on this computer (↺ resets a card)."
+      intro="Everyday electrical calculations, separate from the project — nothing here changes your design. Same formulas and cable data as the studies; voltage, ambient and voltage-drop limit start from the project settings. Pick a calculator from the tabs. Inputs are remembered on this computer (↺ resets a calculator)."
     >
+      <div className="tabs qc-tabs" role="tablist" aria-label="Calculators">
+        {TABS.map(([k, label]) => <button key={k} type="button" role="tab" id={`qc-tab-${k}`} aria-controls={`qc-panel-${k}`} aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{label}</button>)}
+      </div>
+      <ActiveCard.Provider value={tab}>
       <div className="qc-grid">
-        <Card title="Current from power" errors={aErrors} onReset={resetA} formula={a.ph === '3' ? 'I = P ÷ (√3 · V · PF · η)   (kVA: I = S ÷ √3·V)' : 'I = P ÷ (V · PF · η)   (kVA: I = S ÷ V)'}
+        <Card id="amps" title="Current from power" errors={aErrors} onReset={resetA} formula={a.ph === '3' ? 'I = P ÷ (√3 · V · PF · η)   (kVA: I = S ÷ √3·V)' : 'I = P ÷ (V · PF · η)   (kVA: I = S ÷ V)'}
           result={Number.isFinite(aI) ? <><Out main label="Current" value={fmt(aI, 1)} unit="A" /><BreakerOutput currentA={aI} label="Breaker (next standard)" /></> : <Warn>These values do not produce a finite current. Check the power, voltage and factors.</Warn>}>
           <Field label="Power" v={a} k="p" set={setA} />
           <Pick field="unit" label="Unit" value={a.unit} options={[['kW', 'kW'], ['kVA', 'kVA'], ['HP', 'HP'], ['W', 'W']]} onChange={(x) => setA('unit', x)} />
@@ -197,7 +229,7 @@ export default function QuickCalcs({ project }: { project: Project }) {
           {a.unit !== 'kVA' && <Field label="Efficiency η" v={a} k="eff" set={setA} width={60} />}
         </Card>
 
-        <Card title="Power from current" errors={bErrors} onReset={resetB} formula={b.ph === '3' ? 'S = √3 · V · I;  P = S · PF;  Q = √(S² − P²)' : 'S = V · I;  P = S · PF;  Q = √(S² − P²)'}
+        <Card id="power" title="Power from current" errors={bErrors} onReset={resetB} formula={b.ph === '3' ? 'S = √3 · V · I;  P = S · PF;  Q = √(S² − P²)' : 'S = V · I;  P = S · PF;  Q = √(S² − P²)'}
           result={bP?.invalid ? <Warn>{bP.invalid}.</Warn>
             : bP ? <><Out main label="Apparent" value={fmt(bP.kva)} unit="kVA" /><Out label="Active" value={fmt(bP.kw)} unit="kW" /><Out label="Reactive" value={fmt(bP.kvar)} unit="kVAr" /></> : null}>
           <Field label="Current" v={b} k="i" set={setB} unit="A" />
@@ -206,7 +238,7 @@ export default function QuickCalcs({ project }: { project: Project }) {
           <Field label="Power factor" v={b} k="pf" set={setB} width={60} />
         </Card>
 
-        <Card title="kW ↔ kVA ↔ kVAr" errors={cErrors} onReset={resetC} formula="kVA² = kW² + kVAr²;  PF = kW ÷ kVA"
+        <Card id="triangle" title="kW ↔ kVA ↔ kVAr" errors={cErrors} onReset={resetC} formula="kVA² = kW² + kVAr²;  PF = kW ÷ kVA"
           result={cT && !cT.invalid
             ? <><Out main label="kW" value={fmt(cT.kw)} /><Out main label="kVA" value={fmt(cT.kva)} /><Out label="kVAr" value={fmt(cT.kvar)} /><Out label="Power factor" value={fmt(cT.pf, 3)} /></>
             : <Warn>{cT?.invalid ? `${cT.invalid}. ` : ''}Enter two values that fit together (kW ≤ kVA, kVAr ≤ kVA, PF 0–1).</Warn>}>
@@ -215,7 +247,7 @@ export default function QuickCalcs({ project }: { project: Project }) {
           <Field label={cy} v={c} k="y" set={setC} width={70} />
         </Card>
 
-        <Card title="Cable & breaker size" errors={dErrors} onReset={resetD} formula="In ≥ Ib (next standard); Iz = Iz(table) × ambient × grouping × runs ≥ In; voltage drop ≤ limit. 4-core (3-phase) / 2-core (1-phase) Cu XLPE/SWA, in air."
+        <Card id="cable" title="Cable & breaker size" errors={dErrors} onReset={resetD} formula="In ≥ Ib (next standard); Iz = Iz(table) × ambient × grouping × runs ≥ In; voltage drop ≤ limit. 4-core (3-phase) / 2-core (1-phase) Cu XLPE/SWA, in air."
           result={dRes ? (dRes.sel
             ? <><Out main label="Cable" value={`${dRes.sel.runs > 1 ? `${dRes.sel.runs} × ` : ''}${d.ph === '3' ? 4 : 2}C × ${dRes.sel.csaMm2}`} unit="mm²" /><Out main label="Breaker" value={String(dRes.breakerA)} unit="A" /><Out label="Iz (derated)" value={fmt(dRes.iz, 0)} unit="A" /><Out label="Voltage drop" value={fmt(dRes.vd!.pct)} unit="%" /></>
             : <Warn>{dRes.message}</Warn>) : null}>
@@ -229,7 +261,7 @@ export default function QuickCalcs({ project }: { project: Project }) {
           <Field label="Vd limit" v={d} k="vd" set={setD} unit="%" width={60} />
         </Card>
 
-        <Card title="Voltage drop" errors={eErrors} onReset={resetE} formula={`ΔV = ${e.ph === '3' ? '√3' : '2'} · I · L · (R cosφ + X sinφ) ÷ runs;  R at 90 °C (1.2 × R20)`}
+        <Card id="vd" title="Voltage drop" errors={eErrors} onReset={resetE} formula={`ΔV = ${e.ph === '3' ? '√3' : '2'} · I · L · (R cosφ + X sinφ) ÷ runs;  R at 90 °C (1.2 × R20)`}
           result={eVd?.invalid ? <Warn>{eVd.invalid}</Warn> : eVd
             ? <><Out main label="Voltage drop" value={fmt(eVd.pct)} unit="%" /><Out label="Volts" value={fmt(eVd.volts)} unit="V" /><Out label="mV/A/m" value={fmt(eVd.mvPerAm / Math.max(1, num(e.runs) ?? 1), 3)} />
               <p className={eVd.pct > eLim ? 'qc-bad' : 'qc-ok'}>{eVd.pct > eLim ? `Over the ${eLim} % limit` : `Within the ${eLim} % limit`}</p></>
@@ -244,14 +276,14 @@ export default function QuickCalcs({ project }: { project: Project }) {
           <Field label="Limit" v={e} k="lim" set={setE} unit="%" width={60} />
         </Card>
 
-        <Card title="Transformer" errors={tErrors} onReset={resetT} formula="FLC = S ÷ (√3 · V);  Isc = FLC ÷ Z%  (infinite MV source)"
+        <Card id="tx" title="Transformer" errors={tErrors} onReset={resetT} formula="FLC = S ÷ (√3 · V);  Isc = FLC ÷ Z%  (infinite MV source)"
           result={tRes?.invalid ? <Warn>{tRes.invalid}</Warn> : tRes ? <><Out main label="Full-load current" value={fmt(tRes.flc, 0)} unit="A" /><Out main label="Fault at LV terminals" value={fmt(tRes.faultKA, 1)} unit="kA" /><BreakerOutput currentA={tRes.flc} label="Main breaker (next standard)" /></> : null}>
           <Field label="Rating" v={t} k="kva" set={setT} unit="kVA" />
           <Field label="LV voltage (L-L)" v={t} k="v" set={setT} unit="V" />
           <Field label="Impedance Z" v={t} k="z" set={setT} unit="%" width={60} />
         </Card>
 
-        <Card title="Motor" errors={mErrors} onReset={resetM} formula="FLC = P ÷ (√3 · V · PF · η);  starting current = FLC × starter multiple"
+        <Card id="motor" title="Motor" errors={mErrors} onReset={resetM} formula="FLC = P ÷ (√3 · V · PF · η);  starting current = FLC × starter multiple"
           result={mRes?.invalid ? <Warn>{mRes.invalid}</Warn> : mRes ? <><Out main label="Full-load current" value={fmt(mRes.flc, 1)} unit="A" /><Out main label="Starting current" value={fmt(mRes.startA, 0)} unit="A" /><Out label="Input" value={`${fmt(mRes.inputKw, 1)} kW · ${fmt(mRes.inputKva, 1)} kVA`} /><Out label={m.unit === 'HP' ? 'Output' : 'Output (HP)'} value={m.unit === 'HP' ? `${fmt(mKw, 2)} kW` : `${fmt(mRes.hp, 1)} HP`} /></> : null}>
           <Field label="Output power" v={m} k="p" set={setM} />
           <Pick field="unit" label="Unit" value={m.unit} options={[['kW', 'kW'], ['HP', 'HP']]} onChange={(x) => setM('unit', x)} />
@@ -262,7 +294,7 @@ export default function QuickCalcs({ project }: { project: Project }) {
           <Pick field="st" label="Starter" value={m.st} options={STARTERS.map((s) => [s.value, `${s.label} (× ${s.multiple})`] as [string, string])} onChange={(x) => setM('st', x)} />
         </Card>
 
-        <Card title="Power factor correction" errors={pErrors} onReset={resetP} formula="kVAr = P · (tan φ1 − tan φ2)"
+        <Card id="pfc" title="Power factor correction" errors={pErrors} onReset={resetP} formula="kVAr = P · (tan φ1 − tan φ2)"
           result={!pRes ? <Warn>Enter kW and both power factors.</Warn>
             : pRes.invalid ? <Warn>{pRes.invalid}.</Warn>
               : pRes.needed
@@ -273,7 +305,7 @@ export default function QuickCalcs({ project }: { project: Project }) {
           <Field label="Target PF" v={p} k="target" set={setP} width={60} />
         </Card>
 
-        <Card title="Fault level at end of cable" errors={fErrors} onReset={resetF} formula="Zsource from the fault at the start (X/R 5) or the transformer; Iend = V ÷ (√3 · |Zsource + Zcable|)"
+        <Card id="fault" title="Fault level at end of cable" errors={fErrors} onReset={resetF} formula="Zsource from the fault at the start (X/R 5) or the transformer; Iend = V ÷ (√3 · |Zsource + Zcable|)"
           result={fRes?.invalid ? <Warn>{fRes.invalid}</Warn> : fRes ? <><Out label="At the start" value={fmt(fRes.startKA, 1)} unit="kA" /><Out main label="At the cable end" value={fmt(fRes.endKA, 1)} unit="kA" /></> : null}>
           <Pick field="src" label="Source" value={f.src} options={[['tx', 'Transformer'], ['ka', 'Known fault level']]} onChange={(x) => setF('src', x)} />
           {f.src === 'tx' ? <><Field label="Transformer" v={f} k="kva" set={setF} unit="kVA" /><Field label="Impedance" v={f} k="z" set={setF} unit="%" width={60} /></> : <Field label="Fault at start" v={f} k="ka" set={setF} unit="kA" />}
@@ -283,14 +315,14 @@ export default function QuickCalcs({ project }: { project: Project }) {
           <Field label="Length" v={f} k="l" set={setF} unit="m" />
         </Card>
 
-        <Card title="Ohm's law & power" errors={oErrors} onReset={resetO} formula="V = I · R;  P = V · I = I² · R = V² ÷ R  (DC / resistive)"
+        <Card id="ohm" title="Ohm's law & power" errors={oErrors} onReset={resetO} formula="V = I · R;  P = V · I = I² · R = V² ÷ R  (DC / resistive)"
           result={oRes?.invalid ? <Warn>{oRes.invalid}</Warn> : oRes ? <><Out label="Voltage" value={fmt(oRes.v, 3)} unit="V" /><Out label="Current" value={fmt(oRes.i, 3)} unit="A" /><Out label="Resistance" value={fmt(oRes.r, 3)} unit="Ω" /><Out label="Power" value={fmt(oRes.p, 3)} unit="W" /></> : null}>
           <Pick field="known" label="You know" value={o.known} options={Object.entries(oKnown).map(([k, x]) => [k, `${x[0]} and ${x[2]}`] as [string, string])} onChange={(x) => setO('known', x)} />
           <Field label={ok2[0]} v={o} k="x" set={setO} unit={ok2[1]} />
           <Field label={ok2[2]} v={o} k="y" set={setO} unit={ok2[3]} />
         </Card>
 
-        <Card title="Energy & cost" errors={nErrors} onReset={resetN} formula="kWh = kW × hours/day × days;  cost = kWh × tariff (use your tariff incl. fuel surcharge)"
+        <Card id="energy" title="Energy & cost" errors={nErrors} onReset={resetN} formula="kWh = kW × hours/day × days;  cost = kWh × tariff (use your tariff incl. fuel surcharge)"
           result={nRes?.invalid ? <Warn>{nRes.invalid}</Warn> : nRes ? <><Out main label="Energy" value={fmt(nRes.kwh, 0)} unit="kWh" /><Out main label="Cost" value={fmt(nRes.cost, 2)} unit={n.cur} /></> : null}>
           <Field label="Load" v={n} k="kw" set={setN} unit="kW" />
           <Field label="Hours per day" v={n} k="h" set={setN} unit="h" width={60} />
@@ -299,7 +331,40 @@ export default function QuickCalcs({ project }: { project: Project }) {
           <label className="qc-field"><span>Currency</span><input style={{ width: 60 }} value={n.cur} onChange={(x) => setN('cur', x.target.value)} /></label>
         </Card>
 
-        <Card title="Unit conversions" errors={uErrors} onReset={resetU}
+        <Card id="lux" title="Lighting — lux (lumen method)" errors={xErrors} onReset={resetX}
+          aside={xRes && !xRes.invalid ? <LuxLayoutPlan lengthM={num(x.l)!} widthM={num(x.w)!} rows={xRes.rows} cols={xRes.cols} /> : undefined}
+          formula="K = L·W ÷ (Hm·(L + W));  N = E·A ÷ (Φ·UF·MF);  E achieved = N·Φ·UF·MF ÷ A. Average only — use DIALux / Relux for uniformity, glare and point values. Estimated UF is indicative for a direct LED luminaire; use the manufacturer's UF table when you have it."
+          result={xRes?.invalid ? <Warn>{xRes.invalid}</Warn> : xRes ? <>
+            <Out main label="Luminaires" value={`${xRes.count} (${xRes.rows} × ${xRes.cols})`} />
+            <Out main label="Average illuminance" value={fmt(xRes.achievedLux, 0)} unit="lx" />
+            <Out label="Calculated (exact)" value={fmt(xRes.required, 1)} />
+            <Out label="Room index K" value={fmt(xRes.k)} />
+            <Out label={xRes.ufEstimated ? 'UF (estimated)' : 'UF (entered)'} value={fmt(xRes.uf)} />
+            <Out label="Area · Hm" value={`${fmt(xRes.areaM2, 1)} m² · ${fmt(xRes.hmM)} m`} />
+            <Out label="Spacing (along L × W)" value={`${fmt(xRes.spacingLM)} × ${fmt(xRes.spacingWM)}`} unit="m" />
+            <Out label="Spacing ÷ Hm" value={fmt(xRes.shr)} />
+            <Out label="Lighting load" value={`${fmt(xRes.totalW / 1000)} kW · ${fmt(xRes.wPerM2, 1)} W/m²`} />
+            <Out label="W/m² per 100 lx" value={fmt(xRes.wPerM2Per100Lux)} />
+            {xRes.shr > 1.5 && <Warn>Spacing is more than 1.5 × Hm — check the luminaire's maximum spacing-to-height ratio; uniformity may be poor.</Warn>}
+          </> : null}>
+          <Pick field="room" label="Space" value={x.room} options={[...LUX_TARGETS.map((r) => [r.key, `${r.label} (${r.lux} lx)`] as [string, string]), ['custom', 'Custom target']]}
+            onChange={(v) => { setX('room', v); const t = LUX_TARGETS.find((r) => r.key === v); if (t) setX('e', String(t.lux)); }} />
+          <Field label="Target Em" v={x} k="e" set={setLux} unit="lx" width={70} />
+          <Field label="Room length L" v={x} k="l" set={setX} unit="m" width={70} />
+          <Field label="Room width W" v={x} k="w" set={setX} unit="m" width={70} />
+          <Field label="Ceiling height" v={x} k="h" set={setX} unit="m" width={70} />
+          <Field label="Working plane" v={x} k="wp" set={setX} unit="m" width={70} />
+          <Field label="Suspension" v={x} k="sus" set={setX} unit="m" width={70} />
+          <Field label="Luminaire output Φ" v={x} k="lm" set={setX} unit="lm" width={70} />
+          <Field label="Luminaire wattage" v={x} k="wt" set={setX} unit="W" width={70} />
+          <Field label="Maintenance factor" v={x} k="mf" set={setX} width={60} />
+          <Pick field="ufMode" label="Utilisation factor" value={x.ufMode} options={[['est', 'Estimate from reflectances'], ['man', 'Enter from manufacturer']]} onChange={(v) => setX('ufMode', v)} />
+          {x.ufMode === 'man'
+            ? <Field label="UF" v={x} k="uf" set={setX} width={60} />
+            : <Pick field="refl" label="Ceiling / wall / floor" value={x.refl} options={REFLECTANCES.map((r) => [r.key, r.label] as [string, string])} onChange={(v) => setX('refl', v)} />}
+        </Card>
+
+        <Card id="units" title="Unit conversions" errors={uErrors} onReset={resetU}
           result={<>
             <Out label={`${u.hp || 0} HP`} value={fmt((num(u.hp) ?? NaN) * HP_KW, 2)} unit="kW" />
             <Out label={`${u.kw || 0} kW`} value={fmt((num(u.kw) ?? NaN) / HP_KW, 2)} unit="HP" />
@@ -315,6 +380,7 @@ export default function QuickCalcs({ project }: { project: Project }) {
           <Field label="kcmil" v={u} k="kcmil" set={setU} width={70} />
         </Card>
       </div>
+      </ActiveCard.Provider>
     </Page>
   );
 }
