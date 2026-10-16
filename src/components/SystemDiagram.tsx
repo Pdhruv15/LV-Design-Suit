@@ -767,7 +767,7 @@ export default function SystemDiagram({
         ))}
 
         {/* Main earthing: the transformer's neutral and body earths (separate pits, never joined) and
-            the LV earth pits, wired through a test link to the main board's MET. IEC 60364-5-54 / BS 7430. */}
+            the LV earth pits, each wired through its own test link to the main board's MET and linked in the soil. IEC 60364-5-54 / BS 7430. */}
         {layout.roots.map((r, i) => {
           const b = r.board;
           if (!hasEarthPits(b)) return null;
@@ -804,7 +804,7 @@ export default function SystemDiagram({
           const nIds = pitIds(`txn:${b.id}`), bIds = pitIds(`txb:${b.id}`);
           return (
             <g key={`earth-${b.id}`} className="acc earth-pit">
-              <title>{`${b.id} main earthing: ${pits} earth pits${ids}, ${el} m electrodes, min. ${sp} m apart, 1C ${mm} mm² Cu/PVC to the MET through a test link${tx ? '; transformer neutral to its own pit; body bonded to the RMU earth (shared pits); not interconnected' : ''}`}</title>
+              <title>{`${b.id} main earthing: ${pits} earth pits${ids}, ${el} m electrodes, min. ${sp} m apart, 1C ${mm} mm² Cu/PVC from the MET to each pit through its own test link, pits linked in the soil${tx ? '; transformer neutral to its own pit; body bonded to the RMU earth (shared pits); not interconnected' : ''}`}</title>
               {tx && (
                 <g className="tx-earth">
                   {/* Neutral (star point) to its own pit, on the left */}
@@ -820,13 +820,15 @@ export default function SystemDiagram({
                 </g>
               )}
               <text x={ox} y={oy - 6} className="acc-t b">{`LV EARTH PITS (${pits} NO.)${ids}`}</text>
-              {/* Pits linked to each other and run down to the MET through a test link */}
-              <path d={`M${ox + 15} ${oy + 12} V${oy + 8} H${runX} V${y1 - 4} H${metMid} V${metY}`} className="ln" />
-              <line x1={ox + 85} y1={oy + 8} x2={ox + 85} y2={oy + 12} className="ln" />
-              <rect x={runX - 5} y={y1 - 17} width="10" height="7" className="sym" />
-              <text x={runX - 8} y={y1 - 11} textAnchor="end" className="acc-t" style={{ fontSize: 7 }}>TEST LINK</text>
+              {/* A separate conductor from the MET to each pit, each through its own test link; the pits linked in the soil */}
+              <path d={`M${ox + 15} ${oy + 12} V${oy + 2} H${runX + 8} V${y1 - 10} H${metMid + 8} V${metY}`} className="ln" />
+              <path d={`M${ox + 85} ${oy + 12} V${oy + 8} H${runX} V${y1 - 4} H${metMid} V${metY}`} className="ln" />
+              <rect x={runX - 5} y={y1 - 24} width="10" height="7" className="sym" />
+              <rect x={runX + 3} y={y1 - 36} width="10" height="7" className="sym" />
+              <text x={runX + 16} y={y1 - 30} className="acc-t" style={{ fontSize: 7 }}>TL</text>
               {rod(ox + 15)}
               {rod(ox + 85)}
+              <line x1={ox + 15} y1={oy + 31} x2={ox + 85} y2={oy + 31} className="ln" strokeDasharray="1.5 3" />
               <line x1={ox + 15} y1={oy + 52} x2={ox + 85} y2={oy + 52} className="ln" />
               <path d={`M${ox + 15} ${oy + 52} l5 -2.5 v5 z M${ox + 85} ${oy + 52} l-5 -2.5 v5 z`} className="dot" />
               <text x={ox + 50} y={oy + 50} textAnchor="middle" className="acc-t" style={{ fontSize: 7 }}>{sp.toFixed(1)} m (MIN)</text>
