@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-13_
+_Last updated: 2026-10-15_
 
 ## Current development focus
 
@@ -14,6 +14,7 @@ _Last updated: 2026-10-13_
 - Emergency: EMDB with ATS + generator, ESMDB / EDB below it
 - Naming schedule: renumber incremental or by level, rename everywhere
 - Enclosure sizing from supplier chart
+- MDB / SMDB Form-4 enclosure sizing from the owner's worksheet (v1.44)
 - SLD speed: only draws what is in view (1,000 boards: 6.6 s → 0.43 s)
 - Update script: `npm run update-app` (compares with installed version)
 

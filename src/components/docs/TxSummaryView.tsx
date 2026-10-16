@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { Board, Project } from '../../types';
 import { addTransformerRow, buildTxSummary, nextSubstationName, rowCtText } from '../../docs/txSummary';
 import { deleteBoard } from '../../model/edit';
 import { revisionStamp } from '../../model/revisions';
+import TxRowEditDialog from './TxRowEditDialog';
 
 const kw = (v: number) => v.toFixed(2);
 const num = (v: string) => (v.trim() === '' || Number.isNaN(+v) ? undefined : +v);
@@ -24,6 +25,10 @@ export default function TxSummaryView({ project, onChange, onSettings }: { proje
     <input style={{ width: w }} defaultValue={value ?? ''} key={String(value ?? '')} placeholder={ph}
       onBlur={(e) => e.target.value !== String(value ?? '') && onSet(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} />
   );
+  // Transformer row open in the double-click edit dialog.
+  const [editing, setEditing] = useState<string | null>(null);
+  const editGroup = editing ? s.groups.find((g) => g.rows.some((r) => r.board.id === editing)) : undefined;
+  const editRow = editGroup?.rows.find((r) => r.board.id === editing);
   const blank = (v: string) => v || <span className="md-blank" title="Set in Project settings">—</span>;
 
   return (
@@ -65,7 +70,7 @@ export default function TxSummaryView({ project, onChange, onSettings }: { proje
                 </td>
               </tr>,
               ...g.rows.map((r) => (
-                <tr key={r.board.id}>
+                <tr key={r.board.id} title="Double-click to edit this transformer" onDoubleClick={(e) => !(e.target as HTMLElement).closest('button') && setEditing(r.board.id)}>
                   <td className="gx-in l txs-ref"><In value={r.board.txRef ?? r.board.id} w="100%" onSet={(v) => setBoard(r.board.id, { txRef: v.trim() && v.trim() !== r.board.id ? v.trim() : undefined })} /></td>
                   <td className="gx-calc">{r.poles}</td>
                   {r.device === 'ACB'
@@ -105,6 +110,12 @@ export default function TxSummaryView({ project, onChange, onSettings }: { proje
           </tfoot>
         </table>
       </div>
+      {editRow && editGroup && (
+        <TxRowEditDialog row={editRow} substation={editGroup.name}
+          onSave={(patch) => { setBoard(editRow.board.id, patch); setEditing(null); }}
+          onDelete={() => { removeRow(editRow.board.id, editRow.manual); setEditing(null); }}
+          onClose={() => setEditing(null)} />
+      )}
       <div className="txs-under">
         <button className="chip" onClick={() => addRow(nextSubstationName(s))}>+ Substation</button>
         <span className="m">White cells are typed. A new transformer takes its loads and meters as typed here until boards are drawn below it on the SLD — then they come from there.</span>

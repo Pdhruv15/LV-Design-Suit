@@ -1,7 +1,7 @@
 import { STATUS_TEXT } from '../calc/statusText';
 import { cables } from '../calc/cableTable';
 import { cpcOf } from '../calc/earthing';
-import { pointColumns, pointWattsFor, SINGLE_PHASES } from '../calc/loadSchedule';
+import { itemizedTypes, normalizeLoadItems, pointColumns, pointWattsFor, SINGLE_PHASES } from '../calc/loadSchedule';
 import { breakerRatings } from '../calc/sizing';
 import { addCircuit, refreshBoard, updateCircuit, type CircuitPatch } from '../model/schedule';
 import type { Board, Feeder, Phase, PointType, Project } from '../types';
@@ -122,7 +122,12 @@ export function buildDbSheet(project: Project, boardId: string): DbSheet {
     line[at('ecc')] = cpcOf(f);
     line[at('room')] = f.room ?? f.name ?? '';
     for (const p of points) line[at(`pt:${p.value}`)] = f.points?.[p.value] || '';
-    line[at('wpu')] = used.map((p) => watts[p.value] || 0).join(' / ');
+    // Mixed items show each item's own watts, e.g. "10 / 20" for 6 × L1 10 W + 4 × L2 20 W.
+    const items = normalizeLoadItems(f.loadItems);
+    line[at('wpu')] = used.flatMap((p) => {
+      const own = items.filter((it) => it.pointType === p.value);
+      return own.length ? own.map((it) => it.unitWatts) : [watts[p.value] || 0];
+    }).join(' / ');
     line[at('R')] = r.ph.R;
     line[at('Y')] = r.ph.Y;
     line[at('B')] = r.ph.B;
@@ -209,11 +214,19 @@ function cellStyles(sheet: DbSheet): Record<string, string> {
   return out;
 }
 
+/** A point count that comes from the circuit's mixed load items (edited in the circuit dialog). */
+export function isItemizedCell(sheet: DbSheet, y: number, x: number): boolean {
+  const row = sheet.rows[y];
+  const key = sheet.sheetCols[x]?.key;
+  return row?.type === 'circuit' && !!key?.startsWith('pt:') && itemizedTypes(row.feeder).has(key.slice(3) as PointType);
+}
+
 /** Whether the user may type in a cell. */
 export function isEditable(sheet: DbSheet, y: number, x: number): boolean {
   const row = sheet.rows[y];
   const col = sheet.sheetCols[x];
   if (!row || !col) return false;
+  if (isItemizedCell(sheet, y, x)) return false;
   if (row.type === 'watts') return col.key.startsWith('pt:');
   if (!col.input) return false;
   // An empty way takes a room, points or remarks (that creates the circuit),
@@ -233,6 +246,12 @@ export function applySheetEdits(project: Project, sheet: DbSheet, edits: SheetEd
   const cell = (e: SheetEdit) => `${colName(e.x)}${e.y + 1}`;
 
   for (const e of edits) {
+    if (isItemizedCell(sheet, e.y, e.x)) {
+      const row = sheet.rows[e.y] as Extract<SheetRow, { type: 'circuit' }>;
+      const t = sheet.sheetCols[e.x].key.slice(3) as PointType;
+      if (parseCount(String(e.value ?? '')) !== (row.feeder.points?.[t] ?? 0)) rejected.push(`${cell(e)}: mixed load items — change them in the circuit dialog (double-click the row)`);
+      continue;
+    }
     if (!isEditable(sheet, e.y, e.x)) continue;
     const row = sheet.rows[e.y];
     const key = sheet.sheetCols[e.x].key;

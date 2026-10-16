@@ -20,13 +20,13 @@ const E = 'engineering', D = 'drawing', C = 'commercial', A = 'admin', B = 'book
 export const FEEDER_CLASS: Record<keyof Feeder, ChangeClass> = {
   id: E, boardId: E, name: D, loadKw: E, demandFactor: E, powerFactor: E, lengthM: E, cableCsaMm2: E, parallel: E, cores: E, breakerRatingA: E, breakerIcuKa: E,
   generation: E, loadType: E, breakerType: E, breakerImMultiple: E, cpcMm2: E, installMethod: E, componentId: E, componentValues: E, standbyUnit: E, fromRoom: D, essential: E, phase: E, way: E,
-  room: D, points: E, remarks: D, manualSize: E, starter: E, kvar: E, device: E, cableType: E, kwhMeter: E, circuitPurpose: E, rcdMa: E, localIsolator: E, capSteps: E,
+  room: D, points: E, loadItems: E, remarks: D, manualSize: E, starter: E, kvar: E, device: E, cableType: E, kwhMeter: E, circuitPurpose: E, rcdMa: E, localIsolator: E, capSteps: E,
   detunedPct: E, trayRoute: E, lengthToCheck: B, sizingPending: B, feedsBoardId: E
 };
 
 export const BOARD_CLASS: Record<keyof Board, ChangeClass> = {
   id: E, name: D, upstreamId: E, sourceKva: E, sourceImpedancePct: E, sourceXr: E, vectorGroup: E, kind: E, ratedCurrentA: E, busbarMaterial: E, ipRating: E, location: D, level: D,
-  manufacturer: E, model: E, standby: E, protection: E, instruments: D, incomerDevice: D, earthing: D, rmu: E, upsKva: E, spd: E, supply: E, generated: B, enclosure: E, substation: E, mdDemandFactor: E,
+  manufacturer: E, model: E, standby: E, protection: E, instruments: D, incomerDevice: D, earthing: D, rmu: E, upsKva: E, spd: E, supply: E, generated: B, enclosure: E, form4: E, substation: E, mdDemandFactor: E,
   txRef: D, summaryLoad: E, summaryMeters: E, pointWatts: E, pointItems: D, spareNames: D, elcbGroupSize: E, elcbRatingA: E, elcbSensitivityMa: E
 };
 

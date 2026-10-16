@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Earth Pit Arrangement</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--line:#d5d9e0;--tx:#1b2330;--mut:#5b6b82;--acc:#1d4f8f}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.45 -apple-system,"Segoe UI",system-ui,sans-serif}
+header{padding:14px 16px 4px;max-width:1180px;margin:0 auto}
+h1{font-size:17px;margin:0 0 4px}
+.mut{color:var(--mut)}
+main{max-width:1180px;margin:0 auto;padding:8px 16px 32px;display:grid;gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.card h2{font-size:14px;margin:0 0 2px}
+.tag{display:inline-block;font-size:10px;font-weight:600;padding:1px 7px;border-radius:9px;margin-left:6px;vertical-align:2px}
+.now{background:#eceff3;color:#5b6b82}.rec{background:#1d4f8f;color:#fff}.alt{background:#e3ebf6;color:#1d4f8f}
+.row{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px;align-items:start}
+@media (max-width:900px){.row{grid-template-columns:1fr}}
+svg{width:100%;height:auto;display:block;border:1px solid #e6e9ee;border-radius:4px;background:#fff}
+ul{margin:6px 0 0;padding-left:18px}li{margin:2px 0}
+.good{color:#1a7f37}.bad{color:#b42318}
+</style>
+</head>
+<body>
+<header>
+  <h1>Earth pit arrangement: 1 RMU + 2 transformers (rev. 7)</h1>
+  <div class="mut">Only the bottom of the earthing schematic changes: how the cables reach the pits and how the pits are linked. The connections stay the same in every option: RMU and both tanks share 2 body pits, and each transformer has 1 neutral pit.</div>
+</header>
+<main id="m"></main>
+<script>
+const G = '#1a7f37', K = '#111', M = '#5b6b82', CU = '#b86b2b';
+const PY = 330; // pit row
+const L = (d, w = 1.6, c = G, extra = '') => `<path d="${d}" stroke="${c}" stroke-width="${w}" fill="none" ${extra}/>`;
+const dotted = (d) => L(d, 1.6, G, 'stroke-dasharray="1.5 3" stroke-linecap="round"');
+const dot = (x, y) => `<circle cx="${x}" cy="${y}" r="2.6" fill="${G}"/>`;
+const T = (x, y, s, o = '') => `<text x="${x}" y="${y}" font-size="9" fill="${K}" ${o}>${s}</text>`;
+const bar = (x, y, id, n = 3) => `<rect x="${x - 26 - (n - 3) * 8}" y="${y}" width="${52 + (n - 3) * 16}" height="9" rx="2" fill="${CU}" fill-opacity=".18" stroke="${CU}" stroke-width="1.2"/>` +
+  Array.from({ length: n }, (_, i) => `<circle cx="${x - 14 - (n - 3) * 8 + i * 16}" cy="${y + 4.5}" r="2" fill="${K}"/>`).join('') +
+  `<text x="${x + 4}" y="${y + 21}" font-size="8" font-weight="600" fill="#1d4f8f">${id}</text>`;
+const tl = (x, y) => `<rect x="${x - 5}" y="${y - 4}" width="10" height="8" fill="#fff" stroke="${K}"/><line x1="${x - 5}" y1="${y}" x2="${x + 5}" y2="${y}" stroke="${K}"/>`;
+const pit = (x, id) => `<rect x="${x - 6}" y="${PY - 5}" width="12" height="10" fill="#fff" stroke="${K}" stroke-width="1.2"/>` +
+  L(`M${x} ${PY + 5} V${PY + 22}`, 1.2, K) + [0, 3, 6].map((d, i) => `<line x1="${x - 7 + i * 2.5}" y1="${PY + 22 + d}" x2="${x + 7 - i * 2.5}" y2="${PY + 22 + d}" stroke="${K}" stroke-width="1.2"/>`).join('') +
+  `<text x="${x + 9}" y="${PY + 4}" font-size="10" font-weight="700" fill="${K}">${id}</text>`;
+const sep = (x1, x2, y, s = '≥ 6 m') => L(`M${x1} ${y} H${x2} M${x1} ${y - 4} V${y + 4} M${x2} ${y - 4} V${y + 4}`, .7, M) + `<text x="${(x1 + x2) / 2}" y="${y - 4}" font-size="8" fill="${M}" text-anchor="middle">${s}</text>`;
+/** Horizontal run at y from x1 to x2 hopping over the vertical lines at xs (no connection). */
+const hopRun = (x1, x2, y, xs) => {
+  const dir = Math.sign(x2 - x1); let d = `M${x1} ${y}`;
+  for (const h of xs.sort((a, b) => dir * (a - b))) d += ` H${h - dir * 5} a5 5 0 0 ${dir > 0 ? 1 : 0} ${dir * 10} 0`;
+  return d + ` H${x2}`;
+};
+const ln = (x1, y1, x2, y2, w = 1.3) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${K}" stroke-width="${w}"/>`;
+const lbs = (x, y) => ln(x, y + 14, x, y + 6) + ln(x, y + 6, x - 7, y - 6) + ln(x - 3, y - 6, x + 3, y - 6) + `<circle cx="${x}" cy="${y - 6}" r="1.8" fill="#fff" stroke="${K}"/>` + ln(x, y - 6, x, y - 12);
+const fuse = (x, y) => `<rect x="${x - 3.5}" y="${y - 7}" width="7" height="14" fill="#fff" stroke="${K}" stroke-width="1.1"/>` + ln(x, y - 7, x, y + 7, 1);
+const RT = 32, RH = 66; // RMU enclosure top and height
+const rmu = (x) => {
+  const bus = RT + 18, xs = [x - 34, x, x + 34];
+  let s = `<rect x="${x - 55}" y="${RT}" width="110" height="${RH}" fill="#fff" stroke="${K}" stroke-width="1.2" stroke-dasharray="5 2"/>` + ln(xs[0], bus, xs[2], bus, 2);
+  for (const v of xs) s += ln(v, bus, v, bus + 8);
+  s += lbs(xs[0], bus + 20) + ln(xs[0], bus + 34, xs[0], RT + RH) + lbs(xs[1], bus + 20) + ln(xs[1], bus + 34, xs[1], RT + RH);
+  s += lbs(xs[2], bus + 20) + fuse(xs[2], bus + 41) + ln(xs[2], bus + 48, xs[2], RT + RH);
+  return s + T(x, RT - 8, 'RMU-1', 'text-anchor="middle" font-weight="700" font-size="10"') + T(x, RT + RH + 12, 'feeds TX-1, TX-2', 'text-anchor="middle" font-size="8"');
+};
+const tx = (x, name, leftLbl, rightLbl) => `<circle cx="${x}" cy="56" r="12" fill="none" stroke="${K}" stroke-width="1.2"/><circle cx="${x}" cy="72" r="12" fill="none" stroke="${K}" stroke-width="1.2"/>` +
+  T(x, 38, name, 'text-anchor="middle" font-weight="700" font-size="10"') + T(x - 54, 104, leftLbl, 'text-anchor="end" font-size="8" fill="#5b6b82"') + T(x + 54, 104, rightLbl, 'font-size="8" fill="#5b6b82"');
+const BY = 165; // bars
+/** Equipment conductor down to its bar, the bar, and a test link under it. */
+const down = (fromX, fromY, x, id) => L(`M${fromX} ${fromY} H${x} V${BY}`) + bar(x, BY, id);
+/** RMU at cx with its body earth bar (4 studs at 94, 110, 126, 142 from dx): conductor from the enclosure's left side to stud 1. */
+const rmuEarth = (cx, dx, id) => `<circle cx="${cx - 55}" cy="${RT + 56}" r="2.5" fill="${G}"/>` + L(`M${cx - 55} ${RT + 56} H${dx + 94} V${BY}`) + bar(dx + 116, BY, id, 4);
+const svg = (h, body) => `<svg viewBox="0 0 860 ${h}" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,Segoe UI,sans-serif">${body}</svg>`;
+
+// ---- Current ------------------------------------------------------------
+function current() {
+  let s = rmu(170) + rmuEarth(170, 0, 'EB-RMU-01');
+  // RMU: two cables from the bar's left half to E1, E2
+  s += L(`M94 ${BY + 9} V312 H150 V${PY - 5}`) + L(`M110 ${BY + 9} V304 H230 V${PY - 5}`) + tl(94, 205) + tl(110, 219);
+  s += tx(400, 'TX-1', 'star point (N)', 'tank / body') + down(388, 72, 350, 'EB-TX(N)-01') + down(412, 72, 450, 'EB-TX(B)-01');
+  s += tx(640, 'TX-2', 'star point (N)', 'tank / body') + down(628, 72, 590, 'EB-TX(N)-02') + down(652, 72, 690, 'EB-TX(B)-02');
+  s += L(`M350 ${BY + 9} V${PY - 5}`) + tl(350, 205) + L(`M590 ${BY + 9} V${PY - 5}`) + tl(590, 205);
+  // Body cables: down past the pit row, under it, back up into E2 from below
+  s += L(`M450 ${BY + 9} V390 H230 V${PY + 28}`) + tl(450, 205) + L(`M690 ${BY + 9} V398 H230 V${PY + 28}`) + tl(690, 205) + dot(230, PY + 28);
+  s += pit(150, 'E1') + pit(230, 'E2') + pit(350, 'E3') + pit(590, 'E4');
+  s += dotted(`M150 ${PY + 28} V380 H230 V${PY + 28}`) + dotted(`M350 ${PY + 28} V373 H590 V${PY + 28}`);
+  s += sep(150, 230, 418);
+  return svg(440, s);
+}
+
+// ---- Option A: tank side toward the RMU, cables enter the pits from above ----
+function optionA(fields) {
+  let s = '';
+  const e1 = fields ? 120 : 150, e2 = fields ? 250 : 230;
+  if (fields) {
+    s += `<rect x="70" y="316" width="236" height="146" rx="4" fill="#f3f8f4" stroke="${G}" stroke-dasharray="4 3"/>` + T(80, 440, 'HV BODY EARTH · RMU-1 + TX-1 + TX-2', 'font-weight="700" font-size="8.5" fill="#1a7f37"') + T(80, 452, '2 pits, ≤ 2 Ω together', 'font-size="8" fill="#5b6b82"');
+    s += `<rect x="400" y="316" width="340" height="146" rx="4" fill="#f6f7f9" stroke="${M}" stroke-dasharray="4 3"/>` + T(410, 440, 'TRANSFORMER NEUTRAL EARTH', 'font-weight="700" font-size="8.5" fill="#1b2330"') + T(410, 452, '1 pit per transformer, ≤ 2 Ω', 'font-size="8" fill="#5b6b82"');
+  }
+  s += rmu(170) + rmuEarth(170, 0, 'EB-RMU-01');
+  s += L(`M94 ${BY + 9} V312 H${e1} V${PY - 5}`) + L(`M110 ${BY + 9} V304 H${e2} V${PY - 5}`) + tl(94, 205) + tl(110, 219);
+  // Transformers mirrored: tank / body on the RMU side, star point away from it
+  s += tx(400, 'TX-1', 'tank / body', 'star point (N)') + down(388, 72, 350, 'EB-TX(B)-01') + down(412, 72, 450, 'EB-TX(N)-01');
+  s += tx(640, 'TX-2', 'tank / body', 'star point (N)') + down(628, 72, 590, 'EB-TX(B)-02') + down(652, 72, 690, 'EB-TX(N)-02');
+  // Neutral: straight down to its own pit
+  s += L(`M450 ${BY + 9} V${PY - 5}`) + tl(450, 205) + L(`M690 ${BY + 9} V${PY - 5}`) + tl(690, 205);
+  // Body: above the pit row, into E2's cable from the top; TX-2's hops over TX-1's neutral cable
+  s += L(`M350 ${BY + 9} V290 H${e2} V304`) + tl(350, 205) + dot(e2, 304);
+  s += L(`M590 ${BY + 9} V297`) + L(hopRun(590, e2, 297, [450, 350].filter((x) => x < 590 && x > e2 && x !== 350))) + tl(590, 205) + dot(e2, 297);
+  s += T(356, 262, 'to body pits', 'font-size="8" fill="#5b6b82"') + T(596, 262, 'to body pits', 'font-size="8" fill="#5b6b82"');
+  s += pit(e1, 'E1') + pit(e2, 'E2') + pit(450, 'E3') + pit(690, 'E4');
+  // Pit-to-pit links, short and side by side, each under its own pits
+  const lk = fields ? (x1, x2, y) => L(`M${x1} ${PY + 28} V${y} H${x2} V${PY + 28}`) + T((x1 + x2) / 2, y - 3, `1C 70 mm² link in soil`, 'text-anchor="middle" font-size="7.5" fill="#1a7f37"')
+    : (x1, x2, y) => dotted(`M${x1} ${PY + 28} V${y} H${x2} V${PY + 28}`);
+  s += lk(e1, e2, 378) + lk(450, 690, 378);
+  s += sep(e1, e2, 410) + sep(450, 690, 410);
+  return svg(fields ? 475 : 440, s);
+}
+
+// ---- Option C: reference style (pit circle + chamber, links above the pits) ----
+const P = 345; // pit circle centre
+const LK = P - 18; // pit-to-pit link level, above the pits
+const cpit = (x, tag, eid, left) => {
+  let s = `<circle cx="${x}" cy="${P}" r="6" fill="#fff" stroke="${K}" stroke-width="1.2"/>`;
+  s += `<rect x="${x - 24}" y="${P + 12}" width="48" height="46" fill="none" stroke="${K}" stroke-dasharray="4 3"/>` + L(`M${x} ${P + 6} V${P + 26}`, 1.2, K);
+  s += [0, 6, 12].map((d, i) => `<line x1="${x - 12 + i * 4}" y1="${P + 26 + d}" x2="${x + 12 - i * 4}" y2="${P + 26 + d}" stroke="${K}" stroke-width="1.2"/>`).join('');
+  const tx = left ? x - 30 : x + 30, a = left ? 'end' : 'start';
+  return s + `<text x="${tx}" y="${P + 34}" font-size="9" font-weight="700" fill="${K}" text-anchor="${a}">${tag}</text><text x="${tx}" y="${P + 46}" font-size="8" fill="${M}" text-anchor="${a}">${eid} · earth pit</text>`;
+};
+/** Pit-to-pit link as in the reference: out of each pit's top at 45°, across above the pits. */
+const link = (x1, x2) => L(`M${x1 + 4} ${P - 4} L${x1 + 18} ${LK} H${x2 - 18} L${x2 - 4} ${P - 4}`) + T((x1 + x2) / 2, LK - 4, '1C 70 mm² link', 'text-anchor="middle" font-size="7.5" fill="#1a7f37"');
+/** Link to the same system's first pit in the next group: out of the top, down past the chambers, along the bottom, up and into the pit's top. */
+const chain = (x1, x2, y, label, hops = []) => L(`M${x1 + 4} ${P - 4} L${x1 + 18} ${LK} H${x1 + 38} V${y}`) + L(hopRun(x1 + 38, x2 - 38, y, hops)) + L(`M${x2 - 38} ${y} V${LK} H${x2 - 18} L${x2 - 4} ${P - 4}`) + T((x1 + x2) / 2, y - 4, label, 'text-anchor="middle" font-size="7.5" fill="#1a7f37"');
+/** One RMU with the (up to 2) transformers it feeds, starting at dx. */
+function cGroup(dx, g, txNames, pits) {
+  const X = (v) => v + dx, e1 = X(80), e2 = X(290);
+  let s = rmu(X(170)).replace('RMU-1', `RMU-${g}`).replace('feeds TX-1, TX-2', `feeds ${txNames.join(', ')}`) + rmuEarth(X(170), dx, `EB-RMU-${String(g).padStart(2, '0')}`);
+  s += L(`M${X(94)} ${BY + 9} V308 H${e1} V${P - 6}`) + L(`M${X(110)} ${BY + 9} V300 H${e2} V${P - 6}`) + tl(X(94), 205) + tl(X(110), 219);
+  const nx = [];
+  txNames.forEach((name, i) => {
+    const c = X(400 + i * 240), n = String(Number(name.slice(3))).padStart(2, '0');
+    s += tx(c, name, 'tank / body', 'star point (N)') + down(c - 12, 72, c - 50, `EB-TX(B)-${n}`) + down(c + 12, 72, c + 50, `EB-TX(N)-${n}`);
+    s += L(`M${c + 50} ${BY + 9} V${P - 6}`) + tl(c + 50, 205);
+    // Tank / body earth bar → its own stud on the RMU earth bar (TX-1 stud 4, TX-2 stud 3), landing from above.
+    const stud = X(i === 0 ? 142 : 126), lane = BY - 14 - i * 16, rise = c - 64;
+    s += L(`M${rise} ${BY} V${lane}`) + L(hopRun(rise, stud, lane, i ? [c - 240 + 50, c - 240 - 50] : [])) + L(`M${stud} ${lane} V${BY}`);
+    s += T(i ? (c - 190 + rise) / 2 : (stud + rise) / 2, lane - 3, `1C 70 mm² to EB-RMU-${String(g).padStart(2, '0')}`, 'text-anchor="middle" font-size="7.5" fill="#1a7f37"');
+    nx.push(c + 50);
+  });
+  s += cpit(e1, `EP-RMU-${g}A`, pits[0], false) + cpit(e2, `EP-RMU-${g}B`, pits[1], true);
+  nx.forEach((x, i) => { s += cpit(x, `EP-TX(N)-${String(Number(txNames[i].slice(3))).padStart(2, '0')}`, pits[2 + i], i === nx.length - 1 && nx.length > 1); });
+  s += link(e1, e2) + sep(e1, e2, P + 76, '6 m minimum separation');
+  if (nx.length > 1) s += link(nx[0], nx[1]) + sep(nx[0], nx[1], P + 76, '6 m minimum separation');
+  return { s, body: [e1, e2], neutral: nx };
+}
+function optionC() {
+  const a = cGroup(0, 1, ['TX-1', 'TX-2'], ['E1', 'E2', 'E3', 'E4']);
+  return svg(450, a.s + T(70, P + 100, 'BODY EARTH: RMU-1 + TX-1 + TX-2 tanks on 2 pits', 'font-size="8.5" font-weight="700" fill="#1a7f37"') + T(450, P + 100, 'NEUTRAL EARTH: 1 pit per transformer', 'font-size="8.5" font-weight="700"'));
+}
+/** Two RMUs, four transformers: each group as above; groups joined pit to pit along the bottom. */
+function optionC2() {
+  const a = cGroup(0, 1, ['TX-1', 'TX-2'], ['E1', 'E2', 'E5', 'E6']), b = cGroup(820, 2, ['TX-3', 'TX-4'], ['E3', 'E4', 'E7', 'E8']);
+  let s = a.s + b.s;
+  // Neutral chain above the body chain, as in the reference (body earth the lowest)
+  // The neutral link hops over the body link's riser into EP-RMU-2A (crossing, not connected).
+  s += chain(a.neutral[1], b.neutral[0], P + 96, 'neutral link 1C 70 mm² (TX-2 → TX-3)', [b.body[0] - 38]);
+  s += chain(a.body[1], b.body[0], P + 112, 'body link 1C 70 mm² (RMU-1 group → RMU-2 group)');
+  return `<svg viewBox="0 0 1640 470" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,Segoe UI,sans-serif">${s}</svg>`;
+}
+
+const cards = [
+  ['Current', 'now', current(), ['<span class="bad">Tank cables drop below the pits and come back up into E2 from underneath.</span>', '<span class="bad">Long runs under the neutral pit E3 and across both pit links.</span>', 'Neutral link and body link run in parallel a few px apart.']],
+  ['Option C: reference style', 'rec', optionC(), [
+    '<b>Body earth:</b> each RMU has 2 pits (EP-RMU-1A / 1B) for body earthing only; the tanks of the transformers it feeds (max. 2) are earthed on the same 2 pits.',
+    '<span class="good">Each pit drawn as in your sheet: earth pit circle on top, dashed chamber with the electrode below, tag beside it.</span>',
+    '<span class="good">Pit-to-pit link leaves each pit at the top at 45° and runs across <i>above</i> the pits, labelled with its cable size.</span>',
+    'No “to next pit” stubs on the drawing: when there are more RMUs or transformers, the pits are actually linked to the next group (below).',
+    '<span class="good">Each transformer’s tank / body earth bar connects directly to its own stud on the RMU earth bar (EB-RMU-01, now 4 studs: RMU body, TX-1, TX-2 and the pit cables); the RMU bar has its own cable and test link to each of its 2 pits.</span> TX-2’s cable hops over TX-1’s conductors.',
+    'RMU drawn with its proper symbol: 2 ring load-break switches and the T-off switch-fuse on the busbar (IEC 60617), as in the app.',
+    'Pit tags EP-RMU-1A, EP-TX(N)-01 … shown; the test-record IDs E1, E2 … stay as they are.']],
+  ['Option C with 2 RMUs and 4 transformers', 'rec', optionC2(), [
+    'Each RMU drawn with the transformers it feeds, exactly as above.',
+    'Body pits of the two groups linked: EP-RMU-1B → EP-RMU-2A.',
+    'Neutral pits continue the chain: EP-TX(N)-02 → EP-TX(N)-03.',
+    'Group-to-group links leave the pit top like the others, drop past the chambers and run along the bottom: neutral above, body lowest (as in your sheet). Where they cross, the neutral link hops over: never connected to the body earth.',
+    'Same for 3 or 4 RMUs: each group links to the next.']],
+];
+document.getElementById('m').innerHTML = cards.map(([t, c, s, pts]) => `<section class="card"><h2>${t}<span class="tag ${c}">${c === 'now' ? 'now' : c === 'rec' ? 'recommended' : 'alternative'}</span></h2><div class="row" ${t.includes('2 RMUs') ? 'style="grid-template-columns:1fr"' : ''}>${s}<ul>${pts.map((p) => `<li>${p}</li>`).join('')}</ul></div></section>`).join('');
+</script>
+</body>
+</html>

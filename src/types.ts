@@ -104,6 +104,20 @@ export const DEFAULT_POINT_WATTS: Record<PointType, number> = {
   s15: 0, wac: 0, sac: 0, pump: 0, spare1: 0, spare2: 0, s13t: 0, fcu: 0, spur: 0, isol: 0
 };
 
+/** One kind of equipment on a final circuit, e.g. 6 × L1 at 10 W. A circuit
+ * with mixed fittings lists each kind; its point count for that type is the
+ * sum of the quantities and its load is Σ quantity × unit watts (exact),
+ * instead of count × the DB's single WATT / UNIT value. */
+export interface CircuitLoadItem {
+  /** Library reference (Loads.xlsx 'Reference', e.g. L1). Matched case-insensitively. */
+  reference?: string;
+  /** Library item name, or a description typed on the circuit. Older library rows without a reference link by name. */
+  name: string;
+  pointType: PointType;
+  quantity: number;
+  unitWatts: number;
+}
+
 /** Point types that make a circuit a lighting circuit (if it has only these). */
 export const LIGHTING_POINTS: PointType[] = ['ltg', 'cfan', 'exfan'];
 
@@ -193,6 +207,9 @@ export interface Feeder {
   way?: number; // DB way number: circuit reference = phase + way, e.g. R3
   room?: string;
   points?: Partial<Record<PointType, number>>; // number of points of each type
+  /** What is actually connected, when a point type mixes wattages (e.g. 6 × L1 10 W + 4 × L2 20 W).
+   * Point types listed here take their count and watts from these items; others use the DB's WATT / UNIT. */
+  loadItems?: CircuitLoadItem[];
   remarks?: string;
   manualSize?: boolean; // MCB / wire / ECC set by hand — don't auto-size on load changes
   starter?: StarterType; // motors: default direct on line
@@ -271,6 +288,8 @@ export interface Board {
   generated?: string;
   /** Enclosure chosen in Design → Enclosure sizing: a frozen copy with the catalogue revision used. */
   enclosure?: import('./calc/enclosure').EnclosureSelection;
+  /** MDB / SMDB enclosure from the Form-4 worksheet (Design → Enclosure sizing): a frozen copy with the worksheet revision. */
+  form4?: import('./calc/form4').Form4Selection;
   /** Substation this main board's transformer is in (transformer summary form). */
   substation?: string;
   /** Demand factor of this transformer on the summary form (else the project's). */
@@ -683,6 +702,8 @@ export interface TrayPlan {
  * when one of their transformers is out, so the other carries both. */
 /** Earthing schematic settings. The layout itself is worked out from the transformers, RMUs and main boards. */
 export interface EarthingPlan {
+  /** Earthing system the schematic is drawn to (EARTHING_SYSTEMS); 'shared-hv-body' when absent. */
+  system?: string;
   /** Pits per equipment key (rmu:…, txn:…, txb:…, lv:…), where the user changed the default. */
   pits?: Record<string, number>;
   /** Equipment whose pits are NOT linked to the others of the same kind. */

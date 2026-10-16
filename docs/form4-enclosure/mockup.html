@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Form-4 Panel Sizing</title>
+<style>
+:root{--bg:#0a1120;--panel:#0f1a2f;--p2:#14233f;--line:#20304f;--tx:#dbe4f5;--mut:#8093b5;--acc:#4aa8ff;--ok:#37d67a;--warn:#f5c04a;--bad:#ff5d6c}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.4 -apple-system,"Segoe UI",system-ui,sans-serif;font-variant-numeric:tabular-nums}
+.top{display:flex;align-items:center;gap:12px;padding:8px 16px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
+.top b{font-size:14px}.mut{color:var(--mut)}
+.tabs{display:flex;gap:2px;padding:0 16px;margin-top:8px;border-bottom:1px solid var(--line)}
+.tab{padding:7px 12px;border:1px solid transparent;border-bottom:0;border-radius:6px 6px 0 0;color:var(--mut)}
+.tab.on{background:var(--panel);border-color:var(--line);color:var(--tx)}
+.tag{font-size:10px;padding:1px 6px;border-radius:8px;background:var(--acc);color:#04101f;margin-left:6px;font-weight:600}
+main{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:16px;padding:16px}
+@media (max-width:1000px){main{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+h3{margin:0 0 8px;font-size:13px}
+h4{margin:12px 0 4px;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--mut)}
+select,input{background:var(--p2);color:var(--tx);border:1px solid var(--line);border-radius:5px;padding:4px 6px;font:inherit}
+input[type=number]{width:58px;text-align:right}
+table{border-collapse:collapse;width:100%}
+th{text-align:left;font-size:11px;font-weight:600;color:var(--mut);padding:5px 8px;border-bottom:1px solid var(--line)}
+td{padding:3px 8px;height:30px;border-bottom:1px solid color-mix(in srgb,var(--line) 75%,transparent)}
+td.n,th.n{text-align:right}
+.src{font-size:11px;color:var(--mut)}
+.auto{font-size:10px;color:var(--acc)}
+.big{font-size:22px;font-weight:600;margin:2px 0}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+.chip{border:1px solid var(--line);background:var(--p2);border-radius:5px;padding:4px 10px}
+.chip.on{border-color:var(--acc)}
+.warn{color:var(--warn)}.ok{color:var(--ok)}
+.note{border-left:3px solid var(--warn);background:var(--p2);padding:6px 10px;margin:6px 0;font-size:12px}
+svg{width:100%;height:auto;color:var(--tx)}
+.foot{padding:8px 16px;color:var(--mut);font-size:12px;border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+<div class="top"><b>LV Design Studio</b><span class="mut">Design › Enclosure sizing</span><span class="mut" style="margin-left:auto">MOCKUP — not wired to the app</span></div>
+<div class="tabs"><span class="tab">Distribution boards (DB / EDB)</span><span class="tab on">MDB / SMDB — Form-4 <span class="tag">new</span></span></div>
+
+<main>
+  <section class="card">
+    <h3>Panel <select id="panel"><option>MDB-1 — Main Distribution Board</option><option>SMDB-G1</option></select></h3>
+    <div class="chips"><span class="chip on">Count from SLD</span><span class="chip">Enter manually</span></div>
+    <div class="src">Form-4, bottom entry incoming &amp; outgoing. Quantities are counted from the panel's breakers on the SLD; any number can be overridden (blue "SLD" mark disappears when you edit).</div>
+
+    <h4>Incomer (DEWA / generator)</h4>
+    <table id="tIn"></table>
+    <h4>Bus bar riser</h4>
+    <table id="tRiser"></table>
+    <h4>Capacitor bank</h4>
+    <table id="tCap"></table>
+    <h4>Outgoings — full-width cubicles</h4>
+    <table id="tOutBig"></table>
+    <h4>Outgoings — stacked in a 600 mm section (1800 mm usable height)</h4>
+    <table id="tOutSmall"></table>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:16px">
+    <div class="card">
+      <h3>Result</h3>
+      <div class="big" id="size"></div>
+      <div class="mut" id="sub"></div>
+    </div>
+    <div class="card">
+      <h3>Front view (illustrative, not a manufacturing drawing)</h3>
+      <div id="draw"></div>
+    </div>
+    <div class="card">
+      <h3>How the width is built up</h3>
+      <table id="tBreak"></table>
+    </div>
+    <div class="card">
+      <h3>Points to confirm with the panel builder</h3>
+      <div class="note">Height and depth are fixed (H2100 + 100 plinth, D800) whatever the rating — a 2500 A board and a 400 A board get the same depth.</div>
+      <div class="note">With no riser and more than 1800 mm of stacked outgoings, the 300 mm cable chamber after the first section is dropped (rule −300). Confirm that is intended.</div>
+      <div class="note">No shipping-split limit: a 6 m board is shown as one line-up.</div>
+    </div>
+  </section>
+</main>
+<div class="foot">Rules from “LV PANEL SIZE SELECTION.xlsx”, sheet FORM-4 Design Work Sheet. Preliminary space estimate.</div>
+
+<script>
+// Each column of the spreadsheet: id, label, width each (mm) or stacked height (mm), group, sample qty, counted from SLD?
+const ROWS = [
+  {id:'D',g:'In',label:'2500 A 4P ACB',w:800,q:1,sld:1},
+  {id:'E',g:'In',label:'1600 A 4P ACB',w:800,q:0},
+  {id:'F',g:'Riser',label:'2500 A TP ACB',w:800,q:0},
+  {id:'G',g:'Riser',label:'2000 A TP ACB',w:800,q:0},
+  {id:'H',g:'Riser',label:'1600 A TP ACB',w:800,q:0},
+  {id:'I',g:'Riser',label:'1250 A TP ACB',w:800,q:2,sld:1},
+  {id:'J',g:'Riser',label:'1250 / 1000 A TP MCCB',w:600,q:0},
+  {id:'K',g:'Riser',label:'800 A TP MCCB',w:600,q:0},
+  {id:'L',g:'Cap',label:'1250 A TP ACB',w:800,q:0},
+  {id:'M',g:'Cap',label:'1250 / 1000 A TP MCCB',w:500,q:0},
+  {id:'N',g:'Cap',label:'800 A TP MCCB',w:500,q:0},
+  {id:'O',g:'Cap',label:'630 A TP MCCB',w:500,q:1,sld:1},
+  {id:'P',g:'OutBig',label:'1250 A ACB',w:800,q:0},
+  {id:'Q',g:'OutBig',label:'1000 A MCCB',w:500,q:1,sld:1},
+  {id:'R',g:'OutBig',label:'800 A MCCB',w:500,q:0},
+  {id:'S',s:'630 A',g:'OutSmall',label:'630 / 500 A MCCB',h:400,q:0},
+  {id:'T',s:'400 A',g:'OutSmall',label:'400 / 350 / 300 A MCCB',h:300,q:2,sld:1},
+  {id:'U',s:'250 A',g:'OutSmall',label:'250 / 225 / 200 A MCCB',h:250,q:4,sld:1},
+  {id:'V',s:'160 A',g:'OutSmall',label:'160 / 125 A MCCB',h:200,q:6,sld:1},
+  {id:'W',s:'HF',g:'OutSmall',label:'Harmonic feeder',h:200,q:0},
+  {id:'X',s:'≤100 A',g:'OutSmall',label:'Up to 100 A MCCB',h:200,q:4,sld:1},
+];
+
+function table(g){
+  const big = g!=='OutSmall';
+  const head = `<tr><th>Breaker</th><th class="n">Qty</th><th class="n">${big?'Width each':'Height each'}</th><th class="n">${big?'Width':'Height'}</th></tr>`;
+  document.getElementById('t'+g).innerHTML = head + ROWS.filter(r=>r.g===g).map(r=>`<tr>
+    <td>${r.label} ${r.sld?'<span class="auto">SLD</span>':''}</td>
+    <td class="n"><input type="number" min="0" value="${r.q}" data-id="${r.id}"></td>
+    <td class="n mut">${big?r.w:r.h} mm</td><td class="n" id="x${r.id}"></td></tr>`).join('');
+}
+['In','Riser','Cap','OutBig','OutSmall'].forEach(table);
+
+// The spreadsheet formula, term by term.
+function size(){
+  const q = Object.fromEntries(ROWS.map(r=>[r.id,r.q]));
+  const parts = [];
+  const add = (label, mm, kind, extra={}) => { if (mm) parts.push({label, mm, kind, ...extra}); };
+  for (const r of ROWS) if (r.w && r.q) add(`${r.q} × ${r.label} (${r.g==='In'?'incomer':r.g==='Riser'?'riser':r.g==='Cap'?'capacitor':'outgoing'})`, r.q*r.w, 'dev', {r});
+  const riser = ROWS.some(r=>r.g==='Riser'&&r.q>0);
+  const small = ROWS.filter(r=>r.g==='OutSmall');
+  const anySmall = small.some(r=>r.q>0);
+  const stackH = small.reduce((s,r)=>s+r.q*r.h,0);
+  const extra = stackH>1800 ? Math.floor((stackH-1801)/1800+1) : 0;
+  if (riser) add('Riser cable chamber', 300, 'ch');
+  if (anySmall) add(`Outgoing section 1 (stack ${Math.min(stackH,1800)} / 1800 mm)`, 600, 'out');
+  if (anySmall && !riser && extra===0) add('Outgoing cable chamber', 300, 'ch');
+  for (let i=0;i<extra;i++){ add(`Outgoing section ${i+2}`, 600, 'out'); add('Cable chamber', 300, 'ch'); }
+  if (anySmall && !riser && extra>0) parts.push({label:'(Rule: −300 + 300 cancel when no riser)', mm:0, kind:'info'});
+  const W = parts.reduce((s,p)=>s+p.mm,0);
+  return {parts, W, stackH, extra, small, nSections:anySmall?1+extra:0};
+}
+
+function render(){
+  for (const r of ROWS) document.getElementById('x'+r.id).textContent = r.q ? (r.w? r.q*r.w : r.q*r.h)+' mm' : '—';
+  const s = size();
+  document.getElementById('size').textContent = `W ${s.W} × H 2100 (+100 plinth) × D 800 mm`;
+  document.getElementById('sub').innerHTML = `Stacked outgoings: ${s.stackH} mm → ${s.nSections} section${s.nSections===1?'':'s'} of 1800 mm` + (s.stackH>0 ? ` · ${Math.round(s.stackH/(s.nSections*1800)*100)}% of stack height used` : '');
+  document.getElementById('tBreak').innerHTML = `<tr><th>Item</th><th class="n">mm</th></tr>` +
+    s.parts.map(p=>`<tr><td class="${p.kind==='info'?'mut':''}">${p.label}</td><td class="n">${p.kind==='info'?'':p.mm}</td></tr>`).join('') +
+    `<tr><td><b>Total width</b></td><td class="n"><b>${s.W}</b></td></tr>`;
+  draw(s);
+}
+
+function draw(s){
+  const k = 0.11, H = 2100*k, P = 100*k, x0 = 20, y0 = 16;
+  let x = x0, out = [];
+  // fill stacked devices into 1800 mm sections in order (largest first)
+  const queue = []; s.small.forEach(r=>{ for(let i=0;i<r.q;i++) queue.push(r); });
+  let sec = 0;
+  for (const p of s.parts){
+    if (p.kind==='info') continue;
+    const w = p.mm*k;
+    out.push(`<rect x="${x}" y="${y0}" width="${w}" height="${H}" fill="currentColor" fill-opacity="${p.kind==='ch'?'.02':'.05'}" stroke="currentColor" stroke-width="1.2"/>`);
+    if (p.kind==='dev'){
+      const n = p.r.q, each = w/n;
+      for (let i=0;i<n;i++){
+        const cx = x+each*i+each/2;
+        if (i) out.push(`<line x1="${x+each*i}" y1="${y0}" x2="${x+each*i}" y2="${y0+H}" stroke="currentColor" stroke-opacity=".5"/>`);
+        out.push(`<rect x="${cx-each*0.3}" y="${y0+H*0.35}" width="${each*0.6}" height="${H*0.22}" fill="none" stroke="var(--acc)"/>`);
+        out.push(`<text x="${cx}" y="${y0+H*0.48}" text-anchor="middle" font-size="8" fill="currentColor">${p.r.label.split(' ')[0]}</text>`);
+      }
+    } else if (p.kind==='out'){
+      let used = 0, y = y0 + 6;
+      while (queue.length && used + queue[0].h <= 1800){
+        const r = queue.shift(); const h = r.h*k;
+        out.push(`<rect x="${x+4}" y="${y}" width="${w-8}" height="${h-2}" fill="none" stroke="var(--acc)"/><text x="${x+w/2}" y="${y+h/2+3}" text-anchor="middle" font-size="7" fill="currentColor">${r.s}</text>`);
+        y += h; used += r.h;
+      }
+      sec++;
+    } else {
+      out.push(`<text x="${x+w/2}" y="${y0+H/2}" text-anchor="middle" font-size="8" fill="currentColor" opacity=".6" transform="rotate(-90 ${x+w/2} ${y0+H/2})">cable chamber</text>`);
+    }
+    x += w;
+  }
+  const W = x - x0;
+  out.push(`<rect x="${x0}" y="${y0+H}" width="${W}" height="${P}" fill="currentColor" fill-opacity=".15" stroke="currentColor"/>`);
+  out.push(`<line x1="${x0}" y1="${y0+H+P+14}" x2="${x}" y2="${y0+H+P+14}" stroke="currentColor"/><text x="${x0+W/2}" y="${y0+H+P+28}" text-anchor="middle" font-size="11" fill="currentColor">W ${s.W} mm</text>`);
+  out.push(`<text x="${x+8}" y="${y0+H/2}" font-size="11" fill="currentColor">H 2100</text><text x="${x+8}" y="${y0+H+P-1}" font-size="9" fill="currentColor" opacity=".7">+100 plinth</text>`);
+  document.getElementById('draw').innerHTML = `<svg viewBox="0 0 ${Math.max(W+80,300)} ${y0+H+P+40}" font-family="Arial">${out.join('')}</svg>`;
+}
+
+document.addEventListener('input', e=>{
+  const id = e.target.dataset.id; if(!id) return;
+  const r = ROWS.find(r=>r.id===id); r.q = Math.max(0, +e.target.value||0); r.sld = 0;
+  e.target.closest('tr').querySelector('.auto')?.remove();
+  render();
+});
+render();
+</script>
+</body>
+</html>

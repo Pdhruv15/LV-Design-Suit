@@ -1,4 +1,5 @@
 import type { Board, Feeder, PointType, Project } from '../types';
+import { form4SizeText } from './form4';
 import { BOARD_KINDS, POINT_TYPES } from '../types';
 import { cableTypeOf } from '../model/cableTypes';
 import { breakerTypeOf, cpcOf } from './earthing';
@@ -10,7 +11,7 @@ import { matchDevice, type DeviceKind } from '../model/enclosureLibrary';
 import { scheduleGroupOf } from '../model/scheduleGroups';
 import { mainBoards, txTag } from '../model/transformers';
 import { sizeRoute, trayPlanOf, trayQuantities } from './cableTray';
-import { elcbGroups, pointLabel, scheduleCircuits } from './loadSchedule';
+import { elcbGroups, normalizeLoadItems, pointLabel, scheduleCircuits } from './loadSchedule';
 
 /** Bill of materials: every item the design already knows about, rolled up
  * into tender BOQ sections. Each item has a stable key, so a price list
@@ -101,8 +102,11 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
     const rating = b.ratedCurrentA ?? (!b.upstreamId ? b.supply?.ratingA : undefined) ?? p.feeders.find((f) => f.feedsBoardId === b.id)?.breakerRatingA;
     const bus = b.busbarMaterial === 'aluminium' ? 'Al' : 'Cu';
     const enc = b.enclosure;
-    const encText = enc ? `, enclosure ${enc.supplier} ${enc.range} ${enc.config.ref}${enc.mounting ? `, ${enc.mounting} mounted` : ''}, rev. ${enc.revision}${enc.dims ? ` (H${enc.dims.h} × W${enc.dims.w} × D${enc.dims.d} mm)` : ''}` : '';
-    const encKey = enc ? `:${enc.catalogueId}:${enc.config.id}:${enc.mounting ?? '-'}:${enc.dims ? `${enc.dims.h}x${enc.dims.w}x${enc.dims.d}` : '-'}:${encodeURIComponent(enc.revision)}` : '';
+    const f4 = b.form4;
+    const encText = enc ? `, enclosure ${enc.supplier} ${enc.range} ${enc.config.ref}${enc.mounting ? `, ${enc.mounting} mounted` : ''}, rev. ${enc.revision}${enc.dims ? ` (H${enc.dims.h} × W${enc.dims.w} × D${enc.dims.d} mm)` : ''}`
+      : f4 ? `, Form-4 enclosure ${form4SizeText(f4.dims)} (worksheet rev. ${f4.revision}, bottom entry)` : '';
+    const encKey = enc ? `:${enc.catalogueId}:${enc.config.id}:${enc.mounting ?? '-'}:${enc.dims ? `${enc.dims.h}x${enc.dims.w}x${enc.dims.d}` : '-'}:${encodeURIComponent(enc.revision)}`
+      : f4 ? `:form4:${f4.dims.h}+${f4.dims.plinth}x${f4.dims.w}x${f4.dims.d}:${encodeURIComponent(f4.revision)}` : '';
     const make = [b.manufacturer, b.model].filter(Boolean).join(' ');
     const makeKey = [b.manufacturer, b.model].map((s) => encodeURIComponent(s?.trim() || '-')).join(':');
     add('A', `panel:${k}:${rating ?? '-'}:${b.ipRating ?? '-'}:${bus}:${makeKey}${encKey}`,
@@ -164,6 +168,8 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
       const it = L.items.find((i) => i.key === pit.itemKey)!;
       add('I', `earth-pit:${L.electrodeM}:${pit.kind}`, `Earth pit (${kindInfo(pit.kind).label}): ${L.electrodeM} m copper-bonded earth electrode with inspection pit and cover, tested`, 'no', 1, it.equipment);
     }
+    const bodies = L.items.filter((i) => i.sharesPitsOf && i.pits === 0).length;
+    if (bodies) add('I', `earth-body:${L.conductorMm2}`, `Earth conductor 1C × ${L.conductorMm2} mm² Cu/PVC G/Y, transformer tank / body earth bar to the RMU earth bar (length to site)`, 'no', bodies, 'Earthing schematic');
     if (L.links.length) add('I', `earth-link:${L.conductorMm2}`, `Earth pit interconnection 1C × ${L.conductorMm2} mm² Cu (length to site)`, 'no', L.links.length, 'Earthing schematic');
   }
 
@@ -221,7 +227,17 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
   if (p.boq?.includeSchedulePoints) {
     const electricalPoints = new Set<PointType>(['ltg', 'shaver', 's13', 's15', 's13t', 'spur', 'isol']);
     for (const b of p.boards) for (const f of scheduleCircuits(p, b.id)) {
+      // Mixed items are listed as themselves (e.g. L1 and L2 separately); their type's count is covered by them.
+      const items = normalizeLoadItems(f.loadItems);
+      for (const it of items) {
+        const point = POINT_TYPES.find((x) => x.value === it.pointType)!;
+        const spec = it.reference && it.reference !== it.name ? `${it.reference} ${it.name}` : it.name;
+        add('J', `point:${it.pointType}:${encodeURIComponent(it.name)}`, `${spec} — load schedule point count`, 'no', it.quantity, b.id,
+          { quantitySource: 'Load schedule circuit load items', supplyBy: electricalPoints.has(point.value) ? 'contractor' : 'client' });
+      }
+      const itemized = new Set(items.map((it) => it.pointType));
       for (const point of POINT_TYPES) {
+        if (itemized.has(point.value)) continue;
         const count = f.points?.[point.value] ?? 0;
         const selected = b.pointItems?.[point.value]?.trim();
         const label = pointLabel(b, point.value, p);

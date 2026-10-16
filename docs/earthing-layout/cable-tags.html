@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Earth Cable Tags</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--line:#d5d9e0;--tx:#1b2330;--mut:#5b6b82}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.45 -apple-system,"Segoe UI",system-ui,sans-serif}
+header{padding:14px 16px 4px;max-width:1180px;margin:0 auto}
+h1{font-size:17px;margin:0 0 4px}.mut{color:var(--mut)}
+main{max-width:1180px;margin:0 auto;padding:8px 16px 32px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+@media (max-width:860px){main{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.card h2{font-size:14px;margin:0 0 2px}
+.tag{display:inline-block;font-size:10px;font-weight:600;padding:1px 7px;border-radius:9px;margin-left:6px;vertical-align:2px;background:#e3ebf6;color:#1d4f8f}
+.tag.now{background:#eceff3;color:#5b6b82}
+svg{width:100%;height:auto;display:block;border:1px solid #e6e9ee;border-radius:4px;background:#fff;margin-top:8px}
+ul{margin:8px 0 0;padding-left:18px}li{margin:2px 0}
+table{border-collapse:collapse;width:100%;margin-top:8px;font-size:11px}
+th,td{border:1px solid #d5d9e0;padding:3px 6px;text-align:left}th{background:#f6f7f9}
+</style>
+</head>
+<body>
+<header>
+  <h1>Earth cable tags: options</h1>
+  <div class="mut">The same piece of the schematic each time: the RMU earth bar with its two cables to EP-RMU-1A / 1B, and a transformer neutral cable to EP-TX(N)-01. Only the cable tag changes.</div>
+</header>
+<main id="m"></main>
+<script>
+const G = '#1a7f37', K = '#111', M = '#5b6b82', CU = '#b86b2b', B = '#1d4f8f';
+const L = (d, w = 1.6, c = G, x = '') => `<path d="${d}" stroke="${c}" stroke-width="${w}" fill="none" ${x}/>`;
+const T = (x, y, s, o = '') => `<text x="${x}" y="${y}" font-size="9" fill="${K}" ${o}>${s}</text>`;
+const BY = 40, PY = 250;
+const bar = (x, n, id) => `<rect x="${x - 32}" y="${BY}" width="64" height="10" rx="2" fill="${CU}" fill-opacity=".18" stroke="${CU}" stroke-width="1.3"/>` +
+  Array.from({ length: n }, (_, i) => `<circle cx="${x - 21 + i * 14}" cy="${BY + 5}" r="2.4" fill="${K}"/>`).join('') + `<text x="${x + 8}" y="${BY + 24}" font-size="8" font-weight="700" fill="${B}">${id}</text>`;
+const tl = (x, y) => `<rect x="${x - 6}" y="${y - 5}" width="12" height="10" fill="#fff" stroke="${K}"/><line x1="${x - 6}" y1="${y}" x2="${x + 6}" y2="${y}" stroke="${K}"/>`;
+const pit = (x, tag) => `<circle cx="${x}" cy="${PY}" r="6" fill="#fff" stroke="${K}" stroke-width="1.3"/>` + L(`M${x} ${PY + 6} V${PY + 22}`, 1.2, K) +
+  `<rect x="${x - 20}" y="${PY + 10}" width="40" height="36" fill="none" stroke="${K}" stroke-dasharray="4 3"/>` + T(x + 26, PY + 30, tag, 'font-weight="700" font-size="8.5"');
+/** The base piece: RMU bar → 2 pits, TX neutral bar → 1 pit. Returns the svg body and the conductor geometry. */
+function base() {
+  let s = bar(90, 4, 'EB-RMU-01') + bar(380, 3, 'EB-TX(N)-01');
+  s += L(`M69 ${BY + 10} V200 H60 V${PY - 6}`) + L(`M83 ${BY + 10} V190 H200 V${PY - 6}`) + tl(69, 88) + tl(83, 102);
+  s += L(`M380 ${BY + 10} V${PY - 6}`) + tl(380, 88);
+  s += pit(60, 'EP-RMU-1A') + pit(200, 'EP-RMU-1B') + pit(380, 'EP-TX(N)-01');
+  return s;
+}
+const svg = (body, h = 310) => `<svg viewBox="0 0 520 ${h}" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,Segoe UI,sans-serif">${body}</svg>`;
+const tick = (x, y) => L(`M${x - 4} ${y + 4} L${x + 4} ${y - 4}`, 1.2);
+
+const opts = [
+  ['A. Tick and size beside the cable', 'now', svg(base() + tick(83, 140) + T(90, 143, '1C 70 mm² Cu G/Y', 'fill="#1a7f37" font-size="8"') + tick(380, 150) + T(387, 153, '1C 70 mm² Cu G/Y', 'fill="#1a7f37" font-size="8"')),
+    ['What the app does now (tick now on the cable).', 'One label per bar, even with two cables side by side.']],
+  ['B. Span tag, as on your reference sheet', '', svg(base() + L('M50 140 H95', 0.9, M) + tick(69, 140) + tick(83, 140) + `<path d="M95 140 H112" stroke="${M}" stroke-width=".9"/>` + T(116, 143, '2 × 1C 70 mm² G/Y PVC EARTH CABLE', 'font-size="8" fill="#1a7f37"') +
+      L('M366 150 H392', 0.9, M) + tick(380, 150) + T(396, 153, '1C 70 mm² G/Y PVC', 'font-size="8" fill="#1a7f37"')),
+    ['A thin line across the parallel cables with an oblique tick on each, the text at its end: “2 × 1C 70 mm² G/Y PVC EARTH CABLE”.', 'Says how many cables and their size in one tag. Same style as the reference drawing.']],
+  ['C. Leader to a boxed label', '', svg(base() + `<circle cx="83" cy="140" r="2" fill="${G}"/>` + L('M83 140 L120 120 H140', 0.9, M) + `<rect x="140" y="111" width="112" height="18" rx="3" fill="#fff" stroke="${M}"/>` + T(146, 123, '1C 70 mm² Cu/PVC G/Y', 'font-size="8"') +
+      `<circle cx="380" cy="150" r="2" fill="${G}"/>` + L('M380 150 L410 130 H425', 0.9, M) + `<rect x="425" y="121" width="92" height="18" rx="3" fill="#fff" stroke="${M}"/>` + T(430, 133, '1C 70 mm² Cu/PVC', 'font-size="8"')),
+    ['A leader from a dot on the cable to a small boxed label.', 'Easy to read and to move clear of other text; takes more room.']],
+  ['D. Cable number on the cable + earth cable schedule', '', svg(base() + [[69, 150, 'EC-01'], [83, 120, 'EC-02'], [380, 150, 'EC-03']].map(([x, y, id]) => `<rect x="${x - 17}" y="${y - 7}" width="34" height="14" rx="7" fill="#fff" stroke="${B}"/>` + T(x, y + 3, id, `text-anchor="middle" font-size="7.5" font-weight="700" fill="${B}"`)).join('')) +
+      `<table><tr><th>Cable</th><th>From</th><th>To</th><th>Size</th><th>Length</th></tr><tr><td>EC-01</td><td>EB-RMU-01</td><td>EP-RMU-1A</td><td>1C 70 mm² Cu/PVC G/Y</td><td>to site</td></tr><tr><td>EC-02</td><td>EB-RMU-01</td><td>EP-RMU-1B</td><td>1C 70 mm² Cu/PVC G/Y</td><td>to site</td></tr><tr><td>EC-03</td><td>EB-TX(N)-01</td><td>EP-TX(N)-01</td><td>1C 70 mm² Cu/PVC G/Y</td><td>to site</td></tr></table>`,
+    ['Every earth cable gets a number (EC-01 …) in a small tag on the cable; size, from / to and length go in an earth cable schedule on the sheet (and the BOQ).', 'Cleanest drawing and each cable traceable on site; the size is read from the schedule.']]
+];
+document.getElementById('m').innerHTML = opts.map(([t, c, s, pts]) => `<section class="card"><h2>${t}${c ? '<span class="tag now">now</span>' : ''}</h2>${s}<ul>${pts.map((p) => `<li>${p}</li>`).join('')}</ul></section>`).join('');
+</script>
+</body>
+</html>

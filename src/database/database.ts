@@ -11,7 +11,7 @@ import { STANDARD_GENERATOR_KVA, STANDARD_TRANSFORMER_KVA } from '../calc/sizing
 import { typicalImpedancePct } from '../calc/txGen';
 import type { RoomType, UnitType } from '../types';
 import type { PriceList } from '../model/priceList';
-import { POINT_TYPES, STUDY_DEFAULTS, type Board, type PointType, type Project, type StudySettings } from '../types';
+import { POINT_TYPES, STUDY_DEFAULTS, type Board, type CircuitLoadItem, type Feeder, type PointType, type Project, type StudySettings } from '../types';
 
 export const DATABASE_FOLDER = spec.folderName;
 export const BOOKS = spec.books;
@@ -32,6 +32,8 @@ export interface RawDatabase {
 
 export interface LibraryLoad {
   name: string;
+  /** Short unique tag (L1, EF1…), trimmed; matched case-insensitively. Older rows may have none. */
+  reference?: string;
   category?: string;
   column?: PointType; // DEWA schedule column it belongs to
   watts: number;
@@ -100,6 +102,7 @@ export function parseDatabase(raw: RawDatabase): Database {
 
   const loads: LibraryLoad[] = [];
   const seen = new Set<string>();
+  const refRow = new Map<string, unknown>(); // reference (lower case) → Excel row that has it
   const lb = book('loads');
   for (const r of lb.rows) {
     const name = str(r.name);
@@ -108,11 +111,21 @@ export function parseDatabase(raw: RawDatabase): Database {
     if (watts === undefined || Number.isNaN(watts) || watts < 0) { bad(lb.file, r._row, `"${name}" needs Power (W) as a number`); continue; }
     if (seen.has(name.toLowerCase())) { bad(lb.file, r._row, `duplicate name "${name}"`); continue; }
     seen.add(name.toLowerCase());
+    // A repeated reference is reported and dropped from this row only: the item itself still loads (by name).
+    let reference = str(r.reference) || undefined;
+    if (reference) {
+      const key = reference.toLowerCase();
+      if (refRow.has(key)) {
+        issues.push(`${lb.file} row ${r._row}: duplicate reference "${reference}" (also row ${refRow.get(key)}) — reference ignored, "${name}" kept`);
+        reference = undefined;
+      } else refRow.set(key, r._row);
+    }
     const pf = num(r.pf);
     const df = num(r.demandFactor);
     const phases = num(r.phases);
     loads.push({
       name,
+      ...(reference && { reference }),
       watts,
       category: str(r.category) || undefined,
       column: str(r.column) ? columnOf(str(r.column)) : undefined,
@@ -335,6 +348,20 @@ export function loadsForColumn(db: Database, column: PointType): LibraryLoad[] {
   return [...db.loads.filter((l) => l.column === column), ...db.loads.filter((l) => l.column !== column)];
 }
 
+/** The library item a circuit item or column link refers to: by reference when it has one
+ * (case-insensitive), else by name — older Loads.xlsx rows have no reference yet. */
+export function findLibraryLoad(loads: LibraryLoad[], link: { reference?: string; name?: string }): LibraryLoad | undefined {
+  const ref = link.reference?.trim().toLowerCase();
+  if (ref) return loads.find((l) => l.reference?.toLowerCase() === ref);
+  const name = link.name?.trim().toLowerCase();
+  return name ? loads.find((l) => l.name.toLowerCase() === name) : undefined;
+}
+
+/** A circuit item made from a library row (its column, else the given point type). */
+export function loadItemFromLibrary(l: LibraryLoad, pointType: PointType, quantity: number): CircuitLoadItem {
+  return { ...(l.reference && { reference: l.reference }), name: l.name, pointType: l.column ?? pointType, quantity, unitWatts: l.watts };
+}
+
 export interface LibrarySync {
   project: Project;
   changes: string[]; // e.g. "DB-GF1 LTG: LED downlight 10 → 12 W"
@@ -348,12 +375,35 @@ export function syncLibrary(project: Project, db: Database): LibrarySync & { cha
   const changes: string[] = [];
   const missing: string[] = [];
   const changedBoards: string[] = [];
+  // Circuit items: unit watts follow their library row (by reference, else by name).
+  // Items typed on the circuit with no library row are the user's own and are left alone.
+  const feeders = project.feeders.map((f): Feeder => {
+    if (!f.loadItems?.length) return f;
+    let changed = false;
+    const items = f.loadItems.map((it) => {
+      const lib = findLibraryLoad(db.loads, it);
+      if (!lib) {
+        if (it.reference) missing.push(`${f.id}: "${it.reference}"`);
+        return it;
+      }
+      // A legacy name link picks up the row's reference once it has one.
+      const reference = it.reference ?? lib.reference;
+      if (lib.watts === it.unitWatts && reference === it.reference) return it;
+      if (lib.watts !== it.unitWatts) changes.push(`${f.id} ${reference ?? it.name}: ${it.unitWatts} → ${lib.watts} W`);
+      changed = true;
+      return { ...it, ...(reference && { reference }), unitWatts: lib.watts };
+    });
+    if (!changed) return f;
+    if (!changedBoards.includes(f.boardId)) changedBoards.push(f.boardId);
+    return { ...f, loadItems: items };
+  });
+  const feedersChanged = feeders.some((f, i) => f !== project.feeders[i]);
   const boards = project.boards.map((b): Board => {
     if (!b.pointItems) return b;
     let pointWatts = b.pointWatts;
     for (const [col, name] of Object.entries(b.pointItems)) {
       if (!name) continue;
-      const item = byName.get(name.toLowerCase());
+      const item = byName.get(name.toLowerCase()) ?? findLibraryLoad(db.loads, { reference: name });
       if (!item) {
         missing.push(`${b.id} ${col}: "${name}"`);
         continue;
@@ -365,8 +415,10 @@ export function syncLibrary(project: Project, db: Database): LibrarySync & { cha
       }
     }
     if (pointWatts === b.pointWatts) return b;
-    changedBoards.push(b.id);
+    if (!changedBoards.includes(b.id)) changedBoards.push(b.id);
     return { ...b, pointWatts };
   });
-  return { project: changedBoards.length ? { ...project, boards } : project, changes, missing, changedBoards };
+  const boardsChanged = boards.some((b, i) => b !== project.boards[i]);
+  if (!boardsChanged && !feedersChanged) return { project, changes, missing, changedBoards };
+  return { project: { ...project, ...(boardsChanged && { boards }), ...(feedersChanged && { feeders }) }, changes, missing, changedBoards };
 }

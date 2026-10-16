@@ -176,6 +176,7 @@ table.compact th,table.compact td{padding:5px 8px}
 .form-kv{display:grid;grid-template-columns:fit-content(42%) minmax(0,1fr);gap:6px 10px;align-items:center;margin-bottom:10px}
 .form-kv label{display:contents;color:var(--mut)}
 .form-kv input,.form-kv select{padding:5px 7px;min-width:0;width:100%}
+.earth-system{display:grid;gap:4px;margin:0 0 10px}.earth-system select{max-width:100%}
 .earth-bonding{display:block;color:var(--mut);margin:4px 0 10px}
 .earth-bonding textarea{display:block;width:100%;margin-top:4px;padding:5px 7px;resize:vertical}
 .bar{position:relative;height:8px;border-radius:4px;background:var(--line);margin:10px 44px 6px 0}
@@ -1238,6 +1239,22 @@ button.calc-chip.warn{color:var(--warn);border-color:color-mix(in srgb,var(--war
 .enc-key .k{display:inline-block;width:14px;height:9px;margin:0 3px 0 8px;vertical-align:middle;border:1px dashed #2a78d6}
 .enc-key .k.eq{background:#2a78d6;opacity:.6;border-style:solid}.enc-key .k.allow{border-color:#c8a000}
 .enc-foot{margin-top:10px}
+.enc-tabs{margin-bottom:10px}
+.f4-group{margin:6px 0 2px;font-size:var(--fs-xs);font-weight:600;letter-spacing:.02em}
+.f4-size{font-size:18px;margin:0}
+.f4-layout{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:10px;align-items:start}
+@media (max-width:1100px){.f4-layout{grid-template-columns:1fr}}
+.f4-layout .card{display:flex;flex-direction:column;gap:8px;min-width:0}
+.f4-main{display:flex;flex-direction:column;gap:10px;min-width:0}
+.f4-sub{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;align-items:start}
+.f4-seg{display:flex}.f4-seg button{flex:1}
+.f4-head{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap}.f4-head p{margin:0}.f4-head .sp{flex:1}
+.f4-drawing svg{max-height:560px}
+.f4-qty{width:100%;table-layout:fixed}.f4-qty td:first-child{white-space:normal}.f4-qty td:nth-child(2){width:112px}.f4-qty td:nth-child(3){width:76px;text-align:right}
+.f4-qty tr.zero td:first-child{color:var(--mut)}
+.f4-step{display:inline-flex;align-items:center;gap:3px}.f4-step input{width:40px;text-align:right}
+.f4-step button{width:26px;height:26px;border:1px solid var(--line);border-radius:5px;background:var(--p2);color:var(--tx);line-height:1}.f4-step button:disabled{opacity:.4}
+.f4-list{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}.f4-wrap{white-space:normal}
 .enc-cols .pfcc-svg svg{max-height:420px;width:100%}
 
 .modal.cm{max-width:1300px;width:96vw}
@@ -1442,3 +1459,19 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .earth-drawer h4{margin:0 0 6px}
 @media (max-width:1000px){.earth-ws.with-drawer{grid-template-columns:minmax(0,1fr)}}
 .earth-embedded .earth-ws{padding:var(--space-2) 0 0}
+/* Load schedule — double-click circuit edit dialog */
+.modal.circuit-edit{max-width:640px}
+.circuit-edit fieldset{border:1px solid var(--line);border-radius:var(--radius-md,6px);padding:var(--space-2) var(--space-3) var(--space-3);margin:0;display:flex;flex-direction:column;gap:var(--space-2)}
+.circuit-edit legend{font-size:var(--fs-sm);color:var(--mut);padding:0 var(--space-1)}
+.ce-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:var(--space-2) var(--space-3)}
+.ce-grid.ce-pts{grid-template-columns:repeat(auto-fill,minmax(88px,1fr))}
+.ce-items{width:100%;border-collapse:collapse;font-size:var(--fs-sm)}
+.ce-items th{text-align:left;font-weight:500;color:var(--mut);padding:0 4px 2px}
+.ce-items td{padding:2px 4px}.ce-items td.num{text-align:right;white-space:nowrap}
+.ce-items input,.ce-items select{width:100%;min-width:0}
+.ce-items td:nth-child(1){width:70px}.ce-items td:nth-child(4),.ce-items td:nth-child(5){width:64px}
+.schedule td.itemized input{font-style:italic;text-decoration:underline dotted;cursor:default}
+.ce-item-add{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
+.modal.row-edit{max-width:720px}
+.ce-grid .ce-wide{grid-column:1/-1}
+.ce-ro output{min-height:var(--control-h);display:flex;align-items:center;padding:0 var(--space-2);border:1px dashed var(--line);border-radius:var(--radius-md,6px);color:var(--tx)}

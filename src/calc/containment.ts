@@ -40,7 +40,8 @@ export const TRUNKING_SIZES: [number, number][] = [[50, 50], [75, 50], [75, 75],
 export const CONDUIT_SIZES: [number, number][] = [[20, 16.9], [25, 21.4], [32, 27.8], [40, 35.4], [50, 44.3], [63, 56.4]];
 const DUCT_SIZES_MM = [50, 75, 100, 125, 150, 160, 200];
 
-/** Burial derating (IEC 60364-5-52, typical values for XLPE 90 °C). */
+/** Burial derating for XLPE 90 °C: a few rounded design values, to check against IEC 60364-5-52
+ * (Tables B.52.15 / B.52.16) — not copies of the tables. */
 const GROUND_TEMP: [number, number][] = [[10, 1.07], [15, 1.04], [20, 1], [25, 0.96], [30, 0.93], [35, 0.89], [40, 0.85], [45, 0.8], [50, 0.76]];
 /** Soil thermal resistivity (K·m/W) → factor, reference 2.5 (IEC 60364-5-52 Table B.52.16). */
 const SOIL_DIRECT: [number, number][] = [[0.5, 1.88], [0.7, 1.62], [1, 1.5], [1.5, 1.28], [2, 1.12], [2.5, 1], [3, 0.9]];

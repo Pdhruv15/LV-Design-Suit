@@ -1,0 +1,168 @@
+import { useMemo, useState, type ReactNode } from 'react';
+import type { Project } from '../types';
+import { FORM4_COLUMNS, FORM4_GROUPS, FORM4_REVISION, FORM4_SOURCE, FORM4_STACK, form4Selection, form4SizeText, sizeForm4, type Form4Counts } from '../calc/form4';
+import { form4DrawingSvg, form4Dxf } from '../diagram/form4Drawing';
+import { form4FromSld, isForm4Board } from '../model/form4Count';
+import { safeFileName, savePdf, saveText } from '../util/files';
+import { esc } from '../docs/report';
+import { Page } from './ui';
+
+const CONFIRM = [
+  'Height and depth are fixed by the worksheet (H2100 + 100 plinth, D800) whatever the ratings.',
+  'With no riser and more than 1800 mm of stacked outgoings, the worksheet drops the 300 mm cable chamber after the first section — confirm with the panel builder.',
+  'No shipping-split limit is applied: a long board is shown as one line-up.'
+];
+
+/** Design → Enclosure sizing, MDB / SMDB tab: Form-4 line-up width from the owner's worksheet. */
+export default function Form4Sizing({ project, boardId, tabs, onChange, onStatus }: { project: Project; boardId?: string; tabs: ReactNode; onChange: (p: Project) => void; onStatus: (m: string) => void }) {
+  const boards = project.boards.filter((b) => isForm4Board(project, b));
+  const [panel, setPanel] = useState(boards.find((b) => b.id === boardId)?.id ?? boards[0]?.id ?? '');
+  const saved = project.boards.find((b) => b.id === panel)?.form4;
+  // Quantities changed by hand; null = as counted from the SLD.
+  const [manual, setManual] = useState<Form4Counts | null>(saved?.method === 'manual' ? saved.counts : null);
+  // Breaker types with no quantity are hidden until asked for.
+  const [showAll, setShowAll] = useState(false);
+  // Rows edited here stay listed at 0, so one doesn't vanish while being changed.
+  const [touched, setTouched] = useState<string[]>([]);
+  const sld = useMemo(() => form4FromSld(project, panel), [project, panel]);
+  const counts = manual ?? sld.counts;
+  const r = useMemo(() => sizeForm4(counts), [counts]);
+  const svg = useMemo(() => form4DrawingSvg(counts, r), [counts, r]);
+  const changed = saved && saved.dims.w !== r.widthMm;
+
+  const choosePanel = (id: string) => {
+    setPanel(id);
+    setTouched([]);
+    const sv = project.boards.find((b) => b.id === id)?.form4;
+    setManual(sv?.method === 'manual' ? sv.counts : null);
+  };
+  const setQty = (id: string, v: string) => {
+    const n = Math.max(0, Math.floor(Number(v) || 0));
+    setManual({ ...counts, [id]: n });
+    if (!touched.includes(id)) setTouched([...touched, id]);
+  };
+
+  function use() {
+    if (!panel || !r.widthMm) return;
+    const sel = form4Selection(counts, manual ? 'manual' : 'sld');
+    onChange({ ...project, boards: project.boards.map((b) => (b.id === panel ? { ...b, form4: sel } : b)) });
+    onStatus(`${panel}: Form-4 enclosure ${form4SizeText(sel.dims)} — worksheet rev. ${FORM4_REVISION}`);
+  }
+
+  async function exportSheet() {
+    if (!r.widthMm) return;
+    const row = (k: string, v: string) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`;
+    const qtyRows = FORM4_GROUPS.map((g) => {
+      const cols = FORM4_COLUMNS.filter((c) => c.group === g.id && (counts[c.id] ?? 0) > 0);
+      return cols.length ? `<tr><td colspan="4"><b>${esc(g.label)}</b></td></tr>` + cols.map((c) => `<tr><td>${esc(c.label)}</td><td>${counts[c.id]}</td><td>${c.widthMm ? `${c.widthMm} mm wide` : `${c.heightMm} mm high`}</td><td>${(counts[c.id] ?? 0) * (c.widthMm ?? c.heightMm!)} mm</td></tr>`).join('') : '';
+    }).join('');
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(panel)} Form-4 enclosure</title><style>
+    @page { size: A4; margin: 14mm; } body { font: 10.5px/1.45 Arial, sans-serif; color: #111; } h1 { font-size: 16px; margin: 0 0 4px; } h2 { font-size: 12px; color: #000; border-bottom: 1px solid #000; margin: 12px 0 5px; }
+    table { width: 100%; border-collapse: collapse; } th, td { border: .2mm solid #999; padding: 3px 6px; text-align: left; } th { background: #f2f2f2; width: 34%; } thead th { background: #f2f2f2; color: #000; width: auto; }
+    .warn { color: #000; font-weight: 700; } svg { width: 100%; max-height: 120mm; color: #111; } .m { color: #555; } ul { margin: 4px 0; padding-left: 16px; }
+    </style></head><body>
+    <h1>${esc(project.name)} — ${esc(panel)} Form-4 enclosure size</h1><p class="m">${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} · preliminary space estimate</p>
+    <h2>Enclosure</h2><table>${row('Form of separation', 'Form 4, incoming and outgoing bottom entry')}${row('Size', form4SizeText(r.dims))}${row('Rules', `${FORM4_SOURCE}, rev. ${FORM4_REVISION}`)}${row('Quantities', manual ? 'Entered or changed by hand' : 'Counted from the SLD')}${row('Stacked outgoings', `${r.stackMm} mm in ${r.sections} section${r.sections === 1 ? '' : 's'} of ${FORM4_STACK} mm`)}</table>
+    <h2>Breakers</h2><table><thead><tr><th>Breaker</th><th>Qty</th><th>Each</th><th>Total</th></tr></thead><tbody>${qtyRows}</tbody></table>
+    <h2>Width</h2><table><thead><tr><th>Item</th><th>mm</th></tr></thead><tbody>${r.parts.map((p) => `<tr><td>${esc(p.label)}</td><td>${p.mm}</td></tr>`).join('')}<tr><td><b>Total width</b></td><td><b>${r.widthMm}</b></td></tr></tbody></table>
+    <h2>Front and plan views (illustrative, not a manufacturing drawing)</h2>${form4DrawingSvg(counts, r, true)}
+    <h2>To confirm with the panel builder</h2><ul>${CONFIRM.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>
+    <p class="warn">Preliminary space estimate. Busbar sizing, shipping splits, temperature rise (IEC 61439) and the panel builder's layout are separate checks.</p>
+    </body></html>`;
+    const m = await savePdf(`${safeFileName(`${project.name} ${panel} Form-4 enclosure`)}.pdf`, html, { pageSize: 'A4' });
+    if (m) onStatus(m);
+  }
+
+  /** Front and plan views as an editable R12 DXF at 1:1 (1 unit = 1 mm). */
+  async function exportDxf() {
+    if (!r.widthMm) return;
+    const title = `${project.name} - ${panel} Form-4 enclosure ${form4SizeText(r.dims)}`;
+    const m = await saveText(`${safeFileName(`${project.name} ${panel} Form-4 enclosure`)}.dxf`, form4Dxf(counts, r, title), 'DXF drawing (AutoCAD R12)', 'dxf');
+    if (m) onStatus(m);
+  }
+
+  return (
+    <Page title="Enclosure sizing" actions={<><button className="chip" disabled={!r.widthMm} onClick={exportDxf} title="Front and plan views, 1:1 in mm, AutoCAD R12">Export DXF</button> <button className="chip" disabled={!r.widthMm} onClick={exportSheet}>Export size sheet</button></>} intro="Form-4 MDB / SMDB line-up (incoming and outgoing bottom entry) from the owner's worksheet: cubicle widths for incomers, risers, capacitor bank and large outgoings, plus stacked sections of 1800 mm for the smaller outgoings and their cable chambers. Height H2100 + 100 plinth and depth D800 are fixed. A preliminary space estimate.">
+      {tabs}
+      {!boards.length ? <p className="warn">This project has no MDB or SMDB yet.</p> : <>
+        <div className="f4-layout">
+          <section className="card">
+            <h4>Breakers</h4>
+            <div className="form-kv"><label>Panel<select value={panel} onChange={(e) => choosePanel(e.target.value)}>{boards.map((b) => <option key={b.id} value={b.id}>{b.id}{b.form4 ? ' ✓' : ''}</option>)}</select></label></div>
+            <div className="seg f4-seg"><button className={manual ? '' : 'on'} onClick={() => setManual(null)} title="Count the board's breakers on the SLD">Count from SLD</button><button className={manual ? 'on' : ''} onClick={() => setManual(manual ?? { ...sld.counts })} title="Start from the SLD count and change any quantity">Enter manually</button></div>
+            <p className="m">{manual ? 'Quantities changed by hand.' : `${sld.items.length} breaker${sld.items.length === 1 ? '' : 's'} counted from ${panel}'s SLD. Change any quantity to enter it by hand.`}</p>
+            {FORM4_GROUPS.map((g) => {
+              const cols = FORM4_COLUMNS.filter((c) => c.group === g.id);
+              const rows = showAll ? cols : cols.filter((c) => (counts[c.id] ?? 0) > 0 || touched.includes(c.id));
+              if (!rows.length) return null;
+              const total = cols.reduce((n, c) => n + (counts[c.id] ?? 0), 0);
+              return (
+                <div key={g.id}>
+                  <p className="m f4-group">{g.label}{total ? ` · ${total}` : ''}</p>
+                  <table className="bi-table compact f4-qty">
+                    <tbody>{rows.map((c) => {
+                      const q = counts[c.id] ?? 0;
+                      return (
+                        <tr key={c.id} className={q ? '' : 'zero'}>
+                          <td>{c.label}</td>
+                          <td><span className="f4-step">
+                            <button aria-label={`One less ${c.label}`} disabled={!q} onClick={() => setQty(c.id, String(q - 1))}>−</button>
+                            <input className="bi-num" inputMode="numeric" aria-label={`${g.label}: ${c.label}`} value={q} onChange={(e) => setQty(c.id, e.target.value)} onFocus={(e) => e.target.select()} />
+                            <button aria-label={`One more ${c.label}`} onClick={() => setQty(c.id, String(q + 1))}>+</button>
+                          </span></td>
+                          <td className="m">{c.widthMm ? `${c.widthMm} wide` : `${c.heightMm} high`}</td>
+                        </tr>
+                      );
+                    })}</tbody>
+                  </table>
+                </div>
+              );
+            })}
+            {!showAll && !FORM4_COLUMNS.some((c) => (counts[c.id] ?? 0) > 0) && <p className="warn">No breakers counted on the SLD.</p>}
+            <button className="chip" onClick={() => setShowAll(!showAll)}>{showAll ? 'Hide unused breaker types' : `Show all ${FORM4_COLUMNS.length} breaker types`}</button>
+          </section>
+
+          <div className="f4-main">
+            <section className="card">
+              <div className="f4-head">
+                <div>
+                  {r.widthMm ? <p className="f4-size"><b>W {r.widthMm} × H {r.dims.h} (+{r.dims.plinth} plinth) × D {r.dims.d} mm</b></p> : <p className="warn">No breakers counted — enter the quantities.</p>}
+                  {r.sections > 0 && <p className="m">Stacked outgoings {r.stackMm} mm → {r.sections} section{r.sections === 1 ? '' : 's'} of {FORM4_STACK} mm, {Math.round((r.stackMm / (r.sections * FORM4_STACK)) * 100)} % used</p>}
+                </div>
+                <span className="sp" />
+                {saved && !changed && <span className="ok">✓ Saved for {panel}</span>}
+                {changed && <span className="warn">Saved W{saved.dims.w} is out of date</span>}
+                <button className="chip primary" disabled={!panel || !r.widthMm} onClick={use}>{changed ? `Update ${panel}` : `Use for ${panel || 'this panel'}`}</button>
+              </div>
+              {svg && <div className="pfcc-svg f4-drawing" dangerouslySetInnerHTML={{ __html: svg }} />}
+              {svg && <p className="m">Front view with the plan view below (front edge at the bottom) · dimensions in mm · illustrative, not a manufacturing drawing</p>}
+            </section>
+
+            <div className="f4-sub">
+              <section className="card">
+                <h4>How the width is built up</h4>
+                <table className="bi-table compact">
+                  <tbody>{r.parts.map((p, i) => <tr key={i}><td>{p.label}</td><td className="num">{p.mm}</td></tr>)}<tr><td><b>Total width</b></td><td className="num"><b>{r.widthMm}</b></td></tr></tbody>
+                </table>
+                {!manual && sld.items.length > 0 && <>
+                  <h4>Counted from the SLD</h4>
+                  <table className="bi-table compact">
+                    <tbody>{sld.items.map((x, i) => <tr key={i}><td className="f4-wrap">{x.what}<br /><span className="m">{x.ratingA} A → {FORM4_COLUMNS.find((c) => c.id === x.column)!.label}</span>{x.note && <><br /><span className="warn">{x.note}</span></>}</td></tr>)}</tbody>
+                  </table>
+                </>}
+                {!manual && sld.notes.map((n) => <p key={n} className="m">{n}</p>)}
+                <p className="m">Harmonic feeders are not marked on the SLD — enter them by hand.</p>
+              </section>
+              <section className="card">
+                <h4>To confirm with the panel builder</h4>
+                <ul className="m f4-list">{CONFIRM.map((c) => <li key={c}>{c}</li>)}</ul>
+                <p className="m">Rules: {FORM4_SOURCE}, rev. {FORM4_REVISION}</p>
+              </section>
+            </div>
+          </div>
+        </div>
+        <p className="warn enc-foot">Preliminary space estimate · busbar, shipping split and thermal checks pending · panel builder review pending</p>
+      </>}
+    </Page>
+  );
+}

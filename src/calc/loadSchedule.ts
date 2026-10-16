@@ -1,6 +1,6 @@
 import { memoized, networkOf } from './network';
 import { switchedOnBoard } from './capSwitching';
-import { DEFAULT_POINT_WATTS, LIGHTING_POINTS, POINT_TYPES, pointTemplateOf, settingsOf, type Board, type Feeder, type LoadType, type Phase, type PointType, type Project } from '../types';
+import { DEFAULT_POINT_WATTS, LIGHTING_POINTS, POINT_TYPES, pointTemplateOf, settingsOf, type Board, type CircuitLoadItem, type Feeder, type LoadType, type Phase, type PointType, type Project } from '../types';
 
 export const SINGLE_PHASES: ('R' | 'Y' | 'B')[] = ['R', 'Y', 'B'];
 const PHASE_ORDER: Record<Phase, number> = { R: 0, Y: 1, B: 2, RYB: 3 };
@@ -48,10 +48,74 @@ export function pointColumns(project: Project, board: Board): PointColumn[] {
   return [...template, ...extra].map((t) => ({ value: t, label: pointLabel(board, t, project), title: POINT_TYPES.find((p) => p.value === t)!.title }));
 }
 
-/** Connected load of a circuit in watts: Σ points × watts per point. */
-export function circuitWatts(f: Feeder, board: Board | undefined): number {
+const isPointType = (t: unknown): t is PointType => POINT_TYPES.some((p) => p.value === t);
+
+/** Clean circuit items: trimmed text, whole positive quantities, watts ≥ 0, known point types. */
+export function normalizeLoadItems(items: CircuitLoadItem[] | undefined): CircuitLoadItem[] {
+  const out: CircuitLoadItem[] = [];
+  for (const it of items ?? []) {
+    const quantity = Math.round(Number(it?.quantity));
+    const unitWatts = Number(it?.unitWatts);
+    if (!isPointType(it?.pointType) || !(quantity > 0) || !Number.isFinite(unitWatts) || unitWatts < 0) continue;
+    const reference = typeof it.reference === 'string' ? it.reference.trim() : '';
+    const name = typeof it.name === 'string' ? it.name.trim() : '';
+    out.push({ ...(reference && { reference }), name: name || reference, pointType: it.pointType, quantity, unitWatts });
+  }
+  return out;
+}
+
+/** Point types whose count and watts come from the circuit's items. */
+export function itemizedTypes(f: Pick<Feeder, 'loadItems'>): Set<PointType> {
+  return new Set(normalizeLoadItems(f.loadItems).map((it) => it.pointType));
+}
+
+/** The point counts with every itemized type set to the sum of its items' quantities. */
+export function pointsWithItems(points: Feeder['points'], items: CircuitLoadItem[] | undefined): Feeder['points'] {
+  const list = normalizeLoadItems(items);
+  if (!list.length) return points;
+  const out: Partial<Record<PointType, number>> = { ...points };
+  for (const t of new Set(list.map((it) => it.pointType))) out[t] = list.filter((it) => it.pointType === t).reduce((s, it) => s + it.quantity, 0);
+  return out;
+}
+
+/** Watts of each point type on a circuit: exact from its items where it has them, else count × WATT / UNIT. */
+export function circuitWattsByType(f: Feeder, board: Board | undefined): Partial<Record<PointType, number>> {
   const w = pointWattsFor(board);
-  return Object.entries(f.points ?? {}).reduce((sum, [t, n]) => sum + (n ?? 0) * w[t as PointType], 0);
+  const items = normalizeLoadItems(f.loadItems);
+  const itemized = new Set(items.map((it) => it.pointType));
+  const out: Partial<Record<PointType, number>> = {};
+  for (const [t, n] of Object.entries(f.points ?? {})) if (!itemized.has(t as PointType)) out[t as PointType] = (n ?? 0) * (w[t as PointType] ?? 0);
+  for (const it of items) out[it.pointType] = (out[it.pointType] ?? 0) + it.quantity * it.unitWatts;
+  return out;
+}
+
+/** Connected load of a circuit in watts: Σ items × their own watts, plus
+ * Σ other points × the DB's watts per point. */
+export function circuitWatts(f: Feeder, board: Board | undefined): number {
+  return Object.values(circuitWattsByType(f, board)).reduce((sum: number, v) => sum + (v ?? 0), 0);
+}
+
+/** WATT / UNIT printed for a column: the DB's value, plus each other wattage
+ * mixed items use on its circuits (e.g. "10 / 20"); the DB's value is left out
+ * when every circuit with that type is itemized. */
+export function wattUnitText(project: Project, board: Board, t: PointType): string {
+  const own: number[] = [];
+  let plain = false;
+  for (const f of scheduleCircuits(project, board.id)) {
+    const items = normalizeLoadItems(f.loadItems).filter((it) => it.pointType === t);
+    if (items.length) own.push(...items.map((it) => it.unitWatts));
+    else if ((f.points?.[t] ?? 0) > 0) plain = true;
+  }
+  const values = [...new Set([...(plain || !own.length ? [pointWattsFor(board)[t] || 0] : []), ...own])];
+  return values.length === 1 && !values[0] ? '' : values.join(' / ');
+}
+
+/** The circuit's items as text, e.g. "6×L1 10 W + 4×L2 20 W" (empty when it has none). */
+export function loadItemsText(f: Pick<Feeder, 'loadItems'>, pointType?: PointType): string {
+  return normalizeLoadItems(f.loadItems)
+    .filter((it) => !pointType || it.pointType === pointType)
+    .map((it) => `${it.quantity}×${it.reference || it.name} ${it.unitWatts} W`)
+    .join(' + ');
 }
 
 export type CircuitCategory = 'lighting' | 'power';
@@ -75,18 +139,17 @@ export function missingWatts(project: Project, board: Board): PointType[] {
   const w = pointWattsFor(board);
   const used = new Set<PointType>();
   for (const f of scheduleCircuits(project, board.id)) {
-    for (const [t, n] of Object.entries(f.points ?? {})) if ((n ?? 0) > 0) used.add(t as PointType);
+    const itemized = itemizedTypes(f); // these carry their own watts
+    for (const [t, n] of Object.entries(f.points ?? {})) if ((n ?? 0) > 0 && !itemized.has(t as PointType)) used.add(t as PointType);
   }
   return POINT_TYPES.map((p) => p.value).filter((t) => used.has(t) && !w[t]);
 }
 
 /** Icon for the diagram: the point type contributing the most watts. */
 export function dominantLoadType(f: Feeder, board: Board | undefined): LoadType {
-  const w = pointWattsFor(board);
   let best: PointType | undefined;
   let bestW = 0;
-  for (const [t, n] of Object.entries(f.points ?? {})) {
-    const watts = (n ?? 0) * w[t as PointType];
+  for (const [t, watts = 0] of Object.entries(circuitWattsByType(f, board))) {
     if (watts > bestW) {
       bestW = watts;
       best = t as PointType;

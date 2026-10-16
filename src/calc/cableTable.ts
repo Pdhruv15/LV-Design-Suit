@@ -75,7 +75,8 @@ export const REFERENCE_CABLE_TABLE: CableSpec[] = [
 ];
 
 // Ambient temperature correction factors for 90°C (XLPE) cable, relative to
-// 30°C ambient — typical values from IEC 60364-5-52 Table B.52.14.
+// 30°C ambient — a few rounded design values. The table number (IEC 60364-5-52
+// Table B.52.14) is there so you can check them, not a copy of the table.
 const AMBIENT_POINTS: [number, number][] = [
   [25, 1.03], [30, 1.0], [35, 0.96], [40, 0.91], [45, 0.87],
   [50, 0.82], [55, 0.76], [60, 0.71], [65, 0.65], [70, 0.58]
