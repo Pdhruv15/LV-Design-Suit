@@ -3,6 +3,7 @@ import { sampleProject } from '../data/sampleProject';
 import type { Board, Feeder, Project } from '../types';
 import { DEFAULT_RISER_TAPE, earthRiserLayout } from './earthRiser';
 import { earthRiserDrawing } from '../diagram/earthRiserDrawing';
+import { earthingDrawing, pitTags } from '../diagram/earthingDrawing';
 import { addEarthRiserSheet, drawable, renumber, setOf, sheetType } from './drawingSet';
 import { cpcOf } from '../calc/cableTable';
 
@@ -48,6 +49,20 @@ describe('earthing riser', () => {
     }
     expect(L.mains.map((m) => m.board.id)).toEqual(['MDB-1']);
     expect(L.mains[0].pits.length).toBeGreaterThan(0);
+  });
+
+  it('tags the LV earth pits as the earthing schematic does', () => {
+    const r = tower();
+    const L = earthRiserLayout(r.project, r.buildingId);
+    const tags = pitTags(r.project);
+    const riser = earthRiserDrawing(r.project, r.buildingId).svg, schematic = earthingDrawing(r.project).svg;
+    for (const id of L.mains[0].pits) {
+      const tag = tags.get(id)!;
+      expect(tag).toMatch(/^EP-MDB-1/);
+      expect(schematic).toContain(`>${tag}<`);
+      expect(riser).toContain(`>${tag}<`);
+      expect(riser).toContain(`${tag} (${id})`); // schedule
+    }
   });
 
   it('earths a DB fed from a panel on the same floor to that panel', () => {

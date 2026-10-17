@@ -1,6 +1,8 @@
 import type { Project } from '../types';
 import { earthRiserLayout, type EarthRiserLayout } from '../model/earthRiser';
 import { earthSheetNo } from '../model/boardEarth';
+import { earthingLayout } from '../model/earthingPlan';
+import { pitTags } from './earthingDrawing';
 
 /** Earth riser diagram of one building (printable SVG, earthing-schematic style).
  *
@@ -33,7 +35,11 @@ const BX0 = RX + 140;  // first panel
 const BOX_W = 150, BOX_H = 44, PITCH = 186;
 
 export function earthRiserDrawing(project: Project, buildingId: string, opts: { mono?: boolean; working?: boolean } = {}, given?: EarthRiserLayout): { svg: string; w: number; h: number } {
-  const L = given ?? earthRiserLayout(project, buildingId);
+  const EL = earthingLayout(project);
+  const L = given ?? earthRiserLayout(project, buildingId, EL);
+  /** Pit tag as on the earthing schematic (EP-MDB-1A …); the test ID when it has none. */
+  const tags = pitTags(project, EL);
+  const tagOf = (id: string) => tags.get(id) ?? id;
   const sheetNo = earthSheetNo(project);
   const out: string[] = [];
   const maxBoards = Math.max(1, ...L.floors.map((f) => f.boards.length));
@@ -113,11 +119,12 @@ export function earthRiserDrawing(project: Project, buildingId: string, opts: { 
     const py = mebY + 62;
     if (!m.pits.length) out.push(`<text x="${mx + 90}" y="${py}" text-anchor="middle" fill="#c0392b" font-weight="bold">NO LV EARTH PIT</text>`);
     m.pits.forEach((id, k) => {
-      const sx = mx + 14 + k * 14, px = mx + 30 + k * 56;
+      const sx = mx + 14 + k * 14, px = mx + 36 + k * 78;
       out.push(path(`M${sx} ${mebY + 7} V${py - 18} H${px} V${py - 6}`, 1.4), testLink(px, py - 14));
-      out.push(pitSymbol(px, py), `<text x="${px}" y="${py + 56}" text-anchor="middle" font-size="8.5" font-weight="bold">${esc(id)}</text>`);
+      out.push(pitSymbol(px, py), `<text x="${px}" y="${py + 56}" text-anchor="middle" font-size="8.5" font-weight="bold">${esc(tagOf(id))}</text>`);
+      if (tags.has(id)) out.push(`<text x="${px}" y="${py + 67}" text-anchor="middle" font-size="8" fill="${MUT}">${esc(id)}</text>`);
     });
-    if (m.pits.length) out.push(`<text x="${mx + 30 + m.pits.length * 56}" y="${py + 4}" font-size="8.5" fill="${MUT}">LV earth pits — see ${esc(sheetNo)}</text>`);
+    if (m.pits.length) out.push(`<text x="${mx + 10 + m.pits.length * 78}" y="${py + 4}" font-size="8.5" fill="${MUT}">LV earth pits — see ${esc(sheetNo)}</text>`);
   });
   if (!L.mains.length) out.push(`<text x="${RX + 40}" y="${mebY + 4}" fill="#c0392b" font-weight="bold">No main board feeds the panels of this building</text>`);
   // The tape: top FEB down to the MEB of the first main board, then along to the others.
@@ -130,7 +137,7 @@ export function earthRiserDrawing(project: Project, buildingId: string, opts: { 
   const ty = (tapeFrom + floorsBottom) / 2;
   out.push(`<text x="${RX - 12}" y="${ty}" text-anchor="middle" font-size="8.5" font-weight="bold" fill="${GREEN}" transform="rotate(-90 ${RX - 12} ${ty})">EARTH RISER ${esc(L.tape.toUpperCase())}</text>`);
 
-  let yEnd = mebY + 140;
+  let yEnd = mebY + 150;
   if (!opts.working) {
     // Legend and notes.
     const lx = 40, ly = yEnd;
@@ -140,7 +147,7 @@ export function earthRiserDrawing(project: Project, buildingId: string, opts: { 
       [`<g transform="translate(10 -3.5)">${bar(0, 0, 40)}</g>`, 'Earth bar: MEB main, FEB floor, panel earth bar'],
       [`${path('M8 0 H52', 1.6)}${teeClamp(20, 0)}`, 'Tee clamp on the riser'],
       [testLink(30, 0), 'Test link'],
-      [`<g transform="translate(30 -18)">${pitSymbol(0, 0)}</g>`, 'LV earth pit (test ID), see the earthing schematic']
+      [`<g transform="translate(30 -18)">${pitSymbol(0, 0)}</g>`, 'LV earth pit: tag (EP-…) and test ID (E…) as on the earthing schematic']
     ];
     let ry = 40, body = '';
     for (const [sym, text] of rows) { const rh = text.startsWith('LV earth pit') ? 54 : 22; const cy = ry + rh / 2; body += `<g transform="translate(6 ${cy})">${sym}</g><text x="72" y="${cy + 3}" font-size="9">${esc(text)}</text>`; ry += rh; }
@@ -159,7 +166,7 @@ export function earthRiserDrawing(project: Project, buildingId: string, opts: { 
     yEnd = ly + Math.max(ry + 8, notes.length * 16 + 10) + 40;
 
     // Panel earthing schedule.
-    const cols = [0.14, 0.18, 0.16, 0.24, 0.12, 0.16].map((f) => f * (w - 80));
+    const cols = [0.11, 0.15, 0.13, 0.18, 0.1, 0.33].map((f) => f * (w - 80));
     let tyy = yEnd;
     out.push(`<text x="40" y="${tyy - 10}" font-size="12" font-weight="bold">PANEL EARTHING SCHEDULE</text>`);
     const row = (cells: string[], head = false) => {
@@ -175,7 +182,7 @@ export function earthRiserDrawing(project: Project, buildingId: string, opts: { 
       const fd = b.feeder;
       row([f.floor.name, b.board.id, b.board.upstreamId ?? '—', fd ? `${fd.cores}C ${fd.cableCsaMm2} mm² · ${fd.lengthM} m` : '—', b.cpcMm2 ? `${b.cpcMm2} mm² Cu` : '—', b.toBoard ? `${b.toBoard} earth bar` : f.feb]);
     }
-    for (const m of L.mains) row(['LV room', m.board.id, '—', '—', '—', `${m.meb} → pits ${m.pits.join(', ') || 'none'}`]);
+    for (const m of L.mains) row(['LV room', m.board.id, '—', '—', '—', `${m.meb} → pits ${m.pits.map((id) => (tags.has(id) ? `${tagOf(id)} (${id})` : id)).join(', ') || 'none'}`]);
     yEnd = tyy + 20;
   }
 
