@@ -17,8 +17,8 @@ export interface DrawingSheet {
   id: string;
   number: string; // e.g. E-SLD-002
   title: string; // e.g. SLD — MDB-1
-  kind: 'system' | 'board' | 'riser' | 'earthing'; // board = one DB's circuit diagram; riser = a building's riser diagram; earthing = earthing schematic
-  buildingId?: string; // riser sheets
+  kind: 'system' | 'board' | 'riser' | 'earthing' | 'earthRiser'; // board = one DB's circuit diagram; riser = a building's riser diagram; earthing = earthing schematic; earthRiser = a building's earthing riser diagram
+  buildingId?: string; // riser and earth riser sheets
   boards: string[];
   size: 'auto' | SheetSize;
   // Title block of this sheet (blank = the project's, managed in the drawing register)
@@ -88,13 +88,13 @@ export const renumber = (set: DrawingSet, force = false): DrawingSet => {
   return {
     ...set,
     sheets: set.sheets.map((s) => {
-      const n = s.kind === 'riser' ? sheetNumber(set, rsr++, set.riserPrefix ?? RISER_PREFIX) : s.kind === 'earthing' ? sheetNumber(set, ert++, set.earthPrefix ?? EARTH_PREFIX) : sheetNumber(set, sld++);
+      const n = s.kind === 'riser' ? sheetNumber(set, rsr++, set.riserPrefix ?? RISER_PREFIX) : s.kind === 'earthing' || s.kind === 'earthRiser' ? sheetNumber(set, ert++, set.earthPrefix ?? EARTH_PREFIX) : sheetNumber(set, sld++);
       return { ...s, number: set.manualNumbers && !force && s.number ? s.number : n };
     })
   };
 };
 /** A sheet that has something to draw. */
-export const drawable = (s: DrawingSheet) => (s.kind === 'earthing' ? true : s.kind === 'riser' ? !!s.buildingId : s.boards.length > 0);
+export const drawable = (s: DrawingSheet) => (s.kind === 'earthing' ? true : s.kind === 'riser' || s.kind === 'earthRiser' ? !!s.buildingId : s.boards.length > 0);
 /** A new sheet starts PRELIMINARY unless the set has a status of its own (sheets without one follow the set). */
 const startStatus = (set: DrawingSet) => (set.status ? undefined : 'PRELIMINARY');
 /** The earthing schematic sheet (one per project). */
@@ -106,6 +106,12 @@ export function addEarthingSheet(set: DrawingSet): { set: DrawingSet; id: string
 export function addRiserSheet(set: DrawingSet, buildingId: string, buildingName: string): { set: DrawingSet; id: string } {
   const id = `sh-${Date.now().toString(36)}`;
   return { id, set: renumber({ ...set, sheets: [...set.sheets, { id, number: '', title: `Riser diagram — ${buildingName}`, kind: 'riser', buildingId, boards: [], size: 'auto', status: startStatus(set) }] }) };
+}
+/** An earthing riser diagram sheet for a building (numbered with the earthing sheets). */
+export function addEarthRiserSheet(set: DrawingSet, buildingId: string, buildingName: string): { set: DrawingSet; id: string } {
+  let id = `sh-${Date.now().toString(36)}`;
+  for (let n = 2; set.sheets.some((x) => x.id === id); n++) id = `sh-${Date.now().toString(36)}-${n}`;
+  return { id, set: renumber({ ...set, sheets: [...set.sheets, { id, number: '', title: `Earthing riser diagram — ${buildingName}`, kind: 'earthRiser', buildingId, boards: [], size: 'auto', status: startStatus(set) }] }) };
 }
 
 const isDb = (b: Board) => (b.kind ?? (b.upstreamId ? 'DB' : 'MDB')) === 'DB';
@@ -288,7 +294,7 @@ export function moveSheet(set: DrawingSet, from: number, to: number): DrawingSet
 }
 
 export type SheetType = 'sld' | 'db' | 'riser' | 'earthing';
-export const sheetType = (s: DrawingSheet): SheetType => (s.kind === 'board' ? 'db' : s.kind === 'riser' ? 'riser' : s.kind === 'earthing' ? 'earthing' : 'sld');
+export const sheetType = (s: DrawingSheet): SheetType => (s.kind === 'board' ? 'db' : s.kind === 'riser' ? 'riser' : s.kind === 'earthing' || s.kind === 'earthRiser' ? 'earthing' : 'sld');
 export interface SheetFilter { q?: string; status?: string; rev?: string; type?: SheetType | '' }
 export type SheetSort = { key: 'order' | 'number' | 'title' | 'status' | 'rev' | 'date'; desc?: boolean };
 
@@ -326,6 +332,7 @@ export function statusColor(status?: string): string {
 export function sheetHash(p: Project, set: DrawingSet, s: DrawingSheet): string {
   const d = s.kind === 'board' ? { boards: p.boards.filter((b) => b.id === s.boards[0]), feeders: p.feeders.filter((f) => f.boardId === s.boards[0]) }
     : s.kind === 'earthing' ? { boards: p.boards.filter((b) => !b.upstreamId).map((b) => [b.id, b.sourceKva, b.rmu, b.vectorGroup]), feeders: [p.earthingPlan] }
+    : s.kind === 'earthRiser' ? { boards: p.boards.map((b) => [b.id, b.upstreamId, b.level, b.kind, b.ratedCurrentA]), feeders: [p.feeders.filter((f) => f.feedsBoardId).map((f) => [f.feedsBoardId, f.cores, f.cableCsaMm2, f.lengthM, f.cpcMm2]), p.earthingPlan, p.earthPitIds, p.building] }
     : s.kind === 'riser' ? { boards: p.boards.map((b) => [b.id, b.upstreamId, b.level, b.ratedCurrentA, b.sourceKva, b.standby]), feeders: [p.feeders.filter((f) => f.feedsBoardId).map((f) => [f.feedsBoardId, f.cores, f.cableCsaMm2, f.lengthM, f.parallel, f.cableType]), p.busRisers, p.building] }
     : sheetProject(p, set, s);
   const txt = JSON.stringify([d.boards, d.feeders, s.title, s.size, s.tags, s.notes, s.clouds, s.arrows, s.markups]);
