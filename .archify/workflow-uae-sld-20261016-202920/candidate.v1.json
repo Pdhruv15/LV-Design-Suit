@@ -1,0 +1,66 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Typical UAE LV SLD and Final-Circuit Documentation",
+    "subtitle": "The SLD normally ends at the final DB; circuit-level information continues in schedules and layouts",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "output": ".archify/workflow-uae-sld-20261016-202920/uae-sld-final-circuits.html"
+  },
+  "lanes": [
+    { "id": "sld", "label": "Single-Line Diagram" },
+    { "id": "documents", "label": "Detailed Design Documents" },
+    { "id": "installation", "label": "Physical Installation" }
+  ],
+  "phases": [
+    { "id": "supply", "label": "Supply and main distribution", "fromCol": 0, "toCol": 1 },
+    { "id": "subdistribution", "label": "Sub-distribution", "fromCol": 2, "toCol": 2, "variant": "emphasis" },
+    { "id": "finaldetail", "label": "Final-circuit detail", "fromCol": 3, "toCol": 3, "variant": "dashed" }
+  ],
+  "mainPath": ["utility", "mdb", "smdb", "fdb"],
+  "semanticChecks": {
+    "allowedRoots": ["utility"],
+    "allowedTerminals": ["fdb", "loads"],
+    "requiredPaths": [
+      { "from": "utility", "to": "fdb" },
+      { "from": "fdb", "to": "loads" }
+    ]
+  },
+  "nodes": [
+    { "id": "utility", "lane": "sld", "col": 0, "type": "external", "label": "Utility Supply", "sublabel": "DEWA / local authority", "width": 126 },
+    { "id": "mdb", "lane": "sld", "col": 1, "type": "backend", "label": "MDB", "sublabel": "incomer + metering", "width": 126 },
+    { "id": "smdb", "lane": "sld", "col": 2, "type": "backend", "label": "SMDB", "sublabel": "breaker + feeder cable", "width": 132 },
+    { "id": "fdb", "lane": "sld", "col": 3, "type": "security", "label": "Final DB", "sublabel": "SLD stops here", "tag": "rating + load", "width": 136 },
+    { "id": "schedule", "lane": "documents", "col": 2, "type": "database", "label": "DB Load Schedule", "sublabel": "circuits / protection / cables", "width": 136 },
+    { "id": "layouts", "lane": "documents", "col": 3, "type": "frontend", "label": "Circuit Layouts", "sublabel": "power + lighting points", "width": 142 },
+    { "id": "circuits", "lane": "installation", "col": 2, "type": "messagebus", "label": "Final Circuits", "sublabel": "lights / sockets / equipment", "width": 136 },
+    { "id": "loads", "lane": "installation", "col": 3, "type": "external", "label": "Connected Loads", "sublabel": "lights / outlets / equipment", "width": 142 }
+  ],
+  "edges": [
+    { "id": "utility-mdb", "from": "utility", "to": "mdb", "variant": "default", "role": "main" },
+    { "id": "mdb-smdb", "from": "mdb", "to": "smdb", "variant": "default", "role": "main" },
+    { "id": "smdb-fdb", "from": "smdb", "to": "fdb", "variant": "emphasis", "role": "main" },
+    { "id": "fdb-schedule", "from": "fdb", "to": "schedule", "label": "documented in", "variant": "dashed", "role": "branch", "fromSide": "bottom", "toSide": "top" },
+    { "id": "schedule-layouts", "from": "schedule", "to": "layouts", "label": "match IDs", "variant": "dashed" },
+    { "id": "schedule-circuits", "from": "schedule", "to": "circuits", "label": "ratings + protection", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "straight" },
+    { "id": "layouts-loads", "from": "layouts", "to": "loads", "label": "locations + IDs", "variant": "dashed" },
+    { "id": "circuits-loads", "from": "circuits", "to": "loads", "label": "supply", "variant": "default" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Recommended SLD note",
+      "items": [
+        "FINAL CIRCUITS SHALL BE AS PER THE APPROVED DB LOAD SCHEDULE AND LIGHTING/POWER LAYOUT DRAWINGS."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Show separately when required",
+      "items": [
+        "Major dedicated loads, life-safety systems, fire pumps, UPS/generator supplies, or authority/consultant-specific circuits"
+      ]
+    }
+  ]
+}
