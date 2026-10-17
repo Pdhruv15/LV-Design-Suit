@@ -6,6 +6,7 @@ import { form4FromSld, isForm4Board } from '../model/form4Count';
 import { safeFileName, savePdf, saveText } from '../util/files';
 import { esc } from '../docs/report';
 import { Page } from './ui';
+import { sanitizeSvg } from '../util/sanitize';
 
 const CONFIRM = [
   'Height and depth are fixed by the worksheet (H2100 + 100 plinth, D800) whatever the ratings.',
@@ -134,7 +135,7 @@ export default function Form4Sizing({ project, boardId, tabs, onChange, onStatus
                 {changed && <span className="warn">Saved W{saved.dims.w} is out of date</span>}
                 <button className="chip primary" disabled={!panel || !r.widthMm} onClick={use}>{changed ? `Update ${panel}` : `Use for ${panel || 'this panel'}`}</button>
               </div>
-              {svg && <div className="pfcc-svg f4-drawing" dangerouslySetInnerHTML={{ __html: svg }} />}
+              {svg && <div className="pfcc-svg f4-drawing" dangerouslySetInnerHTML={{ __html: sanitizeSvg(svg) }} />}
               {svg && <p className="m">Front view with the plan view below (front edge at the bottom) · dimensions in mm · illustrative, not a manufacturing drawing</p>}
             </section>
 

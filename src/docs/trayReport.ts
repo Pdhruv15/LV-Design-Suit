@@ -3,12 +3,14 @@ import { odsSource, routeSettings, SPACING_LABEL, trayQuantities, type TrayResul
 import { revisionStamp } from '../model/revisions';
 import type { Project, TrayPlan } from '../types';
 import { lineNumbers, traySectionSvg } from './traySection';
+import { escapeHtmlAttr } from '../util/escape';
 
 /** Cable tray schedule as a printable document (PDF): each route with its
  * cables, its cross-section to scale and its sizing, then the summary and
  * the tray BOQ. */
 
-const esc = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+/** Escaped for text and quoted attributes (project data is untrusted). */
+const esc = escapeHtmlAttr;
 const r1 = (v: number) => (Math.round(v * 10) / 10).toString();
 const trayText = (r: TrayResult) => `${r.tiers > 1 ? `${r.tiers} × ` : ''}${r.widthMm} × ${r.depthMm}`;
 

@@ -3,6 +3,7 @@ import type { Project, ReportIssueStatus } from '../types';
 import { esc } from './report';
 import { PRINT as P } from './printStyles';
 import { destMarker } from './outline';
+import { isRasterDataUrl } from '../util/escape';
 
 /** The document frame of the design report: cover page, document control,
  * contents, running header / footer and the report typography. Presentation
@@ -74,7 +75,7 @@ export function reportDoc(project: Project, meta: ReportMeta): ReportDoc {
     approvedBy: clean(meta.approvedBy) ?? clean(params.approvedBy) ?? clean(project.drawing?.approvedBy),
     issueStatus: meta.issueStatus,
     revisions: (project.revisions ?? []).map((r) => ({ id: r.id, date: r.date, description: r.description, by: r.by })),
-    logo: project.drawing?.logo?.startsWith('data:image/') ? project.drawing.logo : undefined
+    logo: isRasterDataUrl(project.drawing?.logo) ? project.drawing!.logo : undefined
   };
 }
 
@@ -99,7 +100,7 @@ const rows = (r: [string, string][]) => r.map(([k, v]) => `<tr><th>${esc(k)}</th
 export function coverPageHtml(d: ReportDoc, extra: [string, string][], foot = ''): string {
   return `
 <section class="cover">
-  ${d.logo ? `<img class="cover-logo" src="${esc(d.logo)}" alt="">` : ''}
+  ${isRasterDataUrl(d.logo) ? `<img class="cover-logo" src="${esc(d.logo)}" alt="">` : ''}
   <p class="kicker">${esc(d.projectName)}</p>
   <h1>${esc(d.title)}</h1>
   <table class="meta">

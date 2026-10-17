@@ -9,6 +9,7 @@ import { printDoc } from './printDoc';
 export { printDoc };
 import { boqRevisionsOf, boqRevisionState, changeNote, CHANGE_LABEL, type BoqLine, type BoqLineChange } from '../model/boqRevisions';
 import { boqReview, SCOPE_CHECKS } from '../model/boqScope';
+import { isRasterDataUrl } from '../util/escape';
 
 /** The BOQ as an Excel workbook in tender format: a summary sheet, the
  * bill (item no., description, unit, qty, rate, amount, section subtotals)
@@ -451,7 +452,7 @@ export function buildBoqHtml(project: Project, bom: PricedBom, list?: PriceList,
   const issued = boqRevisionsOf(project);
   const revisions: { id: string; date: string; description: string; by?: string }[] = [...issued.slice(state.draft ? -4 : -5), ...(state.draft ? [{ id: state.rev ?? '—', date: today, description: `${status ?? 'Draft'} — not issued` }] : [])];
   const cover = `<section class="cover">
-    <div class="top">${d.logo ? `<img class="logo" src="${escH(d.logo)}" alt="">` : '<span></span>'}<div class="co">${escH(company)}</div></div>
+    <div class="top">${isRasterDataUrl(d.logo) ? `<img class="logo" src="${escH(d.logo)}" alt="">` : '<span></span>'}<div class="co">${escH(company)}</div></div>
     <div class="mid">
       <div class="k">ELECTRICAL LV WORKS</div>
       <h1>BILL OF QUANTITIES</h1>

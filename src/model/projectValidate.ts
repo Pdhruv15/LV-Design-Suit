@@ -1,11 +1,13 @@
 import { POINT_TYPES, type Project } from '../types';
 import type { MainView } from '../views';
+import { unsafeReason } from './projectSafety';
 
 /** Checks on project data at the loading boundary and on the engineering inputs.
  *
  * Two levels, so that a file with a bad value still opens and can be fixed:
- * - checkProjectShape: what the app needs to open the file at all (boards and circuits with ids). A file that fails
- *   is not opened, and the message says what is wrong.
+ * - checkProjectShape: what the app needs to open the file at all (boards and circuits with ids), and what makes it
+ *   safe to draw from (projectSafety: value types, pit IDs, logo, size limits). A file that fails is not opened, and
+ *   the message says what is wrong.
  * - projectInputIssues: numbers the calculations divide by or derate with (voltage, power factor, breaker rating…)
  *   that are missing, not finite or physically impossible. They are listed in the To do list as failures, naming
  *   the panel or circuit and the input. */
@@ -26,6 +28,9 @@ export function checkProjectShape(raw: unknown, name = 'The file'): Project {
     if (!isObj(f) || !isId(f.id)) fail(`circuit ${i + 1} has no id`);
     else if (!isId(f.boardId)) fail(`circuit ${String(f.id)} does not say which panel it is on`);
   });
+  // Values that reach the drawings must have the right types; refuse a file built to inject markup or strain the app.
+  const unsafe = unsafeReason(raw);
+  if (unsafe) fail(unsafe);
   return raw as unknown as Project;
 }
 

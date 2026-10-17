@@ -1,6 +1,7 @@
 import { pushLibrary } from '../database/librarySync';
 import type { Project } from '../types';
 import { fillParams, paramList } from './params';
+import { escapeHtmlAttr, isRasterDataUrl, num } from '../util/escape';
 
 /** Title block templates: a grid (column widths, row heights in mm) of
  * cells that can span rows and columns. A cell holds text with {Parameters},
@@ -62,7 +63,8 @@ export function standardTemplate(): TitleTemplate {
 export const templateOf = (p: Project): TitleTemplate | undefined =>
   p.drawing?.titleTemplateId ? p.titleTemplates?.find((t) => t.id === p.drawing!.titleTemplateId) : undefined;
 
-const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+/** Escaped for text and quoted attributes (project data is untrusted). */
+const esc = escapeHtmlAttr;
 
 /** The block as HTML (mm units) for the drawing sheet and the preview. */
 export function titleBlockHtml(t: TitleTemplate, p: Project, extra: Record<string, string> = {}): string {
@@ -71,21 +73,24 @@ export function titleBlockHtml(t: TitleTemplate, p: Project, extra: Record<strin
   for (const c of t.cells) for (let r = c.r; r < c.r + (c.rs ?? 1); r++) for (let k = c.c; k < c.c + (c.cs ?? 1); k++) if (r !== c.r || k !== c.c) covered.add(`${r},${k}`);
   const at = new Map(t.cells.map((c) => [`${c.r},${c.c}`, c]));
   const body = (c: TbCell) => {
-    if (c.kind === 'logo') return p.drawing?.logo?.startsWith('data:image/') ? `<img src="${esc(p.drawing.logo)}" style="max-width:100%;max-height:100%;object-fit:contain" alt="">` : '';
+    if (c.kind === 'logo') return isRasterDataUrl(p.drawing?.logo) ? `<img src="${esc(p.drawing!.logo)}" style="max-width:100%;max-height:100%;object-fit:contain" alt="">` : '';
     if (c.kind === 'revisions') {
       const revs = (p.revisions ?? []).slice(-4).reverse();
       return `<table style="width:100%;border-collapse:collapse;font-size:6.5pt">${revs.length ? revs.map((r) => `<tr><td style="border:0;padding:0 1mm">${esc(r.id)}</td><td style="border:0;padding:0 1mm">${esc(r.date)}</td><td style="border:0;padding:0 1mm">${esc(r.description)}</td></tr>`).join('') : '<tr><td style="border:0">Not issued</td></tr>'}</table>`;
     }
     return esc(fillParams(c.text, p, extra, list)).replace(/\n/g, '<br>');
   };
-  const rows = t.rows.map((h, r) => `<tr style="height:${h}mm">${t.cols.map((_, k) => {
+  // Sizes and alignment come from a saved template (project data): numbers and a fixed set of words only.
+  const span = (v: unknown) => Math.max(1, Math.min(99, Math.round(num(v, 1))));
+  const align = (v: unknown) => (v === 'center' || v === 'right' ? v : 'left');
+  const rows = t.rows.map((h, r) => `<tr style="height:${num(h)}mm">${t.cols.map((_, k) => {
     if (covered.has(`${r},${k}`)) return '';
     const c = at.get(`${r},${k}`);
     if (!c) return '<td style="border:0.25mm solid #000"></td>';
-    return `<td rowspan="${c.rs ?? 1}" colspan="${c.cs ?? 1}" style="border:0.25mm solid #000;padding:0.6mm 1.2mm;vertical-align:top;text-align:${c.align ?? 'left'};overflow:hidden">${c.caption ? `<div style="font-size:5.5pt;color:#333;text-transform:uppercase;letter-spacing:.03em;text-align:left">${esc(c.caption)}</div>` : ''}<div style="font-size:${c.size ?? 8}pt;font-weight:${c.bold ? 700 : 400};line-height:1.15">${body(c)}</div></td>`;
+    return `<td rowspan="${span(c.rs)}" colspan="${span(c.cs)}" style="border:0.25mm solid #000;padding:0.6mm 1.2mm;vertical-align:top;text-align:${align(c.align)};overflow:hidden">${c.caption ? `<div style="font-size:5.5pt;color:#333;text-transform:uppercase;letter-spacing:.03em;text-align:left">${esc(c.caption)}</div>` : ''}<div style="font-size:${num(c.size, 8)}pt;font-weight:${c.bold ? 700 : 400};line-height:1.15">${body(c)}</div></td>`;
   }).join('')}</tr>`).join('');
-  const w = t.cols.reduce((a, b) => a + b, 0);
-  return `<table style="width:${w}mm;border-collapse:collapse;table-layout:fixed;font-family:Arial,sans-serif;color:#000;background:#fff"><colgroup>${t.cols.map((c) => `<col style="width:${c}mm">`).join('')}</colgroup>${rows}</table>`;
+  const w = t.cols.reduce((a, b) => a + num(b), 0);
+  return `<table style="width:${w}mm;border-collapse:collapse;table-layout:fixed;font-family:Arial,sans-serif;color:#000;background:#fff"><colgroup>${t.cols.map((c) => `<col style="width:${num(c)}mm">`).join('')}</colgroup>${rows}</table>`;
 }
 
 export const templateSize = (t: TitleTemplate) => ({ w: t.cols.reduce((a, b) => a + b, 0), h: t.rows.reduce((a, b) => a + b, 0) });

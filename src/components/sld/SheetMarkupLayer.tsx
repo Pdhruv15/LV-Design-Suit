@@ -4,6 +4,7 @@ import {
   dragHandle, markupBounds, markupFromDrag, markupHandles, markupHit, markupSvg, MARKUP_COLORS, MARKUP_LABEL, markupSize, moveMarkup, newMarkupId,
   type MarkupColor, type MarkupHandle, type MarkupKind, type SheetMarkup
 } from '../../model/sheetMarkup';
+import { sanitizeSvgFragment } from '../../util/sanitize';
 
 export type MarkupTool = 'select' | MarkupKind | 'pcloud' | 'parrow';
 /** A panel or circuit outline on the page, in paper mm (target `f:<id>` for a circuit). */
@@ -168,13 +169,13 @@ export default function SheetMarkupLayer({ markups, mmW, mmH, width, height, too
       style={{ position: 'absolute', left: 0, top: 0, touchAction: 'none', cursor: drawing ? 'crosshair' : 'default' }}
       onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={() => setDrag(null)} onDoubleClick={edit}>
       {shown.map((m) => (
-        <g key={m.id} data-mid={m.id} style={{ cursor: drawing ? 'crosshair' : 'move' }} dangerouslySetInnerHTML={{ __html: markupSvg(m) + (drawing ? '' : markupHit(m)) }} />
+        <g key={m.id} data-mid={m.id} style={{ cursor: drawing ? 'crosshair' : 'move' }} dangerouslySetInnerHTML={{ __html: sanitizeSvgFragment(markupSvg(m) + (drawing ? '' : markupHit(m))) }} />
       ))}
       {hoverable && anchors.filter((n) => tool === 'parrow' || !n.target.startsWith('f:')).map((n) => (
         <rect key={n.target} x={n.x} y={n.y} width={n.w} height={n.h} fill="none" stroke="#2f80ed" strokeWidth={0.25} strokeDasharray="1 1.2" opacity={0.35} style={{ pointerEvents: 'none' }} />
       ))}
       {lit.map((n) => <rect key={`lit-${n.target}`} x={n.x} y={n.y} width={n.w} height={n.h} fill="#2f80ed" fillOpacity={0.12} stroke="#2f80ed" strokeWidth={0.4} style={{ pointerEvents: 'none' }} />)}
-      {preview && <g opacity={0.7} style={{ pointerEvents: 'none' }} dangerouslySetInnerHTML={{ __html: markupSvg(preview) }} />}
+      {preview && <g opacity={0.7} style={{ pointerEvents: 'none' }} dangerouslySetInnerHTML={{ __html: sanitizeSvgFragment(markupSvg(preview)) }} />}
       {selShown && b && !drawing && (
         <g style={{ pointerEvents: 'none' }}>
           <rect x={b.x - 1.5} y={b.y - 1.5} width={b.w + 3} height={b.h + 3} fill="none" stroke="#2f80ed" strokeWidth={0.3} strokeDasharray="1.5 1" />

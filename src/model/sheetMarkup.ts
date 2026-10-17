@@ -1,4 +1,5 @@
 import type { DxfPrimitive } from '../docs/dxf';
+import { escapeHtmlAttr } from '../util/escape';
 
 /** Markups drawn on one sheet: revision clouds, notes, callouts, arrows,
  * lines and boxes. They belong to the sheet, in paper millimetres (origin
@@ -44,7 +45,8 @@ const HEAD = 2.8;
 const TRI = 7;
 const PAD = 1.2;
 
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+/** Escaped for text and quoted attributes (project data is untrusted). */
+const esc = escapeHtmlAttr;
 const r2 = (v: number) => +v.toFixed(2);
 type Pt = [number, number];
 export const markupColor = (m: SheetMarkup) => MARKUP_COLORS[m.color ?? 'red'];

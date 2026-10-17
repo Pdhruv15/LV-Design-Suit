@@ -6,6 +6,7 @@ import {
 import { fillParams, paramList } from '../../model/params';
 import { saveText } from '../../util/files';
 import { Page } from '../ui';
+import { sanitizeHtml } from '../../util/sanitize';
 
 const PX = 3.2; // preview px per mm
 
@@ -151,7 +152,7 @@ export default function TitleBlockDesigner({ project, onChange, onStatus, onPara
           )}
           <details style={{ marginTop: 10 }}>
             <summary className="m">Printed version</summary>
-            <div className="tbd-print" dangerouslySetInnerHTML={{ __html: titleBlockHtml(t, project) }} />
+            <div className="tbd-print" dangerouslySetInnerHTML={{ __html: sanitizeHtml(titleBlockHtml(t, project)) }} />
           </details>
         </section>
       </div>

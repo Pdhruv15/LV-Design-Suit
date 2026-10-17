@@ -5,6 +5,7 @@ import { capacitorFeeder } from '../../calc/pfc';
 import { pfcReportHtml } from '../../docs/pfcReport';
 import { safeFileName, savePdf } from '../../util/files';
 import { useStable } from '../../util/useStable';
+import { sanitizeSvg } from '../../util/sanitize';
 
 const MODES: [PfcInputMode, string][] = [['kw-pf', 'kW + PF'], ['kva-pf', 'kVA + PF'], ['vi-pf', 'V, A + PF'], ['bill', 'DEWA bill'], ['loads', 'List of loads']];
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -88,8 +89,8 @@ export default function PfcCalculator({ project, onChange, onStatus }: { project
         </div>
         {r.warnings.map((w) => <p key={w} className="warn">⚠ {w}</p>)}
         <div className="pfcc-diagrams">
-          <section className="card"><h4>Power triangle <span className="m">— before (red), after (green), to scale</span></h4><div className="pfcc-svg" dangerouslySetInnerHTML={{ __html: powerTriangleSvg(r) }} /></section>
-          <section className="card"><h4>Current phasors</h4><div className="pfcc-svg" dangerouslySetInnerHTML={{ __html: phasorSvg(r, input.voltageV) }} /></section>
+          <section className="card"><h4>Power triangle <span className="m">— before (red), after (green), to scale</span></h4><div className="pfcc-svg" dangerouslySetInnerHTML={{ __html: sanitizeSvg(powerTriangleSvg(r)) }} /></section>
+          <section className="card"><h4>Current phasors</h4><div className="pfcc-svg" dangerouslySetInnerHTML={{ __html: sanitizeSvg(phasorSvg(r, input.voltageV)) }} /></section>
         </div>
         <section className="card pfcc-bank">
           <h4>Bank</h4>
