@@ -3,10 +3,11 @@ const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
 const check = require('./ipcValidate.cjs');
-const { spawn } = require('node:child_process');
 const database = require('./database.cjs');
 const projectFiles = require('./projectFiles.cjs');
 const trust = require('./trust.cjs');
+const { LIMITS, readTextFileLimited, readJsonLimited } = require('./limits.cjs');
+const { runJsonProcess } = require('./engineRunner.cjs');
 
 const isDev = !app.isPackaged;
 /** The app's own page: the bundled index.html, or in development the exact dev-server origin (LVDS_DEV_URL,
@@ -21,12 +22,19 @@ const isAppOrigin = trust.appOriginTest({ isDev, devOrigin: DEV_ORIGIN });
 // point at a Google Drive / OneDrive / Dropbox sync folder.
 const settingsPath = path.join(app.getPath('userData'), 'settings.json');
 
+const DEFAULT_PROJECTS = () => path.join(os.homedir(), 'LV Design Studio Projects');
+/** Settings, with every field checked: a folder or program path is an absolute path, else it is left out
+ * (a damaged settings file falls back to the defaults rather than crashing on a wrong type). */
 function readSettings() {
-  try {
-    return JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-  } catch {
-    return { projectsFolder: path.join(os.homedir(), 'LV Design Studio Projects') };
-  }
+  let raw;
+  try { raw = readJsonLimited(settingsPath, LIMITS.settingsBytes, 'settings.json'); } catch { raw = {}; }
+  const absPath = (v) => (typeof v === 'string' && v.length < 4096 && path.isAbsolute(v) ? v : undefined);
+  const out = { projectsFolder: absPath(raw && raw.projectsFolder) || DEFAULT_PROJECTS() };
+  const db = absPath(raw && raw.databaseFolder);
+  const py = absPath(raw && raw.pythonPath);
+  if (db) out.databaseFolder = db;
+  if (py) out.pythonPath = py;
+  return out;
 }
 
 function writeSettings(settings) {
@@ -189,7 +197,7 @@ handle('projects:read', (_evt, file) => readProject(file));
 
 function readProject(file) {
   const full = projectPath(ensureProjectsFolder(), file);
-  const text = fs.readFileSync(full, 'utf-8');
+  const text = readTextFileLimited(full, LIMITS.projectBytes, file);
   const stamp = projectFiles.stampOf(full);
   try {
     return { project: JSON.parse(text), stamp };
@@ -198,7 +206,7 @@ function readProject(file) {
     const bak = `${full}.bak`;
     if (fs.existsSync(bak)) {
       let p;
-      try { p = JSON.parse(fs.readFileSync(bak, 'utf-8')); } catch (e2) {
+      try { p = readJsonLimited(bak, LIMITS.projectBytes, `${file}.bak`); } catch (e2) {
         throw new Error(`${file} is damaged and could not be read (${e.message}); its backup ${file}.bak is damaged too (${e2.message}).`);
       }
       return { project: { ...p, _restoredFromBackup: true }, stamp };
@@ -240,7 +248,7 @@ handle('projects:pick', async (evt) => {
   const full = result.filePaths[0];
   if (path.dirname(path.resolve(full)) === path.resolve(folder)) return { file: path.basename(full) };
   let data;
-  try { data = JSON.parse(fs.readFileSync(full, 'utf-8')); } catch (e) { throw new Error(`${path.basename(full)} could not be read as a project (${e.message}).`); }
+  try { data = readJsonLimited(full, LIMITS.projectBytes, path.basename(full)); } catch (e) { throw new Error(`${path.basename(full)} could not be read as a project (${e.message}).`); }
   if (!data || typeof data !== 'object' || !Array.isArray(data.boards) || !Array.isArray(data.feeders)) throw new Error(`${path.basename(full)} is not an LV Design Studio project.`);
   return { data, from: full };
 });
@@ -393,38 +401,8 @@ function pythonPath() {
   return readSettings().pythonPath || (process.platform === 'win32' ? 'python' : 'python3');
 }
 
-function runEngine(request, timeoutMs = 120000) {
-  return new Promise((resolve) => {
-    let stdout = '';
-    let stderr = '';
-    let child;
-    try {
-      child = spawn(pythonPath(), [engineScript], { windowsHide: true });
-    } catch (e) {
-      resolve({ error: `Could not start Python (${pythonPath()}): ${e.message}` });
-      return;
-    }
-    const timer = setTimeout(() => {
-      child.kill();
-      resolve({ error: `Engine timed out after ${timeoutMs / 1000} s` });
-    }, timeoutMs);
-    child.stdout.on('data', (d) => (stdout += d));
-    child.stderr.on('data', (d) => (stderr += d));
-    child.on('error', (e) => {
-      clearTimeout(timer);
-      resolve({ error: `Could not start Python (${pythonPath()}): ${e.message}` });
-    });
-    child.on('close', (code) => {
-      clearTimeout(timer);
-      try {
-        resolve(JSON.parse(stdout));
-      } catch {
-        resolve({ error: `Engine exited with code ${code}. ${stderr.trim().split(/\r?\n/).slice(-3).join(' ')}` });
-      }
-    });
-    child.stdin.end(JSON.stringify(request));
-  });
-}
+/** The Python engine, run once per request (bounded output, timeout, settles exactly once). */
+const runEngine = (request, timeoutMs = 120000) => runJsonProcess({ command: pythonPath(), args: [engineScript], input: request, timeoutMs, what: 'Engine', startError: (m) => `Could not start Python (${pythonPath()}): ${m}` });
 
 handle('engines:probe', () => runEngine({ engine: 'probe' }, 30000));
 handle('engines:run', (_evt, request) => runEngine(check.engineRequest(request)));
