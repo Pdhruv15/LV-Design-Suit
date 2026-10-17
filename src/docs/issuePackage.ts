@@ -4,6 +4,7 @@ import { currentRevision } from '../model/revisions';
 import { esc } from './report';
 import type { Section } from './studyReport';
 import pkg from '../../package.json';
+import { isRasterDataUrl } from '../util/escape';
 
 /** Issue package: every document in a submission made from ONE frozen
  * calculation run, with a cover listing the contents, the unresolved checks,
@@ -85,7 +86,7 @@ export function packageCoverHtml(project: Project, m: PackageMeta, parts: Packag
   .bad { color: #000; font-weight: 700; } .warn { color: #000; font-weight: 700; } .ok { color: #000; }
   .snap { font: 700 12px monospace; letter-spacing: 1px; } ul { margin: 4px 0 8px 18px; padding: 0; } li { margin: 2px 0; } tr { break-inside: avoid; }
   </style></head><body>
-  ${project.drawing?.logo?.startsWith('data:image/') ? `<img class="logo" src="${esc(project.drawing.logo)}" alt="">` : ''}
+  ${isRasterDataUrl(project.drawing?.logo) ? `<img class="logo" src="${esc(project.drawing!.logo)}" alt="">` : ''}
   <p class="kicker">${esc(project.name)}</p>
   <h1>${esc(m.title)} — issue package</h1>
   ${kv([['Owner', info.owner], ['Consultant', info.consultant], ['Plot / area', [info.plotNo, info.area].filter(Boolean).join(' · ')], ['Document no.', m.docNo],

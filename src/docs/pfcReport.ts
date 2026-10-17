@@ -3,6 +3,7 @@ import { calcPfc, pfText, phasorSvg, powerTriangleSvg, type PfcCalcInput, type P
 import { revisionStamp } from '../model/revisions';
 import { rule } from '../database/catalog';
 import { esc } from './report';
+import { isRasterDataUrl } from '../util/escape';
 
 /** Power factor correction report: inputs and method, the power triangle
  * (before / after, to scale), the current phasors, the step chart, the bank
@@ -15,7 +16,7 @@ const MODE: Record<PfcCalcInput['mode'], string> = {
 };
 
 export function pfcReportHtml(project: Project, input: PfcCalcInput, r: PfcCalcResult = calcPfc(input)): string {
-  const logo = project.drawing?.logo?.startsWith('data:image/') ? `<img class="logo" src="${esc(project.drawing.logo)}" alt="">` : '';
+  const logo = isRasterDataUrl(project.drawing?.logo) ? `<img class="logo" src="${esc(project.drawing!.logo)}" alt="">` : '';
   const rows: [string, string, string][] = [
     ['Active power P', `${f(r.p)} kW`, `${f(r.p)} kW`],
     ['Reactive power Q', `${f(r.q1)} kvar`, `${f(r.q2)} kvar`],

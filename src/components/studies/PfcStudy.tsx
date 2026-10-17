@@ -9,6 +9,7 @@ import { safeFileName, saveBinary, savePdf } from '../../util/files';
 import { NumberSetting, Page } from '../ui';
 import PfcCalculator from './PfcCalculator';
 import { powerTriangleSvg, triangleFrom } from '../../calc/pfcCalc';
+import { sanitizeSvg } from '../../util/sanitize';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const f1 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 1 });
@@ -162,7 +163,7 @@ export default function PfcStudy({ project, onChange, onStatus }: { project: Pro
               <span>{f0(m.kvaBefore)} → {f0(m.kvaAfter)} kVA{m.releasedKva > 0.5 ? <> · frees <b>{f0(m.releasedKva)} kVA</b></> : null}</span>
               {m.loadingBeforePct !== undefined && <span className="m">Transformer {m.transformerKva} kVA: {f0(m.loadingBeforePct)} % → {f0(m.loadingAfterPct!)} %</span>}
             </div>
-            {m.demandKw > 0 && <div className="pfcc-svg pfc-mini" dangerouslySetInnerHTML={{ __html: powerTriangleSvg(triangleFrom(m.demandKw, m.pfBefore, m.pfAfter, target)) }} />}
+            {m.demandKw > 0 && <div className="pfcc-svg pfc-mini" dangerouslySetInnerHTML={{ __html: sanitizeSvg(powerTriangleSvg(triangleFrom(m.demandKw, m.pfBefore, m.pfAfter, target))) }} />}
           </section>
         ))}
       </div>

@@ -7,6 +7,7 @@ import { fillParams } from '../model/params';
 import { abbreviationsIn } from './sldNotes';
 import { FIRE_NOTE } from '../model/cableRefs';
 import { markupLayerHtml, type SheetMarkup } from '../model/sheetMarkup';
+import { isRasterDataUrl } from '../util/escape';
 
 /** The SLD as a drawing sheet: frame, the diagram scaled to fit, and a
  * title block (company, project, owner, consultant, title, drawing no.,
@@ -54,7 +55,7 @@ export function titleBlockOf(project: Project, date = new Date().toISOString().s
     drawnBy: d.drawnBy ?? '',
     checkedBy: d.checkedBy ?? '',
     approvedBy: d.approvedBy ?? '',
-    logo: d.logo?.startsWith('data:image/') ? d.logo : undefined,
+    logo: isRasterDataUrl(d.logo) ? d.logo : undefined,
     history: (project.revisions ?? []).slice(-4).reverse().map((r) => ({ id: r.id, date: r.date, description: r.description }))
   };
 }
@@ -102,7 +103,7 @@ export function titleBlockFragment(project: Project, t: TitleBlock, custom: Retu
     .tbx { position: absolute; right: 0; bottom: 0; }
 `;
   const html = (custom ? `<div class="tbx" style="transform:scale(${k});transform-origin:100% 100%">${titleBlockHtml(custom, project, extra)}</div>` : `    <table class="tb">
-      <tr><td colspan="3"><span class="k">Company / consultant</span>${t.logo ? `<img class="logo" src="${esc(t.logo)}" alt="">` : ''}<span class="v">${esc(t.company)}</span></td></tr>
+      <tr><td colspan="3"><span class="k">Company / consultant</span>${isRasterDataUrl(t.logo) ? `<img class="logo" src="${esc(t.logo)}" alt="">` : ''}<span class="v">${esc(t.company)}</span></td></tr>
       <tr><td colspan="2"><span class="k">Project</span><span class="v">${esc(t.project)}</span></td><td><span class="k">Owner</span><span class="v">${esc(t.owner)}</span></td></tr>
       <tr><td colspan="3" class="title"><span class="k">Drawing title${status ? ` — <b>${esc(status)}</b>` : ''}</span><span class="v">${esc(t.title)}</span></td></tr>
       <tr><td><span class="k">Drawing no.</span><span class="v">${esc(t.number)}</span></td><td><span class="k">Revision</span><span class="v">${esc(t.revision)}</span></td><td><span class="k">Date</span><span class="v">${esc(t.date)}</span></td></tr>
