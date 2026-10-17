@@ -84,7 +84,7 @@ export function buildDesignBasis(project: Project, studies: { key: StudyReportKi
   const arrangement = mains.map((m) => {
     const below = (id: string): string[] => project.boards.filter((b) => b.upstreamId === id).flatMap((b) => [b.id, ...below(b.id)]);
     const tree = below(m.id).map((id) => project.boards.find((b) => b.id === id)!);
-    const count = (['SMDB', 'DB', 'MCC', 'EMDB', 'UPS'] as const).map((k) => [k, tree.filter((b) => b.kind === k).length] as const).filter(([, c]) => c);
+    const count = (['LV-MDB', 'SMDB', 'DB', 'EDB', 'MCC', 'EMCC', 'EMDB', 'UPS'] as const).map((k) => [k, tree.filter((b) => b.kind === k).length] as const).filter(([, c]) => c);
     return `${m.id}${m.kind ? ` (${m.kind})` : ''} feeding ${tree.length ? `${tree.length} board(s)${count.length ? `: ${count.map(([k, c]) => `${c} ${k}`).join(', ')}` : ''}` : 'final circuits only'}`;
   });
   const findings: Finding[] = [];

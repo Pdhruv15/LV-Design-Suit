@@ -77,7 +77,10 @@ const CAPTIONS: Partial<Record<RibbonTab, string[]>> = {
   design: ['History', 'Canvas', 'Boards & planning', 'Equipment', 'Selection']
 };
 
-const ADD_BOARD: { kind: BoardKind; ratingA: number }[] = [{ kind: 'DB', ratingA: 63 }, { kind: 'SMDB', ratingA: 250 }, { kind: 'MCC', ratingA: 400 }, { kind: 'EMDB', ratingA: 400 }];
+const ADD_BOARD: { kind: BoardKind; ratingA: number }[] = [
+  { kind: 'DB', ratingA: 63 }, { kind: 'EDB', ratingA: 63 }, { kind: 'SMDB', ratingA: 250 },
+  { kind: 'MCC', ratingA: 400 }, { kind: 'EMCC', ratingA: 400 }, { kind: 'EMDB', ratingA: 400 }
+];
 
 const TABS: { id: RibbonTab; label: string; icon: Icon }[] = [
   { id: 'home', label: 'Project', icon: House },

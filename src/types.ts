@@ -27,15 +27,18 @@ export const BREAKER_TYPES: { value: BreakerType; label: string }[] = [
   { value: 'ACB', label: 'ACB (adjustable Im)' }
 ];
 
-export type BoardKind = 'MC' | 'MDB' | 'SMDB' | 'DB' | 'MCC' | 'EMDB' | 'UPS';
+export type BoardKind = 'MC' | 'MDB' | 'LV-MDB' | 'SMDB' | 'DB' | 'EDB' | 'MCC' | 'EMCC' | 'EMDB' | 'UPS';
 
 export const BOARD_KINDS: { value: BoardKind; label: string }[] = [
   { value: 'MC', label: 'Meter cabinet (authority supply)' },
   { value: 'MDB', label: 'Main distribution board' },
+  { value: 'LV-MDB', label: 'LV main distribution board' },
   { value: 'SMDB', label: 'Sub-main distribution board' },
   { value: 'DB', label: 'Distribution board' },
-  { value: 'MCC', label: 'Motor control centre' },
-  { value: 'EMDB', label: 'Emergency distribution board' },
+  { value: 'EDB', label: 'Emergency distribution board' },
+  { value: 'MCC', label: 'Motor control centre (package panel)' },
+  { value: 'EMCC', label: 'Emergency motor control centre (package panel)' },
+  { value: 'EMDB', label: 'Emergency main distribution board' },
   { value: 'UPS', label: 'UPS output board' }
 ];
 
@@ -156,7 +159,7 @@ export const INCOMER_DEVICES: { value: IncomerDevice; label: string }[] = [
  * non-automatic breaker for larger boards (UAE practice); boards fed straight from the authority supply
  * show that supply's device instead. */
 export const incomerDeviceOf = (b: Board): Exclude<IncomerDevice, 'NONE'> | undefined => {
-  const d = b.incomerDevice ?? (b.supply ? 'NONE' : b.kind === 'DB' || !b.kind ? 'ISOL' : 'MCCB-NA');
+  const d = b.incomerDevice ?? (b.supply ? 'NONE' : b.kind === 'DB' || b.kind === 'EDB' || !b.kind ? 'ISOL' : 'MCCB-NA');
   return d === 'NONE' ? undefined : d;
 };
 
