@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "G+10 Building — LV Electrical Riser Mock-up",
+    "output": ".archify/architecture-g10-electrical-riser-20261016-205328/g10-electrical-riser.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "all",
+      "entries": {
+        "external": { "label": "Utility supply" },
+        "cloud": { "label": "Transformer" },
+        "messagebus": { "label": "Busbar trunking" },
+        "backend": { "label": "LV distribution panel" },
+        "security": { "label": "Main LV switchboard" }
+      }
+    }
+  },
+  "components": [
+    { "id": "utility", "type": "external", "label": "UTILITY 11 kV", "sublabel": "Incoming authority supply", "pos": [10, 900], "size": [130, 58] },
+    { "id": "transformer", "type": "cloud", "label": "TX-01", "sublabel": "1500 kVA · 11/0.415 kV", "tag": "Dyn11 · Z 6%", "pos": [185, 894], "size": [155, 70] },
+    { "id": "lv_mdb", "type": "security", "label": "LV-MDB-G10", "sublabel": "2500 A · 415 V · 50 Hz", "tag": "Main incomer ACB", "pos": [395, 894], "size": [170, 70] },
+
+    { "id": "bus_l10", "type": "messagebus", "label": "RISER · L10", "sublabel": "TPN+E copper busway", "pos": [675, 60], "size": [160, 58] },
+    { "id": "bus_l09", "type": "messagebus", "label": "RISER · L09", "sublabel": "TPN+E copper busway", "pos": [675, 144], "size": [160, 58] },
+    { "id": "bus_l08", "type": "messagebus", "label": "RISER · L08", "sublabel": "TPN+E copper busway", "pos": [675, 228], "size": [160, 58] },
+    { "id": "bus_l07", "type": "messagebus", "label": "RISER · L07", "sublabel": "TPN+E copper busway", "pos": [675, 312], "size": [160, 58] },
+    { "id": "bus_l06", "type": "messagebus", "label": "RISER · L06", "sublabel": "TPN+E copper busway", "pos": [675, 396], "size": [160, 58] },
+    { "id": "bus_l05", "type": "messagebus", "label": "RISER · L05", "sublabel": "TPN+E copper busway", "pos": [675, 480], "size": [160, 58] },
+    { "id": "bus_l04", "type": "messagebus", "label": "RISER · L04", "sublabel": "TPN+E copper busway", "pos": [675, 564], "size": [160, 58] },
+    { "id": "bus_l03", "type": "messagebus", "label": "RISER · L03", "sublabel": "TPN+E copper busway", "pos": [675, 648], "size": [160, 58] },
+    { "id": "bus_l02", "type": "messagebus", "label": "RISER · L02", "sublabel": "TPN+E copper busway", "pos": [675, 732], "size": [160, 58] },
+    { "id": "bus_l01", "type": "messagebus", "label": "RISER · L01", "sublabel": "TPN+E copper busway", "pos": [675, 816], "size": [160, 58] },
+    { "id": "bus_g", "type": "messagebus", "label": "RISER · G", "sublabel": "End-feed from LV-MDB", "tag": "Auto-sized busway", "pos": [675, 900], "size": [160, 58] },
+
+    { "id": "smdb_l10", "type": "backend", "label": "L10 · SMDB-L10", "sublabel": "55 kW · DF 0.80 · 160 A tap-off", "pos": [950, 60], "size": [220, 58] },
+    { "id": "smdb_l09", "type": "backend", "label": "L09 · SMDB-L09", "sublabel": "55 kW · DF 0.80 · 160 A tap-off", "pos": [950, 144], "size": [220, 58] },
+    { "id": "smdb_l08", "type": "backend", "label": "L08 · SMDB-L08", "sublabel": "55 kW · DF 0.80 · 160 A tap-off", "pos": [950, 228], "size": [220, 58] },
+    { "id": "smdb_l07", "type": "backend", "label": "L07 · SMDB-L07", "sublabel": "55 kW · DF 0.80 · 160 A tap-off", "pos": [950, 312], "size": [220, 58] },
+    { "id": "smdb_l06", "type": "backend", "label": "L06 · SMDB-L06", "sublabel": "55 kW · DF 0.80 · 160 A tap-off", "pos": [950, 396], "size": [220, 58] },
+    { "id": "smdb_l05", "type": "backend", "label": "L05 · SMDB-L05", "sublabel": "55 kW · DF 0.80 · 160 A tap-off", "pos": [950, 480], "size": [220, 58] },
+    { "id": "smdb_l04", "type": "backend", "label": "L04 · SMDB-L04", "sublabel": "55 kW · DF 0.80 · 160 A tap-off", "pos": [950, 564], "size": [220, 58] },
+    { "id": "smdb_l03", "type": "backend", "label": "L03 · SMDB-L03", "sublabel": "55 kW · DF 0.80 · 160 A tap-off", "pos": [950, 648], "size": [220, 58] },
+    { "id": "smdb_l02", "type": "backend", "label": "L02 · SMDB-L02", "sublabel": "55 kW · DF 0.80 · 160 A tap-off", "pos": [950, 732], "size": [220, 58] },
+    { "id": "smdb_l01", "type": "backend", "label": "L01 · SMDB-L01", "sublabel": "55 kW · DF 0.80 · 160 A tap-off", "pos": [950, 816], "size": [220, 58] },
+    { "id": "smdb_g", "type": "backend", "label": "G · SMDB-G", "sublabel": "75 kW · DF 0.80 · 250 A tap-off", "pos": [950, 900], "size": [220, 58] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "G+10 TOWER — ELEVEN FLOOR TAP-OFFS", "wraps": ["bus_l10", "bus_l09", "bus_l08", "bus_l07", "bus_l06", "bus_l05", "bus_l04", "bus_l03", "bus_l02", "bus_l01", "bus_g", "smdb_l10", "smdb_l09", "smdb_l08", "smdb_l07", "smdb_l06", "smdb_l05", "smdb_l04", "smdb_l03", "smdb_l02", "smdb_l01", "smdb_g"], "pad": 22 }
+  ],
+  "connections": [
+    { "id": "utility_to_tx", "from": "utility", "to": "transformer", "label": "11 kV", "variant": "emphasis", "fromSide": "right", "toSide": "left", "route": "straight" },
+    { "id": "tx_to_mdb", "from": "transformer", "to": "lv_mdb", "label": "415 V", "variant": "emphasis", "fromSide": "right", "toSide": "left", "route": "straight" },
+    { "id": "mdb_to_busbar", "from": "lv_mdb", "to": "bus_g", "label": "ACB end-feed", "variant": "emphasis" },
+
+    { "id": "rise_g_l01", "from": "bus_g", "to": "bus_l01", "fromSide": "top", "toSide": "bottom", "route": "straight" },
+    { "id": "rise_l01_l02", "from": "bus_l01", "to": "bus_l02", "fromSide": "top", "toSide": "bottom", "route": "straight" },
+    { "id": "rise_l02_l03", "from": "bus_l02", "to": "bus_l03", "fromSide": "top", "toSide": "bottom", "route": "straight" },
+    { "id": "rise_l03_l04", "from": "bus_l03", "to": "bus_l04", "fromSide": "top", "toSide": "bottom", "route": "straight" },
+    { "id": "rise_l04_l05", "from": "bus_l04", "to": "bus_l05", "fromSide": "top", "toSide": "bottom", "route": "straight" },
+    { "id": "rise_l05_l06", "from": "bus_l05", "to": "bus_l06", "fromSide": "top", "toSide": "bottom", "route": "straight" },
+    { "id": "rise_l06_l07", "from": "bus_l06", "to": "bus_l07", "fromSide": "top", "toSide": "bottom", "route": "straight" },
+    { "id": "rise_l07_l08", "from": "bus_l07", "to": "bus_l08", "fromSide": "top", "toSide": "bottom", "route": "straight" },
+    { "id": "rise_l08_l09", "from": "bus_l08", "to": "bus_l09", "fromSide": "top", "toSide": "bottom", "route": "straight" },
+    { "id": "rise_l09_l10", "from": "bus_l09", "to": "bus_l10", "fromSide": "top", "toSide": "bottom", "route": "straight" },
+
+    { "id": "tap_l10", "from": "bus_l10", "to": "smdb_l10", "fromSide": "right", "toSide": "left", "route": "straight" },
+    { "id": "tap_l09", "from": "bus_l09", "to": "smdb_l09", "fromSide": "right", "toSide": "left", "route": "straight" },
+    { "id": "tap_l08", "from": "bus_l08", "to": "smdb_l08", "fromSide": "right", "toSide": "left", "route": "straight" },
+    { "id": "tap_l07", "from": "bus_l07", "to": "smdb_l07", "fromSide": "right", "toSide": "left", "route": "straight" },
+    { "id": "tap_l06", "from": "bus_l06", "to": "smdb_l06", "fromSide": "right", "toSide": "left", "route": "straight" },
+    { "id": "tap_l05", "from": "bus_l05", "to": "smdb_l05", "fromSide": "right", "toSide": "left", "route": "straight" },
+    { "id": "tap_l04", "from": "bus_l04", "to": "smdb_l04", "fromSide": "right", "toSide": "left", "route": "straight" },
+    { "id": "tap_l03", "from": "bus_l03", "to": "smdb_l03", "fromSide": "right", "toSide": "left", "route": "straight" },
+    { "id": "tap_l02", "from": "bus_l02", "to": "smdb_l02", "fromSide": "right", "toSide": "left", "route": "straight" },
+    { "id": "tap_l01", "from": "bus_l01", "to": "smdb_l01", "fromSide": "right", "toSide": "left", "route": "straight" },
+    { "id": "tap_g", "from": "bus_g", "to": "smdb_g", "fromSide": "right", "toSide": "left", "route": "straight" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Mock-up design basis", "items": ["System: 415 V, 3-phase + neutral, 50 Hz", "Ground-floor connected load: 75 kW", "Typical-floor connected load: 55 kW each", "Panel diversity factor: 0.80; power factor: 0.90"] },
+    { "dot": "amber", "title": "Before construction", "items": ["Replace illustrative loads with approved schedules", "Confirm busway rating and Icw from the selected manufacturer", "Coordinate fire barriers, supports, tap-off locations and access", "Verify discrimination, fault level, voltage drop and authority requirements"] }
+  ]
+}

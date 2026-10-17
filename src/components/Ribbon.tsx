@@ -77,7 +77,10 @@ const CAPTIONS: Partial<Record<RibbonTab, string[]>> = {
   design: ['History', 'Canvas', 'Boards & planning', 'Equipment', 'Selection']
 };
 
-const ADD_BOARD: { kind: BoardKind; ratingA: number }[] = [{ kind: 'DB', ratingA: 63 }, { kind: 'SMDB', ratingA: 250 }, { kind: 'MCC', ratingA: 400 }, { kind: 'EMDB', ratingA: 400 }];
+const ADD_BOARD: { kind: BoardKind; ratingA: number }[] = [
+  { kind: 'DB', ratingA: 63 }, { kind: 'EDB', ratingA: 63 }, { kind: 'SMDB', ratingA: 250 },
+  { kind: 'MCC', ratingA: 400 }, { kind: 'EMCC', ratingA: 400 }, { kind: 'EMDB', ratingA: 400 }
+];
 
 const TABS: { id: RibbonTab; label: string; icon: Icon }[] = [
   { id: 'home', label: 'Project', icon: House },
@@ -229,7 +232,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         view('ups', 'UPS & battery', BatteryFull, 'UPS rating and battery sizing for the backup time'),
         view('solar', 'Solar PV', Sun, 'Solar PV array, string design, inverters and yield')
       ],
-      [view('calculators', 'Quick calcs', Calculator, 'Quick calculators: amps, kW/kVA, voltage drop, cable & breaker, transformer, motor, PF, fault level, Ohm\'s law, energy, units')]
+      [view('calculators', 'Quick calcs', Calculator, 'Quick calculators: amps, kW/kVA, voltage drop, cable & breaker, transformer, motor, PF, fault level, lighting lux, Ohm\'s law, energy, units')]
     ],
     simulate: [
       [view('engines', 'Load flow', Activity, 'Run OpenDSS or pandapower and compare with the built-in engine')],

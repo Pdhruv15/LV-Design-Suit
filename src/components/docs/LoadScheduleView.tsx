@@ -81,7 +81,7 @@ export default function LoadScheduleView({
   const group: ScheduleGroup = scheduleGroupOf(project, board);
   const openGroup = (g: ScheduleGroup) => { setTxForm(false); const first = groups[g][0]; if (first && first.id !== board.id) onBoard(first.id); };
   /** A panel whose schedule still needs filling: a DB with no circuits, or a panel with no outgoing loads. */
-  const incomplete = (b: Board) => (scheduleGroupOf(project, b) === 'db' || (b.kind ?? 'DB') === 'DB' ? !scheduleCircuits(project, b.id).length : !project.feeders.some((f) => f.boardId === b.id));
+  const incomplete = (b: Board) => (scheduleGroupOf(project, b) === 'db' || ['DB', 'EDB'].includes(b.kind ?? 'DB') ? !scheduleCircuits(project, b.id).length : !project.feeders.some((f) => f.boardId === b.id));
   const form: 'db' | 'md' | 'tx' | 'riser' = txForm ? txForm : pick?.board === board.id ? pick.form : data.rows.length || !mdAvailable ? 'db' : 'md';
   const [exporting, setExporting] = useState(false);
   // Circuit open in the double-click edit dialog, and the field to focus.
