@@ -93,6 +93,7 @@ export function impactBetween(before: Snapshot | Project, after: Snapshot | Proj
   for (const s of set?.sheets ?? []) {
     const hit = s.boards.find((id) => affected.has(id));
     if (s.kind === 'earthing') { if (changes.some((c) => c.what === 'earthing' || (c.what === 'board' && !(b.boards.find((x) => x.id === c.id)?.upstreamId)))) documents.push({ label: `${s.number} ${s.title}`, reason: 'earthing or main board data changed', view: 'drawings' }); }
+    else if (s.kind === 'earthRiser') { if (changes.some((c) => c.what === 'earthing') || panels.some((p) => b.boards.find((x) => x.id === p.id)?.level)) documents.push({ label: `${s.number} ${s.title}`, reason: 'earthing or a panel on the riser changed', view: 'drawings' }); }
     else if (s.kind === 'riser') { if (panels.some((p) => b.boards.find((x) => x.id === p.id)?.level)) documents.push({ label: `${s.number} ${s.title}`, reason: 'a panel on the riser changed', view: 'drawings' }); }
     else if (hit) documents.push({ label: `${s.number} ${s.title}`, reason: `shows ${hit}${panels.find((p) => p.id === hit)!.why === 'changed' ? '' : ' (affected)'}`, view: 'drawings' });
   }

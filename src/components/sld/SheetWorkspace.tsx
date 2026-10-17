@@ -7,7 +7,7 @@ import { boardsInSupplyOrder } from '../../calc/summary';
 import { subtree } from '../../calc/pfc';
 import { evaluateProject } from '../../calc/electrical';
 import {
-  addEarthingSheet, addRiserSheet, addSheet, applyTemplate, drawable, issueSheets, loadSheetTemplates, nextRev, renumber, saveSheetTemplates, setOf, SHEET_STATUSES, sheetChecks, sheetHash, sheetRev, sheetsByCount, SIZES, statusColor, templateFromSheet,
+  addEarthingSheet, addEarthRiserSheet, addRiserSheet, addSheet, applyTemplate, drawable, issueSheets, loadSheetTemplates, nextRev, renumber, saveSheetTemplates, setOf, SHEET_STATUSES, sheetChecks, sheetHash, sheetRev, sheetsByCount, SIZES, statusColor, templateFromSheet,
   type DrawingSet, type DrawingSheet, type SheetCheck, type SheetSize,
   sheetRefs, type SheetRef
 } from '../../model/drawingSet';
@@ -86,6 +86,9 @@ export function SheetTabs({ project, active, selectedBoardId, outlinesOn, onActi
             <button onClick={() => { close(); const r = addSheet(set, [], `SLD — sheet ${set.sheets.length + 1}`); save(r.set); onActive(r.id); }}>Empty sheet (tick panels)</button>
             {(project.building?.buildings ?? []).map((b) => (
               <button key={b.id} onClick={() => { close(); const r = addRiserSheet(set, b.id, b.name); save(r.set); onActive(r.id); }}>Riser diagram — {b.name}</button>
+            ))}
+            {(project.building?.buildings ?? []).map((b) => (
+              <button key={`e${b.id}`} title="Earth riser tape with a floor earth bar on every floor, each panel's earth bar to it" onClick={() => { close(); const r = addEarthRiserSheet(set, b.id, b.name); save(r.set); onActive(r.id); }}>Earthing riser diagram — {b.name}</button>
             ))}
             {(() => {
               // One earthing schematic per set: open it if it is already there.
@@ -301,7 +304,7 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
               </select></label>
             </div>
           </details>
-          {s.kind === 'riser' && (
+          {(s.kind === 'riser' || s.kind === 'earthRiser') && (
             <details open><summary>Building</summary>
               <select value={s.buildingId ?? ''} onChange={(e) => patch({ buildingId: e.target.value })}>
                 {(project.building?.buildings ?? []).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
