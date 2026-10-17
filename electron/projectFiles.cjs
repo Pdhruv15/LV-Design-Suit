@@ -2,6 +2,7 @@
 // it can be unit tested in a temporary folder (src/model/projectFiles.test.ts).
 const fs = require('node:fs');
 const path = require('node:path');
+const { LIMITS, readTextFileLimited, readJsonLimited } = require('./limits.cjs');
 const crypto = require('node:crypto');
 
 const sha = (text) => crypto.createHash('sha256').update(text).digest('hex');
@@ -22,7 +23,7 @@ function bestEffort(what, fn) {
 function stampOf(full) {
   try {
     const st = fs.statSync(full);
-    return { mtimeMs: st.mtimeMs, size: st.size, hash: sha(fs.readFileSync(full, 'utf-8')) };
+    return { mtimeMs: st.mtimeMs, size: st.size, hash: sha(readTextFileLimited(full, LIMITS.projectBytes, path.basename(full))) };
   } catch {
     return null;
   }
@@ -104,7 +105,7 @@ function clearRecovery(dir, id) {
 function readRecoveries(dir, projectsFolder, legacyFile) {
   if (legacyFile && fs.existsSync(legacyFile)) {
     bestEffort('move the older recovery copy', () => {
-      const old = JSON.parse(fs.readFileSync(legacyFile, 'utf-8'));
+      const old = readJsonLimited(legacyFile, LIMITS.projectBytes, 'the older recovery copy');
       if (old && old.project) writeRecovery(dir, { ...old, projectId: (old.project && old.project.id) || 'legacy-single' });
     });
     bestEffort('remove the older recovery copy', () => fs.unlinkSync(legacyFile));
@@ -113,7 +114,7 @@ function readRecoveries(dir, projectsFolder, legacyFile) {
   try { names = fs.readdirSync(dir).filter((f) => f.endsWith('.json')); } catch { return []; }
   const list = [];
   for (const f of names) {
-    const r = bestEffort(`read recovery copy ${f}`, () => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf-8')));
+    const r = bestEffort(`read recovery copy ${f}`, () => readJsonLimited(path.join(dir, f), LIMITS.projectBytes, f));
     if (!r || !r.project || !Array.isArray(r.project.boards)) continue;
     // The project file may be gone (moved or deleted): then it has not changed since.
     const st = r.file && projectsFolder ? bestEffort(`check ${r.file}`, () => fs.statSync(path.join(projectsFolder, r.file))) : undefined;
@@ -153,7 +154,7 @@ function metaFromProject(file, p, updatedAt) {
  * projects opens quickly. Returns { list, parsed } (parsed = how many files were actually read). */
 function listProjectsMeta(folder, cachePath) {
   let cache = {};
-  cache = bestEffort('read the project list cache', () => JSON.parse(fs.readFileSync(cachePath, 'utf-8'))) || {};
+  cache = bestEffort('read the project list cache', () => readJsonLimited(cachePath, LIMITS.settingsBytes * 16, 'the project list cache')) || {};
   const files = fs.readdirSync(folder).filter((f) => f.endsWith('.json'));
   const next = {};
   let parsed = 0;
@@ -162,7 +163,7 @@ function listProjectsMeta(folder, cachePath) {
     const c = cache[f];
     if (c && c.mtimeMs === st.mtimeMs && c.size === st.size) { next[f] = c; return { ...c.meta, updatedAt: st.mtimeMs }; }
     // A file that cannot be read is still listed, under its file name.
-    let meta = bestEffort(`read ${f}`, () => metaFromProject(f, JSON.parse(fs.readFileSync(path.join(folder, f), 'utf-8')), st.mtimeMs));
+    let meta = bestEffort(`read ${f}`, () => metaFromProject(f, readJsonLimited(path.join(folder, f), LIMITS.projectBytes, f), st.mtimeMs));
     if (meta) parsed++;
     else meta = { file: f, name: f.replace(/\.json$/i, ''), updatedAt: st.mtimeMs };
     next[f] = { mtimeMs: st.mtimeMs, size: st.size, meta };
@@ -201,7 +202,7 @@ function listTrash(folder, now = Date.now()) {
     const parts = splitTrashName(n);
     if (!parts) continue;
     let name = parts.file.replace(/\.json$/i, ''), id;
-    const p = bestEffort(`read deleted project ${n}`, () => JSON.parse(fs.readFileSync(path.join(trashDir(folder), n), 'utf-8')));
+    const p = bestEffort(`read deleted project ${n}`, () => readJsonLimited(path.join(trashDir(folder), n), LIMITS.projectBytes, n));
     if (p) { if (p.name) name = p.name; id = p.id; }
     out.push({ trashFile: n, file: parts.file, name, id, deletedAt: parts.deletedAt, daysLeft: Math.max(0, Math.ceil(TRASH_DAYS - (now - parts.deletedAt) / 86400000)) });
   }
