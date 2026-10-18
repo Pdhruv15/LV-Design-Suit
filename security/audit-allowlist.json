@@ -1,0 +1,21 @@
+{
+  "$comment": "Advisories accepted for a limited time. Policy and how to add or remove an entry: docs/engineering/dependency-audit.md. Checked in CI by scripts/check-audit.mjs.",
+  "advisories": [
+    {
+      "id": "GHSA-w5hq-g745-h8pq",
+      "package": "uuid",
+      "scope": "prod",
+      "reason": "Via exceljs 4.4.0 (latest stable, pins uuid ^8.3.0). Not reachable: exceljs only calls uuid.v4() with no arguments; the advisory concerns v3/v5/v6 with a caller-supplied buffer. Fixed by the exceljs -> uuid 11.1.1 override in PR #230.",
+      "expires": "2026-11-30",
+      "tracking": "https://github.com/Pdhruv15/LV-Design-Suit/pull/230"
+    },
+    {
+      "id": "GHSA-hp3w-g68c-fv3c",
+      "package": "sprintf-js",
+      "scope": "dev",
+      "reason": "Build time only: electron-builder -> app-builder-lib -> @electron/get 3 -> global-agent 3 -> roarr 2 -> sprintf-js, used only when packaging with ELECTRON_GET_USE_PROXY set, formatting the libraries' own log messages. Not in the shipped app. Fixed by the @electron/get -> global-agent 4.1.3 override in PR #230.",
+      "expires": "2026-11-30",
+      "tracking": "https://github.com/Pdhruv15/LV-Design-Suit/pull/230"
+    }
+  ]
+}
