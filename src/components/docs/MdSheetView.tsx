@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
+import { Plus, Trash2 } from 'lucide-react';
 import type { Project } from '../../types';
 import { applyMdEdits, buildMdSheet } from '../../docs/mdSheet';
+import { addOutgoingFeeder, deleteOutgoingFeeder, feederDeleteBlock } from '../../model/mdFeeders';
 import { revisionStamp } from '../../model/revisions';
 import ClassicGrid from '../grid/ClassicGrid';
 
@@ -17,6 +19,33 @@ export default function MdSheetView({ project, boardId, onChange, onStatus, onSe
   const sheet = useMemo(() => buildMdSheet(project, boardId), [project, boardId]);
   const f = sheet.form;
   const blank = (v: string) => v || <span className="md-blank" title="Set in Project settings">—</span>;
+  const add = () => {
+    const r = addOutgoingFeeder(project, boardId);
+    if (r.project !== project) onChange(r.project);
+    onStatus(r.message);
+  };
+  /** Delete control on each outgoing feeder row (not the incomer). A feeder
+   * that supplies a panel can't be deleted here: it would leave that panel unfed. */
+  const rowAction = (y: number) => {
+    const row = sheet.rows[y];
+    if (row.type !== 'feeder') return null;
+    const f = row.feeder;
+    const block = feederDeleteBlock(project, f.id);
+    const label = row.toBoard ? row.toBoard.id : f.name || f.id;
+    return (
+      <button className={`icon-btn${block ? ' md-del-blocked' : ''}`} aria-label={`Delete feeder ${f.id}`}
+        title={block ?? `Delete feeder ${f.id} (${label})`}
+        onClick={() => {
+          if (block) { onStatus(block); window.alert(block); return; }
+          if (!window.confirm(`Delete outgoing feeder ${f.id} (${label}) from ${boardId}?`)) return;
+          const r = deleteOutgoingFeeder(project, f.id);
+          if (r.project !== project) onChange(r.project);
+          onStatus(r.message);
+        }}>
+        <Trash2 size={14} />
+      </button>
+    );
+  };
   return (
     <div className="md-form">
       <div className="md-head">
@@ -30,8 +59,12 @@ export default function MdSheetView({ project, boardId, onChange, onStatus, onSe
         <div><span>CONSULTANT:</span> {blank(f.consultant)}</div>
         <div><span>LOCATION:</span> {blank(f.location)}</div>
       </div>
+      <div className="ls-actions">
+        <button className="chip" onClick={add} title="Adds an outgoing feeder (general load, sized by the app) to this panel — set its kW on the SLD; feeders to panels are added by dropping a board on the SLD"><Plus size={14} /> Add feeder</button>
+      </div>
       <ClassicGrid
         model={sheet}
+        rowAction={rowAction}
         onStatus={onStatus}
         onEdits={(edits) => {
           const { project: next, rejected } = applyMdEdits(project, sheet, edits);
