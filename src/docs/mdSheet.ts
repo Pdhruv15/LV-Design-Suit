@@ -5,7 +5,7 @@ import { builtUpAreaOf } from '../calc/building';
 import { breakerTypeOf, cpcOf } from '../calc/earthing';
 import { runsOf } from '../calc/electrical';
 import { isScheduleCircuit, type PhaseKw } from '../calc/loadSchedule';
-import { breakerRatings } from '../calc/sizing';
+import { applyRecommendation, breakerRatings, recommend } from '../calc/sizing';
 import { CABLE_TYPES, DEFAULT_CABLE_TYPE, type Board, type Feeder, type MeterType, type Project, type SwitchDevice } from '../types';
 import { cellName, parseCount, parsePositive, STYLE, type SheetEdit, type SheetModel } from './sheet';
 
@@ -13,7 +13,8 @@ import { cellName, parseCount, parsePositive, STYLE, type SheetEdit, type SheetM
  * authority form for a meter cabinet, MDB, SMDB or MCC: its incomer, then
  * every outgoing feeder (to boards or equipment) with cable, connected load
  * per phase, TCL, MDL and proposed kWh meter. Loads come from everything
- * below each feeder, down to the DB load schedules. */
+ * below each feeder, down to the DB load schedules. Only an equipment
+ * feeder's own TCL can be typed: it is that feeder's load. */
 
 export type MdColKey =
   | 'name' | 'sptp' | 'ACB' | 'MCCB' | 'ISOL' | 'fault' | 'cores' | 'type' | 'size' | 'ecc' | 'length'
@@ -88,6 +89,11 @@ export const hasMdSheet = (project: Project, boardId: string) =>
   project.feeders.some((f) => f.boardId === boardId && !isScheduleCircuit(f));
 
 const kw = (v: number) => v.toFixed(2);
+
+/** An outgoing feeder whose TCL is its own load (typed here), not what a
+ * panel below draws. Generation and capacitor banks have no connected load. */
+const ownLoad = (row: MdRow | undefined): row is { type: 'feeder'; feeder: Feeder } =>
+  row?.type === 'feeder' && !row.toBoard && !row.feeder.generation && !row.feeder.kvar && row.feeder.loadType !== 'capacitor';
 
 /** The panel's own diversity factor: typed on the panel, else its own loads'
  * maximum demand ÷ connected load (not the project's). */
@@ -198,7 +204,8 @@ export function buildMdSheet(project: Project, boardId: string): MdSheet {
     const row = rows[y];
     const k = keys[x];
     if (!row || !k || row.type === 'label' || row.type === 'spare') return false;
-    if (['sptp', 'R', 'Y', 'B', 'tcl', 'mdl'].includes(k)) return false;
+    if (k === 'tcl') return ownLoad(row);
+    if (['sptp', 'R', 'Y', 'B', 'mdl'].includes(k)) return false;
     if (row.type === 'incomer') {
       if (row.feeder) return k !== 'name';
       return ['ACB', 'MCCB', 'ISOL', 'fault', 'cores', 'ecc', '1-PH', '3-PH', 'CT'].includes(k);
@@ -275,7 +282,9 @@ export function buildMdSheet(project: Project, boardId: string): MdSheet {
 
 /** Applies typed or pasted values: ratings, fault duty, cable, meter and
  * remarks go to the feeder (or the board's supply for an authority-fed
- * incomer). Loads are never typed here — they come from below. */
+ * incomer). An equipment feeder's TCL sets its load, and its breaker and
+ * cable are re-sized like a drop on the SLD (unless sized by hand, or the
+ * same edit sets them); a panel's load comes from below. */
 export function applyMdEdits(project: Project, sheet: MdSheet, edits: SheetEdit[]): { project: Project; rejected: string[] } {
   const rejected: string[] = [];
   const feederPatch = new Map<string, Partial<Feeder>>();
@@ -353,6 +362,11 @@ export function applyMdEdits(project: Project, sheet: MdSheet, edits: SheetEdit[
       else if ((patch.kwhMeter ?? f.kwhMeter) === k) patch.kwhMeter = undefined;
     } else if (k === 'remarks') patch.remarks = v || undefined;
     else if (k === 'name') patch.name = v || f.id;
+    else if (k === 'tcl') {
+      const n = parsePositive(v.replace(/\s*kw$/i, ''));
+      if (n === null) { bad('a load in kW'); continue; }
+      patch.loadKw = n;
+    }
     feederPatch.set(f.id, patch);
   }
 
@@ -368,6 +382,15 @@ export function applyMdEdits(project: Project, sheet: MdSheet, edits: SheetEdit[
         return next;
       })
     };
+    // A new load re-sizes its breaker and cable, unless sized by hand or typed in the same edit.
+    const sizing: (keyof Feeder)[] = ['breakerRatingA', 'breakerIcuKa', 'cableCsaMm2', 'parallel', 'cpcMm2'];
+    for (const [id, patch] of feederPatch) {
+      if (patch.loadKw === undefined || sizing.some((key) => key in patch)) continue;
+      const f = p.feeders.find((x) => x.id === id)!;
+      if (f.manualSize) continue;
+      const sized = applyRecommendation(f, recommend(p, f, 'optimise'));
+      p = { ...p, feeders: p.feeders.map((x) => (x.id === id ? sized : x)) };
+    }
   }
   if (supplyTouched) p = { ...p, boards: p.boards.map((b) => (b.id === sheet.board.id ? { ...b, supply } : b)) };
   return { project: p, rejected };

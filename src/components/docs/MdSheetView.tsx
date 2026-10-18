@@ -60,7 +60,7 @@ export default function MdSheetView({ project, boardId, onChange, onStatus, onSe
         <div><span>LOCATION:</span> {blank(f.location)}</div>
       </div>
       <div className="ls-actions">
-        <button className="chip" onClick={add} title="Adds an outgoing feeder (general load, sized by the app) to this panel — set its kW on the SLD; feeders to panels are added by dropping a board on the SLD"><Plus size={14} /> Add feeder</button>
+        <button className="chip" onClick={add} title="Adds an outgoing feeder (general load, sized by the app) to this panel — type its kW in the TCL column; feeders to panels are added by dropping a board on the SLD"><Plus size={14} /> Add feeder</button>
       </div>
       <ClassicGrid
         model={sheet}
@@ -88,7 +88,7 @@ export default function MdSheetView({ project, boardId, onChange, onStatus, onSe
         </div>
         <p className="m">
           Type of meter (rating of incomer): (1) up to 60 A, 1-phase · (2) up to 125 A, 3-phase · (3) LV CT / HV CT.
-          Type 1 in a meter column to propose that meter. Loads come from the boards and load schedules below — edit them there.
+          Type 1 in a meter column to propose that meter. An equipment feeder's load is typed in its TCL column (its breaker and cable are re-sized); a panel's load comes from the boards and load schedules below — edit them there.
         </p>
       </div>
     </div>
