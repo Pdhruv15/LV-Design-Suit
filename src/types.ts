@@ -397,6 +397,8 @@ export interface Project {
   /** Your own equipment, with parameters and formulas (palette → My components). */
   components?: import('./model/components').UserComponent[];
   building?: BuildingInfo; // architectural information: buildings, levels, rooms, room types
+  /** Early-stage load assessment from the building type and services (Building → Load assessment). */
+  loadAssessment?: import('./calc/loadAssessment').LoadAssessment;
   boq?: import('./model/priceList').BoqCustom; // manual BOQ lines, your sections, quantity changes, wastage
   priceList?: import('./model/priceList').PriceList;
   pfcCalc?: import('./calc/pfcCalc').PfcCalcInput;

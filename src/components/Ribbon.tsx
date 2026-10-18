@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Activity, BatteryCharging, Building2, Cable, Calculator, ClipboardCheck, MessageSquareWarning, Inbox, Car, CircuitBoard, Cog, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText, GitPullRequestArrow, Send, Stamp,
   Gauge, Hand, LayoutGrid, ListTree, MousePointer2, Pencil, Receipt, Scale, Settings2, ShieldCheck, Sun,
-  ChevronDown, ChevronUp, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box } from 'lucide-react';
+  ChevronDown, ChevronUp, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig } from 'lucide-react';
 import type { BoardKind, Feeder } from '../types';
 import type { MainView } from '../views';
 
@@ -96,7 +96,7 @@ const TABS: { id: RibbonTab; label: string; icon: Icon }[] = [
  * done from the left menu. */
 export function tabForView(v: MainView): RibbonTab {
   if (v === 'projects' || v === 'dashboard' || v === 'help' || v === 'parameters' || v === 'titleblock') return 'home';
-  if (v === 'building' || v === 'design' || v === 'load-schedule' || v === 'space-planning' || v === 'substation-area' || v === 'enclosure' || v === 'earth-schematic' || v === 'panels') return 'design';
+  if (v === 'building' || v === 'load-assessment' || v === 'design' || v === 'load-schedule' || v === 'space-planning' || v === 'substation-area' || v === 'enclosure' || v === 'earth-schematic' || v === 'panels') return 'design';
   if (v === 'engines') return 'simulate';
   if (['calculators', 'voltage-drop', 'earthing', 'coordination', 'selection', 'sizing', 'pfc', 'busbar', 'ups', 'solar'].includes(v)) return 'calculate';
   if (v === 'boq') return 'cost';
@@ -196,6 +196,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'Board', icon: BoardPropsIcon, sub: a.boardId || undefined, title: a.boardId ? `Properties of ${a.boardId}: general, supply (its transformer and feed chain), electrical, protection, location` : 'Board properties — select a board first', onClick: a.onBoardProperties, disabled: !a.boardId },
         { label: 'Schedule', icon: Table2, title: `Load distribution schedule of ${a.boardId}`, onClick: go('load-schedule'), active: a.view === 'load-schedule', page: true },
         view('building', 'Building', Building2, 'Building information: GFA, levels, typical floors, rooms and room types'),
+        view('load-assessment', 'Load assessment', ChartColumnBig, 'Load assessment: maximum demand, transformers and generator from the building type, area schedule and services'),
         { label: 'Space plan', icon: LayoutGrid, title: 'Space planning: areas → panels → transformers → RMUs', onClick: go('space-planning'), active: a.view === 'space-planning', page: true },
         { label: 'Enclosure sizing', icon: Box, title: 'Enclosure sizing: the board\'s physical space (modules) from a supplier catalogue — candidates, dimensioned preview', onClick: go('enclosure'), active: a.view === 'enclosure', page: true },
         { label: 'Earth pits', icon: Network, title: 'Earthing schematic: earth pits of the RMUs, transformers and main boards, and how they are linked', onClick: go('earth-schematic'), active: a.view === 'earth-schematic', page: true },
