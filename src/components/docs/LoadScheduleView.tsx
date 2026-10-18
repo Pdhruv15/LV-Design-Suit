@@ -72,9 +72,9 @@ export default function LoadScheduleView({
   });
   // Which form: the DB load distribution schedule, or the connected load &
   // maximum demand form (boards with outgoing feeders). A board with no
-  // circuits opens on the MD form; so does an empty MDB / SMDB / MCC, so
-  // its first feeder can be added there.
-  const mdAvailable = hasMdSheet(project, board.id) || scheduleGroupOf(project, board) !== 'db';
+  // circuits opens on the MD form; so does an empty MDB / SMDB / MCC (not a
+  // DB or EDB), so its first feeder can be added there.
+  const mdAvailable = hasMdSheet(project, board.id) || (board.kind ?? (board.upstreamId ? 'DB' : 'MDB')) !== 'DB';
   const [pick, setPick] = useState<{ board: string; form: 'db' | 'md' } | null>(null);
   const [txForm, setTxForm] = useState<false | 'tx' | 'riser'>(false);
   // Tabs by panel type (submission order); the open tab follows the selected panel.
