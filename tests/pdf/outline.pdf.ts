@@ -1,7 +1,7 @@
 // @vitest-environment node
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -15,6 +15,8 @@ import { bookmarkMarkers, markerBookmarks } from '../../src/docs/outline';
 
 const electron = createRequire(import.meta.url)('electron') as unknown as string;
 const dir = mkdtempSync(path.join(tmpdir(), 'lvds-outline-'));
+// Rendered files are removed after the run (set KEEP_PDF=1 to keep them for a look).
+afterAll(() => { if (!process.env.KEEP_PDF) rmSync(dir, { recursive: true, force: true }); });
 const docs = printDocs();
 
 function render(name: string): Promise<PDFDocument> {
