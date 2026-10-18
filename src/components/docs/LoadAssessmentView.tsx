@@ -7,6 +7,7 @@ import {
   type LaServices, type LaSupply, type LoadAssessment
 } from '../../calc/loadAssessment';
 import { buildDashboard } from '../../calc/dashboard';
+import { createMdbFromAssessment } from '../../calc/loadAssessmentMdb';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const f1 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 1 });
@@ -31,6 +32,7 @@ const uid = (p: string) => `${p}${Date.now().toString(36)}${Math.floor(Math.rand
 export default function LoadAssessmentView({ project, onChange, onStatus }: { project: Project; onChange: (p: Project) => void; onStatus: (m: string) => void }) {
   const [lib, setLibState] = useState<LaLibrary>(() => loadLaLibrary());
   const [editFactors, setEditFactors] = useState(false);
+  const [target, setTarget] = useState('');
   const types = useMemo(() => laTypes(lib), [lib]);
   const spaces = useMemo(() => laSpaces(lib), [lib]);
   const a = project.loadAssessment;
@@ -49,7 +51,7 @@ export default function LoadAssessmentView({ project, onChange, onStatus }: { pr
   const pickType = (t: LaBuildingType) => {
     if (a && a.typeId !== t.id && !window.confirm(`Start again from “${t.label}”? The area schedule, services and diversities are replaced (GFA, custom loads and supply settings are kept).`)) return;
     const fig = buildingFigures(project);
-    set(newAssessment(t, a ? { gfaM2: a.gfaM2, floors: a.floors, parkingM2: a.parkingM2, custom: a.custom, supply: a.supply } : { ...(fig.gfaM2 ? { gfaM2: fig.gfaM2 } : {}), ...(fig.floors ? { floors: fig.floors } : {}), parkingM2: fig.parkingM2 ?? (fig.gfaM2 ? 0 : 8000) }, lib));
+    set(newAssessment(t, a ? { gfaM2: a.gfaM2, floors: a.floors, parkingM2: a.parkingM2, custom: a.custom, supply: a.supply, inReport: a.inReport } : { ...(fig.gfaM2 ? { gfaM2: fig.gfaM2 } : {}), ...(fig.floors ? { floors: fig.floors } : {}), parkingM2: fig.parkingM2 ?? (fig.gfaM2 ? 0 : 8000) }, lib));
   };
   const saveType = (asNew: boolean) => {
     if (!a) return;
@@ -64,6 +66,16 @@ export default function LoadAssessmentView({ project, onChange, onStatus }: { pr
     setLib({ ...lib, types: lib.types.filter((x) => x.id !== a.typeId) }, `Removed “${a.typeLabel}” from your library`);
   };
   const mineType = a ? lib.types.find((t) => t.id === a.typeId) : undefined;
+  const mains = project.boards.filter((b) => !b.upstreamId);
+  const createMdb = () => {
+    if (!a) return;
+    const to = mains.some((b) => b.id === target) ? target : undefined;
+    const earlier = to ? project.feeders.filter((f) => f.boardId === to && f.fromRoom?.startsWith('la:')).length : 0;
+    if (earlier && !window.confirm(`Replace the ${earlier} feeders made earlier from the load assessment on ${to}? Your own feeders on it are kept.`)) return;
+    const res = createMdbFromAssessment(project, a, to);
+    onChange(res.project);
+    onStatus(`${res.created ? `Created ${res.boardId}` : `Updated ${res.boardId}`}: ${res.added} feeders from the load assessment${res.replaced ? ` (replaced ${res.replaced})` : ''} — check the cable lengths${res.created && r && r.tx && r.tx.duty > 1 ? `. The assessment needs ${r.tx.duty} duty transformers: split the feeders over more MDBs` : ''}`);
+  };
 
   if (!a || !r) {
     return (
@@ -317,6 +329,20 @@ export default function LoadAssessmentView({ project, onChange, onStatus }: { pr
                 {' '}{f0((designed.demandKva / r.mdKva) * 100)} % of this assessment.
               </div>
             )}
+
+            <div className="bi-actions">
+              <select className="bi-sel" value={mains.some((b) => b.id === target) ? target : ''} onChange={(e) => setTarget(e.target.value)} title="Board the feeders go on">
+                <option value="">New MDB{r.tx ? ` (${f0(r.tx.kva)} kVA transformer)` : ''}</option>
+                {mains.map((b) => <option key={b.id} value={b.id}>{b.id} — {b.name}</option>)}
+              </select>
+              <button className="chip primary" onClick={createMdb} title="One feeder per load category and custom load: connected kW and diversity as load and demand factor; generator-backed loads marked essential">
+                {mains.some((b) => b.id === target) ? `Add feeders to ${target}` : 'Create MDB + feeders'}
+              </button>
+              <span className="sp" />
+              {a.inReport
+                ? <><span className="m">In the Design Basis report ✓</span><button className="chip" onClick={() => patch({ inReport: undefined })}>Remove</button></>
+                : <button className="chip" onClick={() => { patch({ inReport: true }); onStatus('The load assessment is now a section of the Design Basis report (Reports → Study reports)'); }}>Add to Design Basis report</button>}
+            </div>
 
             <h4 style={{ marginTop: 14 }}>Supply settings</h4>
             <div className="la-box">

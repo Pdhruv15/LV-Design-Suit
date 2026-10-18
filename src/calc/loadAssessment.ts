@@ -124,6 +124,8 @@ export interface LoadAssessment {
   diversity: LaDiversity;
   custom: LaCustomLoad[];
   supply: LaSupply;
+  /** Printed as a section of the Design Basis report. */
+  inReport?: boolean;
 }
 
 // ---- PLACEHOLDER library — not authority figures; replace with yours.

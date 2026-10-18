@@ -352,7 +352,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
 
         {tab === 'output' && <section className="sr-box">
           <label className="sr-check"><input type="checkbox" checked={setup.sld} onChange={(e) => set({ sld: e.target.checked })} /> SLD of the chosen boards with each study's results (A3 page)</label>
-          <label className="sr-check"><input type="checkbox" checked={setup.designBasis !== false} onChange={(e) => set({ designBasis: e.target.checked })} /> Executive summary and design basis (scope, system description, codes and standards, design criteria) before the studies</label>
+          <label className="sr-check"><input type="checkbox" checked={setup.designBasis !== false} onChange={(e) => set({ designBasis: e.target.checked })} /> Executive summary and design basis (scope, system description, codes and standards, design criteria, and the load assessment when added from its page) before the studies</label>
           <label className="sr-check"><input type="checkbox" checked={setup.resultsSummary !== false} onChange={(e) => set({ resultsSummary: e.target.checked })} /> Results and compliance summaries (equipment, load, cables, charts, design checks) after the studies</label>
           <label className="sr-check"><input type="checkbox" checked={setup.separate} onChange={(e) => set({ separate: e.target.checked })} /> A separate PDF for each study</label>
           <div className="sr-fields">
