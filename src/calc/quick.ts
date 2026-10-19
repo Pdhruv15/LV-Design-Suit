@@ -226,3 +226,43 @@ export const awgLabel = (awg: number) => Number.isInteger(awg) ? (awg > 0 ? `${a
 export const kcmilToMm2 = (kcmil: number) => nonnegative(kcmil) ? kcmil * 0.506707 : NaN;
 
 export const cableSizes = () => cables().map((c) => c.csaMm2);
+
+export interface CableCandidate { csaMm2: number; runs: number; iz: number; izOk: boolean; vdPct: number; vdOk: boolean; chosen: boolean }
+
+/** Sizes around the chosen cable, at its number of runs, with why each one
+ * passes or fails: Iz (derated) ≥ max(Ib, In) and voltage drop ≤ limit. */
+export function cableCandidates(currentA: number, opts: { lengthM: number; phases: Phases; voltageV: number; pf: number; ambientC: number; groupFactor: number; vdLimitPct: number }, chosen: { csaMm2: number; runs: number }, breakerA: number, below = 3, above = 2): CableCandidate[] {
+  const sizes = cables().filter((c) => chosen.runs === 1 || c.csaMm2 >= 50);
+  const at = sizes.findIndex((c) => c.csaMm2 === chosen.csaMm2);
+  if (at < 0) return [];
+  const required = Math.max(currentA, breakerA);
+  const k = ambientCorrectionFactor(opts.ambientC) * opts.groupFactor * chosen.runs;
+  return sizes.slice(Math.max(0, at - below), at + above + 1).map((c) => {
+    const iz = c.ampacityA * k;
+    const vdPct = voltageDrop(currentA, opts.lengthM, c.csaMm2, opts.phases, opts.voltageV, opts.pf, chosen.runs).pct;
+    return { csaMm2: c.csaMm2, runs: chosen.runs, iz, izOk: iz >= required - 1e-9, vdPct, vdOk: vdPct <= opts.vdLimitPct, chosen: c.csaMm2 === chosen.csaMm2 };
+  });
+}
+
+/** Standard distribution transformer ratings for the reference table. */
+export const TX_RATINGS_KVA = [250, 315, 400, 500, 630, 800, 1000, 1250, 1500, 1600, 2000, 2500];
+
+/** A capacitor bank in equal standard steps covering the kvar: the smallest
+ * step that needs no more than `maxSteps` steps (a typical 6–8 step relay). */
+export function pfcBank(kvar: number, maxSteps = 8): { stepKvar: number; steps: number; totalKvar: number } | undefined {
+  if (!positive(kvar)) return undefined;
+  const sizes = [5, 10, 12.5, 15, 20, 25, 30, 40, 50, 60, 75, 100];
+  const stepKvar = sizes.find((s) => Math.ceil(kvar / s - 1e-9) <= maxSteps) ?? sizes[sizes.length - 1];
+  const steps = Math.ceil(kvar / stepKvar - 1e-9);
+  return { stepKvar, steps, totalKvar: steps * stepKvar };
+}
+
+/** Approximate voltage dip at the source while a motor starts:
+ * ΔU % ≈ S_start ÷ (S_start + S_sc) × 100, with S_sc = S_source ÷ Z
+ * (transformer uk, or generator X″d). Ignores cable impedance and the
+ * starting power factor, so it is a screening figure, not a study. */
+export function startingDip(startKva: number, sourceKva: number, impedancePct: number): number {
+  if (!nonnegative(startKva) || !positive(sourceKva) || !positive(impedancePct)) return NaN;
+  const scKva = sourceKva / (impedancePct / 100);
+  return (startKva / (startKva + scKva)) * 100;
+}

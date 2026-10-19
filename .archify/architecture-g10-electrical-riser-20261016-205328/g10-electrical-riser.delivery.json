@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "5501945a-f3d7-48a5-b752-228dab73a099",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/architecture-g10-electrical-riser-20261016-205328/candidate.json",
+  "output": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/architecture-g10-electrical-riser-20261016-205328/g10-electrical-riser.html",
+  "specification": {
+    "sha256": "c05a6f53e335f6b28b2e5a25f36a29d8ab6f59ec2f81a85039fc6b32b2535237",
+    "bytes": 8519
+  },
+  "artifact": {
+    "sha256": "bb1339244c3da24289f2d40f77af56dd82f83b1485dff311423142f50d3aac9b",
+    "bytes": 782832
+  }
+}

@@ -76,13 +76,21 @@ export const PALETTE: { group: string; entries: PaletteEntry[] }[] = [
     ]
   },
   {
-    group: 'Boards',
-    entries: (['MDB', 'SMDB', 'MCC', 'EMDB', 'DB', 'UPS'] as BoardKind[]).map((k) => ({
+    group: 'Distribution boards',
+    entries: (['MDB', 'LV-MDB', 'SMDB', 'DB', 'EDB', 'EMDB', 'UPS'] as BoardKind[]).map((k) => ({
       item: { kind: 'board', board: k } as PaletteItem,
       label: k,
       title: k === 'MDB'
         ? 'Main board — drop on the empty canvas (new supply) or on a meter cabinet busbar'
         : `${BOARD_KINDS.find((b) => b.value === k)!.label} — drop on a busbar; its breaker and incomer cable are added`
+    }))
+  },
+  {
+    group: 'Package panels',
+    entries: (['MCC', 'EMCC'] as BoardKind[]).map((k) => ({
+      item: { kind: 'board', board: k } as PaletteItem,
+      label: `${k} panel`,
+      title: `${BOARD_KINDS.find((b) => b.value === k)!.label} — drop on a busbar; its breaker and incomer cable are added`
     }))
   },
   {
@@ -157,7 +165,7 @@ export const itemKey = (i: PaletteItem) =>
 
 /** Typical rating (A) of a new board by type; its incomer breaker and cable
  * are sized for it until real loads are added. */
-const BOARD_RATING: Record<BoardKind, number> = { MC: 400, MDB: 1600, SMDB: 250, MCC: 400, EMDB: 250, DB: 63, UPS: 32 };
+const BOARD_RATING: Record<BoardKind, number> = { MC: 400, MDB: 1600, 'LV-MDB': 1600, SMDB: 250, DB: 63, EDB: 63, MCC: 400, EMCC: 400, EMDB: 250, UPS: 32 };
 
 const isRoot = (p: Project, boardId: string) => !p.boards.find((b) => b.id === boardId)?.upstreamId;
 
@@ -165,11 +173,11 @@ const isRoot = (p: Project, boardId: string) => !p.boards.find((b) => b.id === b
 export function canDrop(project: Project, item: PaletteItem, target: DropTarget): boolean {
   switch (item.kind) {
     case 'board':
-      if (target.type === 'canvas') return item.board === 'MDB' || item.board === 'MC';
+      if (target.type === 'canvas') return item.board === 'MDB' || item.board === 'LV-MDB' || item.board === 'MC';
       if (target.type !== 'bus') return false;
       if (item.board === 'MC') return false;
       // An MDB goes under a meter cabinet; other boards go on any board.
-      if (item.board === 'MDB') return project.boards.find((b) => b.id === target.boardId)?.kind === 'MC';
+      if (item.board === 'MDB' || item.board === 'LV-MDB') return project.boards.find((b) => b.id === target.boardId)?.kind === 'MC';
       return true;
     case 'transformer':
       return target.type === 'canvas' || (target.type === 'bus' && isRoot(project, target.boardId));
@@ -250,13 +258,13 @@ export function applyDrop(project: Project, item: PaletteItem, target: DropTarge
     const parent = target.type === 'bus' ? target.boardId : undefined;
     const board = newBoard(project, item.board, parent);
     if (!parent) {
-      const withSupply = item.board === 'MDB' ? { ...board, supply: { fedFrom: 'DEWA' } } : board;
+      const withSupply = item.board === 'MDB' || item.board === 'LV-MDB' ? { ...board, supply: { fedFrom: 'DEWA' } } : board;
       return { project: { ...project, boards: [...project.boards, withSupply] }, select: { type: 'board', id: board.id }, message: `Added ${board.id} (new supply) — set its data in the properties panel` };
     }
     const incomer = boardIncomer(project, parent, board);
     if (item.board === 'UPS') board.upsKva = 10;
     const next = { ...project, boards: [...project.boards, board], feeders: [...project.feeders, incomer] };
-    const tail = item.board === 'DB' ? ' — double-click it to open its load schedule' : '';
+    const tail = item.board === 'DB' || item.board === 'EDB' ? ' — double-click it to open its load schedule' : '';
     return { project: next, select: { type: 'board', id: board.id }, message: `Added ${board.id} on ${parent} with a ${incomer.breakerRatingA} A breaker and ${incomer.cores}C × ${incomer.cableCsaMm2} mm² cable${tail}` };
   }
 

@@ -1,7 +1,7 @@
 {
   "name": "lv-design-studio",
   "productName": "LV Design Studio",
-  "version": "1.45.0",
+  "version": "1.46.0",
   "license": "SEE LICENSE IN LICENSE.md",
   "description": "Offline LV electrical design & calculation desktop app",
   "main": "electron/main.cjs",
@@ -18,16 +18,21 @@
     "update-app": "bash scripts/update-app.sh",
     "bench": "vitest run -c tests/performance/vitest.config.ts",
     "test:pdf": "vitest run -c tests/pdf/vitest.config.ts",
-    "test:pdf:update": "UPDATE_BASELINES=1 vitest run -c tests/pdf/vitest.config.ts tests/pdf/visual.pdf.ts"
+    "test:pdf:update": "UPDATE_BASELINES=1 vitest run -c tests/pdf/vitest.config.ts tests/pdf/visual.pdf.ts",
+    "build:cli": "vite build -c vite.cli.config.ts",
+    "lvds": "node dist-cli/lvds.mjs"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "@xmldom/xmldom": "^0.8.15",
     "docx": "^9.8.1",
     "exceljs": "^4.4.0",
     "jszip": "^3.10.2",
     "lucide-react": "^0.468.0",
     "pdf-lib": "^1.17.1",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
@@ -99,5 +104,8 @@
     },
     "artifactName": "LV-Design-Studio-${version}-${os}-${arch}.${ext}"
   },
-  "author": "Palanisami"
+  "author": "Palanisami",
+  "bin": {
+    "lvds": "dist-cli/lvds.mjs"
+  }
 }

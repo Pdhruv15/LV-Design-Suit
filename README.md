@@ -7,7 +7,7 @@ power factor correction, drawings and submission reports. Projects are plain
 JSON files, so they sync cleanly through a Google Drive / OneDrive / Dropbox
 desktop folder.
 
-**Version 1.45** (see `package.json`). The app is in active use and active
+**Version 1.46** (see `package.json`). The app is in active use and active
 development.
 
 > **Engineering status.** The calculations are first-pass design checks, not
@@ -155,6 +155,82 @@ cross-check of the built-in engine.
 network as a self-contained OpenDSS script (load flow + fault study) that
 you can open in OpenDSS itself. The modelling assumptions are listed in the
 header of the exported file.
+
+## Command line, MCP server and local API
+
+`lvds` uses the app's own calculations without opening the app. It works on
+projects in the app's projects folder. Reading and checking never changes a
+file; changing a project is described below.
+
+```bash
+npm run build:cli
+node dist-cli/lvds.mjs help
+node dist-cli/lvds.mjs check "My project"      # to-do list; exit code 1 if anything fails
+node dist-cli/lvds.mjs panel "My project" SMDB-GF
+node dist-cli/lvds.mjs cable --current 120 --length 80 --ambient 45
+```
+
+Add `--json` for scripts, `--folder <path>` for another projects folder.
+
+**MCP (for an AI assistant).** `lvds mcp` runs an MCP server on this computer.
+Claude Desktop, Claude Code or a free local model (through any MCP client) can
+then list projects, read panels and results, run the checks and use the quick
+calculations. The app makes no AI calls itself and needs no paid service. For
+Claude Code:
+
+```bash
+claude mcp add lv-design-studio -- node /path/to/LV-Design-Suit/dist-cli/lvds.mjs mcp
+```
+
+For Claude Desktop, add the same command under `mcpServers` in its
+`claude_desktop_config.json`:
+`{"lv-design-studio": {"command": "node", "args": ["/path/to/LV-Design-Suit/dist-cli/lvds.mjs", "mcp"]}}`.
+Through MCP and the API, only files inside the projects folder can be opened.
+
+**Local API.** `lvds serve` (default port 8765) answers on `http://127.0.0.1`
+only: `GET /api/tools` lists the tools and their inputs, `GET
+/api/tools/run_checks?project=My%20project` or `POST` with a JSON body runs
+one.
+
+**Changing a project.** `lvds mcp --write` and `lvds serve --write` also offer
+tools that change a project (on the command line they are always there). They
+show a preview unless called with `mode` apply / propose (`--apply` /
+`--propose` on the command line):
+
+- **Value changes are only proposed.** `size_circuits` (the app's own cable and
+  breaker selection) and `propose_changes` add a modification record (MOD-00x)
+  to **Reports → Changes**. The engineer accepts it with their name and applies
+  it in the app, as one undo step. The tools never accept anything and never
+  change the values themselves.
+- **Structure changes** (`add_panel`, `add_circuit`, `move_panel`,
+  `rename_panels`, `copy_panel`) change the file after the preview. New panels
+  and circuits are sized by the app's selection.
+- Every change keeps the previous version in `.lvds-agent/` in the projects
+  folder and is logged (`list_changes`); `undo_change` puts it back.
+- `delete_panel` and `delete_circuit` use the app's own delete. To apply, they
+  need `approvedBy` (the engineer's name), and `undo_change` puts it back.
+- Nothing is written while the project has unsaved changes open in the app, or
+  over a file that changed in the meantime.
+
+**Exports.** `list_exports` shows what a project can export. `export_report`
+makes any document of the app's Export centre as HTML (open it in a browser and
+print to PDF). `export_forms_xlsx` and `export_boq_xlsx` make the Excel
+workbooks, and `export_dxf` the earthing schematic. Each one first shows a
+preview: the files it would make, failing checks and proposals still waiting.
+Exporting needs `approvedBy` (the engineer's name). It is refused while checks
+fail or proposals wait, unless the engineer sets `exportAnyway`. Files go to
+`Exports/<project>/<date>/` in the projects folder, never over an existing
+file, and every export is logged in `.lvds-agent/exports.jsonl`. SLD, panel
+and riser sheets are drawn by the app, so export those from Reports →
+Drawings.
+
+```bash
+node dist-cli/lvds.mjs size "My project"            # preview the sizing proposal
+node dist-cli/lvds.mjs size "My project" --propose  # add it to Reports → Changes
+node dist-cli/lvds.mjs add-panel "My project" --kind SMDB --id SMDB-L3 --fedFrom MDB-1 --lengthM 45 --apply
+node dist-cli/lvds.mjs undo "My project" --apply
+node dist-cli/lvds.mjs forms-xlsx "My project" --export --approvedBy "A. Engineer"
+```
 
 ## What it does
 

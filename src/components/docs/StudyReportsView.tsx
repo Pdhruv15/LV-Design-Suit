@@ -16,8 +16,7 @@ import { packageCoverHtml, packageStamp, snapshotId, unresolvedChecks, type Pack
 import { PDFDocument } from 'pdf-lib';
 import { buildDashboard } from '../../calc/dashboard';
 import { buildDashboardHtml } from '../../docs/dashboardPdf';
-import { buildLoadScheduleHtml } from '../../docs/loadScheduleDoc';
-import { scheduleCircuits } from '../../calc/loadSchedule';
+import { panelScheduleDocs } from '../../docs/panelScheduleDocs';
 import { renderPdf, safeFileName, saveBinary, savePdf } from '../../util/files';
 import { applyReportType, matchingType, REPORT_TYPES } from '../../docs/reportTypes';
 import { issueCounts, validateReport } from '../../docs/reportValidation';
@@ -186,8 +185,9 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
   /** Issue package — one PDF for the submission, everything from ONE frozen
    * calculation run (the last run, never the live edits): a cover with the
    * snapshot ID, contents, unresolved checks and assumptions; the project
-   * summary; the study report with its SLDs; the load schedule of every DB in
-   * scope. Every page is stamped with the snapshot ID and app version. */
+   * summary; the study report with its SLDs; and every available panel
+   * schedule in scope (MD forms for MDB / SMDB / MCC / EMCC and circuit
+   * schedules for DB / EDB). Every page is stamped with the snapshot ID and app version. */
   async function exportPack() {
     const toBytes = window.lvds?.files?.pdfBytes;
     const snap = run; // frozen here: later edits can't mix into this package
@@ -208,9 +208,9 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
       // The study report exactly as Export PDF makes it: contents page numbers, header and footer.
       const report = (pages: Record<string, number>) => buildStudyReportHtml(p, snapScope, snapSections, meta, slds, { ...basisOpt, data: snapData, pages });
       parts.push((await renderPdf(report({}), { cssPages: true, frame: pageFrame(reportDoc(p, meta)), paginate: report }, title))!);
-      const dbs = snapScope.boards.filter((b) => scheduleCircuits(p, b.id).length);
-      for (const b of dbs) parts.push(await toBytes({ html: buildLoadScheduleHtml(p, b.id), cssPages: true }));
-      const titles = ['Project summary', title, ...dbs.map((b) => `Load schedule — ${b.id}`)];
+      const schedules = panelScheduleDocs(p, snapScope.boards);
+      for (const schedule of schedules) parts.push(await toBytes({ html: schedule.html, cssPages: true }));
+      const titles = ['Project summary', title, ...schedules.map((schedule) => schedule.title)];
       const counts = await Promise.all(parts.map(async (bytes) => (await PDFDocument.load(bytes)).getPageCount()));
       const pm: PackageMeta = { ...meta, calculatedAt: snap.at, snapshot: snapshotId(p) };
       const list = titles.map((t, i) => ({ title: t, pages: counts[i] }));
@@ -225,7 +225,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
       const bytes = await mergePdfs([cover, ...parts], packageStamp(p, pm), ['Issue package — contents and open items', ...titles]);
       const m = await saveBinary(`${safeFileName(`${project.name} ${setup.docNo ?? ''} issue package ${pm.snapshot}`.trim())}.pdf`, bytes, 'PDF', 'pdf', 'application/pdf');
       const open = unresolvedChecks(snapSections).length;
-      if (m) onStatus(`${m} — snapshot ${pm.snapshot}: cover, summary, ${snapSections.length} stud${snapSections.length > 1 ? 'ies' : 'y'}, ${dbs.length} load schedule${dbs.length === 1 ? '' : 's'} · ${open} unresolved check${open === 1 ? '' : 's'} listed`);
+      if (m) onStatus(`${m} — snapshot ${pm.snapshot}: cover, summary, ${snapSections.length} stud${snapSections.length > 1 ? 'ies' : 'y'}, ${schedules.length} panel schedule${schedules.length === 1 ? '' : 's'} · ${open} unresolved check${open === 1 ? '' : 's'} listed`);
     } catch (e) {
       onStatus(`Issue package failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -255,7 +255,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
           {blockedWhy && <span className="m sr-why">{blockedWhy}</span>}
           <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportExcel} title={blockedWhy ?? 'Excel: the result tables of each study (no SLDs, no method text)'}>{busy === 'xlsx' ? 'Exporting…' : 'Excel'}</button>
           <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportWord} title={blockedWhy ?? 'Word (.docx): editable report — method, summary and tables (no SLDs)'}>{busy === 'docx' ? 'Exporting…' : 'Word'}</button>
-          <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportPack} title={blockedWhy ?? 'One PDF from the last calculation run: cover (snapshot ID, contents, unresolved checks, assumptions) + project summary + this report with SLDs + the load schedule of every DB in scope; snapshot ID on every page'}>{busy === 'pack' ? 'Building…' : window.lvds?.files?.pdfBytes ? 'Issue package (PDF)' : 'Issue package · desktop app'}</button>
+          <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportPack} title={blockedWhy ?? 'One PDF from the last calculation run: cover + project summary + this report with SLDs + every available panel schedule in scope, including MCC and EMCC MD forms; snapshot ID on every page'}>{busy === 'pack' ? 'Building…' : window.lvds?.files?.pdfBytes ? 'Issue package (PDF)' : 'Issue package · desktop app'}</button>
           <button className="chip primary" disabled={blocked || !sections.length || !!busy} onClick={exportPdf} title={blockedWhy ?? `PDF: method, summary and tables of each study${setup.sld ? ', with an SLD of the chosen boards showing its results' : ''}`}>
             {busy === 'pdf' ? 'Exporting…' : setup.separate && sections.length > 1 ? `Export ${sections.length} PDFs` : 'Export PDF'}
           </button>
@@ -352,7 +352,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
 
         {tab === 'output' && <section className="sr-box">
           <label className="sr-check"><input type="checkbox" checked={setup.sld} onChange={(e) => set({ sld: e.target.checked })} /> SLD of the chosen boards with each study's results (A3 page)</label>
-          <label className="sr-check"><input type="checkbox" checked={setup.designBasis !== false} onChange={(e) => set({ designBasis: e.target.checked })} /> Executive summary and design basis (scope, system description, codes and standards, design criteria) before the studies</label>
+          <label className="sr-check"><input type="checkbox" checked={setup.designBasis !== false} onChange={(e) => set({ designBasis: e.target.checked })} /> Executive summary and design basis (scope, system description, codes and standards, design criteria, and the load assessment when added from its page) before the studies</label>
           <label className="sr-check"><input type="checkbox" checked={setup.resultsSummary !== false} onChange={(e) => set({ resultsSummary: e.target.checked })} /> Results and compliance summaries (equipment, load, cables, charts, design checks) after the studies</label>
           <label className="sr-check"><input type="checkbox" checked={setup.separate} onChange={(e) => set({ separate: e.target.checked })} /> A separate PDF for each study</label>
           <div className="sr-fields">

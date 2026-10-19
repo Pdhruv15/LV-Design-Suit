@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client';
-import { registerHtml } from '../../docs/drawingRegister';
+import { registerHtml, registerRows } from '../../docs/drawingRegister';
 import { flushSync } from 'react-dom';
 import type { Project } from '../../types';
 import type { CalcRun } from '../../calc/runs';
@@ -261,11 +261,7 @@ export async function exportDrawingSet(project: Project, set: DrawingSet, run: C
   }
 }
 
-/** Register rows with each sheet's own revision, date and status. */
-export const registerRows = (set: DrawingSet, sizes: [string, string][] = [], projectRev?: string) => {
-  const m = new Map(sizes);
-  return set.sheets.map((s) => ({ number: s.number, title: s.title, size: m.get(s.id) ?? (s.size === 'auto' ? 'Auto' : s.size), rev: sheetRev(s, projectRev) || undefined, date: s.date || s.history?.[s.history.length - 1]?.date, status: s.status || set.status }));
-};
+export { registerRows };
 
 /** The finished sheet, scaled to fit the dialog. */
 export function SheetPreview({ html, size }: { html: string; size: SheetSize }) {

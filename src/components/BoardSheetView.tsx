@@ -37,6 +37,8 @@ export default function BoardSheetView({ project, board, results, selected, onSe
   diagram: Pick<React.ComponentProps<typeof SingleLineDiagram>, 'incomerLabel' | 'summary'>;
 }) {
   const [busy, setBusy] = useState('');
+  // The SLD stops at final circuits; show them one by one only to work on phases.
+  const [allCircuits, setAllCircuits] = useState(false);
   const order = useMemo(() => boardsInSupplyOrder(project), [project]);
   const at = order.findIndex((b) => b.id === board.id);
   const prev = at > 0 ? order[at - 1] : undefined, next = at >= 0 && at < order.length - 1 ? order[at + 1] : undefined;
@@ -129,6 +131,10 @@ export default function BoardSheetView({ project, board, results, selected, onSe
         <span className="m">{board.name && board.name !== board.id ? board.name : ''}{board.upstreamId ? ` · fed from ${board.upstreamId}` : ' · main board'}{at >= 0 ? ` · ${at + 1} of ${order.length}` : ''}</span>
         <button className="chip" disabled={!next} onClick={() => next && onBoard(next.id)} title={next ? `Next board in supply order: ${next.id}` : 'Last board'}>{next?.id ?? ''} ▶</button>
         <span className="sp" />
+        <button className={`chip${allCircuits ? ' on' : ''}`} aria-pressed={allCircuits} onClick={() => setAllCircuits((v) => !v)}
+          title="The SLD stops at final circuits: it draws feeders to boards and major equipment, and the lighting and power circuits as one box referring to the DB load schedule. Show them one by one to move phases on the drawing.">
+          {allCircuits ? 'Hide final circuits' : 'Show final circuits'}
+        </button>
         <button className="chip" onClick={balance} title="Spread the single-phase circuits over R / Y / B (load-schedule ways are renumbered, lighting and power kept on separate ELCBs)">Balance phases</button>
         <MenuButton label={busy ? 'Exporting…' : 'Export sheets'} title="Board sheets: A3, black and white, one per board, with title block" align="right">
           {(close) => (
@@ -164,7 +170,7 @@ export default function BoardSheetView({ project, board, results, selected, onSe
         {onOpenEarthing && <button className="linkish" onClick={onOpenEarthing}>Earthing schematic ›</button>}
       </div>
 
-      <SingleLineDiagram board={board} voltageV={project.voltageV} project={project} results={own} selected={selected} onSelect={onSelect} onPhase={cyclePhase} {...diagram} />
+      <SingleLineDiagram board={board} voltageV={project.voltageV} project={project} results={own} selected={selected} onSelect={onSelect} onPhase={cyclePhase} allCircuits={allCircuits} {...diagram} />
 
       <div className="bs-table">
         <table className="compact">

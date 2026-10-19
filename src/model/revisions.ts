@@ -143,7 +143,7 @@ export const PROJECT_FIELDS: Fields<Snapshot> = [
 
 /** Larger data sets: a summary line (with a count where it helps) and then the individual differences. */
 export const DATA_SETS: Fields<Snapshot> = [
-  ['building', 'Building information (levels, rooms)'], ['trays', 'Cable trays'], ['busRisers', 'Busbar risers'], ['busbarData', 'Busbar data'],
+  ['building', 'Building information (levels, rooms)'], ['loadAssessment', 'Load assessment'], ['trays', 'Cable trays'], ['busRisers', 'Busbar risers'], ['busbarData', 'Busbar data'],
   ['ties', 'Bus couplers'], ['pv', 'Solar PV'], ['substations', 'Substation rooms'], ['txGen', 'Transformer & generator plan'], ['pfc', 'Power factor correction plan'],
   ['spacePlan', 'Space plan'], ['pfcCalc', 'Power factor calculator'], ['containmentCalc', 'Containment calculator'], ['components', 'Own components'],
   ['drawing', 'SLD title block and drawing settings'], ['titleTemplates', 'Title block templates'], ['params', 'Parameters'], ['studyReport', 'Study report setup'], ['calcReportDocNo', 'Calculation report document no.'], ['vdReportDocNo', 'Voltage drop report document no.'], ['panelPrefixes', 'Panel naming'],

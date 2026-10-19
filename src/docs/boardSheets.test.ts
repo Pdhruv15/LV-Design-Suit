@@ -5,6 +5,7 @@ import { runCalculations } from '../calc/runs';
 import { boardsInSupplyOrder } from '../calc/summary';
 import { boardSheetSvg } from '../diagram/boardSheet';
 import { earthSheetNo } from '../model/boardEarth';
+import { onSld } from '../model/sldScope';
 import { boardSheetHtml, boardSheetPages } from './boardSheets';
 import { buildSheetDxfPages } from './sheetDxf';
 
@@ -26,10 +27,20 @@ describe('board sheet drawing', () => {
     expect(svg).toContain('PH R');
     for (const t of ['PANEL SUMMARY', 'TCL / DF / MDL', 'R / Y / B LOAD', 'NEUTRAL CURRENT', 'CURRENT UNBALANCE', 'EARTH', 'CIRCUITS', 'TOTAL']) expect(svg).toContain(t);
   });
+  it('stops at final circuits: one box refers to the schedule, the circuit table still lists every way', () => {
+    const own = run.project.feeders.filter((x) => x.boardId === 'DB-GF1');
+    const { svg } = boardSheetSvg(run.project, board('DB-GF1'), run.results);
+    expect(svg).toContain('FINAL CIRCUITS');
+    expect(svg).toContain('REFER DB LOAD');
+    expect(svg).toContain(`${own.filter((f) => !onSld(f)).length} WAYS`);
+    expect(svg.match(/data-dxf-layer="BUSBAR"/g)).toHaveLength(1);
+  });
   it('wraps a long busbar onto more rows instead of one very wide drawing', () => {
-    const many = run.project.feeders.filter((x) => x.boardId === 'DB-GF1').length;
+    // Every way a dedicated equipment feeder, so each is drawn.
+    const project = { ...run.project, feeders: run.project.feeders.map((f) => (f.boardId === 'DB-GF1' ? { ...f, breakerRatingA: 32 } : f)) };
+    const many = project.feeders.filter((x) => x.boardId === 'DB-GF1').length;
     expect(many).toBeGreaterThan(12);
-    const { svg, w } = boardSheetSvg(run.project, board('DB-GF1'), run.results);
+    const { svg, w } = boardSheetSvg(project, board('DB-GF1'), run.results);
     expect(svg).toContain('BUSBAR (CONTINUED)');
     expect(w).toBeLessThan(2200);
   });
