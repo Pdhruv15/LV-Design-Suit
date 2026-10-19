@@ -99,3 +99,29 @@ describe('busbar trunking from the same MDB', () => {
     expect(L.used.has('bus') && L.used.has('tap')).toBe(true);
   });
 });
+
+describe('a sub-panel beside its parent that feeds a level below', () => {
+  const twoLevels: BuildingInfo = { rooms: [], buildings: [{ id: 'A', name: 'Tower A', levels: [
+    { id: 'b1', name: 'B1', kind: 'basement', heightM: 4 }, { id: 'g', name: 'GF', kind: 'ground', heightM: 4 }
+  ] }] };
+  const p = {
+    ...sampleProject, building: twoLevels, busRisers: [],
+    boards: [
+      { id: 'MDB', name: 'MDB', kind: 'MDB', sourceKva: 1000, level: at('g') },
+      { id: 'SMDB-G', name: 'GF', kind: 'SMDB', upstreamId: 'MDB', level: at('g') },
+      { id: 'DB-B1', name: 'Basement', kind: 'DB', upstreamId: 'SMDB-G', level: at('b1') },
+      { id: 'DB-G', name: 'GF', kind: 'DB', upstreamId: 'MDB', level: at('g') }
+    ],
+    feeders: [fd('F1', 'MDB', 'SMDB-G', 250), fd('F2', 'SMDB-G', 'DB-B1'), fd('F3', 'MDB', 'DB-G')]
+  } as unknown as Project;
+  const L = feederRiserLayout(p, 'A');
+
+  it('its drop runs right of the parent enclosure, not through it', () => {
+    const mdb = L.panels.find((x) => x.board.id === 'MDB')!;
+    const smdb = L.panels.find((x) => x.board.id === 'SMDB-G')!;
+    const drop = L.feeders.find((f) => f.x === L.leaves.find((n) => n.board.id === 'DB-B1')!.x)!;
+    expect(smdb.y2).toBeLessThan(mdb.y1); // stacked above the MDB on the same level
+    expect(drop.yTo).toBeGreaterThan(mdb.y2); // goes down past the MDB
+    expect(drop.x).toBeGreaterThan(mdb.x2);
+  });
+});

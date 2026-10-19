@@ -79,6 +79,7 @@ export function feederRiserLayout(project: Project, buildingId: string): FeederR
   const cabled = (b: Board) => childrenOf(b).filter((c) => !onBus.has(c.id));
   const risersFrom = (b: Board) => risers.filter((r) => r.sourceBoardId === b.id && [...onBus.values()].includes(r));
   const busCol = new Map<string, number>();
+  const below = (b: Board, row: number): boolean => childrenOf(b).some((c) => rowOf(c) < row || below(c, row));
   const isPanel = (b: Board) => childrenOf(b).length > 0;
   const depth = new Map<string, number>();
   const roots = boards.filter((b) => !b.upstreamId || !inBuilding.has(b.upstreamId));
@@ -90,7 +91,11 @@ export function feederRiserLayout(project: Project, buildingId: string): FeederR
     if (col.has(b.id)) return;
     col.set(b.id, next++);
     depth.set(b.id, d);
-    for (const c of cabled(b)) assign(c, d + 1);
+    // A sub-panel on this panel's level that feeds a level below goes last: its
+    // drops then run right of this panel's enclosure, not through it.
+    const drops = (c: Board) => isPanel(c) && rowOf(c) === rowOf(b) && below(c, rowOf(c));
+    const own = cabled(b);
+    for (const c of own.filter((x) => !drops(x))) assign(c, d + 1);
     for (const r of risersFrom(b)) {
       busCol.set(r.id, next++);
       const on = childrenOf(b).filter((c) => onBus.get(c.id) === r);
@@ -104,6 +109,7 @@ export function feederRiserLayout(project: Project, buildingId: string): FeederR
       if (sharedUsed) next++;
       for (const c of on) { if (col.get(c.id) === -1) col.delete(c.id); assign(c, d + 1); }
     }
+    for (const c of own.filter(drops)) assign(c, d + 1);
   };
   for (const r of roots) { assign(r, 0); next += 0.5; }
   const xOf = (b: Board) => LEFT + (col.get(b.id)! + 0.5) * COL;
