@@ -25,6 +25,7 @@ import RiserFormView from './RiserFormView';
 import { SCHEDULE_GROUPS, scheduleGroupOf, scheduleGroups, type ScheduleGroup } from '../../model/scheduleGroups';
 import { scheduleCircuits } from '../../calc/loadSchedule';
 import CircuitEditDialog from './CircuitEditDialog';
+import { addSpareWay, deleteSpareWay, spareLabel, spareRef, updateSpareWay } from '../../model/spareWays';
 
 const num = (v: string) => (v === '' ? 0 : Math.max(0, Math.round(+v) || 0));
 
@@ -127,6 +128,16 @@ export default function LoadScheduleView({
     onChange(resize ? refreshBoard(p, board.id) : p);
   };
   const patch = (id: string, pt: CircuitPatch) => onChange(updateCircuit(project, id, pt));
+  const [spare3, setSpare3] = useState(false);
+  const addSpare = (kind: 'spare' | 'space') => {
+    try {
+      const r = addSpareWay(project, board.id, kind, spare3 ? 'RYB' : undefined);
+      onChange(r.project);
+      onStatus(r.message);
+    } catch (e) {
+      onStatus(e instanceof Error ? e.message : String(e));
+    }
+  };
   const add = (phase?: Phase) => {
     try {
       onChange(addCircuit(project, board.id, phase).project);
@@ -238,6 +249,11 @@ export default function LoadScheduleView({
             <span className="m gx-hint" title="Arrows / Enter move · Shift+arrows or drag select · Ctrl/⌘ C copy · Ctrl/⌘ V paste from Excel · Ctrl/⌘ D fill down · Delete clears the selection">Excel keys: paste · fill down (⌘D) · copy</span>
             <button className="chip" onClick={() => add()}><Plus size={14} /> Add circuit</button>
             <button className="chip" onClick={() => add('RYB')}><Zap size={14} /> Add 3-phase circuit</button>
+            <span className="seg ls-spare-add" title="A spare is a way with a breaker fitted and nothing connected; a space is an empty way kept for a future breaker. Neither carries load.">
+              <button onClick={() => addSpare('spare')}><Plus size={14} /> Spare</button>
+              <button onClick={() => addSpare('space')}><Plus size={14} /> Space</button>
+              <label className="m"><input type="checkbox" checked={spare3} onChange={(ev) => setSpare3(ev.target.checked)} /> 3-phase</label>
+            </span>
             <button className="chip" disabled={data.rows.length < 2} onClick={() => onChange(balancePhases(project, board.id))} title="Lighting circuits first, then power, each starting on an ELCB section; spread over R/Y/B and renumber"><Scale size={14} /> Balance phases</button>
             <span className="sp" />
             <span>
@@ -293,20 +309,49 @@ export default function LoadScheduleView({
                   </tr>
                 </thead>
                 <tbody>
-                  {data.rows.length === 0 && (
+                  {data.entries.length === 0 && (
                     <tr><td colSpan={7 + columns.length + 7} className="m">No circuits yet — use Add circuit to start this DB's schedule.</td></tr>
                   )}
-                  {data.rows.map((r, i) => {
-                    const f = r.f;
-                    const first = r.group && data.rows.findIndex((x) => x.group === r.group) === i;
-                    return (
-                      <tr key={f.id} className={r.group && r.group.index % 2 === 0 ? 'alt' : ''} title="Double-click to edit this circuit" onDoubleClick={(e) => openEdit(e, f.id)}>
-                        {first ? (
-                          <td rowSpan={data.rows.filter((x) => x.group === r.group).length} className={`elcb ${r.group!.category === 'mixed' ? 'warn' : ''}`}
-                            title={r.group!.category === 'mixed' ? 'Lighting and power share this ELCB — use Balance phases to separate them' : undefined}>
-                            ELCB-{r.group!.index}<br />{r.group!.label}<br /><span className="m">{r.group!.category === 'mixed' ? 'mixed!' : r.group!.category}</span>
+                  {data.entries.map((e, i) => {
+                    const g = e.group;
+                    const first = g && data.entries.findIndex((x) => x.group === g) === i;
+                    const elcbTd = first ? (
+                      <td rowSpan={data.entries.filter((x) => x.group === g).length} className={`elcb ${g.category === 'mixed' ? 'warn' : ''}`}
+                        title={g.category === 'mixed' ? 'Lighting and power share this ELCB — use Balance phases to separate them' : undefined}>
+                        ELCB-{g.index}<br />{g.label}<br /><span className="m">{g.category === 'mixed' ? 'mixed!' : g.category}</span>
+                      </td>
+                    ) : !g ? <td /> : null;
+                    if (e.type === 'spare') {
+                      const sp = e.spare;
+                      return (
+                        <tr key={`sp:${sp.id}`} className={`ls-spare${g && g.index % 2 === 0 ? ' alt' : ''}`}>
+                          {elcbTd}
+                          <td>{e.sl}</td>
+                          <td><b className={`ph-${sp.phase === 'RYB' ? 'ryb' : sp.phase.toLowerCase()}`}>{spareRef(sp)}</b></td>
+                          <td>{sp.kind === 'spare' ? (
+                            <select value={sp.ratingA} aria-label={`${spareRef(sp)} spare MCB`} onChange={(ev) => onChange(updateSpareWay(project, board.id, sp.id, { ratingA: +ev.target.value }))}>
+                              {[...new Set([...breakerRatings().filter((a) => a <= 125), sp.ratingA])].sort((a, b) => a - b).map((a) => <option key={a} value={a}>{a}</option>)}
+                            </select>
+                          ) : <span className="m">—</span>}</td>
+                          <td /><td />
+                          <td><b>{spareLabel(sp)}</b></td>
+                          {columns.map((t) => <td key={t.value} />)}
+                          <td className="shade" /><td className="shade" /><td className="shade" />
+                          <td /><td />
+                          <td><input className="room" value={sp.remarks ?? ''} onChange={(ev) => onChange(updateSpareWay(project, board.id, sp.id, { remarks: ev.target.value || undefined }))} aria-label={`${spareRef(sp)} remarks`} /></td>
+                          <td>
+                            <button className="icon-btn" title={`Delete ${spareLabel(sp).toLowerCase()} ${spareRef(sp)}`} onClick={() => window.confirm(`Delete ${spareLabel(sp).toLowerCase()} ${spareRef(sp)}?`) && onChange(deleteSpareWay(project, board.id, sp.id).project)}>
+                              <Trash2 size={14} />
+                            </button>
                           </td>
-                        ) : !r.group ? <td /> : null}
+                        </tr>
+                      );
+                    }
+                    const r = e.row;
+                    const f = r.f;
+                    return (
+                      <tr key={f.id} className={g && g.index % 2 === 0 ? 'alt' : ''} title="Double-click to edit this circuit" onDoubleClick={(ev) => openEdit(ev, f.id)}>
+                        {elcbTd}
                         <td data-cell={cell(f.id, 'sl')}>{r.sl}</td>
                         <td>
                           <b className={`ph-${f.phase === 'RYB' ? 'ryb' : f.phase!.toLowerCase()}`}>{r.ref}</b>

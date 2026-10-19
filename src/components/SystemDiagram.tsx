@@ -6,6 +6,7 @@ import { componentLabel } from '../model/components';
 import type { DrawingInfo, Project } from '../types';
 import { cableTypeOf, CABLE_TYPE_DEFS, labelCode, needsFireRated } from '../model/cableTypes';
 import { cableRefOf } from '../model/cableRefs';
+import { dbSpares, spareBreaker } from '../model/spareWays';
 import { LEGEND_ROW, LEGEND_SYM_X, LEGEND_TEXT_X, legendEntries, legendWidth, LoadSym, polesText, SwitchSym, switchKindOf } from '../diagram/IecSymbols';
 import { izText, type FeederResult, type Status } from '../calc/electrical';
 import { boardSummary, loadTypeOf } from '../calc/summary';
@@ -83,6 +84,12 @@ export function earthConductorOf(project: Project, b: Board): number {
 const dewaPoles = devicePoles;
 const dewaDevice = deviceKind;
 
+/** A DB's spares and spaces for its summary on the SLD, e.g. " + 2 spare, 1 space". */
+const dbSpareText = (b: Board): string => {
+  const ways = dbSpares(b);
+  const sp = ways.filter((w) => w.kind === 'spare').length, gap = ways.length - sp;
+  return ways.length ? ` + ${[sp ? `${sp} spare` : '', gap ? `${gap} space` : ''].filter(Boolean).join(', ')}` : '';
+};
 const trunc = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
 
 /** Whole-network single line diagram: utility → transformer → main board →
@@ -871,6 +878,34 @@ export default function SystemDiagram({
           );
         })}
 
+        {/* Spares (breaker, nothing connected) and spaces (empty way) on a panel's busbar */}
+        {layout.spares.map((n) => {
+          if (cull && (n.x < viewX1 || n.x > viewX2)) return null;
+          const w = n.way, y = n.busY;
+          const poles = w.phase === 'RYB' ? 'TP' : 'SP';
+          if (w.kind === 'space') return (
+            <g key={`${n.boardId}:${w.id}`} className={`spare-way${off(n.boardId) ? ' off' : ''}`}>
+              <title>{`${n.boardId}: space (empty way, no breaker) — add or delete it on the panel's schedule`}</title>
+              <line x1={n.x} y1={y} x2={n.x} y2={y + 34} className="ln space-ln" />
+              <text x={n.x + 10} y={y + 26} className="b">SPACE</text>
+              <text x={n.x + 10} y={y + 39} className="acc-t">{poles} · no breaker</text>
+            </g>
+          );
+          const board = project.boards.find((b) => b.id === n.boardId)!;
+          const f = spareBreaker(board, w);
+          return (
+            <g key={`${n.boardId}:${w.id}`} className={`spare-way${off(n.boardId) ? ' off' : ''}`}>
+              <title>{`${n.boardId}: spare ${w.ratingA} A ${poles} breaker (nothing connected) — edit or delete it on the panel's schedule`}</title>
+              <line x1={n.x} y1={y} x2={n.x} y2={y + 18} className="ln" />
+              {iec ? <SwitchSym x={n.x} y={y + 18} kind={switchKindOf(f)} /> : <rect x={n.x - 6} y={y + 18} width="12" height="16" className="sym" />}
+              {!iec && <line x1={n.x - 5} y1={y + 32} x2={n.x + 5} y2={y + 20} className="ln" />}
+              <line x1={n.x} y1={y + 34} x2={n.x} y2={y + 46} className="ln" />
+              <text className={dewa ? 'dev' : 'b'} x={n.x + 10} y={y + 28}>{w.ratingA}A {poles}{w.device ? ` ${w.device}` : ''}</text>
+              <text x={n.x + 10} y={y + 42} className="b">SPARE</text>
+            </g>
+          );
+        })}
+
         {/* Feeders: breaker, cable, then a load or a drop to a sub-board */}
         {layout.feeders.map((n) => {
           if (cull && (n.x < viewX1 || n.x > viewX2)) return null;
@@ -1051,7 +1086,7 @@ export default function SystemDiagram({
           const failing = n.circuits.filter((f) => byFeeder.get(f.id)?.status !== 'ok').length;
           const circuitTags: Tag[] = n.circuits.length
             ? [
-                { text: `${n.circuits.length} circuits · ${kw.toFixed(1)} kW`, cls: 'b' },
+                { text: `${n.circuits.length} circuits${dbSpareText(b)} · ${kw.toFixed(1)} kW`, cls: 'b' },
                 { text: `R ${ph.R.toFixed(1)} · Y ${ph.Y.toFixed(1)} · B ${ph.B.toFixed(1)} kW`, cls: 'm' },
                 ...(failing ? [{ text: `${failing} circuit${failing > 1 ? 's' : ''} to check`, cls: status }] : [])
               ]
@@ -1218,7 +1253,7 @@ export default function SystemDiagram({
                   "630 A TPN+E Cu BUSBAR", wrapped onto two lines where it would reach the incoming line.
                   The way count and full description are in the tooltip (and the panel schedule). */}
               {!n.terminal && b.ratedCurrentA && (() => {
-                const ways = layout.feeders.filter((f) => f.feeder.boardId === b.id).length;
+                const ways = layout.feeders.filter((f) => f.feeder.boardId === b.id).length + layout.spares.filter((x) => x.boardId === b.id).length;
                 const al = b.busbarMaterial === 'aluminium';
                 const full = `${ways} WAY ${b.ratedCurrentA} A TPN+E ${al ? 'ALUMINIUM' : 'COPPER'} BUSBAR`;
                 const head = `${b.ratedCurrentA} A TPN+E`, tail = `${al ? 'Al' : 'Cu'} BUSBAR`;

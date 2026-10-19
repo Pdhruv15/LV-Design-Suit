@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import type { Project } from '../../types';
 import { applyMdEdits, buildMdSheet } from '../../docs/mdSheet';
 import { addOutgoingFeeder, deleteOutgoingFeeder, feederDeleteBlock } from '../../model/mdFeeders';
+import { addSpareWay, deleteSpareWay, spareLabel } from '../../model/spareWays';
 import { revisionStamp } from '../../model/revisions';
 import ClassicGrid from '../grid/ClassicGrid';
 
@@ -26,8 +27,29 @@ export default function MdSheetView({ project, boardId, onChange, onStatus, onSe
   };
   /** Delete control on each outgoing feeder row (not the incomer). A feeder
    * that supplies a panel can't be deleted here: it would leave that panel unfed. */
+  const [singlePhase, setSinglePhase] = useState(false);
+  const addWay = (kind: 'spare' | 'space') => {
+    const r = addSpareWay(project, boardId, kind, singlePhase ? 'R' : 'RYB');
+    if (r.project !== project) onChange(r.project);
+    onStatus(r.message);
+  };
   const rowAction = (y: number) => {
     const row = sheet.rows[y];
+    if (row.type === 'way') {
+      const w = row.way;
+      const what = spareLabel(w).toLowerCase();
+      return (
+        <button className="icon-btn" aria-label={`Delete ${what}`} title={`Delete this ${what}`}
+          onClick={() => {
+            if (!window.confirm(`Delete this ${what} from ${boardId}?`)) return;
+            const r = deleteSpareWay(project, boardId, w.id);
+            onChange(r.project);
+            onStatus(r.message);
+          }}>
+          <Trash2 size={14} />
+        </button>
+      );
+    }
     if (row.type !== 'feeder') return null;
     const f = row.feeder;
     const block = feederDeleteBlock(project, f.id);
@@ -61,6 +83,11 @@ export default function MdSheetView({ project, boardId, onChange, onStatus, onSe
       </div>
       <div className="ls-actions">
         <button className="chip" onClick={add} title="Adds an outgoing feeder (general load, sized by the app) to this panel — set its kW on the SLD; feeders to panels are added by dropping a board on the SLD"><Plus size={14} /> Add feeder</button>
+        <span className="seg ls-spare-add" title="A spare is a way with a breaker fitted and nothing connected; a space is an empty way kept for a future breaker. Neither carries load.">
+          <button onClick={() => addWay('spare')}><Plus size={14} /> Spare</button>
+          <button onClick={() => addWay('space')}><Plus size={14} /> Space</button>
+          <label className="m"><input type="checkbox" checked={singlePhase} onChange={(e) => setSinglePhase(e.target.checked)} /> 1-phase (SP)</label>
+        </span>
       </div>
       <ClassicGrid
         model={sheet}

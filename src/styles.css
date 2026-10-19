@@ -156,6 +156,9 @@ code{background:var(--p2);padding:1px 5px;border-radius:4px}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
 .seg button{padding:5px 12px;color:var(--mut)}
 .seg button.on{background:var(--p2);color:var(--acc)}
+.ls-spare-add{align-items:center}
+.ls-spare-add label{display:inline-flex;align-items:center;gap:4px;padding:0 10px;font-size:12px;border-left:1px solid var(--line)}
+table.ls tr.ls-spare td{color:var(--mut)}
 .stage-head > div:last-child{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
 /* ---- Summary cards ---- */
 .cards{display:grid;grid-template-columns:minmax(300px,1fr) minmax(380px,1.4fr);gap:var(--space-3);padding:var(--space-3) var(--gutter) 0}
@@ -385,6 +388,7 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 .paste-preview s{color:var(--mut)}
 /* ---- Discrimination on the SLD ---- */
 .sysdiag .disc-ring{fill:none;stroke-width:2.4;stroke-dasharray:3 2}
+.sysdiag .space-ln{stroke-dasharray:4 3}
 .sysdiag .disc-ring.ok{stroke:var(--ok)}.sysdiag .disc-ring.warn{stroke:var(--warn)}.sysdiag .disc-ring.bad{stroke:var(--bad)}
 .disc h3 .m{font-weight:400;font-size:12px;margin-left:6px}
 .disc-chain{list-style:none;padding:0;margin:6px 0 8px;display:grid;gap:6px}

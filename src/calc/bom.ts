@@ -3,6 +3,7 @@ import { form4SizeText } from './form4';
 import { BOARD_KINDS, POINT_TYPES } from '../types';
 import { cableTypeOf } from '../model/cableTypes';
 import { breakerTypeOf, cpcOf } from './earthing';
+import { spareBreaker, spareWaysOf } from '../model/spareWays';
 import { runsOf } from './electrical';
 import { sizeRiser } from './busbar';
 import { earthingLayout, kindInfo, txUnits } from '../model/earthingPlan';
@@ -188,6 +189,15 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
   for (const t of p.ties ?? []) {
     const dev = t.ratingA > 630 ? 'ACB' : 'MCCB';
     add('B', `tie:${dev}:${t.ratingA}`, `Bus coupler ${dev} ${t.ratingA} A 4P, normally open, interlocked with the incomers${brandRef(dev, 3, t.ratingA)}`, 'no', 1, `${t.a} – ${t.b}`);
+  }
+
+  // Spare ways: their breakers (a space has no device)
+  for (const b of p.boards) {
+    for (const s of spareWaysOf(b)) {
+      if (s.kind !== 'spare') continue;
+      const bi = breakerItem(spareBreaker(b, s));
+      add('B', bi.key, bi.description, 'no', 1, b.id);
+    }
   }
 
   // Outgoing ways: breakers, earth leakage, meters, isolators, equipment

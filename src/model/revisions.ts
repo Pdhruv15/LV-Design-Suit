@@ -131,7 +131,7 @@ export const BOARD_FIELDS: Fields<Board> = [
   ['busbarMaterial', 'Busbar material'], ['ipRating', 'IP rating'], ['manufacturer', 'Manufacturer'], ['model', 'Model'], ['instruments', 'Instruments on the SLD'], ['incomerDevice', 'Incomer device on the SLD'],
   ['earthing', 'Earth pit detail on the SLD'], ['rmu', 'RMU'], ['spd', 'Surge protection'], ['enclosure', 'Enclosure'], ['form4', 'Form-4 enclosure'], ['substation', 'Substation'],
   ['mdDemandFactor', 'MD demand factor'], ['txRef', 'Transformer reference'], ['summaryLoad', 'Summary load'], ['summaryMeters', 'Summary meters'],
-  ['pointItems', 'Library item per column'], ['spareNames', 'Spare names'], ['elcbRatingA', 'ELCB rating (A)']
+  ['pointItems', 'Library item per column'], ['spareNames', 'Spare names'], ['spareWays', 'Spares and spaces'], ['elcbRatingA', 'ELCB rating (A)']
 ];
 
 /** Single project settings. */
@@ -158,6 +158,10 @@ function show(v: unknown, digits = 3): string {
   if (typeof v === 'number') return String(+v.toFixed(digits));
   // Circuit load items read as on the schedule: "6×L1 10 W + 4×L2 20 W".
   if (Array.isArray(v) && v.every((x) => x && typeof x === 'object' && 'quantity' in x && 'unitWatts' in x)) return v.length ? loadItemsText({ loadItems: v }) : '—';
+  // Spares and spaces of a board: "SPARE R3 20 A, SPACE TP".
+  if (Array.isArray(v) && v.every((x) => x && typeof x === 'object' && (x.kind === 'spare' || x.kind === 'space') && 'phase' in x)) {
+    return v.length ? v.map((x) => `${x.kind === 'spare' ? 'SPARE' : 'SPACE'} ${x.way ? `${x.phase}${x.way}` : x.phase === 'RYB' ? 'TP' : 'SP'}${x.kind === 'spare' ? ` ${x.ratingA} A` : ''}`).join(', ') : '—';
+  }
   if (typeof v === 'object') {
     const parts = Object.entries(v as Record<string, unknown>).filter(([, x]) => x !== undefined && x !== '' && x !== 0).map(([k, x]) => `${k} ${show(x, digits)}`);
     return parts.length ? parts.join(', ') : '—';

@@ -1,8 +1,9 @@
 import { evaluateFeeder, type Status } from '../calc/electrical';
 import { boardLocation } from '../model/levels';
 import { breakerTypeOf, cpcOf } from '../calc/earthing';
-import { boardPhaseKw, circuitCategory, circuitRef, circuitWatts, elcbGroups, imbalancePct, loadItemsText, minWireMm2, pointColumns, scheduleCircuits, wattUnitText } from '../calc/loadSchedule';
-import { incomerDeviceOf, type Board, type Feeder, type Project } from '../types';
+import { boardPhaseKw, circuitCategory, circuitRef, circuitWatts, elcbGroups, type ElcbGroup, imbalancePct, loadItemsText, minWireMm2, pointColumns, scheduleCircuits, wattUnitText } from '../calc/loadSchedule';
+import { incomerDeviceOf, type Board, type Feeder, type Project, type SpareWay } from '../types';
+import { dbSpares, spareLabel, spareRef } from '../model/spareWays';
 import { polesOf } from '../calc/bom';
 import { cableTypeOf } from '../model/cableTypes';
 import { cableBuildText, feederBuild } from '../model/cableRefs';
@@ -38,6 +39,13 @@ export function incomerCableText(project: Project, incomer: Feeder | undefined):
   return `CABLE SIZE: ${cableBuildText(feederBuild(project, incomer))}${fr}, ${incomer.lengthM} m`;
 }
 
+const PH = { R: 0, Y: 1, B: 2, RYB: 0 } as const;
+
+/** One row of the DB schedule in way order: a circuit, or a spare / space. */
+export type ScheduleEntry<R> =
+  | { type: 'circuit'; row: R; way: number; ph: number; sl: number; group?: ElcbGroup }
+  | { type: 'spare'; spare: SpareWay; way: number; ph: number; sl: number; group?: ElcbGroup };
+
 /** Remarks as printed: the user's remarks, then the mixed load items (e.g. "6×L1 10 W + 4×L2 20 W"). */
 const remarksText = (f: Feeder) => [f.remarks, loadItemsText(f)].filter(Boolean).join('; ');
 
@@ -59,19 +67,28 @@ export function loadScheduleRows(project: Project, boardId: string) {
     const status: Status = calc === 'bad' ? 'bad' : belowMin ? 'warn' : calc;
     return { f, sl: i + 1, ref: circuitRef(f)!, watts: w, ph, group: groupOf.get(f.id), category: circuitCategory(f), minWire, belowMin, status };
   });
+  // Spares and spaces in their slots between the circuits; Sl. No. runs over both.
+  const entries: ScheduleEntry<(typeof rows)[number]>[] = [
+    ...rows.map((r) => ({ type: 'circuit' as const, row: r, way: r.f.way!, ph: PH[r.f.phase!], sl: 0, group: r.group })),
+    ...dbSpares(board).map((sp) => ({ type: 'spare' as const, spare: sp, way: sp.way!, ph: PH[sp.phase], sl: 0, group: groups.find((g) => g.ways.includes(sp.way!)) }))
+  ].sort((a, b) => a.way - b.way || a.ph - b.ph);
+  entries.forEach((e, i) => {
+    e.sl = i + 1;
+    if (e.type === 'circuit') e.row.sl = i + 1;
+  });
   // Connected: the watts printed on the rows. Demand: after demand factors, with every outgoing way (sub-boards and equipment not on this schedule too).
   const connectedW = { R: 0, Y: 0, B: 0 };
   for (const r of rows) for (const ph of ['R', 'Y', 'B'] as const) connectedW[ph] += Number(r.ph[ph]) || 0;
   const scheduled = new Set(circuits.map((f) => f.id));
   const others = project.feeders.filter((f) => f.boardId === boardId && !scheduled.has(f.id));
   const phaseW = boardPhaseKw(project, boardId);
-  return { board, incomer, groups, rows, phaseW, connectedW, others, imbalance: imbalancePct(phaseW) };
+  return { board, incomer, groups, rows, entries, phaseW, connectedW, others, imbalance: imbalancePct(phaseW) };
 }
 
 /** Print-ready HTML reproducing the DEWA "Load Distribution Schedule"
  * form for a 3-phase DB with R/Y/B circuit references. */
 export function buildLoadScheduleHtml(project: Project, boardId: string): string {
-  const { board, incomer, rows, phaseW, connectedW, others, imbalance } = loadScheduleRows(project, boardId);
+  const { board, incomer, groups, entries: rows, phaseW, connectedW, others, imbalance } = loadScheduleRows(project, boardId);
   const columns = pointColumns(project, board);
   const pointCols = columns.map((t) => t.value);
   const incomerText = esc(incomerLabel(board, incomer));
@@ -80,13 +97,21 @@ export function buildLoadScheduleHtml(project: Project, boardId: string): string
   // ELCB cells span their group's rows.
   const elcbCell = (i: number) => {
     const g = rows[i].group;
-    if (!g) return i === 0 ? `<td rowspan="${rows.length}"></td>` : '';
+    if (!g) return groups.length ? '<td></td>' : i === 0 ? `<td rowspan="${rows.length}"></td>` : ''; // a spare in a section with no circuits
     if (rows.findIndex((r) => r.group === g) !== i) return '';
     return `<td class="v" rowspan="${rows.filter((r) => r.group === g).length}">ELCB-${g.index}<br>${esc(g.label)}</td>`;
   };
 
   const body = rows
-    .map((r, i) => `<tr>
+    .map((e, i) => e.type === 'spare' ? `<tr>
+      ${i === 0 ? `<td class="v" rowspan="${rows.length}">${incomerText}</td>` : ''}
+      ${elcbCell(i)}
+      <td>${e.sl}</td><td><b>${spareRef(e.spare)}</b></td><td>${e.spare.kind === 'spare' ? e.spare.ratingA : ''}</td><td></td><td></td>
+      <td class="l"><b>${spareLabel(e.spare)}</b></td>
+      ${pointCols.map(() => '<td></td>').join('')}
+      <td></td><td></td><td></td>
+      <td class="l">${esc(e.spare.remarks ?? '')}</td>
+    </tr>` : ((r) => `<tr>
       ${i === 0 ? `<td class="v" rowspan="${rows.length}">${incomerText}</td>` : ''}
       ${elcbCell(i)}
       <td>${r.sl}</td><td><b>${r.ref}</b></td><td>${r.f.breakerRatingA}</td><td>${r.f.cableCsaMm2}</td><td>${cpcOf(r.f)}</td>
@@ -94,7 +119,7 @@ export function buildLoadScheduleHtml(project: Project, boardId: string): string
       ${pointCols.map((t) => `<td>${r.f.points?.[t] || ''}</td>`).join('')}
       <td>${r.ph.R}</td><td>${r.ph.Y}</td><td>${r.ph.B}</td>
       <td class="l">${esc(remarksText(r.f))}${r.status !== 'ok' ? ` <span class="${r.status}">(${r.status === 'bad' ? 'fails check' : 'check'})</span>` : ''}</td>
-    </tr>`)
+    </tr>`)(e.row))
     .join('');
 
   const cable = esc(incomerCableText(project, incomer));
@@ -150,12 +175,18 @@ export function buildLoadScheduleHtml(project: Project, boardId: string): string
 
 /** Same schedule as CSV (Excel). */
 export function loadScheduleCsv(project: Project, boardId: string): { headers: string[]; rows: (string | number)[][] } {
-  const { board, rows, phaseW, connectedW, others } = loadScheduleRows(project, boardId);
+  const { board, entries, phaseW, connectedW, others } = loadScheduleRows(project, boardId);
   const columns = pointColumns(project, board);
   const pointCols = columns.map((t) => t.value);
   const headers = ['ELCB', 'Sl. No.', 'Cir No.', 'MCB (A)', 'CCT wire (mm²)', 'ECC wire (mm²)', 'Room / area', ...columns.map((t) => t.label), 'R (W)', 'Y (W)', 'B (W)', 'Remarks'];
   const out: (string | number)[][] = [['', '', '', '', '', '', 'WATT / UNIT', ...pointCols.map((t) => wattUnitText(project, board, t)), '', '', '', '']];
-  for (const r of rows) {
+  for (const e of entries) {
+    if (e.type === 'spare') {
+      const sp = e.spare;
+      out.push([e.group ? `ELCB-${e.group.index} ${e.group.label}` : '', e.sl, spareRef(sp), sp.kind === 'spare' ? sp.ratingA : '', '', '', spareLabel(sp), ...pointCols.map(() => ''), '', '', '', sp.remarks ?? '']);
+      continue;
+    }
+    const r = e.row;
     out.push([
       r.group ? `ELCB-${r.group.index} ${r.group.label}` : '', r.sl, r.ref, r.f.breakerRatingA, r.f.cableCsaMm2, cpcOf(r.f), r.f.room ?? '',
       ...pointCols.map((t) => r.f.points?.[t] ?? ''), r.ph.R, r.ph.Y, r.ph.B, remarksText(r.f)
