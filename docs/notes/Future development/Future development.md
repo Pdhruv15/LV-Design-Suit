@@ -13,7 +13,7 @@ Ideas and features agreed for later. One note per idea; link it here.
 - [[Standard load details for regular use]] — a ready set of regular loads with references and watts (sockets SS1 200 W, TS1 400 W so far), picked into circuits and WATT / UNIT (noted 2026-10-16)
 - Enclosure charts for SMDB, MDB, LV MDB, MCC — waiting for supplier data (DB chart done)
 - Transformers: one LV panel fed by two transformers with a coupler (to confirm)
-- Earthing on the riser diagram (LV pits at the base, main earth conductor up the floors)
+- ~~Earthing on the riser diagram (LV pits at the base, main earth conductor up the floors)~~ — done: earthing riser with a floor earth bar on every level, any number of floors over sheets or typical floors grouped (v1.47), floor earthing sheets, several risers per building (v1.48)
 - ~~Panel SLD "EARTH PITS (2 NO.)" detail: keep or replace~~ — kept, now follows the earthing plan (v1.34)
 - Combining with an existing DEWA system (existing transformers / spare capacity)
 - Emergency ATS arrangement details
