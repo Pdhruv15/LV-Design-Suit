@@ -16,6 +16,7 @@ import { safeFileName, saveBinary, savePdf } from '../../util/files';
 import { SHEET_MM } from '../../docs/sldSheet';
 import SystemDiagram, { LegendSvg } from '../SystemDiagram';
 import { earthingDrawing } from '../../diagram/earthingDrawing';
+import { earthFloorDrawing, earthRiserDrawing, earthSheetRefs } from '../../diagram/earthRiserDrawing';
 import RiserDiagram, { RiserLegendSvg } from '../../diagram/RiserDiagram';
 import { riserLayout } from '../../diagram/riserLayout';
 import { boardIncomerLabel } from '../../docs/loadScheduleDoc';
@@ -31,6 +32,11 @@ export async function renderSheet(project: Project, set: DrawingSet, s: DrawingS
   const root = createRoot(host);
   try {
     if (s.kind === 'earthing') return earthingDrawing(project, undefined, true, { mono: true }); // printed sheet: black and white
+    if (s.kind === 'earthRiser' || s.kind === 'earthFloor') {
+      if (!s.buildingId) return undefined;
+      const o = { mono: true, ...earthSheetRefs(project, set, s.buildingId) };
+      return s.kind === 'earthRiser' ? earthRiserDrawing(project, s.buildingId, o, s.part ?? 0) : earthFloorDrawing(project, s.buildingId, o, s.part ?? 0);
+    }
     if (s.kind === 'riser') {
       if (!s.buildingId) return undefined;
       flushSync(() => root.render(<RiserDiagram project={project} buildingId={s.buildingId!} />));

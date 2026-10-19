@@ -63,7 +63,7 @@ export function checkReferences(p: Project): RefIssue[] {
     for (const id of s.boards) need(boards, id, where, 'Panel on the sheet');
     for (const c of s.clouds ?? []) for (const id of c.boards) need(boards, id, `${where} revision cloud`, 'Panel');
     for (const a of s.arrows ?? []) { if (a.target.startsWith('f:')) need(feeders, a.target.slice(2), `${where} callout`, 'Circuit'); else need(boards, a.target, `${where} callout`, 'Panel'); }
-    if (s.kind === 'riser') need(buildingIds, s.buildingId, where, 'Building');
+    if (s.kind === 'riser' || s.kind === 'earthRiser' || s.kind === 'earthFloor') need(buildingIds, s.buildingId, where, 'Building');
   }
   return out;
 }
