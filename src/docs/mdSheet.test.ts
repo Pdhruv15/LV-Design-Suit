@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
+import { applyRecommendation, recommend } from '../calc/sizing';
+import { addOutgoingFeeder } from '../model/mdFeeders';
 import { applyMdEdits, buildMdSheet, connectedPhaseKw, panelDf, hasMdSheet, suggestedMeter, type MdSheet } from './mdSheet';
 
 const col = (s: MdSheet, k: string) => s.keys.indexOf(k as never);
@@ -107,5 +109,56 @@ describe('connected load & maximum demand sheet', () => {
     expect([f.name, f.kwhMeter]).toEqual(['AHU-01', 'CT']);
     const cleared = applyMdEdits(withMeter, buildMdSheet(withMeter, 'MCC-1'), [{ y, x: col(s, 'CT'), value: '' }]).project;
     expect('kwhMeter' in cleared.feeders.find((x) => x.id === 'MCC-WP')!).toBe(false);
+  });
+
+  it("an equipment feeder's TCL sets its load and re-sizes its breaker and cable; a panel's stays calculated", () => {
+    const s = buildMdSheet(sampleProject, 'MCC-1');
+    const y = rowOf(s, 'MCC-WP');
+    expect(s.editable(y, col(s, 'tcl'))).toBe(true);
+    expect(s.editable(y, col(s, 'R'))).toBe(false);
+    expect(s.editable(y, col(s, 'mdl'))).toBe(false);
+    const { project, rejected } = applyMdEdits(sampleProject, s, [{ y, x: col(s, 'tcl'), value: '15' }]);
+    expect(rejected).toEqual([]);
+    const f = project.feeders.find((x) => x.id === 'MCC-WP')!;
+    expect(f.loadKw).toBe(15);
+    const want = applyRecommendation({ ...f }, recommend(project, f, 'optimise'));
+    expect([f.breakerRatingA, f.cableCsaMm2]).toEqual([want.breakerRatingA, want.cableCsaMm2]);
+    expect(f.breakerRatingA).toBeLessThan(160);
+    expect(f.cableCsaMm2).toBeLessThan(50);
+    const again = buildMdSheet(project, 'MCC-1');
+    expect(again.data[y][col(again, 'tcl')]).toBe('15.00');
+    expect(again.data[y][col(again, 'R')]).toBe('5.00');
+
+    const mdb = buildMdSheet(sampleProject, 'MDB-1');
+    const panel = mdb.rows.findIndex((r) => r.type === 'feeder' && !!r.toBoard);
+    expect(mdb.editable(panel, col(mdb, 'tcl'))).toBe(false);
+    expect(mdb.editable(0, col(mdb, 'tcl'))).toBe(false); // incomer
+    const ignored = applyMdEdits(sampleProject, mdb, [{ y: panel, x: col(mdb, 'tcl'), value: '5' }]).project;
+    expect(ignored).toBe(sampleProject);
+  });
+
+  it('a feeder added from the form gets its kW typed in its TCL cell', () => {
+    const added = addOutgoingFeeder(sampleProject, 'SMDB-GF');
+    const s = buildMdSheet(added.project, 'SMDB-GF');
+    const y = rowOf(s, added.id!);
+    expect(s.data[y][col(s, 'tcl')]).toBe('10.00');
+    const { project } = applyMdEdits(added.project, s, [{ y, x: col(s, 'tcl'), value: '45 kW' }]);
+    const f = project.feeders.find((x) => x.id === added.id)!;
+    expect(f.loadKw).toBe(45);
+    expect(f.breakerRatingA).toBeGreaterThan(added.project.feeders.find((x) => x.id === added.id)!.breakerRatingA);
+    expect(buildMdSheet(project, 'SMDB-GF').totals[col(s, 'tcl')]).toBe((Number(s.totals[col(s, 'tcl')]) + 35).toFixed(2));
+  });
+
+  it('keeps hand-set sizes, and sizes typed in the same edit, when the TCL changes; rejects a bad load', () => {
+    const manual = { ...sampleProject, feeders: sampleProject.feeders.map((f) => (f.id === 'MCC-WP' ? { ...f, manualSize: true } : f)) };
+    const s = buildMdSheet(manual, 'MCC-1');
+    const y = rowOf(s, 'MCC-WP');
+    const kept = applyMdEdits(manual, s, [{ y, x: col(s, 'tcl'), value: '15' }]).project.feeders.find((x) => x.id === 'MCC-WP')!;
+    expect([kept.loadKw, kept.breakerRatingA, kept.cableCsaMm2]).toEqual([15, 160, 50]);
+    const typed = applyMdEdits(sampleProject, s, [{ y, x: col(s, 'tcl'), value: '15' }, { y, x: col(s, 'MCCB'), value: '125' }]).project.feeders.find((x) => x.id === 'MCC-WP')!;
+    expect([typed.loadKw, typed.breakerRatingA, typed.cableCsaMm2]).toEqual([15, 125, 50]);
+    const bad = applyMdEdits(sampleProject, s, [{ y, x: col(s, 'tcl'), value: '0' }, { y, x: col(s, 'tcl'), value: 'abc' }]);
+    expect(bad.rejected).toHaveLength(2);
+    expect(bad.project).toBe(sampleProject);
   });
 });
