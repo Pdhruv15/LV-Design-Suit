@@ -156,6 +156,9 @@ code{background:var(--p2);padding:1px 5px;border-radius:4px}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
 .seg button{padding:5px 12px;color:var(--mut)}
 .seg button.on{background:var(--p2);color:var(--acc)}
+.ls-spare-add{align-items:center}
+.ls-spare-add label{display:inline-flex;align-items:center;gap:4px;padding:0 10px;font-size:12px;border-left:1px solid var(--line)}
+table.ls tr.ls-spare td{color:var(--mut)}
 .stage-head > div:last-child{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
 /* ---- Summary cards ---- */
 .cards{display:grid;grid-template-columns:minmax(300px,1fr) minmax(380px,1.4fr);gap:var(--space-3);padding:var(--space-3) var(--gutter) 0}
@@ -276,6 +279,7 @@ table.ls tbody tr{cursor:default}
 .icon-btn{display:inline-flex;align-items:center;justify-content:center;min-width:26px;min-height:26px;color:var(--mut);padding:0 var(--space-1);border-radius:var(--radius-sm)}
 .trash-toggle{margin-left:0;color:inherit;font:inherit}
 .icon-btn:hover{color:var(--bad);background:var(--p2)}
+.icon-btn.md-del-blocked{opacity:.4}
 .ph-r{color:#ff6b6b}.ph-y{color:#f5c04a}.ph-b{color:#4aa8ff}.ph-ryb{color:#b784ff}
 table.ls tr.watt-row input{width:50px;text-align:center;padding:2px 1px}
 .ls-missing{margin:0 0 8px;padding:6px 10px;border:1px solid var(--warn);border-radius:6px}
@@ -384,6 +388,7 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 .paste-preview s{color:var(--mut)}
 /* ---- Discrimination on the SLD ---- */
 .sysdiag .disc-ring{fill:none;stroke-width:2.4;stroke-dasharray:3 2}
+.sysdiag .space-ln{stroke-dasharray:4 3}
 .sysdiag .disc-ring.ok{stroke:var(--ok)}.sysdiag .disc-ring.warn{stroke:var(--warn)}.sysdiag .disc-ring.bad{stroke:var(--bad)}
 .disc h3 .m{font-weight:400;font-size:12px;margin-left:6px}
 .disc-chain{list-style:none;padding:0;margin:6px 0 8px;display:grid;gap:6px}
@@ -641,6 +646,7 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 .gx td.gx-calc{color:var(--mut);background:color-mix(in srgb,var(--p2) 40%,transparent)}
 .gx td.gx-label{font-weight:700;text-align:left;background:var(--p2);color:var(--bus)}
 .gx td.gx-muted{opacity:.5}
+.gx td.gx-act,.gx th.gx-act{padding:0 2px;width:30px;min-width:30px;border-right:none}
 .gx td.gx-in{padding:0}
 .gx td.gx-in input,.gx td.gx-in select{width:100%;min-width:60px;height:28px;border:0;background:transparent;color:var(--tx);font:inherit;padding:0 6px;text-align:inherit;outline:none}
 .gx td.gx-in.l input{text-align:left}

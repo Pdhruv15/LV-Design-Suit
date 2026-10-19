@@ -239,6 +239,20 @@ export interface Feeder {
   // board's total demand instead
 }
 
+/** A spare or a space on a board. On a DB / EDB it takes a slot of the load schedule (phase + way);
+ * on an MDB / SMDB / MCC it is listed after the outgoing feeders (phase RYB = TP, R/Y/B = SP). */
+export interface SpareWay {
+  id: string; // unique within the board, e.g. "sp1"
+  kind: 'spare' | 'space';
+  phase: Phase;
+  way?: number; // DB load schedule way; unset on feeder panels
+  /** Spare: the breaker fitted. Space: the breaker the way is kept for (enclosure sizing only, not printed). */
+  ratingA: number;
+  device?: SwitchDevice; // feeder panels: ACB / MCCB / ISOL (default from the rating)
+  icuKa?: number; // spare breaker's breaking capacity
+  remarks?: string;
+}
+
 export interface Board {
   id: string;
   name: string;
@@ -306,6 +320,9 @@ export interface Board {
   pointWatts?: Partial<Record<PointType, number>>; // WATT/UNIT row overrides for this DB
   pointItems?: Partial<Record<PointType, string>>; // library item chosen per column (kept in sync with Loads.xlsx)
   spareNames?: { spare1?: string; spare2?: string }; // headings of the two spare columns
+  /** Spare ways (breaker fitted, nothing connected) and spaces (empty way for a future breaker).
+   * Not feeders: no load, cable or study; shown on the schedules, SLD, BOQ and enclosure counts. */
+  spareWays?: SpareWay[];
   elcbGroupSize?: 0 | 3 | 6; // circuits per ELCB: 3 = one per way, 6 = one per two ways, 0 = none
   elcbRatingA?: number; // override; default from the group's load
   elcbSensitivityMa?: number; // override; default by circuit type (lighting 100 mA, power 30 mA)
