@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { Project } from '../types';
-import RiserDiagram, { RiserLegendSvg } from '../diagram/RiserDiagram';
-import FeederRiserDiagram, { FeederRiserLegendSvg } from '../diagram/FeederRiserDiagram';
+import RiserDiagram from '../diagram/RiserDiagram';
+import FeederRiserDiagram from '../diagram/FeederRiserDiagram';
 import { riserLayout } from '../diagram/riserLayout';
 import { feederRiserLayout } from '../diagram/feederRiserLayout';
 import { addRiserSheet, setOf } from '../model/drawingSet';
@@ -12,7 +12,7 @@ const store = (k: string, v: unknown) => { try { localStorage.setItem(`lvds.${k}
 
 /** Design ▸ SLD ▸ Riser tab: a building's riser — individual feeders from each
  * panel's busbar (riser schematic) or busbar trunking / cable chain — with
- * its legend, and a button to put it in the drawing set. */
+ * a button to put it in the drawing set. */
 export default function RiserView({ project, onChange, onStatus }: { project: Project; onChange: (p: Project) => void; onStatus: (m: string) => void }) {
   const buildings = project.building?.buildings ?? [];
   const [pick, setPick] = useState<string>(() => stored('riser.building', ''));
@@ -32,7 +32,6 @@ export default function RiserView({ project, onChange, onStatus }: { project: Pr
     onChange({ ...project, drawingSet: r.set });
     onStatus(`Added ${r.set.sheets.find((s) => s.id === r.id)?.number ?? 'a riser sheet'} to the drawing set`);
   };
-  const used = fl?.used ?? bl?.used ?? new Set<string>();
   const empty = fl?.empty ?? bl?.empty ?? true;
   return (
     <div className="earth-ws">
@@ -55,8 +54,8 @@ export default function RiserView({ project, onChange, onStatus }: { project: Pr
         </div>
         <div className="earth-canvas"><div style={{ zoom }}>
           {style === 'feeders' ? <FeederRiserDiagram project={project} buildingId={b.id} layout={fl} /> : <RiserDiagram project={project} buildingId={b.id} layout={bl} />}
-          {!empty && (style === 'feeders' ? <FeederRiserLegendSvg used={used} /> : <RiserLegendSvg used={used} />)}
         </div></div>
+        <p className="m earth-key">Working view: the legend, title block and notes are on the drawing sheet (Add to drawings).</p>
       </div>
     </div>
   );
