@@ -207,15 +207,29 @@ show a preview unless called with `mode` apply / propose (`--apply` /
   and circuits are sized by the app's selection.
 - Every change keeps the previous version in `.lvds-agent/` in the projects
   folder and is logged (`list_changes`); `undo_change` puts it back.
+- `delete_panel` and `delete_circuit` use the app's own delete. To apply, they
+  need `approvedBy` (the engineer's name), and `undo_change` puts it back.
 - Nothing is written while the project has unsaved changes open in the app, or
-  over a file that changed in the meantime. Deleting and exporting are not
-  offered.
+  over a file that changed in the meantime.
+
+**Exports.** `list_exports` shows what a project can export. `export_report`
+makes any document of the app's Export centre as HTML (open it in a browser and
+print to PDF). `export_forms_xlsx` and `export_boq_xlsx` make the Excel
+workbooks, and `export_dxf` the earthing schematic. Each one first shows a
+preview: the files it would make, failing checks and proposals still waiting.
+Exporting needs `approvedBy` (the engineer's name). It is refused while checks
+fail or proposals wait, unless the engineer sets `exportAnyway`. Files go to
+`Exports/<project>/<date>/` in the projects folder, never over an existing
+file, and every export is logged in `.lvds-agent/exports.jsonl`. SLD, panel
+and riser sheets are drawn by the app, so export those from Reports →
+Drawings.
 
 ```bash
 node dist-cli/lvds.mjs size "My project"            # preview the sizing proposal
 node dist-cli/lvds.mjs size "My project" --propose  # add it to Reports → Changes
 node dist-cli/lvds.mjs add-panel "My project" --kind SMDB --id SMDB-L3 --fedFrom MDB-1 --lengthM 45 --apply
 node dist-cli/lvds.mjs undo "My project" --apply
+node dist-cli/lvds.mjs forms-xlsx "My project" --export --approvedBy "A. Engineer"
 ```
 
 ## What it does

@@ -29,13 +29,12 @@ import { scheduleHtml, workbookHtml } from '../../docs/sheetPdf';
 import { buildFormWorkbook } from '../../docs/formWorkbook';
 import { cableSchedule, dbSchedule, equipmentSchedule } from '../../docs/schedules';
 import { buildDmFormHtml } from '../../docs/dmForm';
-import { registerHtml } from '../../docs/drawingRegister';
+import { registerHtml, registerRows } from '../../docs/drawingRegister';
 import { boqBookmarks, buildBoqHtml } from '../../docs/boqWorkbook';
 import { buildVariationHtml } from '../../docs/variationReport';
 import { buildSubmissionRegisterHtml } from '../../docs/submissionReport';
 import { buildDashboardHtml } from '../../docs/dashboardPdf';
 import { buildingSummaryHtml } from '../../docs/buildingSummary';
-import { registerRows } from './sheetRender';
 
 /** The export centre's catalogue: every PDF document the app makes from the saved project and the
  * last calculation run, in the seven groups of the PDF plan. Each entry is built by the same

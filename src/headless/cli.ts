@@ -14,11 +14,13 @@ const ALIASES: Record<string, string> = {
   check: 'run_checks', results: 'circuit_results', current: 'calc_current', vd: 'calc_voltage_drop',
   cable: 'calc_cable_size', transformer: 'calc_transformer', fault: 'calc_fault_level', motor: 'calc_motor', pfc: 'calc_pf_correction',
   propose: 'propose_changes', size: 'size_circuits', 'add-panel': 'add_panel', 'add-circuit': 'add_circuit', move: 'move_panel',
-  rename: 'rename_panels', copy: 'copy_panel', changes: 'list_changes', undo: 'undo_change'
+  rename: 'rename_panels', copy: 'copy_panel', changes: 'list_changes', undo: 'undo_change',
+  'delete-panel': 'delete_panel', 'delete-circuit': 'delete_circuit',
+  exports: 'list_exports', report: 'export_report', 'forms-xlsx': 'export_forms_xlsx', 'boq-xlsx': 'export_boq_xlsx', dxf: 'export_dxf'
 };
 
 /** Flags that never take a value. */
-const SWITCHES = new Set(['json', 'apply', 'propose', 'write']);
+const SWITCHES = new Set(['json', 'apply', 'propose', 'export', 'write']);
 
 interface Parsed { command?: string; positional: string[]; flags: Record<string, unknown>; json: boolean; folder?: string; port?: number; write: boolean; commit: boolean }
 
@@ -41,7 +43,7 @@ export function parseArgs(argv: string[]): Parsed {
       if (SWITCHES.has(key) && eq < 0) {
         if (key === 'json') out.json = true;
         else if (key === 'write') out.write = true;
-        else out.commit = true; // --apply / --propose
+        else out.commit = true; // --apply / --propose / --export
         continue;
       }
       const value = eq > 0 ? a.slice(eq + 1) : argv[i + 1] !== undefined && !argv[i + 1].startsWith('--') ? argv[++i] : 'true';
@@ -94,7 +96,8 @@ function usage(t: Tool): string {
   const alias = Object.entries(ALIASES).find(([, n]) => n === t.name)?.[0];
   const posPanel = ['get_panel', 'move_panel', 'copy_panel'].includes(t.name), posTo = ['move_panel', 'copy_panel'].includes(t.name);
   const shown = flags.filter((f) => !(posPanel && f.includes('--panel ')) && !(posTo && f.includes('--to ')) && !f.includes('--mode '));
-  const commit = t.writes ? ('mode' in t.input && (t.input.mode as z.ZodType).safeParse('propose').success ? ' [--propose]' : ' [--apply]') : '';
+  const commitMode = t.writes ? (['propose', 'export', 'apply'] as const).find((m) => 'mode' in t.input && (t.input.mode as z.ZodType).safeParse(m).success) : undefined;
+  const commit = commitMode ? ` [--${commitMode}]` : '';
   return `  lvds ${alias ?? t.name}${t.usesProject ? ' <project>' : ''}${posPanel ? ' <panel>' : ''}${posTo ? ' <to>' : ''} ${shown.join(' ')}${commit}`.replace(/(\S) {2,}/g, '$1 ').trimEnd() + `\n      ${t.description}`;
 }
 
@@ -103,10 +106,13 @@ function help(version: string): string {
     `LV Design Studio command line ${version}`,
     '',
     'Read and check:',
-    ...allTools().filter((t) => !t.writes && t.name !== 'list_changes').map(usage),
+    ...allTools().filter((t) => !t.writes && t.name !== 'list_changes' && t.name !== 'list_exports').map(usage),
     '',
     'Change a project (a preview unless --apply / --propose; every change is kept and can be undone):',
-    ...allTools().filter((t) => t.writes || t.name === 'list_changes').map(usage),
+    ...allTools().filter((t) => (t.writes && !t.name.startsWith('export_')) || t.name === 'list_changes').map(usage),
+    '',
+    'Export (a preview unless --export; needs --approvedBy "<engineer>"; never over an existing file):',
+    ...allTools().filter((t) => t.name.startsWith('export_') || t.name === 'list_exports').map(usage),
     '',
     '  lvds mcp [--write]                 Run the MCP server (stdio) for Claude Desktop, Claude Code or a local model',
     '  lvds serve [--port 8765] [--write] Run the local API on http://127.0.0.1',
@@ -149,8 +155,8 @@ export async function main(argv: string[], version: string, io: { out: (s: strin
 
   const args: Record<string, unknown> = { ...a.flags };
   if (a.commit) {
-    if (!t.writes) { io.err(`${cmd} does not change a project: --apply / --propose do not apply.`); return 2; }
-    args.mode = 'mode' in t.input && (t.input.mode as z.ZodType).safeParse('propose').success ? 'propose' : 'apply';
+    if (!t.writes) { io.err(`${cmd} does not change a project: --apply / --propose / --export do not apply.`); return 2; }
+    args.mode = (['propose', 'export', 'apply'] as const).find((m) => 'mode' in t.input && (t.input.mode as z.ZodType).safeParse(m).success);
   }
   const pos = [...a.positional];
   if (t.usesProject && args.project === undefined && pos.length) args.project = pos.shift();
@@ -158,7 +164,7 @@ export async function main(argv: string[], version: string, io: { out: (s: strin
   if (['move_panel', 'copy_panel'].includes(t.name) && args.to === undefined && pos.length) args.to = pos.shift();
   if (pos.length) { io.err(`Unexpected "${pos.join(' ')}". Run "lvds help ${cmd}".`); return 2; }
   try {
-    const result = callTool(t, args, ctx);
+    const result = await callTool(t, args, ctx);
     io.out(a.json ? JSON.stringify(result, null, 2) : formatText(result));
     return t.name === 'run_checks' && (result as { fail: number }).fail > 0 ? 1 : 0;
   } catch (e) {

@@ -47,8 +47,10 @@ describe('offered only with --write', () => {
     expect(offeredTools({ folder: '.', anywhere: false, write: true }).filter((t) => t.writes).map((t) => t.name)).toEqual(
       expect.arrayContaining(['propose_changes', 'size_circuits', 'add_panel', 'add_circuit', 'move_panel', 'rename_panels', 'copy_panel', 'undo_change']));
   });
-  it('no tool deletes or exports', () => {
-    expect(offeredTools({ folder: '.', anywhere: false, write: true }).map((t) => t.name).filter((n) => /delete|remove|export/.test(n))).toEqual([]);
+  it('every tool that deletes or exports asks for the approving engineer', () => {
+    const gated = offeredTools({ folder: '.', anywhere: false, write: true }).filter((t) => /delete|remove|export_/.test(t.name));
+    expect(gated.length).toBeGreaterThan(0);
+    for (const t of gated) expect(Object.keys(t.input)).toContain('approvedBy');
   });
 });
 

@@ -15,7 +15,7 @@ The name **"LV Design Studio"** and its logo are not licensed under `LICENSE.md`
 
 LV Design Studio is built with open-source libraries under their own licences (MIT, ISC, Apache-2.0 — for example React, Electron, ExcelJS, pdf-lib, docx, JSZip, Lucide icons, Vite, TypeScript). Their licence texts are included with them in `node_modules` and in the installed app.
 
-The `lvds` command line tool, MCP server and local API (`src/headless`) also use the official Model Context Protocol TypeScript SDK (`@modelcontextprotocol/sdk`, MIT, Copyright (c) 2024 Anthropic, PBC) and Zod (MIT, Copyright (c) 2025 Colin McDonnell), with their own MIT / ISC / BSD-2-Clause dependencies. These licences allow use in this app without changing its own licence; only their copyright notices must be kept, as above.
+The `lvds` command line tool, MCP server and local API (`src/headless`) also use the official Model Context Protocol TypeScript SDK (`@modelcontextprotocol/sdk`, MIT, Copyright (c) 2024 Anthropic, PBC), Zod (MIT, Copyright (c) 2025 Colin McDonnell) and xmldom (`@xmldom/xmldom`, MIT, Copyright 2019 - present Christopher J. Brody and contributors, 2012 - 2017 @jindw and contributors), with their own MIT / ISC / BSD-2-Clause dependencies. These licences allow use in this app without changing its own licence; only their copyright notices must be kept, as above.
 
 ## Standards
 

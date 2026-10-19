@@ -24,7 +24,7 @@ export function createMcp(ctx: ToolContext, version: string): McpServer {
         : { title: t.title, readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
     }, async (args: Record<string, unknown>) => {
       try {
-        return { content: [{ type: 'text' as const, text: JSON.stringify(callTool(t, args, ctx)) }] };
+        return { content: [{ type: 'text' as const, text: JSON.stringify(await callTool(t, args, ctx)) }] };
       } catch (e) {
         return { isError: true, content: [{ type: 'text' as const, text: (e as Error).message }] };
       }

@@ -52,7 +52,7 @@ export function createApi(ctx: ToolContext, version: string): http.Server {
     if (t.writes && (req.method !== 'POST' || !/^application\/json\b/i.test(req.headers['content-type'] ?? ''))) return send(res, 405, { error: 'Tools that change a project need POST with Content-Type: application/json' });
     try {
       const args = req.method === 'POST' ? await readBody(req) : fromQuery(url.searchParams);
-      send(res, 200, callTool(t, args, ctx));
+      send(res, 200, await callTool(t, args, ctx));
     } catch (e) {
       send(res, 400, { error: (e as Error).message });
     }

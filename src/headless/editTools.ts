@@ -9,6 +9,9 @@ import { addOp, newModification, PROPOSABLE, transition, withProposal, withRecor
 import { moveBlocked, moveBoard } from '../model/moveBoard';
 import { renamePanels, renameProblems } from '../model/renamePanels';
 import { pasteBoard } from '../model/copyBoard';
+import { boardAndDescendants, deleteBoard } from '../model/edit';
+import { removeDanglingReferences } from '../model/integrity';
+import { deleteCircuit } from '../model/schedule';
 import { BOARD_KINDS, LOAD_TYPES, type Board, type BoardKind, type Feeder, type LoadType, type Project } from '../types';
 import { openProject } from './project';
 import { circuitIssues, r, type Tool, type ToolContext } from './tools';
@@ -22,7 +25,8 @@ import { commitProject, readLog, undoChange, WriteRefused } from './write';
  * - Structure changes (add a panel or circuit, move, rename, copy a panel) change the file, after a preview.
  *
  * Every tool previews by default (nothing written). Writing keeps the previous version and logs it (undo_change). The
- * MCP server and the local API offer these tools only when started with --write. Delete and export are not here. */
+ * MCP server and the local API offer these tools only when started with --write. Deleting (delete_panel, delete_circuit)
+ * also needs the name of the engineer who approved it. Exports are in exportTools.ts. */
 
 export const AUTHOR = 'AI assistant (lvds)';
 const project = z.string().describe('Project file name in the projects folder, as given by list_projects');
@@ -298,6 +302,44 @@ export const EDIT_TOOLS: Tool[] = [
       const added = res.project.boards.filter((x) => !p.boards.some((y) => y.id === x.id)).map((x) => x.id);
       return { next: res.project, summary: `Copy ${b.id} onto ${to.id} as ${res.rootId} (${added.length} panel(s), ${res.project.feeders.length - p.feeders.length} circuit(s))`, details: { panels: added } };
     })
+  },
+  {
+    name: 'delete_panel',
+    title: 'Delete a panel',
+    description: 'Deletes a panel with every panel below it, all their circuits and its incomer, and takes it out of sheets, risers, ties and reports (the app\'s own delete). Preview first; deleting needs approvedBy, the name of the engineer who approved it. undo_change puts it back.',
+    input: { project, panel: z.string(), approvedBy: z.string().trim().min(2).optional().describe('Name of the engineer who approved the delete (required to apply)'), mode: preview('apply') },
+    usesProject: true, writes: true,
+    run: (a, ctx) => {
+      if (a.mode === 'apply' && !(typeof a.approvedBy === 'string' && a.approvedBy.trim().length >= 2)) throw new Error('Deleting needs approvedBy: the name of the engineer who approved it.');
+      return edit(a, ctx, 'delete_panel', a.mode === 'apply', (p) => {
+        const b = findBoard(p, String(a.panel));
+        const gone = boardAndDescendants(p, b.id);
+        const circuits = p.feeders.filter((f) => gone.has(f.boardId) || (f.feedsBoardId !== undefined && gone.has(f.feedsBoardId)));
+        const next = deleteBoard(p, b.id);
+        return {
+          next,
+          summary: `Delete ${b.id}${gone.size > 1 ? ` and ${gone.size - 1} panel(s) below it` : ''}, ${circuits.length} circuit(s)${a.approvedBy ? ` — approved by ${String(a.approvedBy).trim()}` : ''}`,
+          details: { panels: [...gone], circuits: circuits.map((f) => f.id) }
+        };
+      });
+    }
+  },
+  {
+    name: 'delete_circuit',
+    title: 'Delete a circuit',
+    description: 'Deletes one outgoing circuit and its references (tray routes, sheets). An incomer is not deleted here: delete its panel with delete_panel. Preview first; deleting needs approvedBy. undo_change puts it back.',
+    input: { project, circuit: z.string(), approvedBy: z.string().trim().min(2).optional().describe('Name of the engineer who approved the delete (required to apply)'), mode: preview('apply') },
+    usesProject: true, writes: true,
+    run: (a, ctx) => {
+      if (a.mode === 'apply' && !(typeof a.approvedBy === 'string' && a.approvedBy.trim().length >= 2)) throw new Error('Deleting needs approvedBy: the name of the engineer who approved it.');
+      return edit(a, ctx, 'delete_circuit', a.mode === 'apply', (p) => {
+        const id = String(a.circuit);
+        const f = p.feeders.find((x) => x.id === id) ?? p.feeders.find((x) => x.id.toLowerCase() === id.toLowerCase());
+        if (!f) throw new Error(`No circuit "${id}".`);
+        if (f.feedsBoardId) throw new Error(`${f.id} is the incomer of ${f.feedsBoardId}: delete the panel with delete_panel (or move it with move_panel).`);
+        return { next: removeDanglingReferences(deleteCircuit(p, f.id)), summary: `Delete ${f.id} "${f.name}" on ${f.boardId}${a.approvedBy ? ` — approved by ${String(a.approvedBy).trim()}` : ''}`, details: { circuit: f.id, panel: f.boardId, loadKw: f.loadKw } };
+      });
+    }
   },
   {
     name: 'list_changes',
