@@ -156,6 +156,41 @@ network as a self-contained OpenDSS script (load flow + fault study) that
 you can open in OpenDSS itself. The modelling assumptions are listed in the
 header of the exported file.
 
+## Command line, MCP server and local API (read only)
+
+`lvds` uses the app's own calculations without opening the app. It reads
+projects from the app's projects folder and **never changes a file**.
+
+```bash
+npm run build:cli
+node dist-cli/lvds.mjs help
+node dist-cli/lvds.mjs check "My project"      # to-do list; exit code 1 if anything fails
+node dist-cli/lvds.mjs panel "My project" SMDB-GF
+node dist-cli/lvds.mjs cable --current 120 --length 80 --ambient 45
+```
+
+Add `--json` for scripts, `--folder <path>` for another projects folder.
+
+**MCP (for an AI assistant).** `lvds mcp` runs an MCP server on this computer.
+Claude Desktop, Claude Code or a free local model (through any MCP client) can
+then list projects, read panels and results, run the checks and use the quick
+calculations. The app makes no AI calls itself and needs no paid service. For
+Claude Code:
+
+```bash
+claude mcp add lv-design-studio -- node /path/to/LV-Design-Suit/dist-cli/lvds.mjs mcp
+```
+
+For Claude Desktop, add the same command under `mcpServers` in its
+`claude_desktop_config.json`:
+`{"lv-design-studio": {"command": "node", "args": ["/path/to/LV-Design-Suit/dist-cli/lvds.mjs", "mcp"]}}`.
+Through MCP and the API, only files inside the projects folder can be opened.
+
+**Local API.** `lvds serve` (default port 8765) answers on `http://127.0.0.1`
+only: `GET /api/tools` lists the tools and their inputs, `GET
+/api/tools/run_checks?project=My%20project` or `POST` with a JSON body runs
+one.
+
 ## What it does
 
 - **Design**: boards and circuits in a multi-level hierarchy, load schedules
