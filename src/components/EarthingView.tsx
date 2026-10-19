@@ -4,7 +4,9 @@ import { earthingLayout, kindInfo, patchEarthing, pitStatus, setPitTest, DEFAULT
 import { earthSheetNo } from '../model/boardEarth';
 import { earthingDrawing } from '../diagram/earthingDrawing';
 import { earthFloorDrawing, earthRiserDrawing, earthSheetRefs } from '../diagram/earthRiserDrawing';
-import { DEFAULT_LV_ROOM_CABLE, DEFAULT_RISER_NAME, DEFAULT_RISER_TAPE, earthRiserLayout, earthSheetTitles, floorGroups, riserPages } from '../model/earthRiser';
+import { DEFAULT_LV_ROOM_CABLE, DEFAULT_RISER_NAME, DEFAULT_RISER_TAPE, earthRiserLayout, earthSheetTitles, floorGroups, newRiserId, nextRiserName, riserPages, risersOf, setRisers } from '../model/earthRiser';
+import { floorList } from '../model/levels';
+import type { EarthRiserDef } from '../types';
 import { EARTH_PREFIX, setOf, sheetNumber } from '../model/drawingSet';
 import { buildSldSheetHtml, type SheetInfo } from '../docs/sldSheet';
 import { buildSheetDxfPages } from '../docs/sheetDxf';
@@ -292,6 +294,34 @@ export default function EarthingView({ project, onChange, onStatus, embedded = f
               </select></label>
               <label>Link conductor<span className="pfcc-in"><input className="bi-num" style={{ width: 50 }} inputMode="numeric" value={L.conductorMm2} onChange={(e) => onChange(patchEarthing(project, (p) => ({ ...p, conductorMm2: Number(e.target.value) || undefined })))} /><span className="m">mm² Cu</span></span></label>
             </div>
+            {riserB && (() => {
+              const defs = risersOf(project, riserB.id), fls = floorList(project.building).filter((f) => f.buildingId === riserB.id);
+              // The building's own list (the default riser becomes a real one as soon as it is edited).
+              const own = (): EarthRiserDef[] => (defs[0]?.id ? defs : [{ ...defs[0], id: newRiserId(project) }]);
+              const put = (list: EarthRiserDef[]) => onChange(setRisers(project, riserB.id, list));
+              const edit = (i: number, patch: Partial<EarthRiserDef>) => { const l = own(); l[i] = { ...l[i], ...patch }; put(l); };
+              const lvl = (dflt: string) => (
+                <><option value="">{dflt}</option>{fls.slice().reverse().map((f) => <option key={f.key} value={f.key}>{f.name}</option>)}</>
+              );
+              return (
+                <div className="earth-risers">
+                  <h4>Earth risers{buildings.length > 1 ? ` — ${riserB.name}` : ''}</h4>
+                  <table className="bi-table compact">
+                    <thead><tr><th>Riser</th><th>From level</th><th>To level</th><th /></tr></thead>
+                    <tbody>{defs.map((d, i) => (
+                      <tr key={d.id || 'default'}>
+                        <td><input className="bi-text" style={{ width: 64 }} key={d.name} defaultValue={d.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== d.name) edit(i, { name: v }); }} aria-label="Riser name" /></td>
+                        <td><select value={d.from ?? ''} onChange={(e) => edit(i, { from: e.target.value || undefined })} aria-label="From level">{lvl('Lowest')}</select></td>
+                        <td><select value={d.to ?? ''} onChange={(e) => edit(i, { to: e.target.value || undefined })} aria-label="To level">{lvl('Top')}</select></td>
+                        <td>{defs.length > 1 && <button className="chip" title="Remove this riser; its panels go to the first riser on their level" onClick={() => put(own().filter((_, k) => k !== i))}>✕</button>}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                  <button className="chip" onClick={() => { const l = own(); put([...l, { id: newRiserId(project, l.map((x) => x.id)), buildingId: riserB.id, name: nextRiserName(l.map((x) => x.name)) }]); }}>+ Riser</button>
+                  <p className="m">Each riser has a floor earth bar on every level from its lowest to its highest. Pick a panel's riser in its properties (Location) — by default the first riser on its level.</p>
+                </div>
+              );
+            })()}
             <label className="earth-bonding">Bonded to each main earth bar <span className="m">(one per line; shown on the schematic)</span>
               <textarea rows={4} key={L.bonding.join('\n')} defaultValue={L.bonding.join('\n')}
                 onBlur={(e) => { const v = e.target.value.split('\n').map((x) => x.trim()).filter(Boolean); if (v.join('\n') !== L.bonding.join('\n')) onChange(patchEarthing(project, (p) => ({ ...p, bonding: v.join('\n') === DEFAULT_BONDING.join('\n') ? undefined : v }))); }} /></label>

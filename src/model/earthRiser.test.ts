@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
 import type { Board, Feeder, Project } from '../types';
-import { DEFAULT_RISER_TAPE, earthRiserLayout, floorGroups, riserPages, riserRows } from './earthRiser';
+import { DEFAULT_RISER_TAPE, earthRiserLayout, floorGroups, newRiserId, nextRiserName, riserPages, riserRows, risersOf, setRisers } from './earthRiser';
 import { earthFloorDrawing, earthRiserDrawing, earthSheetRefs } from '../diagram/earthRiserDrawing';
 import { earthingDrawing, pitTags } from '../diagram/earthingDrawing';
 import { addEarthRiserSheet, drawable, earthSheetGaps, renumber, setOf, sheetChecks, sheetType } from './drawingSet';
@@ -157,5 +157,65 @@ describe('earthing riser', () => {
     expect(earthSheetGaps(taller.project, f.set)).toContainEqual({ buildingId: r.buildingId, kind: 'earthRiser', need: 4, have: 3 });
     expect(sheetChecks(taller.project, f.set).some((c) => c.text.includes('earthing riser diagram now needs 4 sheet(s)'))).toBe(true);
     expect(addEarthRiserSheet(f.set, taller.project, r.buildingId).set.sheets.filter((x) => x.kind === 'earthRiser').map((x) => x.part)).toEqual([0, 1, 2, 3]);
+  });
+
+  describe('several risers', () => {
+    /** G+10: EL-A on every level, EL-B from the ground floor to L03. */
+    function twoRisers() {
+      const r = tower(11);
+      const floors = earthRiserLayout(r.project, r.buildingId).floors;
+      const p = setRisers(r.project, r.buildingId, [
+        { id: 'er-1', buildingId: r.buildingId, name: 'EL-A' },
+        { id: 'er-2', buildingId: r.buildingId, name: 'EL-B', to: floors[3].floor.key }
+      ]);
+      return { ...r, p, floors };
+    }
+
+    it('gives each riser bars only on the levels it serves, and a panel the bar of its riser', () => {
+      const { p, buildingId, panelIds } = twoRisers();
+      const q: Project = { ...p, boards: p.boards.map((b) => (b.id === panelIds[2] ? { ...b, earthRiser: 'er-2' } : b.id === panelIds[8] ? { ...b, earthRiser: 'er-2' } : b)) };
+      const L = earthRiserLayout(q, buildingId);
+      expect(L.risers.map((x) => [x.name, x.lo, x.hi])).toEqual([['EL-A', 0, 10], ['EL-B', 0, 3]]);
+      expect(L.floors[2].febs.map((x) => x.tag)).toEqual(['EB-EL-A-L02', 'EB-EL-B-L02']);
+      expect(L.floors[5].febs.map((x) => x.tag)).toEqual(['EB-EL-A-L05']);
+      expect(L.floors[2].boards[0].riser).toBe('er-2');
+      expect(L.floors[1].boards[0].riser).toBe('er-1'); // default: first riser on its level
+      // EL-B does not reach L08: earthed to EL-A, and noted.
+      expect(L.floors[8].boards[0].riser).toBe('er-1');
+      expect(L.wrongRiser).toEqual([panelIds[8]]);
+      const svg = earthRiserDrawing(q, buildingId, { mono: true }).svg;
+      expect(svg).toContain('ELECTRICAL RISER EL-B');
+      expect(svg).toContain('EB-EL-B-L03');
+      expect(svg).not.toContain('EB-EL-B-L04');
+      expect(svg).toContain('(TO EACH RISER)');
+      expect(svg).toContain('EVERY LEVEL EACH RISER SERVES: EL-A GF TO L10, EL-B GF');
+      expect(svg).toContain('CHOSEN RISER DOES NOT SERVE THEIR LEVEL');
+      // Floor sheet of L02: both bars, the SMDB on EL-B's.
+      const g = floorGroups(L).findIndex((x) => x.floors[0].floor.key === L.floors[2].floor.key);
+      const floor = earthFloorDrawing(q, buildingId, {}, g).svg;
+      expect(floor).toContain('TO RISER EL-A');
+      expect(floor).toContain('TO RISER EL-B');
+      expect(floor).toContain('EB-EL-B-L02</text>');
+    });
+
+    it('lands the LV room cable on each riser, a riser above the LV room on its lowest level', () => {
+      const { p, buildingId, floors } = twoRisers();
+      const q = setRisers(p, buildingId, [...risersOf(p, buildingId), { id: 'er-3', buildingId, name: 'EL-C', from: floors[6].floor.key }]);
+      const L = earthRiserLayout(q, buildingId);
+      expect(L.risers.map((x) => x.lvFloor)).toEqual([floors[0].floor.key, floors[0].floor.key, floors[6].floor.key]);
+      // Typical grouping never swallows the floor a riser starts on.
+      const rows = riserRows({ ...L, style: 'typical' });
+      expect(rows.some((r) => r.floors.length === 1 && r.floors[0].floor.key === floors[6].floor.key)).toBe(true);
+    });
+
+    it('a removed riser returns its panels to the default', () => {
+      const { p, buildingId, panelIds } = twoRisers();
+      const q: Project = { ...p, boards: p.boards.map((b) => (b.id === panelIds[1] ? { ...b, earthRiser: 'er-2' } : b)) };
+      const back = setRisers(q, buildingId, risersOf(q, buildingId).filter((x) => x.id !== 'er-2'));
+      expect(back.boards.find((b) => b.id === panelIds[1])!.earthRiser).toBeUndefined();
+      expect(risersOf(setRisers(q, buildingId, []), buildingId)).toEqual([{ id: '', buildingId, name: 'EL-A' }]);
+      expect(newRiserId(q)).toBe('er-3');
+      expect(nextRiserName(['EL-A', 'EL-B'])).toBe('EL-C');
+    });
   });
 });
