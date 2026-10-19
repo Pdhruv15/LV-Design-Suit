@@ -1,4 +1,4 @@
-import { BOARD_KINDS, INCOMER_DEVICES, RELAY_TYPES, SPD_TYPES, type Board, type IncomerDevice, type BuildingInfo } from '../types';
+import { BOARD_KINDS, INCOMER_DEVICES, RELAY_TYPES, SPD_TYPES, type Board, type IncomerDevice, type BuildingInfo, type EarthingPlan } from '../types';
 import { findFloor, floorList, levelKey } from '../model/levels';
 import { DEFAULT_TRANSFORMER_XR } from '../calc/electrical';
 
@@ -9,7 +9,7 @@ export const BOARD_FIELD_GROUPS: [BoardFieldGroup, string][] = [['board', 'Gener
 /** Editable board fields, shared by the properties panel (applied as you
  * type) and the double-click edit dialog (applied on Save).
  * 'general': equipment data (all groups, or only `groups`); 'source': transformer data (main boards). */
-export default function BoardFields({ board, onChange, section, building, groups }: { board: Board; onChange: (b: Board) => void; section: 'general' | 'source'; building?: BuildingInfo; groups?: BoardFieldGroup[] }) {
+export default function BoardFields({ board, onChange, section, building, groups, earthing }: { board: Board; onChange: (b: Board) => void; section: 'general' | 'source'; building?: BuildingInfo; groups?: BoardFieldGroup[]; earthing?: EarthingPlan }) {
   const show = (g: BoardFieldGroup) => !groups || groups.includes(g);
   const floors = floorList(building);
   const isMain = !board.upstreamId;
@@ -176,6 +176,19 @@ export default function BoardFields({ board, onChange, section, building, groups
               </select>
             ) : <span className="m">Add levels in Building information</span>}
           </label>
+          {(() => {
+            // Earth riser: only where the panel's building has more than one.
+            const risers = (earthing?.risers ?? []).filter((r) => r.buildingId === board.level?.building);
+            if (risers.length < 2 || !board.upstreamId) return null;
+            return (
+              <label title="The earth riser whose floor earth bar this panel's earth bar connects to (Design → Earth pits → Settings → Earth risers)">Earth riser
+                <select value={board.earthRiser ?? ''} onChange={(e) => set('earthRiser', e.target.value || undefined)}>
+                  <option value="">First riser on its level</option>
+                  {risers.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </select>
+              </label>
+            );
+          })()}
           <label>Room / place{text('location', 'e.g. Elec. room 3.01')}</label>
           <label>Manufacturer{text('manufacturer')}</label>
           <label>Model{text('model')}</label>

@@ -1,4 +1,4 @@
-import type { Board, Feeder, Project } from '../types';
+import type { Board, EarthRiserDef, Feeder, Project } from '../types';
 import { boardsInSupplyOrder } from '../calc/summary';
 import { cpcOf } from '../calc/cableTable';
 import { floorList, levelKey, type Floor } from './levels';
@@ -29,8 +29,21 @@ export interface EarthRiserBoard {
   cpcMm2?: number;
   /** Panel whose earth bar this one connects to; absent = the floor earth bar. */
   toBoard?: string;
+  /** Riser (id) whose floor earth bar it connects to, when it is not earthed through another panel. */
+  riser?: string;
 }
-export interface EarthRiserFloor { floor: Floor; feb: string; boards: EarthRiserBoard[] }
+/** A floor earth bar on one floor: the riser (id) it is on and its tag (EB-EL-A-L03). */
+export interface FloorBar { riser: string; tag: string }
+export interface EarthRiserFloor {
+  floor: Floor;
+  /** Tag of the first riser's bar on this floor ('' when no riser serves it). */
+  feb: string;
+  /** One bar per riser serving this floor, in riser order. */
+  febs: FloorBar[];
+  boards: EarthRiserBoard[];
+}
+/** A riser of the building: floors lo..hi (indexes into floors) and the floor the LV room cable lands on. */
+export interface RiserLane { id: string; name: string; lo: number; hi: number; lvFloor: string }
 export interface EarthRiserMain { board: Board; meb: string; pits: string[] }
 export interface EarthRiserLayout {
   buildingId: string;
@@ -46,6 +59,12 @@ export interface EarthRiserLayout {
   mains: EarthRiserMain[];
   /** Panels of the building tree without a level in this building (not drawn). */
   notOnLevel: string[];
+  /** Risers of the building, in order (at least one when the building has floors). */
+  risers: RiserLane[];
+  /** Panels whose chosen riser does not serve their floor (earthed to the first riser that does). */
+  wrongRiser: string[];
+  /** Panels on a floor no riser serves (not drawn). */
+  noRiser: string[];
   empty: boolean;
 }
 
@@ -63,7 +82,12 @@ export function earthRiserLayout(project: Project, buildingId: string, L: EarthL
   const tape = ep?.riserTape?.trim() || DEFAULT_RISER_TAPE;
   const riserName = ep?.riserName?.trim() || DEFAULT_RISER_NAME;
   const base = { buildingId, buildingName: building?.name ?? buildingId, tape, lvRoomCable: ep?.lvRoomCable?.trim() || DEFAULT_LV_ROOM_CABLE, riserName, style: ep?.riserStyle ?? 'sheets' as const };
-  const feb = (f: Floor) => febTag(riserName, f);
+  const defs = risersOf(project, buildingId);
+  const idx = (key: string | undefined, d: number) => { const i = key ? floors.findIndex((f) => f.key === key) : -1; return i >= 0 ? i : d; };
+  const lanes0 = defs.map((d) => { const a = idx(d.from, 0), b = idx(d.to, floors.length - 1); return { id: d.id, name: d.name, lo: Math.min(a, b), hi: Math.max(a, b) }; });
+  const serving = (i: number) => lanes0.filter((r) => i >= r.lo && i <= r.hi);
+  const febsOf = (f: Floor, i: number): FloorBar[] => serving(i).map((r) => ({ riser: r.id, tag: febTag(r.name, f) }));
+  const rowFor = (floor: Floor, i: number): EarthRiserFloor => { const febs = febsOf(floor, i); return { floor, feb: febs[0]?.tag ?? '', febs, boards: [] }; };
   const byId = new Map(project.boards.map((b) => [b.id, b]));
   const order = boardsInSupplyOrder(project);
   const floorOf = new Map<string, Floor>();
@@ -82,16 +106,34 @@ export function earthRiserLayout(project: Project, buildingId: string, L: EarthL
   // or no level while fed from a panel on a floor (a main board is drawn as its MEB).
   const notOnLevel = order.filter((b) => b.upstreamId && !floorOf.has(b.id)
     && (b.level?.building === buildingId || (!b.level && floorOf.has(b.upstreamId)))).map((b) => b.id);
-  if (!floors.length || !placed.length) return { ...base, lvFloor: floors[0]?.key, floors: floors.map((floor) => ({ floor, feb: feb(floor), boards: [] })), mains, notOnLevel, empty: true };
+  const lvLevel = mains.map((m) => m.board.level).find((l) => l?.building === buildingId);
+  const lvFloor = (lvLevel && keyed.get(levelKey(lvLevel))?.key) ?? floors[0]?.key;
+  const lvAt = idx(lvFloor, 0);
+  // Each riser's LV room cable lands on the LV room's floor if it serves it, else on its lowest floor.
+  const risers: RiserLane[] = floors.length ? lanes0.map((r) => ({ ...r, lvFloor: floors[lvAt >= r.lo && lvAt <= r.hi ? lvAt : r.lo].key })) : [];
+  const more = { lvFloor, risers, wrongRiser: [] as string[], noRiser: [] as string[] };
+  if (!floors.length || !placed.length) return { ...base, ...more, floors: floors.map(rowFor), mains, notOnLevel, empty: true };
 
-  const rows: EarthRiserFloor[] = floors.map((floor) => ({ floor, feb: feb(floor), boards: [] }));
+  const rows: EarthRiserFloor[] = floors.map(rowFor);
   const rowOf = new Map(rows.map((r) => [r.floor.key, r]));
   for (const b of placed) {
     const f = floorOf.get(b.id)!;
     const parent = byId.get(b.upstreamId!);
     const feeder = project.feeders.find((x) => x.feedsBoardId === b.id && x.boardId === b.upstreamId);
     const sameFloor = parent && parent.upstreamId && floorOf.get(parent.id)?.key === f.key;
-    rowOf.get(f.key)!.boards.push({ board: b, feeder, cpcMm2: feeder ? cpcOf(feeder) : undefined, ...(sameFloor ? { toBoard: parent!.id } : {}) });
+    const row = rowOf.get(f.key)!;
+    if (sameFloor) { row.boards.push({ board: b, feeder, cpcMm2: feeder ? cpcOf(feeder) : undefined, toBoard: parent!.id }); continue; }
+    if (!row.febs.length) { more.noRiser.push(b.id); continue; }
+    const chosen = b.earthRiser && row.febs.find((x) => x.riser === b.earthRiser);
+    if (b.earthRiser && !chosen && defs.some((d) => d.id === b.earthRiser)) more.wrongRiser.push(b.id);
+    row.boards.push({ board: b, feeder, cpcMm2: feeder ? cpcOf(feeder) : undefined, riser: (chosen || row.febs[0]).riser });
+  }
+  // A panel earthed through one on no riser is not drawn either.
+  for (const r of rows) {
+    const here = new Set(r.boards.map((x) => x.board.id));
+    let changed = true;
+    while (changed) { changed = false; for (const x of r.boards) if (x.toBoard && !here.has(x.toBoard) && here.has(x.board.id)) { here.delete(x.board.id); more.noRiser.push(x.board.id); changed = true; } }
+    r.boards = r.boards.filter((x) => here.has(x.board.id));
   }
   // Each panel right after the panel it is earthed through, so the conductors stay short.
   for (const r of rows) {
@@ -101,9 +143,37 @@ export function earthRiserLayout(project: Project, buildingId: string, L: EarthL
     top.forEach(add);
     r.boards = out;
   }
-  const lvLevel = mains.map((m) => m.board.level).find((l) => l?.building === buildingId);
-  const lvFloor = (lvLevel && keyed.get(levelKey(lvLevel))?.key) ?? floors[0]?.key;
-  return { ...base, lvFloor, floors: rows, mains, notOnLevel, empty: false };
+  return { ...base, ...more, floors: rows, mains, notOnLevel, empty: false };
+}
+
+/** A building's risers replaced by `defs` (earthing settings); panels on a riser that is gone go back to the default. */
+export function setRisers(project: Project, buildingId: string, defs: EarthRiserDef[]): Project {
+  const others = (project.earthingPlan?.risers ?? []).filter((r) => r.buildingId !== buildingId);
+  const risers = [...others, ...defs.map((d) => ({ ...d, buildingId }))];
+  const ids = new Set(risers.map((r) => r.id));
+  return {
+    ...project,
+    earthingPlan: { ...project.earthingPlan, risers: risers.length ? risers : undefined },
+    boards: project.boards.map((b) => (b.earthRiser && !ids.has(b.earthRiser) ? { ...b, earthRiser: undefined } : b))
+  };
+}
+/** An id for a new riser, unique in the project. */
+export function newRiserId(project: Project, also: string[] = []): string {
+  const used = new Set([...(project.earthingPlan?.risers ?? []).map((r) => r.id), ...also]);
+  let n = 1;
+  while (used.has(`er-${n}`)) n++;
+  return `er-${n}`;
+}
+/** Next riser name after the given ones: EL-A → EL-B → EL-C … */
+export function nextRiserName(names: string[]): string {
+  for (let c = 65; c < 91; c++) { const n = `EL-${String.fromCharCode(c)}`; if (!names.includes(n)) return n; }
+  return `EL-${names.length + 1}`;
+}
+
+/** The earth risers of a building as set in the earthing settings; one full-height riser (riserName) when none. */
+export function risersOf(project: Project, buildingId: string): EarthRiserDef[] {
+  const own = (project.earthingPlan?.risers ?? []).filter((r) => r.buildingId === buildingId);
+  return own.length ? own : [{ id: '', buildingId, name: project.earthingPlan?.riserName?.trim() || DEFAULT_RISER_NAME }];
 }
 
 /** Level as printed on the riser: GROUND FLOOR, LEVEL-03, PODIUM LEVEL-02, BASEMENT-01, ROOF. */
@@ -124,7 +194,7 @@ export const febTag = (riser: string, f: Floor) => `EB-${riser}-${shortTag(f)}`;
 /** What a floor's earthing looks like: the same for floors with the same panels (kind, CPC, connection). */
 function floorSignature(r: EarthRiserFloor): string {
   const pos = new Map(r.boards.map((b, i) => [b.board.id, i]));
-  return JSON.stringify([r.floor.ref.level, r.boards.map((b) => [b.board.kind ?? 'DB', b.cpcMm2 ?? 0, b.toBoard ? pos.get(b.toBoard) ?? -1 : -1])]);
+  return JSON.stringify([r.floor.ref.level, r.febs.map((x) => x.riser), r.boards.map((b) => [b.board.kind ?? 'DB', b.cpcMm2 ?? 0, b.toBoard ? pos.get(b.toBoard) ?? -1 : -1, b.riser ?? ''])]);
 }
 
 /** Runs of consecutive floors with the same earthing (bottom to top). */
@@ -133,21 +203,24 @@ function runs(L: EarthRiserLayout): EarthRiserFloor[][] {
   let sig = '';
   for (const f of L.floors) {
     const s = floorSignature(f);
-    if (out.length && s === sig && f.floor.key !== L.lvFloor && out[out.length - 1][0].floor.key !== L.lvFloor) out[out.length - 1].push(f);
+    const alone = (k: string) => k === L.lvFloor || L.risers.some((r) => r.lvFloor === k); // LV room cables land here
+    if (out.length && s === sig && !alone(f.floor.key) && !alone(out[out.length - 1][0].floor.key)) out[out.length - 1].push(f);
     else { out.push([f]); sig = s; }
   }
   return out;
 }
 
-/** One drawn row of the riser: a floor, or (style 'typical') a run of floors drawn once. */
-export interface RiserRow { floors: EarthRiserFloor[]; typical: boolean; label: string; bar: string }
+/** One drawn row of the riser: a floor, or (style 'typical') a run of floors drawn once.
+ * bars: one per riser on these floors (tag EB-EL-A-L03, or EB-EL-A-L02 TO L99 for a typical run); bar: the first. */
+export interface RiserRow { floors: EarthRiserFloor[]; typical: boolean; label: string; bar: string; bars: FloorBar[] }
 /** Position of a floor in the building, bottom to top: the riser cable alternates sides from floor to floor. */
 export const floorIndex = (L: EarthRiserLayout, key: string) => L.floors.findIndex((f) => f.floor.key === key);
 
-const rowOf = (L: EarthRiserLayout, fs: EarthRiserFloor[]): RiserRow => {
-  if (fs.length === 1) return { floors: fs, typical: false, label: levelLabel(fs[0].floor), bar: fs[0].feb };
+const rowOf = (_L: EarthRiserLayout, fs: EarthRiserFloor[]): RiserRow => {
+  if (fs.length === 1) return { floors: fs, typical: false, label: levelLabel(fs[0].floor), bar: fs[0].feb, bars: fs[0].febs };
   const a = fs[0].floor, b = fs[fs.length - 1].floor;
-  return { floors: fs, typical: true, label: `TYPICAL ${levelLabel(a)} TO ${levelLabel(b)}`, bar: `${fs[0].feb} TO ${shortTag(b)}` };
+  const bars = fs[0].febs.map((x) => ({ riser: x.riser, tag: `${x.tag} TO ${shortTag(b)}` }));
+  return { floors: fs, typical: true, label: `TYPICAL ${levelLabel(a)} TO ${levelLabel(b)}`, bar: bars[0]?.tag ?? '', bars };
 };
 
 /** The rows of the riser, bottom to top. Style 'typical': runs of TYPICAL_MIN or more
@@ -170,7 +243,7 @@ export function riserPages(L: EarthRiserLayout): RiserRow[][] {
 export function floorGroups(L: EarthRiserLayout): RiserRow[] {
   const withPanels = L.floors.filter((f) => f.boards.length);
   if (L.style !== 'typical') return withPanels.map((f) => rowOf(L, [f]));
-  return runs({ ...L, lvFloor: undefined, floors: withPanels }).map((r) => rowOf(L, r));
+  return runs({ ...L, lvFloor: undefined, risers: [], floors: withPanels }).map((r) => rowOf(L, r));
 }
 
 /** Titles of a building's earth riser sheets and floor earthing sheets. */

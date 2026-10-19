@@ -126,7 +126,7 @@ export const FEEDER_FIELDS: Fields<Feeder> = [
 export const BOARD_FIELDS: Fields<Board> = [
   ['name', 'Name'], ['kind', 'Type'], ['upstreamId', 'Fed from'], ['ratedCurrentA', 'Rating (A)'], ['sourceKva', 'Transformer (kVA)'],
   ['sourceImpedancePct', 'Transformer Z (%)'], ['location', 'Location'], ['pointWatts', 'WATT / UNIT'], ['elcbGroupSize', 'Circuits per ELCB'],
-  ['elcbSensitivityMa', 'ELCB sensitivity'], ['supply', 'Incoming supply'], ['standby', 'Standby generator'], ['level', 'Level'],
+  ['elcbSensitivityMa', 'ELCB sensitivity'], ['supply', 'Incoming supply'], ['standby', 'Standby generator'], ['level', 'Level'], ['earthRiser', 'Earth riser'],
   ['sourceXr', 'Transformer X/R'], ['vectorGroup', 'Vector group'], ['protection', 'Incomer protection'], ['upsKva', 'UPS (kVA)'],
   ['busbarMaterial', 'Busbar material'], ['ipRating', 'IP rating'], ['manufacturer', 'Manufacturer'], ['model', 'Model'], ['instruments', 'Instruments on the SLD'], ['incomerDevice', 'Incomer device on the SLD'],
   ['earthing', 'Earth pit detail on the SLD'], ['rmu', 'RMU'], ['spd', 'Surge protection'], ['enclosure', 'Enclosure'], ['form4', 'Form-4 enclosure'], ['substation', 'Substation'],
