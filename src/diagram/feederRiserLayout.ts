@@ -37,7 +37,8 @@ export interface FRRow { label: string; sub: string; yTop: number; yLine: number
 export interface FRPanel { board: Board; x1: number; x2: number; y1: number; y2: number; busY: number; incomerX: number; titleTop: boolean; lines: string[] }
 export interface FRLeaf { board: Board; x: number; y: number; tagY: number; symbol: LeafSymbol; lines: string[] }
 /** A vertical run with a breaker on it: bus → breaker → yTo. */
-export interface FRFeeder { x: number; yBus: number; brk: [number, number]; yTo: number; device: string[]; cable: string; cableAt?: [number, number]; fireRated?: boolean; incomer?: boolean }
+/** cableAt: where the cable text goes — along the run when it is long enough (vertical), else beside it (horizontal). */
+export interface FRFeeder { x: number; yBus: number; brk: [number, number]; yTo: number; device: string[]; cable: string; cableAt?: [number, number]; cableVertical?: boolean; fireRated?: boolean; incomer?: boolean }
 export interface FRTap { y: number; x2: number; up?: number; text: string }
 export interface FRBusway { id: string; x: number; y1: number; y2: number; label: string; taps: FRTap[] }
 export interface FRSource { kind: 'tx' | 'gen'; x: number; y: number; title: string; sub: string }
@@ -171,7 +172,7 @@ export function feederRiserLayout(project: Project, buildingId: string): FeederR
       used.add(fr ? 'fr' : 'cable'); used.add('breaker');
       const run = Math.abs(yTo - edge);
       feeders.push({ x, yBus: p.busY, brk, yTo, device: up ? deviceText(f) : deviceText(f).slice(0, 1), cable: cableText(f), fireRated: fr,
-        cableAt: run > 3 * U ? [x - 0.3 * U, (edge + yTo) / 2] : undefined });
+        ...(run > 3 * U ? { cableAt: [x - 0.3 * U, (edge + yTo) / 2], cableVertical: true } : { cableAt: [x + 0.3 * U, (edge + yTo) / 2 + 0.18 * U] }) });
     }
   }
   // Busbar trunking risers: one breaker on the panel's busbar, a tap-off per board.

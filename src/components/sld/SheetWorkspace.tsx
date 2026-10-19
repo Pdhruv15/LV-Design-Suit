@@ -182,7 +182,7 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
   // when; the drawing reads the latest inputs, so a new run or object identity alone never restarts it.
   const latest = useRef({ project, set, s, run });
   latest.current = { project, set, s, run };
-  const key = useMemo(() => (s ? sheetHash(project, set, { ...s, markups: undefined }) + JSON.stringify([s.arrows, s.size, s.cableLabels, s.status, s.rev, s.number, project.drawing, project.info, set.sheets.length]) : ''), [project, set, s]);
+  const key = useMemo(() => (s ? sheetHash(project, set, { ...s, markups: undefined, issuedHash: undefined }) + JSON.stringify([s.arrows, s.size, s.cableLabels, s.status, s.rev, s.number, project.drawing, project.info, set.sheets.length]) : ''), [project, set, s]);
   useEffect(() => {
     const { s } = latest.current;
     if (!s || !drawable(s)) { setPage(null); return; }

@@ -103,7 +103,9 @@ export default function FeederRiserDiagram({ project, buildingId, layout: given 
               {f.device.map((t, j) => (
                 <text key={j} x={f.x + 0.45 * U} y={(up ? Math.min(b1, b2) : Math.min(b1, b2)) + (0.3 + j * 0.6) * U} className="m">{t}</text>
               ))}
-              {f.cable && f.cableAt && <text x={f.cableAt[0]} y={f.cableAt[1]} textAnchor="middle" transform={`rotate(-90 ${f.cableAt[0]} ${f.cableAt[1]})`} className="m">{f.cable}</text>}
+              {f.cable && f.cableAt && (f.cableVertical
+                ? <text x={f.cableAt[0]} y={f.cableAt[1]} textAnchor="middle" transform={`rotate(-90 ${f.cableAt[0]} ${f.cableAt[1]})`} className="m">{f.cable}</text>
+                : <text x={f.cableAt[0]} y={f.cableAt[1]} className="m">{f.cable}</text>)}
             </g>
           );
         })}

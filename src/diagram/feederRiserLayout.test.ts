@@ -51,6 +51,9 @@ describe('riser schematic with individual feeders', () => {
     expect(toSmdb.device).toEqual(['630 A TPN', 'MCCB 50 kA']);
     expect(out.find((f) => f.x === leaf('DB-2A').x)!.yBus).toBe(panel('SMDB-1').busY);
     expect(out.filter((f) => f.fireRated)).toHaveLength(2);
+    // Every cable says its size and length, short runs too (beside the run instead of along it).
+    expect(out.every((f) => f.cable && f.cableAt)).toBe(true);
+    expect(out.find((f) => f.x === leaf('MCC-1').x)!.cableVertical).toBeFalsy();
   });
 
   it('panels sit on their level, higher levels higher up; sources under the main boards', () => {
