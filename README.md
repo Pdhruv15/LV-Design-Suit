@@ -89,7 +89,7 @@ npm run typecheck   # TypeScript
 npm run lint        # ESLint, no warnings allowed
 npm test            # unit tests (Vitest), src/**/*.test.ts
 npm run build       # production build
-npm run test:pdf    # reports printed through Electron's Chromium (needs Electron's binary); pages compared with tests/pdf/baselines
+npm run test:pdf    # reports printed through Electron's Chromium (needs Electron's binary); pages compared with tests/pdf/baselines; lvds PDF and DXF exports (needs npm run build)
 npm run test:pdf:update  # new layout baselines, after an intended layout change
 npm run bench       # calculation performance on large networks
 ```
@@ -214,15 +214,22 @@ show a preview unless called with `mode` apply / propose (`--apply` /
 
 **Exports.** `list_exports` shows what a project can export. `export_report`
 makes any document of the app's Export centre as HTML (open it in a browser and
-print to PDF). `export_forms_xlsx` and `export_boq_xlsx` make the Excel
-workbooks, and `export_dxf` the earthing schematic. Each one first shows a
+print to PDF), or with `format pdf` as the PDF the app makes. `export_forms_xlsx`
+and `export_boq_xlsx` make the Excel workbooks. `export_dxf` makes the earthing
+schematic, or with `drawing sld` the sheets of Reports → Drawings (SLD, DB
+circuit, riser and earthing sheets, the same files as its DXF export;
+`--sheets` / `--types` choose some). Each one first shows a
 preview: the files it would make, failing checks and proposals still waiting.
 Exporting needs `approvedBy` (the engineer's name). It is refused while checks
 fail or proposals wait, unless the engineer sets `exportAnyway`. Files go to
 `Exports/<project>/<date>/` in the projects folder, never over an existing
-file, and every export is logged in `.lvds-agent/exports.jsonl`. SLD, panel
-and riser sheets are drawn by the app, so export those from Reports →
-Drawings.
+file, and every export is logged in `.lvds-agent/exports.jsonl`.
+
+PDFs and the drawing sheets are made by the app itself, in Electron with no
+window (`electron/headlessExport.cjs`), only after the export is approved. lvds
+uses Electron from the app's source folder (`npm install` and `npm run build`
+first), else an installed app that has this export. Without either, reports are
+made as HTML and the earthing schematic is the only DXF.
 
 ```bash
 node dist-cli/lvds.mjs size "My project"            # preview the sizing proposal
@@ -230,6 +237,8 @@ node dist-cli/lvds.mjs size "My project" --propose  # add it to Reports → Chan
 node dist-cli/lvds.mjs add-panel "My project" --kind SMDB --id SMDB-L3 --fedFrom MDB-1 --lengthM 45 --apply
 node dist-cli/lvds.mjs undo "My project" --apply
 node dist-cli/lvds.mjs forms-xlsx "My project" --export --approvedBy "A. Engineer"
+node dist-cli/lvds.mjs dxf "My project" --drawing sld --export --approvedBy "A. Engineer"
+node dist-cli/lvds.mjs report "My project" --report calc-report --format pdf --export --approvedBy "A. Engineer"
 ```
 
 ## What it does
