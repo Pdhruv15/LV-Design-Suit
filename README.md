@@ -82,6 +82,23 @@ Produces a `.dmg` (mac), `.exe` installer (Windows), or `.AppImage` (Linux)
 in `release/`, depending on the platform you build on. `npm run dist:mac`
 builds an Apple-silicon `.dmg` only.
 
+## Publishing the browser app
+
+The browser version is an installable PWA and can be hosted as a static site
+without a backend. The GitHub Pages workflow in `.github/workflows/pages.yml`
+builds and publishes `dist` whenever `main` is updated; it can also be run
+manually from the repository's Actions tab. In **Settings → Pages**, set the
+source to **GitHub Actions** before the first deployment.
+
+Open the published URL once while online, then use the browser's **Install
+app** or **Add to Home Screen** command. After offline preparation finishes,
+the installed app can start without a network connection.
+
+Browser installations are independent: projects and personal libraries stay
+in that browser profile and are not synchronized to Google Drive or another
+device. Download project `.json` backups regularly. Clearing the site's data
+or deleting the browser profile removes locally stored projects.
+
 ## Checks and tests
 
 ```bash
