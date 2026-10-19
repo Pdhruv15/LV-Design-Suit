@@ -87,6 +87,9 @@ export function SheetTabs({ project, active, selectedBoardId, outlinesOn, onActi
             {(project.building?.buildings ?? []).map((b) => (
               <button key={b.id} onClick={() => { close(); const r = addRiserSheet(set, b.id, b.name); save(r.set); onActive(r.id); }}>Riser diagram — {b.name}</button>
             ))}
+            {(project.building?.buildings ?? []).map((b) => (
+              <button key={`f${b.id}`} title="Each board on its own breaker and cable from its panel's busbar" onClick={() => { close(); const r = addRiserSheet(set, b.id, b.name, 'feeders'); save(r.set); onActive(r.id); }}>Riser schematic (individual feeders) — {b.name}</button>
+            ))}
             {(() => {
               // One earthing schematic per set: open it if it is already there.
               const earthing = set.sheets.find((x) => x.kind === 'earthing');
@@ -306,6 +309,9 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
               <select value={s.buildingId ?? ''} onChange={(e) => patch({ buildingId: e.target.value })}>
                 {(project.building?.buildings ?? []).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
+              <label>Connections<select value={s.riserStyle ?? ''} onChange={(e) => patch({ riserStyle: (e.target.value || undefined) as DrawingSheet['riserStyle'] })}>
+                <option value="">Busbar trunking / cable chain</option><option value="feeders">Individual feeders from each panel's busbar</option>
+              </select></label>
               <p className="m">Each panel is drawn on its Level (panel properties). Levels and floor heights come from Building information.</p>
             </details>
           )}

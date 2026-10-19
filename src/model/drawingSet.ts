@@ -19,6 +19,7 @@ export interface DrawingSheet {
   title: string; // e.g. SLD — MDB-1
   kind: 'system' | 'board' | 'riser' | 'earthing'; // board = one DB's circuit diagram; riser = a building's riser diagram; earthing = earthing schematic
   buildingId?: string; // riser sheets
+  riserStyle?: 'feeders'; // riser sheets: one breaker and cable per board from its panel's busbar (blank = busbar trunking / cable chain)
   boards: string[];
   size: 'auto' | SheetSize;
   // Title block of this sheet (blank = the project's, managed in the drawing register)
@@ -103,9 +104,9 @@ export function addEarthingSheet(set: DrawingSet): { set: DrawingSet; id: string
   return { id, set: renumber({ ...set, sheets: [...set.sheets, { id, number: '', title: 'Earthing schematic diagram', kind: 'earthing', boards: [], size: 'auto', status: startStatus(set) }] }) };
 }
 /** A riser diagram sheet for a building. */
-export function addRiserSheet(set: DrawingSet, buildingId: string, buildingName: string): { set: DrawingSet; id: string } {
+export function addRiserSheet(set: DrawingSet, buildingId: string, buildingName: string, riserStyle?: 'feeders'): { set: DrawingSet; id: string } {
   const id = `sh-${Date.now().toString(36)}`;
-  return { id, set: renumber({ ...set, sheets: [...set.sheets, { id, number: '', title: `Riser diagram — ${buildingName}`, kind: 'riser', buildingId, boards: [], size: 'auto', status: startStatus(set) }] }) };
+  return { id, set: renumber({ ...set, sheets: [...set.sheets, { id, number: '', title: `${riserStyle ? 'Riser schematic' : 'Riser diagram'} — ${buildingName}`, kind: 'riser', buildingId, ...(riserStyle ? { riserStyle } : {}), boards: [], size: 'auto', status: startStatus(set) }] }) };
 }
 
 const isDb = (b: Board) => (b.kind ?? (b.upstreamId ? 'DB' : 'MDB')) === 'DB';
@@ -326,7 +327,7 @@ export function statusColor(status?: string): string {
 export function sheetHash(p: Project, set: DrawingSet, s: DrawingSheet): string {
   const d = s.kind === 'board' ? { boards: p.boards.filter((b) => b.id === s.boards[0]), feeders: p.feeders.filter((f) => f.boardId === s.boards[0]) }
     : s.kind === 'earthing' ? { boards: p.boards.filter((b) => !b.upstreamId).map((b) => [b.id, b.sourceKva, b.rmu, b.vectorGroup]), feeders: [p.earthingPlan] }
-    : s.kind === 'riser' ? { boards: p.boards.map((b) => [b.id, b.upstreamId, b.level, b.ratedCurrentA, b.sourceKva, b.standby]), feeders: [p.feeders.filter((f) => f.feedsBoardId).map((f) => [f.feedsBoardId, f.cores, f.cableCsaMm2, f.lengthM, f.parallel, f.cableType]), p.busRisers, p.building] }
+    : s.kind === 'riser' ? { boards: p.boards.map((b) => [b.id, b.upstreamId, b.level, b.ratedCurrentA, b.sourceKva, b.standby, ...(s.riserStyle ? [b.kind, b.incomerDevice, b.busbarMaterial] : [])]), feeders: [p.feeders.filter((f) => f.feedsBoardId).map((f) => [f.feedsBoardId, f.cores, f.cableCsaMm2, f.lengthM, f.parallel, f.cableType, ...(s.riserStyle ? [f.breakerRatingA, f.breakerIcuKa, f.breakerType] : [])]), p.busRisers, p.building, s.riserStyle] }
     : sheetProject(p, set, s);
   const txt = JSON.stringify([d.boards, d.feeders, s.title, s.size, s.tags, s.notes, s.clouds, s.arrows, s.markups]);
   let h = 2166136261;

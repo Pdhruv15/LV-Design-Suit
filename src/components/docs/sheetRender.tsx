@@ -18,6 +18,8 @@ import SystemDiagram, { LegendSvg } from '../SystemDiagram';
 import { earthingDrawing } from '../../diagram/earthingDrawing';
 import RiserDiagram, { RiserLegendSvg } from '../../diagram/RiserDiagram';
 import { riserLayout } from '../../diagram/riserLayout';
+import FeederRiserDiagram, { FeederRiserLegendSvg } from '../../diagram/FeederRiserDiagram';
+import { feederRiserLayout } from '../../diagram/feederRiserLayout';
 import { boardIncomerLabel } from '../../docs/loadScheduleDoc';
 import SingleLineDiagram from '../SingleLineDiagram';
 
@@ -33,7 +35,7 @@ export async function renderSheet(project: Project, set: DrawingSet, s: DrawingS
     if (s.kind === 'earthing') return earthingDrawing(project, undefined, true, { mono: true }); // printed sheet: black and white
     if (s.kind === 'riser') {
       if (!s.buildingId) return undefined;
-      flushSync(() => root.render(<RiserDiagram project={project} buildingId={s.buildingId!} />));
+      flushSync(() => root.render(s.riserStyle === 'feeders' ? <FeederRiserDiagram project={project} buildingId={s.buildingId!} /> : <RiserDiagram project={project} buildingId={s.buildingId!} />));
       await new Promise((r) => requestAnimationFrame(() => r(null)));
       const svg = host.querySelector<SVGSVGElement>('.sysdiag svg');
       if (!svg) return undefined;
@@ -98,15 +100,15 @@ async function legendOf(drawing: Project): Promise<string> {
 }
 
 /** The riser symbols used on a building's riser sheet, as printable SVG. */
-async function riserLegendOf(project: Project, buildingId: string): Promise<string> {
-  const used = riserLayout(project, buildingId).used;
+async function riserLegendOf(project: Project, buildingId: string, feeders = false): Promise<string> {
+  const used = feeders ? feederRiserLayout(project, buildingId).used : riserLayout(project, buildingId).used;
   if (!used.size) return '';
   const host = document.createElement('div');
   host.style.cssText = 'position:fixed;left:-30000px;top:0;pointer-events:none';
   document.body.appendChild(host);
   const root = createRoot(host);
   try {
-    flushSync(() => root.render(<RiserLegendSvg used={used} />));
+    flushSync(() => root.render(feeders ? <FeederRiserLegendSvg used={used} /> : <RiserLegendSvg used={used} />));
     await new Promise((r) => requestAnimationFrame(() => r(null)));
     const svg = host.querySelector<SVGSVGElement>('svg');
     return svg ? printableSvg(svg, Number(svg.dataset.w), Number(svg.dataset.h)) : '';
@@ -133,7 +135,7 @@ export async function sheetHtml(project: Project, set: DrawingSet, s: DrawingShe
     refs = true;
     r = (await renderSheet(project, set, s, run, true)) ?? r;
   }
-  const legendSvg = s.kind === 'system' ? await legendOf(sheetProject(project, set, s)) : s.kind === 'riser' && s.buildingId ? await riserLegendOf(project, s.buildingId) : '';
+  const legendSvg = s.kind === 'system' ? await legendOf(sheetProject(project, set, s)) : s.kind === 'riser' && s.buildingId ? await riserLegendOf(project, s.buildingId, s.riserStyle === 'feeders') : '';
   const html = sheetHtmlFrom(project, set, s, r.svg, size, refs || withLegend, legendSvg, withMarkups);
   // Readable on the paper actually used (a chosen A3 can be too small too).
   return { html, size, fits: scaleOn(size, r.w, r.h, reserveOf(s)) >= MIN_MM_PER_PX, refs, svg: r.svg, legendSvg };
