@@ -1,33 +1,53 @@
 import { z } from 'zod';
-import { TOOLS, callTool, toolByName, type Tool, type ToolContext } from './tools';
+import { allTools, callTool, toolByName, type Tool, type ToolContext } from './tools';
 import { projectsFolder } from './project';
 import { startMcp } from './mcp';
 import { startApi } from './api';
 
 /** The `lvds` command: every tool from the command line, plus `lvds mcp` (MCP server) and
- * `lvds serve` (local API). Read only. Exit code: 0 done, 1 checks failed (run_checks), 2 error. */
+ * `lvds serve` (local API). Tools that change a project preview unless given --apply (structure) or
+ * --propose (value changes); the servers offer them only with --write.
+ * Exit code: 0 done, 1 checks failed (run_checks), 2 error. */
 
 const ALIASES: Record<string, string> = {
   projects: 'list_projects', summary: 'project_summary', panels: 'list_panels', panel: 'get_panel',
   check: 'run_checks', results: 'circuit_results', current: 'calc_current', vd: 'calc_voltage_drop',
-  cable: 'calc_cable_size', transformer: 'calc_transformer', fault: 'calc_fault_level', motor: 'calc_motor', pfc: 'calc_pf_correction'
+  cable: 'calc_cable_size', transformer: 'calc_transformer', fault: 'calc_fault_level', motor: 'calc_motor', pfc: 'calc_pf_correction',
+  propose: 'propose_changes', size: 'size_circuits', 'add-panel': 'add_panel', 'add-circuit': 'add_circuit', move: 'move_panel',
+  rename: 'rename_panels', copy: 'copy_panel', changes: 'list_changes', undo: 'undo_change'
 };
 
-interface Parsed { command?: string; positional: string[]; flags: Record<string, unknown>; json: boolean; folder?: string; port?: number }
+/** Flags that never take a value. */
+const SWITCHES = new Set(['json', 'apply', 'propose', 'write']);
+
+interface Parsed { command?: string; positional: string[]; flags: Record<string, unknown>; json: boolean; folder?: string; port?: number; write: boolean; commit: boolean }
+
+/** A flag value: a number, true / false, JSON for a list or object (e.g. --changes '[{"target":"feeder",…}]'), else text. */
+function flagValue(value: string): unknown {
+  const t = value.trim();
+  if (t !== '' && Number.isFinite(Number(t))) return Number(t);
+  if (t === 'true' || t === 'false') return t === 'true';
+  if (t.startsWith('[') || t.startsWith('{')) { try { return JSON.parse(t); } catch { /* text */ } }
+  return value;
+}
 
 export function parseArgs(argv: string[]): Parsed {
-  const out: Parsed = { positional: [], flags: {}, json: false };
+  const out: Parsed = { positional: [], flags: {}, json: false, write: false, commit: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '--json') { out.json = true; continue; }
     if (a.startsWith('--')) {
       const eq = a.indexOf('=');
       const key = eq > 0 ? a.slice(2, eq) : a.slice(2);
+      if (SWITCHES.has(key) && eq < 0) {
+        if (key === 'json') out.json = true;
+        else if (key === 'write') out.write = true;
+        else out.commit = true; // --apply / --propose
+        continue;
+      }
       const value = eq > 0 ? a.slice(eq + 1) : argv[i + 1] !== undefined && !argv[i + 1].startsWith('--') ? argv[++i] : 'true';
-      const v: unknown = value.trim() !== '' && Number.isFinite(Number(value)) ? Number(value) : value;
       if (key === 'folder') out.folder = String(value);
       else if (key === 'port') out.port = Number(value);
-      else out.flags[key] = v;
+      else out.flags[key] = flagValue(value);
       continue;
     }
     if (!out.command) out.command = a;
@@ -72,21 +92,29 @@ function usage(t: Tool): string {
     return optional ? `[--${k} …]` : `--${k} …`;
   });
   const alias = Object.entries(ALIASES).find(([, n]) => n === t.name)?.[0];
-  return `  lvds ${alias ?? t.name}${t.usesProject ? ' <project>' : ''}${t.name === 'get_panel' ? ' <panel>' : ''} ${flags.filter((f) => !(t.name === 'get_panel' && f.includes('--panel'))).join(' ')}`.trimEnd() + `\n      ${t.description}`;
+  const posPanel = ['get_panel', 'move_panel', 'copy_panel'].includes(t.name), posTo = ['move_panel', 'copy_panel'].includes(t.name);
+  const shown = flags.filter((f) => !(posPanel && f.includes('--panel ')) && !(posTo && f.includes('--to ')) && !f.includes('--mode '));
+  const commit = t.writes ? ('mode' in t.input && (t.input.mode as z.ZodType).safeParse('propose').success ? ' [--propose]' : ' [--apply]') : '';
+  return `  lvds ${alias ?? t.name}${t.usesProject ? ' <project>' : ''}${posPanel ? ' <panel>' : ''}${posTo ? ' <to>' : ''} ${shown.join(' ')}${commit}`.replace(/(\S) {2,}/g, '$1 ').trimEnd() + `\n      ${t.description}`;
 }
 
 function help(version: string): string {
   return [
-    `LV Design Studio command line ${version} — read and check projects (read only)`,
+    `LV Design Studio command line ${version}`,
     '',
-    'Usage:',
-    ...TOOLS.map(usage),
+    'Read and check:',
+    ...allTools().filter((t) => !t.writes && t.name !== 'list_changes').map(usage),
     '',
-    '  lvds mcp                 Run the MCP server (stdio) for Claude Desktop, Claude Code or a local model',
-    '  lvds serve [--port 8765] Run the local API on http://127.0.0.1 (read only)',
+    'Change a project (a preview unless --apply / --propose; every change is kept and can be undone):',
+    ...allTools().filter((t) => t.writes || t.name === 'list_changes').map(usage),
+    '',
+    '  lvds mcp [--write]                 Run the MCP server (stdio) for Claude Desktop, Claude Code or a local model',
+    '  lvds serve [--port 8765] [--write] Run the local API on http://127.0.0.1',
+    '  (--write also offers the tools that change a project; without it both are read only)',
     '  lvds help <command>      Inputs of one command',
     '',
     'Options: --json (JSON output), --folder <path> (projects folder; default: the app\'s, or LVDS_PROJECTS)',
+    'Lists (--changes, --renames) are given as JSON, e.g. --renames \'[{"from":"DB-1","to":"DB-L1-01"}]\'',
     'A <project> is a file name in the projects folder, or a path to a project .json file.'
   ].join('\n');
 }
@@ -101,7 +129,7 @@ function commandHelp(t: Tool): string {
 
 export async function main(argv: string[], version: string, io: { out: (s: string) => void; err: (s: string) => void } = { out: (s) => process.stdout.write(s + '\n'), err: (s) => process.stderr.write(s + '\n') }): Promise<number> {
   const a = parseArgs(argv);
-  const ctx: ToolContext = { folder: a.folder ?? projectsFolder(), anywhere: true };
+  const ctx: ToolContext = { folder: a.folder ?? projectsFolder(), anywhere: true, write: true };
   const cmd = a.command;
   if (!cmd || cmd === 'help' || cmd === '--help' || cmd === '-h') {
     const t = a.positional[0] ? toolByName(ALIASES[a.positional[0]] ?? a.positional[0]) : undefined;
@@ -109,20 +137,25 @@ export async function main(argv: string[], version: string, io: { out: (s: strin
     return 0;
   }
   if (cmd === 'version' || cmd === '--version' || cmd === '-v') { io.out(version); return 0; }
-  if (cmd === 'mcp') { await startMcp({ ...ctx, anywhere: false }, version); return -1; }
+  if (cmd === 'mcp') { await startMcp({ ...ctx, anywhere: false, write: a.write }, version); return -1; }
   if (cmd === 'serve') {
     const port = a.port ?? 8765;
-    await startApi({ ...ctx, anywhere: false }, version, port);
-    io.err(`LV Design Studio local API (read only): http://127.0.0.1:${port}/api/tools  — projects folder ${ctx.folder}. Ctrl+C to stop.`);
+    await startApi({ ...ctx, anywhere: false, write: a.write }, version, port);
+    io.err(`LV Design Studio local API (${a.write ? 'read and change' : 'read only'}): http://127.0.0.1:${port}/api/tools  — projects folder ${ctx.folder}. Ctrl+C to stop.`);
     return -1;
   }
   const t = toolByName(ALIASES[cmd] ?? cmd);
   if (!t) { io.err(`Unknown command "${cmd}". Run "lvds help".`); return 2; }
 
   const args: Record<string, unknown> = { ...a.flags };
+  if (a.commit) {
+    if (!t.writes) { io.err(`${cmd} does not change a project: --apply / --propose do not apply.`); return 2; }
+    args.mode = 'mode' in t.input && (t.input.mode as z.ZodType).safeParse('propose').success ? 'propose' : 'apply';
+  }
   const pos = [...a.positional];
   if (t.usesProject && args.project === undefined && pos.length) args.project = pos.shift();
-  if (t.name === 'get_panel' && args.panel === undefined && pos.length) args.panel = pos.shift();
+  if (['get_panel', 'move_panel', 'copy_panel'].includes(t.name) && args.panel === undefined && pos.length) args.panel = pos.shift();
+  if (['move_panel', 'copy_panel'].includes(t.name) && args.to === undefined && pos.length) args.to = pos.shift();
   if (pos.length) { io.err(`Unexpected "${pos.join(' ')}". Run "lvds help ${cmd}".`); return 2; }
   try {
     const result = callTool(t, args, ctx);

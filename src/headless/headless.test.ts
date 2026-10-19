@@ -9,7 +9,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { sampleProject } from '../data/sampleProject';
 import type { Project } from '../types';
-import { TOOLS, callTool, toolByName, type ToolContext } from './tools';
+import { TOOLS, callTool, offeredTools, toolByName, type ToolContext } from './tools';
 import { listProjects, resolveProject } from './project';
 import { main, parseArgs } from './cli';
 import { createApi } from './api';
@@ -149,7 +149,8 @@ describe('MCP server', () => {
     const client = new Client({ name: 'test', version: '1.0' });
     await Promise.all([server.connect(a), client.connect(b)]);
     const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name).sort()).toEqual(TOOLS.map((t) => t.name).sort());
+    expect(tools.map((t) => t.name).sort()).toEqual(offeredTools(ctx).map((t) => t.name).sort());
+    expect(tools.some((t) => t.name === 'add_panel')).toBe(false); // read only without --write
     expect(tools.every((t) => t.annotations?.readOnlyHint === true)).toBe(true);
     const res = await client.callTool({ name: 'run_checks', arguments: { project: 'Failing' } });
     const body = JSON.parse((res.content as { text: string }[])[0].text) as { fail: number };

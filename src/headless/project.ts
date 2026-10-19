@@ -8,12 +8,22 @@ import type { Project } from '../types';
 /** Finding and opening project files without the app (command line, MCP server, local API).
  * Read only: nothing here writes a file. */
 
-/** The desktop app's settings file (Electron userData of "LV Design Studio"), per platform. */
-function appSettingsPath(): string {
+/** The desktop app's data folder (Electron userData of "LV Design Studio"), per platform. LVDS_APP_DATA overrides it (tests). */
+export function appDataDir(): string {
+  if (process.env.LVDS_APP_DATA) return path.resolve(process.env.LVDS_APP_DATA);
   const home = os.homedir();
-  if (process.platform === 'darwin') return path.join(home, 'Library', 'Application Support', 'LV Design Studio', 'settings.json');
-  if (process.platform === 'win32') return path.join(process.env.APPDATA ?? path.join(home, 'AppData', 'Roaming'), 'LV Design Studio', 'settings.json');
-  return path.join(process.env.XDG_CONFIG_HOME ?? path.join(home, '.config'), 'LV Design Studio', 'settings.json');
+  if (process.platform === 'darwin') return path.join(home, 'Library', 'Application Support', 'LV Design Studio');
+  if (process.platform === 'win32') return path.join(process.env.APPDATA ?? path.join(home, 'AppData', 'Roaming'), 'LV Design Studio');
+  return path.join(process.env.XDG_CONFIG_HOME ?? path.join(home, '.config'), 'LV Design Studio');
+}
+const appSettingsPath = () => path.join(appDataDir(), 'settings.json');
+
+/** The app's recovery copy of unsaved work for a project (electron/projectFiles.cjs, same file name rule), if there is one:
+ * the project is open in the app with changes that are not saved yet. */
+export function unsavedCopyInApp(projectId: string | undefined): string | undefined {
+  if (!projectId) return undefined;
+  const file = path.join(appDataDir(), 'recovery', `${String(projectId).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80)}.json`);
+  return fs.existsSync(file) ? file : undefined;
 }
 
 /** The projects folder: LVDS_PROJECTS, else the one chosen in the app, else the app's default. */
@@ -59,9 +69,10 @@ export function resolveProject({ ref, folder, anywhere }: ProjectRef): string {
   return full;
 }
 
-export function openProject(r: ProjectRef): { project: Project; file: string } {
+export function openProject(r: ProjectRef): { project: Project; file: string; text: string } {
   const file = resolveProject(r);
-  return { project: parseProject(fs.readFileSync(file, 'utf-8'), path.basename(file)), file };
+  const text = fs.readFileSync(file, 'utf-8');
+  return { project: parseProject(text, path.basename(file)), file, text };
 }
 
 export interface ProjectListing { file: string; name: string; panels: number; circuits: number; status?: string; revision?: string; modified: string }

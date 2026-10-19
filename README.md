@@ -156,10 +156,11 @@ network as a self-contained OpenDSS script (load flow + fault study) that
 you can open in OpenDSS itself. The modelling assumptions are listed in the
 header of the exported file.
 
-## Command line, MCP server and local API (read only)
+## Command line, MCP server and local API
 
-`lvds` uses the app's own calculations without opening the app. It reads
-projects from the app's projects folder and **never changes a file**.
+`lvds` uses the app's own calculations without opening the app. It works on
+projects in the app's projects folder. Reading and checking never changes a
+file; changing a project is described below.
 
 ```bash
 npm run build:cli
@@ -190,6 +191,32 @@ Through MCP and the API, only files inside the projects folder can be opened.
 only: `GET /api/tools` lists the tools and their inputs, `GET
 /api/tools/run_checks?project=My%20project` or `POST` with a JSON body runs
 one.
+
+**Changing a project.** `lvds mcp --write` and `lvds serve --write` also offer
+tools that change a project (on the command line they are always there). They
+show a preview unless called with `mode` apply / propose (`--apply` /
+`--propose` on the command line):
+
+- **Value changes are only proposed.** `size_circuits` (the app's own cable and
+  breaker selection) and `propose_changes` add a modification record (MOD-00x)
+  to **Reports → Changes**. The engineer accepts it with their name and applies
+  it in the app, as one undo step. The tools never accept anything and never
+  change the values themselves.
+- **Structure changes** (`add_panel`, `add_circuit`, `move_panel`,
+  `rename_panels`, `copy_panel`) change the file after the preview. New panels
+  and circuits are sized by the app's selection.
+- Every change keeps the previous version in `.lvds-agent/` in the projects
+  folder and is logged (`list_changes`); `undo_change` puts it back.
+- Nothing is written while the project has unsaved changes open in the app, or
+  over a file that changed in the meantime. Deleting and exporting are not
+  offered.
+
+```bash
+node dist-cli/lvds.mjs size "My project"            # preview the sizing proposal
+node dist-cli/lvds.mjs size "My project" --propose  # add it to Reports → Changes
+node dist-cli/lvds.mjs add-panel "My project" --kind SMDB --id SMDB-L3 --fedFrom MDB-1 --lengthM 45 --apply
+node dist-cli/lvds.mjs undo "My project" --apply
+```
 
 ## What it does
 

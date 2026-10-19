@@ -8,9 +8,10 @@ import { STARTERS } from '../calc/motor';
 import * as quick from '../calc/quick';
 import type { Project } from '../types';
 import { listProjects, openProject } from './project';
+import { EDIT_TOOLS } from './editTools';
 
 /** The tools the command line, the MCP server and the local API offer — one list, so the three
- * always agree. Stage 1: read and check only. No tool here changes or writes a project.
+ * always agree. The tools in this file read and check only; the ones that change a project are in editTools.ts.
  *
  * Results are short and rounded (an AI client pays for every word it reads), and use the app's
  * own calculations, so they match what the app shows. */
@@ -20,6 +21,8 @@ export interface ToolContext {
   folder: string;
   /** true for the command line (any path); false for MCP and the local API (projects folder only). */
   anywhere: boolean;
+  /** Tools that change a project are offered (MCP / API started with --write; always on the command line, where they still preview by default). */
+  write?: boolean;
 }
 
 export interface Tool {
@@ -29,10 +32,12 @@ export interface Tool {
   input: z.ZodRawShape;
   /** Takes a project (the CLI accepts it as the first plain argument). */
   usesProject?: boolean;
+  /** Changes a project file (Stage 2, src/headless/editTools.ts). */
+  writes?: boolean;
   run(args: Record<string, unknown>, ctx: ToolContext): unknown;
 }
 
-const r = (x: number | undefined, d = 2): number | undefined => (x === undefined || !Number.isFinite(x) ? undefined : Math.round(x * 10 ** d) / 10 ** d);
+export const r = (x: number | undefined, d = 2): number | undefined => (x === undefined || !Number.isFinite(x) ? undefined : Math.round(x * 10 ** d) / 10 ** d);
 
 const project = z.string().describe('Project file name in the projects folder (with or without .json), as given by list_projects');
 const statusFilter = z.enum(['bad', 'warn', 'all']).default('bad').describe('bad = failures only, warn = failures and items to check, all = everything');
@@ -283,7 +288,7 @@ function circuitRow(x: CalcRun['results'][number]) {
 }
 
 /** Each circuit that fails (or needs checking) in any study, with what failed: the detail behind the to-do list. */
-function circuitIssues(run: CalcRun, status: string): { circuit: string; panel: string; status: string; issues: string[] }[] {
+export function circuitIssues(run: CalcRun, status: string): { circuit: string; panel: string; status: string; issues: string[] }[] {
   const by = new Map<string, { circuit: string; panel: string; status: string; issues: string[] }>();
   const add = (f: Project['feeders'][number], s: string, issue: string) => {
     if (!keep(s, status)) return;
@@ -301,7 +306,11 @@ function circuitIssues(run: CalcRun, status: string): { circuit: string; panel: 
   return [...by.values()].sort((a, b) => (a.status === b.status ? 0 : a.status === 'bad' ? -1 : 1));
 }
 
-export const toolByName = (name: string): Tool | undefined => TOOLS.find((t) => t.name === name || t.name.replace(/_/g, '-') === name);
+/** Every tool, read-only ones first. */
+export const allTools = (): Tool[] => [...TOOLS, ...EDIT_TOOLS];
+/** The tools a server offers: write tools only when it was started with --write. */
+export const offeredTools = (ctx: ToolContext): Tool[] => allTools().filter((t) => !t.writes || ctx.write);
+export const toolByName = (name: string, list: Tool[] = allTools()): Tool | undefined => list.find((t) => t.name === name || t.name.replace(/_/g, '-') === name);
 
 /** Checks the arguments against the tool's input (defaults filled in), then runs it. */
 export function callTool(t: Tool, args: Record<string, unknown>, ctx: ToolContext): unknown {
