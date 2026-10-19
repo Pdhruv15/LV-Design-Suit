@@ -4,6 +4,7 @@ import { subtree } from '../calc/pfc';
 import { SHEET_MM } from '../docs/sldSheet';
 import { boardsWithoutLevel } from './levels';
 import type { SheetMarkup } from './sheetMarkup';
+import { earthSheetTitles } from './earthRiser';
 import { pushLibrary } from '../database/librarySync';
 
 /** The SLD as a set of sheets. Each sheet shows the panels ticked for it
@@ -17,8 +18,9 @@ export interface DrawingSheet {
   id: string;
   number: string; // e.g. E-SLD-002
   title: string; // e.g. SLD — MDB-1
-  kind: 'system' | 'board' | 'riser' | 'earthing' | 'earthRiser'; // board = one DB's circuit diagram; riser = a building's riser diagram; earthing = earthing schematic; earthRiser = a building's earthing riser diagram
-  buildingId?: string; // riser and earth riser sheets
+  kind: 'system' | 'board' | 'riser' | 'earthing' | 'earthRiser' | 'earthFloor'; // board = one DB's circuit diagram; riser = a building's riser diagram; earthing = earthing schematic; earthRiser = a building's earthing riser diagram; earthFloor = DB earthing of one floor (or typical floors)
+  buildingId?: string; // riser, earth riser and floor earthing sheets
+  part?: number; // earth riser: sheet of the riser (0 = bottom); floor earthing: floor group (0 = lowest)
   boards: string[];
   size: 'auto' | SheetSize;
   // Title block of this sheet (blank = the project's, managed in the drawing register)
@@ -88,13 +90,13 @@ export const renumber = (set: DrawingSet, force = false): DrawingSet => {
   return {
     ...set,
     sheets: set.sheets.map((s) => {
-      const n = s.kind === 'riser' ? sheetNumber(set, rsr++, set.riserPrefix ?? RISER_PREFIX) : s.kind === 'earthing' || s.kind === 'earthRiser' ? sheetNumber(set, ert++, set.earthPrefix ?? EARTH_PREFIX) : sheetNumber(set, sld++);
+      const n = s.kind === 'riser' ? sheetNumber(set, rsr++, set.riserPrefix ?? RISER_PREFIX) : s.kind === 'earthing' || s.kind === 'earthRiser' || s.kind === 'earthFloor' ? sheetNumber(set, ert++, set.earthPrefix ?? EARTH_PREFIX) : sheetNumber(set, sld++);
       return { ...s, number: set.manualNumbers && !force && s.number ? s.number : n };
     })
   };
 };
 /** A sheet that has something to draw. */
-export const drawable = (s: DrawingSheet) => (s.kind === 'earthing' ? true : s.kind === 'riser' || s.kind === 'earthRiser' ? !!s.buildingId : s.boards.length > 0);
+export const drawable = (s: DrawingSheet) => (s.kind === 'earthing' ? true : s.kind === 'riser' || s.kind === 'earthRiser' || s.kind === 'earthFloor' ? !!s.buildingId : s.boards.length > 0);
 /** A new sheet starts PRELIMINARY unless the set has a status of its own (sheets without one follow the set). */
 const startStatus = (set: DrawingSet) => (set.status ? undefined : 'PRELIMINARY');
 /** The earthing schematic sheet (one per project). */
@@ -107,11 +109,42 @@ export function addRiserSheet(set: DrawingSet, buildingId: string, buildingName:
   const id = `sh-${Date.now().toString(36)}`;
   return { id, set: renumber({ ...set, sheets: [...set.sheets, { id, number: '', title: `Riser diagram — ${buildingName}`, kind: 'riser', buildingId, boards: [], size: 'auto', status: startStatus(set) }] }) };
 }
-/** An earthing riser diagram sheet for a building (numbered with the earthing sheets). */
-export function addEarthRiserSheet(set: DrawingSet, buildingId: string, buildingName: string): { set: DrawingSet; id: string } {
-  let id = `sh-${Date.now().toString(36)}`;
-  for (let n = 2; set.sheets.some((x) => x.id === id); n++) id = `sh-${Date.now().toString(36)}-${n}`;
-  return { id, set: renumber({ ...set, sheets: [...set.sheets, { id, number: '', title: `Earthing riser diagram — ${buildingName}`, kind: 'earthRiser', buildingId, boards: [], size: 'auto', status: startStatus(set) }] }) };
+/** A building's earthing riser diagram (every sheet of it), or its floor earthing sheets (one per floor
+ * or typical floor group), numbered with the earthing sheets. Sheets already in the set are kept; missing
+ * ones are added after them. Returns the first sheet of the kind. */
+export function addEarthRiserSheet(set: DrawingSet, project: Project, buildingId: string, kind: 'earthRiser' | 'earthFloor' = 'earthRiser'): { set: DrawingSet; id: string } {
+  const t = earthSheetTitles(project, buildingId), titles = kind === 'earthRiser' ? t.riser : t.floors;
+  const have = set.sheets.filter((x) => x.kind === kind && x.buildingId === buildingId);
+  const sheets = [...set.sheets];
+  const base = `sh-${Date.now().toString(36)}`;
+  let first = have.find((x) => (x.part ?? 0) === 0)?.id;
+  titles.forEach((title, part) => {
+    if (have.some((x) => (x.part ?? 0) === part)) return;
+    let id = `${base}-${kind === 'earthRiser' ? 'r' : 'f'}${part}`;
+    for (let n = 2; sheets.some((x) => x.id === id); n++) id = `${base}-${kind === 'earthRiser' ? 'r' : 'f'}${part}-${n}`;
+    // After the last sheet of this building and kind, in part order.
+    const after = sheets.reduce((at, x, i) => (x.kind === kind && x.buildingId === buildingId && (x.part ?? 0) < part ? i : at), -1);
+    const at = after >= 0 ? after + 1 : sheets.length;
+    sheets.splice(at, 0, { id, number: '', title, kind, buildingId, part, boards: [], size: 'auto', status: startStatus(set) });
+    first ??= id;
+  });
+  return { id: first ?? '', set: renumber({ ...set, sheets }) };
+}
+
+/** Earth riser and floor earthing sheets that no longer match the building: a sheet missing or one too many. */
+export function earthSheetGaps(p: Project, set: DrawingSet): { buildingId: string; kind: 'earthRiser' | 'earthFloor'; need: number; have: number }[] {
+  const out: ReturnType<typeof earthSheetGaps> = [];
+  for (const kind of ['earthRiser', 'earthFloor'] as const) {
+    const ids = [...new Set(set.sheets.filter((s) => s.kind === kind && s.buildingId).map((s) => s.buildingId!))];
+    for (const buildingId of ids) {
+      if (!p.building?.buildings.some((b) => b.id === buildingId)) continue;
+      const t = earthSheetTitles(p, buildingId), need = (kind === 'earthRiser' ? t.riser : t.floors).length;
+      const parts = new Set(set.sheets.filter((s) => s.kind === kind && s.buildingId === buildingId).map((s) => s.part ?? 0));
+      const have = [...parts].filter((x) => x < need).length;
+      if (have !== need || parts.size !== have) out.push({ buildingId, kind, need, have: parts.size });
+    }
+  }
+  return out;
 }
 
 const isDb = (b: Board) => (b.kind ?? (b.upstreamId ? 'DB' : 'MDB')) === 'DB';
@@ -294,7 +327,7 @@ export function moveSheet(set: DrawingSet, from: number, to: number): DrawingSet
 }
 
 export type SheetType = 'sld' | 'db' | 'riser' | 'earthing';
-export const sheetType = (s: DrawingSheet): SheetType => (s.kind === 'board' ? 'db' : s.kind === 'riser' ? 'riser' : s.kind === 'earthing' || s.kind === 'earthRiser' ? 'earthing' : 'sld');
+export const sheetType = (s: DrawingSheet): SheetType => (s.kind === 'board' ? 'db' : s.kind === 'riser' ? 'riser' : s.kind === 'earthing' || s.kind === 'earthRiser' || s.kind === 'earthFloor' ? 'earthing' : 'sld');
 export interface SheetFilter { q?: string; status?: string; rev?: string; type?: SheetType | '' }
 export type SheetSort = { key: 'order' | 'number' | 'title' | 'status' | 'rev' | 'date'; desc?: boolean };
 
@@ -332,10 +365,10 @@ export function statusColor(status?: string): string {
 export function sheetHash(p: Project, set: DrawingSet, s: DrawingSheet): string {
   const d = s.kind === 'board' ? { boards: p.boards.filter((b) => b.id === s.boards[0]), feeders: p.feeders.filter((f) => f.boardId === s.boards[0]) }
     : s.kind === 'earthing' ? { boards: p.boards.filter((b) => !b.upstreamId).map((b) => [b.id, b.sourceKva, b.rmu, b.vectorGroup]), feeders: [p.earthingPlan] }
-    : s.kind === 'earthRiser' ? { boards: p.boards.map((b) => [b.id, b.upstreamId, b.level, b.kind, b.ratedCurrentA]), feeders: [p.feeders.filter((f) => f.feedsBoardId).map((f) => [f.feedsBoardId, f.cores, f.cableCsaMm2, f.lengthM, f.cpcMm2]), p.earthingPlan, p.earthPitIds, p.building] }
+    : s.kind === 'earthRiser' || s.kind === 'earthFloor' ? { boards: p.boards.map((b) => [b.id, b.upstreamId, b.level, b.kind, b.ratedCurrentA]), feeders: [p.feeders.filter((f) => f.feedsBoardId).map((f) => [f.feedsBoardId, f.cores, f.cableCsaMm2, f.lengthM, f.cpcMm2]), p.earthingPlan, p.earthPitIds, p.building] }
     : s.kind === 'riser' ? { boards: p.boards.map((b) => [b.id, b.upstreamId, b.level, b.ratedCurrentA, b.sourceKva, b.standby]), feeders: [p.feeders.filter((f) => f.feedsBoardId).map((f) => [f.feedsBoardId, f.cores, f.cableCsaMm2, f.lengthM, f.parallel, f.cableType]), p.busRisers, p.building] }
     : sheetProject(p, set, s);
-  const txt = JSON.stringify([d.boards, d.feeders, s.title, s.size, s.tags, s.notes, s.clouds, s.arrows, s.markups]);
+  const txt = JSON.stringify([d.boards, d.feeders, s.title, s.size, s.tags, s.notes, s.clouds, s.arrows, s.markups, ...(s.part !== undefined ? [s.part] : [])]); // part only where set: older sheets keep their hash
   let h = 2166136261;
   for (let i = 0; i < txt.length; i++) { h ^= txt.charCodeAt(i); h = Math.imul(h, 16777619); }
   return (h >>> 0).toString(36);
@@ -370,6 +403,10 @@ export function sheetChecks(p: Project, set: DrawingSet, failing: { feederId: st
     const { outgoing, incoming } = sheetRefs(p, set, sh);
     for (const r of outgoing) if (!r.sheet) out.push({ level: 'warn', text: `${sh.number}: “To ${r.boardId}” has no sheet to point to — ${r.boardId} is on no sheet`, sheetId: sh.id, boardId: r.boardId });
     for (const r of incoming) if (!r.sheet) out.push({ level: 'warn', text: `${sh.number}: “From ${r.boardId}” has no sheet to point to — ${r.boardId} is on no sheet`, sheetId: sh.id, boardId: r.boardId });
+  }
+  for (const g of earthSheetGaps(p, set)) {
+    const name = p.building?.buildings.find((b) => b.id === g.buildingId)?.name ?? g.buildingId, what = g.kind === 'earthRiser' ? 'earthing riser diagram' : 'floor earthing';
+    out.push({ level: 'warn', text: `${name}: the ${what} now needs ${g.need} sheet(s), the set has ${g.have} — add it again from Drawings to add the missing ones; remove extra sheets` });
   }
   const noLevel = boardsWithoutLevel(p);
   if (noLevel.length) out.push({ level: 'warn', text: `${noLevel.length} panel(s) have no level (Building information): ${noLevel.slice(0, 6).map((b) => b.id).join(', ')}${noLevel.length > 6 ? ' …' : ''}`, boardId: noLevel[0].id });

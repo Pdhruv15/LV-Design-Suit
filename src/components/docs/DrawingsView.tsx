@@ -252,7 +252,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
                         <td><b>{s.number}</b></td>
                         <td>
                           {txt(s.title, (v) => v && setSheet(s.id, { title: v }), '', 260)}
-                          <div className="m dr-panels">{s.kind === 'earthing' ? 'Earthing schematic (from Design → Earth pits)' : s.kind === 'riser' ? `Riser diagram — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'}` : s.kind === 'earthRiser' ? `Earthing riser — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'}` : s.kind === 'board' ? `${s.boards[0]} circuit diagram` : s.boards.length ? s.boards.join(', ') : <span className="warn">no panels — Edit to tick them</span>}</div>
+                          <div className="m dr-panels">{s.kind === 'earthing' ? 'Earthing schematic (from Design → Earth pits)' : s.kind === 'riser' ? `Riser diagram — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'}` : s.kind === 'earthRiser' || s.kind === 'earthFloor' ? `${s.kind === 'earthRiser' ? 'Earthing riser' : 'Floor earthing'} — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'}${s.part ? ` · part ${s.part + 1}` : ''}` : s.kind === 'board' ? `${s.boards[0]} circuit diagram` : s.boards.length ? s.boards.join(', ') : <span className="warn">no panels — Edit to tick them</span>}</div>
                         </td>
                         <td><select className="bi-sel" value={s.size} onChange={(e) => setSheet(s.id, { size: e.target.value as DrawingSheet['size'] })}><option value="auto">Auto</option>{SIZES.map((z) => <option key={z}>{z}</option>)}</select></td>
                         <td><span className="dr-dot" style={{ background: statusColor(st) }} />{st || <span className="m">—</span>}</td>
@@ -284,8 +284,14 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
             </select>
           )}
           {(project.building?.buildings ?? []).length > 0 && (
-            <select className="chip" value="" title="Earth riser tape with a floor earth bar on every floor, each panel's earth bar to it" onChange={(e) => { const b = project.building!.buildings.find((x) => x.id === e.target.value); if (b) save(addEarthRiserSheet(set, b.id, b.name).set); }}>
+            <select className="chip" value="" title="Floor earth bar on every level and the earth cable bar to bar up the riser; every sheet of it (missing ones are added)" onChange={(e) => { const b = project.building!.buildings.find((x) => x.id === e.target.value); if (b) save(addEarthRiserSheet(set, project, b.id).set); }}>
               <option value="">Add earthing riser diagram…</option>
+              {project.building!.buildings.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          )}
+          {(project.building?.buildings ?? []).length > 0 && (
+            <select className="chip" value="" title="One sheet per floor (or typical floor group): each SMDB / DB earth bar to the floor earth bar with its CPC size" onChange={(e) => { const b = project.building!.buildings.find((x) => x.id === e.target.value); if (b) save(addEarthRiserSheet(set, project, b.id, 'earthFloor').set); }}>
+              <option value="">Add floor earthing sheets…</option>
               {project.building!.buildings.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
           )}

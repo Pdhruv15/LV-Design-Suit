@@ -88,7 +88,10 @@ export function SheetTabs({ project, active, selectedBoardId, outlinesOn, onActi
               <button key={b.id} onClick={() => { close(); const r = addRiserSheet(set, b.id, b.name); save(r.set); onActive(r.id); }}>Riser diagram — {b.name}</button>
             ))}
             {(project.building?.buildings ?? []).map((b) => (
-              <button key={`e${b.id}`} title="Earth riser tape with a floor earth bar on every floor, each panel's earth bar to it" onClick={() => { close(); const r = addEarthRiserSheet(set, b.id, b.name); save(r.set); onActive(r.id); }}>Earthing riser diagram — {b.name}</button>
+              <button key={`e${b.id}`} title="Floor earth bar on every level and the earth cable bar to bar up the riser" onClick={() => { close(); const r = addEarthRiserSheet(set, project, b.id); save(r.set); if (r.id) onActive(r.id); }}>Earthing riser diagram — {b.name}</button>
+            ))}
+            {(project.building?.buildings ?? []).map((b) => (
+              <button key={`f${b.id}`} title="One sheet per floor (or typical floor group): each SMDB / DB earth bar to the floor earth bar" onClick={() => { close(); const r = addEarthRiserSheet(set, project, b.id, 'earthFloor'); save(r.set); if (r.id) onActive(r.id); }}>Floor earthing sheets — {b.name}</button>
             ))}
             {(() => {
               // One earthing schematic per set: open it if it is already there.
@@ -304,7 +307,7 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
               </select></label>
             </div>
           </details>
-          {(s.kind === 'riser' || s.kind === 'earthRiser') && (
+          {(s.kind === 'riser' || s.kind === 'earthRiser' || s.kind === 'earthFloor') && (
             <details open><summary>Building</summary>
               <select value={s.buildingId ?? ''} onChange={(e) => patch({ buildingId: e.target.value })}>
                 {(project.building?.buildings ?? []).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}

@@ -259,7 +259,9 @@ node dist-cli/lvds.mjs report "My project" --report calc-report --format pdf --e
   unverified cable data. Project readiness stages track setup, design,
   calculation, issues, drawings and issue.
 - **Drawings and documents**: single line diagram, board sheets, earthing
-  and riser drawings, DB / cable / equipment schedules, BOQ, study reports
+  and riser drawings, an earthing riser for any number of floors (every
+  level over several sheets, or typical floors grouped on one) with a
+  floor earthing sheet per floor, DB / cable / equipment schedules, BOQ, study reports
   (PDF and Word), calculation report, Excel exports, revisions and
   transmittals.
 - **Projects**: JSON files with backup (`.bak`), recovery copies of unsaved

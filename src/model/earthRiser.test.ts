@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
 import type { Board, Feeder, Project } from '../types';
-import { DEFAULT_RISER_TAPE, earthRiserLayout } from './earthRiser';
-import { earthRiserDrawing } from '../diagram/earthRiserDrawing';
+import { DEFAULT_RISER_TAPE, earthRiserLayout, floorGroups, riserPages, riserRows } from './earthRiser';
+import { earthFloorDrawing, earthRiserDrawing, earthSheetRefs } from '../diagram/earthRiserDrawing';
 import { earthingDrawing, pitTags } from '../diagram/earthingDrawing';
-import { addEarthRiserSheet, drawable, renumber, setOf, sheetType } from './drawingSet';
+import { addEarthRiserSheet, drawable, earthSheetGaps, renumber, setOf, sheetChecks, sheetType } from './drawingSet';
 import { cpcOf } from '../calc/cableTable';
 
-/** G+3 tower: one SMDB per floor fed from MDB-1 of the sample project. */
+/** G+3 tower (or taller): one SMDB per floor fed from MDB-1 of the sample project. */
 const FLOORS = 4;
-function tower() {
+function tower(FLOORS = 4) {
   const buildingId = 'BLD-T';
   const panelIds: string[] = [];
   const boards: Board[] = [], feeders: Feeder[] = [];
@@ -40,7 +40,7 @@ describe('earthing riser', () => {
     expect(L.empty).toBe(false);
     expect(L.tape).toBe(DEFAULT_RISER_TAPE);
     expect(L.floors).toHaveLength(FLOORS);
-    expect(new Set(L.floors.map((f) => f.feb)).size).toBe(FLOORS);
+    expect(L.floors.map((f) => f.feb)).toEqual(['EB-EL-A-GF', 'EB-EL-A-L01', 'EB-EL-A-L02', 'EB-EL-A-L03']);
     const all = L.floors.flatMap((f) => f.boards);
     expect(all.map((b) => b.board.id).sort()).toEqual([...r.panelIds].sort());
     for (const b of all) {
@@ -49,9 +49,20 @@ describe('earthing riser', () => {
     }
     expect(L.mains.map((m) => m.board.id)).toEqual(['MDB-1']);
     expect(L.mains[0].pits.length).toBeGreaterThan(0);
+    expect(L.lvFloor).toBe(L.floors[0].floor.key); // main board without a level: the lowest floor
   });
 
-  it('tags the LV earth pits as the earthing schematic does', () => {
+  it('draws the riser as the reference: bars with test links, cable bar to bar, LV room cable, no panels', () => {
+    const r = tower();
+    const { svg, pages } = earthRiserDrawing(r.project, r.buildingId, { mono: true });
+    expect(pages).toBe(1);
+    for (const tag of ['EB-EL-A-GF', 'EB-EL-A-L03', 'GROUND FLOOR', 'LEVEL-03', 'CONNECTED TO LV ROOM', '1C 150 MM² G/Y PVC', '1C 95 MM² G/Y PVC']) expect(svg).toContain(tag);
+    expect((svg.match(/>TL</g) ?? []).length).toBe(2 * FLOORS + 2); // two per bar, and the legend's bar
+    expect(svg).not.toContain('SMDB-1<'); // panels are on the floor earthing sheets
+    expect(svg).not.toMatch(/#1a7f37|#5b6b82|#c0392b/i); // printed sheet is black and white
+  });
+
+  it('prints the LV earth pit tags of the earthing schematic', () => {
     const r = tower();
     const L = earthRiserLayout(r.project, r.buildingId);
     const tags = pitTags(r.project);
@@ -60,29 +71,62 @@ describe('earthing riser', () => {
       const tag = tags.get(id)!;
       expect(tag).toMatch(/^EP-MDB-1/);
       expect(schematic).toContain(`>${tag}<`);
-      expect(riser).toContain(`>${tag}<`);
-      expect(riser).toContain(`${tag} (${id})`); // schedule
+      expect(riser).toContain(tag);
     }
   });
 
-  it('earths a DB fed from a panel on the same floor to that panel', () => {
+  it('splits a 100-floor riser over sheets of 20 levels with match lines', () => {
+    const r = tower(101); // G + 100
+    const L = earthRiserLayout(r.project, r.buildingId);
+    const pages = riserPages(L);
+    expect(pages.map((p) => p.length)).toEqual([20, 20, 20, 20, 20, 1]);
+    expect(pages.flat().map((x) => x.floors[0].feb)).toEqual(L.floors.map((f) => f.feb)); // every level, once, in order
+    const first = earthRiserDrawing(r.project, r.buildingId, {}, 0).svg, mid = earthRiserDrawing(r.project, r.buildingId, {}, 2).svg, top = earthRiserDrawing(r.project, r.buildingId, {}, 5).svg;
+    expect(first).toContain('CONTINUED ON SHEET 2 OF 6');
+    expect(first).not.toContain('CONTINUED FROM');
+    expect(first).toContain('CONNECTED TO LV ROOM');
+    expect(mid).toContain('CONTINUED FROM SHEET 2 OF 6');
+    expect(mid).toContain('CONTINUED ON SHEET 4 OF 6');
+    expect(mid).not.toContain('CONNECTED TO LV ROOM');
+    expect(top).toContain('EB-EL-A-L100');
+    expect(top).not.toContain('CONTINUED ON');
+  });
+
+  it('groups typical floors on one sheet when chosen', () => {
+    const r = tower(101);
+    const p: Project = { ...r.project, earthingPlan: { riserStyle: 'typical', riserName: 'EL-B', riserTape: '1C 120 mm² G/Y PVC earth cable' } };
+    const L = earthRiserLayout(p, r.buildingId);
+    expect(riserPages(L)).toHaveLength(1);
+    const rows = riserRows(L);
+    expect(rows.map((x) => [x.label, x.floors.length])).toEqual([['GROUND FLOOR', 1], ['LEVEL-01', 1], ['TYPICAL LEVEL-02 TO LEVEL-99', 98], ['LEVEL-100', 1]]);
+    expect(rows[2].bar).toBe('EB-EL-B-L02 TO L99');
+    const svg = earthRiserDrawing(p, r.buildingId).svg;
+    expect(svg).toContain('TYPICAL LEVEL-02 TO LEVEL-99');
+    expect(svg).toContain('98 LEVELS');
+    expect(svg).toContain('1C 120 MM² G/Y PVC');
+    // Floor earthing: one sheet for the ground floor, one for the typical levels.
+    expect(floorGroups(L).map((g) => g.floors.length)).toEqual([1, 100]);
+  });
+
+  it('draws the floor earthing sheet: each panel to the floor earth bar, a same-floor DB to its parent', () => {
     const r = tower();
     const smdb = r.project.boards.find((b) => b.id === r.panelIds[3])!;
     const p: Project = {
       ...r.project,
       boards: [...r.project.boards, { id: 'DB-L03-A', name: 'Flat DB', kind: 'DB', upstreamId: smdb.id, level: smdb.level }],
-      feeders: [...r.project.feeders, { id: 'F-DB-L03-A', boardId: smdb.id, feedsBoardId: 'DB-L03-A', name: 'To DB-L03-A', loadKw: 0, demandFactor: 1, powerFactor: 0.9, lengthM: 10, cableCsaMm2: 10, cores: 4, breakerRatingA: 63, breakerIcuKa: 10 }],
-      earthingPlan: { riserTape: '50×6 mm Cu tape' }
+      feeders: [...r.project.feeders, { id: 'F-DB-L03-A', boardId: smdb.id, feedsBoardId: 'DB-L03-A', name: 'To DB-L03-A', loadKw: 0, demandFactor: 1, powerFactor: 0.9, lengthM: 10, cableCsaMm2: 10, cores: 4, breakerRatingA: 63, breakerIcuKa: 10 }]
     };
     const L = earthRiserLayout(p, r.buildingId);
-    const floor = L.floors.find((f) => f.boards.some((b) => b.board.id === 'DB-L03-A'))!;
-    expect(floor.boards.map((b) => b.board.id)).toEqual([smdb.id, 'DB-L03-A']);
-    expect(floor.boards[1]).toMatchObject({ toBoard: smdb.id, cpcMm2: 10 });
-    expect(L.tape).toBe('50×6 mm Cu tape');
-    const { svg } = earthRiserDrawing(p, r.buildingId, { mono: true });
-    expect(svg).toContain('PE 10 mm² → ' + smdb.id);
-    expect(svg).toContain('EARTH RISER 50×6 MM CU TAPE');
-    expect(svg).not.toMatch(/#1a7f37|#b86b2b/i); // printed sheet is black and white
+    const groups = floorGroups(L);
+    expect(groups).toHaveLength(FLOORS);
+    const k = groups.findIndex((g) => g.floors[0].boards.some((b) => b.board.id === 'DB-L03-A'));
+    expect(groups[k].floors[0].boards.map((b) => b.board.id)).toEqual([smdb.id, 'DB-L03-A']);
+    expect(groups[k].floors[0].boards[1]).toMatchObject({ toBoard: smdb.id, cpcMm2: 10 });
+    const { svg } = earthFloorDrawing(p, r.buildingId, { mono: true }, k);
+    expect(svg).toContain('EB-EL-A-L03');
+    expect(svg).toContain('1C 10 mm² G/Y');
+    expect(svg).toContain(`${smdb.id} earth bar`);
+    expect(svg).not.toMatch(/#1a7f37|#5b6b82|#c0392b/i);
   });
 
   it('lists a sub-board without a level instead of drawing it', () => {
@@ -92,14 +136,26 @@ describe('earthing riser', () => {
     expect(earthRiserDrawing(p, r.buildingId).svg).toContain('NOT SHOWN — NO LEVEL IN THIS BUILDING: DB-X');
   });
 
-  it('is a drawing sheet numbered with the earthing sheets', () => {
-    const r = tower();
+  it('adds every riser sheet and floor sheet, numbered with the earthing sheets, and flags a riser that outgrew its sheets', () => {
+    const r = tower(41); // G + 40: 3 riser sheets
     const set = renumber({ ...setOf(r.project), earthPrefix: 'E-ERT-' });
-    const { set: next, id } = addEarthRiserSheet(set, r.buildingId, 'Tower');
-    const s = next.sheets.find((x) => x.id === id)!;
-    expect(s).toMatchObject({ kind: 'earthRiser', buildingId: r.buildingId });
-    expect(s.number.startsWith('E-ERT-')).toBe(true);
-    expect(drawable(s)).toBe(true);
-    expect(sheetType(s)).toBe('earthing');
+    const a = addEarthRiserSheet(set, r.project, r.buildingId);
+    const riser = a.set.sheets.filter((x) => x.kind === 'earthRiser');
+    expect(riser.map((x) => x.part)).toEqual([0, 1, 2]);
+    expect(riser[0].id).toBe(a.id);
+    expect(riser[2].title).toBe('Earthing riser diagram — Tower (3 of 3)');
+    for (const s of riser) { expect(s.number.startsWith('E-ERT-')).toBe(true); expect(drawable(s)).toBe(true); expect(sheetType(s)).toBe('earthing'); }
+    expect(addEarthRiserSheet(a.set, r.project, r.buildingId).set.sheets).toHaveLength(a.set.sheets.length); // nothing missing
+    const f = addEarthRiserSheet(a.set, r.project, r.buildingId, 'earthFloor');
+    expect(f.set.sheets.filter((x) => x.kind === 'earthFloor')).toHaveLength(41);
+    expect(earthSheetGaps(r.project, f.set)).toEqual([]);
+    // Match lines and floor sheet references use the set's numbers.
+    const refs = earthSheetRefs(r.project, f.set, r.buildingId);
+    expect(earthRiserDrawing(r.project, r.buildingId, refs, 0).svg).toContain(`CONTINUED ON ${riser[1].number}`);
+    // Ten more floors: the riser needs a fourth sheet.
+    const taller = tower(61);
+    expect(earthSheetGaps(taller.project, f.set)).toContainEqual({ buildingId: r.buildingId, kind: 'earthRiser', need: 4, have: 3 });
+    expect(sheetChecks(taller.project, f.set).some((c) => c.text.includes('earthing riser diagram now needs 4 sheet(s)'))).toBe(true);
+    expect(addEarthRiserSheet(f.set, taller.project, r.buildingId).set.sheets.filter((x) => x.kind === 'earthRiser').map((x) => x.part)).toEqual([0, 1, 2, 3]);
   });
 });

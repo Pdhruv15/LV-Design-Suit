@@ -738,8 +738,14 @@ export interface EarthingPlan {
   conductorMm2?: number; // pit link / earth conductor (mm² Cu), default 70
   /** Metal parts bonded to each main earth bar (shown on the schematic); default room earth bar, containment, pipework, ductwork. */
   bonding?: string[];
-  /** Earth riser conductor up each building's riser shaft (earth riser sheet); default 25×3 mm Cu tape. */
+  /** Earth riser conductor up each building's riser shaft, bar to bar (earth riser sheet); default 1C 95 mm² G/Y PVC earth cable. */
   riserTape?: string;
+  /** LV room earth bar to the riser's floor earth bar; default 1C 150 mm² G/Y PVC earth cable. */
+  lvRoomCable?: string;
+  /** Riser name in the floor earth bar tags (EB-EL-A-L03); default EL-A. */
+  riserName?: string;
+  /** Tall buildings: 'sheets' = every level drawn, split over sheets (default); 'typical' = one sheet, typical floors grouped. */
+  riserStyle?: 'sheets' | 'typical';
 }
 
 export interface BusTie {
