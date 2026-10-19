@@ -268,6 +268,7 @@ export interface Board {
   ipRating?: string;
   location?: string; // room / place, e.g. "Elec. room 3.01" (the level is `level`)
   level?: import('./model/levels').LevelRef; // the floor, from Building information
+  earthRiser?: string; // earth riser (EarthRiserDef id) its floor earth bar is on; default the first riser serving its level
   manufacturer?: string;
   model?: string;
   /** Standby generator feeding this board through an ATS: everything on
@@ -723,6 +724,9 @@ export interface TrayPlan {
 /** Normally-open bus coupler (tie breaker) between two main boards: closed
  * when one of their transformers is out, so the other carries both. */
 /** Earthing schematic settings. The layout itself is worked out from the transformers, RMUs and main boards. */
+/** One earth riser of a building: floor earth bars from level `from` to level `to` (floor keys; absent = lowest / top). */
+export interface EarthRiserDef { id: string; buildingId: string; name: string; from?: string; to?: string }
+
 export interface EarthingPlan {
   /** Earthing system the schematic is drawn to (EARTHING_SYSTEMS); 'shared-hv-body' when absent. */
   system?: string;
@@ -738,6 +742,17 @@ export interface EarthingPlan {
   conductorMm2?: number; // pit link / earth conductor (mm² Cu), default 70
   /** Metal parts bonded to each main earth bar (shown on the schematic); default room earth bar, containment, pipework, ductwork. */
   bonding?: string[];
+  /** Earth riser conductor up each building's riser shaft, bar to bar (earth riser sheet); default 1C 95 mm² G/Y PVC earth cable. */
+  riserTape?: string;
+  /** LV room earth bar to the riser's floor earth bar; default 1C 150 mm² G/Y PVC earth cable. */
+  lvRoomCable?: string;
+  /** Riser name in the floor earth bar tags (EB-EL-A-L03); default EL-A. */
+  riserName?: string;
+  /** Tall buildings: 'sheets' = every level drawn, split over sheets (default); 'typical' = one sheet, typical floors grouped. */
+  riserStyle?: 'sheets' | 'typical';
+  /** Earth risers per building, bottom to top of the levels each serves; a building without any has one
+   * riser (riserName, default EL-A) on every level. */
+  risers?: EarthRiserDef[];
 }
 
 export interface BusTie {
