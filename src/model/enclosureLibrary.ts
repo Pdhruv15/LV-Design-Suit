@@ -2,6 +2,7 @@ import type { Project } from '../types';
 import { BUILTIN_CATALOGUES, type EnclosureCatalogue } from '../calc/enclosure';
 import { breakerTypeOf } from '../calc/earthing';
 import { elcbGroups, scheduleCircuits } from '../calc/loadSchedule';
+import { spareBreaker, spareWaysOf } from './spareWays';
 import { BRAND_DEVICES } from '../data/brandDevices';
 import { pushLibrary } from '../database/librarySync';
 
@@ -138,6 +139,11 @@ export function neededDevices(project: Project, boardId: string, devices: Device
     const own = !!f.rcdMa && !inGroup.has(f.id);
     const t = breakerTypeOf(f);
     list.push({ kind: own ? 'RCBO' : t === 'MCCB' || t === 'ACB' ? 'MCCB' : 'MCB', poles: f.cores === 2 ? 1 : 3, ratingA: f.breakerRatingA, what: own ? 'Circuit with RCBO' : 'Circuit breaker' });
+  }
+  // Spares are breakers like the circuits; a space keeps room for the breaker it is meant for.
+  for (const s of spareWaysOf(board)) {
+    const t = breakerTypeOf(spareBreaker(board, s));
+    list.push({ kind: s.device === 'ISOL' ? 'Isolator' : t === 'MCCB' || t === 'ACB' || s.device ? 'MCCB' : 'MCB', poles: s.phase === 'RYB' ? 3 : 1, ratingA: s.ratingA, what: s.kind === 'spare' ? 'Spare breaker' : `Space (room for a ${s.ratingA} A breaker)` });
   }
   // An ELCB group covers ways across R, Y and B, so on a three-phase board its RCCB is 4-pole.
   const threePhase = (inc ? inc.cores >= 3 : false) || circuits.some((c) => c.cores !== 2 || c.phase === 'RYB') || new Set(circuits.map((c) => c.phase)).size > 1;

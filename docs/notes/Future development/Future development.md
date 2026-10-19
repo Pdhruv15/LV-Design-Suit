@@ -10,6 +10,7 @@ Ideas and features agreed for later. One note per idea; link it here.
 ## Planned
 - [[Project management plan]] — project identity, creation wizard, safe saving and conflict detection, search/archive, setup templates, per-project recovery and backups (plan drafted 2026-10-05, awaiting decisions D1–D7)
 - [[AI agent proposal]] — agent / local LLM tools to build a full design (G+10 ≈ $4–10 with Claude)
+- [[Standard load details for regular use]] — a ready set of regular loads with references and watts (sockets SS1 200 W, TS1 400 W so far), picked into circuits and WATT / UNIT (noted 2026-10-16)
 - Enclosure charts for SMDB, MDB, LV MDB, MCC — waiting for supplier data (DB chart done)
 - Transformers: one LV panel fed by two transformers with a coupler (to confirm)
 - Earthing on the riser diagram (LV pits at the base, main earth conductor up the floors)

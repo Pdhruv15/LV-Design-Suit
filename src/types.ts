@@ -27,15 +27,18 @@ export const BREAKER_TYPES: { value: BreakerType; label: string }[] = [
   { value: 'ACB', label: 'ACB (adjustable Im)' }
 ];
 
-export type BoardKind = 'MC' | 'MDB' | 'SMDB' | 'DB' | 'MCC' | 'EMDB' | 'UPS';
+export type BoardKind = 'MC' | 'MDB' | 'LV-MDB' | 'SMDB' | 'DB' | 'EDB' | 'MCC' | 'EMCC' | 'EMDB' | 'UPS';
 
 export const BOARD_KINDS: { value: BoardKind; label: string }[] = [
   { value: 'MC', label: 'Meter cabinet (authority supply)' },
   { value: 'MDB', label: 'Main distribution board' },
+  { value: 'LV-MDB', label: 'LV main distribution board' },
   { value: 'SMDB', label: 'Sub-main distribution board' },
   { value: 'DB', label: 'Distribution board' },
-  { value: 'MCC', label: 'Motor control centre' },
-  { value: 'EMDB', label: 'Emergency distribution board' },
+  { value: 'EDB', label: 'Emergency distribution board' },
+  { value: 'MCC', label: 'Motor control centre (package panel)' },
+  { value: 'EMCC', label: 'Emergency motor control centre (package panel)' },
+  { value: 'EMDB', label: 'Emergency main distribution board' },
   { value: 'UPS', label: 'UPS output board' }
 ];
 
@@ -156,7 +159,7 @@ export const INCOMER_DEVICES: { value: IncomerDevice; label: string }[] = [
  * non-automatic breaker for larger boards (UAE practice); boards fed straight from the authority supply
  * show that supply's device instead. */
 export const incomerDeviceOf = (b: Board): Exclude<IncomerDevice, 'NONE'> | undefined => {
-  const d = b.incomerDevice ?? (b.supply ? 'NONE' : b.kind === 'DB' || !b.kind ? 'ISOL' : 'MCCB-NA');
+  const d = b.incomerDevice ?? (b.supply ? 'NONE' : b.kind === 'DB' || b.kind === 'EDB' || !b.kind ? 'ISOL' : 'MCCB-NA');
   return d === 'NONE' ? undefined : d;
 };
 
@@ -236,6 +239,20 @@ export interface Feeder {
   // board's total demand instead
 }
 
+/** A spare or a space on a board. On a DB / EDB it takes a slot of the load schedule (phase + way);
+ * on an MDB / SMDB / MCC it is listed after the outgoing feeders (phase RYB = TP, R/Y/B = SP). */
+export interface SpareWay {
+  id: string; // unique within the board, e.g. "sp1"
+  kind: 'spare' | 'space';
+  phase: Phase;
+  way?: number; // DB load schedule way; unset on feeder panels
+  /** Spare: the breaker fitted. Space: the breaker the way is kept for (enclosure sizing only, not printed). */
+  ratingA: number;
+  device?: SwitchDevice; // feeder panels: ACB / MCCB / ISOL (default from the rating)
+  icuKa?: number; // spare breaker's breaking capacity
+  remarks?: string;
+}
+
 export interface Board {
   id: string;
   name: string;
@@ -303,6 +320,9 @@ export interface Board {
   pointWatts?: Partial<Record<PointType, number>>; // WATT/UNIT row overrides for this DB
   pointItems?: Partial<Record<PointType, string>>; // library item chosen per column (kept in sync with Loads.xlsx)
   spareNames?: { spare1?: string; spare2?: string }; // headings of the two spare columns
+  /** Spare ways (breaker fitted, nothing connected) and spaces (empty way for a future breaker).
+   * Not feeders: no load, cable or study; shown on the schedules, SLD, BOQ and enclosure counts. */
+  spareWays?: SpareWay[];
   elcbGroupSize?: 0 | 3 | 6; // circuits per ELCB: 3 = one per way, 6 = one per two ways, 0 = none
   elcbRatingA?: number; // override; default from the group's load
   elcbSensitivityMa?: number; // override; default by circuit type (lighting 100 mA, power 30 mA)
@@ -394,6 +414,8 @@ export interface Project {
   /** Your own equipment, with parameters and formulas (palette → My components). */
   components?: import('./model/components').UserComponent[];
   building?: BuildingInfo; // architectural information: buildings, levels, rooms, room types
+  /** Early-stage load assessment from the building type and services (Building → Load assessment). */
+  loadAssessment?: import('./calc/loadAssessment').LoadAssessment;
   boq?: import('./model/priceList').BoqCustom; // manual BOQ lines, your sections, quantity changes, wastage
   priceList?: import('./model/priceList').PriceList;
   pfcCalc?: import('./calc/pfcCalc').PfcCalcInput;

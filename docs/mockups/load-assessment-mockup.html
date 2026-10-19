@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Load Assessment Mockup</title>
+<style>
+:root{--bg:#f6f7f9;--panel:#fff;--line:#d6dbe3;--text:#1b2230;--muted:#5d6878;--acc:#2f5fa8;--acc-soft:#e6eef9;--warn:#9a5b00;--warn-soft:#fff3df;--ok:#2e6b3a;--bar:#2f5fa8;--edit:#fffbe8}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d1420;--panel:#141d2c;--line:#2f4570;--text:#e3e9f3;--muted:#93a1b8;--acc:#7fa8e6;--acc-soft:#1c2a42;--warn:#f0b35a;--warn-soft:#3a2c14;--ok:#7cc48a;--bar:#7fa8e6;--edit:#1f2433}}
+:root[data-theme="dark"]{--bg:#0d1420;--panel:#141d2c;--line:#2f4570;--text:#e3e9f3;--muted:#93a1b8;--acc:#7fa8e6;--acc-soft:#1c2a42;--warn:#f0b35a;--warn-soft:#3a2c14;--ok:#7cc48a;--bar:#7fa8e6;--edit:#1f2433}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:13px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{padding:14px 16px;border-bottom:1px solid var(--line);background:var(--panel);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+header h1{font-size:15px;margin:0}
+.crumb{color:var(--muted);font-size:12px}
+.steps{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap}
+.steps span{padding:3px 10px;border:1px solid var(--line);border-radius:999px;font-size:12px;color:var(--muted)}
+.steps span b{color:var(--acc)}
+main{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:14px;padding:14px 16px;max-width:1400px;margin:0 auto}
+@media (max-width:900px){main{grid-template-columns:1fr}}
+section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:14px}
+h2{font-size:13px;margin:0 0 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+h2 .n{width:20px;height:20px;border-radius:50%;background:var(--acc);color:var(--panel);display:inline-grid;place-items:center;font-size:11px}
+h2 small{font-weight:400;color:var(--muted);margin-left:auto}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+label.f{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--muted);min-width:100px;flex:1}
+input,select{font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:6px;height:28px;padding:0 7px;width:100%}
+input[type=checkbox]{width:auto;height:auto}
+.types{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;margin-bottom:10px}
+.types button{font:inherit;font-size:12px;padding:8px 6px;border:1px solid var(--line);background:var(--bg);color:var(--text);border-radius:8px;cursor:pointer;text-align:left}
+.types button.on{border-color:var(--acc);background:var(--acc-soft);font-weight:600}
+.types button.add{border-style:dashed;color:var(--acc)}
+.types button i{font-style:normal;font-size:10px;color:var(--muted);display:block}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:12px}
+th,td{padding:4px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--muted);font-weight:500;font-size:11px}
+td input{height:24px;width:64px;text-align:right}
+td input.name{width:170px;text-align:left}
+tfoot td{font-weight:600;border-bottom:none}
+.x{font:inherit;border:none;background:none;color:var(--muted);cursor:pointer;padding:0 4px}
+.svc{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px}
+.card{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--bg)}
+.card .t{font-weight:600;font-size:12px;margin-bottom:4px;display:flex;justify-content:space-between;gap:6px}
+.card .t em{font-style:normal;color:var(--muted);font-weight:400}
+.card select,.card input{height:26px}
+.fac{display:none;margin-top:6px;padding:6px;border-radius:6px;background:var(--edit);border:1px dashed var(--line);font-size:11px;color:var(--muted);gap:6px;align-items:center;flex-wrap:wrap}
+.fac input{width:70px;height:24px;text-align:right}
+body.editing .fac{display:flex}
+.hint{color:var(--muted);font-size:11px}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.kpi{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--bg)}
+.kpi .v{font-size:19px;font-weight:650}
+.kpi .l{font-size:11px;color:var(--muted)}
+.bar{height:8px;background:var(--acc-soft);border-radius:4px;overflow:hidden;min-width:60px}
+.bar i{display:block;height:100%;background:var(--bar)}
+.flag{border-radius:8px;padding:8px 10px;font-size:12px;margin-top:8px}
+.flag.warn{background:var(--warn-soft);color:var(--warn)}
+.flag.ok{background:var(--acc-soft);color:var(--ok)}
+.note{font-size:11px;color:var(--muted);border-top:1px dashed var(--line);padding-top:8px;margin-top:10px}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
+button.b{font:inherit;font-size:12px;padding:5px 11px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--text);cursor:pointer}
+button.b.p{background:var(--acc);color:var(--panel);border-color:var(--acc)}
+.tog{font-size:11px;color:var(--acc);display:flex;gap:4px;align-items:center;font-weight:400;cursor:pointer}
+.box{border:1px dashed var(--line);background:var(--edit);border-radius:8px;padding:8px 10px;margin-bottom:10px}
+.box .hd{font-size:11px;color:var(--muted);margin-bottom:6px;display:flex;justify-content:space-between}
+details summary{cursor:pointer;font-size:12px;color:var(--acc);margin:8px 0}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Load Assessment</h1><div class="crumb">Building → Load assessment · MOCKUP — all figures are placeholders</div></div>
+  <div class="steps"><span><b>1</b> Building type</span><span><b>2</b> Area schedule</span><span><b>3</b> Service requirements</span><span><b>4</b> Demand &amp; supply</span></div>
+</header>
+<main>
+<div>
+  <section>
+    <h2><span class="n">1</span>Building type <small>sets the space mix, services and diversity defaults</small></h2>
+    <div class="types" id="types"></div>
+    <div class="box">
+      <div class="hd"><span>Type settings — <b id="tName"></b></span><span id="tTag"></span></div>
+      <div class="row" style="margin:0">
+        <label class="f">Type name<input id="tLabel"></label>
+        <label class="f">Typical VA/m² — low<input id="tLo" type="number"></label>
+        <label class="f">Typical VA/m² — high<input id="tHi" type="number"></label>
+        <label class="f">On generator (% of HVAC &amp; special)<input id="tEss" type="number"></label>
+      </div>
+      <div class="btns">
+        <button class="b" id="tSave">Save as my type</button>
+        <button class="b" id="tReset">Reset to library</button>
+        <span class="hint">Saved types go to your BuildingTypes.xlsx with their space mix, services and diversities.</span>
+      </div>
+    </div>
+    <div class="row" style="margin-bottom:0">
+      <label class="f">GFA above ground (m²)<input id="gfa" type="number" value="24000"></label>
+      <label class="f">Floors above ground<input id="floors" type="number" value="20"></label>
+      <label class="f">Basement car park (m²)<input id="park" type="number" value="8000"></label>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">2</span>Area schedule <small>% of above-ground GFA — every cell editable</small></h2>
+    <div class="row" style="margin-bottom:6px">
+      <label class="f" style="max-width:220px">Enter areas as
+        <select id="areaMode"><option value="pct">% of GFA</option><option value="m2">m² per space</option></select></label>
+    </div>
+    <div class="scroll"><table id="areas">
+      <thead><tr><th>Space type</th><th id="hArea">% GFA</th><th>Area m²</th><th>Ltg W/m²</th><th>Power W/m²</th><th>Cooling W/m² (th)</th><th title="Counts for water heating and cooking">Dwelling</th><th></th></tr></thead>
+      <tbody></tbody><tfoot></tfoot>
+    </table></div>
+    <div class="btns">
+      <select id="addSpace" style="width:auto"><option value="">+ Add space from library…</option></select>
+      <button class="b" id="addCustomSpace">+ Custom space</button>
+      <span class="hint">Later: pull the areas straight from Building → Levels / Rooms.</span>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">3</span>Service requirements
+      <label class="tog"><input type="checkbox" id="editFac"> Edit factors</label>
+      <small>each choice changes the load</small></h2>
+    <div class="svc" id="svc"></div>
+  </section>
+
+  <section>
+    <h2><span class="n">+</span>Custom loads <small>anything not covered above — added to MD</small></h2>
+    <div class="scroll"><table id="cust">
+      <thead><tr><th>Description</th><th>Qty</th><th>kW each</th><th>Diversity</th><th>On generator</th><th>Connected kW</th><th></th></tr></thead>
+      <tbody></tbody><tfoot></tfoot>
+    </table></div>
+    <div class="btns">
+      <button class="b p" id="addCust">+ Add load</button>
+      <select id="pickCust" style="width:auto"><option value="">+ From load library…</option></select>
+    </div>
+    <div class="hint" style="margin-top:6px">The library list would come from your Loads.xlsx (references SS1, TS1, WH1…).</div>
+  </section>
+</div>
+
+<div>
+  <section>
+    <h2><span class="n">4</span>Maximum demand &amp; supply</h2>
+    <div class="kpis">
+      <div class="kpi"><div class="v" id="kConn">–</div><div class="l">Connected load kW</div></div>
+      <div class="kpi"><div class="v" id="kMd">–</div><div class="l">Maximum demand kVA</div></div>
+      <div class="kpi"><div class="v" id="kDen">–</div><div class="l">VA/m² of GFA</div></div>
+      <div class="kpi"><div class="v" id="kTx">–</div><div class="l" id="kTxL">Transformers</div></div>
+      <div class="kpi"><div class="v" id="kGen">–</div><div class="l">Standby generator kVA</div></div>
+      <div class="kpi"><div class="v" id="kLv">–</div><div class="l">Main LV incomer A (per transformer)</div></div>
+    </div>
+    <div class="scroll"><table id="cat">
+      <thead><tr><th>Category</th><th>Connected kW</th><th>Diversity ✎</th><th>Demand kW</th><th style="width:28%"></th></tr></thead>
+      <tbody></tbody><tfoot></tfoot>
+    </table></div>
+    <div id="flag"></div>
+
+    <details open>
+      <summary>Supply settings</summary>
+      <div class="box" style="margin:0">
+        <div class="row">
+          <label class="f">Coincidence between categories<input id="sCoin" type="number" step="0.05" value="0.9"></label>
+          <label class="f">Power factor<input id="sPf" type="number" step="0.01" value="0.9"></label>
+          <label class="f">LV voltage (V)<input id="sV" type="number" value="400"></label>
+        </div>
+        <div class="row">
+          <label class="f">Max transformer loading %<input id="sLoad" type="number" value="80"></label>
+          <label class="f">Largest transformer kVA
+            <select id="sMax"><option>1000</option><option>1250</option><option selected>1500</option><option>2000</option><option>2500</option></select></label>
+          <label class="f">Redundancy
+            <select id="sRed"><option value="n">N</option><option value="n1">N+1</option></select></label>
+        </div>
+        <div class="row" style="margin:0">
+          <label class="f">Generator margin<input id="sGen" type="number" step="0.05" value="1.25"></label>
+          <label class="f">Future spare %<input id="sSpare" type="number" value="10"></label>
+          <label class="f">Transformer sizes (kVA)<input id="sSizes" value="500, 630, 800, 1000, 1250, 1500, 2000, 2500"></label>
+        </div>
+      </div>
+    </details>
+
+    <div class="btns">
+      <button class="b p">Create MDB + feeders from this</button>
+      <button class="b">Add to Design Basis report</button>
+      <button class="b">Compare with load schedule</button>
+    </div>
+    <div class="note">How it works: area × W/m² per space type gives lighting, small power and cooling. Cooling is converted to electrical kW by the chosen cooling system (kW per kW-thermal). Services add their own kW. Each category gets its own diversity (edit in the table); fire pumps and life-safety fans are on the generator only and stay out of normal MD. The sum is multiplied by the coincidence factor and future spare, then checked against the type's VA/m² band.</div>
+  </section>
+</div>
+</main>
+
+<script>
+// PLACEHOLDER library — user figures replace these (RoomTypes.xlsx / BuildingTypes.xlsx / Loads.xlsx)
+const SPACE={
+ apt:{l:'Apartment',ltg:8,pwr:35,clg:110,dw:true},
+ villa:{l:'Villa',ltg:8,pwr:35,clg:110,dw:true},
+ office:{l:'Office',ltg:9,pwr:25,clg:130},
+ retail:{l:'Retail / shop',ltg:15,pwr:20,clg:160},
+ fnb:{l:'F&B / restaurant',ltg:12,pwr:60,clg:200},
+ hotel:{l:'Hotel room',ltg:8,pwr:20,clg:110,dw:true},
+ lobby:{l:'Lobby / corridor',ltg:6,pwr:5,clg:80},
+ gym:{l:'Gym / amenity',ltg:10,pwr:20,clg:150},
+ plant:{l:'Plant / electrical',ltg:5,pwr:10,clg:0},
+ ward:{l:'Ward / patient room',ltg:9,pwr:30,clg:140,dw:true},
+ theatre:{l:'Operating / ICU',ltg:20,pwr:120,clg:250},
+ class:{l:'Classroom',ltg:9,pwr:10,clg:120},
+ store:{l:'Warehouse / store',ltg:5,pwr:5,clg:0},
+ bo:{l:'Back of house',ltg:7,pwr:25,clg:90}
+};
+const DIV0={ltg:.9,pwr:.5,hvac:.85,dhw:.35,cook:.3,lift:.6,pump:.7,ev:.6,spec:.7};
+const LIBTYPES={
+ res:{l:'Residential tower',mix:{apt:78,lobby:10,gym:3,retail:4,plant:5},den:[50,90],ess:15,
+   svc:{cool:'vrf',dhw:'elec',cook:'elec',lifts:'auto',fire:true,ev:10,pool:true,kitchen:false,laundry:false,it:0,med:false,facade:true}},
+ villa:{l:'Villa compound',mix:{villa:92,lobby:2,gym:3,plant:3},den:[60,110],ess:5,
+   svc:{cool:'split',dhw:'elec',cook:'elec',lifts:'none',fire:false,ev:20,pool:true,kitchen:false,laundry:false,it:0,med:false,facade:false}},
+ office:{l:'Office',mix:{office:75,lobby:12,retail:5,plant:8},den:[70,120],ess:20,div:{pwr:.6},
+   svc:{cool:'chw',dhw:'local',cook:'none',lifts:'auto',fire:true,ev:10,pool:false,kitchen:false,laundry:false,it:20,med:false,facade:true}},
+ mall:{l:'Retail mall',mix:{retail:62,fnb:12,lobby:18,bo:3,plant:5},den:[110,180],ess:15,div:{ltg:1,pwr:.7},
+   svc:{cool:'chw',dhw:'local',cook:'elec',lifts:'auto',fire:true,ev:5,pool:false,kitchen:true,laundry:false,it:0,med:false,facade:true}},
+ hotel:{l:'Hotel',mix:{hotel:58,lobby:14,fnb:8,gym:4,bo:10,plant:6},den:[80,130],ess:30,
+   svc:{cool:'chw',dhw:'central',cook:'elec',lifts:'auto',fire:true,ev:5,pool:true,kitchen:true,laundry:true,it:10,med:false,facade:true}},
+ hosp:{l:'Hospital',mix:{ward:45,theatre:10,office:12,lobby:18,bo:8,plant:7},den:[120,200],ess:60,div:{pwr:.7,hvac:.9},
+   svc:{cool:'chw',dhw:'central',cook:'elec',lifts:'auto',fire:true,ev:5,pool:false,kitchen:true,laundry:true,it:30,med:true,facade:false}},
+ school:{l:'School',mix:{class:60,office:10,lobby:18,gym:7,plant:5},den:[40,80],ess:10,
+   svc:{cool:'vrf',dhw:'local',cook:'elec',lifts:'auto',fire:true,ev:0,pool:false,kitchen:true,laundry:false,it:10,med:false,facade:false}},
+ wh:{l:'Warehouse',mix:{store:85,office:10,plant:5},den:[15,40],ess:10,
+   svc:{cool:'none',dhw:'local',cook:'none',lifts:'none',fire:true,ev:10,pool:false,kitchen:false,laundry:false,it:0,med:false,facade:false}}
+};
+const TYPES=JSON.parse(JSON.stringify(LIBTYPES));
+// service factors (placeholder) — editable with "Edit factors"
+const FAC={cool:{none:0,split:.33,vrf:.30,chw:.36,wcc:.25,dc:.08},dhw:{none:0,local:4,elec:15,central:12,solar:5},cook:18,
+  liftLow:15,liftHigh:22,liftPerFloors:4,ev:7.4,bay:25,pool:15,kitchen:12,laundry:6,med:20,facade:2,fire:55,jockey:3,stair:7.5};
+const COOL={none:'No mechanical cooling',split:'Split units',vrf:'VRF / VRV',chw:'Chilled water — air-cooled chiller',wcc:'Chilled water — water-cooled chiller',dc:'District cooling (FCU/AHU + pumps only)'};
+const DHW={none:'None',local:'Local point heaters',elec:'Electric heater per unit',central:'Central plant (electric)',solar:'Solar + electric backup'};
+const COOK={none:'None / gas',elec:'Electric cooking'};
+const LIFTS={none:'None',auto:'Auto from floors',custom:'Set count'};
+const LIB=[['Cold room',2,7.5,.8,false],['Water feature pump',1,3,.7,false],['Sewage lift pump',2,4,.5,true],['Signage',1,5,1,false],['Data centre CRAC unit',2,15,.9,true],['Cinema projection',1,20,.8,false]];
+
+let state={type:'res',mix:{},svc:{},liftN:4,div:{},catDiv:{},cust:[{d:'Rooftop helipad lighting',q:1,kw:4,div:1,gen:true}]};
+const $=id=>document.getElementById(id);
+const r0=v=>Math.round(v).toLocaleString();
+const gfaV=()=>+$('gfa').value||0;
+
+function pickType(t){
+  state.type=t; const T=TYPES[t];
+  state.mix=Object.fromEntries(Object.entries(T.mix).map(([k,p])=>[k,{p,...(T.spaces?.[k]||SPACE[k])}]));
+  state.svc={...T.svc}; state.div={...DIV0,...(T.div||{})}; state.catDiv={};
+  if(t==='villa'){$('floors').value=2;$('gfa').value=30000;$('park').value=0}
+  else if(t==='wh'){$('floors').value=1;$('gfa').value=15000;$('park').value=0}
+  else if(t==='res'){$('floors').value=20;$('gfa').value=24000;$('park').value=8000}
+  else {$('floors').value=Math.max(3,+$('floors').value||8)}
+  renderTypes();renderTypeBox();renderAreas();renderSvc();calc();
+}
+function renderTypes(){
+  $('types').innerHTML=Object.entries(TYPES).map(([k,v])=>`<button class="${k===state.type?'on':''}" data-t="${k}">${v.l}${v.mine?'<i>my type</i>':''}</button>`).join('')
+    +`<button class="add" id="newType">+ Custom type<i>copies the current one</i></button>`;
+  $('types').querySelectorAll('button[data-t]').forEach(b=>b.onclick=()=>pickType(b.dataset.t));
+  $('newType').onclick=()=>{
+    const k='my'+Date.now(), cur=TYPES[state.type];
+    TYPES[k]={l:'My '+cur.l.toLowerCase(),mine:true,den:[...cur.den],ess:cur.ess,div:{...state.div},svc:{...state.svc},
+      mix:Object.fromEntries(Object.entries(state.mix).map(([s,m])=>[s,m.p])),spaces:JSON.parse(JSON.stringify(state.mix))};
+    pickType(k); $('tLabel').focus(); $('tLabel').select();
+  };
+}
+function renderTypeBox(){
+  const T=TYPES[state.type];
+  $('tName').textContent=T.l; $('tTag').textContent=T.mine?'your type':'library type';
+  $('tLabel').value=T.l; $('tLo').value=T.den[0]; $('tHi').value=T.den[1]; $('tEss').value=T.ess;
+  $('tReset').disabled=!!T.mine;
+}
+$('tLabel').oninput=e=>{TYPES[state.type].l=e.target.value;$('tName').textContent=e.target.value;renderTypes();calc()};
+$('tLo').oninput=e=>{TYPES[state.type].den[0]=+e.target.value;calc()};
+$('tHi').oninput=e=>{TYPES[state.type].den[1]=+e.target.value;calc()};
+$('tEss').oninput=e=>{TYPES[state.type].ess=+e.target.value;calc()};
+$('tSave').onclick=()=>{const T=TYPES[state.type];T.mine=true;T.svc={...state.svc};T.div={...state.div};T.spaces=JSON.parse(JSON.stringify(state.mix));T.mix=Object.fromEntries(Object.entries(state.mix).map(([s,m])=>[s,m.p]));renderTypes();renderTypeBox();$('tSave').textContent='Saved ✓';setTimeout(()=>$('tSave').textContent='Save as my type',1200)};
+$('tReset').onclick=()=>{const k=state.type;if(LIBTYPES[k]){TYPES[k]=JSON.parse(JSON.stringify(LIBTYPES[k]));pickType(k)}};
+
+// ---- Area schedule
+const pctMode=()=>$('areaMode').value==='pct';
+function renderAreas(){
+  $('hArea').textContent=pctMode()?'% GFA':'Area m²';
+  const g=gfaV();
+  $('areas').querySelector('tbody').innerHTML=Object.entries(state.mix).map(([k,s])=>`<tr>
+   <td>${s.custom?`<input class="name" data-k="${k}" data-f="l" value="${s.l}">`:s.l}</td>
+   <td><input data-k="${k}" data-f="${pctMode()?'p':'m2'}" type="number" value="${pctMode()?s.p:Math.round(g*s.p/100)}" style="width:76px"></td><td data-a="${k}"></td>
+   <td><input data-k="${k}" data-f="ltg" type="number" value="${s.ltg}"></td>
+   <td><input data-k="${k}" data-f="pwr" type="number" value="${s.pwr}"></td>
+   <td><input data-k="${k}" data-f="clg" type="number" value="${s.clg}"></td>
+   <td style="text-align:center"><input data-k="${k}" data-f="dw" type="checkbox" ${s.dw?'checked':''}></td>
+   <td><button class="x" data-del="${k}" title="Remove">✕</button></td></tr>`).join('');
+  $('areas').querySelectorAll('input').forEach(i=>i.oninput=()=>{
+    const m=state.mix[i.dataset.k],f=i.dataset.f;
+    if(f==='l')m.l=i.value; else if(f==='dw')m.dw=i.checked; else if(f==='m2')m.p=gfaV()?(+i.value/gfaV()*100):0; else m[f]=+i.value;
+    calc()});
+  $('areas').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{delete state.mix[b.dataset.del];renderAreas();calc()});
+  $('addSpace').innerHTML='<option value="">+ Add space from library…</option>'+Object.entries(SPACE).filter(([k])=>!state.mix[k]).map(([k,v])=>`<option value="${k}">${v.l}</option>`).join('');
+}
+$('areaMode').onchange=()=>{renderAreas();calc()};
+$('addSpace').onchange=e=>{const k=e.target.value;if(k){state.mix[k]={p:0,...SPACE[k]};renderAreas();calc()}};
+$('addCustomSpace').onclick=()=>{const k='c'+Date.now();state.mix[k]={l:'Custom space',p:0,ltg:8,pwr:20,clg:100,custom:true};renderAreas();calc();document.querySelector(`input[data-k="${k}"][data-f="l"]`).select()};
+
+// ---- Services
+const sel=(id,opts,val)=>`<select data-s="${id}">${Object.entries(opts).map(([k,v])=>`<option value="${k}" ${k===val?'selected':''}>${v}</option>`).join('')}</select>`;
+const fi=(path,label)=>{const [a,b]=path.split('.');const v=b?FAC[a][b]:FAC[a];return `<span>${label}</span><input type="number" step="any" data-fac="${path}" value="${v}">`};
+const chk=(id,label,hint,fac)=>`<div class="card"><div class="t"><label><input type="checkbox" data-c="${id}" ${state.svc[id]?'checked':''}> ${label}</label><em data-o="${id}"></em></div><div class="hint">${hint}</div><div class="fac">${fac}</div></div>`;
+function renderSvc(){
+  const s=state.svc;
+  $('svc').innerHTML=`
+  <div class="card"><div class="t">Cooling system <em data-o="cool"></em></div>${sel('cool',COOL,s.cool)}<div class="hint">Thermal W/m² × kW-elec per kW-th</div>
+    <div class="fac">${fi('cool.'+s.cool,'kW-e / kW-th')}</div></div>
+  <div class="card"><div class="t">Domestic hot water <em data-o="dhw"></em></div>${sel('dhw',DHW,s.dhw)}<div class="hint">W/m² on dwelling areas (point heaters: whole GFA)</div>
+    <div class="fac">${fi('dhw.'+s.dhw,'W/m²')}</div></div>
+  <div class="card"><div class="t">Cooking <em data-o="cook"></em></div>${sel('cook',COOK,s.cook)}<div class="hint">W/m² on dwelling areas</div>
+    <div class="fac">${fi('cook','W/m²')}</div></div>
+  <div class="card"><div class="t">Lifts <em data-o="lifts"></em></div>${sel('lifts',LIFTS,s.lifts)}
+    <div style="margin-top:5px"><input type="number" id="liftN" value="${state.liftN}" ${s.lifts==='custom'?'':'disabled'} title="Lift count"></div><div class="hint">Auto: 1 per ${FAC.liftPerFloors} floors per 6 000 m²</div>
+    <div class="fac">${fi('liftLow','kW ≤12 fl')}${fi('liftHigh','kW >12 fl')}${fi('liftPerFloors','floors / lift')}</div></div>
+  <div class="card"><div class="t">EV charging <em data-o="ev"></em></div><input type="number" data-n="ev" value="${s.ev}"><div class="hint">% of parking bays with chargers</div>
+    <div class="fac">${fi('ev','kW / charger')}${fi('bay','m² / bay')}</div></div>
+  <div class="card"><div class="t">IT / server room <em data-o="it"></em></div><input type="number" data-n="it" value="${s.it}"><div class="hint">kW of IT load (UPS-backed, on generator)</div></div>
+  ${chk('fire','Fire &amp; life-safety pumps / fans','Generator only — excluded from normal MD',fi('fire','fire pump kW')+fi('jockey','jockey kW')+fi('stair','stair fan kW'))}
+  ${chk('pool','Swimming pool plant','Filtration, heating, lighting',fi('pool','kW'))}
+  ${chk('kitchen','Commercial kitchen','Exhaust, cold rooms, dishwash',fi('kitchen','W/m² GFA'))}
+  ${chk('laundry','Laundry','Washers, dryers, ironers',fi('laundry','W/m² GFA'))}
+  ${chk('med','Medical equipment','Imaging, sterilisation — IT-medical supply',fi('med','W/m² GFA'))}
+  ${chk('facade','Façade / feature lighting','Scales with height',fi('facade','kW / floor'))}`;
+  $('svc').querySelectorAll('select[data-s]').forEach(e=>e.onchange=()=>{s[e.dataset.s]=e.value;renderSvc();calc()});
+  $('svc').querySelectorAll('input[data-c]').forEach(e=>e.onchange=()=>{s[e.dataset.c]=e.checked;calc()});
+  $('svc').querySelectorAll('input[data-n]').forEach(e=>e.oninput=()=>{s[e.dataset.n]=+e.value;calc()});
+  $('svc').querySelectorAll('input[data-fac]').forEach(e=>e.oninput=()=>{const [a,b]=e.dataset.fac.split('.');if(b)FAC[a][b]=+e.value;else FAC[a]=+e.value;calc()});
+  const ln=$('liftN'); if(ln) ln.oninput=()=>{state.liftN=+ln.value;calc()};
+}
+$('editFac').onchange=e=>document.body.classList.toggle('editing',e.target.checked);
+
+// ---- Custom loads
+function renderCust(){
+  $('cust').querySelector('tbody').innerHTML=state.cust.map((c,i)=>`<tr>
+   <td><input class="name" data-i="${i}" data-f="d" value="${c.d}"></td>
+   <td><input data-i="${i}" data-f="q" type="number" value="${c.q}" style="width:48px"></td>
+   <td><input data-i="${i}" data-f="kw" type="number" step="0.1" value="${c.kw}"></td>
+   <td><input data-i="${i}" data-f="div" type="number" step="0.05" value="${c.div}" style="width:56px"></td>
+   <td style="text-align:center"><input data-i="${i}" data-f="gen" type="checkbox" ${c.gen?'checked':''}></td>
+   <td data-ck="${i}"></td>
+   <td><button class="x" data-del="${i}" title="Remove">✕</button></td></tr>`).join('');
+  $('cust').querySelectorAll('input').forEach(e=>e.oninput=()=>{const c=state.cust[e.dataset.i],f=e.dataset.f;c[f]=f==='d'?e.value:f==='gen'?e.checked:+e.value;calc()});
+  $('cust').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{state.cust.splice(+b.dataset.del,1);renderCust();calc()});
+}
+$('addCust').onclick=()=>{state.cust.push({d:'New load',q:1,kw:1,div:1,gen:false});renderCust();calc()};
+$('pickCust').innerHTML+=LIB.map((l,i)=>`<option value="${i}">${l[0]} — ${l[1]} × ${l[2]} kW</option>`).join('');
+$('pickCust').onchange=e=>{const l=LIB[+e.target.value];if(l){state.cust.push({d:l[0],q:l[1],kw:l[2],div:l[3],gen:l[4]});renderCust();calc()}e.target.value=''};
+
+// ---- Calculation
+function calc(){
+  const gfa=gfaV(), floors=+$('floors').value||1, park=+$('park').value||0;
+  const pf=+$('sPf').value||0.9, coin=+$('sCoin').value||1, V=+$('sV').value||400, load=(+$('sLoad').value||80)/100,
+        maxTx=+$('sMax').value, red=$('sRed').value, gm=+$('sGen').value||1, spare=1+(+$('sSpare').value||0)/100;
+  const sizes=$('sSizes').value.split(/[ ,;]+/).map(Number).filter(n=>n>0).sort((a,b)=>a-b);
+  const T=TYPES[state.type], s=state.svc, D=state.div, ess=T.ess/100;
+  let ltg=0,pwr=0,clg=0,pctTot=0,dwell=0;
+  for(const [k,m] of Object.entries(state.mix)){
+    const a=gfa*m.p/100; pctTot+=m.p;
+    const td=document.querySelector(`[data-a="${k}"]`); if(td) td.textContent=r0(a);
+    ltg+=a*m.ltg/1000; pwr+=a*m.pwr/1000; clg+=a*m.clg/1000; if(m.dw) dwell+=a;
+  }
+  ltg+=park*3/1000;
+  const pctBad=Math.abs(pctTot-100)>0.5;
+  $('areas').querySelector('tfoot').innerHTML=`<tr><td>Total</td><td style="color:${pctBad?'var(--warn)':'inherit'}">${pctMode()?pctTot.toFixed(0)+'%':r0(gfa*pctTot/100)}</td><td>${r0(gfa*pctTot/100)}${pctBad?` <span class="hint" style="color:var(--warn)">≠ GFA</span>`:''}</td><td colspan="5"></td></tr>`;
+  const coolKw=clg*FAC.cool[s.cool];
+  const dhwKw=s.dhw==='local'?gfa*FAC.dhw.local/1000:dwell*FAC.dhw[s.dhw]/1000;
+  const cookKw=s.cook==='elec'?dwell*FAC.cook/1000:0;
+  const nL=s.lifts==='none'?0:s.lifts==='custom'?state.liftN:Math.max(floors>2?1:0,Math.ceil(floors/FAC.liftPerFloors*Math.max(1,gfa/floors/6000)));
+  const liftKw=nL*(floors>12?FAC.liftHigh:FAC.liftLow);
+  const pumps=7.5*2+5.5*2*(floors>2?1:0)+(s.pool?FAC.pool:0)+(park?Math.max(11,park*0.006):0);
+  const evKw=park/FAC.bay*(s.ev/100)*FAC.ev;
+  const kit=s.kitchen?gfa*FAC.kitchen/1000:0, lau=s.laundry?gfa*FAC.laundry/1000:0, med=s.med?gfa*FAC.med/1000:0, fac=s.facade?floors*FAC.facade:0;
+  const special=kit+lau+med+fac+s.it;
+  const life=s.fire?(FAC.fire+FAC.jockey+(floors>4?FAC.stair*2:0)):0;
+  const cats=[
+    ['ltg','Lighting',ltg,1],['pwr','Small power',pwr,.3],['hvac','HVAC — '+COOL[s.cool],coolKw,ess],
+    ['dhw','Water heating',dhwKw,0],['cook','Cooking',cookKw,0],['lift',`Lifts (${nL})`,liftKw,1],
+    ['pump','Pumps / ventilation',pumps,.5],['ev','EV charging',evKw,0],['spec','Special services',special,ess],
+    ['life','Fire &amp; life safety (generator only)',life,1,0],
+    ...state.cust.map((c,i)=>['c'+i,'+ '+(c.d||'Custom load'),c.q*c.kw,c.gen?1:0,c.div])
+  ].map(([k,n,c,e,d])=>({k,n,c,e,d:d!==undefined?d:D[k]}));
+  const o=(k,v)=>{const e=document.querySelector(`[data-o="${k}"]`); if(e) e.textContent=v};
+  o('cool',r0(coolKw)+' kW');o('dhw',r0(dhwKw)+' kW');o('cook',r0(cookKw)+' kW');o('lifts',r0(liftKw)+' kW');o('ev',r0(evKw)+' kW');o('it',r0(s.it)+' kW');
+  o('fire',s.fire?r0(life)+' kW':'');o('pool',s.pool?r0(FAC.pool)+' kW':'');o('kitchen',kit?r0(kit)+' kW':'');o('laundry',lau?r0(lau)+' kW':'');o('med',med?r0(med)+' kW':'');o('facade',fac?r0(fac)+' kW':'');
+  let cc=0; state.cust.forEach((c,i)=>{const k=c.q*c.kw;cc+=k;const td=document.querySelector(`[data-ck="${i}"]`);if(td)td.textContent=k.toFixed(1)});
+  $('cust').querySelector('tfoot').innerHTML=state.cust.length?`<tr><td colspan="5">Total custom</td><td>${cc.toFixed(1)}</td><td></td></tr>`:`<tr><td colspan="7" class="hint" style="font-weight:400">No custom loads — add one below.</td></tr>`;
+
+  let conn=0,md=0,essKw=0; const shown=cats.filter(c=>c.c>0), max=Math.max(...shown.map(c=>c.c*c.d),1);
+  const tb=$('cat').querySelector('tbody'), focused=document.activeElement?.dataset?.dk;
+  tb.innerHTML=shown.map(c=>{conn+=c.c;md+=c.c*c.d;essKw+=c.c*(c.d||1)*c.e;
+    const editable=c.k!=='life'&&!c.k.startsWith('c');
+    return `<tr><td>${c.n}</td><td>${r0(c.c)}</td><td>${editable?`<input data-dk="${c.k}" type="number" step="0.05" value="${c.d}" style="width:56px">`:(c.d?c.d.toFixed(2):'—')}</td><td>${c.d?r0(c.c*c.d):'—'}</td><td><div class="bar"><i style="width:${c.c*c.d/max*100}%"></i></div></td></tr>`}).join('');
+  tb.querySelectorAll('input[data-dk]').forEach(i=>i.oninput=()=>{state.div[i.dataset.dk]=+i.value;calc()});
+  if(focused){const f=tb.querySelector(`input[data-dk="${focused}"]`);if(f){f.focus();const v=f.value;f.value='';f.value=v}}
+  const mdKw=md*coin*spare, mdKva=mdKw/pf;
+  $('cat').querySelector('tfoot').innerHTML=`<tr><td>Sum of demands</td><td>${r0(conn)}</td><td></td><td>${r0(md)}</td><td></td></tr>
+   <tr><td colspan="3">× coincidence ${coin} × spare ${spare.toFixed(2)} → MD</td><td>${r0(mdKw)} kW</td><td></td></tr>`;
+  let tx='—',n=0,sz=0;
+  if(mdKva>0){const ok=sizes.filter(z=>z<=maxTx);for(n=1;n<=12;n++){sz=ok.find(z=>z*n*load>=mdKva);if(sz)break}}
+  if(sz){const tot=red==='n1'?n+1:n;tx=`${tot} × ${sz}`}
+  $('kTxL').textContent=`Transformers (≤ ${Math.round(load*100)} %, ${red==='n1'?'N+1':'N'})`;
+  const genKva=essKw/pf*gm, gSizes=[100,200,250,350,500,750,1000,1250,1500,2000,2500];
+  $('kConn').textContent=r0(conn);$('kMd').textContent=r0(mdKva);
+  const den=gfa?mdKva*1000/(gfa+park*0.3):0; $('kDen').textContent=den.toFixed(0);
+  $('kTx').textContent=tx+(sz?' kVA':'');
+  const g=gSizes.find(z=>z>=genKva); $('kGen').textContent=g?g:('2 × '+(gSizes.find(z=>z*2>=genKva)||'—'));
+  $('kLv').textContent=sz?r0(sz*1000/(Math.sqrt(3)*V)):'—';
+  const [lo,hi]=T.den;
+  $('flag').innerHTML=den<lo||den>hi
+   ?`<div class="flag warn">${den.toFixed(0)} VA/m² is outside the typical ${lo}–${hi} VA/m² band for “${T.l}” — check the area mix and services.</div>`
+   :`<div class="flag ok">${den.toFixed(0)} VA/m² is inside the typical ${lo}–${hi} VA/m² band for “${T.l}”.</div>`;
+}
+['floors','park','sCoin','sPf','sV','sLoad','sSpare','sGen','sSizes'].forEach(id=>$(id).oninput=calc);
+['sMax','sRed'].forEach(id=>$(id).onchange=calc);
+$('gfa').oninput=()=>{if(!pctMode())renderAreas();calc()};
+renderCust();
+pickType('res');
+</script>
+</body>
+</html>

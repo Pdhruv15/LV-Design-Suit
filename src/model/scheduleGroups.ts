@@ -15,8 +15,9 @@ export const SCHEDULE_GROUPS: { key: ScheduleGroup; label: string }[] = [
   { key: 'other', label: 'Others' }
 ];
 
-/** True when the board is an EMDB or anywhere below one. */
+/** True for an explicitly emergency panel, or any panel below an EMDB. */
 function inEmergency(project: Project, b: Board): boolean {
+  if (b.kind === 'EDB' || b.kind === 'EMCC') return true;
   const byId = new Map(project.boards.map((x) => [x.id, x]));
   const seen = new Set<string>();
   for (let x: Board | undefined = b; x && !seen.has(x.id); x = x.upstreamId ? byId.get(x.upstreamId) : undefined) {
@@ -30,13 +31,13 @@ export function scheduleGroupOf(project: Project, b: Board): ScheduleGroup {
   if (inEmergency(project, b)) return 'emg';
   const kind = b.kind ?? (b.upstreamId ? 'DB' : 'MDB');
   if (kind === 'MCC') return 'mcc';
-  if (!b.upstreamId && kind !== 'UPS') return 'mdb';
+  if (kind === 'MDB' || kind === 'LV-MDB' || (!b.upstreamId && kind !== 'UPS')) return 'mdb';
   if (kind === 'SMDB') return 'smdb';
   if (kind === 'DB') return 'db';
   return 'other';
 }
 
-const EMG_ORDER: Record<string, number> = { EMDB: 0, ESMDB: 1, EDB: 2 };
+const EMG_ORDER: Record<string, number> = { EMDB: 0, ESMDB: 1, EDB: 2, EMCC: 3 };
 
 /** Boards of each group, in supply order (emergency: EMDB, then ESMDB, then EDB, then emergency MCCs). */
 export function scheduleGroups(project: Project): Record<ScheduleGroup, Board[]> {

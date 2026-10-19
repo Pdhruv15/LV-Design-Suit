@@ -21,4 +21,19 @@ describe('load schedule groups', () => {
     expect(names.indexOf('DB-GF1 SCHEDULE')).toBeLessThan(names.findIndex((n) => n.startsWith(e.boards[0].id)));
     expect(names.findIndex((n) => n.startsWith(e.boards[0].id))).toBeLessThan(names.indexOf('MCC-1 MD'));
   });
+
+  it('groups explicit LV-MDB, EDB and EMCC panel types for schedules', () => {
+    const p = {
+      ...sampleProject,
+      boards: [
+        ...sampleProject.boards,
+        { id: 'LV-MDB-2', name: 'LV main', kind: 'LV-MDB' as const },
+        { id: 'EDB-1', name: 'Emergency DB', kind: 'EDB' as const, upstreamId: 'MDB-1' },
+        { id: 'EMCC-1', name: 'Emergency MCC', kind: 'EMCC' as const, upstreamId: 'MDB-1' }
+      ]
+    };
+    const g = scheduleGroups(p);
+    expect(g.mdb.map((b) => b.id)).toContain('LV-MDB-2');
+    expect(g.emg.map((b) => b.id)).toEqual(['EDB-1', 'EMCC-1']);
+  });
 });
