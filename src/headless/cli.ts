@@ -163,6 +163,14 @@ export async function main(argv: string[], version: string, io: { out: (s: strin
   if (['get_panel', 'move_panel', 'copy_panel'].includes(t.name) && args.panel === undefined && pos.length) args.panel = pos.shift();
   if (['move_panel', 'copy_panel'].includes(t.name) && args.to === undefined && pos.length) args.to = pos.shift();
   if (pos.length) { io.err(`Unexpected "${pos.join(' ')}". Run "lvds help ${cmd}".`); return 2; }
+  // A list may also be given as plain text, comma separated: --sheets E-SLD-001,E-SLD-002
+  for (const [k, v] of Object.entries(args)) {
+    const s = t.input[k] as z.ZodType | undefined;
+    if (s && (typeof v === 'string' || typeof v === 'number') && !s.safeParse(v).success) {
+      const list = String(v).split(',').map((x) => x.trim()).filter(Boolean);
+      if (s.safeParse(list).success) args[k] = list;
+    }
+  }
   try {
     const result = await callTool(t, args, ctx);
     io.out(a.json ? JSON.stringify(result, null, 2) : formatText(result));

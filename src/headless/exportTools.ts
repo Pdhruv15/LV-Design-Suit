@@ -12,7 +12,7 @@ import { buildSheetDxfPages } from '../docs/sheetDxf';
 import type { SheetInfo } from '../docs/sldSheet';
 import { earthingDrawing } from '../diagram/earthingDrawing';
 import { earthingLayout } from '../model/earthingPlan';
-import { autoSize } from '../model/drawingSet';
+import { autoSize, drawable, setOf, sheetRev, type DrawingSheet } from '../model/drawingSet';
 import { numberBom } from '../model/boqRevisions';
 import { priceBom } from '../model/priceList';
 import { safeFileName } from '../util/files';
@@ -20,15 +20,17 @@ import type { Project } from '../types';
 import { openProject } from './project';
 import type { Tool, ToolContext } from './tools';
 import { agentDir } from './write';
+import { findRenderer, runInRenderer } from './electronExport';
 
 /** Stage 3: exports. Each export tool previews by default: the files it would make, and whether the design is ready
  * (check failures, proposals waiting in Reports → Changes). Making the files needs the name of the engineer who
  * approved the export, and is refused while checks fail or proposals wait unless the engineer says to export anyway.
  * Files go to <projects folder>/Exports/<project>/<date>/, never over an existing file; every export is logged.
  *
- * Documents come from the app's own export catalogue (Reports → Export centre), as HTML: open one in a browser and
- * print to PDF. Drawing sheets (SLD, panel, riser) need the app's drawing canvas; of the drawings, only the earthing
- * schematic can be exported as DXF here. */
+ * Documents come from the app's own export catalogue (Reports → Export centre), as HTML, or as PDF made by the app's
+ * own PDF pipeline. Drawing sheets (SLD, panel, riser) as DXF come from the app's Reports → Drawings export. PDFs and
+ * those sheets need the app's renderer: Electron (electronExport.ts) runs it without a window, and only after the
+ * export is approved. Without Electron, reports are HTML and the earthing schematic is the only DXF. */
 
 const project = z.string().describe('Project file name in the projects folder, as given by list_projects');
 const approvedBy = z.string().trim().min(2).optional().describe('Name of the engineer who approved this export (required to export)');
@@ -36,6 +38,8 @@ const exportAnyway = z.boolean().default(false).describe('Export even though che
 const mode = z.enum(['preview', 'export']).default('preview').describe('preview = list the files and readiness, nothing is written; export = write the files (needs approvedBy)');
 
 interface OutFile { name: string; data: string | Uint8Array; about: string }
+/** Files made only once the export is approved (in Electron): the preview lists what they will be. */
+interface Planned { files: { name: string; about: string }[]; renderer: string; make: () => Promise<OutFile[]> }
 interface ExportEntry { id: string; at: string; file: string; tool: string; approvedBy: string; exportedAnyway: boolean; readiness: Readiness; files: string[] }
 interface Readiness { fail: number; check: number; proposalsWaiting: string[] }
 
@@ -59,10 +63,12 @@ function freeName(dir: string, name: string): string {
 }
 
 /** The shared preview / approval / write path of every export tool. */
-async function runExport(args: Record<string, unknown>, ctx: ToolContext, tool: string, make: (p: Project) => Promise<OutFile[]> | OutFile[]) {
+async function runExport(args: Record<string, unknown>, ctx: ToolContext, tool: string, make: (p: Project) => Promise<OutFile[] | Planned> | OutFile[] | Planned) {
   const { project: p, file } = openProject({ ref: String(args.project ?? ''), folder: ctx.folder, anywhere: ctx.anywhere });
   const ready = readiness(p);
-  const files = await make(p);
+  const made = await make(p);
+  const planned = Array.isArray(made) ? undefined : made;
+  const files = Array.isArray(made) ? made : made.files;
   if (!files.length) throw new Error('Nothing to export from this project.');
   const stem = path.basename(file).replace(/\.json$/i, '');
   const dir = path.join(ctx.folder, 'Exports', safeFileName(stem), new Date().toISOString().slice(0, 10));
@@ -73,7 +79,7 @@ async function runExport(args: Record<string, unknown>, ctx: ToolContext, tool: 
   const listing = files.map((f) => ({ file: f.name, about: f.about }));
   if (args.mode !== 'export') {
     return {
-      mode: 'preview', written: false, folder: dir, files: listing, readiness: ready,
+      mode: 'preview', written: false, folder: dir, files: listing, ...(planned ? { madeBy: planned.renderer } : {}), readiness: ready,
       next: problems.length
         ? `Not ready: ${problems.join('; ')}. Fix these first, or export with exportAnyway true if the engineer decides so. Exporting needs approvedBy (the engineer's name).`
         : 'Ready. Call again with mode export and approvedBy (the name of the engineer who approved it).'
@@ -82,9 +88,11 @@ async function runExport(args: Record<string, unknown>, ctx: ToolContext, tool: 
   const by = typeof args.approvedBy === 'string' ? args.approvedBy.trim() : '';
   if (by.length < 2) throw new Error('Exporting needs approvedBy: the name of the engineer who approved this export.');
   if (problems.length && args.exportAnyway !== true) throw new Error(`Not exported: ${problems.join('; ')}. Fix these first, or set exportAnyway true if the engineer decides to export as it is.`);
+  const out = planned ? await planned.make() : (files as OutFile[]);
+  if (!out.length) throw new Error('Nothing was made: no files to write.');
   fs.mkdirSync(dir, { recursive: true });
   const written: string[] = [];
-  for (const f of files) {
+  for (const f of out) {
     const name = freeName(dir, f.name);
     fs.writeFileSync(path.join(dir, name), f.data);
     written.push(path.join(dir, name));
@@ -96,6 +104,35 @@ async function runExport(args: Record<string, unknown>, ctx: ToolContext, tool: 
 }
 
 const exportContext = (p: Project): ExportContext => ({ project: p, run: runCalculations(p), stale: [] });
+
+/** The renderer for PDFs and drawing sheets, or an error saying how to get one. */
+function renderer(what: string, instead: string) {
+  const r = findRenderer();
+  if ('missing' in r) throw new Error(`${what} cannot be made here: ${r.missing}. ${instead}`);
+  return r;
+}
+
+const SHEET_TYPES = { sld: 'system', panel: 'board', riser: 'riser', earthing: 'earthing' } as const;
+type SheetType = keyof typeof SHEET_TYPES;
+const typeOf = (s: DrawingSheet) => (Object.keys(SHEET_TYPES) as SheetType[]).find((k) => SHEET_TYPES[k] === s.kind)!;
+const LABEL: Record<SheetType, string> = { sld: 'SLD sheet', panel: 'DB circuit diagram', riser: 'riser diagram', earthing: 'earthing schematic' };
+
+/** The drawing sheets of Reports → Drawings, as its DXF export makes them (one file per sheet, plus continuation sheets). */
+function sheetsDxf(p: Project, sheets: string[] | undefined, types: SheetType[] | undefined): Planned {
+  const set = setOf(p);
+  if (!set.sheets.length) throw new Error('This project has no drawing sheets yet: create them in the app (Reports → Drawings), or export the earthing schematic with drawing earthing.');
+  const unknown = sheets?.filter((n) => !set.sheets.some((s) => s.number.toLowerCase() === n.toLowerCase()));
+  if (unknown?.length) throw new Error(`No sheet ${unknown.join(', ')}. Sheets: ${set.sheets.map((s) => s.number).join(', ')}.`);
+  const chosen = set.sheets.filter((s) => drawable(s) && (!sheets || sheets.some((n) => n.toLowerCase() === s.number.toLowerCase())) && (!types || types.includes(typeOf(s))));
+  if (!chosen.length) throw new Error('No drawing sheets to export with these choices.');
+  const all = chosen.length === set.sheets.filter(drawable).length;
+  const r = renderer('SLD, panel and riser sheets as DXF', 'Export them from the app (Reports → Drawings), or export the earthing schematic with drawing earthing.');
+  return {
+    renderer: r.where,
+    files: chosen.map((s) => ({ name: `${safeFileName(`${s.number}${s.rev || sheetRev(s) ? `_Rev${s.rev || sheetRev(s)}` : ''}`)}.dxf`, about: `${s.title} (${LABEL[typeOf(s)]}, ${s.size === 'auto' ? 'paper size to fit' : s.size}; continuation sheets are added where the drawing does not fit)` })),
+    make: () => runInRenderer({ kind: 'sheets-dxf', project: p, only: all ? undefined : chosen.map((s) => s.id) }, r)
+  };
+}
 const REPORT_KEYS = CATALOGUE.map((e) => e.key) as [string, ...string[]];
 
 export const EXPORT_TOOLS: Tool[] = [
@@ -108,25 +145,39 @@ export const EXPORT_TOOLS: Tool[] = [
     run: (a, ctx) => {
       const { project: p } = openProject({ ref: String(a.project ?? ''), folder: ctx.folder, anywhere: ctx.anywhere });
       const c = exportContext(p);
+      const r = findRenderer();
       return {
         reports: CATALOGUE.map((e) => ({ report: e.key, title: e.title, group: e.category, ...(unavailable(e, c) ? { unavailable: unavailable(e, c) } : {}) })),
         workbooks: [{ tool: 'export_forms_xlsx', title: 'DEWA connected load, MD, TCL and DB schedule forms (.xlsx)' }, { tool: 'export_boq_xlsx', title: 'Bill of quantities (.xlsx)' }],
-        drawings: [{ tool: 'export_dxf', title: 'Earthing schematic (.dxf)', ...(earthingLayout(p).items.length ? {} : { unavailable: 'No equipment to earth' }) }, { title: 'SLD, panel and riser sheets', unavailable: 'Export from the app (Reports → Drawings): they need its drawing canvas' }],
+        drawings: [
+          { tool: 'export_dxf', drawing: 'earthing', title: 'Earthing schematic (.dxf)', ...(earthingLayout(p).items.length ? {} : { unavailable: 'No equipment to earth' }) },
+          { tool: 'export_dxf', drawing: 'sld', title: `SLD, panel and riser sheets of Reports → Drawings (.dxf, ${setOf(p).sheets.filter(drawable).length} sheet(s))`, ...(!setOf(p).sheets.length ? { unavailable: 'No drawing sheets yet: create them in the app (Reports → Drawings)' } : 'missing' in r ? { unavailable: `Needs Electron: ${r.missing}` } : {}) }
+        ],
+        pdf: 'missing' in r ? `Reports as PDF need Electron: ${r.missing}. As HTML they can be made here.` : `Reports as PDF (export_report with format pdf) are made by ${r.where}.`,
         readiness: readiness(p)
       };
     }
   },
   {
     name: 'export_report',
-    title: 'Export a report (HTML)',
-    description: 'Makes one document of the app\'s Export centre (calculation report, voltage drop, schedules, DEWA forms, BOQ, project summary …) as HTML, with the same content as the app; open it in a browser and print to PDF. Preview first; exporting needs approvedBy.',
-    input: { project, report: z.enum(REPORT_KEYS).describe(CATALOGUE.map((e) => `${e.key} = ${e.title}`).join('; ')), approvedBy, exportAnyway, mode },
+    title: 'Export a report (HTML or PDF)',
+    description: 'Makes one document of the app\'s Export centre (calculation report, voltage drop, schedules, DEWA forms, BOQ, project summary …) with the same content as the app: as HTML (open it in a browser and print to PDF), or as PDF made like the app makes it (needs Electron: the app\'s source folder with npm install and npm run build, or the installed app). Preview first; exporting needs approvedBy.',
+    input: {
+      project, report: z.enum(REPORT_KEYS).describe(CATALOGUE.map((e) => `${e.key} = ${e.title}`).join('; ')),
+      format: z.enum(['html', 'pdf']).default('html').describe('html = HTML file(s) to print from a browser; pdf = PDF as the app makes it (needs Electron)'),
+      approvedBy, exportAnyway, mode
+    },
     usesProject: true, writes: true,
     run: (a, ctx) => runExport(a, ctx, 'export_report', (p) => {
       const entry = CATALOGUE.find((e) => e.key === a.report)!;
       const c = exportContext(p);
       const why = unavailable(entry, c);
       if (why) throw new Error(`${entry.title} cannot be made: ${why}.`);
+      if (a.format === 'pdf') {
+        const r = renderer('A PDF', 'Use format html and print it to PDF from a browser.');
+        const parts = entry.build(c);
+        return { renderer: r.where, files: parts.map((part) => ({ name: `${part.file}.pdf`, about: `${part.title} (PDF, as the app's Export centre makes it)` })), make: () => runInRenderer({ kind: 'report-pdf', project: p, report: entry.key, author: typeof a.approvedBy === 'string' ? a.approvedBy.trim() : undefined }, r) };
+      }
       return entry.build(c).map((part) => ({ name: `${part.file}.html`, data: part.html, about: `${part.title} (HTML; print to PDF from a browser, ${part.page.pageSize ?? 'A4'}${part.page.landscape ? ' landscape' : ''})` }));
     })
   },
@@ -162,11 +213,17 @@ export const EXPORT_TOOLS: Tool[] = [
   },
   {
     name: 'export_dxf',
-    title: 'Export earthing schematic (DXF)',
-    description: 'The earthing schematic as DXF sheets with the title block, as the app makes them. Other drawings (SLD, panel, riser) are exported from the app, which draws them. Preview first; exporting needs approvedBy.',
-    input: { project, drawing: z.enum(['earthing']).default('earthing'), approvedBy, exportAnyway, mode },
+    title: 'Export drawings (DXF)',
+    description: 'Drawing sheets as DXF with the frame and title block, as the app makes them. drawing earthing: the earthing schematic. drawing sld: the sheets of Reports → Drawings (SLD, DB circuit, riser and earthing sheets), the same files as its "DXF per sheet" export; optionally only some sheets or types. sld needs Electron (the app\'s source folder with npm install and npm run build, or the installed app). Preview first; exporting needs approvedBy.',
+    input: {
+      project, drawing: z.enum(['earthing', 'sld']).default('earthing').describe('earthing = earthing schematic; sld = the drawing set of Reports → Drawings'),
+      sheets: z.array(z.string()).optional().describe('drawing sld: only these sheet numbers (default all)'),
+      types: z.array(z.enum(['sld', 'panel', 'riser', 'earthing'])).optional().describe('drawing sld: only these sheet types (sld = SLD sheets, panel = DB circuit diagrams, riser, earthing; default all)'),
+      approvedBy, exportAnyway, mode
+    },
     usesProject: true, writes: true,
     run: (a, ctx) => runExport(a, ctx, 'export_dxf', (p) => {
+      if (a.drawing === 'sld') return sheetsDxf(p, a.sheets as string[] | undefined, a.types as SheetType[] | undefined);
       if (!earthingLayout(p).items.length) throw new Error('No equipment to earth in this project.');
       const d = earthingDrawing(p, undefined, true, { mono: true });
       const set = p.drawingSet;
