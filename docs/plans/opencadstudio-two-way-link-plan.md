@@ -28,13 +28,15 @@ against what LV Design Studio last sent to that drawing (not its CAD state), so 
 edited is kept unless its board or feeder changed. Frame, title block and notes carry `sheet:<n>` so revisions
 and schedules refresh too. First sheet only; continuation sheets are reopened.
 
-### 5. Tag on the floor plan
-In LV Design Studio, pick a feeder or board, then click the polyline/block in OpenCADStudio
-(`user_select`) to attach its tag. Re-tag and un-tag supported; a list shows what is linked.
+### 5. Tag on the floor plan — routes done
+Cable routes: select lines / arcs / polylines in OpenCADStudio, choose the feeder in LV Design Studio, *Link
+selection* (tag `route:<feeder id>`); *Unlink selection* removes it. Board blocks (for locations): next.
 
 ### 6. Pull from CAD (CAD → design), reviewed
-- **Cable lengths:** measured length of the tagged route polylines (+ vertical / termination allowance) →
-  feeder `lengthM`; voltage drop and cable sizing re-run.
+- **Cable lengths — done:** command palette → *Cable lengths from CAD floor plan…*. Measured plan length of the
+  linked curves (lines, arcs, polylines with arc segments), converted by the drawing's INSUNITS (else the
+  project's unit setting) → (route + vertical + terminations) × (1 + waste), rounded up to a metre → feeder
+  `lengthM`, reviewed per feeder; "length to check" is cleared on accepted rows. Run the calculations after.
 - **Board locations / rooms:** position of each tagged board block, and the room/floor it falls in.
 - **Tray routes:** which tagged tray runs a cable route follows → feeder `trayRoute`, feeding tray sizing.
 - **Loads from the plan — done:** see *Loads mapping* below.
@@ -61,6 +63,7 @@ auto-sized circuits re-size. Same counts and watts count as matching (no noise).
 Command palette → *Loads from CAD floor plan…* → Open floor plan… (DWG/DXF in the live OpenCADStudio window)
 → Pull loads → map blocks / untick rows → Apply.
 
-## Cable length allowances (next)
-Project setting with defaults (per vertical drop, per termination, waste %), optional per-feeder override.
-Length = measured route + drops + terminations, × (1 + waste); the review row shows the breakdown.
+## Cable length allowances (done)
+`project.cadLength`: vertical per run (default 6 m), terminations both ends (3 m), waste (5 %), units when the
+drawing has none (mm). Per-feeder `cadVerticalM` overrides the vertical (risers, plant rooms), set in the
+review table. The row shows the breakdown, e.g. "48.2 m route + 6 m vertical + 3 m terminations, +5 % = 61 m".

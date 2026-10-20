@@ -230,6 +230,8 @@ export interface Feeder {
   capSteps?: number; // capacitor bank: number of steps
   detunedPct?: number; // capacitor bank: detuning reactor, % (e.g. 7)
   trayRoute?: string; // cable tray routes the cable runs on, in order, e.g. "A-B-C"
+  /** Vertical allowance for this run when the CAD route is measured (a riser or plant room); default the project's. */
+  cadVerticalM?: number;
   /** The board was moved to another source: the route changed, so the length needs checking. */
   lengthToCheck?: boolean;
   /** Made as a placeholder (e.g. by Build hierarchy): cable and breaker not sized yet. */
@@ -332,6 +334,14 @@ export interface Board {
 /** One CAD block name → the library item (Loads.xlsx reference) it is, and how many it counts as (twin socket: 2). */
 export interface CadBlockMap { block: string; reference: string; per?: number }
 
+/** Length = (measured route + vertical + terminations) × (1 + waste %), rounded up to a whole metre. */
+export interface CadLengthSettings {
+  units?: 'mm' | 'cm' | 'm'; // drawing units when the drawing does not say (INSUNITS 0); default mm
+  verticalM?: number; // rises and drops per run (tray down to the board at each end); default 6
+  terminationM?: number; // both ends together; default 3
+  wastePct?: number; // default 5
+}
+
 export interface Project {
   /** Stable identity: survives renaming, copying elsewhere and moving files (set on first open / creation). */
   id?: string;
@@ -399,6 +409,8 @@ export interface Project {
   trays?: TrayPlan; // cable tray routes (A, B, C…) with the cables on each and the tray size
   /** CAD floor plan: block names that stand for a library item (blocks named like a library reference need no row). */
   cadBlocks?: CadBlockMap[];
+  /** Cable lengths from the CAD floor plan: drawing units and allowances added to each measured route. */
+  cadLength?: CadLengthSettings;
   substations?: DmSubstationRoom[]; // DM-D-013 minimum substation / LV room areas
   studyReport?: StudyReportSetup; // the study report being prepared (Reports → Study reports)
   calcReportDocNo?: string; // document number on page 1 of the calculation report
