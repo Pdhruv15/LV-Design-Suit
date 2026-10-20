@@ -1,0 +1,15 @@
+# Secret scanning (CI: .github/workflows/ci.yml, gitleaks 8.30.1). The default gitleaks rules, plus the
+# exceptions below — each one narrow (one rule, named files, an exact shape) and explained.
+# Add an exception only for a confirmed false positive; never for a real secret (rotate it instead).
+
+[extend]
+useDefault = true
+
+# The design catalogue's settings are named in a `key` field ("key: 'maxLtgPerCircuit'"), which the
+# generic API-key rule reads as a credential. Only a camelCase setting name in those two files.
+[[allowlists]]
+description = "Design-catalogue setting names in key fields"
+targetRules = ["generic-api-key"]
+paths = ['''^src/database/catalog\.ts$''', '''^electron/databaseSpec\.json$''']
+regexTarget = "match"
+regexes = ['''key["']?\s*:\s*["'][a-z][A-Za-z0-9]{2,40}["']''']
