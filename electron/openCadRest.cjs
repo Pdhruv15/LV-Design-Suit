@@ -4,6 +4,10 @@ const net = require('node:net');
 const { spawn } = require('node:child_process');
 
 const START_TIMEOUT_MS = 30000;
+/** Extended-data application LV Design Studio tags its drawing objects with ("feeder:<id>", "board:<id>"). */
+const TAG_APP = 'LVDS';
+const PAGE = 1000;
+const MAX_ENTITIES = 200000;
 const REQUEST_TIMEOUT_MS = 30000;
 
 function availablePort() {
@@ -108,6 +112,30 @@ class OpenCadRestSession {
     throw new Error(`OpenCADStudio automation did not become ready. ${lastError instanceof Error ? lastError.message : ''}`.trim());
   }
 
+  /** Equipment tagged in the active drawing: [{ tag, handles }], one entry per board or feeder, in tag order. */
+  async linkedEquipment() {
+    if (!this.connected) throw new Error('OpenCADStudio is not connected.');
+    const ask = (route, method = 'GET', body) => this.request({ port: this.port, token: this.token, method, route, body });
+    const handles = [];
+    for (let offset = 0; offset < MAX_ENTITIES;) {
+      const page = await ask(`/entities?fields=handle&limit=${PAGE}&offset=${offset}`);
+      for (const e of page.entities || []) if (typeof e.handle === 'string') handles.push(e.handle);
+      if (typeof page.next_offset !== 'number' || page.next_offset <= offset) break;
+      offset = page.next_offset;
+    }
+    const byTag = new Map();
+    for (let i = 0; i < handles.length; i += PAGE) {
+      const read = await ask('/xdata_get', 'POST', { handles: handles.slice(i, i + PAGE), app: TAG_APP });
+      for (const item of read.items || []) {
+        const tag = item && item.xdata && Array.isArray(item.xdata[TAG_APP]) ? item.xdata[TAG_APP][0] : undefined;
+        if (typeof tag !== 'string' || !/^(feeder|board):/.test(tag)) continue;
+        if (!byTag.has(tag)) byTag.set(tag, []);
+        byTag.get(tag).push(item.handle);
+      }
+    }
+    return [...byTag].sort(([a], [b]) => a.localeCompare(b)).map(([tag, list]) => ({ tag, handles: list }));
+  }
+
   async open(executable, drawings) {
     if (!Array.isArray(drawings) || drawings.length === 0) throw new Error('No drawing was supplied to OpenCADStudio.');
     let first = 0;
@@ -123,4 +151,4 @@ class OpenCadRestSession {
   }
 }
 
-module.exports = { availablePort, requestJson, OpenCadRestSession };
+module.exports = { availablePort, requestJson, OpenCadRestSession, TAG_APP };

@@ -53,7 +53,7 @@ export default function SldExportDialog({ project, onSave, onStatus, onClose, st
           if (!open) throw new Error('OpenCADStudio integration is available in the LV Design Studio desktop app.');
           const result = await open(files.map((file) => ({ name: file.name, content: file.data })));
           const version = result.version ? ` ${result.version}` : '';
-          m = `Opened ${result.files.length} drawing${result.files.length === 1 ? '' : 's'} in OpenCADStudio${version}${result.connected ? ' — live link connected' : ''}`;
+          m = `Opened ${result.files.length} drawing${result.files.length === 1 ? '' : 's'} in OpenCADStudio${version}${result.connected ? ' — live link connected' : ''}${result.linked ? `, ${result.linked} boards and feeders linked` : ''}`;
         } else if (files.length === 1) m = await saveText(files[0].name, files[0].data, 'DXF drawing (AutoCAD R12)', 'dxf');
         else {
           const zip = new (await import('jszip')).default();

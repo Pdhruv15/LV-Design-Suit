@@ -732,7 +732,7 @@ export default function SystemDiagram({
             </g>
           );
         })() : !r.board.sourceKva && r.board.supply ? (
-          <g key={`sup-${r.board.id}`} className="tx" onDoubleClick={edit(onEditBoard, r.board.id)}>
+          <g key={`sup-${r.board.id}`} className="tx" data-lv-id={`board:${r.board.id}`} onDoubleClick={edit(onEditBoard, r.board.id)}>
             <title>Supply from the authority — double-click to edit</title>
             <rect x={r.x - 16} y={52} width={32} height={26} rx={3} className="sym" />
             <text className="b" x={r.x} y={69} textAnchor="middle" style={{ fontSize: 10 }}>kWh</text>
@@ -749,7 +749,7 @@ export default function SystemDiagram({
             <text className="m" x={r.x - 8} y={r.busY - 72} textAnchor="end">{project.voltageV} V</text>
           </g>
         ) : (
-          <g key={`tx-${r.board.id}`} className="tx" onDoubleClick={edit(onEditBoard, r.board.id)}>
+          <g key={`tx-${r.board.id}`} className="tx" data-lv-id={`board:${r.board.id}`} onDoubleClick={edit(onEditBoard, r.board.id)}>
             <title>Double-click to edit the transformer</title>
             <line x1={r.x} y1="50" x2={r.x} y2="70" className="ln mv" />
             <circle cx={r.x} cy="84" r="14" className="tr" />
@@ -928,6 +928,7 @@ export default function SystemDiagram({
               onMouseLeave={leaveCard}
               {...dnd({ type: 'feeder', feederId: f.id }, `fd:${f.id}`)}
               data-drop={`fd:${f.id}`}
+              data-lv-id={`feeder:${f.id}`}
               onPointerDown={startPick(n.childBoardId ? { kind: 'board', id: n.childBoardId } : { kind: 'feeder', id: f.id }, n.childBoardId ?? f.name ?? f.id)}
               onClick={click(() => onSelectFeeder(f.id))}
               onDoubleClick={edit(onEditFeeder, f.id)}
@@ -1099,6 +1100,7 @@ export default function SystemDiagram({
               onMouseLeave={leaveCard}
               {...dnd({ type: 'bus', boardId: b.id }, `bus:${b.id}`)}
               data-drop={`bus:${b.id}`}
+              data-lv-id={`board:${b.id}`}
               onPointerDown={startPick({ kind: 'board', id: b.id }, b.id)}
               onClick={click(() => onSelectBoard(b.id))}
               onDoubleClick={edit(onEditBoard, b.id)}
