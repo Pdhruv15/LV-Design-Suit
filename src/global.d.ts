@@ -52,7 +52,9 @@ declare global {
       /** Opens generated DXF sheets in the installed OpenCADStudio desktop application. */
       openCadStudio?: {
         status: () => Promise<{ installed: boolean; connected: boolean; version?: string }>;
-        openDxf: (files: { name: string; content: string }[]) => Promise<{ files: string[]; connected: boolean; version?: string }>;
+        openDxf: (files: { name: string; content: string }[]) => Promise<{ files: string[]; connected: boolean; version?: string; linked?: number }>;
+        /** Boards and feeders tagged in the drawing open in OpenCADStudio ("feeder:<id>", "board:<id>"), with their object counts. */
+        linked?: () => Promise<{ tag: string; objects: number }[]>;
       };
       files: {
         /** Shows a save dialog and writes the text; resolves to the saved path, or null if cancelled. */

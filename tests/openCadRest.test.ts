@@ -6,6 +6,7 @@ const require = createRequire(import.meta.url);
 const { OpenCadRestSession } = require('../electron/openCadRest.cjs') as {
   OpenCadRestSession: new (options: Record<string, unknown>) => {
     open: (executable: string, drawings: string[]) => Promise<{ connected: boolean; version?: string; state: unknown }>;
+    linkedEquipment: () => Promise<{ tag: string; handles: string[] }[]>;
   };
 };
 
@@ -46,5 +47,35 @@ describe('OpenCADStudio live REST session', () => {
     expect(requests.some((request) => request.route === '/documents' && request.method === 'POST' &&
       (request.body as { path: string }).path === '/tmp/second.dxf')).toBe(true);
     expect(new Set(requests.map((request) => request.token)).size).toBe(1);
+  });
+
+  it('lists the boards and feeders tagged in the open drawing, across pages', async () => {
+    const xdata: Record<string, unknown> = {
+      '1A': { LVDS: ['feeder:F2'] }, '1B': { LVDS: ['board:MDB-1'] }, '1C': { LVDS: ['feeder:F2'] },
+      '1D': {}, '1E': { LVDS: ['panel:X'] }, '1F': { OTHER: ['feeder:F9'] }
+    };
+    const handles = Object.keys(xdata);
+    const session = new OpenCadRestSession({
+      portFactory: async () => 1,
+      spawn: () => new FakeChild(),
+      request: async (request: { route: string; body?: { handles: string[] } }) => {
+        if (request.route === '/ready') return { version: '2026.42' };
+        if (request.route === '/state') return {};
+        const page = request.route.match(/^\/entities\?.*offset=(\d+)/);
+        if (page) {
+          // Two entities per page, to prove paging follows next_offset.
+          const offset = Number(page[1]);
+          const next = offset + 2 < handles.length ? { next_offset: offset + 2 } : {};
+          return { entities: handles.slice(offset, offset + 2).map((handle) => ({ handle })), ...next };
+        }
+        if (request.route === '/xdata_get') return { items: request.body!.handles.map((handle) => ({ handle, xdata: xdata[handle] })) };
+        return { ok: true };
+      }
+    });
+    await session.open('/x', ['/tmp/a.dxf']);
+    expect(await session.linkedEquipment()).toEqual([
+      { tag: 'board:MDB-1', handles: ['1B'] },
+      { tag: 'feeder:F2', handles: ['1A', '1C'] }
+    ]);
   });
 });

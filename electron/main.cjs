@@ -314,8 +314,11 @@ handle('opencad:openDxf', async (_evt, { files } = {}) => {
   if (!installation) throw new Error('OpenCADStudio is not installed. Install it in Applications, then try again.');
   const drawings = openCadStudio.writeTemporaryDrawings(app.getPath('temp'), files);
   const session = await openCadSession.open(openCadStudio.executableForInstallation(installation), drawings);
-  return { files: drawings.map((file) => path.basename(file)), connected: session.connected, version: session.version };
+  // A drawing that opened but cannot be read back is still open: report it without the count.
+  const linked = await openCadSession.linkedEquipment().then((list) => list.length, () => undefined);
+  return { files: drawings.map((file) => path.basename(file)), connected: session.connected, version: session.version, linked };
 });
+handle('opencad:linked', async () => (await openCadSession.linkedEquipment()).map(({ tag, handles }) => ({ tag, objects: handles.length })));
 handle('opencad:status', () => ({ installed: !!openCadStudio.findInstallation(), ...openCadSession.status() }));
 
 // ---- IPC: LV Database (Excel workbooks in the projects folder) ----

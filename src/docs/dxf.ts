@@ -4,11 +4,19 @@
 
 /** Width is a physical stroke width for lines/polylines, and an exact fitted
  * baseline length for text. All widths are in the same drawing units as x/y. */
-export type DxfPrimitive =
+export type DxfPrimitive = (
   | { type: 'line'; layer: string; x1: number; y1: number; x2: number; y2: number; width?: number }
   | { type: 'polyline'; layer: string; points: [number, number][]; closed?: boolean; width?: number }
   | { type: 'circle'; layer: string; x: number; y: number; r: number }
-  | { type: 'text'; layer: string; x: number; y: number; height: number; text: string; align?: 'left' | 'center' | 'right'; rotation?: number; width?: number };
+  | { type: 'text'; layer: string; x: number; y: number; height: number; text: string; align?: 'left' | 'center' | 'right'; rotation?: number; width?: number }
+) & {
+  /** Equipment tag ("feeder:<id>", "board:<id>"), written as extended data under DXF_APP so a CAD
+   * program can tell which board or feeder each object belongs to (and later update or measure it). */
+  tag?: string;
+};
+
+/** Registered application name of the extended data that carries equipment tags. */
+export const DXF_APP = 'LVDS';
 
 /** Layer → AutoCAD colour index. */
 export const DXF_LAYERS: Record<string, number> = {
@@ -151,10 +159,19 @@ export function toDxf(items: DxfPrimitive[], layerColours: Record<string, number
     g(0, 'STYLE'); g(2, name); g(70, 0); g(40, 0); g(41, 1); g(50, 0); g(71, 0); g(42, 2.5); g(3, font); g(4, '');
   }
   g(0, 'ENDTAB');
+  // Tagged drawings register the extended-data application; untagged output is unchanged.
+  const tagged = items.some((i) => i.tag);
+  if (tagged) {
+    g(0, 'TABLE'); g(2, 'APPID'); g(70, 2);
+    for (const app of ['ACAD', DXF_APP]) { g(0, 'APPID'); g(2, app); g(70, 0); }
+    g(0, 'ENDTAB');
+  }
   g(0, 'ENDSEC');
 
-  const polyline = (layer: string, vertices: [number, number][], closed: boolean) => {
-    g(0, 'POLYLINE'); g(8, layer); g(66, 1); g(10, 0); g(20, 0); g(30, 0); g(70, closed ? 1 : 0);
+  // Extended data comes last in an entity's group codes.
+  const xdata = (tag?: string) => { if (tag) { g(1001, DXF_APP); g(1000, tag); } };
+  const polyline = (layer: string, vertices: [number, number][], closed: boolean, tag?: string) => {
+    g(0, 'POLYLINE'); g(8, layer); g(66, 1); g(10, 0); g(20, 0); g(30, 0); g(70, closed ? 1 : 0); xdata(tag);
     for (const [x, y] of vertices) { g(0, 'VERTEX'); g(8, layer); g(10, x); g(20, y); g(30, 0); }
     g(0, 'SEQEND'); g(8, layer);
   };
@@ -166,6 +183,7 @@ export function toDxf(items: DxfPrimitive[], layerColours: Record<string, number
       [0, 1, 3, 2].forEach((corner, j) => {
         g(10 + j, quad[corner][0]); g(20 + j, quad[corner][1]); g(30 + j, 0);
       });
+      xdata(i.tag);
     }
   };
 
@@ -173,13 +191,13 @@ export function toDxf(items: DxfPrimitive[], layerColours: Record<string, number
   for (const i of items) {
     if (i.type === 'line') {
       if (positiveWidth(i.width)) solids(i);
-      else { g(0, 'LINE'); g(8, i.layer); g(10, i.x1); g(20, i.y1); g(30, 0); g(11, i.x2); g(21, i.y2); g(31, 0); }
+      else { g(0, 'LINE'); g(8, i.layer); g(10, i.x1); g(20, i.y1); g(30, 0); g(11, i.x2); g(21, i.y2); g(31, 0); xdata(i.tag); }
     } else if (i.type === 'circle') {
-      g(0, 'CIRCLE'); g(8, i.layer); g(10, i.x); g(20, i.y); g(30, 0); g(40, i.r);
+      g(0, 'CIRCLE'); g(8, i.layer); g(10, i.x); g(20, i.y); g(30, 0); g(40, i.r); xdata(i.tag);
     } else if (i.type === 'polyline') {
       if (i.points.length < 2) continue;
       if (positiveWidth(i.width)) solids(i);
-      else polyline(i.layer, i.points, !!i.closed);
+      else polyline(i.layer, i.points, !!i.closed, i.tag);
     } else {
       const text = dxfText(i.text);
       if (!text.trim()) continue;
@@ -189,6 +207,7 @@ export function toDxf(items: DxfPrimitive[], layerColours: Record<string, number
       const h = i.align === 'center' ? 1 : i.align === 'right' ? 2 : 0;
       if (fit) { g(72, 5); g(73, 0); g(11, fit.end[0]); g(21, fit.end[1]); g(31, 0); }
       else if (h) { g(72, h); g(11, i.x); g(21, i.y); g(31, 0); }
+      xdata(i.tag);
     }
   }
   g(0, 'ENDSEC');

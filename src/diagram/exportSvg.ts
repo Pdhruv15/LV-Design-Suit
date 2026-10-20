@@ -97,13 +97,19 @@ const layerOf = (el: Element): string => {
   return 'SYMBOL';
 };
 
+/** An equipment tag from a diagram group's data-lv-id ("feeder:<id>", "board:<id>"): printable ASCII, at most
+ * 200 characters (DXF extended-data strings are limited to 255), else none. */
+export function lvTag(v: string | null): string {
+  return v && /^(feeder|board):[\x21-\x7e]{1,193}$/.test(v) ? v : '';
+}
+
 /** DXF entities from printable SVG markup, y flipped so the drawing is
  * upright in CAD (SVG y grows downward). */
 export function svgToDxf(svgMarkup: string, height: number): DxfPrimitive[] {
   const doc = new DOMParser().parseFromString(svgMarkup, 'image/svg+xml');
   const out: DxfPrimitive[] = [];
   const flip = ([x, y]: [number, number]): [number, number] => [x, height - y];
-  const walk = (el: Element, m: M, inheritedSize = 11, inheritedDash = '') => {
+  const walk = (el: Element, m: M, inheritedSize = 11, inheritedDash = '', inheritedTag = '') => {
     const style = el.getAttribute('style') ?? '';
     if (/display:\s*none/.test(style) || /opacity:\s*0(?![.\d])/.test(style)) return;
     // Generated SVGs such as the earthing drawing use presentation attributes
@@ -112,13 +118,16 @@ export function svgToDxf(svgMarkup: string, height: number): DxfPrimitive[] {
     const size = Number.isFinite(declaredSize) && declaredSize > 0 ? declaredSize : inheritedSize;
     const dash = style.match(/(?:^|;)\s*stroke-dasharray:\s*([^;]+)/)?.[1] ?? (el.hasAttribute('stroke-dasharray') ? el.getAttribute('stroke-dasharray')! : inheritedDash);
     const mm = mul(m, parseTransform(el.getAttribute('transform')));
+    // The board or feeder this element belongs to travels with it into CAD (see lvTag).
+    const tag = lvTag(el.getAttribute('data-lv-id')) || inheritedTag;
+    const emit = (p: DxfPrimitive) => out.push(tag ? { ...p, tag } : p);
     const num = (a: string) => Number(el.getAttribute(a) ?? 0);
     const layer = layerOf(el);
     const scale = Math.hypot(mm[0], mm[1]) || 1;
     const pattern = dash.trim().split(/[\s,]+/).filter(Boolean).map((v) => /^(?:\d+\.?\d*|\.\d+)(?:px)?$/.test(v) ? parseFloat(v) : NaN);
     const dashed = pattern.length > 0 && pattern.every((v) => Number.isFinite(v) && v >= 0) && pattern.some((v) => v > 0);
     const push = (p: DxfPrimitive) => {
-      if (!dashed || (p.type !== 'line' && p.type !== 'polyline')) { out.push(p); return; }
+      if (!dashed || (p.type !== 'line' && p.type !== 'polyline')) { emit(p); return; }
       const points: [number, number][] = p.type === 'line' ? [[p.x1, p.y1], [p.x2, p.y2]] : p.points;
       const closed = p.type === 'polyline' && p.closed;
       // Dash in SVG user space, then transform each endpoint. Using only an
@@ -130,7 +139,7 @@ export function svgToDxf(svgMarkup: string, height: number): DxfPrimitive[] {
         return [(mm[3] * dx - mm[2] * dy) / determinant, (-mm[1] * dx + mm[0] * dy) / determinant];
       }) : points;
       for (const run of dashedRuns(closed && source.length ? [...source, source[0]] : source, invertible ? pattern : pattern.map((v) => v * scale))) {
-        out.push({ type: 'polyline', layer: p.layer, points: invertible ? run.map(([x, y]) => flip(apply(mm, x, y))) : run, ...(p.width ? { width: p.width } : {}) });
+        emit({ type: 'polyline', layer: p.layer, points: invertible ? run.map(([x, y]) => flip(apply(mm, x, y))) : run, ...(p.width ? { width: p.width } : {}) });
       }
     };
     // Only busbars need a filled CAD width. Ordinary lines retain thin,
@@ -175,7 +184,7 @@ export function svgToDxf(svgMarkup: string, height: number): DxfPrimitive[] {
             return flip(apply(mm, num('cx') + num('r') * Math.cos(angle), num('cy') + num('r') * Math.sin(angle)));
           });
           push({ type: 'polyline', layer, points, closed: true });
-        } else out.push({ type: 'circle', layer, x, y, r: num('r') * Math.hypot(mm[0], mm[1]) });
+        } else emit({ type: 'circle', layer, x, y, r: num('r') * Math.hypot(mm[0], mm[1]) });
         break;
       }
       case 'polygon':
@@ -202,11 +211,11 @@ export function svgToDxf(svgMarkup: string, height: number): DxfPrimitive[] {
         const limit = num('data-dxf-max-width');
         const textWidth = measured > 0 ? (limit > 0 ? Math.min(measured, limit) : measured) : limit;
         const rot = -Math.atan2(mm[1], mm[0]) * 180 / Math.PI; // SVG y is down, DXF y is up
-        out.push({ type: 'text', layer, x, y, height: size * 0.72 * scale, text, align: anchor === 'middle' ? 'center' : anchor === 'end' ? 'right' : 'left', ...(textWidth > 0 ? { width: textWidth * scale } : {}), ...(Math.abs(rot) > 0.5 ? { rotation: rot } : {}) });
+        emit({ type: 'text', layer, x, y, height: size * 0.72 * scale, text, align: anchor === 'middle' ? 'center' : anchor === 'end' ? 'right' : 'left', ...(textWidth > 0 ? { width: textWidth * scale } : {}), ...(Math.abs(rot) > 0.5 ? { rotation: rot } : {}) });
         return; // tspans are part of the text
       }
     }
-    for (const c of Array.from(el.childNodes)) if (c.nodeType === 1) walk(c as Element, mm, size, dash);
+    for (const c of Array.from(el.childNodes)) if (c.nodeType === 1) walk(c as Element, mm, size, dash, tag);
   };
   walk(doc.documentElement, IDENT);
   return out;
