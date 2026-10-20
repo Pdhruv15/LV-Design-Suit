@@ -14,10 +14,10 @@ UPS selection correctly checks both kVA and rated kW, but `loadingPct` uses only
 
 Files:
 
-- [ups.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/ups.ts): `UpsResult`, `sizeUps` loading calculation.
-- [UpsStudy.tsx](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/components/studies/UpsStudy.tsx:156): loading-today display.
-- [upsSolarReport.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/docs/upsSolarReport.ts:36): report loading row.
-- [upsSolar.test.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/upsSolar.test.ts): regression coverage.
+- [ups.ts](../src/calc/ups.ts): `UpsResult`, `sizeUps` loading calculation.
+- [UpsStudy.tsx](../src/components/studies/UpsStudy.tsx:156): loading-today display.
+- [upsSolarReport.ts](../src/docs/upsSolarReport.ts:36): report loading row.
+- [upsSolar.test.ts](../src/calc/upsSolar.test.ts): regression coverage.
 
 Executed fixture: `UPS_DEFAULTS`, ID/name T; one load of **96,000 W**, quantity 1, PF **1**; growth **0%**, maximum design loading **100%**, UPS rated output PF **0.8**, autonomy **5 minutes**. Other defaults unchanged; use the sample project.
 
@@ -58,10 +58,10 @@ The DC breaker list ends at **1,600 A**. `sizeUps` falls back to that rating whe
 
 Files:
 
-- [ups.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/ups.ts): `DC_BREAKERS`, selection fallback, `UpsResult` and notes.
-- [UpsStudy.tsx](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/components/studies/UpsStudy.tsx:159): DC-side result and unresolved-protection display.
-- [upsSolarReport.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/docs/upsSolarReport.ts:49): maximum current/breaker row.
-- [upsSolar.test.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/upsSolar.test.ts): boundary and report regression checks.
+- [ups.ts](../src/calc/ups.ts): `DC_BREAKERS`, selection fallback, `UpsResult` and notes.
+- [UpsStudy.tsx](../src/components/studies/UpsStudy.tsx:159): DC-side result and unresolved-protection display.
+- [upsSolarReport.ts](../src/docs/upsSolarReport.ts:49): maximum current/breaker row.
+- [upsSolar.test.ts](../src/calc/upsSolar.test.ts): boundary and report regression checks.
 
 Executed fixture: the same setup as ENG-013, except one **600,000 W** load, quantity 1 and PF 1. Growth 0%, design loading 100%, output PF 0.8, autonomy 5 minutes. Default inverter efficiency **0.94**, nominal DC bus **384 V**, VRLA **12 V blocks**, end voltage **1.75 V/cell**, and the default battery factors/capacity tables.
 

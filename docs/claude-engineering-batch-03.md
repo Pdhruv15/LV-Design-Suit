@@ -14,11 +14,11 @@ The current incomer calculation sums downstream phase kW, then divides by the in
 
 Primary files and consumers:
 
-- [electrical.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/electrical.ts:62): `designCurrentA`, `voltageDropPct`, candidate voltage-drop checks in `selectCable` / `selectCableRuns`.
-- [loadSchedule.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/loadSchedule.ts:105): `boardPhaseKw`; introduce or reuse a phase real/reactive-power helper without silently changing this existing helper's other callers.
-- [voltageDrop.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/voltageDrop.ts:62): `vdRow`, `vdFormula`, cable suggestions and upstream calculations.
-- [sizing.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/sizing.ts:239) and [FeederForm.tsx](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/components/FeederForm.tsx:79): cable candidates currently receive the stored incomer PF.
-- [VoltageDropStudy.tsx](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/components/studies/VoltageDropStudy.tsx:247), [annotations.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/diagram/annotations.ts:88), [voltageDropReport.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/docs/voltageDropReport.ts:23), and [studyReport.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/docs/studyReport.ts:207): PF/current/formula display and report parity.
+- [electrical.ts](../src/calc/electrical.ts:62): `designCurrentA`, `voltageDropPct`, candidate voltage-drop checks in `selectCable` / `selectCableRuns`.
+- [loadSchedule.ts](../src/calc/loadSchedule.ts:105): `boardPhaseKw`; introduce or reuse a phase real/reactive-power helper without silently changing this existing helper's other callers.
+- [voltageDrop.ts](../src/calc/voltageDrop.ts:62): `vdRow`, `vdFormula`, cable suggestions and upstream calculations.
+- [sizing.ts](../src/calc/sizing.ts:239) and [FeederForm.tsx](../src/components/FeederForm.tsx:79): cable candidates currently receive the stored incomer PF.
+- [VoltageDropStudy.tsx](../src/components/studies/VoltageDropStudy.tsx:247), [annotations.ts](../src/diagram/annotations.ts:88), [voltageDropReport.ts](../src/docs/voltageDropReport.ts:23), and [studyReport.ts](../src/docs/studyReport.ts:207): PF/current/formula display and report parity.
 
 Executed fixture: MDB → SMDB through a 60 m, 4-core, 95 mm² incomer at entered PF 1; supply 415 V, reference copper cable data, default conductor-temperature factor 1.2, one cable run. Downstream balanced loads are 100 kW × DF 0.8 at PF 0.8 and 40 kW × DF 1 at PF 1. Combined demand is **120 kW + j60 kvar**.
 
@@ -69,7 +69,7 @@ Priority: high. App location: **Solar PV → Inverter → Phases → Add / Updat
 
 The Solar calculator correctly computes single-phase AC current, but the Add handler creates a four-core feeder. Update preserves the existing core count even when inverter phases change. The electrical engine then calculates current and sizes protection using the wrong phase system.
 
-Primary file: [SolarStudy.tsx](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/components/studies/SolarStudy.tsx:35), `addToSld` and its base/updated feeder construction.
+Primary file: [SolarStudy.tsx](../src/components/studies/SolarStudy.tsx:35), `addToSld` and its base/updated feeder construction.
 
 Executed fixture: PV defaults except target 5.5 kWp and inverter 5 kW, one phase; supply 400 V line-to-line, ambient 30°C, 30 m connection, VD limit 4%, reference cables, default conductor-temperature factor, no upstream cable. The result is 10 panels / 5.5 kWp and one 5 kW inverter. Feeder PF and DF are 1.
 
@@ -95,10 +95,10 @@ Required correction:
 
 Related files:
 
-- [solar.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/solar.ts:181): correct phase-aware AC-current reference; preserve it.
-- [SolarStudy.tsx](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/components/studies/SolarStudy.tsx:137): AC connection voltage label.
-- [upsSolarReport.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/docs/upsSolarReport.ts:70): PV PDF-source HTML labels the single-phase current with the line voltage today.
-- [electrical.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/electrical.ts:71), [schedules.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/docs/schedules.ts:77), and [exportDss.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/engines/opendss/exportDss.ts:107): verify downstream current, cable descriptions and phase count; avoid a separate engine-export redesign.
+- [solar.ts](../src/calc/solar.ts:181): correct phase-aware AC-current reference; preserve it.
+- [SolarStudy.tsx](../src/components/studies/SolarStudy.tsx:137): AC connection voltage label.
+- [upsSolarReport.ts](../src/docs/upsSolarReport.ts:70): PV PDF-source HTML labels the single-phase current with the line voltage today.
+- [electrical.ts](../src/calc/electrical.ts:71), [schedules.ts](../src/docs/schedules.ts:77), and [exportDss.ts](../src/engines/opendss/exportDss.ts:107): verify downstream current, cable descriptions and phase count; avoid a separate engine-export redesign.
 
 Acceptance checks:
 

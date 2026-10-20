@@ -14,10 +14,10 @@ This review changed no application code. Fixtures were executed through `sizePv`
 
 Files:
 
-- [solar.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/solar.ts:150): panel type/defaults, hot/cold Vmp and minimum/maximum string length.
-- [SolarStudy.tsx](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/components/studies/SolarStudy.tsx:97): panel inputs, validation and displayed string checks.
-- [upsSolarReport.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/docs/upsSolarReport.ts:74): method inputs and string checks in PDF-source HTML.
-- [upsSolar.test.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/upsSolar.test.ts:60): the existing test repeats the Voc coefficient in its expected Vmp formula; revise the engineering expectation.
+- [solar.ts](../src/calc/solar.ts:150): panel type/defaults, hot/cold Vmp and minimum/maximum string length.
+- [SolarStudy.tsx](../src/components/studies/SolarStudy.tsx:97): panel inputs, validation and displayed string checks.
+- [upsSolarReport.ts](../src/docs/upsSolarReport.ts:74): method inputs and string checks in PDF-source HTML.
+- [upsSolar.test.ts](../src/calc/upsSolar.test.ts:60): the existing test repeats the Voc coefficient in its expected Vmp formula; revise the engineering expectation.
 
 Executed fixture: `PV_DEFAULTS`, target **3.3 kWp**, inverter **3 kW**, MPPT minimum **210 V**, supply **400 V**. All other defaults remain. For the corrected comparison, explicitly supply an independent Vmp coefficient of **−0.40%/°C**. This is a synthetic verification input, not a claimed datasheet value for the generic panel.
 
@@ -59,10 +59,10 @@ The Solar breaker list ends at 2,500 A. When no rating meets `acCurrentA × 1.25
 
 Files:
 
-- [solar.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/solar.ts:192): selection fallback, result type, status and notes.
-- [SolarStudy.tsx](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/components/studies/SolarStudy.tsx:140): selected breaker and failure display.
-- [upsSolarReport.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/docs/upsSolarReport.ts:71): selected breaker and failure display.
-- [pvFeeder.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/model/pvFeeder.ts:8): review the Add/Update path so unresolved protection cannot be presented as successfully sized. It currently accepts only inverter count/kWp and sizes independently through general recommendation.
+- [solar.ts](../src/calc/solar.ts:192): selection fallback, result type, status and notes.
+- [SolarStudy.tsx](../src/components/studies/SolarStudy.tsx:140): selected breaker and failure display.
+- [upsSolarReport.ts](../src/docs/upsSolarReport.ts:71): selected breaker and failure display.
+- [pvFeeder.ts](../src/model/pvFeeder.ts:8): review the Add/Update path so unresolved protection cannot be presented as successfully sized. It currently accepts only inverter count/kWp and sizes independently through general recommendation.
 
 Executed fixtures: `PV_DEFAULTS`, three-phase supply **400 V**, inverter **250 kW**, **16 MPPTs**, input limit **50 A**, DC/AC target **1.2**. These inputs are synthetic calculation fixtures. MPPT current is **35 A** in both cases, so an unrelated input-current warning does not explain the result.
 

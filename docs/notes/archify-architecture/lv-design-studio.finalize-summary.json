@@ -6,12 +6,12 @@
   "type": "architecture",
   "quality": "showcase",
   "specification": {
-    "path": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/docs/notes/archify-architecture/candidate.json",
+    "path": "docs/notes/archify-architecture/candidate.json",
     "sha256": "7df977f283b107cc86167cf816a5cbd6f69af947798de00d7ec98578a579e0fc",
     "bytes": 4120
   },
   "artifact": {
-    "path": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/docs/notes/archify-architecture/lv-design-studio.html",
+    "path": "docs/notes/archify-architecture/lv-design-studio.html",
     "sha256": "e3980a2b14b8824f034a6d7cf317eb0d85d81a279bd208eb4b2586be32e6c9b9",
     "bytes": 763350
   },
@@ -28,9 +28,9 @@
     "truncated": false
   },
   "evidence": {
-    "receipt": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/docs/notes/archify-architecture/lv-design-studio.finalize.json",
-    "summaryReceipt": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/docs/notes/archify-architecture/lv-design-studio.finalize-summary.json",
-    "browserCheckReceipt": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/docs/notes/archify-architecture/lv-design-studio.browser-check.json"
+    "receipt": "docs/notes/archify-architecture/lv-design-studio.finalize.json",
+    "summaryReceipt": "docs/notes/archify-architecture/lv-design-studio.finalize-summary.json",
+    "browserCheckReceipt": "docs/notes/archify-architecture/lv-design-studio.browser-check.json"
   },
   "update": {
     "status": "current",

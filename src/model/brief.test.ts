@@ -34,11 +34,11 @@ describe('project brief', () => {
 
   it('changing role changes scope and deliverables but keeps the parties', () => {
     let b = newBrief('consultant', { company: 'ABC' });
-    b = { ...b, parties: b.parties.map((p) => (p.role === 'owner' ? { ...p, name: 'Mansoori', tel: '04 123' } : p)) };
+    b = { ...b, parties: b.parties.map((p) => (p.role === 'owner' ? { ...p, name: 'Demo Owner', tel: '04 123' } : p)) };
     const k = withRole(b, 'contractor', 'XYZ Contracting');
     expect(k.role).toBe('contractor');
     expect(k.scope).toEqual(defaultScope('contractor'));
-    expect(k.parties.find((p) => p.role === 'owner')).toMatchObject({ name: 'Mansoori', tel: '04 123' });
+    expect(k.parties.find((p) => p.role === 'owner')).toMatchObject({ name: 'Demo Owner', tel: '04 123' });
     expect(k.parties.find((p) => p.role === 'contractor')!.name).toBe('XYZ Contracting');
     expect(k.parties.find((p) => p.role === 'consultant')!.name).toBe('ABC'); // kept
     expect(withRole(b, 'consultant')).toBe(b);
@@ -47,8 +47,8 @@ describe('project brief', () => {
   it('fills the header details from the parties without erasing what is there, and sets the BOQ type for a contractor', () => {
     const p = { ...newProject('Villa'), info: { owner: 'Old owner', consultant: 'Keep me', plotNo: '9', mdDemandFactor: 0.8 } };
     const b = newBrief('contractor', { company: 'XYZ' });
-    const next = applyBrief(p, { ...b, boqType: 'fit-out', parties: b.parties.map((x) => (x.role === 'owner' ? { ...x, name: 'Mansoori', tel: '04 123' } : x)) });
-    expect(next.info).toMatchObject({ owner: 'Mansoori', consultant: 'Keep me', contractor: 'XYZ', tel: '04 123', plotNo: '9', mdDemandFactor: 0.8 });
+    const next = applyBrief(p, { ...b, boqType: 'fit-out', parties: b.parties.map((x) => (x.role === 'owner' ? { ...x, name: 'Demo Owner', tel: '04 123' } : x)) });
+    expect(next.info).toMatchObject({ owner: 'Demo Owner', consultant: 'Keep me', contractor: 'XYZ', tel: '04 123', plotNo: '9', mdDemandFactor: 0.8 });
     expect(next.boq?.projectType).toBe('fit-out');
     expect(next.brief?.role).toBe('contractor');
     expect(applyBrief(p, newBrief('consultant')).boq).toBeUndefined();

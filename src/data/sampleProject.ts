@@ -6,13 +6,13 @@ import type { Project } from '../types';
 // (21 circuits, phases balanced, lighting and power on separate ELCBs;
 // WATT/UNIT values are example user inputs). Edit anything to see the checks respond.
 export const sampleProject: Project = {
-  name: "Villa Complex 415V LV Network",
+  name: 'Demonstration Project — Not for Construction',
   voltageV: 415,
   frequencyHz: 50,
   ambientC: 45,
   vdLimitPct: 4,
   pointTemplate: 'dewa-villa',
-  info: { owner: 'Mr. Ahmed Al Mansoori', consultant: 'ABC Engineering Consultants', area: 'VILLA, UAE', plotNo: '123-456', mdDemandFactor: 0.8 },
+  info: { owner: 'Demo Owner', consultant: 'Demo Engineering Consultants', area: 'VILLA, UAE', plotNo: 'DEMO-001', mdDemandFactor: 0.8 },
   boards: [
     {"id":"MDB-1","name":"Main Distribution Board","kind":"MDB","sourceKva":1000,"sourceImpedancePct":5,"ratedCurrentA":1600,"busbarMaterial":"copper","ipRating":"IP42","location":"Main building – ground floor","manufacturer":"Schneider Electric","model":"PrismaSeT P"},
     {"id":"SMDB-GF","name":"Ground floor SMDB","kind":"SMDB","upstreamId":"MDB-1","ratedCurrentA":630,"busbarMaterial":"copper","ipRating":"IP42","location":"Ground floor electrical room"},

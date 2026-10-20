@@ -59,6 +59,8 @@ export interface RibbonActions {
   onNew: () => void;
   onSave: () => void;
   onSaveAs: () => void;
+  /** Export anonymized sample (a copy without client, site or people, for sharing an issue). */
+  onAnonymizedSample: () => void;
   onProfile: () => void;
   onChooseFolder: () => void;
   folderLabel: string;
@@ -202,7 +204,8 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'New', icon: FilePlus2, title: 'New project', onClick: a.onNew },
         view('projects', 'Open', FolderOpen, 'All projects: open, duplicate, status'),
         { label: a.dirty ? 'Save ●' : 'Save', icon: Save, title: 'Save (Ctrl+S / ⌘S)', onClick: a.onSave, stale: a.dirty },
-        { label: 'Save as', icon: SaveAll, title: 'Save as a new project (Ctrl+Shift+S / ⇧⌘S)', onClick: a.onSaveAs }
+        { label: 'Save as', icon: SaveAll, title: 'Save as a new project (Ctrl+Shift+S / ⇧⌘S)', onClick: a.onSaveAs },
+        { label: 'Share sample', icon: ShieldCheck, title: 'Export anonymized sample: a copy without the client, site or people, to share a technical issue', onClick: a.onAnonymizedSample }
       ],
       [
         { label: 'SLD', icon: Network, title: 'Single line diagram', onClick: go('design'), active: a.view === 'design' },

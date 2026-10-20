@@ -4,8 +4,8 @@
   "status": "current",
   "command": "deliver",
   "type": "workflow",
-  "input": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-uae-sld-20261016-202920/candidate.json",
-  "output": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-uae-sld-20261016-202920/uae-sld-final-circuits.html",
+  "input": ".archify/workflow-uae-sld-20261016-202920/candidate.json",
+  "output": ".archify/workflow-uae-sld-20261016-202920/uae-sld-final-circuits.html",
   "specification": {
     "sha256": "fdad7fb0a642d899627139fc792a738d00767da18730b743dcb554842a74d99d",
     "bytes": 5031

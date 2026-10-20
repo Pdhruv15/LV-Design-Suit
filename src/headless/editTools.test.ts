@@ -13,7 +13,7 @@ import type { Project } from '../types';
 import { callTool, offeredTools, toolByName, type ToolContext } from './tools';
 import { parseProject } from './project';
 import { readLog, writeBlocked } from './write';
-import { createApi } from './api';
+import { createApi, newApiToken } from './api';
 import { createMcp } from './mcp';
 import { main } from './cli';
 
@@ -138,7 +138,7 @@ describe('backup, log and undo', () => {
   });
   it('undo refuses when the file changed since, and says where the backup is', () => {
     const a = run('add_panel', { project: 'Villa', kind: 'DB', id: 'DB-Y', fedFrom: 'SMDB-GF', mode: 'apply' });
-    fs.writeFileSync(file('Villa'), read('Villa').replace('"Villa Complex', '"Edited Villa Complex')); // saved from the app
+    fs.writeFileSync(file('Villa'), read('Villa').replace('"Demonstration Project', '"Edited Demonstration Project')); // saved from the app
     expect(() => run('undo_change', { project: 'Villa', change: a.change, mode: 'apply' })).toThrow(/has changed since.*\.lvds-agent/);
   });
 });
@@ -174,13 +174,16 @@ describe('servers', () => {
     expect(w.find((t) => t.name === 'add_panel')!.annotations?.readOnlyHint).toBe(false);
   });
   it('API: a change needs POST with JSON', async () => {
-    const server = createApi(ctx, '1');
+    const token = newApiToken(), auth = { Authorization: `Bearer ${token}` };
+    const server = createApi(ctx, '1', token);
     await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
     const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/tools`;
     try {
-      expect((await fetch(`${base}/add_panel?project=Villa&kind=DB&fedFrom=SMDB-GF&mode=apply`)).status).toBe(405);
-      expect((await fetch(`${base}/add_panel`, { method: 'POST', body: JSON.stringify({ project: 'Villa', kind: 'DB', fedFrom: 'SMDB-GF', mode: 'apply' }), headers: { 'Content-Type': 'text/plain' } })).status).toBe(405);
-      const ok = await fetch(`${base}/add_panel`, { method: 'POST', body: JSON.stringify({ project: 'Villa', kind: 'DB', fedFrom: 'SMDB-GF', mode: 'apply' }), headers: { 'Content-Type': 'application/json' } });
+      expect((await fetch(`${base}/add_panel?project=Villa&kind=DB&fedFrom=SMDB-GF&mode=apply`, { headers: auth })).status).toBe(405);
+      expect((await fetch(`${base}/add_panel`, { method: 'POST', body: JSON.stringify({ project: 'Villa', kind: 'DB', fedFrom: 'SMDB-GF', mode: 'apply' }), headers: { ...auth, 'Content-Type': 'text/plain' } })).status).toBe(405);
+      // Without the token nothing is written, even with the right method and body.
+      expect((await fetch(`${base}/add_panel`, { method: 'POST', body: JSON.stringify({ project: 'Villa', kind: 'DB', fedFrom: 'SMDB-GF', mode: 'apply' }), headers: { 'Content-Type': 'application/json' } })).status).toBe(401);
+      const ok = await fetch(`${base}/add_panel`, { method: 'POST', body: JSON.stringify({ project: 'Villa', kind: 'DB', fedFrom: 'SMDB-GF', mode: 'apply' }), headers: { ...auth, 'Content-Type': 'application/json' } });
       expect((await ok.json() as { written: boolean }).written).toBe(true);
     } finally { await new Promise((r) => server.close(r)); }
   });

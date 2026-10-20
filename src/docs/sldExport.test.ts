@@ -9,8 +9,8 @@ describe('SLD drawing export', () => {
   it('title block: project, owner, drawing data and the current revision', () => {
     const p = issueRevision({ ...sampleProject, drawing: { number: 'E-SLD-001', drawnBy: 'PG', checkedBy: 'AK' } }, { description: 'Issued for approval', date: '2026-09-28' });
     const t = titleBlockOf(p);
-    expect(t).toMatchObject({ project: 'Villa Complex 415V LV Network', owner: 'Mr. Ahmed Al Mansoori', title: DEFAULT_DRAWING_TITLE, number: 'E-SLD-001', revision: 'A', date: '2026-09-28', drawnBy: 'PG', checkedBy: 'AK', scale: 'NTS' });
-    expect(t.company).toBe('ABC Engineering Consultants'); // falls back to the consultant
+    expect(t).toMatchObject({ project: 'Demonstration Project — Not for Construction', owner: 'Demo Owner', title: DEFAULT_DRAWING_TITLE, number: 'E-SLD-001', revision: 'A', date: '2026-09-28', drawnBy: 'PG', checkedBy: 'AK', scale: 'NTS' });
+    expect(t.company).toBe('Demo Engineering Consultants'); // falls back to the consultant
     expect(t.history).toEqual([{ id: 'A', date: '2026-09-28', description: 'Issued for approval' }]);
     expect(titleBlockOf(sampleProject, '2026-01-01')).toMatchObject({ revision: '—', date: '2026-01-01' });
   });

@@ -115,7 +115,7 @@ function help(version: string): string {
     ...allTools().filter((t) => t.name.startsWith('export_') || t.name === 'list_exports').map(usage),
     '',
     '  lvds mcp [--write]                 Run the MCP server (stdio) for Claude Desktop, Claude Code or a local model',
-    '  lvds serve [--port 8765] [--write] Run the local API on http://127.0.0.1',
+    '  lvds serve [--port 8765] [--write] Run the local API on http://127.0.0.1 (needs its token: lvds help serve)',
     '  (--write also offers the tools that change a project; without it both are read only)',
     '  lvds help <command>      Inputs of one command',
     '',
@@ -124,6 +124,21 @@ function help(version: string): string {
     'A <project> is a file name in the projects folder, or a path to a project .json file.'
   ].join('\n');
 }
+
+/** `lvds help serve`: how a local program authenticates to the API. */
+export const SERVE_HELP = [
+  'lvds serve [--port 8765] [--write]',
+  '',
+  'Runs the local API on http://127.0.0.1:<port>/api/tools for programs on this computer.',
+  'Every request needs the header  Authorization: Bearer <token>',
+  'The token is new each time the server starts. It is written to a file only you can read,',
+  'named when the server starts (in the app data folder, file "api-token"), and removed when it stops.',
+  'It is never printed, and never goes in a URL. Set LVDS_API_TOKEN (32+ characters) to use your own fixed token instead.',
+  'Requests from web pages (with an Origin header) are refused. --write also offers the tools that change a project (POST with JSON).',
+  '',
+  'Example (macOS / Linux):',
+  '  curl -H "Authorization: Bearer $(cat <token file>)" http://127.0.0.1:8765/api/tools/run_checks?project=My%20project'
+].join('\n');
 
 function commandHelp(t: Tool): string {
   const shape = z.object(t.input).shape as Record<string, z.ZodType>;
@@ -138,6 +153,7 @@ export async function main(argv: string[], version: string, io: { out: (s: strin
   const ctx: ToolContext = { folder: a.folder ?? projectsFolder(), anywhere: true, write: true };
   const cmd = a.command;
   if (!cmd || cmd === 'help' || cmd === '--help' || cmd === '-h') {
+    if (a.positional[0] === 'serve') { io.out(SERVE_HELP); return 0; }
     const t = a.positional[0] ? toolByName(ALIASES[a.positional[0]] ?? a.positional[0]) : undefined;
     io.out(t ? commandHelp(t) : help(version));
     return 0;
@@ -146,8 +162,13 @@ export async function main(argv: string[], version: string, io: { out: (s: strin
   if (cmd === 'mcp') { await startMcp({ ...ctx, anywhere: false, write: a.write }, version); return -1; }
   if (cmd === 'serve') {
     const port = a.port ?? 8765;
-    await startApi({ ...ctx, anywhere: false, write: a.write }, version, port);
-    io.err(`LV Design Studio local API (${a.write ? 'read and change' : 'read only'}): http://127.0.0.1:${port}/api/tools  — projects folder ${ctx.folder}. Ctrl+C to stop.`);
+    const { server, tokenFile } = await startApi({ ...ctx, anywhere: false, write: a.write }, version, port);
+    const stop = () => server.close(() => process.exit(0));
+    process.once('SIGINT', stop);
+    process.once('SIGTERM', stop);
+    io.err(`LV Design Studio local API (${a.write ? 'read and change' : 'read only'}): http://127.0.0.1:${port}/api/tools  — projects folder ${ctx.folder}.`);
+    io.err(tokenFile ? `Token (send as Authorization: Bearer <token>): in ${tokenFile}` : 'Token: the one in LVDS_API_TOKEN.');
+    io.err('Ctrl+C to stop. "lvds help serve" for an example.');
     return -1;
   }
   const t = toolByName(ALIASES[cmd] ?? cmd);

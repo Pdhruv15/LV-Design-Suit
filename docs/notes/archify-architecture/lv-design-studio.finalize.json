@@ -7,12 +7,12 @@
   "quality": "showcase",
   "startedAt": "2026-10-04T16:25:42.200Z",
   "specification": {
-    "path": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/docs/notes/archify-architecture/candidate.json",
+    "path": "docs/notes/archify-architecture/candidate.json",
     "sha256": "7df977f283b107cc86167cf816a5cbd6f69af947798de00d7ec98578a579e0fc",
     "bytes": 4120
   },
   "artifact": {
-    "path": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/docs/notes/archify-architecture/lv-design-studio.html",
+    "path": "docs/notes/archify-architecture/lv-design-studio.html",
     "sha256": "e3980a2b14b8824f034a6d7cf317eb0d85d81a279bd208eb4b2586be32e6c9b9",
     "bytes": 763350
   },
@@ -23,16 +23,16 @@
       "durationMs": null,
       "execution": "embedded-in-deliver",
       "command": [
-        "/Users/palanisamigovindasamy/.nvm/versions/node/v24.16.0/bin/node",
-        "/Users/palanisamigovindasamy/.agents/skills/archify/bin/archify.mjs",
+        "~/.nvm/versions/node/v24.16.0/bin/node",
+        "~/.agents/skills/archify/bin/archify.mjs",
         "deliver",
         "architecture",
-        "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/docs/notes/archify-architecture/candidate.json",
-        "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/docs/notes/archify-architecture/lv-design-studio.html",
+        "docs/notes/archify-architecture/candidate.json",
+        "docs/notes/archify-architecture/lv-design-studio.html",
         "--quality",
         "showcase",
         "--repo-root",
-        "/Users/palanisamigovindasamy/Projects/LV-Design-Suit",
+        ".",
         "--json"
       ],
       "receipt": {
@@ -58,16 +58,16 @@
       "exitCode": 0,
       "durationMs": 323,
       "command": [
-        "/Users/palanisamigovindasamy/.nvm/versions/node/v24.16.0/bin/node",
-        "/Users/palanisamigovindasamy/.agents/skills/archify/bin/archify.mjs",
+        "~/.nvm/versions/node/v24.16.0/bin/node",
+        "~/.agents/skills/archify/bin/archify.mjs",
         "deliver",
         "architecture",
-        "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/docs/notes/archify-architecture/candidate.json",
-        "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/docs/notes/archify-architecture/lv-design-studio.html",
+        "docs/notes/archify-architecture/candidate.json",
+        "docs/notes/archify-architecture/lv-design-studio.html",
         "--quality",
         "showcase",
         "--repo-root",
-        "/Users/palanisamigovindasamy/Projects/LV-Design-Suit",
+        ".",
         "--json"
       ],
       "receipt": {
@@ -76,8 +76,8 @@
         "ok": true,
         "command": "deliver",
         "type": "architecture",
-        "input": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/docs/notes/archify-architecture/candidate.json",
-        "output": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/docs/notes/archify-architecture/lv-design-studio.html",
+        "input": "docs/notes/archify-architecture/candidate.json",
+        "output": "docs/notes/archify-architecture/lv-design-studio.html",
         "specification": {
           "sha256": "7df977f283b107cc86167cf816a5cbd6f69af947798de00d7ec98578a579e0fc",
           "bytes": 4120
@@ -118,15 +118,15 @@
       "exitCode": 0,
       "durationMs": 106,
       "command": [
-        "/Users/palanisamigovindasamy/.nvm/versions/node/v24.16.0/bin/node",
-        "/Users/palanisamigovindasamy/.agents/skills/archify/bin/archify.mjs",
+        "~/.nvm/versions/node/v24.16.0/bin/node",
+        "~/.agents/skills/archify/bin/archify.mjs",
         "check",
-        "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/docs/notes/archify-architecture/lv-design-studio.html",
+        "docs/notes/archify-architecture/lv-design-studio.html",
         "--require-provenance"
       ],
       "receipt": {
         "ok": true,
-        "file": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/docs/notes/archify-architecture/lv-design-studio.html",
+        "file": "docs/notes/archify-architecture/lv-design-studio.html",
         "artifact": {
           "sha256": "e3980a2b14b8824f034a6d7cf317eb0d85d81a279bd208eb4b2586be32e6c9b9",
           "bytes": 763350
@@ -265,10 +265,10 @@
       "exitCode": 0,
       "durationMs": 1625,
       "command": [
-        "/Users/palanisamigovindasamy/.nvm/versions/node/v24.16.0/bin/node",
-        "/Users/palanisamigovindasamy/.agents/skills/archify/bin/archify.mjs",
+        "~/.nvm/versions/node/v24.16.0/bin/node",
+        "~/.agents/skills/archify/bin/archify.mjs",
         "browser-check",
-        "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/docs/notes/archify-architecture/lv-design-studio.html",
+        "docs/notes/archify-architecture/lv-design-studio.html",
         "--json",
         "--require-provenance"
       ],
@@ -283,7 +283,7 @@
         "provenance": "current",
         "deliveryReceiptId": "b56075c7-55a7-4048-8342-dbf29c33481d",
         "artifact": {
-          "path": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/docs/notes/archify-architecture/lv-design-studio.html",
+          "path": "docs/notes/archify-architecture/lv-design-studio.html",
           "sha256": "e3980a2b14b8824f034a6d7cf317eb0d85d81a279bd208eb4b2586be32e6c9b9",
           "bytes": 763350
         },
@@ -998,9 +998,9 @@
   },
   "diagnostics": [],
   "evidence": {
-    "receipt": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/docs/notes/archify-architecture/lv-design-studio.finalize.json",
-    "summaryReceipt": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/docs/notes/archify-architecture/lv-design-studio.finalize-summary.json",
-    "browserCheckReceipt": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/docs/notes/archify-architecture/lv-design-studio.browser-check.json"
+    "receipt": "docs/notes/archify-architecture/lv-design-studio.finalize.json",
+    "summaryReceipt": "docs/notes/archify-architecture/lv-design-studio.finalize-summary.json",
+    "browserCheckReceipt": "docs/notes/archify-architecture/lv-design-studio.browser-check.json"
   },
   "visualReview": "not-requested",
   "finishedAt": "2026-10-04T16:25:44.404Z",

@@ -12,7 +12,7 @@ import type { Project } from '../types';
 import { TOOLS, callTool, offeredTools, toolByName, type ToolContext } from './tools';
 import { listProjects, resolveProject } from './project';
 import { main, parseArgs } from './cli';
-import { createApi } from './api';
+import { createApi, newApiToken, tokenMatches, writeApiToken } from './api';
 import { createMcp } from './mcp';
 
 let folder: string;
@@ -116,29 +116,88 @@ describe('command line', () => {
 });
 
 describe('local API', () => {
-  it('serves tools on localhost and refuses other hosts', async () => {
-    const server = createApi(ctx, '1.0');
+  const token = newApiToken();
+  const auth = { Authorization: `Bearer ${token}` };
+  let server: http.Server, base: string, port: number;
+  beforeAll(async () => {
+    server = createApi(ctx, '1.0', token);
     await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
-    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-    try {
-      const tools = await (await fetch(`${base}/api/tools`)).json() as { name: string; input: { type: string } }[];
-      expect(tools.map((t) => t.name)).toContain('run_checks');
-      expect(tools[0].input.type).toBe('object');
-      const s = await (await fetch(`${base}/api/tools/project_summary?project=Villa`)).json() as { name: string };
-      expect(s.name).toBe(sampleProject.name);
-      const post = await fetch(`${base}/api/tools/calc_transformer`, { method: 'POST', body: JSON.stringify({ kva: 1000 }) });
-      expect((await post.json() as { flc: number }).flc).toBe(1391.21);
-      expect((await fetch(`${base}/api/tools/get_panel?project=${encodeURIComponent(outside)}&panel=MDB-1`)).status).toBe(400);
-      expect((await fetch(`${base}/api/tools/nope`)).status).toBe(404);
-      // A page on another site that resolves to 127.0.0.1 (DNS rebinding) sends its own Host name.
-      const port = (server.address() as AddressInfo).port;
-      const status = await new Promise<number | undefined>((resolve, reject) => {
-        http.get({ host: '127.0.0.1', port, path: '/api/tools', headers: { Host: 'evil.example' } }, (res) => { res.resume(); resolve(res.statusCode); }).on('error', reject);
-      });
-      expect(status).toBe(403);
-    } finally {
-      await new Promise((r) => server.close(r));
+    port = (server.address() as AddressInfo).port;
+    base = `http://127.0.0.1:${port}`;
+  });
+  afterAll(() => new Promise((r) => server.close(r)));
+  /** A raw request, so the Host and browser headers are exactly as given. */
+  const raw = (opts: http.RequestOptions) => new Promise<{ status?: number; body: string; headers: http.IncomingHttpHeaders }>((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port, ...opts }, (res) => { let body = ''; res.on('data', (c) => (body += c)); res.on('end', () => resolve({ status: res.statusCode, body, headers: res.headers })); });
+    req.on('error', reject); req.end();
+  });
+
+  it('serves tools to a client with the token', async () => {
+    const tools = await (await fetch(`${base}/api/tools`, { headers: auth })).json() as { name: string; input: { type: string } }[];
+    expect(tools.map((t) => t.name)).toContain('run_checks');
+    expect(tools[0].input.type).toBe('object');
+    const s = await (await fetch(`${base}/api/tools/project_summary?project=Villa`, { headers: auth })).json() as { name: string };
+    expect(s.name).toBe(sampleProject.name);
+    const post = await fetch(`${base}/api/tools/calc_transformer`, { method: 'POST', body: JSON.stringify({ kva: 1000 }), headers: auth });
+    expect((await post.json() as { flc: number }).flc).toBe(1391.21);
+    expect((await fetch(`${base}/api/tools/nope`, { headers: auth })).status).toBe(404);
+  });
+
+  it('refuses a missing, wrong or malformed token, without echoing it', async () => {
+    for (const headers of [{} as Record<string, string>, { Authorization: `Bearer ${token}x` }, { Authorization: `Bearer ${token.slice(0, -1)}` }, { Authorization: token }, { Authorization: `Basic ${token}` }]) {
+      const r = await fetch(`${base}/api/tools/project_summary?project=Villa`, { headers });
+      expect(r.status).toBe(401);
+      expect(r.headers.get('www-authenticate')).toBe('Bearer');
+      expect(await r.text()).not.toContain(token.slice(0, 12));
     }
+    // A token in the URL is not a token.
+    expect((await fetch(`${base}/api/tools?token=${token}`)).status).toBe(401);
+    expect((await fetch(`${base}/api`)).status).toBe(401);
+  });
+
+  it('refuses other hosts, web pages and other methods', async () => {
+    // A page on another site that resolves to 127.0.0.1 (DNS rebinding) sends its own Host name.
+    expect((await raw({ path: '/api/tools', headers: { Host: 'evil.example', ...auth } })).status).toBe(403);
+    // A page in a browser sends Origin / Sec-Fetch-Site, even to localhost; no CORS headers are ever sent.
+    const page = await raw({ path: '/api/tools', headers: { ...auth, Origin: 'http://localhost:5173' } });
+    expect(page.status).toBe(403);
+    expect(page.headers['access-control-allow-origin']).toBeUndefined();
+    expect((await raw({ path: '/api/tools', headers: { ...auth, 'Sec-Fetch-Site': 'cross-site' } })).status).toBe(403);
+    expect((await raw({ method: 'OPTIONS', path: '/api/tools/add_panel', headers: { 'Access-Control-Request-Method': 'POST' } })).status).toBe(405);
+    expect((await raw({ method: 'DELETE', path: '/api/tools', headers: auth })).status).toBe(405);
+    expect((await raw({ method: 'PUT', path: '/api/tools/calc_transformer', headers: auth })).status).toBe(405);
+  });
+
+  it('names no folder of this computer in an error', async () => {
+    const r = await fetch(`${base}/api/tools/get_panel?project=Missing&panel=MDB-1`, { headers: auth });
+    expect(r.status).toBe(400);
+    const msg = (await r.json() as { error: string }).error;
+    expect(msg).toContain('<projects folder>');
+    expect(msg).not.toContain(folder);
+    expect(msg).not.toContain(os.homedir());
+    expect((await fetch(`${base}/api/tools/get_panel?project=${encodeURIComponent(outside)}&panel=MDB-1`, { headers: auth })).status).toBe(400);
+  });
+
+  it('compares tokens in constant time and makes long random ones', () => {
+    expect(tokenMatches(token, token)).toBe(true);
+    expect(tokenMatches(undefined, token)).toBe(false);
+    expect(tokenMatches('', token)).toBe(false);
+    const a = newApiToken(), b = newApiToken();
+    expect(a).not.toBe(b);
+    expect(a).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(() => createApi(ctx, '1', 'short')).toThrow(/at least 32/);
+  });
+
+  it('writes the token file for this user only and never prints the token', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lvds-token-'));
+    const file = writeApiToken(token, path.join(dir, 'api-token'));
+    expect(fs.readFileSync(file, 'utf-8').trim()).toBe(token);
+    if (process.platform !== 'win32') expect(fs.statSync(file).mode & 0o077).toBe(0);
+    const out: string[] = [];
+    await main(['help', 'serve'], '1', { out: (s) => out.push(s), err: (s) => out.push(s) });
+    expect(out.join('\n')).toMatch(/Authorization: Bearer/);
+    expect(out.join('\n')).not.toContain(token);
+    fs.rmSync(dir, { recursive: true, force: true });
   });
 });
 
@@ -157,6 +216,8 @@ describe('MCP server', () => {
     expect(body.fail).toBeGreaterThan(0);
     const bad = await client.callTool({ name: 'get_panel', arguments: { project: 'Villa', panel: 'NOPE' } });
     expect(bad.isError).toBe(true);
+    const missing = await client.callTool({ name: 'get_panel', arguments: { project: 'Missing', panel: 'MDB-1' } });
+    expect((missing.content as { text: string }[])[0].text).not.toContain(folder); // no local folders sent to the AI client
     await client.close();
   });
 });

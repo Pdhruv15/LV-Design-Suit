@@ -14,11 +14,11 @@ This audit changed no application code. Calculation fixtures were executed in me
 
 Files:
 
-- [busbar.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/busbar.ts): `sizeRiser` voltage-drop loop and `riserVd` segment calculations.
-- [BusbarStudy.tsx](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/components/studies/BusbarStudy.tsx:186): top-drop display and material comparison.
-- [VoltageDropStudy.tsx](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/components/studies/VoltageDropStudy.tsx:327): segment breakdown.
-- [studyReport.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/docs/studyReport.ts:278) and [voltageDropReport.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/docs/voltageDropReport.ts:66): two report consumers.
-- [busbar.test.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/busbar.test.ts): regression coverage.
+- [busbar.ts](../src/calc/busbar.ts): `sizeRiser` voltage-drop loop and `riserVd` segment calculations.
+- [BusbarStudy.tsx](../src/components/studies/BusbarStudy.tsx:186): top-drop display and material comparison.
+- [VoltageDropStudy.tsx](../src/components/studies/VoltageDropStudy.tsx:327): segment breakdown.
+- [studyReport.ts](../src/docs/studyReport.ts:278) and [voltageDropReport.ts](../src/docs/voltageDropReport.ts:66): two report consumers.
+- [busbar.test.ts](../src/calc/busbar.test.ts): regression coverage.
 
 Executed fixture: supply **400 V**, ambient **40°C**, copper busbar, diversity explicitly **1**, horizontal feed **10 m**, floor height **20 m**, offset **1**. No source board is selected, so upstream drop is zero. Lower floor A: **100 kW at PF 1**, at height 20 m. Upper floor B: **100 kW at PF 0.6 lagging**, at height 40 m. Start from `newRiser('T')` and replace those fields/floors.
 
@@ -66,10 +66,10 @@ This finding does **not** establish that all possible faults share equally. A fa
 
 Files:
 
-- [earthing.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/earthing.ts): `cableLoop`, `evaluateEarthing`, result fields and adiabatic comparison.
-- [EarthingStudy.tsx](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/components/studies/EarthingStudy.tsx:49): per-conductor result and assumptions.
-- [report.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/docs/report.ts:102) and [studyReport.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/docs/studyReport.ts:253): thermal-check result and method disclosure.
-- [earthing.test.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/earthing.test.ts): parallel-path regression coverage.
+- [earthing.ts](../src/calc/earthing.ts): `cableLoop`, `evaluateEarthing`, result fields and adiabatic comparison.
+- [EarthingStudy.tsx](../src/components/studies/EarthingStudy.tsx:49): per-conductor result and assumptions.
+- [report.ts](../src/docs/report.ts:102) and [studyReport.ts](../src/docs/studyReport.ts:253): thermal-check result and method disclosure.
+- [earthing.test.ts](../src/calc/earthing.test.ts): parallel-path regression coverage.
 
 Executed fixture: supply **400 V**, source board MDB with **1,000 kVA / 5% impedance**, default transformer X/R and default operating-resistance factor. Feeder F: **15 m**, **two identical parallel runs**, phase conductor **4 mm²**, explicit CPC **4 mm² per run**, four cores, **32 A** breaker with default type C, no RCD. Load 10 kW, PF/DF 1; other project fields may use the sample project. Only MDB and F are needed.
 

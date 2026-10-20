@@ -6,12 +6,12 @@
   "type": "workflow",
   "quality": "showcase",
   "specification": {
-    "path": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-uae-sld-20261016-202920/candidate.json",
+    "path": ".archify/workflow-uae-sld-20261016-202920/candidate.json",
     "sha256": "fdad7fb0a642d899627139fc792a738d00767da18730b743dcb554842a74d99d",
     "bytes": 5031
   },
   "artifact": {
-    "path": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-uae-sld-20261016-202920/uae-sld-final-circuits.html",
+    "path": ".archify/workflow-uae-sld-20261016-202920/uae-sld-final-circuits.html",
     "sha256": "eb855eaec1b5f0a5143d921d018fe17d001196ce85bb32c4a02445a31fe80cc5",
     "bytes": 763150
   },
@@ -26,10 +26,10 @@
     {
       "code": "viewer/evidence-path-conflict",
       "severity": "error",
-      "message": "browser-check will not replace the existing unowned evidence path \"/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-uae-sld-20261016-202920/uae-sld-final-circuits.browser-check.json\".",
+      "message": "browser-check will not replace the existing unowned evidence path \".archify/workflow-uae-sld-20261016-202920/uae-sld-final-circuits.browser-check.json\".",
       "subject": {
-        "artifact": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-uae-sld-20261016-202920/uae-sld-final-circuits.html",
-        "evidencePath": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-uae-sld-20261016-202920/uae-sld-final-circuits.browser-check.json"
+        "artifact": ".archify/workflow-uae-sld-20261016-202920/uae-sld-final-circuits.html",
+        "evidencePath": ".archify/workflow-uae-sld-20261016-202920/uae-sld-final-circuits.browser-check.json"
       },
       "evidence": {
         "reason": {
@@ -47,9 +47,9 @@
     "truncated": false
   },
   "evidence": {
-    "receipt": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-uae-sld-20261016-202920/uae-sld-final-circuits.finalize.json",
-    "summaryReceipt": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-uae-sld-20261016-202920/uae-sld-final-circuits.finalize-summary.json",
-    "browserCheckReceipt": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-uae-sld-20261016-202920/uae-sld-final-circuits.browser-check.json"
+    "receipt": ".archify/workflow-uae-sld-20261016-202920/uae-sld-final-circuits.finalize.json",
+    "summaryReceipt": ".archify/workflow-uae-sld-20261016-202920/uae-sld-final-circuits.finalize-summary.json",
+    "browserCheckReceipt": ".archify/workflow-uae-sld-20261016-202920/uae-sld-final-circuits.browser-check.json"
   },
   "update": {
     "status": "update_available",

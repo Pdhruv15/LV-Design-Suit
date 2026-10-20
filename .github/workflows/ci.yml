@@ -13,8 +13,8 @@ concurrency:
 
 jobs:
   # Dependency advisories (shipped packages and tooling, every severity) against the documented allowlist
-  # (security/audit-allowlist.json, docs/engineering/dependency-audit.md), and secrets anywhere in the
-  # git history. Needs only the lockfile and the history, so it runs beside the build.
+  # (security/audit-allowlist.json, docs/engineering/dependency-audit.md), personal paths and addresses
+  # (scripts/check-privacy.mjs), and secrets anywhere in the git history. Needs only the lockfile and the history, so it runs beside the build.
   security:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -27,6 +27,12 @@ jobs:
           node-version: 24
       - name: Dependency audit (allowlist)
         run: node scripts/check-audit.mjs
+      # Personal paths and e-mail addresses in tracked files, and (pull requests) commit addresses made from a
+      # computer name. Exceptions: security/privacy-allowlist.json; policy: docs/privacy.md.
+      - name: Privacy check
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: node scripts/check-privacy.mjs ${BASE_SHA:+--commits "$BASE_SHA..HEAD"}
       # gitleaks from its GitHub release, checked against the SHA-256 published with it (pinned here).
       - name: Secret scan (gitleaks)
         env:

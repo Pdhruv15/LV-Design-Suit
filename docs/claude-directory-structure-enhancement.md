@@ -28,12 +28,12 @@ The existing separation into calculations, project model, diagrams, documents an
 
 Useful inspection entry points in the reviewed checkout:
 
-- [App.tsx](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/App.tsx): navigation, state, calculation coordination and feature imports.
-- [runs.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/runs.ts): calculation snapshots and stale fingerprints.
-- [electrical.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/electrical.ts) and [summary.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/summary.ts): feeder evaluation, network traversal and downstream totals.
-- [projectStore.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/model/projectStore.ts): browser/desktop storage and recovery.
-- [studyReport.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/docs/studyReport.ts): report scope, calculations and presentation.
-- [files.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/util/files.ts) and [main.cjs](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/electron/main.cjs): export and desktop PDF paths.
+- [App.tsx](../src/App.tsx): navigation, state, calculation coordination and feature imports.
+- [runs.ts](../src/calc/runs.ts): calculation snapshots and stale fingerprints.
+- [electrical.ts](../src/calc/electrical.ts) and [summary.ts](../src/calc/summary.ts): feeder evaluation, network traversal and downstream totals.
+- [projectStore.ts](../src/model/projectStore.ts): browser/desktop storage and recovery.
+- [studyReport.ts](../src/docs/studyReport.ts): report scope, calculations and presentation.
+- [files.ts](../src/util/files.ts) and [main.cjs](../electron/main.cjs): export and desktop PDF paths.
 
 These machine-specific links are inspection references. Resolve equivalent repository files if working on another machine.
 

@@ -14,10 +14,10 @@ No application code was changed by this review. Fixtures were executed in memory
 
 Files:
 
-- [earthing.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/earthing.ts): `earthLoopToBoard`, path validation and `evaluateEarthing` result/status.
-- [EarthingStudy.tsx](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/components/studies/EarthingStudy.tsx): unavailable source/path presentation.
-- [report.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/docs/report.ts) and [studyReport.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/docs/studyReport.ts): earthing report rows and summaries.
-- [earthing.test.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/earthing.test.ts): missing-data and broken-path regressions.
+- [earthing.ts](../src/calc/earthing.ts): `earthLoopToBoard`, path validation and `evaluateEarthing` result/status.
+- [EarthingStudy.tsx](../src/components/studies/EarthingStudy.tsx): unavailable source/path presentation.
+- [report.ts](../src/docs/report.ts) and [studyReport.ts](../src/docs/studyReport.ts): earthing report rows and summaries.
+- [earthing.test.ts](../src/calc/earthing.test.ts): missing-data and broken-path regressions.
 
 Executed fixture: supply **400 V**, one board MDB with **no source kVA or impedance data**. Feeder F: **50 m**, phase/CPC **4 mm²**, one four-core run, **32 A** default type-C breaker, no RCD. Load 5 kW, PF 0.9, DF 1. Other project fields can use the sample project.
 
@@ -60,10 +60,10 @@ The existing 0.4 s requirement for 40–63 A fixed equipment is conservative, bu
 
 Files:
 
-- [earthing.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/earthing.ts): `requiredDisconnectionS`, standard comments and time-dependent evaluation.
-- [types.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/types.ts): circuit-purpose metadata if the existing load classification is insufficient.
-- [EarthingStudy.tsx](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/components/studies/EarthingStudy.tsx), [report.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/docs/report.ts), [studyReport.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/docs/studyReport.ts): time and assumption presentation.
-- [earthing.test.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/earthing.test.ts): existing test currently expects the overgeneralized 63 A rule.
+- [earthing.ts](../src/calc/earthing.ts): `requiredDisconnectionS`, standard comments and time-dependent evaluation.
+- [types.ts](../src/types.ts): circuit-purpose metadata if the existing load classification is insufficient.
+- [EarthingStudy.tsx](../src/components/studies/EarthingStudy.tsx), [report.ts](../src/docs/report.ts), [studyReport.ts](../src/docs/studyReport.ts): time and assumption presentation.
+- [earthing.test.ts](../src/calc/earthing.test.ts): existing test currently expects the overgeneralized 63 A rule.
 
 Executed classification fixtures: final feeder, no `feedsBoardId`, breaker **40 A**. Changing only `loadType` between `motor` and `sockets` returns **0.4 s for both**. For the corrected comparison, explicitly classify the motor as fixed-connected only and the socket feeder as containing socket outlets, within the nominal 230 V TN basis.
 

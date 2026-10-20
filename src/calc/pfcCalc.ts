@@ -25,7 +25,7 @@ export interface PfcCalcInput {
   thdIPct?: number; // measured current THD, if known
   transformerKva?: number;
   lossesKw?: number; // present cable / transformer copper losses, if known
-  title?: string; // e.g. "MDB-1, Al Barsha villa"
+  title?: string; // e.g. "MDB-1, demo villa"
 }
 
 export const PFC_CALC_DEFAULT: PfcCalcInput = {

@@ -4,8 +4,8 @@
   "status": "current",
   "command": "deliver",
   "type": "architecture",
-  "input": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/architecture-g10-electrical-riser-20261016-205328/candidate.json",
-  "output": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/architecture-g10-electrical-riser-20261016-205328/g10-electrical-riser.html",
+  "input": ".archify/architecture-g10-electrical-riser-20261016-205328/candidate.json",
+  "output": ".archify/architecture-g10-electrical-riser-20261016-205328/g10-electrical-riser.html",
   "specification": {
     "sha256": "c05a6f53e335f6b28b2e5a25f36a29d8ab6f59ec2f81a85039fc6b32b2535237",
     "bytes": 8519

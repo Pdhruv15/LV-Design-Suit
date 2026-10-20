@@ -4,7 +4,7 @@ import type { Project } from '../../types';
 
 // Fixed fixture (independent of the app's sample project, which may change).
 const sampleProject: Project = {
-  name: 'Villa Complex 415V LV Network',
+  name: 'Demonstration Project — Not for Construction',
   voltageV: 415,
   frequencyHz: 50,
   ambientC: 45,

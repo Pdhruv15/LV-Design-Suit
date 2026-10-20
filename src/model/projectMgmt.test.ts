@@ -15,7 +15,7 @@ beforeEach(() => {
 });
 
 const me: Preferences = {
-  profile: { name: 'Palani Samy', designation: 'Senior Electrical Engineer', company: 'Acme Consultants', checkedBy: 'R. Kumar', logo: 'data:image/png;base64,AAAA' },
+  profile: { name: 'Demo Engineer', designation: 'Senior Electrical Engineer', company: 'Demo Engineering Consultants', checkedBy: 'R. Kumar', logo: 'data:image/png;base64,AAAA' },
   defaults: { voltageV: 400, ambientC: 50, vdLimitPct: 5, studySettings: { elcbPowerMa: 100 }, sheet: 'A1', autoRun: true },
   app: { autosaveMin: 5 }
 };
@@ -26,10 +26,10 @@ describe('profile and new project defaults', () => {
     expect([p.voltageV, p.ambientC, p.vdLimitPct, p.frequencyHz]).toEqual([400, 50, 5, 50]);
     expect(p.studySettings?.elcbPowerMa).toBe(100);
     expect(p.calc?.autoRun).toBe(true);
-    expect(p.drawing).toMatchObject({ sheet: 'A1', company: 'Acme Consultants', drawnBy: 'Palani Samy', checkedBy: 'R. Kumar' });
-    expect(p.createdBy).toBe('Palani Samy');
+    expect(p.drawing).toMatchObject({ sheet: 'A1', company: 'Demo Engineering Consultants', drawnBy: 'Demo Engineer', checkedBy: 'R. Kumar' });
+    expect(p.createdBy).toBe('Demo Engineer');
     const t = titleBlockOf(p);
-    expect([t.company, t.drawnBy, t.logo]).toEqual(['Acme Consultants', 'Palani Samy', 'data:image/png;base64,AAAA']);
+    expect([t.company, t.drawnBy, t.logo]).toEqual(['Demo Engineering Consultants', 'Demo Engineer', 'data:image/png;base64,AAAA']);
     // No profile: the app's defaults, nothing filled in.
     expect(applyDefaults(newProject('X'), DEFAULT_PREFS).drawing).toEqual({});
   });
@@ -38,8 +38,8 @@ describe('profile and new project defaults', () => {
     const p = { ...sampleProject, drawing: { drawnBy: 'Someone', company: 'Other Co' }, studyReport: { boards: [], downstream: true, studies: [], sld: true, separate: false } };
     expect(applyProfile(p, me.profile, false).drawing).toMatchObject({ drawnBy: 'Someone', company: 'Other Co', checkedBy: 'R. Kumar' });
     const mine = applyProfile(p, me.profile, true);
-    expect(mine.drawing).toMatchObject({ drawnBy: 'Palani Samy', company: 'Acme Consultants' });
-    expect(mine.studyReport?.preparedBy).toBe('Palani Samy, Senior Electrical Engineer');
+    expect(mine.drawing).toMatchObject({ drawnBy: 'Demo Engineer', company: 'Demo Engineering Consultants' });
+    expect(mine.studyReport?.preparedBy).toBe('Demo Engineer, Senior Electrical Engineer');
     expect(signature({ name: 'A' })).toBe('A');
     expect(initialsOf('Palani samy g')).toBe('PS');
     expect(initialsOf('')).toBe('?');
@@ -86,13 +86,13 @@ describe('trash (web version storage)', () => {
 
 describe('saving, recovery and recent (web version storage)', () => {
   it('save, list with details, open, overwrite, delete', async () => {
-    const p = { ...sampleProject, status: 'submitted' as const, updatedBy: 'Palani Samy' };
+    const p = { ...sampleProject, status: 'submitted' as const, updatedBy: 'Demo Engineer' };
     const saved = await saveProjectFile(undefined, { ...p, id: 'abcd1234-0000' });
     const file = saved.file;
     expect(file).toMatch(/-abcd1234\.json$/);
     const list = await listProjects();
     expect(list).toHaveLength(1);
-    expect(list[0]).toMatchObject({ file, name: p.name, status: 'submitted', updatedBy: 'Palani Samy', boards: p.boards.length });
+    expect(list[0]).toMatchObject({ file, name: p.name, status: 'submitted', updatedBy: 'Demo Engineer', boards: p.boards.length });
     expect((await loadProject(file)).name).toBe(p.name);
     await saveProjectFile(file, { ...p, name: 'Renamed' });
     expect((await listProjects()).map((m) => m.name)).toEqual(['Renamed']);

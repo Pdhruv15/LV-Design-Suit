@@ -4,8 +4,8 @@
   "status": "current",
   "command": "deliver",
   "type": "workflow",
-  "input": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/candidate.json",
-  "output": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/project-delivery.html",
+  "input": ".archify/workflow-project-delivery-20261005-214200/candidate.json",
+  "output": ".archify/workflow-project-delivery-20261005-214200/project-delivery.html",
   "specification": {
     "sha256": "37472202eb18123d3a8ec8138d0c9f3e9ee20d41dfc3716c5e34feb8757820d5",
     "bytes": 5931
