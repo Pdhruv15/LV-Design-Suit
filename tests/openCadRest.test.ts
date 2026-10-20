@@ -158,6 +158,56 @@ describe('OpenCADStudio live REST session', () => {
     await expect(session.linkSelection('bad id')).rejects.toThrow('unusual characters');
   });
 
+  it('reads board symbols, room outlines and texts from the floor plan', async () => {
+    const common = (tag?: string) => ({ extended_data: { records: tag ? [{ application_name: 'LVDS', values: [{ String: tag }] }] : [] } });
+    const v = (x: number, y: number) => ({ location: { x, y }, bulge: 0 });
+    const entities = [
+      { handle: '1', type: 'Block Reference', layer: 'E-BOARD', block: 'DB-PANEL', attributes: { Tag: 'DB-GF1' }, position: [22000, 1500, 0], properties: { common: common() } },
+      { handle: '2', type: 'Block Reference', layer: 'E-LIGHT', block: 'L1', attributes: { CCT: 'DB-GF1/R1' }, position: [1, 1, 0], properties: { common: common() } },
+      { handle: '3', type: 'Circle', layer: 'E-BOARD', bounds: { min: [10, 20, 0], max: [30, 40, 0] }, properties: { common: common('place:MDB-1') } },
+      { handle: '4', type: 'Polyline2D', layer: 'A-ROOM', properties: { flags: { bits: 1 }, vertices: [v(0, 0), v(10, 0), v(10, 10)], common: common() } },
+      { handle: '5', type: 'Polyline', layer: 'E-CABLE', properties: { is_closed: false, vertices: [v(0, 0), v(10, 0), v(10, 10)], common: common() } },
+      { handle: '6', type: 'Text', layer: 'A-ROOM-NAME', position: [5, 5, 0], properties: { value: ' STORE ', common: common() } }
+    ];
+    const session = new OpenCadRestSession({
+      portFactory: async () => 1,
+      spawn: () => new FakeChild(),
+      request: async ({ route }: { route: string }) => {
+        if (route === '/ready') return { version: 'x' };
+        if (route.startsWith('/entities?detail=full')) return { entities };
+        if (route.startsWith('/sysvars')) return { result: { values: { insunits: 6 } } };
+        return {};
+      }
+    }) as unknown as { open: (e: string, d: string[]) => Promise<unknown>; readPlan: () => Promise<unknown> };
+    await session.open('/x', ['/tmp/plan.dwg']);
+    expect(await session.readPlan()).toEqual({
+      units: 6,
+      places: [{ boardId: 'MDB-1', x: 20, y: 30 }],
+      symbols: [{ name: 'DB-GF1', x: 22000, y: 1500 }],
+      outlines: [{ layer: 'A-ROOM', points: [[0, 0], [10, 0], [10, 10]] }],
+      texts: [{ layer: 'A-ROOM-NAME', x: 5, y: 5, text: 'STORE' }]
+    });
+  });
+
+  it('marks the selection as a board symbol, and unlinks it', async () => {
+    const calls: { route: string; method?: string; body?: unknown }[] = [];
+    const session = new OpenCadRestSession({
+      portFactory: async () => 1,
+      spawn: () => new FakeChild(),
+      request: async (r: { route: string; method?: string; body?: unknown }) => {
+        calls.push(r);
+        if (r.route === '/ready') return { version: 'x' };
+        if (r.route === '/get_selection') return { result: { entities: [{ handle: 'A', type: 'Block Reference' }] } };
+        return { ok: true };
+      }
+    }) as unknown as { open: (e: string, d: string[]) => Promise<unknown>; placeSelection: (id: string) => Promise<unknown> };
+    await session.open('/x', ['/tmp/plan.dwg']);
+    expect(await session.placeSelection('DB-GF1')).toEqual({ linked: 1 });
+    expect(calls.find((c) => c.method === 'PUT')).toMatchObject({ route: '/entities/A/xdata/LVDS', body: [{ code: 1000, value: 'place:DB-GF1' }] });
+    expect(await session.placeSelection('')).toEqual({ linked: 1 });
+    expect(calls.some((c) => c.method === 'DELETE' && c.route === '/entities/A/xdata/LVDS')).toBe(true);
+  });
+
   it('refuses a drawing that LV Design Studio did not produce', async () => {
     const cad = new FakeCad({ '/tmp/other.dxf': [[undefined, 1]], '/tmp/v2.dxf': [['feeder:F1', 1]] });
     const session = cad.session();

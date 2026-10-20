@@ -270,6 +270,8 @@ export interface Board {
   ipRating?: string;
   location?: string; // room / place, e.g. "Elec. room 3.01" (the level is `level`)
   level?: import('./model/levels').LevelRef; // the floor, from Building information
+  /** Where the board's symbol sits on its CAD floor plan, in metres (from Board locations from CAD). */
+  planPoint?: { x: number; y: number };
   earthRiser?: string; // earth riser (EarthRiserDef id) its floor earth bar is on; default the first riser serving its level
   manufacturer?: string;
   model?: string;
@@ -411,6 +413,8 @@ export interface Project {
   cadBlocks?: CadBlockMap[];
   /** Cable lengths from the CAD floor plan: drawing units and allowances added to each measured route. */
   cadLength?: CadLengthSettings;
+  /** CAD floor plans: layer name (or part of it) of the room outlines; default any layer with ROOM, SPACE or AREA. */
+  cadRoomLayer?: string;
   substations?: DmSubstationRoom[]; // DM-D-013 minimum substation / LV room areas
   studyReport?: StudyReportSetup; // the study report being prepared (Reports → Study reports)
   calcReportDocNo?: string; // document number on page 1 of the calculation report

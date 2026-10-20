@@ -338,6 +338,9 @@ handle('opencad:blocks', () => openCadSession.readBlocks());
 // Cable routes on the floor plan: measure the linked ones; link (or, with no feeder, unlink) the selected curves.
 handle('opencad:routes', () => openCadSession.readRoutes());
 handle('opencad:linkSelection', (_evt, feederId) => openCadSession.linkSelection(typeof feederId === 'string' ? feederId : ''));
+// Board locations: what the floor plan says (board symbols, room outlines, names); mark the selection as a board.
+handle('opencad:plan', () => openCadSession.readPlan());
+handle('opencad:placeSelection', (_evt, boardId) => openCadSession.placeSelection(typeof boardId === 'string' ? boardId : ''));
 handle('opencad:linked', async () => (await openCadSession.linkedEquipment()).map(({ tag, handles }) => ({ tag, objects: handles.length })));
 handle('opencad:status', () => ({ installed: !!openCadStudio.findInstallation(), ...openCadSession.status() }));
 

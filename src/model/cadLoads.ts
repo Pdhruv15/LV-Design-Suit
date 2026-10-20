@@ -93,8 +93,8 @@ export function pullCadLoads(project: Project, blocks: CadBlock[], loads: Librar
     const points = { ...f.points };
     for (const t of types) points[t] = items.filter((it) => it.pointType === t).reduce((s, it) => s + it.quantity, 0);
     const proposed: Feeder = { ...f, points, loadItems: items };
-    const before = { currentText: loadItemsText(f) || pointsText(f), currentW: circuitWatts(f, board) };
-    const after = { proposedText: loadItemsText(proposed), proposedW: circuitWatts(proposed, board) };
+    const before = { currentText: circuitText(f), currentW: circuitWatts(f, board) };
+    const after = { proposedText: circuitText(proposed), proposedW: circuitWatts(proposed, board) };
     // Same counts and watts is a match, whether or not the circuit was itemized (no noise in the review).
     const sameCounts = [...types].every((t) => (f.points?.[t] ?? 0) === points[t]);
     if ((sameItems(current, items) || sameCounts) && before.currentW === after.proposedW) { matching += 1; continue; }
@@ -109,9 +109,11 @@ export function pullCadLoads(project: Project, blocks: CadBlock[], loads: Librar
   };
 }
 
-function pointsText(f: Feeder): string {
-  const parts = Object.entries(f.points ?? {}).filter(([, n]) => (n ?? 0) > 0).map(([t, n]) => `${n}×${t.toUpperCase()}`);
-  return parts.join(' + ') || 'no points';
+/** Everything on a circuit: its items ("6×L1 10 W"), then its other points ("1×EXFAN"). */
+function circuitText(f: Feeder): string {
+  const itemized = new Set(normalizeLoadItems(f.loadItems).map((it) => it.pointType));
+  const rest = Object.entries(f.points ?? {}).filter(([t, n]) => (n ?? 0) > 0 && !itemized.has(t as PointType)).map(([t, n]) => `${n}×${t.toUpperCase()}`);
+  return [loadItemsText(f), ...rest].filter(Boolean).join(' + ') || 'no points';
 }
 
 const itemKey = (it: CircuitLoadItem) => `${it.pointType}|${(it.reference ?? it.name).toLowerCase()}|${it.unitWatts}|${it.quantity}`;
