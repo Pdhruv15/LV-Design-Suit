@@ -56,6 +56,20 @@ export function conceptReport(p: Project, o: { preparedBy?: string; date?: strin
 
 const kv = (rows: [string, string][]) => `<table class="kv"><tbody>${rows.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${v}</td></tr>`).join('')}</tbody></table>`;
 
+/** Without a load assessment: the transformers already on the SLD (or set on the Substation area page), with their
+ * loading at the SLD's maximum demand, so the supply agrees with the room areas below it. */
+function sldTransformers(r: ConceptReport): string | undefined {
+  const tx = r.rooms.filter((x) => x.transformers > 0 && x.kva);
+  if (!tx.length) return undefined;
+  const totalKva = tx.reduce((a, x) => a + x.transformers * x.kva!, 0);
+  const groups = new Map<number, number>();
+  for (const x of tx) groups.set(x.kva!, (groups.get(x.kva!) ?? 0) + x.transformers);
+  const text = [...groups].map(([kva, count]) => `${count} × ${n(kva)} kVA`).join(' + ');
+  const src = r.roomSource === 'project' ? 'Substation area' : r.roomSource;
+  const loading = r.designed && r.designed.demandKva > 0 ? `, loaded to ${n((r.designed.demandKva / totalKva) * 100)} % at ${n(r.designed.demandKva, 1)} kVA maximum demand` : '';
+  return kv([['Transformers', `${esc(text)} (from ${esc(src)})${loading}`], ['Standby generator', `<span class="missing">${TO_CONFIRM}</span>`]]);
+}
+
 export function conceptReportHtml(r: ConceptReport): string {
   const la = r.la, pj = r.project;
   const building = la
@@ -74,7 +88,7 @@ export function conceptReportHtml(r: ConceptReport): string {
     ['Transformers', la.tx ? `${esc(laTxText(la.tx))}, each loaded to ${n(la.tx.maxLoadingPct)} % or less, ${n(la.tx.voltage)} V` : `<span class="missing">${la.mdKva > 0 ? 'No size fits — check the sizes and maximum loading' : TO_CONFIRM}</span>`],
     ...(la.tx ? [['LV incomer per transformer', `${n(la.tx.incomerA)} A`] as [string, string]] : []),
     ['Standby generator', `${esc(laGenText(la))}${la.generatorKvaRequired > 0 ? ` (${n(la.generatorKvaRequired)} kVA required)` : ''}`]
-  ]) : `<p class="missing">Transformers and generator ${TO_CONFIRM} — size them from the load assessment.</p>`;
+  ]) : sldTransformers(r) ?? `<p class="missing">Transformers and generator ${TO_CONFIRM} — size them from the load assessment.</p>`;
   const rooms = r.rooms.length ? `<table><thead><tr><th>Substation</th><th class="r">Transformers</th><th class="r">Substation / transformer room (m²)</th><th class="r">LV room (m²)</th><th class="r">Total (m²)</th></tr></thead><tbody>${r.rooms.map((x) =>
     `<tr><td>${esc(x.name)}</td><td class="r">${x.transformers}${x.kva ? ` × ${n(x.kva)} kVA` : ''}</td>${x.error ? `<td colspan="3">${esc(x.error)}</td>` : `<td class="r">${x.substationM2 === undefined ? '—' : `min. ${n(x.substationM2, 2)}`}</td><td class="r">${x.lvM2 === undefined ? '—' : `min. ${n(x.lvM2, 2)}`}</td><td class="r">${x.totalM2 === undefined ? '—' : n(x.totalM2, 2)}</td>`}</tr>`).join('')}</tbody></table>
     <p class="note">Minimum areas to Dubai Municipality DM-D-013. Generator room and electrical risers: ${TO_CONFIRM}.</p>`
@@ -83,7 +97,7 @@ export function conceptReportHtml(r: ConceptReport): string {
 @page { size: A4 portrait; margin: 12mm; }
 ${PRINT_BASE_CSS}
 .hd { display: flex; justify-content: space-between; gap: 6mm; border: 1.2pt solid #000; padding: 2mm 3mm; margin-bottom: 2mm; }
-.hd .rt { text-align: right; } .hd h1 { font-size: 14pt; }
+.hd .rt { text-align: right; white-space: nowrap; } .hd h1 { font-size: 14pt; }
 h2 { margin-top: 10px; }
 .r { text-align: right; }
 table.kv th { width: 34%; }

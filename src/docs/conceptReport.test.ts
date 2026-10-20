@@ -30,6 +30,17 @@ describe('concept design report', () => {
     expect(buildConceptReportHtml({ ...newProject('Empty'), boards: [] })).toContain('to confirm');
   });
 
+  it('shows the SLD transformers in the supply when there is no load assessment', () => {
+    const r = conceptReport(sampleProject);
+    expect(r.la).toBeUndefined();
+    const html = buildConceptReportHtml(sampleProject);
+    const supply = html.slice(html.indexOf('4. Supply'), html.indexOf('5. Space requirements'));
+    if (r.rooms.some((x) => x.kva)) {
+      expect(supply).toMatch(/× [\d,]+ kVA \(from SLD\), loaded to \d+ %/);
+      expect(supply).not.toContain('size them from the load assessment');
+    }
+  });
+
   it('uses the substations set on the Substation area page', () => {
     const p: Project = { ...withLa(newProject('A')), substations: [{ id: 's1', name: 'SS-1', type: 'conventional', transformers: 2, kva: 1500 }] };
     const r = conceptReport(p);
