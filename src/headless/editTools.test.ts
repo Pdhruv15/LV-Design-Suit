@@ -138,7 +138,7 @@ describe('backup, log and undo', () => {
   });
   it('undo refuses when the file changed since, and says where the backup is', () => {
     const a = run('add_panel', { project: 'Villa', kind: 'DB', id: 'DB-Y', fedFrom: 'SMDB-GF', mode: 'apply' });
-    fs.writeFileSync(file('Villa'), read('Villa').replace('"Villa Complex', '"Edited Villa Complex')); // saved from the app
+    fs.writeFileSync(file('Villa'), read('Villa').replace('"Demonstration Project', '"Edited Demonstration Project')); // saved from the app
     expect(() => run('undo_change', { project: 'Villa', change: a.change, mode: 'apply' })).toThrow(/has changed since.*\.lvds-agent/);
   });
 });
