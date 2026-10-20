@@ -116,6 +116,9 @@ div.row.my{margin:var(--space-2) 0}
 .modal-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:var(--space-2);padding-top:var(--space-3);margin-top:var(--space-1);border-top:1px solid var(--line)}
 .boq-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;flex-wrap:wrap}
 @media (max-width:1000px){.app{grid-template-columns:minmax(0,1fr)}.app>.mid.wide{grid-column:auto}.app>span:empty{display:none}.app{overflow-y:auto;grid-auto-rows:max-content;align-content:start}.app>.mid,.app>.side{overflow:visible}.nav{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line)}.nav h4{display:none}.side{border-left:0;width:auto}.side-resize{display:none}.side:not(.closed){overflow:visible}.side-body{overflow:visible}.grid2{grid-template-columns:1fr}}
+/* Phones: the page scrolls as one, so the header, banners and ribbon move out of the way of the work
+   (fixed, they left about a fifth of a 390 x 844 screen for it). The footer follows the content. */
+@media (max-width:600px){.app-root{height:auto;min-height:100%}.app{flex:none;overflow:visible;min-height:60dvh}.brand small{display:none}.web-banner,.recover-bar{font-size:12px}}
 .engine-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .engine-controls select{margin-left:4px;padding:4px 6px}
 .chip:disabled,.chip[aria-disabled=true]{opacity:.55;cursor:not-allowed}

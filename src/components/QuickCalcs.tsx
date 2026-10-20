@@ -1,4 +1,4 @@
-import { createContext, useContext, useId, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { ambientCorrectionFactor, getCable } from '../calc/cableTable';
 import {
   awgLabel, awgToMm2, cableCandidates, cableFor, cableSizes, currentFromPower, energy, faultAtCableEnd, faultFromTransformer, HP_KW, kcmilToMm2, mm2ToAwg,
@@ -408,6 +408,12 @@ export default function QuickCalcs({ project }: { project: Project }) {
       note="Next metric size up by area. Check the current rating separately; AWG and metric tables use different conditions." />;
   }
 
+  // Phones: open with the calculator tabs at the top of the screen, past the app header and banners.
+  const tabsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (window.matchMedia?.('(max-width: 600px)').matches) tabsRef.current?.scrollIntoView({ block: 'start' });
+  }, []);
+
   // Arrow keys, Home and End move between tabs (one tab stop for the whole row).
   const onTabKey = (ev: KeyboardEvent<HTMLButtonElement>) => {
     const i = TABS.findIndex(([k]) => k === tab);
@@ -424,7 +430,7 @@ export default function QuickCalcs({ project }: { project: Project }) {
       title="Quick calculators"
       intro="Everyday electrical sums with the same formulas and cable data as the studies — nothing here changes your design. Voltage, ambient and voltage-drop limit start from the project settings; other inputs are remembered on this computer."
     >
-      <div className="tabs qc-tabs" role="tablist" aria-label="Calculators">
+      <div ref={tabsRef} className="tabs qc-tabs" role="tablist" aria-label="Calculators">
         {TABS.map(([k, label]) => <button key={k} type="button" role="tab" id={`qc-tab-${k}`} aria-controls={`qc-panel-${k}`} aria-selected={tab === k} tabIndex={tab === k ? 0 : -1} className={tab === k ? 'on' : ''} onClick={() => setTab(k)} onKeyDown={onTabKey}>{label}</button>)}
       </div>
       <ActiveCard.Provider value={tab}>
