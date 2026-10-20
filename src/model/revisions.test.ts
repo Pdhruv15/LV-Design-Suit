@@ -11,7 +11,7 @@ describe('revisions', () => {
     const b = issueRevision(a, { description: 'DEWA comments' });
     expect(b.revisions!.map((r) => r.id)).toEqual(['A', 'B']);
     expect(revisionStamp(b)).toMatch(/^REV B · \d{4}-\d{2}-\d{2}$/);
-    expect(revisionStamp(sampleProject)).toBe('REV —');
+    expect(revisionStamp(sampleProject)).toBe('REV A (draft)');
   });
 
   it('continues past Z with AA', () => {

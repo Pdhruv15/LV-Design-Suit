@@ -74,9 +74,10 @@ export function restoreRevision(project: Project, id: string): Project {
 }
 
 /** Text for the form headers, e.g. "REV B · 2026-09-27". */
+/** The current revision, or — before the first issue — the letter that issue will get, marked draft. */
 export function revisionStamp(p: Project): string {
   const rev = currentRevision(p);
-  return rev ? `REV ${rev.id} · ${rev.date}` : 'REV —';
+  return rev ? `REV ${rev.id} · ${rev.date}` : `REV ${nextRevisionId(p)} (draft)`;
 }
 
 // ---- Comparison ----
