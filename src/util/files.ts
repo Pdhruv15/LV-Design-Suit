@@ -55,7 +55,15 @@ export type PdfPage = { pageSize?: 'A4' | 'A3' | 'A2' | 'A1'; landscape?: boolea
   /** The document prints its own running header, footer and page numbers (CSS @page boxes): no stamped page foot. */
   selfNumbered?: boolean;
   /** Print, read the page of each anchor, and print the HTML this returns (e.g. contents with page numbers) until the pages settle. */
-  paginate?: (pages: Record<string, number>) => string };
+  paginate?: (pages: Record<string, number>) => string;
+  /** An anonymized sample: the PDF information names no author (not the profile's name). Normal reports leave this off. */
+  anonymous?: boolean };
+
+/** The PDF Author: the name in your profile (Preferences), unless the document is an anonymized sample. */
+export function pdfAuthor(page: Pick<PdfPage, 'anonymous'> = {}): string | undefined {
+  if (page.anonymous) return undefined;
+  try { return JSON.parse(localStorage.getItem('lvds.preferences') ?? '{}').profile?.name || undefined; } catch { return undefined; }
+}
 
 /** The finished PDF of an HTML document — layout by Chrome, then contents page numbers, the report
  * frame (header and footer), document information and bookmarks — the same for a saved PDF and a PDF
@@ -69,8 +77,7 @@ export async function renderPdf(html: string, page: PdfPage = {}, fallbackTitle 
   const render = async (h: string) => PDFDocument.load(await toBytes({ html: h, pageSize, landscape, cssPages }));
   const doc = paginate ? await paginatePdf(render, html, paginate) : await render(html);
   const { markerBookmarks } = await import('../docs/outline');
-  let author: string | undefined;
-  try { author = JSON.parse(localStorage.getItem('lvds.preferences') ?? '{}').profile?.name || undefined; } catch { /* none */ }
+  const author = pdfAuthor(page);
   // Explicit bookmarks, else one per section marker in the document (docs/outline.ts).
   const bookmarks = typeof page.bookmarks === 'function' ? page.bookmarks(destinationPages(doc)) : page.bookmarks ?? markerBookmarks(html, destinationPages(doc));
   return finishPdf(doc, { title: htmlTitle(html) || fallbackTitle, author, bookmarks, frame, stamp: selfNumbered ? false : undefined });

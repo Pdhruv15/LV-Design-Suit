@@ -96,6 +96,7 @@ import PresetEditor from './components/PresetEditor';
 import { isScheduleCircuit } from './calc/loadSchedule';
 import { CABLE_TYPE_DEFS, cableTypeDef } from './model/cableTypes';
 import { safeFileName, savePdf, saveText } from './util/files';
+import AnonymizedSampleDialog from './components/AnonymizedSampleDialog';
 import { buildConceptReportHtml } from './docs/conceptReport';
 const SldExportDialog = lazy(() => import('./components/SldExportDialog'));
 import PasteBoardDialog from './components/PasteBoardDialog';
@@ -232,6 +233,7 @@ export default function App() {
   const [feederPreset, setFeederPreset] = useState<Partial<Feeder>>({});
   const [boardTab, setBoardTab] = useState<BoardTab>('general');
   const [showSettings, setShowSettings] = useState(false);
+  const [showAnonymized, setShowAnonymized] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [editBoardId, setEditBoardId] = useState<string | null>(null);
@@ -874,6 +876,7 @@ export default function App() {
     cmd('Run calculations', runNow, 'F5', 'network studies');
     cmd('Save', () => { void saveProject(); }, `${mod}S`);
     cmd('Save as…', () => saveAs(), `⇧${mod}S`);
+    cmd('Export anonymized sample…', () => setShowAnonymized(true), undefined, 'share privacy anonymous issue report');
     cmd('Undo', () => history.undo(), `${mod}Z`);
     cmd('Redo', () => history.redo(), `⇧${mod}Z`);
     cmd('Add a board…', () => { design(); setBoardPreset(undefined); setShowBoardForm(true); });
@@ -1137,6 +1140,7 @@ export default function App() {
           onNew: startNewProject,
           onSave: () => saveProject(),
           onSaveAs: () => saveAs(),
+          onAnonymizedSample: () => setShowAnonymized(true),
           onProfile: () => setShowPrefs(true),
           onChooseFolder: chooseFolder,
           folderLabel: hasBridge ? `Folder: ${projectsFolder.split(/[\\/]/).pop() || 'choose…'}` : 'This browser',
@@ -1677,6 +1681,7 @@ export default function App() {
       )}
       {paletteOpen && <CommandPalette commands={commands()} onClose={() => setPaletteOpen(false)} />}
       {helpOpen && <ShortcutHelp onClose={() => setHelpOpen(false)} />}
+      {showAnonymized && <AnonymizedSampleDialog project={project} onClose={() => setShowAnonymized(false)} onStatus={setStatus} />}
       {showSettings && (
         <ProjectSettings
           project={project}
