@@ -3,7 +3,7 @@
 // use (a project file is ~20 KB, a workbook ~15 KB) and stop a damaged or crafted file, or a runaway
 // page, from filling memory or disk or blocking the app. Plain Node, so it can be unit tested.
 
-const fs = require('node:fs');
+const { readFileNoFollow } = require('./safeFs.cjs');
 
 const MB = 1024 * 1024;
 const LIMITS = Object.freeze({
@@ -28,22 +28,19 @@ const human = (bytes) => (bytes >= MB ? `${Math.round(bytes / MB)} MB` : `${Math
 class LimitError extends Error {}
 const tooLarge = (what, max) => new LimitError(`${what} is too large (limit ${human(max)}).`);
 
-/** Reads a text file only when it is no larger than max bytes (checked before reading). */
-function readTextFileLimited(file, max, what = 'The file') {
-  const st = fs.statSync(file);
-  if (!st.isFile()) throw new LimitError(`${what} is not a file.`);
-  if (st.size > max) throw tooLarge(what, max);
-  return fs.readFileSync(file, 'utf-8');
+/** Reads a file as a Buffer only when it is no larger than max bytes (checked on the open file, before
+ * reading). A link at the file's own name is refused unless follow (a file the user picked). */
+function readFileLimited(file, max, what = 'The file', { follow = false } = {}) {
+  const r = readFileNoFollow(file, { max, what, follow });
+  if (r.tooLarge) throw tooLarge(what, max);
+  return r.buffer;
 }
+
+/** Reads a text file within max bytes (see readFileLimited). */
+const readTextFileLimited = (file, max, what = 'The file', opts) => readFileLimited(file, max, what, opts).toString('utf-8');
 
 /** Reads and parses a JSON file within max bytes. */
-const readJsonLimited = (file, max, what) => JSON.parse(readTextFileLimited(file, max, what));
-
-/** Throws unless the file is no larger than max bytes (for files read by a library, e.g. ExcelJS). */
-function assertFileWithin(file, max, what = 'The file') {
-  const st = fs.statSync(file);
-  if (st.size > max) throw tooLarge(what, max);
-}
+const readJsonLimited = (file, max, what, opts) => JSON.parse(readTextFileLimited(file, max, what, opts));
 
 /** Bytes of a string as UTF-8. */
 const utf8Bytes = (s) => Buffer.byteLength(s, 'utf-8');
@@ -96,4 +93,4 @@ function boundedCollector(max, onOverflow, keepTail = false) {
   };
 }
 
-module.exports = { LIMITS, LimitError, human, readTextFileLimited, readJsonLimited, assertFileWithin, assertTextWithin, assertJsonWithin, utf8Bytes, boundedCollector };
+module.exports = { LIMITS, LimitError, human, readFileLimited, readTextFileLimited, readJsonLimited, assertTextWithin, assertJsonWithin, utf8Bytes, boundedCollector };

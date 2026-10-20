@@ -7,7 +7,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 
 type Fn = (...a: unknown[]) => any; // eslint-disable-line @typescript-eslint/no-explicit-any
 const require = createRequire(import.meta.url);
-const L = require('../../electron/limits.cjs') as { LIMITS: Record<string, number>; LimitError: new () => Error } & Record<'readTextFileLimited' | 'readJsonLimited' | 'assertFileWithin' | 'assertTextWithin' | 'assertJsonWithin' | 'boundedCollector', Fn>;
+const L = require('../../electron/limits.cjs') as { LIMITS: Record<string, number>; LimitError: new () => Error } & Record<'readFileLimited' | 'readTextFileLimited' | 'readJsonLimited' | 'assertTextWithin' | 'assertJsonWithin' | 'boundedCollector', Fn>;
 const V = require('../../electron/ipcValidate.cjs') as Record<'workbookRows' | 'projectSaveArgs' | 'libraryData' | 'engineRequest' | 'recoveryArgs', Fn>;
 const DB = require('../../electron/database.cjs') as { setFolder: (d: string | null) => void; writeBook: Fn; spec: { books: { id: string }[] } };
 const { runJsonProcess } = require('../../electron/engineRunner.cjs') as { runJsonProcess: (o: Record<string, unknown>) => Promise<Record<string, unknown>> };
@@ -21,7 +21,7 @@ describe('reading files within a limit', () => {
     writeFileSync(f, '{"a":"' + 'x'.repeat(92) + '"}'); // 100 bytes
     expect(L.readJsonLimited(f, 100, 'p.json')).toEqual({ a: 'x'.repeat(92) });
     expect(() => L.readTextFileLimited(f, 99, 'p.json')).toThrow(/p\.json is too large/);
-    expect(() => L.assertFileWithin(f, 99, 'p.json')).toThrow(L.LimitError);
+    expect(() => L.readFileLimited(f, 99, 'p.json')).toThrow(L.LimitError);
     mkdirSync(join(dir, 'folder.json'));
     expect(() => L.readTextFileLimited(join(dir, 'folder.json'), 100)).toThrow(/not a file/);
   });
