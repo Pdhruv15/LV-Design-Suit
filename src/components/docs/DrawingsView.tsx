@@ -6,7 +6,7 @@ import { LAYER_LABELS, SHEET_LAYERS } from '../../diagram/annotations';
 import { boardsInSupplyOrder } from '../../calc/summary';
 import {
   addEarthingSheet, addEarthRiserSheet, addRiserSheet, autoSheets, drawable, filterSheets, sheetHash, issueSheets, moveSheet, nextRev, renumber, setOf, SHEET_STATUSES, sheetNumber, sheetRev, sheetsByCount, SIZES, statusColor,
-  type DrawingIssue, type DrawingSet, type DrawingSheet, type IssueInput, type SheetFilter, type SheetSize, type SheetSort
+  type DrawingIssue, type DrawingSet, type DrawingSheet, type SheetFilter, type SheetSize, type SheetSort
 } from '../../model/drawingSet';
 import { currentRevision } from '../../model/revisions';
 import { loadTemplateLibrary } from '../../model/titleBlock';

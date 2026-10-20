@@ -94,7 +94,7 @@ import { loadUserPresets, mergePresets, presetFromFeeder, presetsFile, readPrese
 import PresetEditor from './components/PresetEditor';
 import { isScheduleCircuit } from './calc/loadSchedule';
 import { CABLE_TYPE_DEFS, cableTypeDef } from './model/cableTypes';
-import { saveText } from './util/files';
+import { safeFileName, saveText } from './util/files';
 const SldExportDialog = lazy(() => import('./components/SldExportDialog'));
 import PasteBoardDialog from './components/PasteBoardDialog';
 const EnclosureSizing = lazy(() => import('./components/EnclosureSizing'));
@@ -735,20 +735,9 @@ export default function App() {
 
   async function exportOpenDss() {
     const { script, warnings } = exportDss(project);
-    const defaultName = `${project.name.replace(/[^a-z0-9]+/gi, '-')}.dss`;
     const warnNote = warnings.length ? ` — ${warnings.length} warning(s): ${warnings.join(' ')}` : '';
-    if (!hasBridge) {
-      const url = URL.createObjectURL(new Blob([script], { type: 'text/plain;charset=utf-8' }));
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = defaultName;
-      a.click();
-      URL.revokeObjectURL(url);
-      setStatus(`Downloaded ${defaultName}${warnNote}`);
-      return;
-    }
-    const saved = await window.lvds.files.saveText({ defaultName, content: script, filterName: 'OpenDSS script', extensions: ['dss'] });
-    if (saved) setStatus(`Exported ${saved.split(/[\\/]/).pop()}${warnNote}`);
+    const m = await saveText(`${safeFileName(project.name)}.dss`, script, 'OpenDSS script', 'dss');
+    if (m) setStatus(`${m}${warnNote}`);
   }
 
   /** New project: the wizard (role, parties, scope, deliverables) or Quick create from the name alone. */
