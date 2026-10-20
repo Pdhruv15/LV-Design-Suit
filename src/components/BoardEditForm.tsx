@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Board, Project } from '../types';
 import BoardFields, { BOARD_FIELD_GROUPS, type BoardFieldGroup } from './BoardFields';
+import { Modal } from './ui';
 
 type Tab = BoardFieldGroup | 'transformer';
 
@@ -35,37 +36,35 @@ export default function BoardEditForm({
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
-        <h3>Edit board: {board.id}</h3>
-        <p className="m">{isMain ? 'Main board, supplied by the transformer.' : `Supplied from ${board.upstreamId}.`} {feeders} outgoing feeder(s).</p>
-        <div className="tabs feeder-tabs" role="tablist">
-          {tabs.map(([k, label]) => <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{label}</button>)}
-        </div>
-        <div className="board-tab-body">
-          {tab === 'transformer'
-            ? <BoardFields board={draft} onChange={setDraft} section="source" />
-            : <BoardFields board={draft} onChange={setDraft} section="general" building={project.building} earthing={project.earthingPlan} groups={[tab]} />}
-        </div>
-        <div className="modal-actions">
-          {onDelete && (
-            <button
-              type="button"
-              className="chip bad-btn"
-              onClick={() => {
-                const extra = subBoards ? ` and the ${subBoards} board(s) fed from it` : '';
-                if (window.confirm(`Delete ${board.id}, its ${feeders} feeder(s)${extra}? This can't be undone.`)) onDelete();
-              }}
-            >
-              Delete board
-            </button>
-          )}
-          {onEditIncomer && <button type="button" className="chip" onClick={onEditIncomer}>Edit incomer cable…</button>}
-          <span className="sp" />
-          <button type="button" className="chip" onClick={onClose}>Cancel</button>
-          <button type="submit" className="chip primary">Save changes</button>
-        </div>
-      </form>
-    </div>
+    <Modal onClose={onClose} onSubmit={submit}>
+      <h3>Edit board: {board.id}</h3>
+      <p className="m">{isMain ? 'Main board, supplied by the transformer.' : `Supplied from ${board.upstreamId}.`} {feeders} outgoing feeder(s).</p>
+      <div className="tabs feeder-tabs" role="tablist">
+        {tabs.map(([k, label]) => <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{label}</button>)}
+      </div>
+      <div className="board-tab-body">
+        {tab === 'transformer'
+          ? <BoardFields board={draft} onChange={setDraft} section="source" />
+          : <BoardFields board={draft} onChange={setDraft} section="general" building={project.building} earthing={project.earthingPlan} groups={[tab]} />}
+      </div>
+      <div className="modal-actions">
+        {onDelete && (
+          <button
+            type="button"
+            className="chip bad-btn"
+            onClick={() => {
+              const extra = subBoards ? ` and the ${subBoards} board(s) fed from it` : '';
+              if (window.confirm(`Delete ${board.id}, its ${feeders} feeder(s)${extra}? This can't be undone.`)) onDelete();
+            }}
+          >
+            Delete board
+          </button>
+        )}
+        {onEditIncomer && <button type="button" className="chip" onClick={onEditIncomer}>Edit incomer cable…</button>}
+        <span className="sp" />
+        <button type="button" className="chip" onClick={onClose}>Cancel</button>
+        <button type="submit" className="chip primary">Save changes</button>
+      </div>
+    </Modal>
   );
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Modal } from './ui';
 
 /** Before opening or starting another project with unsaved changes. */
 export function UnsavedDialog({ name, action, onSave, onDiscard, onCancel }: {
@@ -9,18 +10,16 @@ export function UnsavedDialog({ name, action, onSave, onDiscard, onCancel }: {
   onCancel: () => void;
 }) {
   return (
-    <div className="modal-backdrop" onClick={onCancel}>
-      <div className="modal" style={{ maxWidth: 440 }} onClick={(e) => e.stopPropagation()} role="alertdialog" aria-label="Unsaved changes">
-        <h3>Save changes to “{name}”?</h3>
-        <p className="m">The project has changes that aren’t saved. Save them before {action}?</p>
-        <div className="modal-actions">
-          <button type="button" className="chip" onClick={onDiscard}>Don’t save</button>
-          <span className="sp" />
-          <button type="button" className="chip" onClick={onCancel}>Cancel</button>
-          <button type="button" className="chip primary" autoFocus onClick={onSave}>Save</button>
-        </div>
+    <Modal onClose={onCancel} style={{ maxWidth: 440 }} role="alertdialog" label="Unsaved changes">
+      <h3>Save changes to “{name}”?</h3>
+      <p className="m">The project has changes that aren’t saved. Save them before {action}?</p>
+      <div className="modal-actions">
+        <button type="button" className="chip" onClick={onDiscard}>Don’t save</button>
+        <span className="sp" />
+        <button type="button" className="chip" onClick={onCancel}>Cancel</button>
+        <button type="button" className="chip primary" autoFocus onClick={onSave}>Save</button>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -37,18 +36,16 @@ export function NameDialog({ title, note, initial, okLabel, taken, onOk, onCance
 }) {
   const [name, setName] = useState(initial);
   return (
-    <div className="modal-backdrop" onClick={onCancel}>
-      <form className="modal" style={{ maxWidth: 440 }} onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); if (name.trim()) onOk(name.trim()); }}>
-        <h3>{title}</h3>
-        {note && <p className="m">{note}</p>}
-        <label>Project name<input autoFocus value={name} onFocus={(e) => e.target.select()} onChange={(e) => setName(e.target.value)} /></label>
-        {taken?.some((t) => t.trim().toLowerCase() === name.trim().toLowerCase()) && <p className="m" style={{ color: 'var(--warn, #e2a03f)' }}>A project with this name already exists. It is kept as a separate project, but different names are easier to tell apart.</p>}
-        <div className="modal-actions">
-          <span className="sp" />
-          <button type="button" className="chip" onClick={onCancel}>Cancel</button>
-          <button type="submit" className="chip primary" disabled={!name.trim()}>{okLabel}</button>
-        </div>
-      </form>
-    </div>
+    <Modal onClose={onCancel} style={{ maxWidth: 440 }} onSubmit={(e) => { e.preventDefault(); if (name.trim()) onOk(name.trim()); }}>
+      <h3>{title}</h3>
+      {note && <p className="m">{note}</p>}
+      <label>Project name<input autoFocus value={name} onFocus={(e) => e.target.select()} onChange={(e) => setName(e.target.value)} /></label>
+      {taken?.some((t) => t.trim().toLowerCase() === name.trim().toLowerCase()) && <p className="m" style={{ color: 'var(--warn, #e2a03f)' }}>A project with this name already exists. It is kept as a separate project, but different names are easier to tell apart.</p>}
+      <div className="modal-actions">
+        <span className="sp" />
+        <button type="button" className="chip" onClick={onCancel}>Cancel</button>
+        <button type="submit" className="chip primary" disabled={!name.trim()}>{okLabel}</button>
+      </div>
+    </Modal>
   );
 }

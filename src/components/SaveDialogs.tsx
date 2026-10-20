@@ -1,5 +1,6 @@
 import { diffSections, type SectionChange } from '../model/saveSafety';
 import type { Project } from '../types';
+import { Modal } from './ui';
 
 function ChangeList({ changes }: { changes: SectionChange[] }) {
   if (!changes.length) return <p className="m">No differences in the design — only when or by whom it was saved.</p>;
@@ -18,35 +19,31 @@ export function ConflictDialog({ name, mine, disk, onOverwrite, onSaveCopy, onLo
   onOverwrite: () => void; onSaveCopy: () => void; onLoadDisk: () => void; onCancel: () => void;
 }) {
   return (
-    <div className="modal-backdrop" onClick={onCancel}>
-      <div className="modal" style={{ maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
-        <h3>“{name}” changed on disk</h3>
-        <p>The file was changed by another computer, a sync tool or another program since you opened it, so it was <b>not</b> overwritten. Nothing is lost yet — choose what to keep.</p>
-        {disk ? <ChangeList changes={diffSections(mine, disk)} /> : <p className="m">The file on disk could not be read to compare.</p>}
-        <p className="m" style={{ marginTop: 8 }}>“Yours” is what you have open now; “the other” is the file on disk.</p>
-        <div className="modal-actions" style={{ flexWrap: 'wrap', gap: 6 }}>
-          <button className="chip" onClick={onCancel}>Cancel</button>
-          <span className="sp" />
-          <button className="chip" disabled={!disk} onClick={onLoadDisk} title="Open the version on disk. Your unsaved version is kept as recoverable work.">Use the version on disk</button>
-          <button className="chip" onClick={onSaveCopy} title="Keep both: your version as a new project, the file on disk untouched">Save mine as a copy…</button>
-          <button className="chip primary" onClick={onOverwrite} title="Replace the file on disk with yours. The other version is kept beside it as a .bak file.">Overwrite with mine</button>
-        </div>
+    <Modal onClose={onCancel} style={{ maxWidth: 560 }}>
+      <h3>“{name}” changed on disk</h3>
+      <p>The file was changed by another computer, a sync tool or another program since you opened it, so it was <b>not</b> overwritten. Nothing is lost yet — choose what to keep.</p>
+      {disk ? <ChangeList changes={diffSections(mine, disk)} /> : <p className="m">The file on disk could not be read to compare.</p>}
+      <p className="m" style={{ marginTop: 8 }}>“Yours” is what you have open now; “the other” is the file on disk.</p>
+      <div className="modal-actions" style={{ flexWrap: 'wrap', gap: 6 }}>
+        <button className="chip" onClick={onCancel}>Cancel</button>
+        <span className="sp" />
+        <button className="chip" disabled={!disk} onClick={onLoadDisk} title="Open the version on disk. Your unsaved version is kept as recoverable work.">Use the version on disk</button>
+        <button className="chip" onClick={onSaveCopy} title="Keep both: your version as a new project, the file on disk untouched">Save mine as a copy…</button>
+        <button className="chip primary" onClick={onOverwrite} title="Replace the file on disk with yours. The other version is kept beside it as a .bak file.">Overwrite with mine</button>
       </div>
-    </div>
+    </Modal>
   );
 }
 
 /** Compare two project files (for example a sync tool's conflicted copy and the original). */
 export function CompareDialog({ aName, bName, a, b, onClose }: { aName: string; bName: string; a: Project; b: Project; onClose: () => void }) {
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
-        <h3>Compare two files</h3>
-        <p className="m"><b>{aName}</b> (shown as “yours”) with <b>{bName}</b> (“the other”).</p>
-        <ChangeList changes={diffSections(a, b)} />
-        <div className="modal-actions"><span className="sp" /><button className="chip primary" onClick={onClose}>Close</button></div>
-      </div>
-    </div>
+    <Modal onClose={onClose} style={{ maxWidth: 560 }}>
+      <h3>Compare two files</h3>
+      <p className="m"><b>{aName}</b> (shown as “yours”) with <b>{bName}</b> (“the other”).</p>
+      <ChangeList changes={diffSections(a, b)} />
+      <div className="modal-actions"><span className="sp" /><button className="chip primary" onClick={onClose}>Close</button></div>
+    </Modal>
   );
 }
 

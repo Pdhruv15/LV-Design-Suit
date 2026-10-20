@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import { STATUS_TEXT } from '../calc/statusText';
 import type { Status } from '../calc/electrical';
 
@@ -111,5 +111,34 @@ export function FocusChip({ id, onClear }: { id?: string | null; onClear?: () =>
       Showing <b>{id}</b> and below
       {onClear && <button className="icon-btn" onClick={onClear} title="Show all boards">✕</button>}
     </span>
+  );
+}
+
+/** Open dialogs, newest last: Escape closes only the top one. */
+const openModals: object[] = [];
+
+/** A dialog over the page: a backdrop click or Escape closes it. A form when onSubmit is given. */
+export function Modal({ onClose, onSubmit, className = 'modal', style, role = 'dialog', label, children }: {
+  onClose: () => void; onSubmit?: (e: FormEvent<HTMLFormElement>) => void; className?: string; style?: CSSProperties;
+  role?: 'dialog' | 'alertdialog'; label?: string; children: ReactNode;
+}) {
+  const close = useRef(onClose);
+  close.current = onClose;
+  useEffect(() => {
+    const me = {};
+    openModals.push(me);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || openModals[openModals.length - 1] !== me) return;
+      e.preventDefault();
+      close.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => { window.removeEventListener('keydown', onKey); openModals.splice(openModals.indexOf(me), 1); };
+  }, []);
+  const box = { className, style, role, 'aria-modal': true, 'aria-label': label, onClick: (e: { stopPropagation: () => void }) => e.stopPropagation() };
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      {onSubmit ? <form {...box} onSubmit={onSubmit}>{children}</form> : <div {...box}>{children}</div>}
+    </div>
   );
 }
