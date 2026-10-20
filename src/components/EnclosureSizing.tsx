@@ -11,6 +11,7 @@ import { esc } from '../docs/report';
 import { Page } from './ui';
 import { roleOf } from '../model/emergency';
 import { BRAND_DEVICES } from '../data/brandDevices';
+import { sanitizeSvg } from '../util/sanitize';
 
 const RESULT: Record<Candidate['result'], string> = { fits: 'Fits', 'too-small': 'Too small', 'not-listed': 'Not in chart', confirm: 'Confirm with supplier' };
 const CLS: Record<Candidate['result'], string> = { fits: 'ok', 'too-small': 'bad', 'not-listed': 'm', confirm: 'warn' };
@@ -229,7 +230,7 @@ function DbSizing({ project, boardId, tabs, onChange, onStatus }: Props & { tabs
 
         <section className="card">
           <h4>Enclosure preview {chosen && <span className="m">— {chosen.config.ref}{cat.family === 'modular' ? ` (${chosen.config.rows} row${chosen.config.rows === 1 ? "" : "s"} × ${chosen.config.modulesPerRow} modules)` : ''}</span>}</h4>
-          {svg ? <div className="pfcc-svg" dangerouslySetInnerHTML={{ __html: svg }} /> : <p className="m">No enclosure in the catalogue fits these inputs.</p>}
+          {svg ? <div className="pfcc-svg" dangerouslySetInnerHTML={{ __html: sanitizeSvg(svg) }} /> : <p className="m">No enclosure in the catalogue fits these inputs.</p>}
           {chosen && chosen.result === 'too-small' && <p className="bad">{chosen.config.ref} is too small for {r.required} modules — choose more rows or modules per row, or set them to Auto.</p>}
           {cat.family === 'modular' && <p className="m enc-key"><span className="k eq" /> Equipment <span className="k spare" /> Spare <span className="k allow" /> Supplier allowance (terminals, incoming cable) · illustrative layout, not a manufacturing drawing</p>}
           {chosen?.dims && <p><b>{cat.range} {chosen.config.ref}</b> · {cat.family === 'modular' ? (mounting === 'flush' ? 'Flush' : 'Surface') : 'Fabricated'} · H{chosen.dims.h} × W{chosen.dims.w} × D{chosen.dims.d} mm</p>}

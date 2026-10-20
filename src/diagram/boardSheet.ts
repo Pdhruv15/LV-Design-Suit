@@ -12,6 +12,7 @@ import { feederPhaseKw, phaseTag } from '../model/phases';
 import { boardEarth, type BoardEarth } from '../model/boardEarth';
 import { splitSld } from '../model/sldScope';
 import { deviceKind, devicePoles } from './deviceText';
+import { escapeHtmlAttr } from '../util/escape';
 
 /** One board's single line diagram as a printable drawing (black on white,
  * SVG for the PDF sheet and the DXF): the supply and incomer, the busbar and
@@ -28,7 +29,8 @@ const COLS: [string, number, 'start' | 'end'][] = [
 ];
 const TABLE_W = COLS.reduce((s, c) => s + c[1], 0);
 
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+/** Escaped for text and quoted attributes (project data is untrusted). */
+const esc = escapeHtmlAttr;
 const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 const ln = (x1: number, y1: number, x2: number, y2: number, w = 1.2) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#000" stroke-width="${w}"/>`;
 const tx = (x: number, y: number, s: string, o: { anchor?: 'start' | 'middle' | 'end'; bold?: boolean; size?: number } = {}) =>

@@ -3,6 +3,7 @@ import type { TitleTemplate } from '../model/titleBlock';
 import { fillParams, paramList } from '../model/params';
 import type { DxfPrimitive } from './dxf';
 import { textInBox, textWidth, type DxfBox } from './dxfLayout';
+import { isRasterDataUrl } from '../util/escape';
 
 export interface TitleDetail { label: string; value: string }
 
@@ -47,7 +48,7 @@ export function templateTitleBlockDxf(template: TitleTemplate, project: Project,
       inside.h -= ch;
     }
     if (c.kind === 'logo') {
-      if (project.drawing?.logo?.startsWith('data:image/')) {
+      if (isRasterDataUrl(project.drawing?.logo)) {
         bounded(inside, 'LOGO', 2 * scale, 'Logo', 'center');
         warnings.push('DXF uses a LOGO placeholder; raster logos are available in the PDF.');
       }

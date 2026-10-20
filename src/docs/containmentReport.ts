@@ -2,10 +2,11 @@ import type { Project } from '../types';
 import { CONTAINMENT_LABEL, containmentSvg, type ContainmentInput, type ContainmentResult } from '../calc/containment';
 import { revisionStamp } from '../model/revisions';
 import { esc } from './report';
+import { isRasterDataUrl } from '../util/escape';
 
 /** Custom containment report: inputs, cables, the selected size, cross-section and notes. */
 export function containmentReportHtml(project: Project, i: ContainmentInput, r: ContainmentResult): string {
-  const logo = project.drawing?.logo?.startsWith('data:image/') ? `<img class="logo" src="${esc(project.drawing.logo)}" alt="">` : '';
+  const logo = isRasterDataUrl(project.drawing?.logo) ? `<img class="logo" src="${esc(project.drawing!.logo)}" alt="">` : '';
   const settings: [string, string][] = [['Containment', CONTAINMENT_LABEL[r.type]]];
   if (r.type === 'tray' || r.type === 'ladder' || r.type === 'basket') settings.push(['Laying', i.layout === 'spaced' ? 'Spaced one diameter apart' : i.layout === 'touching' ? 'Touching, single layer' : `Fill ≤ ${i.fillPct} %`], ['Side height', `${i.depthMm} mm`], ['Spare', `${i.sparePct} %`]);
   if (r.type === 'conduit') settings.push(['Fill limit', i.conduitFillPct !== undefined ? `${i.conduitFillPct} % (entered)` : '53 / 31 / 40 % by cables in each conduit']);

@@ -15,6 +15,7 @@ import { safeFileName, saveBinary, savePdf, saveText } from '../util/files';
 import JSZip from 'jszip';
 import MenuButton from './MenuButton';
 import { Page } from './ui';
+import { sanitizedSvgFragment } from '../util/sanitize';
 
 type Tab = 'drawing' | 'riser' | 'floor' | 'pits' | 'checks';
 const stored = <T,>(key: string, initial: T): T => { try { const s = localStorage.getItem(key); return s ? (JSON.parse(s) as T) : initial; } catch { return initial; } };
@@ -35,16 +36,31 @@ const DARK = [
 ].join('');
 
 /** The drawing in a shadow root: its own black-on-white text and sizes, untouched by the app's
- * dark-theme SVG styles. A click on a pit reports the pit's group (data-pit); elsewhere, null. */
-function ShadowSvg({ svg, css, width, onPit }: { svg: string; css: string; width: string; onPit: (pit: Element | null) => void }) {
+ * dark-theme SVG styles. A click on a pit reports the pit's group (data-pit); elsewhere, null.
+ * The SVG carries project data, so it goes in as sanitized nodes (never innerHTML); the style
+ * sheet is fixed text, and each pit's status fill is set on its own element (pitFill, by the
+ * pit's data-pit value) rather than through selectors built from IDs. */
+const SHADOW_CSS = `${DARK}[data-pit]{cursor:pointer}[data-pit]:hover>.ph{stroke:var(--acc);stroke-width:2.5}`;
+function ShadowSvg({ svg, pitFill, width, onPit }: { svg: string; pitFill?: ReadonlyMap<string, string>; width: string; onPit: (pit: Element | null) => void }) {
   const host = useRef<HTMLDivElement>(null);
   const cb = useRef(onPit);
   cb.current = onPit;
   useEffect(() => {
     const root = host.current?.shadowRoot ?? host.current?.attachShadow({ mode: 'open' });
     if (!root) return;
-    root.innerHTML = `<style>${DARK}[data-pit]{cursor:pointer}[data-pit]:hover>.ph{stroke:var(--acc);stroke-width:2.5}${css}</style>${svg}`;
-  }, [svg, css]);
+    const style = document.createElement('style');
+    style.textContent = SHADOW_CSS;
+    root.replaceChildren(style, sanitizedSvgFragment(svg));
+  }, [svg]);
+  useEffect(() => {
+    const root = host.current?.shadowRoot;
+    if (!root) return;
+    root.querySelectorAll('[data-pit]').forEach((g) => {
+      const fill = pitFill?.get(g.getAttribute('data-pit') ?? '');
+      const ph = g.querySelector<SVGElement>('.ph');
+      if (ph) { if (fill) ph.style.setProperty('fill', fill); else ph.style.removeProperty('fill'); }
+    });
+  }, [svg, pitFill]);
   useEffect(() => {
     const root = host.current?.shadowRoot;
     if (!root) return;
@@ -118,7 +134,7 @@ export default function EarthingView({ project, onChange, onStatus, embedded = f
   const issues = L.checks.filter((c) => c.level !== 'ok').length;
 
   // Pit status on the drawing (screen only): the inspection pit square filled pass / fail / untested.
-  const statusCss = L.pits.map((p) => `[data-pit="${p.id}"] > .ph{fill:${PIT_FILL[pitStatus(p)]}}`).join('');
+  const pitFill = useMemo(() => new Map(L.pits.map((p) => [p.id, PIT_FILL[pitStatus(p)]])), [L]);
 
   const openPit = (g: Element | null) => {
     const box = canvas.current?.getBoundingClientRect();
@@ -223,7 +239,7 @@ export default function EarthingView({ project, onChange, onStatus, embedded = f
           {tab === 'drawing' && (L.pits.length ? (
             <>
               <div className="earth-canvas" ref={canvas}>
-                <ShadowSvg svg={svg} css={statusCss} width={`${zoom * 100}%`} onPit={openPit} />
+                <ShadowSvg svg={svg} pitFill={pitFill} width={`${zoom * 100}%`} onPit={openPit} />
                 {editing && edit && (
                   <div className="earth-pop" style={{ left: edit.x, top: edit.y }} onClick={(e) => e.stopPropagation()} key={`${editing.id}-${edit.n}`}>
                     <div className="earth-pop-h"><b>{editing.id}</b> <span className="m">{itemOf(editing.itemKey).equipment} · {kindInfo(editing.kind).label} · ≤ {kindInfo(editing.kind).limitOhm} Ω</span>
@@ -242,7 +258,7 @@ export default function EarthingView({ project, onChange, onStatus, embedded = f
           {(tab === 'riser' || tab === 'floor') && (riserB ? (
             <>
               <div className="earth-canvas">
-                <ShadowSvg svg={riserSvg} css="" width={`${zoom * 100}%`} onPit={() => {}} />
+                <ShadowSvg svg={riserSvg} width={`${zoom * 100}%`} onPit={() => {}} />
               </div>
               <p className="m earth-key">{tab === 'riser'
                 ? <>A floor earth bar on every level of the building, the earth cable bar to bar. Cable sizes, riser name and the layout for tall buildings (every level over several sheets, or typical floors grouped on one) are in Settings. Add it to the drawing set from Drawings → Add earthing riser diagram.</>

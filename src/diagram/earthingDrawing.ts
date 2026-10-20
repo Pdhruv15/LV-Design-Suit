@@ -2,6 +2,7 @@ import type { Project } from '../types';
 import { earthingLayout, genTag, kindInfo, pitStatus, txUnits, unitKey, unitName, type EarthItem, type EarthLayout } from '../model/earthingPlan';
 import { mainBoards, txTag } from '../model/transformers';
 import { obstaclesFromSvg, placeTags, type CableTag } from './tagPlacer';
+import { escapeHtmlAttr } from '../util/escape';
 
 /** Earthing schematic drawing (printable SVG), in the SLD drawing style.
  *
@@ -19,7 +20,8 @@ const PIT = 210, GREEN = '#1a7f37', MAX_W = 3200;
 /** A substation row wraps before this width, so the drawing still prints readably on one sheet. */
 const SUB_MAX_W = 2900;
 const BAND_H = 600; // one row: equipment, conductors, pits and links
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+/** Escaped for text and quoted attributes (project data is untrusted). */
+const esc = escapeHtmlAttr;
 const ln = (x1: number, y1: number, x2: number, y2: number, w = 1.3, c = '#111') => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${c}" stroke-width="${w}"/>`;
 
 /** IEC 60617 load-break switch (switch-disconnector), open, on a vertical line centred at (x, y). */
@@ -412,7 +414,7 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
     const lastOfPair = own.length > 1 && own[own.length - 1].id === p.id;
     const left = !riserL.has(p.id) && (riserR.has(p.id) || lastOfPair);
     const tx = left ? px - 30 : px + (riserR.has(p.id) && riserL.has(p.id) ? 46 : 30), anchor = left ? 'end' : 'start';
-    out.push(`<g data-pit="${p.id}">${pitSymbol(px, py)}<text x="${tx}" y="${py + 30}" font-weight="bold" text-anchor="${anchor}">${esc(tagOf.get(p.id) ?? p.id)}</text><text x="${tx}" y="${py + 42}" font-size="8.5" fill="#5b6b82" text-anchor="${anchor}">${p.id}</text>${p.measured !== undefined ? badge(tx, py + 47, p, left) : ''}</g>`);
+    out.push(`<g data-pit="${esc(p.id)}">${pitSymbol(px, py)}<text x="${tx}" y="${py + 30}" font-weight="bold" text-anchor="${anchor}">${esc(tagOf.get(p.id) ?? p.id)}</text><text x="${tx}" y="${py + 42}" font-size="8.5" fill="#5b6b82" text-anchor="${anchor}">${esc(p.id)}</text>${p.measured !== undefined ? badge(tx, py + 47, p, left) : ''}</g>`);
   }
 
   // ---- Cable tags, last: clear of every line, symbol and text drawn above ----

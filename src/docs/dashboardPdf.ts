@@ -3,6 +3,7 @@ import { lengthText, sizesText, type DashBar, type Dashboard } from '../calc/das
 import { revisionStamp } from '../model/revisions';
 import { esc } from './report';
 import { STUDY_LABEL } from '../calc/runs';
+import { isRasterDataUrl } from '../util/escape';
 
 /** The project dashboard as a one-page A4 landscape summary (a cover sheet
  * for the client or a submission): project card, headline numbers, load by
@@ -24,7 +25,7 @@ const bars = (bs: DashBar[], empty: string) => {
 
 export function buildDashboardHtml(project: Project, d: Dashboard): string {
   const i = d.info;
-  const logo = project.drawing?.logo?.startsWith('data:image/') ? `<img class="logo" src="${esc(project.drawing.logo)}" alt="">` : '';
+  const logo = isRasterDataUrl(project.drawing?.logo) ? `<img class="logo" src="${esc(project.drawing!.logo)}" alt="">` : '';
   const fails = d.studies.reduce((a, s) => a + s.fail, 0);
   const checks = d.studies.reduce((a, s) => a + s.check, 0);
   const passes = d.studies.reduce((a, s) => a + s.pass, 0);

@@ -6,6 +6,7 @@ import { panelDf } from './mdSheet';
 import { connectedPhaseKw } from './mdSheet';
 import { revisionStamp } from '../model/revisions';
 import { esc } from './report';
+import { isRasterDataUrl } from '../util/escape';
 
 /** One page per building for the submission: levels with area and load,
  * flats and their meters, totals (TCL, MDL, W/m²). */
@@ -50,7 +51,7 @@ export function buildingSheet(project: Project, buildingId: string): BuildingShe
 
 export function buildingSummaryHtml(project: Project, ids: string[]): string {
   const sheets = ids.map((id) => buildingSheet(project, id)).filter((x): x is BuildingSheet => !!x);
-  const logo = project.drawing?.logo?.startsWith('data:image/') ? `<img class="logo" src="${esc(project.drawing.logo)}" alt="">` : '';
+  const logo = isRasterDataUrl(project.drawing?.logo) ? `<img class="logo" src="${esc(project.drawing!.logo)}" alt="">` : '';
   const page = (s: BuildingSheet) => `<section class="pg">
   <header>${logo}<div><h1>${esc(s.name)} — building load summary</h1><div class="m">${esc(project.name)} · ${esc(revisionStamp(project))}${project.info?.plotNo ? ` · Plot ${esc(project.info.plotNo)}` : ''}</div></div></header>
   <table class="kv"><tr><th>Use</th><td>${esc(s.use || '—')}</td><th>Floors</th><td>${esc(s.description || '—')} (${s.floors})</td><th>Height</th><td>${f1(s.heightM)} m</td></tr>

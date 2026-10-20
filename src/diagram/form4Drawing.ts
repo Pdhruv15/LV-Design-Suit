@@ -3,6 +3,7 @@
  * so all three always agree. Illustrative, not a manufacturing drawing. */
 import { stackSections, type Form4Counts, type Form4Result } from '../calc/form4';
 import { toDxf, type DxfPrimitive } from '../docs/dxf';
+import { escapeHtmlAttr } from '../util/escape';
 
 /** Layer → AutoCAD colour index. */
 export const FORM4_LAYERS: Record<string, number> = { 'F4-OUTLINE': 7, 'F4-DEVICE': 3, 'F4-CHAMBER': 8, 'F4-DIM': 4, 'F4-TEXT': 7 };
@@ -103,7 +104,8 @@ export function form4Drawing(counts: Form4Counts, r: Form4Result, title?: string
 /** The drawing as an R12 DXF, 1 unit = 1 mm. */
 export const form4Dxf = (counts: Form4Counts, r: Form4Result, title?: string) => toDxf(form4Drawing(counts, r, title), FORM4_LAYERS);
 
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+/** Escaped for text and quoted attributes (project data is untrusted). */
+const esc = escapeHtmlAttr;
 
 /** The drawing as SVG for the screen (device outlines in the accent colour) or the PDF (mono: black). */
 export function form4DrawingSvg(counts: Form4Counts, r: Form4Result, mono = false): string {

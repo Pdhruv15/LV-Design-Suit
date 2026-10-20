@@ -1,5 +1,6 @@
 import { routeSettings, type TrayLine, type TrayResult } from '../calc/cableTray';
 import type { TrayPlan } from '../types';
+import { escapeHtmlAttr } from '../util/escape';
 
 /** Cable tray cross-section, to scale: each tier with its cables laid
  * largest first (single layer with the spacing, or packed in rows for the
@@ -20,7 +21,8 @@ export function lineNumbers(lines: TrayLine[]): Map<string, string> {
 
 interface Placed { x: number; y: number; d: number; label: string; }
 
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+/** Escaped for text and quoted attributes (project data is untrusted). */
+const esc = escapeHtmlAttr;
 
 export function traySectionSvg(res: TrayResult, plan: TrayPlan, maxPx = 560, mono = false): string {
   // mono (the PDF): black outlines, earth cores grey, spare hatched grey, cables that do not fit drawn dashed and heavy.
