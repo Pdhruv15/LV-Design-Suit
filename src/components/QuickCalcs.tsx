@@ -1,4 +1,4 @@
-import { createContext, useContext, useId, useState, type ReactNode } from 'react';
+import { createContext, useContext, useId, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { ambientCorrectionFactor, getCable } from '../calc/cableTable';
 import {
   awgLabel, awgToMm2, cableCandidates, cableFor, cableSizes, currentFromPower, energy, faultAtCableEnd, faultFromTransformer, HP_KW, kcmilToMm2, mm2ToAwg,
@@ -16,25 +16,46 @@ import { quickInputErrors, quickNumber as num, type QuickErrors } from './quickI
  * Inputs are remembered on this computer between visits. */
 
 type Vals = Record<string, string>;
+/** Resets a card; `modified` is true while any input differs from its default. */
+type Reset = (() => void) & { modified: boolean };
+
+const strings = (o: unknown): Vals => (o && typeof o === 'object'
+  ? Object.fromEntries(Object.entries(o).filter(([, value]) => typeof value === 'string')) as Vals : {});
+
+/** Saved inputs, minus any whose default has since changed: a value saved when the
+ * project voltage was 400 V is not carried into a 230 V project. Older saves were
+ * the bare values, with no defaults kept alongside. */
+function restore(saved: unknown, initial: Vals): Vals {
+  if (!saved || typeof saved !== 'object') return initial;
+  const { v, base } = saved as { v?: unknown; base?: unknown };
+  if (!v || typeof v !== 'object' || !base || typeof base !== 'object') return { ...initial, ...strings(saved) };
+  const was = strings(base);
+  return { ...initial, ...Object.fromEntries(Object.entries(strings(v)).filter(([k]) => was[k] === undefined || was[k] === initial[k])) };
+}
 
 /** Card inputs kept as typed text (so "0." can be typed), remembered per card. */
-function useInputs(card: string, initial: Vals): [Vals, (k: string, v: string) => void, () => void] {
+function useInputs(card: string, initial: Vals): [Vals, (k: string, v: string) => void, Reset] {
   const key = `lvds.quick.${card}`;
   const [vals, setVals] = useState<Vals>(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem(key) ?? 'null') as Vals | null;
-      return saved && typeof saved === 'object'
-        ? { ...initial, ...Object.fromEntries(Object.entries(saved).filter(([, value]) => typeof value === 'string')) }
-        : initial;
+      return restore(JSON.parse(localStorage.getItem(key) ?? 'null'), initial);
     } catch {
       return initial;
     }
   });
-  const save = (next: Vals) => { try { localStorage.setItem(key, JSON.stringify(next)); } catch { /* not kept */ } };
+  // Defaults that change while open (another project's settings) replace inputs still on the old default.
+  const [base, setBase] = useState(initial);
+  if (Object.keys(initial).some((k) => initial[k] !== base[k])) {
+    setBase(initial);
+    setVals((p) => Object.fromEntries(Object.entries({ ...initial, ...p }).map(([k, value]) => [k, value === base[k] && initial[k] !== undefined ? initial[k] : value])));
+  }
+  const save = (next: Vals) => { try { localStorage.setItem(key, JSON.stringify({ v: next, base: initial })); } catch { /* not kept */ } };
+  const reset = Object.assign(() => { setVals(initial); try { localStorage.removeItem(key); } catch { /* ignore */ } },
+    { modified: Object.keys(initial).some((k) => (vals[k] ?? initial[k]) !== initial[k]) });
   return [
     vals,
     (k, v) => setVals((p) => { const next = { ...p, [k]: v }; save(next); return next; }),
-    () => { setVals(initial); try { localStorage.removeItem(key); } catch { /* ignore */ } }
+    reset
   ];
 }
 
@@ -76,15 +97,19 @@ function Pick<T extends string>({ label, value, options, onChange, field }: { la
 const ActiveCard = createContext('');
 
 /** `tab` is the tab the card sits on when it isn't its own id (the power cards share one). */
-function Card({ id, tab, title, children, result, formula, aside, onReset, errors }: { id: string; tab?: string; title: string; children: ReactNode; result: ReactNode; formula?: string; aside?: ReactNode; onReset: () => void; errors: QuickErrors }) {
+function Card({ id, tab, title, children, result, formula, aside, onReset, errors }: { id: string; tab?: string; title: string; children: ReactNode; result: ReactNode; formula?: string; aside?: ReactNode; onReset: Reset; errors: QuickErrors }) {
   const onTab = tab ?? id;
   if (useContext(ActiveCard) !== onTab) return null;
   return (
     <section className={`qc-card${aside ? ' has-aside' : ''}`} role="tabpanel" id={`qc-panel-${onTab}`} aria-labelledby={`qc-tab-${onTab}`} data-card={id}>
       <div className="qc-main">
-        <header><h4>{title}</h4><button className="icon-btn" title="Reset to the defaults" aria-label={`Reset ${title} to the defaults`} onClick={onReset}>↺</button></header>
+        <header>
+          <h4>{title}</h4>
+          {onReset.modified && <span className="qc-saved" title="Some inputs differ from the defaults (voltage, ambient and voltage-drop limit come from the project settings).">Saved inputs</span>}
+          <button type="button" className="qc-reset" aria-label={`Reset ${title} inputs to the defaults`} onClick={onReset}>↺ Reset inputs</button>
+        </header>
         <InputErrors.Provider value={errors}><div className="qc-inputs">{children}</div></InputErrors.Provider>
-        <div className="qc-result">{Object.keys(errors).length ? <Warn>Correct the highlighted inputs to calculate.</Warn> : result}</div>
+        <div className="qc-result" aria-live="polite">{Object.keys(errors).length ? <Warn>Correct the highlighted inputs to calculate.</Warn> : result}</div>
         {formula && <p className="qc-formula">{formula}</p>}
       </div>
       {aside && !Object.keys(errors).length && <div className="qc-aside">{aside}</div>}
@@ -113,7 +138,9 @@ function BreakerOutput({ currentA, label }: { currentA: number; label: string })
   const rating = nextBreaker(currentA);
   return <>
     <Out label={label} value={rating === undefined ? 'No available rating' : String(rating)} unit={rating === undefined ? undefined : 'A'} />
-    {rating === undefined && <Warn>No available breaker rating meets this current. Review the breaker catalogue.</Warn>}
+    {rating === undefined
+      ? <Warn>No available breaker rating meets this current. Review the breaker catalogue.</Warn>
+      : <Warn>Smallest standard rating at or above the current, for reference only — the breaker still depends on the cable rating, installation, discrimination and breaking capacity.</Warn>}
   </>;
 }
 
@@ -381,19 +408,30 @@ export default function QuickCalcs({ project }: { project: Project }) {
       note="Next metric size up by area. Check the current rating separately; AWG and metric tables use different conditions." />;
   }
 
+  // Arrow keys, Home and End move between tabs (one tab stop for the whole row).
+  const onTabKey = (ev: KeyboardEvent<HTMLButtonElement>) => {
+    const i = TABS.findIndex(([k]) => k === tab);
+    const to = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: TABS.length - 1 }[ev.key];
+    if (to === undefined) return;
+    ev.preventDefault();
+    const [k] = TABS[(to + TABS.length) % TABS.length];
+    setTab(k);
+    document.getElementById(`qc-tab-${k}`)?.focus();
+  };
+
   return (
     <Page
       title="Quick calculators"
-      intro="Everyday electrical calculations, separate from the project — nothing here changes your design. Same formulas and cable data as the studies; voltage, ambient and voltage-drop limit start from the project settings. Pick a calculator from the tabs. Inputs are remembered on this computer (↺ resets a calculator)."
+      intro="Everyday electrical sums with the same formulas and cable data as the studies — nothing here changes your design. Voltage, ambient and voltage-drop limit start from the project settings; other inputs are remembered on this computer."
     >
       <div className="tabs qc-tabs" role="tablist" aria-label="Calculators">
-        {TABS.map(([k, label]) => <button key={k} type="button" role="tab" id={`qc-tab-${k}`} aria-controls={`qc-panel-${k}`} aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{label}</button>)}
+        {TABS.map(([k, label]) => <button key={k} type="button" role="tab" id={`qc-tab-${k}`} aria-controls={`qc-panel-${k}`} aria-selected={tab === k} tabIndex={tab === k ? 0 : -1} className={tab === k ? 'on' : ''} onClick={() => setTab(k)} onKeyDown={onTabKey}>{label}</button>)}
       </div>
       <ActiveCard.Provider value={tab}>
       <div className="qc-grid">
         {powerMode === 'amps' && <Card id="amps" tab="power" title="Current from power" errors={aErrors}
           aside={aTri ? <><PowerTriangle t={aTri} /><Steps lines={aSteps} /><SupplyStrip t={aTri} phases={+a.ph as Phases} voltageV={num(a.v)!} onCable={(i) => sizeCable(i, a.ph, a.v)} /></> : undefined} onReset={resetA} formula={a.ph === '3' ? 'I = P ÷ (√3 · V · PF · η)   (kVA: I = S ÷ √3·V)' : 'I = P ÷ (V · PF · η)   (kVA: I = S ÷ V)'}
-          result={Number.isFinite(aI) ? <><Out main label="Current" value={fmt(aI, 1)} unit="A" /><BreakerOutput currentA={aI} label="Breaker (next standard)" /></> : <Warn>These values do not produce a finite current. Check the power, voltage and factors.</Warn>}>
+          result={Number.isFinite(aI) ? <><Out main label="Current" value={fmt(aI, 1)} unit="A" /><BreakerOutput currentA={aI} label="Reference rating ≥ current" /></> : <Warn>These values do not produce a finite current. Check the power, voltage and factors.</Warn>}>
           {modePick}
           <Field label="Power" v={a} k="p" set={setA} />
           <Pick field="unit" label="Unit" value={a.unit} options={[['kW', 'kW'], ['kVA', 'kVA'], ['HP', 'HP'], ['W', 'W']]} onChange={(x) => setA('unit', x)} />
@@ -456,7 +494,7 @@ export default function QuickCalcs({ project }: { project: Project }) {
         </Card>
 
         <Card id="tx" aside={asides.tx} title="Transformer" errors={tErrors} onReset={resetT} formula="FLC = S ÷ (√3 · V);  Isc = FLC ÷ Z%  (infinite MV source)"
-          result={tRes?.invalid ? <Warn>{tRes.invalid}</Warn> : tRes ? <><Out main label="Full-load current" value={fmt(tRes.flc, 0)} unit="A" /><Out main label="Fault at LV terminals" value={fmt(tRes.faultKA, 1)} unit="kA" /><BreakerOutput currentA={tRes.flc} label="Main breaker (next standard)" /></> : null}>
+          result={tRes?.invalid ? <Warn>{tRes.invalid}</Warn> : tRes ? <><Out main label="Full-load current" value={fmt(tRes.flc, 0)} unit="A" /><Out main label="Fault at LV terminals" value={fmt(tRes.faultKA, 1)} unit="kA" /><BreakerOutput currentA={tRes.flc} label="Reference main rating ≥ FLC" /></> : null}>
           <Field label="Rating" v={t} k="kva" set={setT} unit="kVA" />
           <Field label="LV voltage (L-L)" v={t} k="v" set={setT} unit="V" />
           <Field label="Impedance Z" v={t} k="z" set={setT} unit="%" width={60} />

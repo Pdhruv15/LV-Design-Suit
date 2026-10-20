@@ -209,3 +209,38 @@ describe('Quick calculator rendered input and result behavior', () => {
     expectSuppressed(section);
   });
 });
+
+describe('Quick calculator saved inputs and accessibility', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('drops a saved voltage whose project default has changed, keeping the other saved inputs', () => {
+    const section = card(render({ amps: { v: { v: '440', p: '55' }, base: { v: '400', p: '100' } } as never }), 'Current from power');
+    expect(field(section, 'Voltage (L-L)')).toContain('value="415"');
+    expect(field(section, 'Power')).toContain('value="55"');
+    expect(section).toContain('Saved inputs');
+  });
+
+  it('keeps a saved voltage typed against the same project default', () => {
+    const section = card(render({ amps: { v: { v: '440' }, base: { v: '415' } } as never }), 'Current from power');
+    expect(field(section, 'Voltage (L-L)')).toContain('value="440"');
+  });
+
+  it('shows no saved-inputs badge on defaults, and a worded reset button', () => {
+    const section = card(render({ amps: {} }), 'Current from power');
+    expect(section).not.toContain('Saved inputs');
+    expect(section).toContain('Reset inputs');
+  });
+
+  it('gives only the open tab a tab stop and announces results', () => {
+    const html = render({ vd: {} });
+    expect(html.match(/role="tab"[^>]*tabindex="0"/g)).toHaveLength(1);
+    expect(html).toMatch(/id="qc-tab-vd"[^>]*tabindex="0"/);
+    expect(html).toContain('class="qc-result" aria-live="polite"');
+  });
+
+  it('labels the breaker as a reference rating, with its assumptions beside it', () => {
+    const section = card(render({ amps: {} }), 'Current from power');
+    expect(section).toContain('Reference rating ≥ current');
+    expect(section).toContain('for reference only');
+  });
+});
