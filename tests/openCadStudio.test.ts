@@ -12,15 +12,15 @@ const bridge = require('../electron/openCadStudio.cjs') as {
 
 describe('OpenCADStudio desktop bridge', () => {
   it('discovers the standard system or user installation on macOS', () => {
-    const candidates = bridge.installationCandidates('darwin', '/Users/tester', {});
+    const candidates = bridge.installationCandidates('darwin', '/Users/user', {});
     expect(candidates.map((candidate) => candidate.path)).toEqual([
       '/Applications/OpenCADStudio.app',
-      '/Users/tester/Applications/OpenCADStudio.app'
+      '/Users/user/Applications/OpenCADStudio.app'
     ]);
     expect(bridge.findInstallation({
-      platform: 'darwin', home: '/Users/tester', env: {},
-      existsSync: (candidate) => candidate.startsWith('/Users/tester/')
-    })).toEqual({ kind: 'bundle', path: '/Users/tester/Applications/OpenCADStudio.app' });
+      platform: 'darwin', home: '/Users/user', env: {},
+      existsSync: (candidate) => candidate.startsWith('/Users/user/')
+    })).toEqual({ kind: 'bundle', path: '/Users/user/Applications/OpenCADStudio.app' });
   });
 
   it('uses the native inner executable for a live macOS automation session', () => {
