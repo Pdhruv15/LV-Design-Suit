@@ -16,6 +16,7 @@ import { saveBinary, savePdf, safeFileName } from '../../util/files';
 import ClassicGrid from '../grid/ClassicGrid';
 import { Page } from '../ui';
 import ContainmentCalculator from './ContainmentCalculator';
+import { sanitizeSvg } from '../../util/sanitize';
 
 const f0 = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const f1 = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 1 });
@@ -485,7 +486,7 @@ function RouteCard({ project, plan, res, boards, onProject, onRoute, onRemove, o
         </table>
         {showSection && svg && (
           <figure className="tray-section" title={`Cross-section of route ${r.name}, to scale`}>
-            <div dangerouslySetInnerHTML={{ __html: svg }} />
+            <div dangerouslySetInnerHTML={{ __html: sanitizeSvg(svg) }} />
             <figcaption className="m">Route {r.name} — to scale; numbers as in the table, hatched = spare</figcaption>
           </figure>
         )}

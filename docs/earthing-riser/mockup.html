@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Earthing Riser Diagram</title>
+<style>
+:root{--bg:#f4f4f4;--card:#fff;--line:#cfcfcf;--tx:#111;--mut:#555}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.45 -apple-system,"Segoe UI",system-ui,sans-serif}
+header{padding:14px 16px 4px;max-width:1180px;margin:0 auto}
+h1{font-size:17px;margin:0 0 4px}
+.mut{color:var(--mut)}
+main{max-width:1180px;margin:0 auto;padding:8px 16px 32px;display:grid;gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:12px 14px}
+.card h2{font-size:14px;margin:0 0 2px}
+.row{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:14px;align-items:start}
+@media (max-width:900px){.row{grid-template-columns:1fr}}
+svg{width:100%;height:auto;display:block;border:1px solid #ddd;background:#fff}
+ul{margin:6px 0 0;padding-left:18px}li{margin:3px 0}
+table{border-collapse:collapse;width:100%;font-size:12px;margin-top:6px}
+th,td{border:1px solid #bbb;padding:3px 6px;text-align:left}th{background:#eee}
+</style>
+</head>
+<body>
+<header>
+  <h1>Earthing riser diagram: all DBs back to the LV MDB (mockup)</h1>
+  <div class="mut">Example: G+10 tower, one SMDB per floor and its final DBs. Black and white, same as the other drawing sheets. Two ways to draw the earth path are shown; pick one (or both as a project setting).</div>
+</header>
+<main id="m"></main>
+<script>
+const K = '#111', M = '#666';
+const FLOORS = ['G', ...Array.from({ length: 10 }, (_, i) => `L${String(i + 1).padStart(2, '0')}`)];
+const FH = 46;                       // floor band height
+const TOP = 40;
+const GY = TOP + FLOORS.length * FH; // ground-floor slab line
+const W = 1000, H = GY + 190;
+
+const T = (x, y, s, o = '') => `<text x="${x}" y="${y}" font-size="9" fill="${K}" ${o}>${s}</text>`;
+const L = (d, w = 1.4, extra = '') => `<path d="${d}" stroke="${K}" stroke-width="${w}" fill="none" ${extra}/>`;
+const dot = (x, y) => `<circle cx="${x}" cy="${y}" r="2.4" fill="${K}"/>`;
+const ebar = (x, y, n = 3) => `<rect x="${x - 6 * n}" y="${y}" width="${12 * n}" height="6" fill="#fff" stroke="${K}" stroke-width="1.1"/>` +
+  Array.from({ length: n }, (_, i) => `<circle cx="${x - 6 * n + 6 + 12 * i}" cy="${y + 3}" r="1.5" fill="${K}"/>`).join('');
+const board = (x, y, w, h, name, sub) =>
+  `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#fff" stroke="${K}" stroke-width="1.3"/>` +
+  T(x + w / 2, y + 12, name, 'text-anchor="middle" font-weight="600"') + (sub ? T(x + w / 2, y + 22, sub, `text-anchor="middle" fill="${M}" font-size="8"`) : '');
+const pit = (x, y, tag) =>
+  `<rect x="${x - 13}" y="${y}" width="26" height="22" fill="none" stroke="${K}" stroke-dasharray="3 2"/>` +
+  `<circle cx="${x}" cy="${y + 11}" r="6" fill="#fff" stroke="${K}" stroke-width="1.2"/>` +
+  L(`M${x - 4} ${y + 11}h8M${x} ${y + 7}v8`, 1) + T(x, y + 34, tag, 'text-anchor="middle"');
+
+// CPC size per IEC 60364-5-54 Table 54.2 from the phase CSA
+const cpc = (s) => (s <= 16 ? s : s <= 35 ? 16 : s / 2);
+const feederCsa = (i) => (i === 0 ? 120 : 70);
+
+function frame(title) {
+  let s = '';
+  // floor bands + labels
+  FLOORS.forEach((f, i) => {
+    const y = GY - (i + 1) * FH;
+    s += L(`M40 ${y + FH}H${W - 20}`, 0.6, `stroke="${M}" stroke-dasharray="6 4"`);
+    s += T(48, y + FH - 6, i === 0 ? 'GROUND FLOOR' : `LEVEL ${i}`, `fill="${M}" font-size="8"`);
+  });
+  s += L(`M40 ${GY}H${W - 20}`, 1.6);
+  s += T(48, GY + 14, 'FINISHED GROUND LEVEL', `fill="${M}" font-size="8"`);
+  s += T(W / 2, 22, title, 'text-anchor="middle" font-size="11" font-weight="600"');
+  return s;
+}
+
+// Floor boards: SMDB + two final DBs, DB earth bars tied to SMDB earth bar
+function floorBoards(i, smdbX, earthIn) {
+  const f = FLOORS[i];
+  const y = GY - (i + 1) * FH + 6;
+  let s = board(smdbX, y, 110, 28, `SMDB-${f}`, `${i === 0 ? 400 : 250} A`);
+  s += ebar(smdbX + 55, y + 28 + 2, 3);
+  const dbs = i === 0 ? ['DB-G-LTG', 'DB-G-PWR', 'DB-G-MECH'] : [`DB-${f}-A`, `DB-${f}-B`];
+  dbs.forEach((d, k) => {
+    const x = smdbX + 170 + k * 120;
+    s += board(x, y, 92, 28, d, '');
+    s += ebar(x + 46, y + 30, 2);
+    // CPC SMDB earth bar -> DB earth bar (runs with the sub-main)
+    s += L(`M${smdbX + 55 + 12 * (k - 1)} ${y + 36}V${y + 40}H${x + 46}V${y + 36}`, 1);
+  });
+  if (i === FLOORS.length - 1) s += T(smdbX + 170, y - 6, 'DB earth bars: 6 mm² CPC with each DB sub-main', `fill="${M}" font-size="7.5"`);
+  return s;
+}
+
+// Ground: LV MDB with main earth bar, transformer neutral, earth pits
+function groundPlant(mdbX, mebX, mebY) {
+  let s = '';
+  const y = GY + 26;
+  s += board(mdbX, y, 150, 40, 'LV-MDB', '2500 A, LV room');
+  s += `<rect x="${mebX - 70}" y="${mebY}" width="140" height="9" fill="#fff" stroke="${K}" stroke-width="1.4"/>`;
+  s += Array.from({ length: 9 }, (_, i) => `<circle cx="${mebX - 64 + 16 * i}" cy="${mebY + 4.5}" r="1.8" fill="${K}"/>`).join('');
+  s += T(mebX, mebY + 22, 'MAIN EARTH BAR (MEB) 50×6 Cu', 'text-anchor="middle" font-weight="600"');
+  // pits
+  const py = GY + 128;
+  ['EP-01', 'EP-02', 'EP-03'].forEach((t, k) => {
+    const x = mebX - 60 + k * 60;
+    s += pit(x, py, t);
+    s += L(`M${mebX - 48 + k * 32} ${mebY + 9}V${py - 8}H${x}V${py + 5}`, 1.2);
+  });
+  s += L(`M${mebX - 60} ${py + 11}H${mebX + 60}`, 1, 'stroke-dasharray="1.5 3"');
+  s += T(mebX + 80, py + 14, 'pits linked', `fill="${M}" font-size="8"`);
+  s += T(mebX - 175, py - 12, '1C 95 mm² Cu/PVC G/Y', `fill="${M}" font-size="8"`);
+  // transformer neutral reference
+  s += board(mdbX - 190, y, 120, 40, 'TX-01 1500 kVA', 'neutral via own pit (earthing sheet)');
+  s += L(`M${mdbX - 70} ${y + 20}H${mdbX}`, 1.6);
+  s += T(mdbX - 66, y + 16, 'N + PE', `font-size="8"`);
+  // MDB to MEB
+  s += L(`M${mdbX + 75} ${y + 40}V${mebY}`, 1.6);
+  // extraneous parts
+  s += T(mebX + 90, mebY + 6, '→ structural steel, water, gas, lightning-protection bond', `fill="${M}" font-size="8"`);
+  return s;
+}
+
+// OPTION A — CPC runs with every SMDB feeder back to the MEB
+function optionA() {
+  const smdbX = 470, mebX = 330, mebY = GY + 80;
+  let s = frame('OPTION A — protective conductor with every floor feeder');
+  s += groundPlant(240, mebX, mebY);
+  FLOORS.forEach((f, i) => {
+    s += floorBoards(i, smdbX, true);
+    const y = GY - (i + 1) * FH + 6;
+    const vx = 410 - i * 5;          // each CPC has its own vertical in the riser shaft
+    const cs = cpc(feederCsa(i));
+    s += L(`M${smdbX + 25} ${y + 33}H${vx}V${mebY}`, 0.9);
+    s += dot(vx, mebY);
+    s += T(smdbX - 6, y + 25, `${cs} mm²`, 'text-anchor="end" font-size="7.5"');
+  });
+  s += `<rect x="352" y="${TOP}" width="64" height="${GY - TOP}" fill="none" stroke="${K}" stroke-width=".8" stroke-dasharray="10 3 2 3"/>`;
+  s += T(384, TOP - 4, 'RISER SHAFT', 'text-anchor="middle" font-size="8"');
+  s += T(384, TOP + 8, '11 × CPC', `text-anchor="middle" font-size="7.5" fill="${M}"`);
+  return `<svg viewBox="0 0 ${W} ${H}">${s}</svg>`;
+}
+
+// OPTION B — one dedicated earth riser tape with a tee at every floor
+function optionB() {
+  const smdbX = 470, rx = 384, mebX = 330, mebY = GY + 80;
+  let s = frame('OPTION B — dedicated earth riser 25×3 Cu tape, tee-off at each floor');
+  s += groundPlant(240, mebX, mebY);
+  s += L(`M${rx} ${TOP + 6}V${mebY}`, 3.2);
+  s += T(rx - 8, TOP + 40, 'EARTH RISER 25×3 Cu TAPE', `font-size="8" font-weight="600" transform="rotate(-90 ${rx - 8} ${TOP + 40})" text-anchor="end"`);
+  FLOORS.forEach((f, i) => {
+    s += floorBoards(i, smdbX, true);
+    const y = GY - (i + 1) * FH + 6;
+    s += `<rect x="${rx - 4}" y="${y + 30}" width="8" height="6" fill="#fff" stroke="${K}"/>`;
+    s += L(`M${rx + 4} ${y + 33}H${smdbX + 25}`, 1.1);
+    s += T(rx + 10, y + 30, `FEB-${f}`, 'font-size="7.5"');
+  });
+  s += T(rx + 10, GY - 3, 'tee clamp + floor earth bar (FEB) at each level', `fill="${M}" font-size="7.5"`);
+  s += `<rect x="352" y="${TOP}" width="64" height="${GY - TOP}" fill="none" stroke="${K}" stroke-width=".8" stroke-dasharray="10 3 2 3"/>`;
+  s += T(384, TOP - 4, 'RISER SHAFT', 'text-anchor="middle" font-size="8"');
+  return `<svg viewBox="0 0 ${W} ${H}">${s}</svg>`;
+}
+
+const rows = FLOORS.map((f, i) => `<tr><td>SMDB-${f}</td><td>LV-MDB</td><td>${feederCsa(i)} mm² 4C</td><td>${cpc(feederCsa(i))} mm²</td><td>FEB-${f}</td></tr>`).join('');
+
+document.getElementById('m').innerHTML = `
+<div class="card row"><div>${optionA()}</div><div>
+  <h2>Option A — CPC with every feeder</h2>
+  <ul>
+    <li>Each SMDB's earth bar goes straight back to the MDB main earth bar with its own protective conductor, laid with the feeder.</li>
+    <li>Size from the feeder: IEC 60364-5-54 Table 54.2 (S≤16 → S, ≤35 → 16, above → S/2).</li>
+    <li>Drawn automatically from the feeders already in the project.</li>
+    <li>Many verticals in the shaft on tall buildings.</li>
+  </ul></div></div>
+<div class="card row"><div>${optionB()}</div><div>
+  <h2>Option B — dedicated earth riser</h2>
+  <ul>
+    <li>One copper tape up the riser shaft, from the MEB to the top floor.</li>
+    <li>Each floor gets a tee clamp and a floor earth bar (FEB); SMDB and DB earth bars connect to it.</li>
+    <li>Common on DEWA tower drawings; cleaner on the sheet.</li>
+    <li>Tape size set per project (default 25×3 Cu).</li>
+  </ul></div></div>
+<div class="card"><h2>Schedule under the drawing (both options)</h2>
+  <table><tr><th>Board</th><th>Fed from</th><th>Feeder</th><th>CPC</th><th>Floor earth bar</th></tr>${rows}</table>
+  <div class="mut" style="margin-top:6px">Final DBs under each SMDB are listed with their own CPC the same way. Earth pits and MEB come from the existing earthing schematic ("Shared HV body earth").</div>
+</div>`;
+</script>
+</body>
+</html>

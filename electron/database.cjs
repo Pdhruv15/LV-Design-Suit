@@ -4,10 +4,12 @@
 // overwrites one), reads them, and watches the folder for saves.
 const fs = require('node:fs');
 const path = require('node:path');
+const { LIMITS, readJsonLimited, readFileLimited } = require('./limits.cjs');
+const { replaceFile, copyFileNoFollow, ensureRealDir, listFiles } = require('./safeFs.cjs');
 const ExcelJS = require('exceljs');
 const spec = require('./databaseSpec.json');
 
-const MAX_ROWS = 2000; // rows given data validation in new workbooks
+const MAX_ROWS = LIMITS.workbookRows; // rows given data validation in new workbooks (the most the app writes)
 
 // The database folder: its own setting when chosen (e.g. a Google Drive
 // folder shared with the team), else "LV Database" inside the projects folder.
@@ -23,6 +25,8 @@ function cellValue(v) {
     if ('richText' in v) return v.richText.map((t) => t.text).join('');
     if ('text' in v) return String(v.text);
     if (v instanceof Date) return v.toISOString();
+    if ('error' in v) return String(v.error); // e.g. #N/A
+    return ''; // anything else (images, unknown cell types): not data the app uses
   }
   return v;
 }
@@ -60,12 +64,9 @@ async function createWorkbook(file, book, seedRows) {
   about.addRow([]);
   about.addRow(['Keep the header row as it is; the app finds columns by their header text. Extra columns are ignored. The app makes a backup in Backups/ before it saves this file.']);
 
-  // Write to a temp name then rename, so a watcher never reads a half-written file.
-  // The name must be unique per call: init can run twice at once (React
-  // StrictMode in dev), and a shared name lets one call rename the other's file.
-  const tmp = `${file}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.xlsx`;
-  await wb.xlsx.writeFile(tmp);
-  fs.renameSync(tmp, file);
+  // A new private temp file with a random name, renamed into place: a watcher never reads a half-written
+  // file, two calls at once (React StrictMode in dev) never share a name, and no link is followed.
+  replaceFile(file, Buffer.from(await wb.xlsx.writeBuffer()), { mode: 'public' });
 }
 
 /** Creates the folder and any missing workbook. seeds: { [bookId]: rows[] }. */
@@ -82,18 +83,26 @@ async function ensureDatabase(projectsFolder, seeds = {}) {
   return { folder, created };
 }
 
-async function readBook(file, book) {
-  const wb = new ExcelJS.Workbook();
-  // Excel keeps an open file locked while saving; retry briefly.
+/** The workbook's bytes: not through a link, within the size limit. Excel keeps an open file locked while
+ * saving; retry briefly. */
+async function loadBook(wb, file, book) {
   for (let attempt = 0; ; attempt++) {
+    let bytes;
     try {
-      await wb.xlsx.readFile(file);
-      break;
+      bytes = readFileLimited(file, LIMITS.workbookBytes, book.file);
     } catch (e) {
       if (attempt >= 4 || !['EBUSY', 'EPERM', 'EACCES'].includes(e.code)) throw e;
       await new Promise((r) => setTimeout(r, 300));
+      continue;
     }
+    await wb.xlsx.load(bytes);
+    return;
   }
+}
+
+async function readBook(file, book) {
+  const wb = new ExcelJS.Workbook();
+  await loadBook(wb, file, book);
   const ws = wb.getWorksheet(book.sheet) ?? wb.worksheets[0];
   if (!ws) return { rows: [], missingColumns: book.columns.map((c) => c.header) };
   const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -164,11 +173,12 @@ function watchDatabase(projectsFolder, onChange) {
 function backup(folder, fileName) {
   const src = path.join(folder, fileName);
   if (!fs.existsSync(src)) return;
-  const dir = path.join(folder, 'Backups');
-  fs.mkdirSync(dir, { recursive: true });
+  const dir = ensureRealDir(path.join(folder, 'Backups'));
   const stamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
-  fs.copyFileSync(src, path.join(dir, `${fileName.replace(/\.xlsx$/i, '')} ${stamp}.xlsx`));
-  const mine = fs.readdirSync(dir).filter((f) => f.startsWith(fileName.replace(/\.xlsx$/i, '') + ' ')).sort();
+  // Read without following a link, written as a new file and renamed into place: a link planted at the
+  // backup's name is replaced, never written through.
+  copyFileNoFollow(src, path.join(dir, `${fileName.replace(/\.xlsx$/i, '')} ${stamp}.xlsx`), LIMITS.workbookBytes);
+  const mine = listFiles(dir, (f) => f.startsWith(fileName.replace(/\.xlsx$/i, '') + ' ')).sort();
   for (const old of mine.slice(0, Math.max(0, mine.length - 20))) fs.rmSync(path.join(dir, old), { force: true });
 }
 
@@ -180,10 +190,11 @@ async function writeBook(projectsFolder, bookId, rows) {
   if (!book) throw new Error(`Unknown workbook ${bookId}`);
   const folder = folderFor(projectsFolder);
   const file = path.join(folder, book.file);
+  if (rows.length > LIMITS.workbookRows) throw new Error(`${book.file}: at most ${LIMITS.workbookRows} rows can be written`);
   if (!fs.existsSync(file)) await createWorkbook(file, book, []);
   backup(folder, book.file);
   const wb = new ExcelJS.Workbook();
-  await wb.xlsx.readFile(file);
+  await loadBook(wb, file, book);
   const ws = wb.getWorksheet(book.sheet) ?? wb.worksheets[0];
   const norm = (x) => String(x).toLowerCase().replace(/[^a-z0-9]/g, '');
   const colOf = {};
@@ -202,9 +213,7 @@ async function writeBook(projectsFolder, bookId, rows) {
       ws.getRow(r).getCell(colOf[c.key]).value = v === undefined || v === null || v === '' ? null : c.number && v !== '' && !Number.isNaN(Number(v)) ? Number(v) : v;
     }
   }
-  const tmp = `${file}.tmp-${process.pid}-${Date.now()}.xlsx`;
-  await wb.xlsx.writeFile(tmp);
-  fs.renameSync(tmp, file);
+  replaceFile(file, Buffer.from(await wb.xlsx.writeBuffer()), { mode: 'public' });
   return { file: book.file };
 }
 
@@ -212,15 +221,13 @@ async function writeBook(projectsFolder, bookId, rows) {
  * feeder presets, notes), kept beside the workbooks so they sync too. */
 const LIBRARY = 'Library.json';
 function readLibrary(projectsFolder) {
-  try { return JSON.parse(fs.readFileSync(path.join(folderFor(projectsFolder), LIBRARY), 'utf8')); } catch { return {}; }
+  try { return readJsonLimited(path.join(folderFor(projectsFolder), LIBRARY), LIMITS.libraryBytes, LIBRARY); } catch { return {}; }
 }
 function writeLibrary(projectsFolder, data) {
   const folder = folderFor(projectsFolder);
   fs.mkdirSync(folder, { recursive: true });
   const file = path.join(folder, LIBRARY);
-  const tmp = `${file}.tmp-${process.pid}-${Date.now()}`;
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
-  fs.renameSync(tmp, file);
+  replaceFile(file, JSON.stringify(data, null, 2), { mode: 'public' });
   return true;
 }
 

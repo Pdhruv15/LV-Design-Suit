@@ -4,6 +4,7 @@ import { calcContainment, CONTAINMENT_DEFAULT, CONTAINMENT_LABEL, containmentSvg
 import { containmentReportHtml } from '../../docs/containmentReport';
 import { safeFileName, savePdf } from '../../util/files';
 import { useStable } from '../../util/useStable';
+import { sanitizeSvg } from '../../util/sanitize';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const f2 = (n: number) => n.toFixed(2);
@@ -87,7 +88,7 @@ export default function ContainmentCalculator({ project, onChange, onStatus }: {
           </div>
           {r.status === 'fail'
             ? <section className="card"><h4>Does not fit</h4><p className="qc-bad">{r.noFit}</p><p className="m">No cross-section is drawn for containment that can't take the cables.</p></section>
-            : <section className="card"><h4>Cross-section <span className="m">— to scale</span></h4><div className="pfcc-svg" dangerouslySetInnerHTML={{ __html: svg }} /></section>}
+            : <section className="card"><h4>Cross-section <span className="m">— to scale</span></h4><div className="pfcc-svg" dangerouslySetInnerHTML={{ __html: sanitizeSvg(svg) }} /></section>}
           <section className="card">
             <h4>Cables</h4>
             <table className="bi-table compact">

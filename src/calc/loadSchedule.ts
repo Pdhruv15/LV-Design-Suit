@@ -247,7 +247,9 @@ export function scheduleCircuits(project: Project, boardId: string): Feeder[] {
  * needs a way with all three phases free. */
 export function nextFreeSlot(project: Project, boardId: string, phase?: Phase): { phase: Phase; way: number } {
   const used = new Set<string>();
-  for (const f of scheduleCircuits(project, boardId)) {
+  // Spares and spaces of the board keep their slots too.
+  const spares = project.boards.find((b) => b.id === boardId)?.spareWays ?? [];
+  for (const f of [...scheduleCircuits(project, boardId), ...spares.filter((s) => s.way)]) {
     for (const p of f.phase === 'RYB' ? SINGLE_PHASES : [f.phase as 'R' | 'Y' | 'B']) used.add(`${p}${f.way}`);
   }
   for (let way = 1; way < 1000; way++) {

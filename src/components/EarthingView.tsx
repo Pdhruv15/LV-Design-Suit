@@ -3,6 +3,11 @@ import type { Project } from '../types';
 import { earthingLayout, kindInfo, patchEarthing, pitStatus, setPitTest, DEFAULT_BONDING, EARTHING_SYSTEMS, type EarthPit } from '../model/earthingPlan';
 import { earthSheetNo } from '../model/boardEarth';
 import { earthingDrawing } from '../diagram/earthingDrawing';
+import { earthFloorDrawing, earthRiserDrawing, earthSheetRefs } from '../diagram/earthRiserDrawing';
+import { DEFAULT_LV_ROOM_CABLE, DEFAULT_RISER_NAME, DEFAULT_RISER_TAPE, earthRiserLayout, earthSheetTitles, floorGroups, newRiserId, nextRiserName, riserPages, risersOf, setRisers } from '../model/earthRiser';
+import { floorList } from '../model/levels';
+import type { EarthRiserDef } from '../types';
+import { EARTH_PREFIX, setOf, sheetNumber } from '../model/drawingSet';
 import { buildSldSheetHtml, type SheetInfo } from '../docs/sldSheet';
 import { buildSheetDxfPages } from '../docs/sheetDxf';
 import { dxfExportNotice, namedDxfFiles } from '../docs/dxfFiles';
@@ -10,8 +15,9 @@ import { safeFileName, saveBinary, savePdf, saveText } from '../util/files';
 import JSZip from 'jszip';
 import MenuButton from './MenuButton';
 import { Page } from './ui';
+import { sanitizedSvgFragment } from '../util/sanitize';
 
-type Tab = 'drawing' | 'pits' | 'checks';
+type Tab = 'drawing' | 'riser' | 'floor' | 'pits' | 'checks';
 const stored = <T,>(key: string, initial: T): T => { try { const s = localStorage.getItem(key); return s ? (JSON.parse(s) as T) : initial; } catch { return initial; } };
 const store = (key: string, v: unknown) => { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* preference only */ } };
 const PIT_FILL = { pass: '#7cc68d', fail: '#e5736b', untested: '#d5d8de' } as const;
@@ -30,16 +36,31 @@ const DARK = [
 ].join('');
 
 /** The drawing in a shadow root: its own black-on-white text and sizes, untouched by the app's
- * dark-theme SVG styles. A click on a pit reports the pit's group (data-pit); elsewhere, null. */
-function ShadowSvg({ svg, css, width, onPit }: { svg: string; css: string; width: string; onPit: (pit: Element | null) => void }) {
+ * dark-theme SVG styles. A click on a pit reports the pit's group (data-pit); elsewhere, null.
+ * The SVG carries project data, so it goes in as sanitized nodes (never innerHTML); the style
+ * sheet is fixed text, and each pit's status fill is set on its own element (pitFill, by the
+ * pit's data-pit value) rather than through selectors built from IDs. */
+const SHADOW_CSS = `${DARK}[data-pit]{cursor:pointer}[data-pit]:hover>.ph{stroke:var(--acc);stroke-width:2.5}`;
+function ShadowSvg({ svg, pitFill, width, onPit }: { svg: string; pitFill?: ReadonlyMap<string, string>; width: string; onPit: (pit: Element | null) => void }) {
   const host = useRef<HTMLDivElement>(null);
   const cb = useRef(onPit);
   cb.current = onPit;
   useEffect(() => {
     const root = host.current?.shadowRoot ?? host.current?.attachShadow({ mode: 'open' });
     if (!root) return;
-    root.innerHTML = `<style>${DARK}[data-pit]{cursor:pointer}[data-pit]:hover>.ph{stroke:var(--acc);stroke-width:2.5}${css}</style>${svg}`;
-  }, [svg, css]);
+    const style = document.createElement('style');
+    style.textContent = SHADOW_CSS;
+    root.replaceChildren(style, sanitizedSvgFragment(svg));
+  }, [svg]);
+  useEffect(() => {
+    const root = host.current?.shadowRoot;
+    if (!root) return;
+    root.querySelectorAll('[data-pit]').forEach((g) => {
+      const fill = pitFill?.get(g.getAttribute('data-pit') ?? '');
+      const ph = g.querySelector<SVGElement>('.ph');
+      if (ph) { if (fill) ph.style.setProperty('fill', fill); else ph.style.removeProperty('fill'); }
+    });
+  }, [svg, pitFill]);
   useEffect(() => {
     const root = host.current?.shadowRoot;
     if (!root) return;
@@ -71,6 +92,30 @@ export default function EarthingView({ project, onChange, onStatus, embedded = f
   const [drawer, setDrawerState] = useState<boolean>(() => stored('earth.settings', false));
   const setDrawer = (v: boolean) => { setDrawerState(v); store('earth.settings', v); };
   const [zoom, setZoom] = useState(1);
+  // Earth riser: one building at a time.
+  const buildings = project.building?.buildings ?? [];
+  const [riserPick, setRiserPick] = useState<string>(() => stored('earth.riserBuilding', ''));
+  const riserB = buildings.find((b) => b.id === riserPick) ?? buildings[0];
+  const pickRiser = (id: string) => { setRiserPick(id); store('earth.riserBuilding', id); };
+  // Sheet of the riser (tall buildings, style 'sheets') or floor group shown, per building.
+  const [partPick, setPartPick] = useState<{ riser: number; floor: number }>({ riser: 0, floor: 0 });
+  const RL = useMemo(() => (riserB && (tab === 'riser' || tab === 'floor') ? earthRiserLayout(project, riserB.id) : undefined), [tab, project, riserB]);
+  const riserCount = RL ? riserPages(RL).length : 0, groups = useMemo(() => (RL ? floorGroups(RL) : []), [RL]);
+  const part = tab === 'floor' ? Math.min(partPick.floor, Math.max(0, groups.length - 1)) : Math.min(partPick.riser, Math.max(0, riserCount - 1));
+  const refs = () => (riserB ? earthSheetRefs(project, setOf(project), riserB.id, RL) : {});
+  const earthSvg = (mono: boolean) => (!riserB || !RL ? '' : tab === 'floor'
+    ? earthFloorDrawing(project, riserB.id, { mono, ...refs() }, part, RL).svg
+    : earthRiserDrawing(project, riserB.id, { mono, ...refs() }, part, RL).svg);
+  const riserSvg = useMemo(() => ((tab === 'riser' || tab === 'floor') ? earthSvg(false) : ''), [tab, project, riserB, RL, part]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** Sheet number and title of the riser sheet or floor sheet shown: its sheet in the set, else the next earthing number. */
+  const riserSheet = (): { no: string; title: string } => {
+    const set = setOf(project), kind = tab === 'floor' ? 'earthFloor' : 'earthRiser';
+    const titles = riserB ? earthSheetTitles(project, riserB.id) : { riser: [], floors: [] };
+    const title = ((kind === 'earthRiser' ? titles.riser : titles.floors)[part] ?? '').toUpperCase();
+    const s = set.sheets.find((x) => x.kind === kind && x.buildingId === riserB?.id && (x.part ?? 0) === part);
+    const earth = set.sheets.filter((x) => x.kind === 'earthing' || x.kind === 'earthRiser' || x.kind === 'earthFloor').length;
+    return { no: s?.number || sheetNumber(set, earth + (set.sheets.some((x) => x.kind === 'earthing') ? 0 : 1), set.earthPrefix ?? EARTH_PREFIX), title };
+  };
   const [edit, setEdit] = useState<{ id: string; x: number; y: number; n: number } | null>(null);
   const canvas = useRef<HTMLDivElement>(null);
 
@@ -89,7 +134,7 @@ export default function EarthingView({ project, onChange, onStatus, embedded = f
   const issues = L.checks.filter((c) => c.level !== 'ok').length;
 
   // Pit status on the drawing (screen only): the inspection pit square filled pass / fail / untested.
-  const statusCss = L.pits.map((p) => `[data-pit="${p.id}"] > .ph{fill:${PIT_FILL[pitStatus(p)]}}`).join('');
+  const pitFill = useMemo(() => new Map(L.pits.map((p) => [p.id, PIT_FILL[pitStatus(p)]])), [L]);
 
   const openPit = (g: Element | null) => {
     const box = canvas.current?.getBoundingClientRect();
@@ -98,9 +143,9 @@ export default function EarthingView({ project, onChange, onStatus, embedded = f
     setEdit({ n: Date.now(), id: g.getAttribute('data-pit')!, x: r.right - box.left + canvas.current!.scrollLeft + 8, y: r.top - box.top + canvas.current!.scrollTop });
   };
 
-  async function exportSheet(kind: 'pdf' | 'dxf') {
-    const sheet = earthingDrawing(project, L, true, { mono: true }).svg;
-    const info: SheetInfo = { no: earthSheetNo(project), title: 'EARTHING SCHEMATIC', count: 1, index: 1 };
+  async function exportSheet(kind: 'pdf' | 'dxf', riser = false) {
+    const sheet = riser && riserB ? earthSvg(true) : earthingDrawing(project, L, true, { mono: true }).svg;
+    const info: SheetInfo = riser && riserB ? { ...riserSheet(), count: 1, index: 1 } : { no: earthSheetNo(project), title: 'EARTHING SCHEMATIC', count: 1, index: 1 };
     const name = safeFileName(`${project.name} ${info.no}`);
     try {
       let m: string | null;
@@ -141,8 +186,13 @@ export default function EarthingView({ project, onChange, onStatus, embedded = f
 
   const actions = (<>
         <button className={`chip${drawer ? ' on' : ''}`} aria-pressed={drawer} onClick={() => setDrawer(!drawer)} title="Pits per equipment, electrode, conductor and bonding">Settings {drawer ? '◂' : '▸'}</button>
-        <MenuButton label="Export sheet" title={`Earthing schematic as drawing sheet ${earthSheetNo(project)} (A3, black and white, with the pit schedule)`} align="right">
-          {(close) => (
+        <MenuButton label="Export sheet" title={tab === 'riser' ? 'This sheet of the earthing riser diagram (A3, black and white); the whole set from Drawings' : tab === 'floor' ? 'This floor earthing sheet (A3, black and white, with the panel schedule); the whole set from Drawings' : `Earthing schematic as drawing sheet ${earthSheetNo(project)} (A3, black and white, with the pit schedule)`} align="right">
+          {(close) => tab === 'riser' || tab === 'floor' ? (
+            <>
+              <button disabled={!riserB} onClick={() => { close(); void exportSheet('pdf', true); }}>PDF — {riserSheet().no}</button>
+              <button disabled={!riserB} onClick={() => { close(); void exportSheet('dxf', true); }}>DXF — {riserSheet().no}</button>
+            </>
+          ) : (
             <>
               <button disabled={!L.pits.length} onClick={() => { close(); void exportSheet('pdf'); }}>PDF — {earthSheetNo(project)}</button>
               <button disabled={!L.pits.length} onClick={() => { close(); void exportSheet('dxf'); }}>DXF — {earthSheetNo(project)}</button>
@@ -156,13 +206,30 @@ export default function EarthingView({ project, onChange, onStatus, embedded = f
           <div className="earth-bar">
             <div className="seg" role="tablist" aria-label="Earthing">
               <button role="tab" aria-selected={tab === 'drawing'} className={tab === 'drawing' ? 'on' : ''} onClick={() => setTab('drawing')}>Drawing</button>
+              <button role="tab" aria-selected={tab === 'riser'} className={tab === 'riser' ? 'on' : ''} onClick={() => setTab('riser')} title="Earthing riser diagram: a floor earth bar with test links on every level, the earth cable bar to bar up the riser">Earth riser</button>
+              <button role="tab" aria-selected={tab === 'floor'} className={tab === 'floor' ? 'on' : ''} onClick={() => setTab('floor')} title="Floor earthing: each SMDB / DB earth bar to its floor earth bar with its CPC size">Floor earthing</button>
               <button role="tab" aria-selected={tab === 'pits'} className={tab === 'pits' ? 'on' : ''} onClick={() => setTab('pits')}>Pits and tests <span className="m">{counts.tested}/{L.pits.length}</span></button>
               <button role="tab" aria-selected={tab === 'checks'} className={tab === 'checks' ? 'on' : ''} onClick={() => setTab('checks')}>Checks{issues > 0 && <span className="earth-badge">{issues}</span>}</button>
             </div>
             <span className="m">{L.pits.length} pits · {counts.tested} tested{counts.fail > 0 && <> · <span className="bad">{counts.fail} over limit</span></>}</span>
             <span className="sp" />
             {actions}
-            {tab === 'drawing' && <>
+            {(tab === 'riser' || tab === 'floor') && buildings.length > 1 && (
+              <select className="chip" value={riserB?.id ?? ''} onChange={(e) => { pickRiser(e.target.value); setPartPick({ riser: 0, floor: 0 }); }} aria-label="Building">
+                {buildings.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            )}
+            {tab === 'riser' && riserCount > 1 && (
+              <select className="chip" value={part} onChange={(e) => setPartPick({ ...partPick, riser: Number(e.target.value) })} aria-label="Riser sheet">
+                {Array.from({ length: riserCount }, (_, i) => <option key={i} value={i}>Sheet {i + 1} of {riserCount}</option>)}
+              </select>
+            )}
+            {tab === 'floor' && groups.length > 1 && (
+              <select className="chip" value={part} onChange={(e) => setPartPick({ ...partPick, floor: Number(e.target.value) })} aria-label="Floor">
+                {groups.map((g, i) => <option key={i} value={i}>{g.label}</option>)}
+              </select>
+            )}
+            {(tab === 'drawing' || tab === 'riser' || tab === 'floor') && <>
               <button className="chip" aria-label="Zoom out" onClick={() => setZoom((z) => Math.max(0.5, +(z / 1.25).toFixed(2)))}>−</button>
               <button className="chip" onClick={() => setZoom(1)}>Fit</button>
               <button className="chip" aria-label="Zoom in" onClick={() => setZoom((z) => Math.min(4, +(z * 1.25).toFixed(2)))}>+</button>
@@ -172,7 +239,7 @@ export default function EarthingView({ project, onChange, onStatus, embedded = f
           {tab === 'drawing' && (L.pits.length ? (
             <>
               <div className="earth-canvas" ref={canvas}>
-                <ShadowSvg svg={svg} css={statusCss} width={`${zoom * 100}%`} onPit={openPit} />
+                <ShadowSvg svg={svg} pitFill={pitFill} width={`${zoom * 100}%`} onPit={openPit} />
                 {editing && edit && (
                   <div className="earth-pop" style={{ left: edit.x, top: edit.y }} onClick={(e) => e.stopPropagation()} key={`${editing.id}-${edit.n}`}>
                     <div className="earth-pop-h"><b>{editing.id}</b> <span className="m">{itemOf(editing.itemKey).equipment} · {kindInfo(editing.kind).label} · ≤ {kindInfo(editing.kind).limitOhm} Ω</span>
@@ -187,6 +254,17 @@ export default function EarthingView({ project, onChange, onStatus, embedded = f
               <p className="m earth-key">Click a pit to record its test. Pit: <span className="earth-dot pass" /> pass · <span className="earth-dot fail" /> over its limit · <span className="earth-dot untested" /> not tested — screen only; the exported sheet is black and white.</p>
             </>
           ) : <p className="m">No earth pits yet — add transformers or main boards first.</p>)}
+
+          {(tab === 'riser' || tab === 'floor') && (riserB ? (
+            <>
+              <div className="earth-canvas">
+                <ShadowSvg svg={riserSvg} width={`${zoom * 100}%`} onPit={() => {}} />
+              </div>
+              <p className="m earth-key">{tab === 'riser'
+                ? <>A floor earth bar on every level of the building, the earth cable bar to bar. Cable sizes, riser name and the layout for tall buildings (every level over several sheets, or typical floors grouped on one) are in Settings. Add it to the drawing set from Drawings → Add earthing riser diagram.</>
+                : <>Each panel on its Level (panel properties), earthed to its floor earth bar with its incoming CPC size. {plan.riserStyle === 'typical' ? 'Floors with the same panels share one sheet (typical).' : 'One sheet per floor with panels.'} Add them from Drawings → Add floor earthing sheets.</>}</p>
+            </>
+          ) : <p className="m">No buildings yet — add one in Building information and set each panel's Level.</p>)}
 
           {tab === 'pits' && (
             <div className="earth-table">
@@ -223,8 +301,43 @@ export default function EarthingView({ project, onChange, onStatus, embedded = f
             </table>
             <div className="form-kv">
               <label>Electrode<span className="pfcc-in"><input className="bi-num" style={{ width: 50 }} inputMode="decimal" value={L.electrodeM} onChange={(e) => onChange(patchEarthing(project, (p) => ({ ...p, electrodeM: Number(e.target.value) || undefined })))} /><span className="m">m Cu-bonded rod</span></span></label>
+              <label>Riser cable<span className="pfcc-in"><input className="bi-text" style={{ width: 190 }} key={plan.riserTape ?? ''} defaultValue={plan.riserTape ?? ''} placeholder={DEFAULT_RISER_TAPE} onBlur={(e) => { const v = e.target.value.trim() || undefined; if (v !== plan.riserTape) onChange(patchEarthing(project, (p) => ({ ...p, riserTape: v }))); }} /><span className="m">bar to bar</span></span></label>
+              <label>LV room cable<span className="pfcc-in"><input className="bi-text" style={{ width: 190 }} key={plan.lvRoomCable ?? ''} defaultValue={plan.lvRoomCable ?? ''} placeholder={DEFAULT_LV_ROOM_CABLE} onBlur={(e) => { const v = e.target.value.trim() || undefined; if (v !== plan.lvRoomCable) onChange(patchEarthing(project, (p) => ({ ...p, lvRoomCable: v }))); }} /><span className="m">to the riser</span></span></label>
+              <label>Riser name<span className="pfcc-in"><input className="bi-text" style={{ width: 70 }} key={plan.riserName ?? ''} defaultValue={plan.riserName ?? ''} placeholder={DEFAULT_RISER_NAME} onBlur={(e) => { const v = e.target.value.trim() || undefined; if (v !== plan.riserName) onChange(patchEarthing(project, (p) => ({ ...p, riserName: v }))); }} /><span className="m">bar tags EB-{plan.riserName || DEFAULT_RISER_NAME}-L03</span></span></label>
+              <label>Tall buildings<select value={plan.riserStyle ?? 'sheets'} onChange={(e) => onChange(patchEarthing(project, (p) => ({ ...p, riserStyle: e.target.value === 'typical' ? 'typical' : undefined })))}>
+                <option value="sheets">Every level, over several sheets</option>
+                <option value="typical">One sheet, typical floors grouped</option>
+              </select></label>
               <label>Link conductor<span className="pfcc-in"><input className="bi-num" style={{ width: 50 }} inputMode="numeric" value={L.conductorMm2} onChange={(e) => onChange(patchEarthing(project, (p) => ({ ...p, conductorMm2: Number(e.target.value) || undefined })))} /><span className="m">mm² Cu</span></span></label>
             </div>
+            {riserB && (() => {
+              const defs = risersOf(project, riserB.id), fls = floorList(project.building).filter((f) => f.buildingId === riserB.id);
+              // The building's own list (the default riser becomes a real one as soon as it is edited).
+              const own = (): EarthRiserDef[] => (defs[0]?.id ? defs : [{ ...defs[0], id: newRiserId(project) }]);
+              const put = (list: EarthRiserDef[]) => onChange(setRisers(project, riserB.id, list));
+              const edit = (i: number, patch: Partial<EarthRiserDef>) => { const l = own(); l[i] = { ...l[i], ...patch }; put(l); };
+              const lvl = (dflt: string) => (
+                <><option value="">{dflt}</option>{fls.slice().reverse().map((f) => <option key={f.key} value={f.key}>{f.name}</option>)}</>
+              );
+              return (
+                <div className="earth-risers">
+                  <h4>Earth risers{buildings.length > 1 ? ` — ${riserB.name}` : ''}</h4>
+                  <table className="bi-table compact">
+                    <thead><tr><th>Riser</th><th>From level</th><th>To level</th><th /></tr></thead>
+                    <tbody>{defs.map((d, i) => (
+                      <tr key={d.id || 'default'}>
+                        <td><input className="bi-text" style={{ width: 64 }} key={d.name} defaultValue={d.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== d.name) edit(i, { name: v }); }} aria-label="Riser name" /></td>
+                        <td><select value={d.from ?? ''} onChange={(e) => edit(i, { from: e.target.value || undefined })} aria-label="From level">{lvl('Lowest')}</select></td>
+                        <td><select value={d.to ?? ''} onChange={(e) => edit(i, { to: e.target.value || undefined })} aria-label="To level">{lvl('Top')}</select></td>
+                        <td>{defs.length > 1 && <button className="chip" title="Remove this riser; its panels go to the first riser on their level" onClick={() => put(own().filter((_, k) => k !== i))}>✕</button>}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                  <button className="chip" onClick={() => { const l = own(); put([...l, { id: newRiserId(project, l.map((x) => x.id)), buildingId: riserB.id, name: nextRiserName(l.map((x) => x.name)) }]); }}>+ Riser</button>
+                  <p className="m">Each riser has a floor earth bar on every level from its lowest to its highest. Pick a panel's riser in its properties (Location) — by default the first riser on its level.</p>
+                </div>
+              );
+            })()}
             <label className="earth-bonding">Bonded to each main earth bar <span className="m">(one per line; shown on the schematic)</span>
               <textarea rows={4} key={L.bonding.join('\n')} defaultValue={L.bonding.join('\n')}
                 onBlur={(e) => { const v = e.target.value.split('\n').map((x) => x.trim()).filter(Boolean); if (v.join('\n') !== L.bonding.join('\n')) onChange(patchEarthing(project, (p) => ({ ...p, bonding: v.join('\n') === DEFAULT_BONDING.join('\n') ? undefined : v }))); }} /></label>

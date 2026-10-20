@@ -2,6 +2,11 @@
 // it can be unit tested in a temporary folder (src/model/projectFiles.test.ts).
 const fs = require('node:fs');
 const path = require('node:path');
+const { LIMITS, readTextFileLimited, readJsonLimited } = require('./limits.cjs');
+const { isLink, assertNotLink, readFileNoFollow, writeNewFile, replaceFile, copyFileNoFollow, ensureRealDir, listFiles, tempNameFor, publicModeFor, PRIVATE_FILE } = require('./safeFs.cjs');
+
+/** Whether a name exists in the folder at all (a link counts, even a broken one; nothing is followed). */
+const lexists = (full) => { try { fs.lstatSync(full); return true; } catch { return false; } };
 const crypto = require('node:crypto');
 
 const sha = (text) => crypto.createHash('sha256').update(text).digest('hex');
@@ -21,8 +26,9 @@ function bestEffort(what, fn) {
 /** What a file is right now: modified time, size and a hash of its content. null when it does not exist. */
 function stampOf(full) {
   try {
-    const st = fs.statSync(full);
-    return { mtimeMs: st.mtimeMs, size: st.size, hash: sha(fs.readFileSync(full, 'utf-8')) };
+    const st = fs.lstatSync(full);
+    if (!st.isFile()) return null;
+    return { mtimeMs: st.mtimeMs, size: st.size, hash: sha(readTextFileLimited(full, LIMITS.projectBytes, path.basename(full))) };
   } catch {
     return null;
   }
@@ -41,16 +47,26 @@ function decideSave(expected, disk) {
  * name.json.bak. With keepTheirs the previous version is also kept under its own timestamped name (an
  * overwrite after a conflict). The result is read back and checked before it is reported as saved. */
 function writeFileSafe(full, text, opts = {}) {
-  const { keepBackup = true, keepTheirs = false, verifyJson = false } = opts;
-  const tmp = `${full}.tmp-${process.pid}-${Date.now()}`;
-  const fd = fs.openSync(tmp, 'w');
-  try { fs.writeFileSync(fd, text, 'utf-8'); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
-  if (fs.existsSync(full)) {
-    if (keepBackup) bestEffort(`backup copy of ${path.basename(full)}`, () => fs.copyFileSync(full, `${full}.bak`));
-    if (keepTheirs) bestEffort(`copy of the other version of ${path.basename(full)}`, () => fs.copyFileSync(full, `${full}.theirs-${Date.now()}.bak`));
+  const { keepBackup = true, keepTheirs = false, verifyJson = false, mode = 'public' } = opts;
+  assertNotLink(full); // never write through a link at the project's name
+  // A new private temp file with a random name (created exclusively, so nothing planted there is used);
+  // the finished file keeps the permissions the project file had (recovery copies stay private).
+  const finalMode = mode === 'public' ? publicModeFor(full) : PRIVATE_FILE;
+  const tmp = tempNameFor(full);
+  writeNewFile(tmp, text);
+  try {
+    if (finalMode !== PRIVATE_FILE) fs.chmodSync(tmp, finalMode);
+    if (lexists(full)) {
+      // Backups are new files renamed into place: a link at name.json.bak is replaced, never written through.
+      if (keepBackup) bestEffort(`backup copy of ${path.basename(full)}`, () => copyFileNoFollow(full, `${full}.bak`, LIMITS.projectBytes));
+      if (keepTheirs) bestEffort(`copy of the other version of ${path.basename(full)}`, () => copyFileNoFollow(full, `${full}.theirs-${Date.now()}.bak`, LIMITS.projectBytes));
+    }
+    fs.renameSync(tmp, full);
+  } catch (e) {
+    bestEffort('remove the temporary file', () => fs.unlinkSync(tmp));
+    throw e;
   }
-  fs.renameSync(tmp, full);
-  const back = fs.readFileSync(full, 'utf-8');
+  const back = readFileNoFollow(full).buffer.toString('utf-8');
   if (sha(back) !== sha(text)) throw new Error('The file was written but reading it back did not match; it may not have been saved correctly.');
   if (verifyJson) JSON.parse(back);
   return stampOf(full);
@@ -59,7 +75,7 @@ function writeFileSafe(full, text, opts = {}) {
 /** name.json, or name-2.json, name-3.json … when that is taken. */
 function uniqueFileName(folder, base) {
   let file = `${base}.json`, n = 2;
-  while (fs.existsSync(path.join(folder, file))) file = `${base}-${n++}.json`;
+  while (lexists(path.join(folder, file))) file = `${base}-${n++}.json`;
   return file;
 }
 
@@ -88,8 +104,8 @@ const recoveryFile = (dir, id) => path.join(dir, `${safeId(id)}.json`);
 function writeRecovery(dir, r) {
   const id = r && (r.projectId || (r.project && r.project.id));
   if (!id) throw new Error('A recovery copy needs a project id');
-  fs.mkdirSync(dir, { recursive: true });
-  writeFileSafe(recoveryFile(dir, id), JSON.stringify({ ...r, projectId: id }), { keepBackup: false });
+  ensureRealDir(dir);
+  writeFileSafe(recoveryFile(dir, id), JSON.stringify({ ...r, projectId: id }), { keepBackup: false, mode: 'private' });
   return true;
 }
 
@@ -102,21 +118,22 @@ function clearRecovery(dir, id) {
  * into the folder. A copy whose project file was changed after the copy was made is flagged
  * (fileChangedSince), never dropped: the user decides. */
 function readRecoveries(dir, projectsFolder, legacyFile) {
-  if (legacyFile && fs.existsSync(legacyFile)) {
+  if (legacyFile && lexists(legacyFile) && !isLink(legacyFile)) {
     bestEffort('move the older recovery copy', () => {
-      const old = JSON.parse(fs.readFileSync(legacyFile, 'utf-8'));
+      const old = readJsonLimited(legacyFile, LIMITS.projectBytes, 'the older recovery copy');
       if (old && old.project) writeRecovery(dir, { ...old, projectId: (old.project && old.project.id) || 'legacy-single' });
     });
     bestEffort('remove the older recovery copy', () => fs.unlinkSync(legacyFile));
   }
   let names = [];
-  try { names = fs.readdirSync(dir).filter((f) => f.endsWith('.json')); } catch { return []; }
+  if (isLink(dir)) return []; // not the app's recovery folder
+  try { names = listFiles(dir, (f) => f.endsWith('.json')); } catch { return []; }
   const list = [];
   for (const f of names) {
-    const r = bestEffort(`read recovery copy ${f}`, () => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf-8')));
+    const r = bestEffort(`read recovery copy ${f}`, () => readJsonLimited(path.join(dir, f), LIMITS.projectBytes, f));
     if (!r || !r.project || !Array.isArray(r.project.boards)) continue;
     // The project file may be gone (moved or deleted): then it has not changed since.
-    const st = r.file && projectsFolder ? bestEffort(`check ${r.file}`, () => fs.statSync(path.join(projectsFolder, r.file))) : undefined;
+    const st = r.file && projectsFolder ? bestEffort(`check ${r.file}`, () => fs.lstatSync(path.join(projectsFolder, path.basename(String(r.file))))) : undefined;
     list.push({ ...r, fileChangedSince: st ? st.mtimeMs > r.at : false });
   }
   return list.sort((a, b) => b.at - a.at);
@@ -153,16 +170,16 @@ function metaFromProject(file, p, updatedAt) {
  * projects opens quickly. Returns { list, parsed } (parsed = how many files were actually read). */
 function listProjectsMeta(folder, cachePath) {
   let cache = {};
-  cache = bestEffort('read the project list cache', () => JSON.parse(fs.readFileSync(cachePath, 'utf-8'))) || {};
-  const files = fs.readdirSync(folder).filter((f) => f.endsWith('.json'));
+  cache = bestEffort('read the project list cache', () => readJsonLimited(cachePath, LIMITS.settingsBytes * 16, 'the project list cache')) || {};
+  const files = listFiles(folder, (f) => f.endsWith('.json')); // regular files only: links are not listed
   const next = {};
   let parsed = 0;
   const list = files.map((f) => {
-    const st = fs.statSync(path.join(folder, f));
+    const st = fs.lstatSync(path.join(folder, f));
     const c = cache[f];
     if (c && c.mtimeMs === st.mtimeMs && c.size === st.size) { next[f] = c; return { ...c.meta, updatedAt: st.mtimeMs }; }
     // A file that cannot be read is still listed, under its file name.
-    let meta = bestEffort(`read ${f}`, () => metaFromProject(f, JSON.parse(fs.readFileSync(path.join(folder, f), 'utf-8')), st.mtimeMs));
+    let meta = bestEffort(`read ${f}`, () => metaFromProject(f, readJsonLimited(path.join(folder, f), LIMITS.projectBytes, f), st.mtimeMs));
     if (meta) parsed++;
     else meta = { file: f, name: f.replace(/\.json$/i, ''), updatedAt: st.mtimeMs };
     next[f] = { mtimeMs: st.mtimeMs, size: st.size, meta };
@@ -170,7 +187,7 @@ function listProjectsMeta(folder, cachePath) {
   });
   const siblings = conflictSiblings(files);
   for (const m of list) if (siblings[m.file]) m.conflictOf = siblings[m.file];
-  if (JSON.stringify(Object.keys(next).sort()) !== JSON.stringify(Object.keys(cache).sort()) || parsed) bestEffort('write the project list cache', () => fs.writeFileSync(cachePath, JSON.stringify(next)));
+  if (JSON.stringify(Object.keys(next).sort()) !== JSON.stringify(Object.keys(cache).sort()) || parsed) bestEffort('write the project list cache', () => replaceFile(cachePath, JSON.stringify(next)));
   return { list: list.sort((a, b) => b.updatedAt - a.updatedAt), parsed };
 }
 
@@ -184,8 +201,8 @@ const splitTrashName = (name) => { const m = name.match(/^(\d+)__(.+)$/); return
 
 /** Moves a project file (and its .bak) to the trash folder. */
 function moveToTrash(folder, file, now = Date.now()) {
-  const dir = trashDir(folder);
-  fs.mkdirSync(dir, { recursive: true });
+  assertNotLink(path.join(folder, file));
+  const dir = ensureRealDir(trashDir(folder));
   const name = trashName(file, now);
   fs.renameSync(path.join(folder, file), path.join(dir, name));
   bestEffort(`move ${file}.bak to the trash`, () => fs.renameSync(path.join(folder, `${file}.bak`), path.join(dir, `${name}.bak`)));
@@ -195,13 +212,14 @@ function moveToTrash(folder, file, now = Date.now()) {
 /** Deleted projects, newest first, with their name and when they will be removed for good. */
 function listTrash(folder, now = Date.now()) {
   let names = [];
-  try { names = fs.readdirSync(trashDir(folder)).filter((f) => f.endsWith('.json')); } catch { return []; }
+  if (isLink(trashDir(folder))) return []; // not the app's trash folder
+  try { names = listFiles(trashDir(folder), (f) => f.endsWith('.json')); } catch { return []; }
   const out = [];
   for (const n of names) {
     const parts = splitTrashName(n);
     if (!parts) continue;
     let name = parts.file.replace(/\.json$/i, ''), id;
-    const p = bestEffort(`read deleted project ${n}`, () => JSON.parse(fs.readFileSync(path.join(trashDir(folder), n), 'utf-8')));
+    const p = bestEffort(`read deleted project ${n}`, () => readJsonLimited(path.join(trashDir(folder), n), LIMITS.projectBytes, n));
     if (p) { if (p.name) name = p.name; id = p.id; }
     out.push({ trashFile: n, file: parts.file, name, id, deletedAt: parts.deletedAt, daysLeft: Math.max(0, Math.ceil(TRASH_DAYS - (now - parts.deletedAt) / 86400000)) });
   }
@@ -212,8 +230,11 @@ function listTrash(folder, now = Date.now()) {
 function restoreFromTrash(folder, trashFile) {
   const parts = splitTrashName(path.basename(trashFile));
   if (!parts) throw new Error(`Not a deleted project: ${trashFile}`);
+  if (isLink(trashDir(folder))) throw new Error('The trash folder is a link; nothing is restored from it.');
   const src = path.join(trashDir(folder), path.basename(trashFile));
-  const file = fs.existsSync(path.join(folder, parts.file)) ? uniqueFileName(folder, parts.file.replace(/\.json$/i, '')) : parts.file;
+  assertNotLink(src, path.basename(trashFile));
+  if (!lexists(src)) throw new Error(`Not a deleted project: ${trashFile}`);
+  const file = lexists(path.join(folder, parts.file)) ? uniqueFileName(folder, parts.file.replace(/\.json$/i, '')) : parts.file;
   fs.renameSync(src, path.join(folder, file));
   bestEffort(`restore ${file}.bak`, () => fs.renameSync(`${src}.bak`, path.join(folder, `${file}.bak`)));
   return file;
@@ -223,6 +244,8 @@ function restoreFromTrash(folder, trashFile) {
 function purgeTrash(folder, days = TRASH_DAYS, now = Date.now()) {
   let n = 0;
   let names = [];
+  // A trash folder that is a link is left alone: removing files through it would delete them elsewhere.
+  if (isLink(trashDir(folder))) return 0;
   try { names = fs.readdirSync(trashDir(folder)); } catch { return 0; }
   for (const f of names) {
     const parts = splitTrashName(f.replace(/\.bak$/, ''));
