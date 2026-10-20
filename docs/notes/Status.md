@@ -9,6 +9,7 @@ _Last updated: 2026-10-20_
 
 ## Done (on main)
 - Privacy (v1.56): sample project uses Demo Owner / Demo Engineering Consultants / DEMO-001 / "Demonstration Project — Not for Construction"; Project → Share sample exports an anonymized copy (allowlist, ids P01 / C001, same results) as JSON or a calculation report PDF with no Author; local API needs a Bearer token (api-token file, 0600) and refuses browser origins; CI privacy check (paths, e-mails, device-name commit addresses); docs/privacy.md.
+- Concept report (v1.57): without a load assessment, Supply shows the SLD transformers and their loading at the SLD maximum demand (generator to confirm), so it agrees with the space table; header status no longer wraps.
 - Licence (v1.55): PolyForm Shield replaced by MIT OR Apache-2.0 (LICENSE-MIT, LICENSE-APACHE); anyone may use, change, redistribute and sell it, including closed-source. NOTICE keeps the name / logo note and third-party credits.
 - README screenshots retaken on v1.54 (new ribbon, 10-overview-design-stages added); Overview stage buttons spaced.
 - Stage tweaks (v1.53): Overview → "Back to <previous stage>" / "Reopen IFC" undoes a stage issued by mistake (the revision stays); 3 Detailed design tab fits 1,440 px — one "Add load ▾" button (load, motor, solar PV, EV, feeder cable), Run only (Undo / Redo on ⌘Z and the other tabs), "Enclosure".
