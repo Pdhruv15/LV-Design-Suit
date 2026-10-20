@@ -1,7 +1,7 @@
 // @vitest-environment node
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -18,6 +18,8 @@ import { mergePdfs } from '../../src/docs/mergePdf';
 
 const electron = createRequire(import.meta.url)('electron') as unknown as string;
 const dir = mkdtempSync(path.join(tmpdir(), 'lvds-pdf-'));
+// Rendered files are removed after the run (set KEEP_PDF=1 to keep them for a look).
+afterAll(() => { if (!process.env.KEEP_PDF) rmSync(dir, { recursive: true, force: true }); });
 const MM = 96 / 25.4;
 /** Printable width of the report's A4 landscape page (reportFrame: margin 16mm 14mm 14mm). */
 const CONTENT_PX = Math.floor((297 - 28) * MM);
