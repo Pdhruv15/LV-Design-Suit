@@ -15,7 +15,38 @@ function tagOf(entity) {
   const records = entity && entity.properties && entity.properties.common && entity.properties.common.extended_data && entity.properties.common.extended_data.records;
   const record = Array.isArray(records) ? records.find((r) => r && r.application_name === TAG_APP) : undefined;
   const value = record && Array.isArray(record.values) && record.values[0] ? record.values[0].String : undefined;
-  return typeof value === 'string' && /^(feeder|board|sheet):/.test(value) ? value : undefined;
+  return typeof value === 'string' && /^(feeder|board|sheet|route):/.test(value) ? value : undefined;
+}
+
+const xy = (p) => (p && typeof p.x === 'number' && typeof p.y === 'number' ? [p.x, p.y] : undefined);
+/** Length of one straight or bulged (arc) polyline segment; bulge = tan(θ/4). */
+function segmentLength(a, b, bulge) {
+  const chord = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  if (!bulge || !chord) return chord;
+  const theta = 4 * Math.atan(Math.abs(bulge));
+  return (chord / (2 * Math.sin(theta / 2))) * theta;
+}
+/** Plan length of a curve read with detail=full, in drawing units: lines, arcs, and polylines (2D, light-weight)
+ * with arc segments. Anything else (circles, text, blocks) has no route length: 0. */
+function curveLength(entity) {
+  const p = (entity && entity.properties) || {};
+  if (entity.type === 'Line') {
+    const a = xy(p.start), b = xy(p.end);
+    return a && b ? Math.hypot(b[0] - a[0], b[1] - a[1]) : 0;
+  }
+  if (entity.type === 'Arc' && typeof p.radius === 'number') {
+    const sweep = ((((p.end_angle - p.start_angle) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) || 2 * Math.PI;
+    return p.radius * sweep;
+  }
+  if (Array.isArray(p.vertices) && /polyline/i.test(entity.type)) {
+    const v = p.vertices.map((x) => ({ at: xy(x && x.location), bulge: Number(x && x.bulge) || 0 })).filter((x) => x.at);
+    const closed = p.is_closed === true || !!(p.flags && typeof p.flags.bits === 'number' && p.flags.bits & 1);
+    let length = 0;
+    for (let i = 0; i + 1 < v.length; i += 1) length += segmentLength(v[i].at, v[i + 1].at, v[i].bulge);
+    if (closed && v.length > 2) length += segmentLength(v[v.length - 1].at, v[0].at, v[v.length - 1].bulge);
+    return length;
+  }
+  return 0;
 }
 
 // Database identity differs between two loads of the same drawing; geometry and properties do not.
@@ -233,6 +264,48 @@ class OpenCadRestSession {
     return plan;
   }
 
+  /** Cable routes linked to feeders in the active drawing (curves tagged "route:<feeder id>"), measured in drawing
+   * units, with the drawing's INSUNITS code. */
+  async readRoutes() {
+    const tagged = new Map();
+    if (!this.connected) throw new Error('OpenCADStudio is not connected. Open the floor plan in OpenCADStudio first.');
+    let seen = 0;
+    for (let offset = 0; seen < MAX_ENTITIES;) {
+      const page = await this.ask(`/entities?detail=full&limit=${PAGE}&offset=${offset}`);
+      const list = page.entities || [];
+      seen += list.length;
+      for (const e of list) {
+        const tag = tagOf(e);
+        if (!tag || !tag.startsWith('route:')) continue;
+        const id = tag.slice('route:'.length);
+        const at = tagged.get(id) || { feederId: id, length: 0, pieces: 0 };
+        at.length += curveLength(e);
+        at.pieces += 1;
+        tagged.set(id, at);
+      }
+      if (typeof page.next_offset !== 'number' || page.next_offset <= offset || !list.length) break;
+      offset = page.next_offset;
+    }
+    const units = await this.ask('/sysvars?names=insunits').then((r) => (r.result && r.result.values ? r.result.values.insunits : undefined), () => undefined);
+    return { units: typeof units === 'number' ? units : undefined, routes: [...tagged.values()] };
+  }
+
+  /** Links the curves selected in OpenCADStudio to a feeder's cable route (tag "route:<id>"); other selected
+   * objects are skipped. An empty id unlinks the selection instead. */
+  async linkSelection(feederId) {
+    if (!this.connected) throw new Error('OpenCADStudio is not connected. Open the floor plan in OpenCADStudio first.');
+    if (feederId && !/^[\x21-\x7e]{1,193}$/.test(feederId)) throw new Error('That feeder cannot be linked (its ID has unusual characters).');
+    const selection = await this.ask('/get_selection', 'POST', {});
+    const picked = (selection.result && selection.result.entities) || [];
+    if (!picked.length) throw new Error('Nothing is selected in OpenCADStudio. Select the cable route there first.');
+    const curves = picked.filter((e) => e && typeof e.handle === 'string' && /^(Line|Arc|Polyline.*)$/.test(e.type));
+    for (const e of curves) {
+      if (feederId) await this.ask(`/entities/${e.handle}/xdata/${TAG_APP}`, 'PUT', [{ code: 1000, value: `route:${feederId}` }]);
+      else await this.ask(`/entities/${e.handle}/xdata/${TAG_APP}`, 'DELETE').catch(() => undefined);
+    }
+    return { linked: curves.length, skipped: picked.length - curves.length };
+  }
+
   /** Blocks placed in the active drawing (e.g. light fittings on a floor plan): [{ block, attributes }]. */
   async readBlocks() {
     if (!this.connected) throw new Error('OpenCADStudio is not connected. Open the floor plan in OpenCADStudio first.');
@@ -269,4 +342,4 @@ class OpenCadRestSession {
   }
 }
 
-module.exports = { availablePort, requestJson, OpenCadRestSession, TAG_APP, tagOf, fingerprint };
+module.exports = { availablePort, requestJson, OpenCadRestSession, TAG_APP, tagOf, fingerprint, curveLength };

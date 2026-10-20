@@ -48,7 +48,9 @@ contextBridge.exposeInMainWorld('lvds', {
     linked: () => ipcRenderer.invoke('opencad:linked'),
     update: (files) => ipcRenderer.invoke('opencad:update', { files }),
     openPlan: () => ipcRenderer.invoke('opencad:openPlan'),
-    blocks: () => ipcRenderer.invoke('opencad:blocks')
+    blocks: () => ipcRenderer.invoke('opencad:blocks'),
+    routes: () => ipcRenderer.invoke('opencad:routes'),
+    linkSelection: (feederId) => ipcRenderer.invoke('opencad:linkSelection', feederId)
   },
   files: {
     saveText: (opts) => ipcRenderer.invoke('files:saveText', opts),

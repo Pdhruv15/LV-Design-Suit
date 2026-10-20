@@ -3,7 +3,8 @@ import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
-const { OpenCadRestSession } = require('../electron/openCadRest.cjs') as {
+const { OpenCadRestSession, curveLength } = require('../electron/openCadRest.cjs') as {
+  curveLength: (entity: unknown) => number;
   OpenCadRestSession: new (options: Record<string, unknown>) => {
     open: (executable: string, drawings: string[]) => Promise<{ connected: boolean; version?: string; state: unknown }>;
     linkedEquipment: () => Promise<{ tag: string; handles: string[] }[]>;
@@ -103,6 +104,58 @@ describe('OpenCADStudio live REST session', () => {
     expect(await session.readBlocks()).toEqual([
       { block: 'L1', attributes: { CCT: 'DB-GF1/R1' } }, { block: 'DOOR', attributes: {} }, { block: 'SKT', attributes: { CCT: 'DB-GF1/Y2' } }
     ]);
+  });
+
+  it('measures lines, arcs and polylines with arc segments in drawing units', () => {
+    const v = (x: number, y: number, bulge = 0) => ({ location: { x, y }, bulge });
+    expect(curveLength({ type: 'Line', properties: { start: { x: 0, y: 0 }, end: { x: 3000, y: 4000 } } })).toBe(5000);
+    expect(curveLength({ type: 'Arc', properties: { radius: 1000, start_angle: 0, end_angle: Math.PI / 2 } })).toBeCloseTo(1570.8, 1);
+    expect(curveLength({ type: 'Arc', properties: { radius: 1000, start_angle: 3 * Math.PI / 2, end_angle: 0 } })).toBeCloseTo(1570.8, 1); // through 0°
+    expect(curveLength({ type: 'Polyline2D', properties: { vertices: [v(0, 0), v(30000, 0), v(30000, 40000)] } })).toBe(70000);
+    expect(curveLength({ type: 'Polyline', properties: { vertices: [v(0, 0, 1), v(2000, 0)] } })).toBeCloseTo(Math.PI * 1000, 1); // half circle
+    expect(curveLength({ type: 'Polyline', properties: { is_closed: true, vertices: [v(0, 0), v(10, 0), v(10, 10)] } })).toBeCloseTo(20 + Math.hypot(10, 10));
+    expect(curveLength({ type: 'Polyline2D', properties: { flags: { bits: 1 }, vertices: [v(0, 0), v(10, 0), v(10, 10)] } })).toBeCloseTo(20 + Math.hypot(10, 10));
+    expect(curveLength({ type: 'Circle', properties: { radius: 5 } })).toBe(0);
+  });
+
+  it('sums the routes linked to each feeder and reports the drawing units', async () => {
+    const route = (handle: string, tag: string | undefined, x: number) => ({
+      handle, type: 'Line', properties: { start: { x: 0, y: 0 }, end: { x, y: 0 }, common: { extended_data: { records: tag ? [{ application_name: 'LVDS', values: [{ String: tag }] }] : [] } } }
+    });
+    const session = new OpenCadRestSession({
+      portFactory: async () => 1,
+      spawn: () => new FakeChild(),
+      request: async ({ route: r }: { route: string }) => {
+        if (r === '/ready') return { version: 'x' };
+        if (r.startsWith('/entities?detail=full')) return { entities: [route('1', 'route:F1', 1000), route('2', 'route:F1', 500), route('3', 'feeder:F1', 9), route('4', undefined, 7), route('5', 'route:F2', 250)] };
+        if (r.startsWith('/sysvars')) return { result: { values: { insunits: 4 } } };
+        return {};
+      }
+    }) as unknown as { open: (e: string, d: string[]) => Promise<unknown>; readRoutes: () => Promise<unknown> };
+    await session.open('/x', ['/tmp/plan.dwg']);
+    expect(await session.readRoutes()).toEqual({ units: 4, routes: [{ feederId: 'F1', length: 1500, pieces: 2 }, { feederId: 'F2', length: 250, pieces: 1 }] });
+  });
+
+  it('links only the selected curves to a feeder, and unlinks them', async () => {
+    const calls: { route: string; method?: string; body?: unknown }[] = [];
+    const session = new OpenCadRestSession({
+      portFactory: async () => 1,
+      spawn: () => new FakeChild(),
+      request: async (r: { route: string; method?: string; body?: unknown }) => {
+        calls.push(r);
+        if (r.route === '/ready') return { version: 'x' };
+        if (r.route === '/get_selection') return { result: { entities: [{ handle: 'A', type: 'Polyline2D' }, { handle: 'B', type: 'Line' }, { handle: 'C', type: 'Text' }] } };
+        return { ok: true };
+      }
+    }) as unknown as { open: (e: string, d: string[]) => Promise<unknown>; linkSelection: (id: string) => Promise<unknown> };
+    await session.open('/x', ['/tmp/plan.dwg']);
+    expect(await session.linkSelection('F1')).toEqual({ linked: 2, skipped: 1 });
+    expect(calls.filter((c) => c.method === 'PUT').map((c) => [c.route, c.body])).toEqual([
+      ['/entities/A/xdata/LVDS', [{ code: 1000, value: 'route:F1' }]], ['/entities/B/xdata/LVDS', [{ code: 1000, value: 'route:F1' }]]
+    ]);
+    expect(await session.linkSelection('')).toEqual({ linked: 2, skipped: 1 });
+    expect(calls.filter((c) => c.method === 'DELETE').map((c) => c.route)).toEqual(['/entities/A/xdata/LVDS', '/entities/B/xdata/LVDS']);
+    await expect(session.linkSelection('bad id')).rejects.toThrow('unusual characters');
   });
 
   it('refuses a drawing that LV Design Studio did not produce', async () => {

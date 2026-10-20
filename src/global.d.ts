@@ -61,6 +61,10 @@ declare global {
         openPlan?: () => Promise<{ file: string; version?: string } | null>;
         /** Blocks placed in the drawing active in OpenCADStudio, with their attribute values. */
         blocks?: () => Promise<import('./model/cadLoads').CadBlock[]>;
+        /** Cable routes linked to feeders on the active drawing, measured in drawing units, with its INSUNITS code. */
+        routes?: () => Promise<{ units?: number; routes: { feederId: string; length: number; pieces: number }[] }>;
+        /** Links the curves selected in OpenCADStudio to a feeder's route; '' unlinks them. */
+        linkSelection?: (feederId: string) => Promise<{ linked: number; skipped: number }>;
       };
       files: {
         /** Shows a save dialog and writes the text; resolves to the saved path, or null if cancelled. */

@@ -335,6 +335,9 @@ handle('opencad:openPlan', async (evt) => {
 });
 // Blocks on the drawing active in OpenCADStudio, for counting fixtures per circuit.
 handle('opencad:blocks', () => openCadSession.readBlocks());
+// Cable routes on the floor plan: measure the linked ones; link (or, with no feeder, unlink) the selected curves.
+handle('opencad:routes', () => openCadSession.readRoutes());
+handle('opencad:linkSelection', (_evt, feederId) => openCadSession.linkSelection(typeof feederId === 'string' ? feederId : ''));
 handle('opencad:linked', async () => (await openCadSession.linkedEquipment()).map(({ tag, handles }) => ({ tag, objects: handles.length })));
 handle('opencad:status', () => ({ installed: !!openCadStudio.findInstallation(), ...openCadSession.status() }));
 
