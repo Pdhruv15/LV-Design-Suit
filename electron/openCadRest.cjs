@@ -8,6 +8,30 @@ const START_TIMEOUT_MS = 30000;
 const TAG_APP = 'LVDS';
 const PAGE = 1000;
 const MAX_ENTITIES = 200000;
+const EQUIPMENT = /^(feeder|board):/;
+
+/** The LVDS tag of an entity read with detail=full, from its extended-data records. */
+function tagOf(entity) {
+  const records = entity && entity.properties && entity.properties.common && entity.properties.common.extended_data && entity.properties.common.extended_data.records;
+  const record = Array.isArray(records) ? records.find((r) => r && r.application_name === TAG_APP) : undefined;
+  const value = record && Array.isArray(record.values) && record.values[0] ? record.values[0].String : undefined;
+  return typeof value === 'string' && /^(feeder|board|sheet):/.test(value) ? value : undefined;
+}
+
+// Database identity differs between two loads of the same drawing; geometry and properties do not.
+const IDENTITY = new Set(['handle', 'owner_handle', 'reactors', 'xdictionary_handle', 'full_visual_style_handle']);
+function canonical(value) {
+  if (typeof value === 'number') return Math.round(value * 1000) / 1000;
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.keys(value).filter((k) => !IDENTITY.has(k)).sort().map((k) => [k, canonical(value[k])]));
+  }
+  return value;
+}
+/** A comparable print of one entity: its type and serialized properties without database identity. */
+function fingerprint(entity) {
+  return JSON.stringify([entity.type, canonical(entity.properties || {})]);
+}
 const REQUEST_TIMEOUT_MS = 30000;
 
 function availablePort() {
@@ -63,6 +87,8 @@ class OpenCadRestSession {
     this.token = '';
     this.version = '';
     this.stderr = '';
+    /** Per OpenCADStudio document id: tag → hash of what LV Design Studio last sent there. */
+    this.sent = new Map();
   }
 
   get connected() {
@@ -112,28 +138,99 @@ class OpenCadRestSession {
     throw new Error(`OpenCADStudio automation did not become ready. ${lastError instanceof Error ? lastError.message : ''}`.trim());
   }
 
-  /** Equipment tagged in the active drawing: [{ tag, handles }], one entry per board or feeder, in tag order. */
-  async linkedEquipment() {
-    if (!this.connected) throw new Error('OpenCADStudio is not connected.');
-    const ask = (route, method = 'GET', body) => this.request({ port: this.port, token: this.token, method, route, body });
-    const handles = [];
-    for (let offset = 0; offset < MAX_ENTITIES;) {
-      const page = await ask(`/entities?fields=handle&limit=${PAGE}&offset=${offset}`);
-      for (const e of page.entities || []) if (typeof e.handle === 'string') handles.push(e.handle);
-      if (typeof page.next_offset !== 'number' || page.next_offset <= offset) break;
+  ask(route, method = 'GET', body) {
+    return this.request({ port: this.port, token: this.token, method, route, body });
+  }
+
+  async activeDocument() {
+    const state = await this.ask('/state');
+    if (state.document_id === undefined || state.document_id === null) throw new Error('No drawing is open in OpenCADStudio.');
+    return state.document_id;
+  }
+
+  /** Objects of the active drawing tagged by LV Design Studio: Map tag → { handles, hash }. The hash
+   * fingerprints the tag's geometry and properties, so two loads of the same sheet compare equal. */
+  async readTagged() {
+    if (!this.connected) throw new Error('OpenCADStudio is not connected. Open the drawing in OpenCADStudio first.');
+    const byTag = new Map();
+    let seen = 0;
+    for (let offset = 0; seen < MAX_ENTITIES;) {
+      const page = await this.ask(`/entities?detail=full&limit=${PAGE}&offset=${offset}`);
+      const list = page.entities || [];
+      seen += list.length;
+      for (const e of list) {
+        const tag = tagOf(e);
+        if (!tag || typeof e.handle !== 'string') continue;
+        if (!byTag.has(tag)) byTag.set(tag, { handles: [], prints: [] });
+        const entry = byTag.get(tag);
+        entry.handles.push(e.handle);
+        entry.prints.push(fingerprint(e));
+      }
+      if (typeof page.next_offset !== 'number' || page.next_offset <= offset || !list.length) break;
       offset = page.next_offset;
     }
-    const byTag = new Map();
-    for (let i = 0; i < handles.length; i += PAGE) {
-      const read = await ask('/xdata_get', 'POST', { handles: handles.slice(i, i + PAGE), app: TAG_APP });
-      for (const item of read.items || []) {
-        const tag = item && item.xdata && Array.isArray(item.xdata[TAG_APP]) ? item.xdata[TAG_APP][0] : undefined;
-        if (typeof tag !== 'string' || !/^(feeder|board):/.test(tag)) continue;
-        if (!byTag.has(tag)) byTag.set(tag, []);
-        byTag.get(tag).push(item.handle);
-      }
+    const out = new Map();
+    for (const [tag, { handles, prints }] of byTag) {
+      out.set(tag, { handles, hash: crypto.createHash('sha1').update(prints.sort().join('\n')).digest('hex') });
     }
-    return [...byTag].sort(([a], [b]) => a.localeCompare(b)).map(([tag, list]) => ({ tag, handles: list }));
+    return out;
+  }
+
+  /** Boards and feeders tagged in the active drawing: [{ tag, handles }], in tag order. */
+  async linkedEquipment() {
+    const tagged = await this.readTagged();
+    return [...tagged].filter(([tag]) => EQUIPMENT.test(tag)).sort(([a], [b]) => a.localeCompare(b)).map(([tag, { handles }]) => ({ tag, handles }));
+  }
+
+  /** Remembers what LV Design Studio last sent to the active drawing, so a later update compares the new sheet
+   * with that (and keeps any tagged object the engineer edited for equipment that did not change).
+   * Returns how many boards and feeders the drawing links. */
+  async remember() {
+    const document = await this.activeDocument();
+    const tagged = await this.readTagged();
+    this.sent.set(document, new Map([...tagged].map(([tag, { hash }]) => [tag, hash])));
+    return [...tagged.keys()].filter((tag) => EQUIPMENT.test(tag)).length;
+  }
+
+  /** Brings the drawing open in OpenCADStudio up to date with a newly generated sheet: only the tagged objects of
+   * boards, feeders and sheet furniture that changed are replaced; untagged objects (the engineer's own CAD
+   * work) are never touched. Returns the tags changed, added and removed, and how many were unchanged. */
+  async update(sheetPath) {
+    const target = await this.activeDocument();
+    const current = await this.readTagged();
+    if (![...current.keys()].some((tag) => EQUIPMENT.test(tag))) {
+      throw new Error('The drawing open in OpenCADStudio has no LV Design Studio boards or feeders. Open the SLD from LV Design Studio first.');
+    }
+    await this.ask('/documents', 'POST', { path: sheetPath });
+    const source = await this.activeDocument();
+    if (source === target) throw new Error('OpenCADStudio did not open the updated sheet as a separate drawing.');
+    let fresh;
+    let created = [];
+    const plan = { changed: [], added: [], removed: [], unchanged: 0 };
+    try {
+      fresh = await this.readTagged();
+      const sent = this.sent.get(target) || new Map([...current].map(([tag, { hash }]) => [tag, hash]));
+      for (const [tag, { hash }] of fresh) {
+        if (!current.has(tag)) plan.added.push(tag);
+        else if (sent.get(tag) !== hash) plan.changed.push(tag);
+        else plan.unchanged += 1;
+      }
+      for (const tag of current.keys()) if (!fresh.has(tag)) plan.removed.push(tag);
+      const copy = [...plan.changed, ...plan.added].flatMap((tag) => fresh.get(tag).handles);
+      for (let i = 0; i < copy.length; i += PAGE) {
+        const result = await this.ask('/entities/copy-to', 'POST', { handles: copy.slice(i, i + PAGE), document_id: target });
+        created = created.concat((result.result && result.result.created) || []);
+      }
+    } finally {
+      await this.ask(`/documents/${source}?discard=true`, 'DELETE').catch(() => undefined);
+    }
+    if (await this.activeDocument() !== target) {
+      throw new Error(`OpenCADStudio did not return to the drawing after the update; ${created.length} new objects were added, the old ones are still in place.`);
+    }
+    const erase = [...plan.changed, ...plan.removed].flatMap((tag) => current.get(tag).handles);
+    for (let i = 0; i < erase.length; i += PAGE) await this.ask('/entities', 'DELETE', { handles: erase.slice(i, i + PAGE) });
+    this.sent.set(target, new Map([...fresh].map(([tag, { hash }]) => [tag, hash])));
+    return plan;
   }
 
   async open(executable, drawings) {
@@ -151,4 +248,4 @@ class OpenCadRestSession {
   }
 }
 
-module.exports = { availablePort, requestJson, OpenCadRestSession, TAG_APP };
+module.exports = { availablePort, requestJson, OpenCadRestSession, TAG_APP, tagOf, fingerprint };
