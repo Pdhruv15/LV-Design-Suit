@@ -89,7 +89,7 @@ export function conceptReportHtml(r: ConceptReport): string {
     ...(la.tx ? [['LV incomer per transformer', `${n(la.tx.incomerA)} A`] as [string, string]] : []),
     ['Standby generator', `${esc(laGenText(la))}${la.generatorKvaRequired > 0 ? ` (${n(la.generatorKvaRequired)} kVA required)` : ''}`]
   ]) : sldTransformers(r) ?? `<p class="missing">Transformers and generator ${TO_CONFIRM} — size them from the load assessment.</p>`;
-  const rooms = r.rooms.length ? `<table><thead><tr><th>Substation</th><th class="r">Transformers</th><th class="r">Substation / transformer room (m²)</th><th class="r">LV room (m²)</th><th class="r">Total (m²)</th></tr></thead><tbody>${r.rooms.map((x) =>
+  const rooms = r.rooms.length ? `<table class="rooms"><colgroup><col style="width:28%"><col style="width:18%"><col style="width:18%"><col style="width:18%"><col style="width:18%"></colgroup><thead><tr><th>Substation</th><th class="r">Transformers</th><th class="r">Substation / transformer room (m²)</th><th class="r">LV room (m²)</th><th class="r">Total (m²)</th></tr></thead><tbody>${r.rooms.map((x) =>
     `<tr><td>${esc(x.name)}</td><td class="r">${x.transformers}${x.kva ? ` × ${n(x.kva)} kVA` : ''}</td>${x.error ? `<td colspan="3">${esc(x.error)}</td>` : `<td class="r">${x.substationM2 === undefined ? '—' : `min. ${n(x.substationM2, 2)}`}</td><td class="r">${x.lvM2 === undefined ? '—' : `min. ${n(x.lvM2, 2)}`}</td><td class="r">${x.totalM2 === undefined ? '—' : n(x.totalM2, 2)}</td>`}</tr>`).join('')}</tbody></table>
     <p class="note">Minimum areas to Dubai Municipality DM-D-013. Generator room and electrical risers: ${TO_CONFIRM}.</p>`
     : `<p class="missing">Substation and LV room areas ${TO_CONFIRM}.</p>`;
@@ -101,6 +101,7 @@ ${PRINT_BASE_CSS}
 h2 { margin-top: 10px; }
 .r { text-align: right; }
 table.kv th { width: 34%; }
+table.rooms { table-layout: fixed; }
 .ft { border-top: 1.2pt solid #000; margin-top: 4mm; padding-top: 1.5mm; display: flex; justify-content: space-between; color: #444; font-size: 7.5pt; }
 </style></head><body>
 <div class="hd"><div><h1>Concept design report — electrical</h1><div>${esc(pj.name)}${pj.plot ? `, plot ${esc(pj.plot)}` : ''}${pj.owner ? ` · Owner: ${esc(pj.owner)}` : ''}${pj.consultant ? ` · Consultant: ${esc(pj.consultant)}` : ''}</div></div>
