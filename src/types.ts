@@ -302,7 +302,7 @@ export interface Board {
     irSetting?: number; // main breaker long-time setting, × In (e.g. 0.85)
     ctRatio?: string; // main meter CT, e.g. "2400/5A" (else from the setting)
   };
-  /** Made by Building → Generate DBs: building / floor / unit key. */
+  /** Made by Building → Generate DBs: building / floor / unit key; 'la:mdb' for an MDB made by Load assessment → Create MDB + feeders. */
   generated?: string;
   /** Enclosure chosen in Design → Enclosure sizing: a frozen copy with the catalogue revision used. */
   enclosure?: import('./calc/enclosure').EnclosureSelection;

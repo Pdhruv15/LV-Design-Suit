@@ -7,7 +7,7 @@ import {
   type LaServices, type LaSupply, type LoadAssessment
 } from '../../calc/loadAssessment';
 import { buildDashboard } from '../../calc/dashboard';
-import { createMdbFromAssessment } from '../../calc/loadAssessmentMdb';
+import { createMdbFromAssessment, LA_MDB } from '../../calc/loadAssessmentMdb';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const f1 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 1 });
@@ -67,14 +67,24 @@ export default function LoadAssessmentView({ project, onChange, onStatus }: { pr
   };
   const mineType = a ? lib.types.find((t) => t.id === a.typeId) : undefined;
   const mains = project.boards.filter((b) => !b.upstreamId);
+  const laMdbs = mains.filter((b) => b.generated === LA_MDB).map((b) => b.id);
+  const picked = mains.some((b) => b.id === target && !laMdbs.includes(b.id)) ? target : '';
   const createMdb = () => {
     if (!a) return;
-    const to = mains.some((b) => b.id === target) ? target : undefined;
-    const earlier = to ? project.feeders.filter((f) => f.boardId === to && f.fromRoom?.startsWith('la:')).length : 0;
-    if (earlier && !window.confirm(`Replace the ${earlier} feeders made earlier from the load assessment on ${to}? Your own feeders on it are kept.`)) return;
+    const to = picked || undefined;
+    const on = to ? [to] : laMdbs;
+    const earlier = project.feeders.filter((f) => on.includes(f.boardId) && f.fromRoom?.startsWith('la:')).length;
+    if (earlier && !window.confirm(`Replace the ${earlier} feeders made earlier from the load assessment on ${on.join(', ')}? Your own feeders on ${on.length > 1 ? 'them' : 'it'} are kept.`)) return;
     const res = createMdbFromAssessment(project, a, to);
     onChange(res.project);
-    onStatus(`${res.created ? `Created ${res.boardId}` : `Updated ${res.boardId}`}: ${res.added} feeders from the load assessment${res.replaced ? ` (replaced ${res.replaced})` : ''} — check the cable lengths${res.created && r && r.tx && r.tx.duty > 1 ? `. The assessment needs ${r.tx.duty} duty transformers: split the feeders over more MDBs` : ''}`);
+    const made = res.createdIds.length ? `Created ${res.createdIds.join(', ')}` : '';
+    const updated = res.boardIds.filter((id) => !res.createdIds.includes(id));
+    const over = res.loading.filter((x) => x.pct > a.supply.maxLoadingPct);
+    onStatus(`${[made, updated.length ? `Updated ${updated.join(', ')}` : ''].filter(Boolean).join('; ')}: ${res.added} feeders from the load assessment${res.boardIds.length > 1 ? `, demand balanced over ${res.boardIds.length} transformers` : ''}${res.replaced ? ` (replaced ${res.replaced})` : ''} — check the cable lengths`
+      + (res.loading.length ? `. Transformer loading ${res.loading.map((x) => `${x.boardId} ${f0(x.pct)} %`).join(', ')}` : '')
+      + (over.length ? ` — over the ${a.supply.maxLoadingPct} % limit: the boards add the feeders' demand without the assessment's coincidence factor` : '')
+      + (res.unused.length ? `. ${res.unused.join(', ')} no longer needed by the assessment: its assessment feeders were removed — delete it if it is empty` : '')
+      + (to && r?.tx && r.tx.duty > 1 ? `. The assessment needs ${r.tx.duty} duty transformers: pick “New MDBs” to spread the feeders over them` : ''));
   };
 
   if (!a || !r) {
@@ -331,12 +341,12 @@ export default function LoadAssessmentView({ project, onChange, onStatus }: { pr
             )}
 
             <div className="bi-actions">
-              <select className="bi-sel" value={mains.some((b) => b.id === target) ? target : ''} onChange={(e) => setTarget(e.target.value)} title="Board the feeders go on">
-                <option value="">New MDB{r.tx ? ` (${f0(r.tx.kva)} kVA transformer)` : ''}</option>
-                {mains.map((b) => <option key={b.id} value={b.id}>{b.id} — {b.name}</option>)}
+              <select className="bi-sel" value={picked} onChange={(e) => setTarget(e.target.value)} title="Board the feeders go on">
+                <option value="">{laMdbs.length ? `Assessment MDBs (${laMdbs.join(', ')})` : r.tx && r.tx.duty > 1 ? `New MDBs (${r.tx.duty} × ${f0(r.tx.kva)} kVA transformers)` : `New MDB${r.tx ? ` (${f0(r.tx.kva)} kVA transformer)` : ''}`}</option>
+                {mains.filter((b) => !laMdbs.includes(b.id)).map((b) => <option key={b.id} value={b.id}>{b.id} — {b.name}</option>)}
               </select>
-              <button className="chip primary" onClick={createMdb} title="One feeder per load category and custom load: connected kW and diversity as load and demand factor; generator-backed loads marked essential">
-                {mains.some((b) => b.id === target) ? `Add feeders to ${target}` : 'Create MDB + feeders'}
+              <button className="chip primary" onClick={createMdb} title="One feeder per load category and custom load: connected kW and diversity as load and demand factor; generator-backed loads marked essential. One MDB per duty transformer, demand balanced over them">
+                {picked ? `Add feeders to ${picked}` : laMdbs.length ? 'Update MDB feeders' : r.tx && r.tx.duty > 1 ? `Create ${r.tx.duty} MDBs + feeders` : 'Create MDB + feeders'}
               </button>
               <span className="sp" />
               {a.inReport
