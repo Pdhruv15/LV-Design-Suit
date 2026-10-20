@@ -7,7 +7,7 @@ power factor correction, drawings and submission reports. Projects are plain
 JSON files, so they sync cleanly through a Google Drive / OneDrive / Dropbox
 desktop folder.
 
-**Version 1.53** (see `package.json`). The app is in active use and active
+**Version 1.54** (see `package.json`). The app is in active use and active
 development.
 
 > **Engineering status.** The calculations are first-pass design checks, not
@@ -21,18 +21,21 @@ development.
 
 ## Screenshots
 
-The built-in demo project (a 415 V villa complex).
+The built-in demo project (a 415 V villa complex). The ribbon follows the design stages: 1 Concept → 2 Schematic → 3 Detailed design → Documents → 4 Tender and IFC.
 
-**Single line diagram**: IEC symbols and a legend, the panel tree on the left, the equipment palette, and properties on the right.
+**Overview and design stages**: each stage's checklist, the stage gate (Issue detailed design → IFC) and Back to the previous stage, with key figures below.
+![Overview and design stages](docs/screenshots/10-overview-design-stages.png)
+
+**Single line diagram** (3 Detailed design): IEC / DEWA symbols, the panel tree on the left, and board properties on the right.
 ![Single line diagram](docs/screenshots/01-single-line-diagram.png)
 
 **Load schedule**: the DEWA connected load / maximum demand form for the board picked in the panel tree.
 ![Load schedule](docs/screenshots/02-load-schedule.png)
 
-**Transformer & generator sizing**: a transformer per MDB (fault level, main breaker, regulation, Apply to SLD), and the generator chosen by board, with the largest motor starting last.
+**Transformer & generator sizing** (1 Concept): a transformer per MDB (fault level, main breaker, regulation, Apply to SLD), and the generator chosen by board, with the largest motor starting last.
 ![Transformer and generator sizing](docs/screenshots/03-transformer-generator.png)
 
-**Power factor correction**: central, group or individual correction. Banks are sized from the bottom up (nothing is corrected twice), with steps and detuning. Add them to the SLD.
+**Power factor correction** (2 Schematic): central, group or individual correction. Banks are sized from the bottom up (nothing is corrected twice), with steps and detuning. Add them to the SLD.
 ![Power factor correction](docs/screenshots/04-power-factor-correction.png)
 
 **Earthing, filtered from the panel tree**: click SMDB-GF to see only that board and the boards below it.
