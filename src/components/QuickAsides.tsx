@@ -45,7 +45,7 @@ export function SupplyStrip({ t, phases, voltageV, onCable }: { t: Triangle; pha
       <h5>At {fmt(voltageV, 0)} V, {phases}-phase</h5>
       <div className="qc-tiles">
         <div><span>Current</span><b>{fmt(currentA, 1)} A</b></div>
-        <div><span>Breaker (next standard)</span><b>{breaker === undefined ? 'None available' : `${breaker} A`}</b></div>
+        <div><span>Reference rating ≥ current</span><b>{breaker === undefined ? 'None available' : `${breaker} A`}</b></div>
         {pfc && !pfc.invalid && (pfc.needed
           ? <><div><span>Capacitor for PF 0.95</span><b>{fmt(pfc.kvar, 1)} kVAr</b></div><div><span>kVA after correction</span><b>{fmt(pfc.kvaAfter, 1)} kVA</b></div></>
           : <div><span>Power factor</span><b>Already ≥ 0.95</b></div>)}

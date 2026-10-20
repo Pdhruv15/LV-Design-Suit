@@ -1,4 +1,5 @@
 import { defineConfig, type Plugin } from 'vite';
+import { configDefaults } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -86,5 +87,7 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true
-  }
+  },
+  // Claude Code worktrees are other branches' checkouts inside this folder; their tests are not this branch's.
+  test: { exclude: [...configDefaults.exclude, '.claude/**'] }
 });
