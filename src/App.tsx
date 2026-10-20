@@ -27,6 +27,7 @@ const RevisionsView = lazy(() => import('./components/docs/RevisionsView'));
 const SpacePlanView = lazy(() => import('./components/docs/SpacePlanView'));
 const TrayScheduleView = lazy(() => import('./components/docs/TrayScheduleView'));
 const SubstationAreaView = lazy(() => import('./components/docs/SubstationAreaView'));
+const LoadAssessmentView = lazy(() => import('./components/docs/LoadAssessmentView'));
 const UpsStudy = lazy(() => import('./components/studies/UpsStudy'));
 const SolarStudy = lazy(() => import('./components/studies/SolarStudy'));
 const StudyReportsView = lazy(() => import('./components/docs/StudyReportsView'));
@@ -98,6 +99,7 @@ const SldExportDialog = lazy(() => import('./components/SldExportDialog'));
 import PasteBoardDialog from './components/PasteBoardDialog';
 const EnclosureSizing = lazy(() => import('./components/EnclosureSizing'));
 import EarthingView from './components/EarthingView';
+import RiserView from './components/RiserView';
 import PanelsPage from './components/PanelsPage';
 import DiscriminationPanel from './components/DiscriminationPanel';
 import { discriminationChain } from './calc/protection';
@@ -128,7 +130,7 @@ import { moveBoard, moveSummary, reorderBoard } from './model/moveBoard';
 const ProjectsDashboard = lazy(() => import('./components/ProjectsDashboard'));
 import { NameDialog, UnsavedDialog } from './components/FileDialogs';
 import type { BoardKind, ProjectStatus } from './types';
-type DiagramMode = 'system' | 'board' | 'earthing';
+type DiagramMode = 'system' | 'board' | 'earthing' | 'riser';
 
 /** Pages that show network study results (they follow the last run). */
 /** Pages the panel tree filters to a board and the boards below it. */
@@ -145,7 +147,7 @@ const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator
 
 /** Pages the ⌘K palette can open, named as on the ribbon. */
 const PALETTE_PAGES: [MainView, string][] = [
-  ['design', 'Design (SLD)'], ['dashboard', 'Overview'], ['building', 'Building'], ['load-schedule', 'Load schedule'], ['panels', 'Panels'],
+  ['design', 'Design (SLD)'], ['dashboard', 'Overview'], ['building', 'Building'], ['load-assessment', 'Load assessment'], ['load-schedule', 'Load schedule'], ['panels', 'Panels'],
   ['space-planning', 'Space plan'], ['substation-area', 'Substation area'], ['enclosure', 'Enclosure sizing'], ['earth-schematic', 'Earth pits'],
   ['busbar', 'Busbar riser'], ['calculators', 'Quick calcs'], ['voltage-drop', 'Voltage drop'], ['engines', 'Load flow'], ['earthing', 'Earthing'],
   ['coordination', 'Protection coordination'], ['selection', 'Breaker & cable selection'], ['sizing', 'Transformer & generator sizing'], ['pfc', 'Power factor'],
@@ -864,6 +866,7 @@ export default function App() {
     if (board) cmd(`Add a feeder on ${board.id}…`, () => { design(); openAddFeeder({}); }, undefined, 'circuit load');
     cmd('Export the SLD…', () => { design(); setDiagramMode('system'); setShowExport(true); }, undefined, 'PDF DXF SVG');
     cmd('System diagram', () => { design(); setDiagramMode('system'); }, `${mod}1`, 'SLD');
+    cmd('Riser diagram', () => { design(); setDiagramMode('riser'); }, `${mod}4`, 'riser schematic building levels');
     if (board) cmd(`Board diagram — ${board.id}`, () => { design(); setDiagramMode('board'); }, `${mod}2`);
     cmd('Project settings…', () => setShowSettings(true));
     cmd('Keyboard shortcuts', () => setHelpOpen(true), '?', 'help keys');
@@ -967,9 +970,9 @@ export default function App() {
         setHelpOpen((o) => !o);
         return;
       }
-      if (mod && !e.shiftKey && !e.altKey && (e.key === '1' || e.key === '2' || e.key === '3') && view === 'design') {
+      if (mod && !e.shiftKey && !e.altKey && (e.key === '1' || e.key === '2' || e.key === '3' || e.key === '4') && view === 'design') {
         e.preventDefault();
-        setDiagramMode(e.key === '1' ? 'system' : e.key === '2' ? 'board' : 'earthing');
+        setDiagramMode(e.key === '1' ? 'system' : e.key === '2' ? 'board' : e.key === '3' ? 'earthing' : 'riser');
         return;
       }
       if (!mod && !e.altKey && (e.key === '[' || e.key === ']') && view === 'design' && diagramMode === 'system') {
@@ -1184,6 +1187,9 @@ export default function App() {
                     <button role="tab" aria-selected={diagramMode === 'earthing'} className={diagramMode === 'earthing' ? 'on' : ''} onClick={() => setDiagramMode('earthing')} title={`Earth pits: earthing schematic, pit tests and checks (${MOD}3)`}>
                       Earthing
                     </button>
+                    <button role="tab" aria-selected={diagramMode === 'riser'} className={diagramMode === 'riser' ? 'on' : ''} onClick={() => setDiagramMode('riser')} title={`Riser diagram of a building: each board on its level (${MOD}4)`}>
+                      Riser
+                    </button>
                   </div>
                   <div className="sld-bar">
                     <MenuButton label="+ Add" title="Add a feeder, a board, or paste a copied board">
@@ -1294,6 +1300,8 @@ export default function App() {
                   <SheetTabs project={project} run={run} active={sheetTab} selectedBoardId={panel === 'board' ? board.id : null} outlinesOn={sheetOutlinesOn}
                     onActive={setSheetTab} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onToggleOutlines={() => setSheetOutlinesOn((v) => !v)} />
                   </div>
+                ) : diagramMode === 'riser' ? (
+                  <RiserView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />
                 ) : diagramMode === 'earthing' ? (
                   <EarthingView embedded project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />
                 ) : (
@@ -1437,6 +1445,7 @@ export default function App() {
               />
             )}
             {view === 'building' && <BuildingView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
+            {view === 'load-assessment' && <LoadAssessmentView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'busbar' && <BusbarStudy project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'pfc' && <PfcStudy project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'db-schedule' && <DbScheduleView project={calcProject} board={dbScheduleAll ? '' : board?.id} onBoard={(id) => { setDbScheduleAll(!id); if (id) setActiveBoardId(id); }} onStatus={setStatus} />}

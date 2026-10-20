@@ -10,6 +10,7 @@ import { boardLocation } from '../model/levels';
 import { cableTypeOf } from '../model/cableTypes';
 import { feederPhaseKw, phaseTag } from '../model/phases';
 import { boardEarth, type BoardEarth } from '../model/boardEarth';
+import { splitSld } from '../model/sldScope';
 import { deviceKind, devicePoles } from './deviceText';
 
 /** One board's single line diagram as a printable drawing (black on white,
@@ -67,14 +68,17 @@ export interface BoardSheetOptions {
 export function boardSheetSvg(project: Project, board: Board, results: FeederResult[], opts: BoardSheetOptions = {}): { svg: string; w: number; h: number } {
   const byId = new Map(results.map((r) => [r.feeder.id, r]));
   const feeders = project.feeders.filter((f) => f.boardId === board.id);
-  const n = feeders.length;
+  // The drawing stops at final circuits: feeders to boards and major equipment are drawn, the lighting
+  // and power circuits are one box referring to the schedule; the circuit table still lists every way.
+  const { drawn, final } = splitSld(feeders, (f) => f);
+  const n = drawn.length + (final.length ? 1 : 0);
   // A long busbar wraps onto further rows (at most PER_ROW circuits each, rows evened out), so a
   // DB with many ways still prints readably on A3; the rows are joined by a dashed continuation.
   const rowsN = Math.max(1, Math.ceil(n / PER_ROW)), perRow = Math.max(3, Math.ceil(n / rowsN));
   const diagramW = perRow * SP + 2 * MARGIN;
   const cx = MARGIN + (perRow * SP) / 2;
   const rowOf = (i: number) => Math.floor(i / perRow);
-  const xs = feeders.map((_, i) => MARGIN + SP / 2 + (i % perRow) * SP);
+  const xs = Array.from({ length: n }, (_, i) => MARGIN + SP / 2 + (i % perRow) * SP);
   const dy = (i: number) => rowOf(i) * ROW_SPAN;
   const out: string[] = [];
 
@@ -112,7 +116,7 @@ export function boardSheetSvg(project: Project, board: Board, results: FeederRes
   out.push(tx(x2, BUS_Y - 8, `Isc ${s.faultKA.toFixed(1)} kA`, { anchor: 'end' }));
 
   // Outgoing circuits.
-  feeders.forEach((f, i) => {
+  drawn.forEach((f, i) => {
     const x = xs[i], o = dy(i);
     const BUS_Y_ = BUS_Y + o, BOX_Y_ = BOX_Y + o;
     out.push(ln(x, BUS_Y_, x, 176 + o), switchSym(x, 176 + o, kindOf(f)), ln(x, 192 + o, x, BOX_Y_));
@@ -127,6 +131,17 @@ export function boardSheetSvg(project: Project, board: Board, results: FeederRes
     const tag = phaseTag(f);
     out.push(tx(x, BOX_Y_ + BOX_H + 16, tag === 'RYB' ? 'RYB' : tag ? `PH ${tag}` : 'PH —', { anchor: 'middle', bold: true, size: 10.5 }));
   });
+  if (final.length) {
+    const i = n - 1, x = xs[i], o = dy(i), left = x - SP / 2 + 8;
+    const kwSum = final.reduce((t, f) => t + f.loadKw * f.demandFactor, 0);
+    out.push(`<line x1="${x}" y1="${BUS_Y + o}" x2="${x}" y2="${BOX_Y + o}" stroke="#000" stroke-width="1.2" stroke-dasharray="6 4"/>`);
+    out.push(tx(x + 8, 188 + o, `${final.length} WAYS`, { size: 10 }));
+    out.push(`<rect x="${left}" y="${BOX_Y + o}" width="${SP - 16}" height="${BOX_H + 18}" fill="none" stroke="#000" stroke-width="1" stroke-dasharray="6 4"/>`);
+    out.push(tx(x, BOX_Y + o + 14, 'FINAL CIRCUITS', { anchor: 'middle', bold: true, size: 10.5 }));
+    out.push(tx(x, BOX_Y + o + 27, `${final.length} nos · ${kwSum.toFixed(2)} kW`, { anchor: 'middle', size: 10 }));
+    out.push(tx(x, BOX_Y + o + 40, 'REFER DB LOAD', { anchor: 'middle', size: 10 }));
+    out.push(tx(x, BOX_Y + o + 53, 'SCHEDULE', { anchor: 'middle', size: 10 }));
+  }
 
   // Panel summary.
   const ps = panelSummary(project, board);

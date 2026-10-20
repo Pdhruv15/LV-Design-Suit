@@ -2,6 +2,7 @@ import { AlignmentType, BorderStyle, Document, Footer, Header, HeadingLevel, Ima
 import { cableDataNotice } from '../calc/cableTable';
 import { CALC_DISCLAIMER, REPORT_STATUS_TEXT, type ReportStatus } from '../calc/statusText';
 import type { Project } from '../types';
+import { laBandText, laGenText, laTxText } from './designBasis';
 import { NOT_DEFINED, pageFrame } from './reportFrame';
 import { planReport, scopeText, type ReportMeta, type ReportOptions, type Scope, type Section } from './studyReport';
 
@@ -122,6 +123,33 @@ export function buildStudyDocx(project: Project, scope: Scope, sections: Section
     tbl('Calculation basis', ['Standard', 'Used for'], b.standards.methods.map((m) => [m.standard, m.used]));
     section(basisNo[4].number, basisNo[4].title);
     tbl(undefined, ['Parameter', 'Design value', 'Source', 'Note'], b.criteria.map((c) => [c.parameter, missing(c.value), c.source, c.flag ? { v: c.flag, s: 'data' } : '']));
+    const l = b.loadAssessment;
+    if (l) {
+      // Plain black and white: the band check is told by its words.
+      const v = (x: number | undefined, d = 0) => (x === undefined ? '—' : n0(x, d));
+      section(basisNo[5].number, basisNo[5].title);
+      out.push(P('Early-stage maximum demand from the building type, its area schedule and the services it needs, before load schedules exist (Design → Load assessment). It is not the designed load; the designed load is in the executive summary.', { size: 16 }));
+      h3('Building');
+      kvT([['Building type', l.typeLabel], ['Gross floor area above ground', `${n0(l.gfaM2)} m²`], ['Floors above ground', n0(l.floors)], ['Basement car park', l.parkingM2 ? `${n0(l.parkingM2)} m²` : 'None'],
+        ['Typical maximum demand for this type', `${n0(l.vaBand[0])}–${n0(l.vaBand[1])} VA/m² of GFA`], ['Share of HVAC and special services on the generator', `${n0(l.essentialPct)} %`]]);
+      tbl('Area schedule', ['Space', '% of GFA', 'Area (m²)', 'Lighting (W/m²)', 'Small power (W/m²)', 'Cooling, thermal (W/m²)', 'Dwelling'],
+        [...l.rows.map((x) => [x.label, n0(x.pct, 1), n0(x.areaM2), n0(x.ltg, 1), n0(x.pwr, 1), n0(x.clg), x.dwelling ? 'Yes' : '']), ['Total', n0(l.pctTotal, 1), n0(l.areaM2), '', '', '', '']]);
+      tbl('Service requirements', ['Service', 'Selection', 'Connected (kW)'], l.services.map((x) => [x.service, x.selection, n0(x.kw)]));
+      if (l.notSelected.length) out.push(P(`Not selected: ${l.notSelected.join(', ')}.`, { size: 16 }));
+      tbl('Load categories and maximum demand', ['Category', 'Connected (kW)', 'Diversity', 'Demand (kW)', 'On generator'], [
+        ...l.categories.map((c) => [c.label, n0(c.connectedKw), v(c.diversity, 2), v(c.demandKw), c.generatorPct === undefined ? '—' : `${n0(c.generatorPct)} %`]),
+        ['Sum of demands', n0(l.connectedKw), '', n0(l.sumDemandKw), ''],
+        [`× coincidence ${n0(l.coincidence, 2)}${l.sparePct ? ` × ${n0(1 + l.sparePct / 100, 2)} future spare` : ''} = maximum demand`, '', '', `${n0(l.mdKw)} kW`, ''],
+        [`÷ power factor ${n0(l.pf, 2)}`, '', '', `${n0(l.mdKva)} kVA`, '']]);
+      tbl('Supply', ['Item', 'Value', 'Basis'], [
+        ['Maximum demand', `${n0(l.mdKw)} kW · ${n0(l.mdKva)} kVA`, ''],
+        ['Load density', laBandText(l), `${n0(l.vaBand[0])}–${n0(l.vaBand[1])} VA/m² for "${l.typeLabel}"`],
+        ...(l.tx ? [['Transformers', laTxText(l.tx), `Each loaded to ${n0(l.tx.maxLoadingPct)} % or less, largest size ${n0(l.tx.maxTxKva)} kVA, ${n0(l.tx.voltage)} V`], ['LV incomer per transformer', `${n0(l.tx.incomerA)} A`, `${n0(l.tx.kva)} kVA at ${n0(l.tx.voltage)} V`]] as Cell[][]
+          : [['Transformers', l.mdKva > 0 ? 'No size fits' : 'No demand', 'Check the transformer sizes, largest size and maximum loading']]),
+        ['Essential demand', `${n0(l.generatorKw)} kW`, 'Each category\'s demand × its share on the generator. Fire and life safety at full load.'],
+        ['Standby generator', laGenText(l), `${n0(l.generatorKvaRequired)} kVA required = ${n0(l.generatorKw)} kW ÷ ${n0(l.pf, 2)} pf × ${n0(l.genMargin, 2)} margin`]]);
+      out.push(P('The built-in densities and factors are placeholders until you replace them with your own library. This assessment is a planning estimate. Check it against the load schedules as the design develops.', { italics: true, size: 16 }));
+    }
   }
 
   // Studies

@@ -12,10 +12,12 @@ import { sequence } from './hierarchyBuilder';
  * Emergency sub-panels are ordinary SMDB / DB boards below an EMDB; their
  * role (ESMDB / EDB) — and so their name prefix — comes from being below it. */
 
-export type PanelRole = 'MDB' | 'SMDB' | 'DB' | 'EMDB' | 'ESMDB' | 'EDB';
+export type PanelRole = 'MDB' | 'LV-MDB' | 'SMDB' | 'DB' | 'EMDB' | 'ESMDB' | 'EDB' | 'MCC' | 'EMCC';
 export const PANEL_ROLES: { role: PanelRole; label: string }[] = [
-  { role: 'MDB', label: 'Main distribution board' }, { role: 'SMDB', label: 'Sub-main distribution board' }, { role: 'DB', label: 'Distribution board' },
-  { role: 'EMDB', label: 'Emergency main board (ATS)' }, { role: 'ESMDB', label: 'Emergency sub-main board' }, { role: 'EDB', label: 'Emergency distribution board' }
+  { role: 'MDB', label: 'Main distribution board' }, { role: 'LV-MDB', label: 'LV main distribution board' },
+  { role: 'SMDB', label: 'Sub-main distribution board' }, { role: 'DB', label: 'Distribution board' },
+  { role: 'EMDB', label: 'Emergency main board (ATS)' }, { role: 'ESMDB', label: 'Emergency sub-main board' }, { role: 'EDB', label: 'Emergency distribution board' },
+  { role: 'MCC', label: 'Motor control centre (package panel)' }, { role: 'EMCC', label: 'Emergency motor control centre (package panel)' }
 ];
 
 export const prefixOf = (project: Project, role: string): string => (project.panelPrefixes as Record<string, string> | undefined)?.[role]?.trim() || role;
@@ -24,13 +26,13 @@ export const namesOf = (project: Project) => ({ MDB: prefixOf(project, 'MDB'), S
 /** A panel's role: its type, or ESMDB / EDB when it is below an EMDB. Other kinds (MCC, UPS…) keep their kind. */
 export function roleOf(project: Project, b: Board): string {
   const kind = b.kind ?? (b.upstreamId ? 'DB' : 'MDB');
-  if (kind === 'EMDB') return 'EMDB';
-  if (kind !== 'SMDB' && kind !== 'DB') return kind;
+  if (kind === 'EMDB' || kind === 'EDB' || kind === 'EMCC') return kind;
+  if (kind !== 'SMDB' && kind !== 'DB' && kind !== 'MCC') return kind;
   const byId = new Map(project.boards.map((x) => [x.id, x]));
   const seen = new Set<string>();
   for (let up = b.upstreamId ? byId.get(b.upstreamId) : undefined; up && !seen.has(up.id); up = up.upstreamId ? byId.get(up.upstreamId) : undefined) {
     seen.add(up.id);
-    if (up.kind === 'EMDB') return kind === 'SMDB' ? 'ESMDB' : 'EDB';
+    if (up.kind === 'EMDB') return kind === 'SMDB' ? 'ESMDB' : kind === 'MCC' ? 'EMCC' : 'EDB';
   }
   return kind;
 }

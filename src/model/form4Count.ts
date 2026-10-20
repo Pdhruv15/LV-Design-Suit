@@ -1,6 +1,7 @@
 import type { Board, Feeder, Project } from '../types';
 import { FORM4_COLUMNS, type Form4Counts } from '../calc/form4';
 import { roleOf } from './emergency';
+import { spareBreaker, spareWaysOf } from './spareWays';
 
 /** Boards sized with the Form-4 worksheet: main and sub-main boards (normal and emergency). */
 export const FORM4_ROLES = ['MDB', 'SMDB', 'EMDB', 'ESMDB'];
@@ -83,6 +84,10 @@ export function form4FromSld(p: Project, boardId: string): { counts: Form4Counts
     else if (f.feedsBoardId && a >= 800) put(f.name, a, riserColumn(f));
     else put(f.name, a, outgoingColumn(f));
   }
+  // Spare breakers fill outgoing cubicles like any other; a space is left to the spare-capacity allowance.
+  for (const s of spareWaysOf(b)) if (s.kind === 'spare') put('Spare', s.ratingA, outgoingColumn(spareBreaker(b, s)));
+  const spaces = spareWaysOf(b).filter((s) => s.kind === 'space').length;
+  if (spaces) notes.push(`${spaces} space${spaces === 1 ? '' : 's'} on the panel (no breaker) — not counted; add a cubicle by hand if the space needs one.`);
   if (items.some((x) => col(x.column).group === 'riser')) notes.push('Feeders of 800 A and above to another board are counted as bus bar risers. If one is cabled, move it to the outgoings by hand.');
   return { counts, items, notes };
 }
