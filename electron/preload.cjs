@@ -42,6 +42,10 @@ contextBridge.exposeInMainWorld('lvds', {
     probe: () => ipcRenderer.invoke('engines:probe'),
     run: (request) => ipcRenderer.invoke('engines:run', request)
   },
+  openCadStudio: {
+    status: () => ipcRenderer.invoke('opencad:status'),
+    openDxf: (files) => ipcRenderer.invoke('opencad:openDxf', { files })
+  },
   files: {
     saveText: (opts) => ipcRenderer.invoke('files:saveText', opts),
     saveBinary: (opts) => ipcRenderer.invoke('files:saveBinary', opts),

@@ -10,6 +10,8 @@ const { LIMITS, readTextFileLimited, readJsonLimited } = require('./limits.cjs')
 const { runJsonProcess } = require('./engineRunner.cjs');
 const safeFs = require('./safeFs.cjs');
 const { htmlToPdf, pdfSession, SHEETS } = require('./pdfRender.cjs');
+const openCadStudio = require('./openCadStudio.cjs');
+const { OpenCadRestSession } = require('./openCadRest.cjs');
 
 // `lvds` (the command line) exports drawings and PDFs through this app with --lvds-headless-export:
 // no window and none of the app's start-up, only the export (headlessExport.cjs).
@@ -304,6 +306,17 @@ handle('files:saveBinary', async (evt, args) => {
   fs.writeFileSync(result.filePath, bytes);
   return result.filePath;
 });
+
+// ---- IPC: hand generated DXF sheets to the installed OpenCADStudio app (live, token-protected local link) ----
+const openCadSession = new OpenCadRestSession();
+handle('opencad:openDxf', async (_evt, { files } = {}) => {
+  const installation = openCadStudio.findInstallation();
+  if (!installation) throw new Error('OpenCADStudio is not installed. Install it in Applications, then try again.');
+  const drawings = openCadStudio.writeTemporaryDrawings(app.getPath('temp'), files);
+  const session = await openCadSession.open(openCadStudio.executableForInstallation(installation), drawings);
+  return { files: drawings.map((file) => path.basename(file)), connected: session.connected, version: session.version };
+});
+handle('opencad:status', () => ({ installed: !!openCadStudio.findInstallation(), ...openCadSession.status() }));
 
 // ---- IPC: LV Database (Excel workbooks in the projects folder) ----
 let stopWatching = () => {};
