@@ -35,7 +35,7 @@ export const PROJECT_CLASS: Record<keyof Project, ChangeClass> = {
   strictFinalDisconnection: E, strictCableData: E, groundTempC: E, soilResistivityKmW: E, panelPrefixes: D, vdTempC: E, vdFinalCircuits: E, vdSelection: A, pointTemplate: D, info: A, revisions: B, drawing: D, ties: E, earthingPlan: E,
   earthPitIds: B, spacePlan: E, upsSystems: E, feederPresets: A, pv: E, trays: E, substations: E, studyReport: D, calcReportDocNo: D, vdReportDocNo: D, studyReportPresets: A, calc: A, studySettings: E, designReference: D, standards: D, params: D,
   titleTemplates: D, drawingSet: D, cableRefs: B, components: E, building: E, loadAssessment: E, boq: C, boqRevisions: B, variations: B, submissions: B, submissionDays: B, priceList: C, pfcCalc: E, containmentCalc: E, busRisers: E, busbarData: E, txGen: E, pfc: E,
-  status: A, createdBy: B, updatedBy: B, boards: E, feeders: E, updatedAt: B
+  status: A, stage: A, createdBy: B, updatedBy: B, boards: E, feeders: E, updatedAt: B
 };
 
 /** Project header details that are engineering inputs although the rest of `info` is administrative. */

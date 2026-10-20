@@ -6,7 +6,8 @@ import { buildDashboard, lengthText, sizesText, type DashBar, type TodoItem } fr
 import { buildDashboardHtml } from '../../docs/dashboardPdf';
 import { safeFileName, savePdf } from '../../util/files';
 import { Page } from '../ui';
-import { projectReadiness, splitTodo } from '../../calc/projectReadiness';
+import { splitTodo, stageChecklist } from '../../calc/projectReadiness';
+import { ifcIssued, nextStage as nextDesignStage, splitByStage, STAGE_INFO, stageOf, tenderRoute } from '../../model/designStage';
 import { deliverableProgress, PARTY_LABEL, ROLE_LABEL, SCOPE_ITEMS } from '../../model/brief';
 
 import type { MainView } from '../../views';
@@ -45,8 +46,10 @@ function Bars({ bars, unit = 'kW', empty }: { bars: DashBar[]; unit?: string; em
 
 /** The project at a glance: headline numbers, load breakdowns, transformer
  * loading and a to-do list; exports as a one-page PDF. */
-export default function ProjectDashboard({ project, run, stale, saved = false, onOpen, onEditBrief, onChangeProject, onGo, onRun, onStatus }: {
+export default function ProjectDashboard({ project, run, stale, saved = false, onOpen, onEditBrief, onChangeProject, onGo, onRun, onStatus, onIssueStage }: {
   project: Project;
+  /** The stage gate: issue this stage's package and move on. */
+  onIssueStage?: () => void;
   saved?: boolean;
   onOpen?: (v: MainView | 'settings') => void;
   /** Open the scope / parties / deliverables editor. */
@@ -65,10 +68,9 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
   const fails = d.studies.reduce((a, s) => a + s.fail, 0);
   const checks = d.studies.reduce((a, s) => a + s.check, 0);
   const passes = d.studies.reduce((a, s) => a + s.pass, 0);
-  const stages = projectReadiness(project, d, run, stale, saved);
-  const { counted: todoCounted, outside: todoOutside } = splitTodo(project, d.todo);
-  const counted = stages.filter(s => s.applicable);
-  const nextStage = counted.find(s => !s.done);
+  const cards = stageChecklist(project, d, run, stale, saved);
+  const { counted: inScope, outside: todoOutside } = splitTodo(project, d.todo);
+  const { counted: todoCounted, later: todoLater } = splitByStage(project, inScope);
   const brief = project.brief;
   const progress = deliverableProgress(brief);
 
@@ -115,10 +117,25 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
       </div>
 
       <section className="card dash-start">
-        <h4>Project readiness <span className="m">— {counted.filter(s => s.done).length} / {counted.length} stages complete{counted.length < stages.length ? ` (${stages.length - counted.length} not in scope)` : ''}</span></h4>
-        <p className="m">Checks cover network results, configured UPS and solar studies, and drawings. Completion records workflow progress; engineering review is still required.</p>
-        <div className="dash-tiles more">{stages.map(stage => <Tile key={stage.id} label={stage.label} value={!stage.applicable ? 'Not in scope' : stage.done ? 'Complete' : 'Pending'} sub={stage.applicable ? stage.detail : 'Left out of this project’s scope — still available'} onClick={onOpen ? () => stage.id === 'calculate' ? onRun() : onOpen(stage.go) : undefined} />)}</div>
-        {nextStage && onOpen && <button className="chip primary" onClick={() => nextStage.id === 'calculate' ? onRun() : nextStage.id === 'resolve' ? document.getElementById('dash-todo')?.scrollIntoView({ behavior: 'smooth' }) : onOpen(nextStage.go)}>Next: {nextStage.label}</button>}
+        <h4>Design stage <span className="m">— {STAGE_INFO[stageOf(project)].label}{ifcIssued(project) ? ' · IFC issued' : ''} · {tenderRoute(project) === 'before-ifc' ? 'tender before IFC' : 'IFC package used for tender'}</span></h4>
+        <p className="m">Each stage adds detail to the one before. Checks for a later stage are listed but not counted yet. Completion records workflow progress; engineering review is still required.</p>
+        <div className="dash-tiles more">{cards.map((c, k) => (
+          <div key={c.stage} className="dash-tile" style={c.state === 'current' ? { borderColor: 'var(--acc)' } : undefined}>
+            <span className="dash-label">{k + 1}. {c.label}</span>
+            <span className="dash-value">{c.state === 'done' ? `Done${c.gate ? ` · Rev ${c.gate.revisionId}` : ''}` : c.state === 'current' ? 'Current' : 'Next'}</span>
+            <span className="dash-sub">{c.does}</span>
+            <ul className="dash-stage-checks">{c.checks.map((x) => { const ok = c.state === 'done' || (c.state === 'current' && x.done); return (
+              <li key={x.label} className={ok ? 'ok' : 'm'}><span>{ok ? '✓' : '○'}</span>
+                {onOpen ? <button className="linkish" onClick={() => x.go === 'dashboard' ? document.getElementById('dash-todo')?.scrollIntoView({ behavior: 'smooth' }) : onOpen(x.go)}>{x.label}</button> : x.label}</li>
+            ); })}</ul>
+            {c.gate && <span className="m">Issued {new Date(c.gate.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}{c.gate.by ? ` · ${c.gate.by}` : ''}</span>}
+          </div>
+        ))}</div>
+        {onIssueStage && !(stageOf(project) === 'ifc' && ifcIssued(project)) && (
+          <button className="chip primary" onClick={onIssueStage} title="Records a revision, makes it the baseline and moves to the next stage">
+            {stageOf(project) === 'ifc' ? 'Issue IFC' : `Issue ${STAGE_INFO[stageOf(project)].label.toLowerCase()} → ${STAGE_INFO[nextDesignStage(project)!].label}`}
+          </button>
+        )}
       </section>
       <section className="card dash-brief">
         <h4>Scope and deliverables{brief && <span className="m"> — {ROLE_LABEL[brief.role].title.split(' — ')[0]}{progress.total ? ` · ${progress.done} / ${progress.total} delivered` : ''}</span>}
@@ -223,6 +240,19 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
               ))}
               {todoCounted.length > 14 && <li className="m">+ {todoCounted.length - 14} more</li>}
             </ul>
+          )}
+          {todoLater.length > 0 && (
+            <details className="dash-outside">
+              <summary>For a later design stage ({todoLater.length}) <span className="m">— not counted at {STAGE_INFO[stageOf(project)].label}</span></summary>
+              <ul className="dash-todo">
+                {todoLater.map((t, k) => (
+                  <li key={k}>
+                    <span className={`dash-todo-mark ${t.status}`}>{t.status === 'bad' ? '✕ Fix' : '⚠ Check'}</span>
+                    {t.go ? <button className="linkish" onClick={() => onGo(t.go!)}>{t.text}</button> : <span>{t.text}</span>}
+                  </li>
+                ))}
+              </ul>
+            </details>
           )}
           {todoOutside.length > 0 && (
             <details className="dash-outside">

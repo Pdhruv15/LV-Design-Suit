@@ -426,6 +426,8 @@ export interface Project {
   txGen?: Partial<import('./calc/txGen').TxGenPlan>; // transformer & generator sizing choices
   pfc?: Partial<import('./calc/pfc').PfcPlan>; // power factor correction: strategy, boards, bank design
   status?: ProjectStatus; // where the job is (projects dashboard)
+  /** Design stage: Concept → Schematic → Detailed design → (Tender) → IFC, with the gates passed. Absent = detailed design (older projects). */
+  stage?: import('./model/designStage').ProjectStage;
   createdBy?: string;
   updatedBy?: string; // who saved it last (the user profile's name)
   boards: Board[];
@@ -845,6 +847,7 @@ export function newProject(name: string): Project {
     vdLimitPct: 4,
     pointTemplate: NEW_PROJECT_POINT_TEMPLATE,
     info: { mdDemandFactor: 0.8 },
+    stage: { current: 'concept' },
     boards: [{ id: 'MDB-1', name: 'Main Distribution Board', kind: 'MDB', sourceKva: 1000, sourceImpedancePct: 5, ratedCurrentA: 1600 }],
     feeders: [],
     updatedAt: new Date().toISOString()

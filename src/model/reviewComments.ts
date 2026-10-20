@@ -18,8 +18,8 @@ export interface CommentRef { kind: RefKind; id: string; /** The item's engineer
 export interface CommentStep { status: CommentStatus; at: string; by?: string; note?: string }
 export interface ReviewComment {
   id: string; // RC-001
-  /** A finding about the design, or a question put to its author (default: finding). */
-  kind?: 'finding' | 'question';
+  /** A finding about the design, a question put to its author, or a tenderer's query during the tender (default: finding). */
+  kind?: CommentKind;
   category: CommentCategory;
   severity: CommentSeverity;
   finding: string;
@@ -41,6 +41,9 @@ export interface ReviewComment {
   related?: string;
 }
 
+export type CommentKind = 'finding' | 'question' | 'tender-query';
+export const KIND_LABEL: Record<CommentKind, string> = { finding: 'Finding', question: 'Question', 'tender-query': 'Tender query' };
+
 export class CommentError extends Error {}
 
 type Bag = Record<string, unknown>;
@@ -56,7 +59,7 @@ export function stampOf(p: Project, kind: RefKind, id: string): string | undefin
 
 const nextId = (p: Project) => `RC-${String(Math.max(0, ...(p.reviewComments ?? []).map((c) => Number(c.id.replace(/\D/g, '')) || 0)) + 1).padStart(3, '0')}`;
 
-export interface CommentInput { kind?: 'finding' | 'question'; category: CommentCategory; severity: CommentSeverity; finding: string; criterion?: string; requiredAction?: string; assignedTo?: string; sheet?: string; revisionId?: string; ref?: { kind: RefKind; id: string }; raisedBy?: string; related?: string }
+export interface CommentInput { kind?: CommentKind; category: CommentCategory; severity: CommentSeverity; finding: string; criterion?: string; requiredAction?: string; assignedTo?: string; sheet?: string; revisionId?: string; ref?: { kind: RefKind; id: string }; raisedBy?: string; related?: string }
 
 export function newComment(p: Project, i: CommentInput, now = new Date()): ReviewComment {
   if (!i.finding.trim()) throw new CommentError('Describe the finding.');
@@ -67,7 +70,7 @@ export function newComment(p: Project, i: CommentInput, now = new Date()): Revie
     ref = { ...i.ref, stamp };
   }
   const at = now.toISOString(), by = i.raisedBy?.trim() || undefined;
-  return { id: nextId(p), ...(i.kind === 'question' ? { kind: 'question' as const } : {}), category: i.category, severity: i.severity, finding: i.finding.trim(), criterion: i.criterion?.trim() || undefined, requiredAction: i.requiredAction?.trim() || undefined,
+  return { id: nextId(p), ...(i.kind && i.kind !== 'finding' ? { kind: i.kind } : {}), category: i.category, severity: i.severity, finding: i.finding.trim(), criterion: i.criterion?.trim() || undefined, requiredAction: i.requiredAction?.trim() || undefined,
     assignedTo: i.assignedTo?.trim() || undefined, sheet: i.sheet?.trim() || undefined, revisionId: i.revisionId, ref, raisedBy: by, createdAt: at, status: 'open', history: [{ status: 'open', at, by }], related: i.related?.trim() || undefined };
 }
 
@@ -120,3 +123,6 @@ export function reviewSummary(p: Project): ReviewSummary {
     stale: live.filter((c) => refState(p, c) === 'missing').length
   };
 }
+
+/** Tender queries not yet closed or withdrawn. */
+export const openTenderQueries = (p: Project) => (p.reviewComments ?? []).filter((c) => c.kind === 'tender-query' && c.status !== 'closed' && c.status !== 'withdrawn').length;

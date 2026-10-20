@@ -1,7 +1,7 @@
 import type { Project } from '../types';
 import type { CalcRun, StudyKey } from '../calc/runs';
 import type { MainView } from '../views';
-import { QUICK_PATHS, startChecklist, WORKFLOW, type ChecklistItem } from '../help/guide';
+import { PHASE_LABEL, QUICK_PATHS, startChecklist, WORKFLOW, type ChecklistItem } from '../help/guide';
 import { Page } from './ui';
 
 type Go = (v: MainView | 'settings') => void;
@@ -36,7 +36,7 @@ export default function HelpView({ project, run, stale, saved, onGo }: { project
           <div className="help-flow">
             {phases.map((ph) => (
               <div key={ph} className={`help-phase p-${ph.toLowerCase()}`}>
-                <span className="help-phase-name">{ph}</span>
+                <span className="help-phase-name">{PHASE_LABEL[ph]}</span>
                 {WORKFLOW.filter((s) => s.phase === ph).map((s) => (
                   <button key={s.n} className="help-step" onClick={() => onGo(s.go)}>
                     <span className="help-n">{s.n}</span>
@@ -45,7 +45,7 @@ export default function HelpView({ project, run, stale, saved, onGo }: { project
                 ))}
               </div>
             ))}
-            <p className="m">Step 6 loops back to 4–5 until the dashboard’s to-do list is empty.</p>
+            <p className="m">Each stage adds detail to the one before; issuing a stage records a revision. Step 6 loops back to 5 until the Overview’s to-do list is empty.</p>
           </div>
         </section>
         <section className="card">

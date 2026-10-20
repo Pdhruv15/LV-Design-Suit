@@ -1,14 +1,15 @@
 import { AddBoardIcon, BoardPropsIcon, TxGenSizingIcon } from './icons/elecIcons';
 import { useEffect, useRef, useState } from 'react';
 import {
-  Activity, BatteryCharging, Building2, Cable, Calculator, ClipboardCheck, MessageSquareWarning, Inbox, Car, CircuitBoard, Cog, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText, GitPullRequestArrow, Send, Stamp,
+  BatteryCharging, Building2, Cable, ClipboardCheck, MessageSquareWarning, Inbox, Car, CircuitBoard, Cog, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText, GitPullRequestArrow, Send, Stamp,
   Gauge, Hand, LayoutGrid, ListTree, MousePointer2, Pencil, Receipt, Scale, Settings2, ShieldCheck, Sun,
-  ChevronDown, ChevronUp, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig } from 'lucide-react';
+  ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig } from 'lucide-react';
 import type { BoardKind, Feeder } from '../types';
 import type { MainView } from '../views';
+import { STAGE_INFO, type DesignStage, type TenderRoute } from '../model/designStage';
 
 export type BomCommand = 'boq' | 'scope' | 'changes' | 'variations' | 'circuits' | 'excel' | 'pdf' | 'summary-pdf' | 'rates-sheet' | 'import' | 'save-list' | 'add-item' | 'add-section' | 'extras' | 'wastage' | 'markup' | 'document' | 'issue-rev';
-export type RibbonTab = 'home' | 'design' | 'calculate' | 'simulate' | 'reports' | 'cost' | 'standards';
+export type RibbonTab = 'home' | 'concept' | 'schematic' | 'detailed' | 'reports' | 'issue' | 'cost' | 'standards';
 export type DiagramTool = 'select' | 'pan';
 
 type Icon = LucideIcon | ((p: { size?: number; strokeWidth?: number }) => JSX.Element);
@@ -69,12 +70,25 @@ export interface RibbonActions {
   /** BOM / Cost tab: a command for the bill of quantities page. */
   onBom: (cmd: BomCommand) => void;
   hasPriceList: boolean;
+  /** Design stage the project is in, and the stage gate (issue this stage's package, move to the next). */
+  stage: DesignStage;
+  nextStage?: DesignStage;
+  ifcIssued: boolean;
+  onAdvanceStage: () => void;
+  route: TenderRoute;
+  onRoute: (r: TenderRoute) => void;
+  /** Concept design report (one A4 page, PDF). */
+  onConceptReport: () => void;
 }
 
 /** Group captions under the ribbon groups (same order as the groups). */
 const CAPTIONS: Partial<Record<RibbonTab, string[]>> = {
   home: ['Project', 'Diagram & history', 'Setup'],
-  design: ['History', 'Canvas', 'Boards & planning', 'Equipment', 'Selection']
+  concept: ['Load', 'Supply', 'Stage'],
+  schematic: ['History', 'Distribution', 'Main systems', 'Stage'],
+  detailed: ['History', 'Canvas', 'Boards', 'Equipment', 'Selection', 'Calculate', 'Stage'],
+  reports: ['Schedules', 'Drawings and reports'],
+  issue: ['Tender', 'Track', 'Send', 'IFC']
 };
 
 const ADD_BOARD: { kind: BoardKind; ratingA: number }[] = [
@@ -82,26 +96,39 @@ const ADD_BOARD: { kind: BoardKind; ratingA: number }[] = [
   { kind: 'MCC', ratingA: 400 }, { kind: 'EMCC', ratingA: 400 }, { kind: 'EMDB', ratingA: 400 }
 ];
 
-const TABS: { id: RibbonTab; label: string; icon: Icon }[] = [
+/** Tabs in the order the design is done: concept → schematic → detailed design → documents → tender and IFC. */
+const TABS: { id: RibbonTab; label: string; icon: Icon; step?: string; stages?: DesignStage[] }[] = [
   { id: 'home', label: 'Project', icon: House },
-  { id: 'design', label: 'Design', icon: CircuitBoard },
-  { id: 'calculate', label: 'Calculate', icon: Calculator },
-  { id: 'simulate', label: 'Simulate', icon: Activity },
-  { id: 'reports', label: 'Reports', icon: FileText },
+  { id: 'concept', label: 'Concept', icon: ChartColumnBig, step: '1', stages: ['concept'] },
+  { id: 'schematic', label: 'Schematic', icon: Waypoints, step: '2', stages: ['schematic'] },
+  { id: 'detailed', label: 'Detailed design', icon: CircuitBoard, step: '3', stages: ['detailed'] },
+  { id: 'reports', label: 'Documents', icon: FileText },
+  { id: 'issue', label: 'Tender and IFC', icon: Stamp, step: '4', stages: ['tender', 'ifc'] },
   { id: 'cost', label: 'BOM / Cost', icon: Receipt },
   { id: 'standards', label: 'Standards', icon: Settings2 }
 ];
 
+/** The ribbon tab a project in this stage opens on. */
+export const tabForStage = (s: DesignStage): RibbonTab => TABS.find((t) => t.stages?.includes(s))!.id;
+
+/** Screens on each tab. A screen on several tabs (the SLD on Schematic and Detailed design) keeps the tab you are on. */
+const TAB_VIEWS: Record<RibbonTab, MainView[]> = {
+  home: ['projects', 'dashboard', 'help', 'parameters', 'titleblock', 'building'],
+  concept: ['building', 'load-assessment', 'sizing', 'substation-area', 'space-planning', 'dashboard'],
+  schematic: ['panels', 'design', 'busbar', 'pfc', 'ups', 'solar', 'earth-schematic'],
+  detailed: ['design', 'panels', 'load-schedule', 'enclosure', 'selection', 'voltage-drop', 'earthing', 'coordination', 'engines', 'calculators'],
+  reports: ['load-schedule', 'db-schedule', 'cable-schedule', 'cable-tray', 'equipment', 'drawings', 'drawing-register', 'study-reports', 'report', 'export-centre'],
+  issue: ['revisions', 'modifications', 'review', 'received-docs', 'submissions'],
+  cost: ['boq'],
+  standards: ['database', 'design-references']
+};
+const HOME_TAB: Partial<Record<MainView, RibbonTab>> = { building: 'concept', dashboard: 'home', design: 'detailed', panels: 'detailed', 'load-schedule': 'detailed' };
+
 /** The ribbon tab that owns a screen, so the ribbon follows navigation
- * done from the left menu. */
-export function tabForView(v: MainView): RibbonTab {
-  if (v === 'projects' || v === 'dashboard' || v === 'help' || v === 'parameters' || v === 'titleblock') return 'home';
-  if (v === 'building' || v === 'load-assessment' || v === 'design' || v === 'load-schedule' || v === 'space-planning' || v === 'substation-area' || v === 'enclosure' || v === 'earth-schematic' || v === 'panels') return 'design';
-  if (v === 'engines') return 'simulate';
-  if (['calculators', 'voltage-drop', 'earthing', 'coordination', 'selection', 'sizing', 'pfc', 'busbar', 'ups', 'solar'].includes(v)) return 'calculate';
-  if (v === 'boq') return 'cost';
-  if (v === 'database' || v === 'design-references') return 'standards';
-  return 'reports';
+ * (the current tab is kept when the screen is on it too). */
+export function tabForView(v: MainView, current?: RibbonTab): RibbonTab {
+  if (current && TAB_VIEWS[current].includes(v)) return current;
+  return HOME_TAB[v] ?? (Object.keys(TAB_VIEWS) as RibbonTab[]).find((t) => TAB_VIEWS[t].includes(v)) ?? 'reports';
 }
 
 export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: RibbonTab) => void; a: RibbonActions }) {
@@ -150,6 +177,24 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   const view = (v: MainView, label: string, icon: Icon, title: string): Tool => ({ label, icon, title, onClick: go(v), active: a.view === v, page: true });
   const sel = a.selection;
   const selName = sel ? `${sel.kind === 'board' ? 'board' : 'feeder'} ${sel.id}` : '';
+  const boardMenu = [
+    ...ADD_BOARD.map((x) => ({ label: `${x.kind} · ${x.ratingA} A`, title: `Add a ${x.kind} rated ${x.ratingA} A fed from ${a.boardId || 'the selected board'}`, onClick: () => a.onAddBoard(x) })),
+    { label: 'Build hierarchy…', title: 'Panels: create by count (levels later), edit levels and connections in one list, rename by level; typical floors, repeat group, templates', onClick: go('panels'), sep: true }
+  ];
+  /** The stage gate of a stage: issues its package and moves on; only the stage the project is in can be issued. */
+  const gate = (s: DesignStage): Tool => {
+    const here = a.stage === s, done = s === 'ifc' ? a.ifcIssued : false;
+    const info = STAGE_INFO[s], next = a.nextStage && STAGE_INFO[a.nextStage].label;
+    return {
+      label: s === 'ifc' ? 'Issue IFC' : s === 'tender' ? 'Issue for tender' : `Issue ${info.short.toLowerCase()}`,
+      icon: s === 'ifc' ? Lock : CircleArrowRight,
+      sub: here ? (s === 'ifc' ? (done ? 'issued' : 'final') : next ? `→ ${next}` : undefined) : undefined,
+      title: !here ? `The project is at ${STAGE_INFO[a.stage].label}; this gate is for ${info.label}` : s === 'ifc'
+        ? 'Issue the IFC package: records a revision, makes it the baseline and freezes it — later changes show as changes after IFC'
+        : `Issue the ${info.label.toLowerCase()} package: records a revision (${info.sheetStatus}), makes it the baseline and moves to ${next}`,
+      onClick: a.onAdvanceStage, disabled: !here, stale: here && !done
+    };
+  };
 
   const groups: Record<RibbonTab, Tool[][]> = {
     home: [
@@ -176,7 +221,39 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: a.folderLabel, icon: FolderCog, title: 'Where projects are saved (e.g. a Google Drive folder)', onClick: a.onChooseFolder }
       ]
     ],
-    design: [
+    concept: [
+      [
+        view('building', 'Building', Building2, 'Building information: GFA, levels, typical floors, rooms and room types'),
+        view('load-assessment', 'Load assessment', ChartColumnBig, 'Load assessment: maximum demand, transformers and generator from the building type, area schedule and services')
+      ],
+      [
+        view('sizing', 'Tx & Gen sizing', TxGenSizingIcon, 'Transformer and generator sizing: size list, duty / standby, generator boards and motor start'),
+        view('substation-area', 'Substation area', Building2, 'Minimum substation, RMU and LV room areas (Dubai Municipality DM-D-013)'),
+        view('space-planning', 'Space plan', LayoutGrid, 'Space planning: areas → panels → transformers → RMUs')
+      ],
+      [view('dashboard', 'Overview', LayoutDashboard, 'Overview: the stage checklist, key figures and what is outstanding'), { label: 'Concept report', icon: FileText, title: 'Concept design report (PDF, one A4 page): building, area schedule, maximum demand, supply and room areas', onClick: a.onConceptReport }, gate('concept')]
+    ],
+    schematic: [
+      [
+        { label: 'Run', icon: Play, title: a.staleCount ? `Run calculations (F5) — ${a.staleCount} out of date` : 'Run calculations (F5) — up to date', onClick: a.onRun, stale: a.staleCount > 0 },
+        { label: 'Undo', icon: Undo2, title: 'Undo (⌘Z / Ctrl+Z)', onClick: a.onUndo, disabled: !a.canUndo },
+        { label: 'Redo', icon: Redo2, title: 'Redo (⇧⌘Z / Ctrl+Y)', onClick: a.onRedo, disabled: !a.canRedo }
+      ],
+      [
+        { label: 'Boards', icon: AddBoardIcon, title: `Add a board fed from ${a.boardId || 'an existing board'} — ▾ for an SMDB, MCC or EMDB with its usual rating, or Build hierarchy to create many at once`, onClick: () => a.onAddBoard(), page: true, menu: boardMenu },
+        view('panels', 'Build hierarchy', ListTree, 'Panels: create by count, edit levels and connections in one list, rename by level; typical floors, repeat group, templates'),
+        view('design', 'SLD', Network, 'Single line diagram — main boards and risers at this stage'),
+        view('busbar', 'Busbar riser', AlignVerticalSpaceAround, 'Busbar trunking risers for high-rise buildings: rating (Cu / Al), area, voltage drop per floor, size and weight')
+      ],
+      [
+        view('pfc', 'Power factor', BatteryCharging, 'Power factor correction: capacitor banks from the maximum demand'),
+        view('ups', 'UPS & battery', BatteryFull, 'UPS rating and battery sizing for the backup time'),
+        view('solar', 'Solar PV', Sun, 'Solar PV array, string design, inverters and yield'),
+        view('earth-schematic', 'Earth pits', Network, 'Earthing schematic: earth pits of the RMUs, transformers and main boards, and how they are linked')
+      ],
+      [gate('schematic')]
+    ],
+    detailed: [
       [
         { label: 'Run', icon: Play, title: a.staleCount ? `Run calculations (F5) — ${a.staleCount} out of date` : 'Run calculations (F5) — up to date', onClick: a.onRun, stale: a.staleCount > 0 },
         { label: 'Undo', icon: Undo2, title: 'Undo (⌘Z / Ctrl+Z)', onClick: a.onUndo, disabled: !a.canUndo },
@@ -188,56 +265,29 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'Pan', icon: Hand, title: 'Pan tool — drag to move around the diagram without selecting (H)', onClick: () => { a.onView('design'); a.onTool('pan'); }, active: a.view === 'design' && a.tool === 'pan' }
       ],
       [
-        { label: 'Boards', icon: AddBoardIcon, title: `Add a board fed from ${a.boardId || 'an existing board'} — ▾ for a DB, SMDB, MCC or EMDB with its usual rating, or Build hierarchy to create many at once`, onClick: () => a.onAddBoard(), active: a.view === 'panels', page: true,
-          menu: [
-            ...ADD_BOARD.map((x) => ({ label: `${x.kind} · ${x.ratingA} A`, title: `Add a ${x.kind} rated ${x.ratingA} A fed from ${a.boardId || 'the selected board'}`, onClick: () => a.onAddBoard(x) })),
-            { label: 'Build hierarchy…', title: 'Panels: create by count (levels later), edit levels and connections in one list, rename by level; typical floors, repeat group, templates', onClick: go('panels'), sep: true }
-          ] },
+        { label: 'Boards', icon: AddBoardIcon, title: `Add a board fed from ${a.boardId || 'an existing board'} — ▾ for a DB, SMDB, MCC or EMDB with its usual rating, or Build hierarchy to create many at once`, onClick: () => a.onAddBoard(), active: a.view === 'panels', page: true, menu: boardMenu },
         { label: 'Board', icon: BoardPropsIcon, sub: a.boardId || undefined, title: a.boardId ? `Properties of ${a.boardId}: general, supply (its transformer and feed chain), electrical, protection, location` : 'Board properties — select a board first', onClick: a.onBoardProperties, disabled: !a.boardId },
-        { label: 'Schedule', icon: Table2, title: `Load distribution schedule of ${a.boardId}`, onClick: go('load-schedule'), active: a.view === 'load-schedule', page: true },
-        view('building', 'Building', Building2, 'Building information: GFA, levels, typical floors, rooms and room types'),
-        view('load-assessment', 'Load assessment', ChartColumnBig, 'Load assessment: maximum demand, transformers and generator from the building type, area schedule and services'),
-        { label: 'Space plan', icon: LayoutGrid, title: 'Space planning: areas → panels → transformers → RMUs', onClick: go('space-planning'), active: a.view === 'space-planning', page: true },
-        { label: 'Enclosure sizing', icon: Box, title: 'Enclosure sizing: the board\'s physical space (modules) from a supplier catalogue — candidates, dimensioned preview', onClick: go('enclosure'), active: a.view === 'enclosure', page: true },
-        { label: 'Earth pits', icon: Network, title: 'Earthing schematic: earth pits of the RMUs, transformers and main boards, and how they are linked', onClick: go('earth-schematic'), active: a.view === 'earth-schematic', page: true },
-        { label: 'Substation area', icon: Building2, title: 'Minimum substation, RMU and LV room areas (Dubai Municipality DM-D-013)', onClick: go('substation-area'), active: a.view === 'substation-area', page: true }
+        { label: 'Schedule', icon: Table2, title: `Load distribution schedule of ${a.boardId}: circuits, spare ways, R / Y / B balance`, onClick: go('load-schedule'), active: a.view === 'load-schedule', page: true },
+        { label: 'Enclosure sizing', icon: Box, title: 'Enclosure sizing: the board\'s physical space (modules) from a supplier catalogue — candidates, dimensioned preview', onClick: go('enclosure'), active: a.view === 'enclosure', page: true }
       ],
       [
         { label: 'Cable', icon: Cable, title: `Add a feeder cable ${addTo}`, onClick: () => a.onAddFeeder({}) },
         { label: 'Load', icon: Zap, title: `Add a load ${addTo}`, onClick: () => a.onAddFeeder({ loadType: 'general' }) },
         { label: 'Motor', icon: Cog, title: `Add a motor ${addTo}`, onClick: () => a.onAddFeeder({ loadType: 'motor', powerFactor: 0.86, demandFactor: 1 }) },
         { label: 'Solar PV', icon: Sun, title: `Add solar PV / generation ${addTo}`, onClick: () => a.onAddFeeder({ loadType: 'pv', generation: true, powerFactor: 1, demandFactor: 1 }) },
-        { label: 'EV', icon: Car, title: `Add EV charging ${addTo}`, onClick: () => a.onAddFeeder({ loadType: 'ev', powerFactor: 0.98 }) },
-        { label: 'Capacitor', icon: BatteryCharging, title: 'Size capacitor banks (power factor correction)', onClick: go('pfc'), page: true }
+        { label: 'EV', icon: Car, title: `Add EV charging ${addTo}`, onClick: () => a.onAddFeeder({ loadType: 'ev', powerFactor: 0.98 }) }
       ],
       [
         { label: 'Edit', icon: Pencil, title: sel ? `Edit ${selName}` : 'Select a board or feeder first', onClick: a.onEditSelected, disabled: !sel },
-        { label: 'Delete', icon: Trash2, title: sel ? `Delete ${selName}${sel.kind === 'board' ? ' and everything fed from it' : ''} (Delete key)` : 'Select a board or feeder first', onClick: a.onDeleteSelected, disabled: !sel },
-        { label: 'Protection', icon: ShieldCheck, title: 'Protection coordination study', onClick: go('coordination'), page: true }
-      ]
-    ],
-    calculate: [
-      [{ label: 'Run', icon: Play, title: a.staleCount ? `Run calculations (F5) — ${a.staleCount} out of date` : 'Run calculations (F5) — up to date', onClick: a.onRun, stale: a.staleCount > 0 }],
+        { label: 'Delete', icon: Trash2, title: sel ? `Delete ${selName}${sel.kind === 'board' ? ' and everything fed from it' : ''} (Delete key)` : 'Select a board or feeder first', onClick: a.onDeleteSelected, disabled: !sel }
+      ],
       [
+        view('selection', 'Selection', ListTree, 'Breaker and cable selection'),
         view('voltage-drop', 'Voltage drop', TrendingDown, 'Voltage drop calculation: panels and equipment cables, with report'),
         view('earthing', 'Earthing', Gauge, 'Fault loop impedance and disconnection time'),
-        view('coordination', 'Protection', ShieldCheck, 'Protection coordination and selectivity'),
-        view('selection', 'Selection', ListTree, 'Breaker and cable selection')
+        view('coordination', 'Protection', ShieldCheck, 'Protection coordination and selectivity')
       ],
-      [
-        view('sizing', 'Tx & Gen sizing', TxGenSizingIcon, 'Transformer and generator sizing: size list, duty / standby, generator boards and motor start'),
-        view('pfc', 'Power factor', BatteryCharging, 'Power factor correction'),
-        view('busbar', 'Busbar riser', AlignVerticalSpaceAround, 'Busbar trunking risers for high-rise buildings: rating (Cu / Al), area, voltage drop per floor, size and weight')
-      ],
-      [
-        view('ups', 'UPS & battery', BatteryFull, 'UPS rating and battery sizing for the backup time'),
-        view('solar', 'Solar PV', Sun, 'Solar PV array, string design, inverters and yield')
-      ],
-      [view('calculators', 'Quick calcs', Calculator, 'Quick calculators: amps, kW/kVA, voltage drop, cable & breaker, transformer, motor, PF, fault level, lighting lux, Ohm\'s law, energy, units')]
-    ],
-    simulate: [
-      [view('engines', 'Load flow', Activity, 'Run OpenDSS or pandapower and compare with the built-in engine')],
-      [{ label: 'Export .dss', icon: FileDown, title: 'Export the network as an OpenDSS script', onClick: a.onExportDss }]
+      [gate('detailed')]
     ],
     reports: [
       [
@@ -247,7 +297,22 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         view('cable-tray', 'Cable trays', Rows3, 'Cable tray schedule: routes A, B, C… with the cables on each and the tray size'),
         view('equipment', 'Equipment', FileSpreadsheet, 'Transformers and boards')
       ],
-      [view('drawings', 'Drawings', Files, 'SLD sheets and register in one place: panels per sheet, status, revisions, title block, issues and transmittals, PDF / Excel exports'), view('study-reports', 'Study reports', ClipboardCheck, 'Submission reports: chosen studies (short circuit, load flow…) for chosen boards, with their SLD'), view('report', 'Calc report', FileText, 'Calculation report (PDF)'), view('export-centre', 'Export centre', FileDown, 'Every PDF document in one list: tick what you need and export a zip or one bookmarked PDF'), view('revisions', 'Revisions', History, 'Issue Rev A, B, C… and see what changed'), view('modifications', 'Changes', GitCompare, 'What the working draft changes against its baseline: panels, studies to run again, drawings, schedules and BOQ quantities'), view('review', 'Review', MessageSquareWarning, 'Design review comments: raise, answer and close them; closed ones are flagged when the design changes'), view('received-docs', 'Received docs', Inbox, 'Register of documents received from others, with revisions and the baseline the work started from'), view('submissions', 'Submissions', Send, 'Documents sent out — BOQ, drawings, reports, variations — with due dates, responses, comments and transmittals')]
+      [view('drawings', 'Drawings', Files, 'SLD sheets and register in one place: panels per sheet, status, revisions, title block, issues and transmittals, PDF / Excel exports'), view('study-reports', 'Study reports', ClipboardCheck, 'Submission reports: chosen studies (short circuit, load flow…) for chosen boards, with their SLD'), view('report', 'Calc report', FileText, 'Calculation report (PDF)'), view('export-centre', 'Export centre', FileDown, 'Every PDF document in one list: tick what you need and export a zip or one bookmarked PDF')]
+    ],
+    issue: [
+      [
+        ...(a.route === 'before-ifc' ? [gate('tender')] : []),
+        { label: 'Tender queries', icon: MessageCircleQuestion, title: 'Tenderers\' queries and the answers (Review list, type Tender query); open ones keep the tender stage open', onClick: go('review') },
+        { label: 'BOQ', icon: Receipt, title: 'Bill of quantities for the tender', onClick: () => a.onBom('boq') },
+        { label: 'Route', icon: Route, sub: a.route === 'before-ifc' ? 'Tender first' : 'IFC for tender', title: a.route === 'before-ifc' ? 'Tender before IFC: a tender stage between detailed design and IFC — ▾ to change' : 'The IFC package is used for tender (no separate tender stage) — ▾ to change', onClick: () => a.onRoute(a.route === 'before-ifc' ? 'from-ifc' : 'before-ifc'),
+          menu: [
+            { label: 'Tender before IFC', title: 'Detailed design → Tender → IFC (design-bid-build)', onClick: () => a.onRoute('before-ifc') },
+            { label: 'IFC used for tender', title: 'Detailed design → IFC; the IFC package goes to tender', onClick: () => a.onRoute('from-ifc') }
+          ] }
+      ],
+      [view('revisions', 'Revisions', History, 'Issue Rev A, B, C… and see what changed'), view('modifications', 'Changes', GitCompare, 'What the working draft changes against its baseline (the last stage issue): panels, studies to run again, drawings, schedules and BOQ quantities'), view('review', 'Review', MessageSquareWarning, 'Design review comments: raise, answer and close them; closed ones are flagged when the design changes'), view('received-docs', 'Received docs', Inbox, 'Register of documents received from others, with revisions and the baseline the work started from')],
+      [view('submissions', 'Submissions', Send, 'Documents sent out — BOQ, drawings, reports, variations — with due dates, responses, comments and transmittals')],
+      [gate('ifc')]
     ],
     cost: [
       [
@@ -303,7 +368,8 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
               (e.currentTarget.parentElement?.children[(k + TABS.length) % TABS.length] as HTMLElement | undefined)?.focus();
             }}>
             <I size={16} strokeWidth={1.8} />
-            {label}
+            {TABS[ti].step ? `${TABS[ti].step} ${label}` : label}
+            {TABS[ti].stages?.includes(a.stage) && <span className="m"> · now</span>}
           </button>
         ))}
         <span className="sp" />
@@ -346,7 +412,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
             {CAPTIONS[tab]?.[gi] && <div className="ribbon-caption">{CAPTIONS[tab]![gi]}</div>}
           </div>
         ))}
-        {tab === 'design' && (
+        {tab === 'detailed' && (
           <div className="ribbon-selected" title="Edit, Delete and Properties act on this">
             <span className="m">Selected</span>
             <b>{sel ? sel.id : '—'}</b>
@@ -378,7 +444,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
             )}
           </div>
         )}
-        {tab === 'design' && (
+        {tab === 'detailed' && (
           <div className="ribbon-group more" ref={moreRef}>
             <button
               title="More tools"
@@ -395,6 +461,8 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
             </button>
             {moreOpen && (
               <div className="ribbon-menu" role="menu" style={{ left: menuLeft }}>
+                <button role="menuitem" onClick={() => { setMoreOpen(false); a.onView('engines'); }}>Load flow (OpenDSS / pandapower)</button>
+                <button role="menuitem" onClick={() => { setMoreOpen(false); a.onView('calculators'); }}>Quick calcs</button>
                 <button role="menuitem" onClick={() => { setMoreOpen(false); a.onExportDss(); }}>Export OpenDSS (.dss)</button>
                 <button role="menuitem" onClick={() => { setMoreOpen(false); a.onView('report'); }}>Calculation report</button>
                 <button role="menuitem" onClick={() => { setMoreOpen(false); a.onSettings(); }}>Project settings</button>
