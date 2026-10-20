@@ -2,6 +2,7 @@ import { runsOf, type FeederResult } from '../calc/electrical';
 import { cableTypeOf, cableTypeDef } from '../model/cableTypes';
 import type { Project } from '../types';
 import { cableRatePerM, breakerRateAed, CURRENCY } from '../data/rates';
+import { saveCsv } from '../util/files';
 
 interface Row {
   id: string; name: string; type: string; fireRated: boolean; cableCsaMm2: number; runs: number; lengthM: number;
@@ -22,12 +23,12 @@ function buildRows(results: FeederResult[], project?: Project): Row[] {
   });
 }
 
-function toCsv(rows: Row[]): string {
-  const header = ['Circuit', 'Description', 'Cable type', 'Cable (mm²)', 'Length (m)', `Cable rate (${CURRENCY}/m)`, `Cable cost (${CURRENCY})`, 'Breaker (A)', `Breaker cost (${CURRENCY})`, `Total (${CURRENCY})`];
-  const lines = rows.map((r) => [r.id, r.name, r.type, r.runs > 1 ? `${r.runs} x ${r.cableCsaMm2}` : r.cableCsaMm2, r.lengthM, r.cableRate, r.cableCost.toFixed(0), r.breakerRatingA, r.breakerCost.toFixed(0), r.total.toFixed(0)].join(','));
-  const grand = rows.reduce((s, r) => s + r.total, 0);
-  lines.push(['', '', '', '', '', '', '', '', 'Grand total', grand.toFixed(0)].join(','));
-  return [header.join(','), ...lines].join('\n');
+/** The circuit bill as CSV rows, with a grand-total row. */
+function csvRows(rows: Row[]): { headers: string[]; data: unknown[][] } {
+  const headers = ['Circuit', 'Description', 'Cable type', 'Cable (mm²)', 'Length (m)', `Cable rate (${CURRENCY}/m)`, `Cable cost (${CURRENCY})`, 'Breaker (A)', `Breaker cost (${CURRENCY})`, `Total (${CURRENCY})`];
+  const data: unknown[][] = rows.map((r) => [r.id, r.name, r.type, r.runs > 1 ? `${r.runs} x ${r.cableCsaMm2}` : r.cableCsaMm2, r.lengthM, r.cableRate, r.cableCost.toFixed(0), r.breakerRatingA, r.breakerCost.toFixed(0), r.total.toFixed(0)]);
+  data.push(['', '', '', '', '', '', '', '', 'Grand total', rows.reduce((s, r) => s + r.total, 0).toFixed(0)]);
+  return { headers, data };
 }
 
 export default function BoqTable({ results, projectName, project }: { results: FeederResult[]; projectName: string; project?: Project }) {
@@ -37,14 +38,8 @@ export default function BoqTable({ results, projectName, project }: { results: F
   const grandTotal = rows.reduce((s, r) => s + r.total, 0);
 
   function exportCsv() {
-    const csv = toCsv(rows);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${projectName.replace(/[^a-z0-9]+/gi, '-')}-boq.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const { headers, data } = csvRows(rows);
+    void saveCsv(`${projectName} boq`, headers, data);
   }
 
   return (

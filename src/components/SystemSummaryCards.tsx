@@ -2,8 +2,8 @@ import { useMemo } from 'react';
 import type { Project } from '../types';
 import { boardSummary, boardsInSupplyOrder, systemSummary } from '../calc/summary';
 import type { Annotations } from '../diagram/annotations';
+import { fmtFixed as fmt } from '../util/format';
 
-const fmt = (n: number, d = 0) => n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 
 /** System summary (totals + transformer loading gauge) and a bus voltage
  * table with one row per board, in supply order. */

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
+import { IssueDialog } from './IssueDialog';
 import type { Project, ProjectInfo, ProjectParams } from '../../types';
 import type { CalcRun } from '../../calc/runs';
 import { LAYER_LABELS, SHEET_LAYERS } from '../../diagram/annotations';
 import { boardsInSupplyOrder } from '../../calc/summary';
 import {
   addEarthingSheet, addEarthRiserSheet, addRiserSheet, autoSheets, drawable, filterSheets, sheetHash, issueSheets, moveSheet, nextRev, renumber, setOf, SHEET_STATUSES, sheetNumber, sheetRev, sheetsByCount, SIZES, statusColor,
-  type DrawingIssue, type DrawingSet, type DrawingSheet, type IssueInput, type SheetFilter, type SheetSize, type SheetSort
+  type DrawingIssue, type DrawingSet, type DrawingSheet, type SheetFilter, type SheetSize, type SheetSort
 } from '../../model/drawingSet';
 import { currentRevision } from '../../model/revisions';
 import { loadTemplateLibrary } from '../../model/titleBlock';
@@ -543,29 +544,3 @@ function SheetPanel({ sheet: s, set, project, boards, rev, onPatch, onClose, onR
 
 /** Issue the chosen sheets: date, purpose (becomes their status), what
  * changed, to whom; optionally move each to its next revision. */
-export function IssueDialog({ sheets, projectRev, onClose, onIssue }: { sheets: DrawingSheet[]; projectRev?: string; onClose: () => void; onIssue: (o: IssueInput, pdf: boolean) => void }) {
-  const [o, setO] = useState<IssueInput>({ date: new Date().toISOString().slice(0, 10), purpose: 'FOR APPROVAL', description: '', to: '', bump: sheets.some((s) => s.history?.length || s.rev) });
-  const [pdf, setPdf] = useState(true);
-  const after = (s: DrawingSheet) => { const cur = sheetRev(s, projectRev); return o.bump && (s.history?.length || s.rev) ? nextRev(cur) : (cur || 'A'); };
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); onIssue(o, pdf); }}>
-        <h3>Issue {sheets.length} sheet{sheets.length === 1 ? '' : 's'}</h3>
-        <div className="grid2">
-          <label>Date<input type="date" required value={o.date} onChange={(e) => setO({ ...o, date: e.target.value })} /></label>
-          <label>Purpose of issue<select value={o.purpose} onChange={(e) => setO({ ...o, purpose: e.target.value })}>{SHEET_STATUSES.map((x) => <option key={x}>{x}</option>)}</select></label>
-          <label style={{ gridColumn: '1 / -1' }}>What changed (revision table and transmittal)<input value={o.description} placeholder="e.g. Updated MDB feeder sizes per DEWA comments" onChange={(e) => setO({ ...o, description: e.target.value })} /></label>
-          <label>To<input value={o.to ?? ''} placeholder="e.g. DEWA, client, contractor" onChange={(e) => setO({ ...o, to: e.target.value })} /></label>
-          <label className="row"><input type="checkbox" checked={o.bump} onChange={(e) => setO({ ...o, bump: e.target.checked })} /> Move to the next revision</label>
-        </div>
-        <div className="tw dr-issue-list">
-          <table className="ds-table"><thead><tr><th>Drawing no.</th><th>Title</th><th>Rev now</th><th>Issued as</th></tr></thead>
-            <tbody>{sheets.map((s) => <tr key={s.id}><td>{s.number}</td><td>{s.title}</td><td>{sheetRev(s, projectRev) || '—'}</td><td><b>{after(s)}</b></td></tr>)}</tbody>
-          </table>
-        </div>
-        <label className="row"><input type="checkbox" checked={pdf} onChange={(e) => setPdf(e.target.checked)} /> Save the transmittal and the issued sheets as PDF now</label>
-        <div className="modal-actions"><span className="sp" /><button type="button" className="chip" onClick={onClose}>Cancel</button><button type="submit" className="chip primary" disabled={!sheets.length}>Issue</button></div>
-      </form>
-    </div>
-  );
-}

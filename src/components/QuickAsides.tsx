@@ -1,9 +1,9 @@
 import { nextBreaker, pfCorrection, type CableCandidate, type Phases, type Triangle } from '../calc/quick';
+import { fmtUpTo as fmt } from '../util/format';
 
 /** Right-hand panels for the quick calculators: a picture of the answer, the
  * worked steps with the numbers in, and what it means at the supply. */
 
-const fmt = (v: number, d = 2) => (Number.isFinite(v) ? v.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: 0 }) : '—');
 const deg = (pf: number) => (Math.acos(Math.min(1, Math.max(0, pf))) * 180) / Math.PI;
 
 /** Power triangle drawn to scale: P along, Q up, S the hypotenuse. */

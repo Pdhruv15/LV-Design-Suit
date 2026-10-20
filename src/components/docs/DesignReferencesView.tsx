@@ -5,6 +5,7 @@ import {
   newReference, projectValue, referenceChanges, referenceIssues, saveReference, saveUserReferences, type DesignReference, type RefEntry, type RefKey
 } from '../../model/designReference';
 import { Page } from '../ui';
+import { saveText } from '../../util/files';
 
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 const show = (v: number | undefined, unit: string) => (v === undefined ? '—' : `${+v.toFixed(2)}${unit ? ` ${unit}` : ''}`);
@@ -75,18 +76,9 @@ export default function DesignReferencesView({ project, onApply, onStatus }: {
     onStatus(`Deleted ${saved.name}`);
   }
   async function exportOne(list: DesignReference[], name: string) {
-    const content = exportReferences(list);
     const defaultName = `${name.replace(/[^\w ()-]+/g, '').trim() || 'Design references'}.json`;
-    if (window.lvds?.files?.saveText) {
-      const file = await window.lvds.files.saveText({ defaultName, content, filterName: 'Design references', extensions: ['json'] });
-      if (file) onStatus(`Exported to ${file}`);
-      return;
-    }
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([content], { type: 'application/json' }));
-    a.download = defaultName;
-    a.click();
-    URL.revokeObjectURL(a.href);
+    const m = await saveText(defaultName, exportReferences(list), 'Design references', 'json');
+    if (m) onStatus(m);
   }
   async function importFile(file: File) {
     const { added, error } = importReferences(await file.text(), refs);

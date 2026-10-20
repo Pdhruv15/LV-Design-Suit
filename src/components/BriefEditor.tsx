@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { withTemplate, type DefaultRow } from '../model/setupPreview';
 import { briefFromTemplate, SYSTEM_LABEL, type SetupTemplate } from '../model/setupTemplate';
+import { Modal } from './ui';
 import {
   deliverableCatalog, newBrief, PARTY_LABEL, resetToRole, ROLE_LABEL, SCOPE_ITEMS, withRole, withScope,
   type Deliverable, type Party, type ProjectBrief, type ProjectRole, type ScopeId
@@ -118,64 +119,61 @@ export function NewProjectWizard({ initialName, company, taken, templates = [], 
   const pick = (r: ProjectRole) => setBrief((cur) => (cur ? withRole(cur, r, company) : newBrief(r, { company })));
   const canNext = step === 0 ? !!name.trim() && !!brief : true;
   return (
-    <div className="modal-backdrop" onClick={onCancel}>
-      <form className="modal" style={{ maxWidth: 680 }} onClick={(e) => e.stopPropagation()}
-        onSubmit={(e) => { e.preventDefault(); if (step < STEPS.length - 1) { if (canNext) setStep(step + 1); } else if (brief && name.trim()) onCreate(name.trim(), brief, tpl); }}>
-        <h3>New project <span className="m">— step {step + 1} of {STEPS.length}: {STEPS[step]}</span></h3>
-        <div className="tabs feeder-tabs" role="tablist">
-          {STEPS.map((s, i) => <button key={s} type="button" role="tab" aria-selected={step === i} className={step === i ? 'on' : ''} disabled={i > 0 && !brief} onClick={() => (i === 0 || brief) && setStep(i)}>{i + 1}. {s}</button>)}
-        </div>
-        <div className="feeder-tab-body" style={{ minHeight: 260 }}>
-          {step === 0 && (
-            <>
-              <label>Project name<input autoFocus value={name} onFocus={(e) => e.target.select()} onChange={(e) => setName(e.target.value)} /></label>
-              {duplicate && <p className="m" style={{ color: 'var(--warn, #e2a03f)' }}>A project with this name already exists. It is kept as a separate project.</p>}
-              {templates.length > 0 && (
-                <label style={{ marginTop: 8 }}>Start from
-                  <select value={tpl?.id ?? ''} onChange={(e) => { const t = templates.find((x) => x.id === e.target.value); setTpl(t); setBrief(t ? briefFromTemplate(t, company) : null); }}>
-                    <option value="">A blank project</option>{templates.map((t) => <option key={t.id} value={t.id}>Setup template: {t.name}</option>)}
-                  </select>
-                </label>
-              )}
-              {tpl && <p className="m">The template supplies your side of the job, authority, scope, suggested deliverables{Object.values(tpl.system).some((v) => v !== undefined) ? ` and system defaults (${Object.entries(tpl.system).filter(([, v]) => v !== undefined).map(([k, v]) => `${SYSTEM_LABEL[k as keyof typeof SYSTEM_LABEL]} ${v}`).join(', ')})` : ''}. It does not copy party names, dates, drawings, equipment or revisions.</p>}
-              <p className="m" style={{ marginTop: 10 }}>Which side of the job are you on?</p>
-              <RoleCards role={brief?.role} onPick={pick} />
-            </>
-          )}
-          {step === 1 && brief && <PartiesStep brief={brief} onChange={setBrief} />}
-          {step === 2 && brief && <ScopeStep brief={brief} onChange={setBrief} />}
-          {step === 3 && brief && <DeliverablesStep brief={brief} onChange={setBrief} />}
-          {step === 4 && brief && (
-            <div className="brief-review">
-              <p><b>{name.trim() || 'Untitled project'}</b> — {ROLE_LABEL[brief.role].title}</p>
-              <p className="m">Authority: {brief.authority || '—'}</p>
-              <p>{brief.parties.filter((p) => p.role !== 'authority' && p.name.trim()).map((p) => `${PARTY_LABEL[p.role]}: ${p.name}`).join(' · ') || <span className="m">No parties entered yet — you can add them in Project settings.</span>}</p>
-              <p><b>Scope:</b> {brief.scope.map((s) => SCOPE_ITEMS.find((x) => x.id === s)?.label).join(', ') || 'nothing selected'}</p>
-              <p><b>Deliverables ({brief.deliverables.length}):</b> {brief.deliverables.map((d) => d.title).join(' · ') || '—'}</p>
-              {defaults.length > 0 && (
-                <>
-                  <p style={{ marginTop: 10 }}><b>The project will start with</b> <span className="m">— change these in Profile &amp; preferences, or the company database</span></p>
-                  <table className="projects-table">
-                    <tbody>{withTemplate(defaults, tpl).map((d) => <tr key={d.label}><td>{d.label}</td><td>{d.value}</td><td className="m">{d.source}</td></tr>)}</tbody>
-                  </table>
-                </>
-              )}
-              {storage && <p style={{ marginTop: 10 }}><b>Saved in:</b> {storage} {onChooseFolder && <button type="button" className="linkish" onClick={onChooseFolder}>Change folder…</button>} <span className="m">— it is saved the first time you press Save.</span></p>}
-              <p className="m">You can change all of this later from the project's Overview and Project settings.</p>
-            </div>
-          )}
-        </div>
-        <div className="modal-actions">
-          <button type="button" className="chip" onClick={() => onQuick(name.trim() || initialName)} disabled={!name.trim()} title="Create the project now from the name alone, with your defaults — no role, scope or deliverables">Quick create</button>
-          <span className="sp" />
-          <button type="button" className="chip" onClick={onCancel}>Cancel</button>
-          {step > 0 && <button type="button" className="chip" onClick={() => setStep(step - 1)}>Back</button>}
-          {step < STEPS.length - 1
-            ? <button type="submit" className="chip primary" disabled={!canNext}>Next</button>
-            : <button type="submit" className="chip primary" disabled={!brief || !name.trim()}>Create project</button>}
-        </div>
-      </form>
-    </div>
+    <Modal onClose={onCancel} style={{ maxWidth: 680 }} onSubmit={(e) => { e.preventDefault(); if (step < STEPS.length - 1) { if (canNext) setStep(step + 1); } else if (brief && name.trim()) onCreate(name.trim(), brief, tpl); }}>
+      <h3>New project <span className="m">— step {step + 1} of {STEPS.length}: {STEPS[step]}</span></h3>
+      <div className="tabs feeder-tabs" role="tablist">
+        {STEPS.map((s, i) => <button key={s} type="button" role="tab" aria-selected={step === i} className={step === i ? 'on' : ''} disabled={i > 0 && !brief} onClick={() => (i === 0 || brief) && setStep(i)}>{i + 1}. {s}</button>)}
+      </div>
+      <div className="feeder-tab-body" style={{ minHeight: 260 }}>
+        {step === 0 && (
+          <>
+            <label>Project name<input autoFocus value={name} onFocus={(e) => e.target.select()} onChange={(e) => setName(e.target.value)} /></label>
+            {duplicate && <p className="m" style={{ color: 'var(--warn, #e2a03f)' }}>A project with this name already exists. It is kept as a separate project.</p>}
+            {templates.length > 0 && (
+              <label style={{ marginTop: 8 }}>Start from
+                <select value={tpl?.id ?? ''} onChange={(e) => { const t = templates.find((x) => x.id === e.target.value); setTpl(t); setBrief(t ? briefFromTemplate(t, company) : null); }}>
+                  <option value="">A blank project</option>{templates.map((t) => <option key={t.id} value={t.id}>Setup template: {t.name}</option>)}
+                </select>
+              </label>
+            )}
+            {tpl && <p className="m">The template supplies your side of the job, authority, scope, suggested deliverables{Object.values(tpl.system).some((v) => v !== undefined) ? ` and system defaults (${Object.entries(tpl.system).filter(([, v]) => v !== undefined).map(([k, v]) => `${SYSTEM_LABEL[k as keyof typeof SYSTEM_LABEL]} ${v}`).join(', ')})` : ''}. It does not copy party names, dates, drawings, equipment or revisions.</p>}
+            <p className="m" style={{ marginTop: 10 }}>Which side of the job are you on?</p>
+            <RoleCards role={brief?.role} onPick={pick} />
+          </>
+        )}
+        {step === 1 && brief && <PartiesStep brief={brief} onChange={setBrief} />}
+        {step === 2 && brief && <ScopeStep brief={brief} onChange={setBrief} />}
+        {step === 3 && brief && <DeliverablesStep brief={brief} onChange={setBrief} />}
+        {step === 4 && brief && (
+          <div className="brief-review">
+            <p><b>{name.trim() || 'Untitled project'}</b> — {ROLE_LABEL[brief.role].title}</p>
+            <p className="m">Authority: {brief.authority || '—'}</p>
+            <p>{brief.parties.filter((p) => p.role !== 'authority' && p.name.trim()).map((p) => `${PARTY_LABEL[p.role]}: ${p.name}`).join(' · ') || <span className="m">No parties entered yet — you can add them in Project settings.</span>}</p>
+            <p><b>Scope:</b> {brief.scope.map((s) => SCOPE_ITEMS.find((x) => x.id === s)?.label).join(', ') || 'nothing selected'}</p>
+            <p><b>Deliverables ({brief.deliverables.length}):</b> {brief.deliverables.map((d) => d.title).join(' · ') || '—'}</p>
+            {defaults.length > 0 && (
+              <>
+                <p style={{ marginTop: 10 }}><b>The project will start with</b> <span className="m">— change these in Profile &amp; preferences, or the company database</span></p>
+                <table className="projects-table">
+                  <tbody>{withTemplate(defaults, tpl).map((d) => <tr key={d.label}><td>{d.label}</td><td>{d.value}</td><td className="m">{d.source}</td></tr>)}</tbody>
+                </table>
+              </>
+            )}
+            {storage && <p style={{ marginTop: 10 }}><b>Saved in:</b> {storage} {onChooseFolder && <button type="button" className="linkish" onClick={onChooseFolder}>Change folder…</button>} <span className="m">— it is saved the first time you press Save.</span></p>}
+            <p className="m">You can change all of this later from the project's Overview and Project settings.</p>
+          </div>
+        )}
+      </div>
+      <div className="modal-actions">
+        <button type="button" className="chip" onClick={() => onQuick(name.trim() || initialName)} disabled={!name.trim()} title="Create the project now from the name alone, with your defaults — no role, scope or deliverables">Quick create</button>
+        <span className="sp" />
+        <button type="button" className="chip" onClick={onCancel}>Cancel</button>
+        {step > 0 && <button type="button" className="chip" onClick={() => setStep(step - 1)}>Back</button>}
+        {step < STEPS.length - 1
+          ? <button type="submit" className="chip primary" disabled={!canNext}>Next</button>
+          : <button type="submit" className="chip primary" disabled={!brief || !name.trim()}>Create project</button>}
+      </div>
+    </Modal>
   );
 }
 
@@ -184,25 +182,23 @@ export function BriefDialog({ initial, company, onSave, onSaveTemplate, onCancel
   const [brief, setBrief] = useState<ProjectBrief>(initial ?? newBrief('consultant', { company }));
   const [tab, setTab] = useState<'scope' | 'parties' | 'deliverables'>(initial ? 'deliverables' : 'scope');
   return (
-    <div className="modal-backdrop" onClick={onCancel}>
-      <form className="modal" style={{ maxWidth: 680 }} onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); onSave(brief); }}>
-        <h3>Scope, parties and deliverables</h3>
-        <label>Your side of the job
-          <select value={brief.role} onChange={(e) => setBrief(withRole(brief, e.target.value as ProjectRole, company))} title="Your scope, your own, dated and delivered deliverables and the parties are kept; suggestions you never touched change to the new role's">
-            {(Object.keys(ROLE_LABEL) as ProjectRole[]).map((r) => <option key={r} value={r}>{ROLE_LABEL[r].title}</option>)}
-          </select>
-        </label>
-        <p className="m">Changing the role keeps what you set. <button type="button" className="linkish" onClick={() => { if (window.confirm('Replace the scope and deliverables with this role’s suggestions? Your own deliverables, dates and ticks are lost. The parties are kept.')) setBrief(resetToRole(brief, brief.role, company)); }}>Reset scope and deliverables to the suggestions…</button></p>
-        <div className="tabs feeder-tabs" role="tablist">
-          {([['scope', 'Scope'], ['parties', 'Parties'], ['deliverables', 'Deliverables']] as const).map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}
-        </div>
-        <div className="feeder-tab-body" style={{ minHeight: 260 }}>
-          {tab === 'scope' && <ScopeStep brief={brief} onChange={setBrief} />}
-          {tab === 'parties' && <PartiesStep brief={brief} onChange={setBrief} />}
-          {tab === 'deliverables' && <DeliverablesStep brief={brief} onChange={setBrief} />}
-        </div>
-        <div className="modal-actions">{onSaveTemplate && <button type="button" className="chip" onClick={() => onSaveTemplate(brief)} title="Keep this role, scope, deliverables and the system defaults as a template for new projects. Party names are not kept.">Save as setup template…</button>}<span className="sp" /><button type="button" className="chip" onClick={onCancel}>Cancel</button><button type="submit" className="chip primary">Save</button></div>
-      </form>
-    </div>
+    <Modal onClose={onCancel} style={{ maxWidth: 680 }} onSubmit={(e) => { e.preventDefault(); onSave(brief); }}>
+      <h3>Scope, parties and deliverables</h3>
+      <label>Your side of the job
+        <select value={brief.role} onChange={(e) => setBrief(withRole(brief, e.target.value as ProjectRole, company))} title="Your scope, your own, dated and delivered deliverables and the parties are kept; suggestions you never touched change to the new role's">
+          {(Object.keys(ROLE_LABEL) as ProjectRole[]).map((r) => <option key={r} value={r}>{ROLE_LABEL[r].title}</option>)}
+        </select>
+      </label>
+      <p className="m">Changing the role keeps what you set. <button type="button" className="linkish" onClick={() => { if (window.confirm('Replace the scope and deliverables with this role’s suggestions? Your own deliverables, dates and ticks are lost. The parties are kept.')) setBrief(resetToRole(brief, brief.role, company)); }}>Reset scope and deliverables to the suggestions…</button></p>
+      <div className="tabs feeder-tabs" role="tablist">
+        {([['scope', 'Scope'], ['parties', 'Parties'], ['deliverables', 'Deliverables']] as const).map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}
+      </div>
+      <div className="feeder-tab-body" style={{ minHeight: 260 }}>
+        {tab === 'scope' && <ScopeStep brief={brief} onChange={setBrief} />}
+        {tab === 'parties' && <PartiesStep brief={brief} onChange={setBrief} />}
+        {tab === 'deliverables' && <DeliverablesStep brief={brief} onChange={setBrief} />}
+      </div>
+      <div className="modal-actions">{onSaveTemplate && <button type="button" className="chip" onClick={() => onSaveTemplate(brief)} title="Keep this role, scope, deliverables and the system defaults as a template for new projects. Party names are not kept.">Save as setup template…</button>}<span className="sp" /><button type="button" className="chip" onClick={onCancel}>Cancel</button><button type="submit" className="chip primary">Save</button></div>
+    </Modal>
   );
 }

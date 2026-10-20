@@ -5,8 +5,8 @@ import { sizeTransformers } from '../calc/txGen';
 import { applyTransformers, DEWA_TRANSFORMER_KVA, mainBoards, mainOf, moveUnder, nextRmus, planTransformers, rmuNames, setRmu, setSubstation, setTransformer, txTag } from '../model/transformers';
 import { toggleIn } from '../util/sets';
 import { txUnits } from '../model/earthingPlan';
+import { fmtFixed as fmt } from '../util/format';
 
-const fmt = (n: number | undefined, d = 0) => (n === undefined || !Number.isFinite(n) ? '—' : n.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: d }));
 
 /** Panels → Transformers: DEWA transformers (one MDB each), their loading, and which panels each one feeds. */
 export default function TransformersTab({ project, onChange, onCreate, onStatus }: {
