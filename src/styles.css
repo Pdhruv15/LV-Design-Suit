@@ -1214,6 +1214,11 @@ button.calc-chip.warn{color:var(--warn);border-color:color-mix(in srgb,var(--war
 .sysdiag.riser text.b{font-size:12px}
 .sysdiag.riser text.m{font-size:10.5px}
 .sysdiag .riser-g{font-size:12px}
+/* Riser schematic, individual feeders */
+.sysdiag .fr-panel{fill:none;stroke:var(--tx);stroke-width:1.2}
+.sysdiag .fr-busbar{stroke:var(--tx);stroke-width:4}
+.sysdiag .fr-tag{fill:var(--panel);stroke:var(--tx);stroke-width:.8}
+.sysdiag .fr-sym-t{font-size:9px}
 .sysdiag.riser .sym-ln{fill:none;stroke:var(--tx);stroke-width:1.5}
 .sysdiag.riser .sym{stroke:var(--tx)}
 /* Drawings: creating the sheets */

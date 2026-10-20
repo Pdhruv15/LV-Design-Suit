@@ -88,6 +88,9 @@ export function SheetTabs({ project, active, selectedBoardId, outlinesOn, onActi
               <button key={b.id} onClick={() => { close(); const r = addRiserSheet(set, b.id, b.name); save(r.set); onActive(r.id); }}>Riser diagram — {b.name}</button>
             ))}
             {(project.building?.buildings ?? []).map((b) => (
+              <button key={`x${b.id}`} title="Each board on its own breaker and cable from its panel's busbar" onClick={() => { close(); const r = addRiserSheet(set, b.id, b.name, 'feeders'); save(r.set); onActive(r.id); }}>Riser schematic (individual feeders) — {b.name}</button>
+            ))}
+            {(project.building?.buildings ?? []).map((b) => (
               <button key={`e${b.id}`} title="Floor earth bar on every level and the earth cable bar to bar up the riser" onClick={() => { close(); const r = addEarthRiserSheet(set, project, b.id); save(r.set); if (r.id) onActive(r.id); }}>Earthing riser diagram — {b.name}</button>
             ))}
             {(project.building?.buildings ?? []).map((b) => (
@@ -179,7 +182,7 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
   // when; the drawing reads the latest inputs, so a new run or object identity alone never restarts it.
   const latest = useRef({ project, set, s, run });
   latest.current = { project, set, s, run };
-  const key = useMemo(() => (s ? sheetHash(project, set, { ...s, markups: undefined }) + JSON.stringify([s.arrows, s.size, s.cableLabels, s.status, s.rev, s.number, project.drawing, project.info, set.sheets.length]) : ''), [project, set, s]);
+  const key = useMemo(() => (s ? sheetHash(project, set, { ...s, markups: undefined, issuedHash: undefined }) + JSON.stringify([s.arrows, s.size, s.cableLabels, s.status, s.rev, s.number, project.drawing, project.info, set.sheets.length]) : ''), [project, set, s]);
   useEffect(() => {
     const { s } = latest.current;
     if (!s || !drawable(s)) { setPage(null); return; }
@@ -312,6 +315,9 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
               <select value={s.buildingId ?? ''} onChange={(e) => patch({ buildingId: e.target.value })}>
                 {(project.building?.buildings ?? []).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
+              <label>Connections<select value={s.riserStyle ?? ''} onChange={(e) => patch({ riserStyle: (e.target.value || undefined) as DrawingSheet['riserStyle'] })}>
+                <option value="">Busbar trunking / cable chain</option><option value="feeders">Individual feeders from each panel's busbar</option>
+              </select></label>
               <p className="m">Each panel is drawn on its Level (panel properties). Levels and floor heights come from Building information.</p>
             </details>
           )}

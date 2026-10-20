@@ -1,5 +1,7 @@
 import type { Board, Feeder, Project } from '../types';
-import { boardsInSupplyOrder, boardTotals } from '../calc/summary';
+import { boardsInSupplyOrder, boardSummary, boardTotals } from '../calc/summary';
+import { earthingLayout } from './earthingPlan';
+import { boardEarth } from './boardEarth';
 import { subtree } from '../calc/pfc';
 import { SHEET_MM } from '../docs/sldSheet';
 import { boardsWithoutLevel } from './levels';
@@ -21,6 +23,7 @@ export interface DrawingSheet {
   kind: 'system' | 'board' | 'riser' | 'earthing' | 'earthRiser' | 'earthFloor'; // board = one DB's circuit diagram; riser = a building's riser diagram; earthing = earthing schematic; earthRiser = a building's earthing riser diagram; earthFloor = DB earthing of one floor (or typical floors)
   buildingId?: string; // riser, earth riser and floor earthing sheets
   part?: number; // earth riser: sheet of the riser (0 = bottom); floor earthing: floor group (0 = lowest)
+  riserStyle?: 'feeders'; // riser sheets: one breaker and cable per board from its panel's busbar (blank = busbar trunking / cable chain)
   boards: string[];
   size: 'auto' | SheetSize;
   // Title block of this sheet (blank = the project's, managed in the drawing register)
@@ -39,6 +42,7 @@ export interface DrawingSheet {
   notes?: string[]; // notes on this sheet only
   clouds?: SheetCloud[]; // revision clouds around panels
   issuedHash?: string; // what was drawn when last issued (to flag changes since)
+  issuedHashV?: number; // fingerprint version of issuedHash (blank = 1, before calculated values were included)
   arrows?: SheetArrow[]; // callouts with a leader arrow, on this sheet only
   markups?: SheetMarkup[]; // free markups drawn on the sheet (clouds, notes, callouts …), in paper mm
 }
@@ -105,9 +109,9 @@ export function addEarthingSheet(set: DrawingSet): { set: DrawingSet; id: string
   return { id, set: renumber({ ...set, sheets: [...set.sheets, { id, number: '', title: 'Earthing schematic diagram', kind: 'earthing', boards: [], size: 'auto', status: startStatus(set) }] }) };
 }
 /** A riser diagram sheet for a building. */
-export function addRiserSheet(set: DrawingSet, buildingId: string, buildingName: string): { set: DrawingSet; id: string } {
+export function addRiserSheet(set: DrawingSet, buildingId: string, buildingName: string, riserStyle?: 'feeders'): { set: DrawingSet; id: string } {
   const id = `sh-${Date.now().toString(36)}`;
-  return { id, set: renumber({ ...set, sheets: [...set.sheets, { id, number: '', title: `Riser diagram — ${buildingName}`, kind: 'riser', buildingId, boards: [], size: 'auto', status: startStatus(set) }] }) };
+  return { id, set: renumber({ ...set, sheets: [...set.sheets, { id, number: '', title: `${riserStyle ? 'Riser schematic' : 'Riser diagram'} — ${buildingName}`, kind: 'riser', buildingId, ...(riserStyle ? { riserStyle } : {}), boards: [], size: 'auto', status: startStatus(set) }] }) };
 }
 /** A building's earthing riser diagram (every sheet of it), or its floor earthing sheets (one per floor
  * or typical floor group), numbered with the earthing sheets. Sheets already in the set are kept; missing
@@ -308,7 +312,7 @@ export function issueSheets(set: DrawingSet, ids: string[], o: IssueInput, proje
     if (!chosen.has(s.id)) return s;
     const cur = sheetRev(s, projectRev);
     const rev = o.bump && (s.history?.length || s.rev) ? nextRev(cur) : (cur || 'A');
-    return { ...s, rev, date: o.date, status: o.purpose || s.status, issuedHash: hashOf?.(s), history: [...(s.history ?? []), { rev, date: o.date, description: o.description || o.purpose, issueId: id }] };
+    return { ...s, rev, date: o.date, status: o.purpose || s.status, ...(hashOf ? { issuedHash: hashOf({ ...s, issuedHash: undefined, issuedHashV: undefined }), issuedHashV: SHEET_HASH_V } : {}), history: [...(s.history ?? []), { rev, date: o.date, description: o.description || o.purpose, issueId: id }] };
   });
   const issue: DrawingIssue = {
     id, date: o.date, purpose: o.purpose, description: o.description, to: o.to || undefined,
@@ -360,15 +364,37 @@ export function statusColor(status?: string): string {
 
 
 
+/** Fingerprint version: 2 adds the calculated values a sheet prints (TCL and demand on risers; the
+ * earthing layout with pit tests; a DB's fault level, current and earthing path). A sheet keeps the
+ * version it was issued with, so older issues are not flagged as changed by the new fields. */
+export const SHEET_HASH_V = 2;
+
+/** Calculated values a sheet shows that its inputs alone don't capture (fingerprint version 2). */
+function shownValues(p: Project, s: DrawingSheet): unknown {
+  const r = (v: number, d: number) => +v.toFixed(d);
+  if (s.kind === 'riser') return p.boards.map((b) => { const t = boardTotals(p, b.id); return [b.id, r(t.connectedKw, 2), r(t.demandKw, 1)]; });
+  if (s.kind === 'earthing') return [earthingLayout(p), p.boards.filter((b) => !b.upstreamId).map((b) => [b.id, b.substation, b.standby, b.kind])];
+  if (s.kind === 'board') {
+    const b = p.boards.find((x) => x.id === s.boards[0]);
+    if (!b) return undefined;
+    const sm = boardSummary(p, b), e = boardEarth(p, b);
+    return [b.upstreamId && p.feeders.find((f) => f.feedsBoardId === b.id && f.boardId === b.upstreamId), r(sm.faultKA, 1), r(sm.currentA, 1), r(sm.voltagePct, 2), e.text, e.conductor?.text];
+  }
+  return undefined;
+}
+
 /** Fingerprint of what a sheet draws (its panels, their circuits and the
- * values on them) — compared with the one stored when it was issued. */
+ * values on them) — compared with the one stored when it was issued. An
+ * issued sheet is fingerprinted at the version it was issued with. */
 export function sheetHash(p: Project, set: DrawingSet, s: DrawingSheet): string {
+  const v = s.issuedHash ? s.issuedHashV ?? 1 : SHEET_HASH_V;
   const d = s.kind === 'board' ? { boards: p.boards.filter((b) => b.id === s.boards[0]), feeders: p.feeders.filter((f) => f.boardId === s.boards[0]) }
     : s.kind === 'earthing' ? { boards: p.boards.filter((b) => !b.upstreamId).map((b) => [b.id, b.sourceKva, b.rmu, b.vectorGroup]), feeders: [p.earthingPlan] }
     : s.kind === 'earthRiser' || s.kind === 'earthFloor' ? { boards: p.boards.map((b) => [b.id, b.upstreamId, b.level, b.kind, b.ratedCurrentA, ...(b.earthRiser ? [b.earthRiser] : [])]), feeders: [p.feeders.filter((f) => f.feedsBoardId).map((f) => [f.feedsBoardId, f.cores, f.cableCsaMm2, f.lengthM, f.cpcMm2]), p.earthingPlan, p.earthPitIds, p.building] }
-    : s.kind === 'riser' ? { boards: p.boards.map((b) => [b.id, b.upstreamId, b.level, b.ratedCurrentA, b.sourceKva, b.standby]), feeders: [p.feeders.filter((f) => f.feedsBoardId).map((f) => [f.feedsBoardId, f.cores, f.cableCsaMm2, f.lengthM, f.parallel, f.cableType]), p.busRisers, p.building] }
+    : s.kind === 'riser' ? { boards: p.boards.map((b) => [b.id, b.upstreamId, b.level, b.ratedCurrentA, b.sourceKva, b.standby, ...(s.riserStyle ? [b.kind, b.incomerDevice, b.busbarMaterial] : [])]), feeders: [p.feeders.filter((f) => f.feedsBoardId).map((f) => [f.feedsBoardId, f.cores, f.cableCsaMm2, f.lengthM, f.parallel, f.cableType, ...(s.riserStyle ? [f.breakerRatingA, f.breakerIcuKa, f.breakerType] : [])]), p.busRisers, p.building, s.riserStyle] }
     : sheetProject(p, set, s);
-  const txt = JSON.stringify([d.boards, d.feeders, s.title, s.size, s.tags, s.notes, s.clouds, s.arrows, s.markups, ...(s.part !== undefined ? [s.part] : [])]); // part only where set: older sheets keep their hash
+  const extra = v >= 2 ? shownValues(p, s) : undefined;
+  const txt = JSON.stringify([d.boards, d.feeders, s.title, s.size, s.tags, s.notes, s.clouds, s.arrows, s.markups, ...(s.part !== undefined ? [s.part] : []), ...(extra !== undefined ? [extra] : [])]); // part / extra only where set: older sheets keep their hash
   let h = 2166136261;
   for (let i = 0; i < txt.length; i++) { h ^= txt.charCodeAt(i); h = Math.imul(h, 16777619); }
   return (h >>> 0).toString(36);

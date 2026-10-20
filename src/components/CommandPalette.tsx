@@ -81,7 +81,7 @@ export const SHORTCUTS: [string, [string, string][]][] = [
     [`${mod}F1`, 'Collapse / expand the ribbon']
   ]],
   ['Design (SLD)', [
-    [`${mod}1`, 'System diagram'], [`${mod}2`, 'Board diagram'], [`${mod}3`, 'Earthing'],
+    [`${mod}1`, 'System diagram'], [`${mod}2`, 'Board diagram'], [`${mod}3`, 'Earthing'], [`${mod}4`, 'Riser'],
     ['[  ]', 'Previous / next drawing sheet'],
     ['V', 'Select tool'], ['H', 'Pan tool'],
     [`${mod}C / ${mod}V`, 'Copy / paste the selected board'],
