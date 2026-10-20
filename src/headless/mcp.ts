@@ -1,6 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { callTool, offeredTools, type ToolContext } from './tools';
+import { redactPaths } from './project';
 
 /** MCP server over stdio: an AI client (Claude Desktop, Claude Code, or a local model through any MCP
  * client) starts `lvds mcp` and calls the tools. Runs on this computer only; project files never
@@ -26,7 +27,7 @@ export function createMcp(ctx: ToolContext, version: string): McpServer {
       try {
         return { content: [{ type: 'text' as const, text: JSON.stringify(await callTool(t, args, ctx)) }] };
       } catch (e) {
-        return { isError: true, content: [{ type: 'text' as const, text: (e as Error).message }] };
+        return { isError: true, content: [{ type: 'text' as const, text: redactPaths((e as Error).message, ctx.folder) }] };
       }
     });
   }

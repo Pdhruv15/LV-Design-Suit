@@ -16,6 +16,13 @@ export function appDataDir(): string {
   if (process.platform === 'win32') return path.join(process.env.APPDATA ?? path.join(home, 'AppData', 'Roaming'), 'LV Design Studio');
   return path.join(process.env.XDG_CONFIG_HOME ?? path.join(home, '.config'), 'LV Design Studio');
 }
+/** An error message without this computer's folders: the projects folder and the home folder are named, not shown. */
+export function redactPaths(message: string, folder: string): string {
+  let m = message;
+  for (const [p, label] of [[path.resolve(folder), '<projects folder>'], [os.homedir(), '~']] as const) if (p && p !== path.sep) m = m.split(p).join(label);
+  return m;
+}
+
 const appSettingsPath = () => path.join(appDataDir(), 'settings.json');
 
 /** The app's recovery copy of unsaved work for a project (electron/projectFiles.cjs, same file name rule), if there is one:

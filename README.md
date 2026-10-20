@@ -214,7 +214,20 @@ Through MCP and the API, only files inside the projects folder can be opened.
 **Local API.** `lvds serve` (default port 8765) answers on `http://127.0.0.1`
 only: `GET /api/tools` lists the tools and their inputs, `GET
 /api/tools/run_checks?project=My%20project` or `POST` with a JSON body runs
-one.
+one. Every request needs `Authorization: Bearer <token>`. The token is new
+each time the server starts; it is written to a file only you can read (the
+server names the file when it starts, `api-token` in the app's data folder)
+and removed when it stops. It is never printed or put in a URL. To use a fixed
+token in your own scripts, set `LVDS_API_TOKEN` (32 characters or more) before
+starting the server. Requests from web pages (an `Origin` header) are refused,
+and no CORS headers are sent. `lvds help serve` shows an example:
+
+```bash
+curl -H "Authorization: Bearer $(cat "<token file>")" "http://127.0.0.1:8765/api/tools/run_checks?project=My%20project"
+```
+
+From Python: `requests.get(url, headers={"Authorization": f"Bearer {open(token_file).read().strip()}"})`.
+Errors name the projects folder as `<projects folder>`, not its full path.
 
 **Changing a project.** `lvds mcp --write` and `lvds serve --write` also offer
 tools that change a project (on the command line they are always there). They
