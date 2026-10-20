@@ -329,6 +329,9 @@ export interface Board {
   elcbSensitivityMa?: number; // override; default by circuit type (lighting 100 mA, power 30 mA)
 }
 
+/** One CAD block name → the library item (Loads.xlsx reference) it is, and how many it counts as (twin socket: 2). */
+export interface CadBlockMap { block: string; reference: string; per?: number }
+
 export interface Project {
   /** Stable identity: survives renaming, copying elsewhere and moving files (set on first open / creation). */
   id?: string;
@@ -394,6 +397,8 @@ export interface Project {
   feederPresets?: import('./model/presets').FeederPreset[]; // copy of the user's feeder presets, so they travel with the project
   pv?: import('./calc/solar').PvSystem; // solar PV array and inverter sizing
   trays?: TrayPlan; // cable tray routes (A, B, C…) with the cables on each and the tray size
+  /** CAD floor plan: block names that stand for a library item (blocks named like a library reference need no row). */
+  cadBlocks?: CadBlockMap[];
   substations?: DmSubstationRoom[]; // DM-D-013 minimum substation / LV room areas
   studyReport?: StudyReportSetup; // the study report being prepared (Reports → Study reports)
   calcReportDocNo?: string; // document number on page 1 of the calculation report

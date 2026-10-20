@@ -99,6 +99,7 @@ import { safeFileName, savePdf, saveText } from './util/files';
 import AnonymizedSampleDialog from './components/AnonymizedSampleDialog';
 import { buildConceptReportHtml } from './docs/conceptReport';
 const SldExportDialog = lazy(() => import('./components/SldExportDialog'));
+const CadLoadsDialog = lazy(() => import('./components/CadLoadsDialog'));
 import PasteBoardDialog from './components/PasteBoardDialog';
 const EnclosureSizing = lazy(() => import('./components/EnclosureSizing'));
 import EarthingView from './components/EarthingView';
@@ -246,6 +247,7 @@ export default function App() {
   const [colorBy, setColorBy] = useState<ColorBy>('none');
   const [supply, setSupply] = useState<SupplyMode>('normal');
   const [showExport, setShowExport] = useState(false);
+  const [showCadLoads, setShowCadLoads] = useState(false);
   // Copy / paste of a board with everything below it.
   const [copiedBoard, setCopiedBoard] = useState<string | null>(null);
   const [pasteTarget, setPasteTarget] = useState<string | null>(null);
@@ -882,6 +884,7 @@ export default function App() {
     cmd('Add a board…', () => { design(); setBoardPreset(undefined); setShowBoardForm(true); });
     if (board) cmd(`Add a feeder on ${board.id}…`, () => { design(); openAddFeeder({}); }, undefined, 'circuit load');
     cmd('Export the SLD…', () => { design(); setDiagramMode('system'); setShowExport(true); }, undefined, 'PDF DXF SVG');
+    cmd('Loads from CAD floor plan…', () => setShowCadLoads(true), undefined, 'OpenCADStudio DWG DXF blocks fixtures count');
     cmd('System diagram', () => { design(); setDiagramMode('system'); }, `${mod}1`, 'SLD');
     cmd('Riser diagram', () => { design(); setDiagramMode('riser'); }, `${mod}4`, 'riser schematic building levels');
     if (board) cmd(`Board diagram — ${board.id}`, () => { design(); setDiagramMode('board'); }, `${mod}2`);
@@ -1616,6 +1619,14 @@ export default function App() {
             setEditPreset(null);
           }}
         />
+      )}
+      {showCadLoads && (
+        <Suspense fallback={null}><CadLoadsDialog
+          project={project}
+          library={db.loads}
+          onApply={(next, message) => { setProject(next, { step: true }); setStatus(message); setShowCadLoads(false); }}
+          onClose={() => setShowCadLoads(false)}
+        /></Suspense>
       )}
       {showExport && (
         <Suspense fallback={null}><SldExportDialog

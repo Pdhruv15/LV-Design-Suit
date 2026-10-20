@@ -37,10 +37,30 @@ In LV Design Studio, pick a feeder or board, then click the polyline/block in Op
   feeder `lengthM`; voltage drop and cable sizing re-run.
 - **Board locations / rooms:** position of each tagged board block, and the room/floor it falls in.
 - **Tray routes:** which tagged tray runs a cable route follows → feeder `trayRoute`, feeding tray sizing.
-- **Loads from the plan:** count of light / socket / equipment blocks tagged to a circuit → board schedules.
+- **Loads from the plan — done:** see *Loads mapping* below.
 
 Each pull shows a change list to accept or reject per row.
 
-## Open questions
-- Allowances for cable length (vertical drops, terminations): per project setting or per feeder?
-- Which CAD blocks count as lights / sockets / equipment (block-name mapping per project)?
+## Loads mapping (done)
+
+**What a block is** — first match wins:
+1. Block named like a library reference (Loads.xlsx `Reference`, e.g. `L1`) is that item.
+2. Project block map (`project.cadBlocks`): block name → library reference, with a count per block
+   (twin socket `SKT-TWIN` → `S13` × 2). Edited in the pull dialog, kept with the project.
+3. Anything else is listed as *to map*, never guessed. A library item needs a schedule column to be counted.
+
+**Which circuit** — the block's `CCT` attribute (also `CIRCUIT`, `CKT`, `CCT_REF`, `CIRCUIT_REF`), e.g.
+`DB-GF1/R3`, `DB-GF1 R3`, `db-gf1-r3`: longest matching board ID, then that board's phase + way.
+Fixtures without the attribute, or naming a circuit not in the design, are listed and not counted.
+Later: pick fixtures in CAD and choose the circuit (reuses milestone 5), and zones (closed polylines).
+
+**Review** — per circuit: design now vs CAD (items and watts), tick to accept. The CAD point types replace
+that circuit's items of those types; its other point types are kept. Applied through the schedule edit, so
+auto-sized circuits re-size. Same counts and watts count as matching (no noise).
+
+Command palette → *Loads from CAD floor plan…* → Open floor plan… (DWG/DXF in the live OpenCADStudio window)
+→ Pull loads → map blocks / untick rows → Apply.
+
+## Cable length allowances (next)
+Project setting with defaults (per vertical drop, per termination, waste %), optional per-feeder override.
+Length = measured route + drops + terminations, × (1 + waste); the review row shows the breakdown.

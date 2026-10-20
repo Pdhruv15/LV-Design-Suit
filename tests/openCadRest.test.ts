@@ -85,6 +85,26 @@ describe('OpenCADStudio live REST session', () => {
     expect(cad.values(cad.active)).toEqual([['feeder:F1', 11], ['feeder:F2', 25]]);
   });
 
+  it('reads the blocks of the floor plan with their attribute values, across pages', async () => {
+    const pages = [
+      { entities: [{ handle: '1', block: 'L1', attributes: { CCT: 'DB-GF1/R1' } }, { handle: '2', block: 'DOOR' }], next_offset: 2 },
+      { entities: [{ handle: '3', block: 'SKT', attributes: { CCT: 'DB-GF1/Y2', NOTE: 7 } }, { handle: '4' }] }
+    ];
+    const session = new OpenCadRestSession({
+      portFactory: async () => 1,
+      spawn: () => new FakeChild(),
+      request: async ({ route }: { route: string }) => {
+        if (route === '/ready') return { version: 'x' };
+        const m = route.match(/^\/entities\?type=Insert&.*offset=(\d+)/);
+        return m ? pages[Number(m[1]) / 2] : {};
+      }
+    }) as unknown as { open: (e: string, d: string[]) => Promise<unknown>; readBlocks: () => Promise<unknown> };
+    await session.open('/x', ['/tmp/plan.dwg']);
+    expect(await session.readBlocks()).toEqual([
+      { block: 'L1', attributes: { CCT: 'DB-GF1/R1' } }, { block: 'DOOR', attributes: {} }, { block: 'SKT', attributes: { CCT: 'DB-GF1/Y2' } }
+    ]);
+  });
+
   it('refuses a drawing that LV Design Studio did not produce', async () => {
     const cad = new FakeCad({ '/tmp/other.dxf': [[undefined, 1]], '/tmp/v2.dxf': [['feeder:F1', 1]] });
     const session = cad.session();

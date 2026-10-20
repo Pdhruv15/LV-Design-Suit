@@ -57,6 +57,10 @@ declare global {
         linked?: () => Promise<{ tag: string; objects: number }[]>;
         /** Redraws, in the drawing open in OpenCADStudio, only the boards, feeders and sheet furniture that changed (first sheet). */
         update?: (files: { name: string; content: string }[]) => Promise<{ changed: string[]; added: string[]; removed: string[]; unchanged: number }>;
+        /** Asks for a floor plan (DWG / DXF) and opens it in the live OpenCADStudio window; null if cancelled. */
+        openPlan?: () => Promise<{ file: string; version?: string } | null>;
+        /** Blocks placed in the drawing active in OpenCADStudio, with their attribute values. */
+        blocks?: () => Promise<import('./model/cadLoads').CadBlock[]>;
       };
       files: {
         /** Shows a save dialog and writes the text; resolves to the saved path, or null if cancelled. */
