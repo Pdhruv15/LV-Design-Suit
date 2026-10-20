@@ -49,6 +49,11 @@ declare global {
         probe: () => Promise<import('./engines/types').EngineProbe | { error: string }>;
         run: (request: { engine: string; project: import('./types').Project; dss?: string }) => Promise<import('./engines/types').StudyResults | { error: string }>;
       };
+      /** Opens generated DXF sheets in the installed OpenCADStudio desktop application. */
+      openCadStudio?: {
+        status: () => Promise<{ installed: boolean; connected: boolean; version?: string }>;
+        openDxf: (files: { name: string; content: string }[]) => Promise<{ files: string[]; connected: boolean; version?: string }>;
+      };
       files: {
         /** Shows a save dialog and writes the text; resolves to the saved path, or null if cancelled. */
         saveText: (opts: { defaultName: string; content: string; filterName: string; extensions: string[] }) => Promise<string | null>;
