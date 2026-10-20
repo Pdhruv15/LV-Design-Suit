@@ -5,7 +5,7 @@ Please independently review report generation in this repository. Check the find
 ## Task context and boundaries
 
 - Project: LV Design Studio, an offline React/TypeScript/Electron application for LV electrical design.
-- Repository: `/Users/palanisamigovindasamy/Projects/LV-Design-Suit`.
+- Repository: `..`.
 - That absolute path identifies this machine's checkout. If reviewing elsewhere, use the equivalent repository root; source paths below are relative to it.
 - Handoff date: 3 October 2026, Asia/Dubai.
 - This is a **read-only review**, not an implementation request.

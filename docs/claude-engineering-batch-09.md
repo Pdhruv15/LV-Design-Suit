@@ -14,9 +14,9 @@ The quick `pfCorrection` function clamps required capacitor kvar to zero when th
 
 Files:
 
-- [quick.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/quick.ts): `pfCorrection`.
-- [QuickCalcs.tsx](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/components/QuickCalcs.tsx:241): capacitor and before/after result cards, input validation and no-correction explanation.
-- [quick.test.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/quick.test.ts): regressions.
+- [quick.ts](../src/calc/quick.ts): `pfCorrection`.
+- [QuickCalcs.tsx](../src/components/QuickCalcs.tsx:241): capacitor and before/after result cards, input validation and no-correction explanation.
+- [quick.test.ts](../src/calc/quick.test.ts): regressions.
 
 Executed fixture: **100 kW**, current PF **0.98**, target PF **0.95**.
 
@@ -54,10 +54,10 @@ Engineering basis: capacitor compensation changes reactive power; zero compensat
 
 Files:
 
-- [ups.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/ups.ts): series count, nominal voltage, required Ah, energy, end voltage/current, runtime and mismatch handling.
-- [UpsStudy.tsx](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/components/studies/UpsStudy.tsx:90): chemistry switch retains the existing DC bus but changes module voltage; battery/DC displays.
-- [upsSolarReport.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/docs/upsSolarReport.ts:43): DC-bus equality and selected-battery results.
-- [upsSolar.test.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/upsSolar.test.ts): series-voltage consistency checks.
+- [ups.ts](../src/calc/ups.ts): series count, nominal voltage, required Ah, energy, end voltage/current, runtime and mismatch handling.
+- [UpsStudy.tsx](../src/components/studies/UpsStudy.tsx:90): chemistry switch retains the existing DC bus but changes module voltage; battery/DC displays.
+- [upsSolarReport.ts](../src/docs/upsSolarReport.ts:43): DC-bus equality and selected-battery results.
+- [upsSolar.test.ts](../src/calc/upsSolar.test.ts): series-voltage consistency checks.
 
 Executed fixture: `UPS_DEFAULTS`, ID/name T, one **10,000 W** load at PF 1 and quantity 1, growth **0%**, autonomy **15 minutes**, chemistry **Li-ion**, nominal DC bus **384 V**, module voltage **51.2 V**. Other defaults remain. Use the sample project. This module/bus combination is also produced by the chemistry-switch handler when starting with the default 384 V VRLA setup.
 

@@ -7,12 +7,12 @@
   "quality": "showcase",
   "startedAt": "2026-10-05T18:10:42.729Z",
   "specification": {
-    "path": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/candidate.json",
+    "path": ".archify/workflow-project-delivery-20261005-214200/candidate.json",
     "sha256": "37472202eb18123d3a8ec8138d0c9f3e9ee20d41dfc3716c5e34feb8757820d5",
     "bytes": 5931
   },
   "artifact": {
-    "path": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/project-delivery.html",
+    "path": ".archify/workflow-project-delivery-20261005-214200/project-delivery.html",
     "sha256": "efcf18e9f5aa59d09e1ecb3b9e686580aa141825d0b28f3337dd4a42b94c1811",
     "bytes": 763114
   },
@@ -23,12 +23,12 @@
       "durationMs": null,
       "execution": "embedded-in-deliver",
       "command": [
-        "/Users/palanisamigovindasamy/.nvm/versions/node/v24.16.0/bin/node",
-        "/Users/palanisamigovindasamy/.agents/skills/archify/bin/archify.mjs",
+        "~/.nvm/versions/node/v24.16.0/bin/node",
+        "~/.agents/skills/archify/bin/archify.mjs",
         "deliver",
         "workflow",
-        "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/candidate.json",
-        "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/project-delivery.html",
+        ".archify/workflow-project-delivery-20261005-214200/candidate.json",
+        ".archify/workflow-project-delivery-20261005-214200/project-delivery.html",
         "--quality",
         "showcase",
         "--json"
@@ -56,12 +56,12 @@
       "exitCode": 0,
       "durationMs": 254,
       "command": [
-        "/Users/palanisamigovindasamy/.nvm/versions/node/v24.16.0/bin/node",
-        "/Users/palanisamigovindasamy/.agents/skills/archify/bin/archify.mjs",
+        "~/.nvm/versions/node/v24.16.0/bin/node",
+        "~/.agents/skills/archify/bin/archify.mjs",
         "deliver",
         "workflow",
-        "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/candidate.json",
-        "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/project-delivery.html",
+        ".archify/workflow-project-delivery-20261005-214200/candidate.json",
+        ".archify/workflow-project-delivery-20261005-214200/project-delivery.html",
         "--quality",
         "showcase",
         "--json"
@@ -72,8 +72,8 @@
         "ok": true,
         "command": "deliver",
         "type": "workflow",
-        "input": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/candidate.json",
-        "output": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/project-delivery.html",
+        "input": ".archify/workflow-project-delivery-20261005-214200/candidate.json",
+        "output": ".archify/workflow-project-delivery-20261005-214200/project-delivery.html",
         "specification": {
           "sha256": "37472202eb18123d3a8ec8138d0c9f3e9ee20d41dfc3716c5e34feb8757820d5",
           "bytes": 5931
@@ -108,15 +108,15 @@
       "exitCode": 0,
       "durationMs": 98,
       "command": [
-        "/Users/palanisamigovindasamy/.nvm/versions/node/v24.16.0/bin/node",
-        "/Users/palanisamigovindasamy/.agents/skills/archify/bin/archify.mjs",
+        "~/.nvm/versions/node/v24.16.0/bin/node",
+        "~/.agents/skills/archify/bin/archify.mjs",
         "check",
-        "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/project-delivery.html",
+        ".archify/workflow-project-delivery-20261005-214200/project-delivery.html",
         "--require-provenance"
       ],
       "receipt": {
         "ok": true,
-        "file": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/project-delivery.html",
+        "file": ".archify/workflow-project-delivery-20261005-214200/project-delivery.html",
         "artifact": {
           "sha256": "efcf18e9f5aa59d09e1ecb3b9e686580aa141825d0b28f3337dd4a42b94c1811",
           "bytes": 763114
@@ -244,10 +244,10 @@
       "exitCode": 1,
       "durationMs": 14,
       "command": [
-        "/Users/palanisamigovindasamy/.nvm/versions/node/v24.16.0/bin/node",
-        "/Users/palanisamigovindasamy/.agents/skills/archify/bin/archify.mjs",
+        "~/.nvm/versions/node/v24.16.0/bin/node",
+        "~/.agents/skills/archify/bin/archify.mjs",
         "browser-check",
-        "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/project-delivery.html",
+        ".archify/workflow-project-delivery-20261005-214200/project-delivery.html",
         "--json",
         "--require-provenance"
       ],
@@ -262,7 +262,7 @@
         "provenance": "current",
         "deliveryReceiptId": "3a127100-288a-4dac-9b8b-66825b853c86",
         "artifact": {
-          "path": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/project-delivery.html",
+          "path": ".archify/workflow-project-delivery-20261005-214200/project-delivery.html",
           "sha256": "efcf18e9f5aa59d09e1ecb3b9e686580aa141825d0b28f3337dd4a42b94c1811",
           "bytes": 763114
         },
@@ -280,7 +280,7 @@
             "severity": "error",
             "message": "browser-check could not complete its Chrome inspection.",
             "subject": {
-              "artifact": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/project-delivery.html"
+              "artifact": ".archify/workflow-project-delivery-20261005-214200/project-delivery.html"
             },
             "evidence": {
               "reason": "Chrome DevTools read pipe failed: stream ended\nChrome process: still running.\nChrome transport: Node v24.16.0, libuv 1.52.1, darwin; pid=42058, exitCode=null, signalCode=null.\nChrome read pipe: readable=false, ended=true, destroyed=false, receivedBytes=0, messages=0, bufferedBytes=0.\nChrome write pipe: writable=true, ended=false, destroyed=false, completedWrites=1, writtenBytes=50, bufferedBytes=0."
@@ -327,7 +327,7 @@
       "severity": "error",
       "message": "browser-check could not complete its Chrome inspection.",
       "subject": {
-        "artifact": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/project-delivery.html"
+        "artifact": ".archify/workflow-project-delivery-20261005-214200/project-delivery.html"
       },
       "evidence": {
         "reason": "Chrome DevTools read pipe failed: stream ended\nChrome process: still running.\nChrome transport: Node v24.16.0, libuv 1.52.1, darwin; pid=42058, exitCode=null, signalCode=null.\nChrome read pipe: readable=false, ended=true, destroyed=false, receivedBytes=0, messages=0, bufferedBytes=0.\nChrome write pipe: writable=true, ended=false, destroyed=false, completedWrites=1, writtenBytes=50, bufferedBytes=0."
@@ -338,9 +338,9 @@
     }
   ],
   "evidence": {
-    "receipt": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/project-delivery.finalize.json",
-    "summaryReceipt": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/project-delivery.finalize-summary.json",
-    "browserCheckReceipt": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/project-delivery.browser-check.json"
+    "receipt": ".archify/workflow-project-delivery-20261005-214200/project-delivery.finalize.json",
+    "summaryReceipt": ".archify/workflow-project-delivery-20261005-214200/project-delivery.finalize-summary.json",
+    "browserCheckReceipt": ".archify/workflow-project-delivery-20261005-214200/project-delivery.browser-check.json"
   },
   "visualReview": "not-requested",
   "failedStage": "browser-check",

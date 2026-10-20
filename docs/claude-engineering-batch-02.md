@@ -14,8 +14,8 @@ Current selection checks running kVA, while the board-sizing result declares the
 
 Primary calculation files:
 
-- [sizing.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/sizing.ts:88): `generatorForBoard`, and `sizeGenerator` at line 117.
-- [txGen.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/txGen.ts:203): `sizeGeneratorByBoards`, including the soft-start alternative.
+- [sizing.ts](../src/calc/sizing.ts:88): `generatorForBoard`, and `sizeGenerator` at line 117.
+- [txGen.ts](../src/calc/txGen.ts:203): `sizeGeneratorByBoards`, including the soft-start alternative.
 
 Use an isolated project with 400 V three-phase supply, one MDB and one essential **nonmotor** general load. Set demand factor and load PF to 1. Use no other loads, capacitor banks or generation. Select the MDB at 100% in the board-sizing plan, or give it a standby generator so the whole board is selected automatically. Count the essential circuit once.
 
@@ -41,10 +41,10 @@ Required correction:
 
 Affected consumers to check:
 
-- [SizingStudy.tsx](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/components/studies/SizingStudy.tsx:193): running requirement, motor/soft-start explanations, recommendation, installed-set comparison, no-fit display.
-- [sldEdit.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/model/sldEdit.ts:280): generator placement and handling a missing suitable rating.
-- [studyReport.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/docs/studyReport.ts:312): requirement, method text, section status and size table.
-- [report.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/docs/report.ts:89) and [dashboard.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/dashboard.ts:169): recommendation and above-range messages.
+- [SizingStudy.tsx](../src/components/studies/SizingStudy.tsx:193): running requirement, motor/soft-start explanations, recommendation, installed-set comparison, no-fit display.
+- [sldEdit.ts](../src/model/sldEdit.ts:280): generator placement and handling a missing suitable rating.
+- [studyReport.ts](../src/docs/studyReport.ts:312): requirement, method text, section status and size table.
+- [report.ts](../src/docs/report.ts:89) and [dashboard.ts](../src/calc/dashboard.ts:169): recommendation and above-range messages.
 
 Acceptance checks:
 
@@ -61,7 +61,7 @@ Engineering basis: Cummins describes the distinction between load PF and generat
 
 Priority: high. App location: **Transformer & generator sizing → transformer table**, and its study/calculation report outputs.
 
-Primary file: [txGen.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/txGen.ts:149), `sizeTransformers`.
+Primary file: [txGen.ts](../src/calc/txGen.ts:149), `sizeTransformers`.
 
 Current code evaluates installed adequacy using:
 
@@ -91,9 +91,9 @@ Required correction:
 
 Consumers:
 
-- [SizingStudy.tsx](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/components/studies/SizingStudy.tsx:130): installed transformer warning.
-- [studyReport.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/docs/studyReport.ts:307): transformer status, section count and table result.
-- [report.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/docs/report.ts:88): installed adequacy wording.
+- [SizingStudy.tsx](../src/components/studies/SizingStudy.tsx:130): installed transformer warning.
+- [studyReport.ts](../src/docs/studyReport.ts:307): transformer status, section count and table result.
+- [report.ts](../src/docs/report.ts:88): installed adequacy wording.
 
 Acceptance checks:
 

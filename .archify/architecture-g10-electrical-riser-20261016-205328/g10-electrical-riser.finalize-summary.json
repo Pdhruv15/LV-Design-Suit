@@ -6,12 +6,12 @@
   "type": "architecture",
   "quality": "showcase",
   "specification": {
-    "path": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/architecture-g10-electrical-riser-20261016-205328/candidate.json",
+    "path": ".archify/architecture-g10-electrical-riser-20261016-205328/candidate.json",
     "sha256": "c05a6f53e335f6b28b2e5a25f36a29d8ab6f59ec2f81a85039fc6b32b2535237",
     "bytes": 8519
   },
   "artifact": {
-    "path": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/architecture-g10-electrical-riser-20261016-205328/g10-electrical-riser.html",
+    "path": ".archify/architecture-g10-electrical-riser-20261016-205328/g10-electrical-riser.html",
     "sha256": "bb1339244c3da24289f2d40f77af56dd82f83b1485dff311423142f50d3aac9b",
     "bytes": 782832
   },
@@ -28,7 +28,7 @@
       "severity": "error",
       "message": "browser-check could not complete its Chrome inspection.",
       "subject": {
-        "artifact": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/architecture-g10-electrical-riser-20261016-205328/g10-electrical-riser.html"
+        "artifact": ".archify/architecture-g10-electrical-riser-20261016-205328/g10-electrical-riser.html"
       },
       "evidence": {
         "reason": "Chrome DevTools read pipe failed: stream ended\nChrome process: still running.\nChrome transport: Node v24.16.0, libuv 1.52.1, darwin; pid=28476, exitCode=null, signalCode=null.\nChrome read pipe: readable=false, ended=true, destroyed=false, receivedBytes=0, messages=0, bufferedBytes=0.\nChrome write pipe: writable=true, ended=false, destroyed=false, completedWrites=1, writtenBytes=50, bufferedBytes=0."
@@ -44,9 +44,9 @@
     "truncated": false
   },
   "evidence": {
-    "receipt": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/architecture-g10-electrical-riser-20261016-205328/g10-electrical-riser.finalize.json",
-    "summaryReceipt": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/architecture-g10-electrical-riser-20261016-205328/g10-electrical-riser.finalize-summary.json",
-    "browserCheckReceipt": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/architecture-g10-electrical-riser-20261016-205328/g10-electrical-riser.browser-check.json"
+    "receipt": ".archify/architecture-g10-electrical-riser-20261016-205328/g10-electrical-riser.finalize.json",
+    "summaryReceipt": ".archify/architecture-g10-electrical-riser-20261016-205328/g10-electrical-riser.finalize-summary.json",
+    "browserCheckReceipt": ".archify/architecture-g10-electrical-riser-20261016-205328/g10-electrical-riser.browser-check.json"
   },
   "update": {
     "status": "update_available",

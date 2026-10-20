@@ -14,10 +14,10 @@ The calculator selects a bank in whole steps but computes `q2 = q1 − min(bankK
 
 Primary files:
 
-- [pfcCalc.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/pfcCalc.ts): `calcPfc`, bank selection, `q2`, derived savings, step table, diagrams and comparison targets.
-- [PfcCalculator.tsx](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/components/studies/PfcCalculator.tsx:82): displayed after-PF and bank results, warnings and Add bank workflow.
-- [pfcReport.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/docs/pfcReport.ts:21): before/after table, headline, calculation method and bank selection.
-- [pfcCalc.test.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/pfcCalc.test.ts): meaningful regression coverage.
+- [pfcCalc.ts](../src/calc/pfcCalc.ts): `calcPfc`, bank selection, `q2`, derived savings, step table, diagrams and comparison targets.
+- [PfcCalculator.tsx](../src/components/studies/PfcCalculator.tsx:82): displayed after-PF and bank results, warnings and Add bank workflow.
+- [pfcReport.ts](../src/docs/pfcReport.ts:21): before/after table, headline, calculation method and bank selection.
+- [pfcCalc.test.ts](../src/calc/pfcCalc.test.ts): meaningful regression coverage.
 
 Executed fixture: `PFC_CALC_DEFAULT`, mode `kw-pf`, **10 kW**, PF **0.8 lagging**, target **0.95**, step **25 kvar**, supply **400 V**. Other defaults unchanged.
 

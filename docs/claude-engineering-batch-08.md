@@ -14,10 +14,10 @@ When no conduit or trunking fits, the algorithm exhausts its run limit and falls
 
 Files:
 
-- [containment.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/containment.ts): conduit/trunking candidate selection, fallback, result status and cross-section SVG.
-- [ContainmentCalculator.tsx](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/components/docs/ContainmentCalculator.tsx): selected size, status and failure presentation.
-- [containmentReport.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/docs/containmentReport.ts): recommended size, fill, notes and drawing.
-- [containment.test.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/containment.test.ts): meaningful regression coverage.
+- [containment.ts](../src/calc/containment.ts): conduit/trunking candidate selection, fallback, result status and cross-section SVG.
+- [ContainmentCalculator.tsx](../src/components/docs/ContainmentCalculator.tsx): selected size, status and failure presentation.
+- [containmentReport.ts](../src/docs/containmentReport.ts): recommended size, fill, notes and drawing.
+- [containment.test.ts](../src/calc/containment.test.ts): meaningful regression coverage.
 
 Executed fixtures: start from `CONTAINMENT_DEFAULT`, replace the cable list with one cable named `oversize`, four cores, 95 mm², quantity **1**, explicit OD as below. These are synthetic boundary inputs; the explicit diameter controls geometry and is not claimed to be a real 95 mm² product.
 
@@ -55,9 +55,9 @@ Engineering basis: conduit fill is cable occupied area relative to actual intern
 
 Files:
 
-- [quick.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/quick.ts): `triangle` input validation and derived quantities; review `powerFromCurrent` because it also calls this function.
-- [QuickCalcs.tsx](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/components/QuickCalcs.tsx:184): result validation and warning text.
-- [quick.test.ts](/Users/palanisamigovindasamy/Projects/LV-Design-Suit/src/calc/quick.test.ts): valid and invalid input-pair regressions.
+- [quick.ts](../src/calc/quick.ts): `triangle` input validation and derived quantities; review `powerFromCurrent` because it also calls this function.
+- [QuickCalcs.tsx](../src/components/QuickCalcs.tsx:184): result validation and warning text.
+- [quick.test.ts](../src/calc/quick.test.ts): valid and invalid input-pair regressions.
 
 Executed cases:
 

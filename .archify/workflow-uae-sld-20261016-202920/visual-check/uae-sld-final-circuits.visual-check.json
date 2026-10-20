@@ -8,7 +8,7 @@
   "provenance": "current",
   "deliveryReceiptId": "61f77d37-c73c-4e72-aa56-338abbaec541",
   "artifact": {
-    "path": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-uae-sld-20261016-202920/uae-sld-final-circuits.html",
+    "path": ".archify/workflow-uae-sld-20261016-202920/uae-sld-final-circuits.html",
     "sha256": "eb855eaec1b5f0a5143d921d018fe17d001196ce85bb32c4a02445a31fe80cc5",
     "bytes": 763150
   },
@@ -1728,7 +1728,7 @@
     "contactSheet": "uae-sld-final-circuits.visual-check.html"
   },
   "sidecars": {
-    "directory": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-uae-sld-20261016-202920/visual-check",
+    "directory": ".archify/workflow-uae-sld-20261016-202920/visual-check",
     "receipt": "uae-sld-final-circuits.visual-check.json",
     "contactSheet": "uae-sld-final-circuits.visual-check.html",
     "files": [

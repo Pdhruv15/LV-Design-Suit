@@ -4,8 +4,8 @@
   "status": "current",
   "command": "deliver",
   "type": "architecture",
-  "input": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/docs/notes/archify-architecture/candidate.json",
-  "output": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/docs/notes/archify-architecture/lv-design-studio.html",
+  "input": "docs/notes/archify-architecture/candidate.json",
+  "output": "docs/notes/archify-architecture/lv-design-studio.html",
   "specification": {
     "sha256": "7df977f283b107cc86167cf816a5cbd6f69af947798de00d7ec98578a579e0fc",
     "bytes": 4120

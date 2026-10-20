@@ -6,12 +6,12 @@
   "type": "workflow",
   "quality": "showcase",
   "specification": {
-    "path": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/candidate.json",
+    "path": ".archify/workflow-project-delivery-20261005-214200/candidate.json",
     "sha256": "37472202eb18123d3a8ec8138d0c9f3e9ee20d41dfc3716c5e34feb8757820d5",
     "bytes": 5931
   },
   "artifact": {
-    "path": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/project-delivery.html",
+    "path": ".archify/workflow-project-delivery-20261005-214200/project-delivery.html",
     "sha256": "efcf18e9f5aa59d09e1ecb3b9e686580aa141825d0b28f3337dd4a42b94c1811",
     "bytes": 763114
   },
@@ -28,7 +28,7 @@
       "severity": "error",
       "message": "browser-check could not complete its Chrome inspection.",
       "subject": {
-        "artifact": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/project-delivery.html"
+        "artifact": ".archify/workflow-project-delivery-20261005-214200/project-delivery.html"
       },
       "evidence": {
         "reason": "Chrome DevTools read pipe failed: stream ended\nChrome process: still running.\nChrome transport: Node v24.16.0, libuv 1.52.1, darwin; pid=42058, exitCode=null, signalCode=null.\nChrome read pipe: readable=false, ended=true, destroyed=false, receivedBytes=0, messages=0, bufferedBytes=0.\nChrome write pipe: writable=true, ended=false, destroyed=false, completedWrites=1, writtenBytes=50, bufferedBytes=0."
@@ -44,9 +44,9 @@
     "truncated": false
   },
   "evidence": {
-    "receipt": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/project-delivery.finalize.json",
-    "summaryReceipt": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/project-delivery.finalize-summary.json",
-    "browserCheckReceipt": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-project-delivery-20261005-214200/project-delivery.browser-check.json"
+    "receipt": ".archify/workflow-project-delivery-20261005-214200/project-delivery.finalize.json",
+    "summaryReceipt": ".archify/workflow-project-delivery-20261005-214200/project-delivery.finalize-summary.json",
+    "browserCheckReceipt": ".archify/workflow-project-delivery-20261005-214200/project-delivery.browser-check.json"
   },
   "update": {
     "status": "current",
