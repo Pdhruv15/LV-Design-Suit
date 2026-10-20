@@ -1,0 +1,77 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Typical UAE LV SLD and Final-Circuit Documentation",
+    "subtitle": "The SLD stops at final circuits; feeders to other DBs and major equipment stay on the SLD",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "output": ".archify/workflow-uae-sld-20261016-202920/uae-sld-final-circuits.html"
+  },
+  "lanes": [
+    { "id": "sld", "label": "Single-Line Diagram" },
+    { "id": "sldend", "label": "SLD end points" },
+    { "id": "documents", "label": "Detailed Design Documents" },
+    { "id": "installation", "label": "Physical Installation" }
+  ],
+  "phases": [
+    { "id": "supply", "label": "Supply and main distribution", "fromCol": 0, "toCol": 1 },
+    { "id": "subdistribution", "label": "Sub-distribution", "fromCol": 2, "toCol": 2, "variant": "emphasis" },
+    { "id": "finaldetail", "label": "Final DB", "fromCol": 3, "toCol": 3, "variant": "dashed" },
+    { "id": "feeders", "label": "Feeders kept on SLD", "fromCol": 4, "toCol": 4, "variant": "emphasis" }
+  ],
+  "mainPath": ["utility", "mdb", "smdb", "fdb", "subdb"],
+  "semanticChecks": {
+    "allowedRoots": ["utility"],
+    "allowedTerminals": ["subdb", "equipment", "loads"],
+    "requiredPaths": [
+      { "from": "utility", "to": "fdb" },
+      { "from": "fdb", "to": "subdb" },
+      { "from": "fdb", "to": "equipment" },
+      { "from": "fdb", "to": "loads" }
+    ]
+  },
+  "nodes": [
+    { "id": "utility", "lane": "sld", "col": 0, "type": "external", "label": "Utility Supply", "sublabel": "DEWA / local authority", "width": 126 },
+    { "id": "mdb", "lane": "sld", "col": 1, "type": "backend", "label": "MDB", "sublabel": "incomer + metering", "width": 126 },
+    { "id": "smdb", "lane": "sld", "col": 2, "type": "backend", "label": "SMDB", "sublabel": "breaker + feeder cable", "width": 132 },
+    { "id": "fdb", "lane": "sld", "col": 3, "type": "backend", "label": "Final DB", "sublabel": "incomer + feeders on SLD", "tag": "rating + load", "width": 140 },
+    { "id": "subdb", "lane": "sld", "col": 4, "type": "backend", "label": "Sub-DB", "sublabel": "SLD continues, same rule", "width": 136 },
+    { "id": "equipment", "lane": "sldend", "col": 4, "type": "external", "label": "Major Equipment", "sublabel": "AHU / pump / lift / EV / UPS", "tag": "SLD end point", "width": 140 },
+    { "id": "schedule", "lane": "documents", "col": 2, "type": "database", "label": "DB Load Schedule", "sublabel": "circuits / protection / cables", "width": 136 },
+    { "id": "layouts", "lane": "documents", "col": 3, "type": "frontend", "label": "Circuit Layouts", "sublabel": "power + lighting points", "width": 142 },
+    { "id": "circuits", "lane": "installation", "col": 2, "type": "messagebus", "label": "Final Circuits", "sublabel": "lights / sockets / spurs", "width": 136 },
+    { "id": "loads", "lane": "installation", "col": 3, "type": "external", "label": "Connected Loads", "sublabel": "lights / outlets / appliances", "width": 140 }
+  ],
+  "edges": [
+    { "id": "utility-mdb", "from": "utility", "to": "mdb", "variant": "default", "role": "main" },
+    { "id": "mdb-smdb", "from": "mdb", "to": "smdb", "variant": "default", "role": "main" },
+    { "id": "smdb-fdb", "from": "smdb", "to": "fdb", "variant": "emphasis", "role": "main" },
+    { "id": "fdb-subdb", "from": "fdb", "to": "subdb", "label": "feeds a DB", "variant": "emphasis", "role": "main" },
+    { "id": "fdb-equipment", "from": "fdb", "to": "equipment", "label": "dedicated feeder", "variant": "emphasis", "role": "branch" },
+    { "id": "fdb-schedule", "from": "fdb", "to": "schedule", "label": "final circuits only", "variant": "dashed", "role": "branch" },
+    { "id": "schedule-layouts", "from": "schedule", "to": "layouts", "label": "match IDs", "variant": "dashed" },
+    { "id": "schedule-circuits", "from": "schedule", "to": "circuits", "label": "ratings + protection", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "straight" },
+    { "id": "layouts-loads", "from": "layouts", "to": "loads", "label": "locations + IDs", "variant": "dashed" },
+    { "id": "circuits-loads", "from": "circuits", "to": "loads", "label": "supply", "variant": "default" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Rule: SLD stops at final circuits, not at a DB",
+      "items": [
+        "Show the DB incomer, every feeder to another DB, and every feeder to major equipment.",
+        "Show the remaining ways as one line: FINAL CIRCUITS - REFER DB SCHEDULE <DB ID>.",
+        "A sub-DB follows the same rule: stop there if it has only final circuits."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Major equipment (state the rule in SLD general notes)",
+      "items": [
+        "Any 3-phase load, any load with its own isolator or starter, or any single load above the project limit (commonly about 20 A / 4 kW).",
+        "Always show life-safety loads, fire pumps, UPS/generator supplies and authority/consultant-specific circuits."
+      ]
+    }
+  ]
+}

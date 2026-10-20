@@ -45,7 +45,7 @@ export default function BoardEditForm({
         <div className="board-tab-body">
           {tab === 'transformer'
             ? <BoardFields board={draft} onChange={setDraft} section="source" />
-            : <BoardFields board={draft} onChange={setDraft} section="general" building={project.building} groups={[tab]} />}
+            : <BoardFields board={draft} onChange={setDraft} section="general" building={project.building} earthing={project.earthingPlan} groups={[tab]} />}
         </div>
         <div className="modal-actions">
           {onDelete && (

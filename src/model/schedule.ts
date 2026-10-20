@@ -1,6 +1,7 @@
 import { circuitCategory, circuitRef, circuitWatts, dominantLoadType, minWireMm2, nextFreeSlot, normalizeLoadItems, pointsWithItems, scheduleCircuits, SINGLE_PHASES } from '../calc/loadSchedule';
 import { applyRecommendation, recommend } from '../calc/sizing';
 import type { Feeder, Phase, Project } from '../types';
+import { reslotSpares } from './spareWays';
 
 /** Feeder id for a schedule circuit: board + circuit reference, e.g. DB-GF1-R3. */
 const circuitId = (boardId: string, phase: Phase, way: number) => `${boardId}-${phase}${way}`;
@@ -88,7 +89,8 @@ export function refreshBoard(project: Project, boardId: string): Project {
  *    totals carry over between sections, so the whole DB balances);
  *  - 3-phase circuits are power and take whole ways at the start of the
  *    power section.
- * Circuit ids are renamed to match their new references. */
+ * Circuit ids are renamed to match their new references. Spares and spaces
+ * then take the free slots after the circuits. */
 export function balancePhases(project: Project, boardId: string): Project {
   const board = project.boards.find((b) => b.id === boardId);
   const waysPerGroup = Math.max(1, (board?.elcbGroupSize ?? 6) / 3);
@@ -124,7 +126,7 @@ export function balancePhases(project: Project, boardId: string): Project {
     const r = renamed.get(f.id);
     return r ? { ...r, id: circuitId(boardId, r.phase!, r.way!) } : f;
   });
-  return { ...project, feeders };
+  return reslotSpares({ ...project, feeders }, boardId);
 }
 
 export { circuitRef };

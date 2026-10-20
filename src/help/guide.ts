@@ -22,7 +22,7 @@ export const WORKFLOW: GuideStep[] = [
 
 export interface QuickPath { task: string; where: string; steps: string; go: MainView }
 export const QUICK_PATHS: QuickPath[] = [
-  { task: 'A quick number (amps, kW ↔ kVA, cable, voltage drop)', where: 'Calculate → Quick calcs', steps: 'Type values — instant; nothing changes in the project.', go: 'calculators' },
+  { task: 'A quick number (amps, kW ↔ kVA, cable, voltage drop, lux)', where: 'Calculate → Quick calcs', steps: 'Type values — instant; nothing changes in the project.', go: 'calculators' },
   { task: 'One DB load schedule', where: 'Reports → Load schedule', steps: 'Click the DB in the tree → enter circuits → Export PDF / Excel.', go: 'load-schedule' },
   { task: 'DEWA forms (MD, TCL summary, bus riser)', where: 'Reports → Load schedule → tabs', steps: 'Check the details → Submission pack (Excel).', go: 'load-schedule' },
   { task: 'Short circuit (or any study) for chosen MDBs', where: 'Reports → Study reports', steps: 'Tick boards → tick studies → Export PDF.', go: 'study-reports' },

@@ -17,12 +17,14 @@ function cellClass(style: string | undefined): string {
  * Excel-style keys, paste, selection, copy and fill down (useExcelGrid).
  * Typing commits on Enter / leaving the cell; onEdits validates and applies,
  * returning messages for values that don't fit. */
-export default function ClassicGrid({ model, onEdits, onStatus, children, className }: {
+export default function ClassicGrid({ model, onEdits, onStatus, children, className, rowAction }: {
   model: SheetModel;
   onEdits: (edits: SheetEdit[]) => { changed: boolean; rejected: string[] };
   onStatus: (m: string) => void;
   children?: ReactNode;
   className?: string;
+  /** Optional control at the end of each row (e.g. delete), outside the sheet's cells. */
+  rowAction?: (y: number) => ReactNode;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const apply = (edits: SheetEdit[]) => {
@@ -56,9 +58,9 @@ export default function ClassicGrid({ model, onEdits, onStatus, children, classN
       <table className="gx">
         <thead>
           {model.groups.some((g) => g.title) && (
-            <tr>{model.groups.map((g, i) => <th key={i} colSpan={g.colspan} className={g.title ? 'gx-group' : 'gx-blank'}>{g.title}</th>)}</tr>
+            <tr>{model.groups.map((g, i) => <th key={i} colSpan={g.colspan} className={g.title ? 'gx-group' : 'gx-blank'}>{g.title}</th>)}{rowAction && <th className="gx-blank" />}</tr>
           )}
-          <tr>{model.cols.map((c, i) => <th key={i} style={{ minWidth: c.width }}>{c.title}</th>)}</tr>
+          <tr>{model.cols.map((c, i) => <th key={i} style={{ minWidth: c.width }}>{c.title}</th>)}{rowAction && <th className="gx-act" />}</tr>
         </thead>
         <tbody>
           {model.data.map((row, y) => (
@@ -93,12 +95,13 @@ export default function ClassicGrid({ model, onEdits, onStatus, children, classN
                   </td>
                 );
               })}
+              {rowAction && <td className="gx-act">{rowAction(y)}</td>}
             </tr>
           ))}
         </tbody>
         {model.totals && (
           <tfoot>
-            <tr>{model.totals.map((t, i) => <td key={i}>{t}</td>)}</tr>
+            <tr>{model.totals.map((t, i) => <td key={i}>{t}</td>)}{rowAction && <td />}</tr>
           </tfoot>
         )}
       </table>

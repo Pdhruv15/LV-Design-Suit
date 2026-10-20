@@ -1,7 +1,13 @@
 import type { Project } from '../types';
-import type { DrawingIssue, RegisterRow } from '../model/drawingSet';
+import { sheetRev, type DrawingIssue, type DrawingSet, type RegisterRow } from '../model/drawingSet';
 import { printDoc } from './printDoc';
 import { esc } from './report';
+
+/** Register rows with each sheet's own revision, date and status. */
+export const registerRows = (set: DrawingSet, sizes: [string, string][] = [], projectRev?: string) => {
+  const m = new Map(sizes);
+  return set.sheets.map((s) => ({ number: s.number, title: s.title, size: m.get(s.id) ?? (s.size === 'auto' ? 'Auto' : s.size), rev: sheetRev(s, projectRev) || undefined, date: s.date || s.history?.[s.history.length - 1]?.date, status: s.status || set.status }));
+};
 
 /** The drawing register: every sheet with its revision, date and status, and the issue history
  * (the last eight issues), on the same print document as the submission register and transmittals. */
