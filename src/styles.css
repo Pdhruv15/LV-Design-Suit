@@ -1297,6 +1297,9 @@ button.calc-chip.warn{color:var(--warn);border-color:color-mix(in srgb,var(--war
 .dash-state.ok{color:var(--ok)}.dash-state.warn{color:var(--warn)}
 .dash-tiles.more{margin-top:var(--space-3);opacity:.92}
 .dash-tiles.more .dash-value{font-size:17px}
+.dash-stage-checks{list-style:none;margin:var(--space-1) 0 0;padding:0;font-size:12px;line-height:1.7}
+.dash-stage-checks li{display:flex;gap:6px;align-items:baseline}
+.dash-stage-checks .linkish{font-size:inherit;text-align:left}
 
 /* Web version strip */
 .web-banner{display:flex;align-items:center;gap:var(--space-2) var(--space-3);flex-wrap:wrap;padding:var(--space-2) var(--gutter);background:color-mix(in srgb,var(--acc) 12%,var(--panel));border-bottom:1px solid var(--line);font-size:12.5px}

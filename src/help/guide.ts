@@ -9,31 +9,34 @@ import type { MainView } from '../views';
 
 export interface GuideStep { n: number; phase: 'Setup' | 'Design' | 'Check' | 'Deliver'; title: string; where: string; what: string; go: MainView | 'settings' }
 
+/** The stage each phase stands for (the ribbon's numbered tabs). */
+export const PHASE_LABEL: Record<GuideStep['phase'], string> = { Setup: '1 Concept', Design: '2 Schematic', Check: '3 Detailed design', Deliver: '4 Tender and IFC' };
+
 export const WORKFLOW: GuideStep[] = [
-  { n: 1, phase: 'Setup', title: 'New project', where: 'Home → New', what: 'Name it; your profile’s defaults and details fill in.', go: 'projects' },
-  { n: 2, phase: 'Setup', title: 'Project details and building', where: 'Home → Project settings, Building', what: 'Owner, plot, consultant, voltage; buildings, levels, rooms, GFA.', go: 'building' },
-  { n: 3, phase: 'Design', title: 'Space plan (optional)', where: 'Design → Space plan', what: 'Areas × W/m² → panels and transformers → Create SLD.', go: 'space-planning' },
-  { n: 4, phase: 'Design', title: 'Single line diagram', where: 'Design → SLD', what: 'Transformer and MDB, then drag boards, loads and presets from the palette.', go: 'design' },
-  { n: 5, phase: 'Design', title: 'Load schedules', where: 'Reports → Load schedule', what: 'Each DB’s circuits — click the DB in the panel tree.', go: 'load-schedule' },
-  { n: 6, phase: 'Check', title: 'Run and fix', where: 'Run (F5) → Dashboard to-do', what: 'Click each item, fix it, run again until nothing fails.', go: 'dashboard' },
-  { n: 7, phase: 'Check', title: 'Sizing studies', where: 'Calculate → Transformer / Gen, Power factor, Busbar riser', what: 'Size, Apply to SLD, run again.', go: 'sizing' },
-  { n: 8, phase: 'Deliver', title: 'Issue and submit', where: 'Reports → Revisions, Study reports, Load schedule', what: 'Issue Rev A, then the submission pack (Excel) and study reports (PDF).', go: 'revisions' }
+  { n: 1, phase: 'Setup', title: 'New project and building', where: 'Project → New; 1 Concept → Building', what: 'A new project starts at the Concept stage. Owner, plot, voltage; buildings, levels, rooms, GFA.', go: 'building' },
+  { n: 2, phase: 'Setup', title: 'Load assessment and supply', where: '1 Concept → Load assessment, Tx & Gen sizing, Substation area', what: 'Total load from area and building type → transformers, generator, room sizes → Issue concept.', go: 'load-assessment' },
+  { n: 3, phase: 'Design', title: 'Main boards and risers', where: '2 Schematic → Build hierarchy, SLD, Busbar riser', what: 'MDB / SMDB with their ratings, risers, main cables from rough lengths.', go: 'panels' },
+  { n: 4, phase: 'Design', title: 'Main systems', where: '2 Schematic → Power factor, UPS, Solar PV, Earth pits', what: 'Capacitor banks, back-up and earthing concept → Issue schematic.', go: 'pfc' },
+  { n: 5, phase: 'Check', title: 'DBs and circuits', where: '3 Detailed design → SLD, Schedule', what: 'Every DB’s circuits from the MEP layouts, spare ways, R / Y / B balance.', go: 'design' },
+  { n: 6, phase: 'Check', title: 'Calculate and fix', where: 'Run (F5) → Overview to-do; Selection, Voltage drop, Earthing, Protection', what: 'Click each item, fix it, run again until nothing fails → Issue detailed design.', go: 'dashboard' },
+  { n: 7, phase: 'Deliver', title: 'Documents', where: 'Documents → schedules, Drawings, Study reports', what: 'Load schedules, drawing set (status follows the stage), study and calculation reports.', go: 'drawings' },
+  { n: 8, phase: 'Deliver', title: 'Tender and IFC', where: '4 Tender and IFC → Issue for tender / Issue IFC, Submissions', what: 'Close comments and tender queries, re-run, freeze and issue the IFC package.', go: 'revisions' }
 ];
 
 export interface QuickPath { task: string; where: string; steps: string; go: MainView }
 export const QUICK_PATHS: QuickPath[] = [
-  { task: 'A quick number (amps, kW ↔ kVA, cable, voltage drop, lux)', where: 'Calculate → Quick calcs', steps: 'Type values — instant; nothing changes in the project.', go: 'calculators' },
-  { task: 'One DB load schedule', where: 'Reports → Load schedule', steps: 'Click the DB in the tree → enter circuits → Export PDF / Excel.', go: 'load-schedule' },
-  { task: 'DEWA forms (MD, TCL summary, bus riser)', where: 'Reports → Load schedule → tabs', steps: 'Check the details → Submission pack (Excel).', go: 'load-schedule' },
-  { task: 'Short circuit (or any study) for chosen MDBs', where: 'Reports → Study reports', steps: 'Tick boards → tick studies → Export PDF.', go: 'study-reports' },
-  { task: 'Transformer / generator size', where: 'Calculate → Transformer / Gen', steps: 'Tick MDBs and the generator boards → Apply to SLD.', go: 'sizing' },
-  { task: 'Power factor correction', where: 'Calculate → Power factor', steps: 'Central / Group / Individual → Add to SLD → PDF sheet.', go: 'pfc' },
-  { task: 'Busbar riser (high-rise)', where: 'Calculate → Busbar riser', steps: 'Floors or “Take floors from …” → Cu / Al → PDF.', go: 'busbar' },
-  { task: 'Cable tray size', where: 'Reports → Cable trays', steps: 'Route path per cable (A-B-C) → tray size and BOQ.', go: 'cable-tray' },
-  { task: 'UPS or solar PV', where: 'Calculate → UPS & battery / Solar PV', steps: 'Loads or roof → size → PDF.', go: 'ups' },
-  { task: 'Substation room size (DM)', where: 'Design → Substation area', steps: 'Number and size of transformers → minimum room area.', go: 'substation-area' },
-  { task: 'Voltage drop / earthing check', where: 'Calculate → the study', steps: 'Run (F5) → click a board in the tree to filter.', go: 'earthing' },
-  { task: 'Project at a glance / client summary', where: 'Home → Dashboard', steps: 'Numbers, charts, to-do → 1-page PDF.', go: 'dashboard' }
+  { task: 'A quick number (amps, kW ↔ kVA, cable, voltage drop, lux)', where: '3 Detailed design → More → Quick calcs', steps: 'Type values — instant; nothing changes in the project.', go: 'calculators' },
+  { task: 'One DB load schedule', where: 'Documents → Load schedule', steps: 'Click the DB in the tree → enter circuits → Export PDF / Excel.', go: 'load-schedule' },
+  { task: 'DEWA forms (MD, TCL summary, bus riser)', where: 'Documents → Load schedule → tabs', steps: 'Check the details → Submission pack (Excel).', go: 'load-schedule' },
+  { task: 'Short circuit (or any study) for chosen MDBs', where: 'Documents → Study reports', steps: 'Tick boards → tick studies → Export PDF.', go: 'study-reports' },
+  { task: 'Transformer / generator size', where: '1 Concept → Tx & Gen sizing', steps: 'Tick MDBs and the generator boards → Apply to SLD.', go: 'sizing' },
+  { task: 'Power factor correction', where: '2 Schematic → Power factor', steps: 'Central / Group / Individual → Add to SLD → PDF sheet.', go: 'pfc' },
+  { task: 'Busbar riser (high-rise)', where: '2 Schematic → Busbar riser', steps: 'Floors or “Take floors from …” → Cu / Al → PDF.', go: 'busbar' },
+  { task: 'Cable tray size', where: 'Documents → Cable trays', steps: 'Route path per cable (A-B-C) → tray size and BOQ.', go: 'cable-tray' },
+  { task: 'UPS or solar PV', where: '2 Schematic → UPS & battery / Solar PV', steps: 'Loads or roof → size → PDF.', go: 'ups' },
+  { task: 'Substation room size (DM)', where: '1 Concept → Substation area', steps: 'Number and size of transformers → minimum room area.', go: 'substation-area' },
+  { task: 'Voltage drop / earthing check', where: '3 Detailed design → the study', steps: 'Run (F5) → click a board in the tree to filter.', go: 'earthing' },
+  { task: 'Project at a glance / client summary', where: 'Project → Overview', steps: 'Numbers, charts, to-do → 1-page PDF.', go: 'dashboard' }
 ];
 
 export interface ChecklistItem { id: string; label: string; done: boolean; go: MainView | 'settings' }

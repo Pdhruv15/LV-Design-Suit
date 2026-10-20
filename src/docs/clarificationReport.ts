@@ -15,7 +15,7 @@ export function buildClarificationDoc(source: Project, setup: Pick<ReviewReportS
   const info = p.info ?? {}, base = baselineDoc(p), docs = docsOf(p).filter((d) => !isSuperseded(d));
   const all = p.reviewComments ?? [], mods = p.modifications ?? [];
   const live = all.filter((c) => c.status !== 'withdrawn');
-  const findings = live.filter((c) => c.kind !== 'question'), questions = live.filter((c) => c.kind === 'question');
+  const findings = live.filter((c) => !c.kind || c.kind === 'finding'), questions = live.filter((c) => c.kind === 'question');
   const title = setup.title?.trim() || 'Technical clarification report';
   const sec = (id: string, t: string, blocks: Block[]) => ({ id, title: t, blocks });
   const ref = (c: (typeof all)[number]) => (c.ref ? c.ref.id : c.sheet ?? '—');

@@ -79,7 +79,7 @@ export interface DrawingSet {
   issues?: DrawingIssue[]; // transmittals, oldest first
 }
 
-export const SHEET_STATUSES = ['FOR APPROVAL', 'FOR AUTHORITY SUBMISSION', 'FOR TENDER', 'FOR CONSTRUCTION', 'AS-BUILT', 'PRELIMINARY'];
+export const SHEET_STATUSES = ['FOR CONCEPT REVIEW', 'FOR SCHEMATIC REVIEW', 'FOR APPROVAL', 'FOR AUTHORITY SUBMISSION', 'FOR TENDER', 'FOR CONSTRUCTION', 'AS-BUILT', 'PRELIMINARY'];
 
 export const SIZES: SheetSize[] = ['A4', 'A3', 'A2', 'A1'];
 export const setOf = (p: Project): DrawingSet => p.drawingSet ?? { prefix: 'E-SLD-', sheets: [], register: true };

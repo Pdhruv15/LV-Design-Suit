@@ -13,7 +13,8 @@ import { prepareSheets } from './sheetRender';
 import { mergePdfs } from '../../docs/mergePdf';
 import {
   allowedNext, CATEGORY_LABEL, CommentError, moveComment, needsReReview, newComment, refState, reviewSummary, SEVERITY_LABEL, STATUS_LABEL, withComment,
-  type CommentCategory, type CommentSeverity, type CommentStatus, type RefKind, type ReviewComment
+  type CommentCategory, type CommentSeverity, type CommentStatus, type RefKind, type ReviewComment,
+  type CommentKind
 } from '../../model/reviewComments';
 
 const ACTION: Record<CommentStatus, string> = { open: 'Reopen', responded: 'Record response', 'awaiting-evidence': 'Request evidence', closed: 'Close (reviewer)', withdrawn: 'Withdraw…' };
@@ -27,7 +28,7 @@ export default function ReviewView({ project, me = "", run, stale = [], onChange
   const sum = reviewSummary(project);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('active');
   const [sel, setSel] = useState<string | null>(null);
-  const [f, setF] = useState({ type: 'finding' as 'finding' | 'question', category: 'calculation' as CommentCategory, severity: 'major' as CommentSeverity, finding: '', criterion: '', requiredAction: '', assignedTo: '', sheet: '', kind: '' as RefKind | '', refId: '' });
+  const [f, setF] = useState({ type: 'finding' as CommentKind, category: 'calculation' as CommentCategory, severity: 'major' as CommentSeverity, finding: '', criterion: '', requiredAction: '', assignedTo: '', sheet: '', kind: '' as RefKind | '', refId: '' });
   const [text, setText] = useState('');
   const setup: ReviewReportSetup = project.reviewReport ?? defaultSetup();
   const [busy, setBusy] = useState('');
@@ -88,7 +89,7 @@ export default function ReviewView({ project, me = "", run, stale = [], onChange
       <div className="card">
         <h4>Raise a comment</h4>
         <div className="row">
-          <select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value as 'finding' | 'question' })}><option value="finding">Finding</option><option value="question">Question</option></select>
+          <select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value as CommentKind })}><option value="finding">Finding</option><option value="question">Question</option><option value="tender-query">Tender query</option></select>
           <select value={f.category} onChange={(e) => setF({ ...f, category: e.target.value as CommentCategory })}>{Object.entries(CATEGORY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
           <select value={f.severity} onChange={(e) => setF({ ...f, severity: e.target.value as CommentSeverity })}>{Object.entries(SEVERITY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
           <select value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value as RefKind | '', refId: '' })}><option value="">About: general</option><option value="feeder">A circuit</option><option value="board">A panel</option><option value="sheet">A sheet</option></select>
@@ -127,7 +128,7 @@ export default function ReviewView({ project, me = "", run, stale = [], onChange
             const rs = refState(project, c), flag = needsReReview(project, c);
             return (
               <tr key={c.id} onClick={() => setSel(c.id)} style={{ cursor: 'pointer', fontWeight: sel === c.id ? 600 : undefined }}>
-                <td>{c.id}{c.kind === 'question' ? <span className="m"> ?</span> : ''}</td><td className={c.severity === 'critical' ? 'bad' : ''}>{SEVERITY_LABEL[c.severity]}</td><td>{c.finding}</td>
+                <td>{c.id}{c.kind === 'question' ? <span className="m"> ?</span> : c.kind === 'tender-query' ? <span className="m"> TQ</span> : ''}</td><td className={c.severity === 'critical' ? 'bad' : ''}>{SEVERITY_LABEL[c.severity]}</td><td>{c.finding}</td>
                 <td>{c.ref ? `${c.ref.id}${rs === 'missing' ? ' (deleted)' : ''}` : '—'}</td><td>{c.assignedTo ?? '—'}</td>
                 <td>{STATUS_LABEL[c.status]}{flag ? <span className="bad"> · re-review: {rs === 'missing' ? 'item deleted' : 'design changed since closed'}</span> : rs === 'changed' && c.status !== 'withdrawn' ? <span className="m"> · item changed since raised</span> : ''}</td>
               </tr>

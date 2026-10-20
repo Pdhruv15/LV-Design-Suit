@@ -72,7 +72,8 @@ const hasDatabase = hasBridge && !!window.lvds.database;
 
 import type { MainView } from './views';
 import CommandPalette, { ShortcutHelp, type Command } from './components/CommandPalette';
-import Ribbon, { type BomCommand, tabForView, type DiagramTool, type RibbonTab } from './components/Ribbon';
+import Ribbon, { type BomCommand, tabForStage, tabForView, type DiagramTool, type RibbonTab } from './components/Ribbon';
+import { advanceStage, ifcIssued, nextStage, setTenderRoute, STAGE_INFO, stageOf, tenderRoute } from './model/designStage';
 import ProjectSettings from './components/ProjectSettings';
 import type { BoardTab } from './components/BoardPanel';
 import BoardEditForm from './components/BoardEditForm';
@@ -287,8 +288,22 @@ export default function App() {
   // Navigating (left menu or ribbon) keeps the ribbon on the matching tab.
   const setView = (v: MainView) => {
     setViewState(v);
-    setRibbonTab(tabForView(v));
+    setRibbonTab((t) => tabForView(v, t));
   };
+  // A project opens on the ribbon tab of its design stage.
+  const stageNow = stageOf(project);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only when another project is opened, not on every stage change
+  useEffect(() => { setRibbonTab(tabForStage(stageNow)); }, [project.id]);
+  /** The stage gate: issue this stage's package as a revision (the new baseline) and move to the next stage. */
+  function issueStage() {
+    const from = stageOf(project), to = nextStage(project);
+    const what = from === 'ifc' ? 'Issue the IFC package' : `Issue the ${STAGE_INFO[from].label.toLowerCase()} package and move to ${to ? STAGE_INFO[to].label : 'the next stage'}`;
+    if (!window.confirm(`${what}?\n\nThis records a revision (drawings ${STAGE_INFO[from].sheetStatus}) and makes it the baseline; later changes are tracked against it.`)) return;
+    const next = advanceStage(project, { by: prefs.profile.name });
+    setProject(next, { step: true });
+    setStatus(`${STAGE_INFO[from].issue} recorded as Rev ${next.revisions![next.revisions!.length - 1].id}${to && to !== from ? ` — now at ${STAGE_INFO[to].label}` : ''}`);
+    if (to && to !== from) setRibbonTab(tabForStage(to));
+  }
   const [showFeederForm, setShowFeederForm] = useState<'new' | 'edit' | null>(null);
   const [showBoardForm, setShowBoardForm] = useState(false);
   const [boardPreset, setBoardPreset] = useState<{ kind: BoardKind; ratingA: number } | undefined>();
@@ -1119,7 +1134,13 @@ export default function App() {
           recent: navRecent.map((m) => ({ file: m.file, name: m.name, when: whenText(m.updatedAt) })),
           currentFile,
           onOpenRecent: openProject,
-          dbIssues: db.issues.length
+          dbIssues: db.issues.length,
+          stage: stageOf(project),
+          nextStage: nextStage(project),
+          ifcIssued: ifcIssued(project),
+          onAdvanceStage: issueStage,
+          route: tenderRoute(project),
+          onRoute: (r) => setProject(setTenderRoute(project, r), { step: true })
         }}
       />}
 
@@ -1424,6 +1445,7 @@ export default function App() {
                 onOpen={(v) => (v === 'settings' ? setShowSettings(true) : setView(v))}
                 onEditBrief={() => setBriefDialog(true)}
                 onChangeProject={(p) => setProject(p, { step: true })}
+                onIssueStage={issueStage}
                 onRun={runNow}
                 onStatus={setStatus}
                 onGo={(g) => {

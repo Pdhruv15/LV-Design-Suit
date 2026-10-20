@@ -6,7 +6,8 @@ import type { MainView } from '../views';
 import { changedSinceRevision } from '../model/revisions';
 import { inScope, viewInScope, type ScopeId } from '../model/brief';
 import type { TodoItem } from './dashboard';
-import { reviewSummary } from '../model/reviewComments';
+import { openTenderQueries, reviewSummary } from '../model/reviewComments';
+import { gateOf, ifcIssued, splitByStage, STAGE_INFO, stageIndex, stagesOf, viewStage, type DesignStage, type StageGate } from '../model/designStage';
 export interface ReadinessStage { id: string; label: string; done: boolean; detail: string; go: MainView | 'settings'; /** false when the project's scope leaves this stage out (it stays reachable, but is not counted). */ applicable: boolean }
 const CALC_SCOPE: ScopeId[] = ['studies', 'sld', 'loads', 'earthing', 'ups', 'solar', 'pfc'];
 const anyScope = (p: Project, ids: ScopeId[]) => ids.some((id) => inScope(p, id));
@@ -38,3 +39,56 @@ export function projectReadiness(p: Project, d: Dashboard, run?: CalcRun, stale:
   const applicable: Record<string, boolean> = { design: anyScope(p, ['sld', 'loads']), calculate: anyScope(p, CALC_SCOPE), resolve: anyScope(p, CALC_SCOPE), drawings: anyScope(p, ['sld', 'earthing']) };
   return stages.map((s) => ({ ...s, applicable: applicable[s.id] ?? true }));
 }
+
+/** One check of a design stage's checklist (Overview → stage bar). */
+export interface StageCheck { label: string; done: boolean; go: MainView | 'settings' }
+export interface StageCard { stage: DesignStage; label: string; does: string; state: 'done' | 'current' | 'next'; checks: StageCheck[]; gate?: StageGate }
+const MAIN_KINDS = new Set(['MDB', 'LV-MDB', 'SMDB', 'EMDB', 'MCC']);
+
+/** The checklist of every stage the project goes through: what each stage needs before its package is issued.
+ * Derived from the inputs, never stored; a stage is done when its gate has been passed. */
+export function stageChecklist(p: Project, d: Dashboard, run?: CalcRun, stale: StudyKey[] = [], saved = false): StageCard[] {
+  const ready = projectReadiness(p, d, run, stale, saved);
+  const r = (id: string) => ready.find((s) => s.id === id)!;
+  const { counted } = splitByStage(p, d.todo);
+  const upTo = (s: DesignStage) => counted.filter((t) => { const v = viewStage(t.go?.view); return !v || STAGE_ORDER.indexOf(v) <= STAGE_ORDER.indexOf(s); });
+  const rv = reviewSummary(p);
+  const sheets = p.drawingSet?.sheets ?? [];
+  const checks: Record<DesignStage, StageCheck[]> = {
+    concept: [
+      { label: 'Building and GFA', done: !!p.building?.buildings.length || (p.loadAssessment?.gfaM2 ?? 0) > 0, go: 'building' },
+      { label: 'Load assessment', done: !!p.loadAssessment, go: 'load-assessment' },
+      { label: 'Transformers and generator', done: !!p.txGen, go: 'sizing' },
+      { label: 'Substation and room areas', done: !!p.substations?.length, go: 'substation-area' }
+    ],
+    schematic: [
+      { label: 'Main boards entered', done: p.boards.filter((b) => MAIN_KINDS.has(b.kind ?? '')).length > 0 && p.boards.length > 1, go: 'panels' },
+      { label: 'Board loads entered', done: r('design').done, go: 'design' },
+      { label: 'Riser / schematic drawing', done: sheets.some((s) => (s.kind as string) === 'riser' || (s.kind as string) === 'system'), go: 'drawings' },
+      { label: 'Main checks clear', done: !upTo('schematic').some((t) => t.status === 'bad'), go: 'dashboard' }
+    ],
+    detailed: [
+      { label: 'All DBs and circuits', done: r('design').done, go: 'design' },
+      { label: 'Calculations current', done: r('calculate').done, go: 'dashboard' },
+      { label: 'All checks pass', done: r('resolve').done, go: 'dashboard' },
+      { label: 'Drawing set', done: r('drawings').done, go: 'drawings' }
+    ],
+    tender: [
+      { label: 'BOQ revision issued', done: !!p.boqRevisions?.length, go: 'boq' },
+      { label: 'Tender queries closed', done: openTenderQueries(p) === 0, go: 'review' },
+      { label: 'Logged for tender', done: (p.submissions ?? []).some((s) => s.purpose === 'For tender'), go: 'submissions' }
+    ],
+    ifc: [
+      { label: 'Review comments closed', done: rv.open === 0 && rv.reReview === 0, go: 'review' },
+      { label: 'Checks re-run and pass', done: r('resolve').done, go: 'dashboard' },
+      { label: 'IFC issued', done: ifcIssued(p), go: 'revisions' },
+      { label: 'No change since IFC', done: ifcIssued(p) && !changedSinceRevision(p), go: 'modifications' }
+    ]
+  };
+  const now = stageIndex(p);
+  return stagesOf(p).map((s, i) => ({
+    stage: s, label: STAGE_INFO[s].label, does: STAGE_INFO[s].does, checks: checks[s], gate: gateOf(p, s),
+    state: i < now || (s === 'ifc' && ifcIssued(p)) ? 'done' : i === now ? 'current' : 'next'
+  }));
+}
+const STAGE_ORDER: DesignStage[] = ['concept', 'schematic', 'detailed', 'tender', 'ifc'];

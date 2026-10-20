@@ -138,7 +138,7 @@ export const BOARD_FIELDS: Fields<Board> = [
 export const PROJECT_FIELDS: Fields<Snapshot> = [
   ['name', 'Project name'], ['voltageV', 'Voltage (V)'], ['frequencyHz', 'Frequency (Hz)'], ['ambientC', 'Ambient (°C)'], ['vdLimitPct', 'VD limit (%)'],
   ['pointTemplate', 'Schedule columns'], ['studySettings', 'Design settings'], ['designReference', 'Design reference'], ['standards', 'Project standards'], ['vdTempC', 'Cable temperature for voltage drop (°C)'],
-  ['strictFinalDisconnection', 'Strict final-circuit disconnection'], ['strictCableData', 'Require manufacturer cable data'], ['groundTempC', 'Ground temperature (°C)'], ['soilResistivityKmW', 'Soil thermal resistivity (K·m/W)'], ['vdFinalCircuits', 'Voltage drop: include final circuits'], ['status', 'Status'], ['archivedAt', 'Archived']
+  ['strictFinalDisconnection', 'Strict final-circuit disconnection'], ['strictCableData', 'Require manufacturer cable data'], ['groundTempC', 'Ground temperature (°C)'], ['soilResistivityKmW', 'Soil thermal resistivity (K·m/W)'], ['vdFinalCircuits', 'Voltage drop: include final circuits'], ['status', 'Status'], ['stage', 'Design stage'], ['archivedAt', 'Archived']
 ];
 
 /** Larger data sets: a summary line (with a count where it helps) and then the individual differences. */
