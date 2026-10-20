@@ -6,6 +6,12 @@ const check = require('./ipcValidate.cjs');
 const { spawn } = require('node:child_process');
 const database = require('./database.cjs');
 const projectFiles = require('./projectFiles.cjs');
+const { htmlToPdf, SHEETS } = require('./pdfRender.cjs');
+
+// `lvds` (the command line) exports drawings and PDFs through this app with --lvds-headless-export:
+// no window and none of the app's start-up, only the export (headlessExport.cjs).
+const headless = process.argv.includes('--lvds-headless-export');
+if (headless) require('./headlessExport.cjs');
 
 const isDev = !app.isPackaged;
 
@@ -96,6 +102,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  if (headless) return;
   // Pages get no device or browser permissions (camera, location, notifications…) except writing to the clipboard.
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => callback(check.ALLOWED_PERMISSIONS.has(permission)));
   ensureProjectsFolder();
@@ -292,8 +299,6 @@ ipcMain.handle('database:open', (_evt, file) => {
 });
 
 // ---- IPC: render an HTML report to PDF ----
-// Sheet sizes in inches (A-series); Electron knows A3/A4 by name only.
-const SHEETS = { A1: { width: 33.11, height: 23.39 }, A2: { width: 23.39, height: 16.54 } };
 
 ipcMain.handle('files:savePdf', async (_evt, args) => {
   const { defaultName, html, pageSize, landscape, cssPages } = check.pdfArgs(args);
@@ -326,24 +331,7 @@ ipcMain.handle('files:savePdf', async (_evt, args) => {
 });
 
 // ---- IPC: HTML → PDF bytes (no dialog), to merge several parts into one file ----
-ipcMain.handle('files:pdfBytes', async (_evt, args) => {
-  const { html, pageSize, landscape, cssPages } = check.pdfArgs(args);
-  const pdfWin = new BrowserWindow({ show: false, webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, javascript: false } });
-  pdfWin.webContents.on('will-navigate', (e) => e.preventDefault());
-  const tmp = path.join(os.tmpdir(), `lvds-part-${Date.now()}-${Math.random().toString(36).slice(2)}.html`);
-  try {
-    fs.writeFileSync(tmp, html, 'utf-8');
-    await pdfWin.loadFile(tmp);
-    const size = SHEETS[pageSize] ?? pageSize;
-    const pdf = cssPages
-      ? await pdfWin.webContents.printToPDF({ preferCSSPageSize: true, printBackground: true })
-      : await pdfWin.webContents.printToPDF({ pageSize: size, landscape: SHEETS[pageSize] ? false : landscape, printBackground: true, margins: { marginType: pageSize === 'A4' ? 'default' : 'none' } });
-    return new Uint8Array(pdf);
-  } finally {
-    fs.rmSync(tmp, { force: true });
-    pdfWin.destroy();
-  }
-});
+ipcMain.handle('files:pdfBytes', (_evt, args) => htmlToPdf(check.pdfArgs(args)));
 
 // ---- IPC: external calculation engines (Python helper) ----
 // engines/python/lvds_engine.py runs OpenDSS (OpenDSSDirect.py) and

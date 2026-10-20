@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Earth Riser Floor Bars</title>
+<style>
+:root{--bg:#f4f4f4;--card:#fff;--line:#cfcfcf;--tx:#111;--mut:#555}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.45 -apple-system,"Segoe UI",system-ui,sans-serif}
+header{padding:14px 16px 4px;max-width:1180px;margin:0 auto}
+h1{font-size:17px;margin:0 0 4px}
+.mut{color:var(--mut)}
+main{max-width:1180px;margin:0 auto;padding:8px 16px 32px;display:grid;gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:12px 14px}
+.card h2{font-size:14px;margin:0 0 2px}
+.row{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px;align-items:start}
+@media (max-width:900px){.row{grid-template-columns:1fr}}
+.sheets{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px}
+.sheets svg{flex:0 0 auto;width:440px;height:auto;border:1px solid #ddd;background:#fff}
+svg.one{width:100%;height:auto;display:block;border:1px solid #ddd;background:#fff}
+ul{margin:6px 0 0;padding-left:18px}li{margin:3px 0}
+.ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 10px}
+button{font:inherit;padding:3px 10px;border:1px solid #999;background:#fff;border-radius:4px;cursor:pointer}
+button.on{background:#111;color:#fff;border-color:#111}
+</style>
+</head>
+<body>
+<header>
+  <h1>Earth riser with floor earth bars, any number of floors (mockup)</h1>
+  <div class="mut">Drawn as your reference sheet: a floor earth bar with two test links on every level, one 1C G/Y earth cable looping bar to bar up the riser, 150 mm² from the LV room earth bar to the ground-floor bar. DBs are not on this sheet; they go on a separate floor-level sheet (bottom). Pick the number of floors to see how it scales.</div>
+</header>
+<main>
+  <div class="card">
+    <div class="ctl"><b>Floors above ground:</b>
+      <span id="fl"></span>
+    </div>
+    <h2>Option A: full riser, split over sheets (max 20 levels per sheet)</h2>
+    <div class="mut">Every level drawn. A match line at the top of a sheet continues on the next sheet (E-ERT-01, -02 …). 100 floors = 6 sheets.</div>
+    <div class="sheets" id="a"></div>
+  </div>
+  <div class="card row">
+    <div>
+      <h2>Option B: one sheet, typical floors grouped</h2>
+      <div class="mut">Floors with the same earthing (same bar, same cable) are drawn once as "TYPICAL LEVEL-05 TO LEVEL-95"; the first, last and any floor that differs (plant, refuge, roof) are drawn in full. Always fits on one sheet.</div>
+      <svg class="one" id="b"></svg>
+    </div>
+    <div>
+      <h2>Both options</h2>
+      <ul>
+        <li>Bar tag: <b>EB-EL-A-L03</b> (EB + riser EL-A + level). A bar that also takes the DBs of that floor can be named EBN as on your sheet.</li>
+        <li>Riser cable size and LV room cable size are project settings (default 95 / 150 mm² 1C G/Y PVC).</li>
+        <li>The cable enters one test link and leaves from the other, alternating sides, so any bar can be isolated for testing.</li>
+        <li>More than one riser (EL-A, EL-B) is drawn side by side.</li>
+        <li>Black and white, A3 sheet, same frame as the other earthing sheets.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Separate sheet: floor DB earthing (one per floor, or one per typical floor)</h2>
+    <div class="mut">The floor earth bar from the riser sheet, and each SMDB / DB earth bar on that floor connected to it with its CPC size. A DB fed from another DB on the same floor goes to that DB's bar.</div>
+    <svg class="one" id="c"></svg>
+  </div>
+</main>
+<script>
+const K = '#111', M = '#666';
+const T = (x, y, s, o = '') => `<text x="${x}" y="${y}" font-size="9" fill="${K}" ${o}>${s}</text>`;
+const L = (d, w = 1.3, o = '') => `<path d="${d}" stroke="${K}" stroke-width="${w}" fill="none" ${o}/>`;
+const dot = (x, y) => `<circle cx="${x}" cy="${y}" r="3.2" fill="#fff" stroke="${K}" stroke-width="1.2"/><circle cx="${x}" cy="${y}" r="1.4" fill="${K}"/>`;
+const lv = (i) => i === 0 ? 'GF' : `L${String(i).padStart(2, '0')}`;
+const lvName = (i, n) => i === 0 ? 'GROUND FLOOR' : i === n + 1 ? 'ROOF' : `LEVEL-${String(i).padStart(2, '0')}`;
+
+// Floor earth bar as on the reference: bar, two test links, a terminal at each end.
+function bar(cx, y, tag) {
+  const w = 150, x = cx - w / 2;
+  return `<rect x="${x}" y="${y}" width="${w}" height="26" fill="#fff" stroke="${K}" stroke-width="1"/>` +
+    `<rect x="${x + 4}" y="${y + 4}" width="${w - 8}" height="18" fill="none" stroke="${K}" stroke-width="0.6"/>` +
+    [x + 34, x + w - 34].map((tx) => `<rect x="${tx - 11}" y="${y + 6}" width="22" height="14" fill="#fff" stroke="${K}" stroke-width="1"/>` + T(tx, y + 16, 'TL', 'text-anchor="middle" font-size="8"')).join('') +
+    dot(x + 12, y + 13) + dot(x + w - 12, y + 13) +
+    T(cx, y - 5, tag, 'text-anchor="middle" font-weight="600"');
+}
+const tri = (x, y) => `<path d="M${x - 4} ${y - 7}h8l-4 7z" fill="${K}"/>`;
+
+// One sheet of levels [from..to] (inclusive), rows bottom to top.
+function riserSheet(levels, n, opt = {}) {
+  const FH = 58, top = 40, rows = levels.length, slots = Math.max(rows, opt.slots ?? rows), W = 570, H = top + slots * FH + (opt.lvRoom ? 110 : 40) + 40;
+  const cx = 320;
+  let s = `<rect x="4" y="4" width="${W - 8}" height="${H - 8}" fill="none" stroke="${K}" stroke-width="1.2"/>`;
+  const yOf = (k) => top + (slots - 1 - k) * FH + FH;  // slab line of row k
+  if (opt.matchTop) s += L(`M20 ${top - 6}H${W - 20}`, 1, 'stroke-dasharray="14 4 3 4"') + T(W / 2, top - 12, `MATCH LINE: CONTINUED ON SHEET ${opt.matchTop}`, 'text-anchor="middle" font-size="8"');
+  if (opt.matchBottom) s += L(`M20 ${H - 60}H${W - 20}`, 1, 'stroke-dasharray="14 4 3 4"') + T(W / 2, H - 48, `MATCH LINE: CONTINUED FROM SHEET ${opt.matchBottom}`, 'text-anchor="middle" font-size="8"');
+  const pts = [];
+  levels.forEach((lev, k) => {
+    const y = yOf(k);
+    s += L(`M20 ${y}H${W - 20}`, 0.6, 'stroke-dasharray="10 5" stroke="#999"') + tri(30, y - 4) +
+      T(40, y - 6, lev.label, 'font-weight="600"');
+    if (lev.typical) {
+      s += T(40, y - 30, `(${lev.count} LEVELS, ONE BAR PER LEVEL)`, `font-size="8" fill="${M}"`);
+    }
+    const by = y - 44;
+    s += bar(cx, by, lev.tag);
+    pts.push({ y: by + 13, k, typical: lev.typical });
+  });
+  // Riser cable: alternating sides, bar to bar.
+  for (let k = 0; k < pts.length - 1; k++) {
+    const side = (levels[k].idx % 2 === 0) ? 1 : -1;
+    const x = cx + side * 63;
+    s += L(`M${x} ${pts[k].y - 3}V${pts[k + 1].y + 3}`, 1.4, pts[k + 1].typical || pts[k].typical ? '' : '');
+    if (pts[k + 1].typical) s += T(x + side * 8, (pts[k].y + pts[k + 1].y) / 2, '⋮', `font-size="14" text-anchor="middle"`);
+  }
+  if (opt.matchTop) { const side = (levels[rows - 1].idx % 2 === 0) ? 1 : -1; s += L(`M${cx + side * 63} ${pts[rows - 1].y - 3}V${top - 6}`, 1.4); }
+  if (opt.matchBottom) { const side = (levels[0].idx % 2 === 0) ? -1 : 1; s += L(`M${cx + side * 63} ${pts[0].y + 3}V${H - 60}`, 1.4); }
+  // Callout on the riser cable (first gap).
+  if (pts.length > 1) {
+    const side = (levels[0].idx % 2 === 0) ? 1 : -1, x = cx + side * 63, y = (pts[0].y + pts[1].y) / 2;
+    s += L(`M${x} ${y}H${x + 30}`, 0.8) + `<path d="M${x + 1} ${y}l6 -3v6z" fill="${K}"/>` +
+      T(x + 34, y - 2, `1C ${opt.riser ?? 95}mm² G/Y PVC EARTH`, 'font-size="8"') + T(x + 34, y + 8, 'CABLE (TYPICAL)', 'font-size="8"');
+  }
+  if (opt.lvRoom) {
+    const y = pts[0].y;
+    s += dot(110, y) + L(`M113 ${y}H${cx - 63}`, 1.4) + T(100, y - 12, 'CONNECTED TO LV', 'text-anchor="middle" font-size="8"') + T(100, y - 3, 'ROOM EARTH BAR', 'text-anchor="middle" font-size="8"');
+    s += L(`M200 ${y}V${y + 52}H175`, 0.8) + `<path d="M200 ${y + 1}l-3 6h6z" fill="${K}"/>` +
+      T(110, y + 55, '1C 150mm² G/Y PVC EARTH', 'text-anchor="middle" font-size="8"') + T(110, y + 65, 'CABLE (TYPICAL)', 'text-anchor="middle" font-size="8"');
+  }
+  s += `<rect x="${W - 140}" y="${H - 34}" width="128" height="22" fill="none" stroke="${K}" stroke-width="0.8"/>` + T(W - 76, H - 19, opt.sheet, 'text-anchor="middle" font-weight="600"');
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">${s}</svg>`;
+}
+
+const lev = (i, n) => ({ idx: i, label: lvName(i, n), tag: `EB-EL-A-${i === n + 1 ? 'RF' : lv(i)}` });
+
+function draw(n) {
+  // Option A: GF..roof, 20 levels per sheet.
+  const all = Array.from({ length: n + 2 }, (_, i) => lev(i, n));
+  const per = 20, sheets = [];
+  for (let i = 0; i < all.length; i += per) sheets.push(all.slice(i, i + per));
+  document.getElementById('a').innerHTML = sheets.map((ls, j) => riserSheet(ls, n, {
+    lvRoom: j === 0, slots: per, sheet: `E-ERT-${String(j + 1).padStart(2, '0')}`,
+    matchTop: j < sheets.length - 1 ? `E-ERT-${String(j + 2).padStart(2, '0')}` : '',
+    matchBottom: j > 0 ? `E-ERT-${String(j).padStart(2, '0')}` : '',
+  })).join('');
+  // Option B: GF, L01..L04 full, typical block, last two, roof.
+  let b;
+  if (n <= 8) b = all;
+  else b = [all[0], all[1], all[2], all[3], all[4],
+    { idx: 5, label: `TYPICAL LEVEL-05 TO LEVEL-${String(n - 2).padStart(2, '0')}`, tag: 'EB-EL-A-L05 … L' + String(n - 2).padStart(2, '0'), typical: true, count: n - 6 },
+    { ...all[n - 1], idx: 6 }, { ...all[n], idx: 7 }, { ...all[n + 1], idx: 8 }];
+  const svgB = riserSheet(b, n, { lvRoom: true, sheet: 'E-ERT-01' });
+  document.getElementById('b').outerHTML = svgB.replace('<svg ', '<svg class="one" id="b" ');
+  document.querySelectorAll('#fl button').forEach((x) => x.classList.toggle('on', +x.dataset.n === n));
+}
+
+document.getElementById('fl').innerHTML = [10, 20, 40, 100].map((n) => `<button data-n="${n}">G+${n}</button>`).join('');
+document.getElementById('fl').addEventListener('click', (e) => { const n = +e.target.dataset?.n; if (n) draw(n); });
+draw(20);
+
+// Floor DB earthing sheet (example LEVEL-03).
+(function () {
+  const W = 1000, H = 330;
+  let s = `<rect x="4" y="4" width="${W - 8}" height="${H - 8}" fill="none" stroke="${K}" stroke-width="1.2"/>`;
+  s += T(24, 30, 'LEVEL-03: FLOOR EARTHING', 'font-weight="700" font-size="11"');
+  s += bar(130, 150, 'EB-EL-A-L03');
+  s += T(130, 128, "RISER: SEE SHEET E-ERT-01", 'text-anchor="middle" font-size="8"');
+  const dbs = [
+    { n: 'SMDB-L03', s: 'CPC 1C 70mm²', x: 360 },
+    { n: 'DB-L03-A', s: 'CPC 1C 10mm²', x: 520, p: 'SMDB-L03' },
+    { n: 'DB-L03-B', s: 'CPC 1C 10mm²', x: 660, p: 'SMDB-L03' },
+    { n: 'DB-L03-LIFT', s: 'CPC 1C 25mm²', x: 820 },
+  ];
+  const by = 70;
+  dbs.forEach((d, i) => {
+    s += `<rect x="${d.x - 55}" y="${by}" width="110" height="40" fill="#fff" stroke="${K}" stroke-width="1.3"/>` + T(d.x, by + 17, d.n, 'text-anchor="middle" font-weight="600"') + T(d.x, by + 30, 'EARTH BAR', `text-anchor="middle" font-size="8" fill="${M}"`);
+    s += `<rect x="${d.x - 30}" y="${by + 46}" width="60" height="7" fill="#fff" stroke="${K}"/>`;
+    if (d.p) {
+      const px = dbs[0].x, yy = by + 70 + i * 10;
+      s += L(`M${d.x} ${by + 53}V${yy}H${px + 20}V${by + 53}`, 1.3) + T(d.x + 4, yy - 3, d.s, 'font-size="8"');
+    } else {
+      const yy = 163 + (i === 0 ? 0 : 0);
+      s += L(`M${d.x} ${by + 53}V${i === 0 ? 240 : 250}H${i === 0 ? 120 : 150}V176`, 1.3) + T(d.x + 4, i === 0 ? 236 : 262, d.s, 'font-size="8"');
+    }
+  });
+  s += T(24, 300, 'NOTES: 1. EACH DB EARTH BAR TO THE FLOOR EARTH BAR WITH ITS INCOMING CPC SIZE. 2. DB FED FROM A PANEL ON THE SAME FLOOR CONNECTS TO THAT PANEL\'S EARTH BAR.', 'font-size="8"');
+  s += `<rect x="${W - 140}" y="${H - 34}" width="128" height="22" fill="none" stroke="${K}" stroke-width="0.8"/>` + T(W - 76, H - 19, 'E-EFL-03', 'text-anchor="middle" font-weight="600"');
+  document.getElementById('c').innerHTML = s;
+  document.getElementById('c').setAttribute('viewBox', `0 0 ${W} ${H}`);
+})();
+</script>
+</body>
+</html>

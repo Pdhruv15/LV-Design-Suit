@@ -93,6 +93,35 @@ const hopRun = (x1: number, x2: number, y: number, xs: number[]) => {
 
 /** mono: black on white for the printed sheet (plain report style) — results are written (FAIL), not coloured.
  * working: the on-screen working view — the schematic only, without the legend and notes (sheet furniture). */
+/** Every transformer unit (TX-1A, TX-1B … where a board has several, per the transformer sizing), in drawing order. */
+function transformerUnits(project: Project) {
+  const units = txUnits(project);
+  return mainBoards(project).filter((b) => b.sourceKva).flatMap((b) => { const n = units.get(b.id) ?? 1; return Array.from({ length: n }, (_, i) => ({ b, u: i + 1, n, name: unitName(txTag(project, b.id) ?? b.id, i + 1, n) })); });
+}
+
+/** Earth bar IDs, numbered in drawing order: EB-RMU-01 …, each transformer's EB-TX(N)-nn / EB-TX(B)-nn, each generator's EB-GEN(N)-nn / EB-GEN(B)-nn. */
+function earthBarIds(project: Project, L: EarthLayout): Map<string, string> {
+  const two = (n: number) => String(n).padStart(2, '0');
+  const barId = new Map<string, string>();
+  L.items.filter((i) => i.kind === 'rmu').forEach((i, n) => barId.set(i.key, `EB-RMU-${two(n + 1)}`));
+  transformerUnits(project).forEach(({ b, u }, i) => { barId.set(unitKey(`txn:${b.id}`, u), `EB-TX(N)-${two(i + 1)}`); barId.set(unitKey(`txb:${b.id}`, u), `EB-TX(B)-${two(i + 1)}`); });
+  project.boards.filter((b) => b.standby).forEach((b, n) => { barId.set(`gn:${b.id}`, `EB-GEN(N)-${two(n + 1)}`); barId.set(`gb:${b.id}`, `EB-GEN(B)-${two(n + 1)}`); });
+  return barId;
+}
+
+/** Pit tags, as on the reference sheet: EP-RMU-1A / 1B, EP-TX(N)-01, EP-MDB-1A … by pit test ID (E1, E2 …).
+ * The earthing schematic and the earthing riser both print these. */
+export function pitTags(project: Project, L: EarthLayout = earthingLayout(project), barId = earthBarIds(project, L)): Map<string, string> {
+  const letter = (i: number, n: number) => (n > 1 ? String.fromCharCode(65 + i) : '');
+  const tagOf = new Map<string, string>();
+  for (const it of L.items) {
+    const ps = L.pits.filter((p) => p.itemKey === it.key), bar = barId.get(it.key);
+    const base = it.kind === 'rmu' ? `EP-RMU-${Number(bar?.slice(-2) ?? 0)}` : bar ? bar.replace(/^EB-/, 'EP-') : `EP-${it.equipment}`;
+    ps.forEach((p, i) => tagOf.set(p.id, it.kind === 'rmu' ? `${base}${String.fromCharCode(65 + i)}` : `${base}${letter(i, ps.length)}`));
+  }
+  return tagOf;
+}
+
 export function earthingDrawing(project: Project, L: EarthLayout = earthingLayout(project), includeSchedule = true, opts: { mono?: boolean; working?: boolean } = {}): { svg: string; w: number; h: number } {
   const out: string[] = [];
   /** Cable size tags, placed at the end clear of everything else. */
@@ -127,16 +156,9 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
     tags.push({ x: from[from.length - 1], y0: by + 72, y1: (lowest === py ? py - 6 : lowest) - 10, text: `${xs.length > 1 ? `${xs.length} × ` : ''}1C ${mm} mm² Cu/PVC G/Y` });
     return from[0];
   };
-  // Earth bar IDs, numbered in drawing order: EB-RMU-01 …, and each transformer's EB-TX(N)-nn / EB-TX(B)-nn.
-  const two = (n: number) => String(n).padStart(2, '0');
-  const barId = new Map<string, string>();
-  L.items.filter((i) => i.kind === 'rmu').forEach((i, n) => barId.set(i.key, `EB-RMU-${two(n + 1)}`));
-  // Every transformer unit (TX-1A, TX-1B … where a board has several, per the transformer sizing).
-  const units = txUnits(project);
-  const txUnitList = txBoards.flatMap((b) => { const n = units.get(b.id) ?? 1; return Array.from({ length: n }, (_, i) => ({ b, u: i + 1, n, name: unitName(txTag(project, b.id) ?? b.id, i + 1, n) })); });
-  txUnitList.forEach(({ b, u }, i) => { barId.set(unitKey(`txn:${b.id}`, u), `EB-TX(N)-${two(i + 1)}`); barId.set(unitKey(`txb:${b.id}`, u), `EB-TX(B)-${two(i + 1)}`); });
+  const barId = earthBarIds(project, L);
+  const txUnitList = transformerUnits(project);
   const genBoards = project.boards.filter((b) => b.standby);
-  genBoards.forEach((b, n) => { barId.set(`gn:${b.id}`, `EB-GEN(N)-${two(n + 1)}`); barId.set(`gb:${b.id}`, `EB-GEN(B)-${two(n + 1)}`); });
   /** Equipment → earth bar → test link → pits; the size called out on the conductor to the pits. */
   const BAR_Y = 190;
   /** Each RMU's earth bar (centre x, top y): its studs take the transformer tank / body cables from above
@@ -338,14 +360,7 @@ export function earthingDrawing(project: Project, L: EarthLayout = earthingLayou
     y += BAND_H;
   }
 
-  // ---- Pit tags, as on the reference sheet: EP-RMU-1A / 1B, EP-TX(N)-01, EP-LV-MDB-1A … ----
-  const letter = (i: number, n: number) => (n > 1 ? String.fromCharCode(65 + i) : '');
-  const tagOf = new Map<string, string>();
-  for (const it of L.items) {
-    const ps = pitsOf(it), bar = barId.get(it.key);
-    const base = it.kind === 'rmu' ? `EP-RMU-${Number(bar?.slice(-2) ?? 0)}` : bar ? bar.replace(/^EB-/, 'EP-') : `EP-${it.equipment}`;
-    ps.forEach((p, i) => tagOf.set(p.id, it.kind === 'rmu' ? `${base}${String.fromCharCode(65 + i)}` : `${base}${letter(i, ps.length)}`));
-  }
+  const tagOf = pitTags(project, L, barId);
 
   // ---- Pit interconnections, pit to pit (same kind, same substation) ----
   // Neighbouring pits on a row: out of each pit's top at 45° and across above the pits.

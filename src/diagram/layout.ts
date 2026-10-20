@@ -1,4 +1,5 @@
-import type { Board, Feeder, Project } from '../types';
+import type { Board, Feeder, Project, SpareWay } from '../types';
+import { isDbBoard, spareWaysOf } from '../model/spareWays';
 import { isScheduleCircuit } from '../calc/loadSchedule';
 
 /** Horizontal slot per load, vertical distance between board levels. */
@@ -29,9 +30,18 @@ export interface FeederNode {
   childBoardId?: string; // set for incomers to a sub-board
 }
 
+/** A spare breaker or a space on a panel's busbar (DB spares stay on the load schedule, like its circuits). */
+export interface SpareNode {
+  boardId: string;
+  way: SpareWay;
+  x: number;
+  busY: number;
+}
+
 export interface SystemLayout {
   boards: BoardNode[];
   feeders: FeederNode[];
+  spares: SpareNode[];
   roots: BoardNode[];
   utilityX: number;
   width: number;
@@ -58,6 +68,7 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
   const scheduled = (boardId: string) => sched.get(boardId) ?? [];
   const children = (boardId: string) => kids.get(boardId) ?? [];
   const subBoard = (f: Feeder) => (f.feedsBoardId ? byId.get(f.feedsBoardId) : undefined);
+  const busSpares = (boardId: string) => { const b = byId.get(boardId); return b && !isDbBoard(b) ? spareWaysOf(b) : []; };
 
   const unitsCache = new Map<string, number>();
   const units = (boardId: string, path: Set<string>): number => {
@@ -67,7 +78,7 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
     const n = children(boardId).reduce((sum, f) => {
       const child = subBoard(f);
       return sum + (child ? units(child.id, path) : 1);
-    }, 0);
+    }, busSpares(boardId).length);
     path.delete(boardId);
     const u = Math.max(1, n);
     unitsCache.set(boardId, u);
@@ -76,6 +87,7 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
 
   const boards: BoardNode[] = [];
   const feeders: FeederNode[] = [];
+  const spares: SpareNode[] = [];
   const placed = new Set<string>();
 
   const place = (board: Board, left: number, depth: number): BoardNode => {
@@ -97,6 +109,12 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
         xs.push(x);
         cursor += LEAF_W;
       }
+    }
+    for (const w of busSpares(board.id)) {
+      const x = cursor + LEAF_W / 2;
+      spares.push({ boardId: board.id, way: w, x, busY });
+      xs.push(x);
+      cursor += LEAF_W;
     }
     const x = xs.length ? (Math.min(...xs) + Math.max(...xs)) / 2 : left + LEAF_W / 2;
     const half = LEAF_W * 0.38;
@@ -134,6 +152,7 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
   return {
     boards,
     feeders,
+    spares,
     roots,
     utilityX,
     width: Math.max(left + MARGIN_X, 480),

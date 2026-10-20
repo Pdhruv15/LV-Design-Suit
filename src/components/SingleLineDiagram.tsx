@@ -7,6 +7,7 @@ import { cpcOf } from '../calc/cableTable';
 import { cableTypeOf } from '../model/cableTypes';
 import { deviceKind, devicePoles } from '../diagram/deviceText';
 import { nextPhase, phaseTag } from '../model/phases';
+import { splitSld } from '../model/sldScope';
 
 const SPACING = 172; // horizontal slot per feeder
 const MARGIN = 80;
@@ -40,7 +41,8 @@ export default function SingleLineDiagram({
   selected,
   onSelect,
   onPhase,
-  summary
+  summary,
+  allCircuits = false
 }: {
   board: Board;
   voltageV?: number;
@@ -54,8 +56,15 @@ export default function SingleLineDiagram({
   onSelect: (feederId: string) => void;
   /** Click on a circuit's phase tag: move a single-phase circuit to the next phase. Without it the tag is not shown. */
   onPhase?: (feederId: string) => void;
+  /** Draw every final circuit. By default the SLD stops at final circuits: feeders to boards and major
+   * equipment are drawn, the lighting and power circuits are one box referring to the DB load schedule. */
+  allCircuits?: boolean;
 }) {
-  const n = results.length;
+  const split = splitSld(results, (r) => r.feeder);
+  const finals = allCircuits ? [] : split.final;
+  const drawn = allCircuits ? results : split.drawn;
+  const finalKw = finals.reduce((s, r) => s + r.feeder.loadKw * r.feeder.demandFactor, 0);
+  const n = drawn.length + (finals.length ? 1 : 0);
   const locLines = summary ? wrapText(`LOC : ${summary.loc || '—'}`, 34, 2) : [];
   const sumH = 18 + (locLines.length + 3) * 12;
   const H = 372;
@@ -63,7 +72,7 @@ export default function SingleLineDiagram({
   // Never below 85 % scale: a board with many ways scrolls sideways rather than shrinking past reading.
   const minWidth = Math.round(width * 0.85);
   const cx = width / 2; // incomer / transformer position
-  const xs = results.map((_, i) => cx + (i - (n - 1) / 2) * SPACING);
+  const xs = Array.from({ length: n }, (_, i) => cx + (i - (n - 1) / 2) * SPACING);
   const busX1 = Math.min(cx - 60, (xs[0] ?? cx) - 60);
   const busX2 = Math.max(cx + 60, (xs[n - 1] ?? cx) + 60);
   const isMain = !board.upstreamId;
@@ -118,7 +127,7 @@ export default function SingleLineDiagram({
         {board.id} · {voltageV} V{board.ratedCurrentA ? ` · ${board.ratedCurrentA} A` : ''} busbar
       </text>
       <line data-dxf-layer="BUSBAR" x1={busX1} y1="118" x2={busX2} y2="118" style={{ stroke: 'var(--bus)', strokeWidth: 4, strokeLinecap: 'round' }} />
-      {results.map((r, i) => {
+      {drawn.map((r, i) => {
         const x = xs[i];
         const f = r.feeder;
         const col = `var(--${r.status})`;
@@ -182,6 +191,23 @@ export default function SingleLineDiagram({
           </g>
         );
       })}
+      {finals.length > 0 && (() => {
+        const x = xs[n - 1], left = x - CARD_W / 2;
+        return (
+          <g className="sld-finals">
+            <title>{`${finals.length} final circuits — ${finals.map((r) => circuitRef(r.feeder) ?? r.feeder.id).join(', ')}`}</title>
+            <line x1={x} y1="118" x2={x} y2="236" className="ln" strokeDasharray="6 4" />
+            <text className="b" x={x + 8} y="160">{finals.length} ways</text>
+            <text className="m" x={x + 8} y="173">MCB / RCBO</text>
+            <rect x={left} y="236" width={CARD_W} height="84" rx="6" className="box" strokeDasharray="6 4" />
+            <text className="b" x={left + 8} y="255">FINAL CIRCUITS</text>
+            <text className="m" x={left + 8} y="271">Lighting &amp; power</text>
+            <text className="m" x={left + 8} y="285">{finals.length} circuits · {finalKw.toFixed(1)} kW</text>
+            <text x={left + 8} y="303">Refer DB load schedule</text>
+            <text className="m" x={left + 8} y="315">{board.id}</text>
+          </g>
+        );
+      })()}
     </svg>
   );
 }
