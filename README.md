@@ -116,6 +116,7 @@ npm run build       # production build
 npm run test:pdf    # reports printed through Electron's Chromium (needs Electron's binary); pages compared with tests/pdf/baselines; lvds PDF and DXF exports (needs npm run build)
 npm run test:pdf:update  # new layout baselines, after an intended layout change
 npm run bench       # calculation performance on large networks
+npm run check:privacy  # personal paths and e-mail addresses in tracked files (docs/privacy.md)
 ```
 
 The unit tests include hand-calculated reference cases for voltage drop,
@@ -124,7 +125,8 @@ transformer sizing (`src/calc/referenceCalcs.test.ts`). The expected values are
 worked out by hand in the test comments, not produced by the code. They check
 that the code follows its documented method; they do not certify the method
 against a standard. CI (`.github/workflows/ci.yml`) runs all of the above plus a
-dependency audit of the shipped packages.
+dependency audit of the shipped packages, the privacy check and a secret scan
+(gitleaks) of the whole history.
 
 ## Database (Excel, synced by Google Drive)
 
@@ -330,6 +332,16 @@ node dist-cli/lvds.mjs report "My project" --report calc-report --format pdf --e
 - **Web version** (browser, no Electron): projects stay in the browser; the
   Excel database, full PDF printing and the external engines need the desktop
   app.
+
+## Privacy
+
+Projects are plain JSON files in your projects folder (or this browser's
+storage in the web version). The app does not encrypt them: use your
+operating system's disk encryption, and remember that cloud-synced folders and
+backups keep their own copies. To share a project for a bug report, use
+**Project → Share sample**: an anonymized copy without the client, site or
+people, with the same calculation results. See [docs/privacy.md](docs/privacy.md)
+for what is kept, a checklist before sharing, and the rules for contributors.
 
 ## Licence
 

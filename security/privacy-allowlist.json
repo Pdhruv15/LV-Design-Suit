@@ -1,0 +1,4 @@
+{
+  "$comment": "Exceptions to scripts/check-privacy.mjs: exact strings in named files that look personal but are not (fictional examples, public attribution). Each needs a reason. Policy: docs/privacy.md. Never add a real person's address or path here: remove it from the file instead.",
+  "exceptions": []
+}

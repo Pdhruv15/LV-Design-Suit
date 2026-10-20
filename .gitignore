@@ -5,3 +5,20 @@ release/
 .DS_Store
 tsconfig.tsbuildinfo
 dist-cli/
+
+# Private inputs and local credentials — never committed (docs/privacy.md).
+# Sanitized fixtures belong in tests/fixtures/ or docs/, which these rules do not touch.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+api-token
+/private/
+/client-samples/
+/raw-samples/
+*.private.*
+*.client.json
+.lvds-agent/
