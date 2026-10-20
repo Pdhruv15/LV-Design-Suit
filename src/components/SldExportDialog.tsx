@@ -6,7 +6,6 @@ import { dxfExportNotice, namedDxfFiles } from '../docs/dxfFiles';
 import { cableRefsUsed } from '../model/cableRefs';
 import { printableSvg } from '../diagram/exportSvg';
 import { safeFileName, saveBinary, savePdf, saveText } from '../util/files';
-import JSZip from 'jszip';
 
 /** The diagram on screen (full extent), as printable SVG. */
 function currentSvg(): { svg: string; w: number; h: number } | undefined {
@@ -51,7 +50,7 @@ export default function SldExportDialog({ project, onSave, onStatus, onClose, st
         const files = namedDxfFiles(name, buildSheetDxfPages(p, cur.svg, d.sheet ?? 'A3', one));
         if (files.length === 1) m = await saveText(files[0].name, files[0].data, 'DXF drawing (AutoCAD R12)', 'dxf');
         else {
-          const zip = new JSZip();
+          const zip = new (await import('jszip')).default();
           files.forEach((f) => zip.file(f.name, f.data));
           m = await saveBinary(`${name}-DXF.zip`, await zip.generateAsync({ type: 'uint8array' }), 'ZIP', 'zip', 'application/zip');
         }

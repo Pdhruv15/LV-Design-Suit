@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
 import type { Project } from '../types';
 import { dueOf, isOpen, isOverdue, submissionCounts, submissionsOf, SUB_STATUS, timeText, type Submission } from '../model/submissions';
-import { printDoc } from './boqWorkbook';
+import { printDoc } from './printDoc';
 import { esc } from './report';
 
 /** Submissions as print documents: the register (landscape) with the comments and actions log,

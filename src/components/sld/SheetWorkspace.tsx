@@ -14,7 +14,7 @@ import {
 import { currentRevision } from '../../model/revisions';
 import { SHEET_MM } from '../../docs/sldSheet';
 import { exportDrawingSet, exportEverythingZip, exportSheetsDxf, sheetHtml } from '../docs/sheetRender';
-import { IssueDialog } from '../docs/DrawingsView';
+import { IssueDialog } from '../docs/IssueDialog';
 import SheetMarkupLayer, { MarkupToolbar, ALL_TOOLS, type MarkupTool, type SheetAnchor } from './SheetMarkupLayer';
 import { MARKUP_LABEL, type MarkupColor, type SheetMarkup } from '../../model/sheetMarkup';
 

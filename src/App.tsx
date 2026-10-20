@@ -41,7 +41,7 @@ const ProjectDashboard = lazy(() => import('./components/docs/ProjectDashboard')
 const HelpView = lazy(() => import('./components/HelpView'));
 const ParametersView = lazy(() => import('./components/docs/ParametersView'));
 const TitleBlockDesigner = lazy(() => import('./components/docs/TitleBlockDesigner'));
-import DrawingsView from './components/docs/DrawingsView';
+const DrawingsView = lazy(() => import('./components/docs/DrawingsView'));
 import { withCableRefs } from './model/cableRefs';
 import { withEarthPitIds } from './model/earthingPlan';
 import { SheetTabs, SheetWorkspace, sheetOutlines } from './components/sld/SheetWorkspace';

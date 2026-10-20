@@ -12,7 +12,6 @@ import { buildSldSheetHtml, type SheetInfo } from '../docs/sldSheet';
 import { buildSheetDxfPages } from '../docs/sheetDxf';
 import { dxfExportNotice, namedDxfFiles } from '../docs/dxfFiles';
 import { safeFileName, saveBinary, savePdf, saveText } from '../util/files';
-import JSZip from 'jszip';
 import MenuButton from './MenuButton';
 import { Page } from './ui';
 import { sanitizedSvgFragment } from '../util/sanitize';
@@ -154,7 +153,7 @@ export default function EarthingView({ project, onChange, onStatus, embedded = f
         const files = namedDxfFiles(name, buildSheetDxfPages(project, sheet, 'A3', info));
         if (files.length === 1) m = await saveText(files[0].name, files[0].data, 'DXF drawing (AutoCAD R12)', 'dxf');
         else {
-          const zip = new JSZip();
+          const zip = new (await import('jszip')).default();
           files.forEach((f) => zip.file(f.name, f.data));
           m = await saveBinary(`${name}-DXF.zip`, await zip.generateAsync({ type: 'uint8array' }), 'ZIP', 'zip', 'application/zip');
         }
