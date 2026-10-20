@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  awgToMm2, cableFor, currentFromPower, energy, faultAtCableEnd, faultFromTransformer, kcmilToMm2, mm2ToAwg, motor, nextBreaker, ohm, pfCorrection,
+  awgToMm2, cableCandidates, cableFor, pfcBank, startingDip, currentFromPower, energy, faultAtCableEnd, faultFromTransformer, kcmilToMm2, mm2ToAwg, motor, nextBreaker, ohm, pfCorrection,
   powerFromCurrent, transformer, triangle, voltageDrop
 } from './quick';
 
@@ -72,5 +72,28 @@ describe('quick calculators', () => {
     expect(mm2ToAwg(5.26)).toBe(10);
     expect(mm2ToAwg(53.5)).toBe(0); // 1/0
     expect(kcmilToMm2(250)).toBeCloseTo(126.7, 1);
+  });
+
+  it('cable candidates: the chosen size is the smallest that passes both checks', () => {
+    const opts = { lengthM: 80, phases: 3 as const, voltageV: 415, pf: 0.85, ambientC: 45, groupFactor: 1, vdLimitPct: 4 };
+    const c = cableFor(163.7, opts);
+    const rows = cableCandidates(163.7, opts, c.sel!, c.breakerA!);
+    const chosen = rows.findIndex((r) => r.chosen);
+    expect(chosen).toBeGreaterThan(0);
+    expect(rows[chosen].izOk && rows[chosen].vdOk).toBe(true);
+    expect(rows.slice(0, chosen).every((r) => !(r.izOk && r.vdOk))).toBe(true);
+    expect(rows[chosen].vdPct).toBeCloseTo(c.vd!.pct, 6);
+  });
+
+  it('capacitor bank in standard steps', () => {
+    expect(pfcBank(214.6)).toEqual({ stepKvar: 30, steps: 8, totalKvar: 240 });
+    expect(pfcBank(40)).toEqual({ stepKvar: 5, steps: 8, totalKvar: 40 });
+    expect(pfcBank(0)).toBeUndefined();
+  });
+
+  it('motor starting dip ≈ S start ÷ (S start + S sc)', () => {
+    expect(startingDip(500, 1000, 5)).toBeCloseTo((500 / (500 + 20000)) * 100, 6); // 2.44 %
+    expect(startingDip(500, 500, 15)).toBeCloseTo((500 / (500 + 3333.33)) * 100, 3); // generator, ~13 %
+    expect(startingDip(500, 0, 5)).toBeNaN();
   });
 });

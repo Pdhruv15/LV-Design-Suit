@@ -44,13 +44,13 @@ export default function BoardForm({
     <div className="modal-backdrop" onClick={onClose}>
       <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
         <h3>Add downstream board</h3>
-        <p className="m">A new sub-board (SMDB/DB), fed from an existing board through an incomer feeder. Its demand and fault level flow through automatically.</p>
+        <p className="m">A new downstream distribution or package panel, fed from an existing board through an incomer feeder. Its demand and fault level flow through automatically.</p>
         <div className="grid2">
           <label>Board ID<input value={boardId} required onChange={(e) => setBoardId(e.target.value)} placeholder="e.g. SMDB-2" /></label>
           <label>Board name<input value={boardName} required onChange={(e) => setBoardName(e.target.value)} placeholder="e.g. Second floor SMDB" /></label>
           <label>Board type
             <select value={kind} onChange={(e) => setKind(e.target.value as BoardKind)}>
-              {BOARD_KINDS.filter((k) => k.value !== 'MDB').map((k) => (
+              {BOARD_KINDS.filter((k) => k.value !== 'MDB' && k.value !== 'LV-MDB' && k.value !== 'MC').map((k) => (
                 <option key={k.value} value={k.value}>{k.label}</option>
               ))}
             </select>

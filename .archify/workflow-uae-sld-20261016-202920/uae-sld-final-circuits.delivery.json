@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "61f77d37-c73c-4e72-aa56-338abbaec541",
+  "status": "current",
+  "command": "deliver",
+  "type": "workflow",
+  "input": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-uae-sld-20261016-202920/candidate.json",
+  "output": "/Users/palanisamigovindasamy/Projects/LV-Design-Suit/.archify/workflow-uae-sld-20261016-202920/uae-sld-final-circuits.html",
+  "specification": {
+    "sha256": "fdad7fb0a642d899627139fc792a738d00767da18730b743dcb554842a74d99d",
+    "bytes": 5031
+  },
+  "artifact": {
+    "sha256": "eb855eaec1b5f0a5143d921d018fe17d001196ce85bb32c4a02445a31fe80cc5",
+    "bytes": 763150
+  }
+}

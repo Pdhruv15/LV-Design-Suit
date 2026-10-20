@@ -7,7 +7,7 @@ power factor correction, drawings and submission reports. Projects are plain
 JSON files, so they sync cleanly through a Google Drive / OneDrive / Dropbox
 desktop folder.
 
-**Version 1.44** (see `package.json`). The app is in active use and active
+**Version 1.49** (see `package.json`). The app is in active use and active
 development.
 
 > **Engineering status.** The calculations are first-pass design checks, not
@@ -86,6 +86,23 @@ Produces a `.dmg` (mac), `.exe` installer (Windows), or `.AppImage` (Linux)
 in `release/`, depending on the platform you build on. `npm run dist:mac`
 builds an Apple-silicon `.dmg` only.
 
+## Publishing the browser app
+
+The browser version is an installable PWA and can be hosted as a static site
+without a backend. The GitHub Pages workflow in `.github/workflows/pages.yml`
+builds and publishes `dist` whenever `main` is updated; it can also be run
+manually from the repository's Actions tab. In **Settings → Pages**, set the
+source to **GitHub Actions** before the first deployment.
+
+Open the published URL once while online, then use the browser's **Install
+app** or **Add to Home Screen** command. After offline preparation finishes,
+the installed app can start without a network connection.
+
+Browser installations are independent: projects and personal libraries stay
+in that browser profile and are not synchronized to Google Drive or another
+device. Download project `.json` backups regularly. Clearing the site's data
+or deleting the browser profile removes locally stored projects.
+
 ## Checks and tests
 
 ```bash
@@ -93,7 +110,7 @@ npm run typecheck   # TypeScript
 npm run lint        # ESLint, no warnings allowed
 npm test            # unit tests (Vitest), src/**/*.test.ts
 npm run build       # production build
-npm run test:pdf    # reports printed through Electron's Chromium (needs Electron's binary); pages compared with tests/pdf/baselines
+npm run test:pdf    # reports printed through Electron's Chromium (needs Electron's binary); pages compared with tests/pdf/baselines; lvds PDF and DXF exports (needs npm run build)
 npm run test:pdf:update  # new layout baselines, after an intended layout change
 npm run bench       # calculation performance on large networks
 ```
@@ -160,6 +177,91 @@ network as a self-contained OpenDSS script (load flow + fault study) that
 you can open in OpenDSS itself. The modelling assumptions are listed in the
 header of the exported file.
 
+## Command line, MCP server and local API
+
+`lvds` uses the app's own calculations without opening the app. It works on
+projects in the app's projects folder. Reading and checking never changes a
+file; changing a project is described below.
+
+```bash
+npm run build:cli
+node dist-cli/lvds.mjs help
+node dist-cli/lvds.mjs check "My project"      # to-do list; exit code 1 if anything fails
+node dist-cli/lvds.mjs panel "My project" SMDB-GF
+node dist-cli/lvds.mjs cable --current 120 --length 80 --ambient 45
+```
+
+Add `--json` for scripts, `--folder <path>` for another projects folder.
+
+**MCP (for an AI assistant).** `lvds mcp` runs an MCP server on this computer.
+Claude Desktop, Claude Code or a free local model (through any MCP client) can
+then list projects, read panels and results, run the checks and use the quick
+calculations. The app makes no AI calls itself and needs no paid service. For
+Claude Code:
+
+```bash
+claude mcp add lv-design-studio -- node /path/to/LV-Design-Suit/dist-cli/lvds.mjs mcp
+```
+
+For Claude Desktop, add the same command under `mcpServers` in its
+`claude_desktop_config.json`:
+`{"lv-design-studio": {"command": "node", "args": ["/path/to/LV-Design-Suit/dist-cli/lvds.mjs", "mcp"]}}`.
+Through MCP and the API, only files inside the projects folder can be opened.
+
+**Local API.** `lvds serve` (default port 8765) answers on `http://127.0.0.1`
+only: `GET /api/tools` lists the tools and their inputs, `GET
+/api/tools/run_checks?project=My%20project` or `POST` with a JSON body runs
+one.
+
+**Changing a project.** `lvds mcp --write` and `lvds serve --write` also offer
+tools that change a project (on the command line they are always there). They
+show a preview unless called with `mode` apply / propose (`--apply` /
+`--propose` on the command line):
+
+- **Value changes are only proposed.** `size_circuits` (the app's own cable and
+  breaker selection) and `propose_changes` add a modification record (MOD-00x)
+  to **Reports → Changes**. The engineer accepts it with their name and applies
+  it in the app, as one undo step. The tools never accept anything and never
+  change the values themselves.
+- **Structure changes** (`add_panel`, `add_circuit`, `move_panel`,
+  `rename_panels`, `copy_panel`) change the file after the preview. New panels
+  and circuits are sized by the app's selection.
+- Every change keeps the previous version in `.lvds-agent/` in the projects
+  folder and is logged (`list_changes`); `undo_change` puts it back.
+- `delete_panel` and `delete_circuit` use the app's own delete. To apply, they
+  need `approvedBy` (the engineer's name), and `undo_change` puts it back.
+- Nothing is written while the project has unsaved changes open in the app, or
+  over a file that changed in the meantime.
+
+**Exports.** `list_exports` shows what a project can export. `export_report`
+makes any document of the app's Export centre as HTML (open it in a browser and
+print to PDF), or with `format pdf` as the PDF the app makes. `export_forms_xlsx`
+and `export_boq_xlsx` make the Excel workbooks. `export_dxf` makes the earthing
+schematic, or with `drawing sld` the sheets of Reports → Drawings (SLD, DB
+circuit, riser and earthing sheets, the same files as its DXF export;
+`--sheets` / `--types` choose some). Each one first shows a
+preview: the files it would make, failing checks and proposals still waiting.
+Exporting needs `approvedBy` (the engineer's name). It is refused while checks
+fail or proposals wait, unless the engineer sets `exportAnyway`. Files go to
+`Exports/<project>/<date>/` in the projects folder, never over an existing
+file, and every export is logged in `.lvds-agent/exports.jsonl`.
+
+PDFs and the drawing sheets are made by the app itself, in Electron with no
+window (`electron/headlessExport.cjs`), only after the export is approved. lvds
+uses Electron from the app's source folder (`npm install` and `npm run build`
+first), else an installed app that has this export. Without either, reports are
+made as HTML and the earthing schematic is the only DXF.
+
+```bash
+node dist-cli/lvds.mjs size "My project"            # preview the sizing proposal
+node dist-cli/lvds.mjs size "My project" --propose  # add it to Reports → Changes
+node dist-cli/lvds.mjs add-panel "My project" --kind SMDB --id SMDB-L3 --fedFrom MDB-1 --lengthM 45 --apply
+node dist-cli/lvds.mjs undo "My project" --apply
+node dist-cli/lvds.mjs forms-xlsx "My project" --export --approvedBy "A. Engineer"
+node dist-cli/lvds.mjs dxf "My project" --drawing sld --export --approvedBy "A. Engineer"
+node dist-cli/lvds.mjs report "My project" --report calc-report --format pdf --export --approvedBy "A. Engineer"
+```
+
 ## What it does
 
 - **Design**: boards and circuits in a multi-level hierarchy, load schedules
@@ -178,7 +280,9 @@ header of the exported file.
   unverified cable data. Project readiness stages track setup, design,
   calculation, issues, drawings and issue.
 - **Drawings and documents**: single line diagram, board sheets, earthing
-  and riser drawings, DB / cable / equipment schedules, BOQ, study reports
+  and riser drawings, an earthing riser for any number of floors (every
+  level over several sheets, or typical floors grouped on one) with a
+  floor earthing sheet per floor, DB / cable / equipment schedules, BOQ, study reports
   (PDF and Word), calculation report, Excel exports, revisions and
   transmittals.
 - **Projects**: JSON files with backup (`.bak`), recovery copies of unsaved

@@ -89,3 +89,16 @@ Up to v1.36 the maximum used c = 1 and cable R at 1.2 × R20, which gave results
 | End of 50 m, 4C 50 mm² | 8.61 kA | 10.29 kA | +20 % |
 
 Breakers whose breaking capacity Icu sat just above the old value can now fail the check. For example, the sample project's DB-GF1 busbar rose from 9.00 kA to 10.66 kA, so its 10 kA MCBs were changed to 15 kA. The pandapower comparison applies c = 1.10 and K_T, so it can come out slightly higher again.
+
+## Lighting — lux (Quick calculators)
+
+Lumen method for the average maintained illuminance of a rectangular room
+(`src/calc/lighting.ts`): room index K = L·W ÷ (Hm·(L + W)), with Hm = ceiling −
+suspension − working plane; luminaires N = E·A ÷ (Φ·UF·MF), rounded up and laid
+out as the rows × columns grid with the most even spacing (a few extra fittings
+are accepted rather than a single long row). Target values follow EN 12464-1:2021.
+The estimated UF is an indicative table for a direct LED luminaire against
+ceiling / wall / floor reflectances; enter the manufacturer's UF where it is
+known. A spacing above 1.5 × Hm is flagged. This is a first-pass count only:
+uniformity, glare (UGR), emergency lighting and point illuminance need a
+DIALux / Relux study.

@@ -4,7 +4,8 @@ import { cpcOf } from '../calc/earthing';
 import { itemizedTypes, normalizeLoadItems, pointColumns, pointWattsFor, SINGLE_PHASES } from '../calc/loadSchedule';
 import { breakerRatings } from '../calc/sizing';
 import { addCircuit, refreshBoard, updateCircuit, type CircuitPatch } from '../model/schedule';
-import type { Board, Feeder, Phase, PointType, Project } from '../types';
+import type { Board, Feeder, Phase, PointType, Project, SpareWay } from '../types';
+import { dbSpares, spareLabel, spareRef, updateSpareWay } from '../model/spareWays';
 import { incomerCableText, incomerDeviceText, loadScheduleRows } from './loadScheduleDoc';
 import { cellName, colName, parseCount, parsePositive, STYLE, statusColor, type SheetEdit, type SheetModel } from './sheet';
 
@@ -35,6 +36,7 @@ export interface SheetCol {
 export type SheetRow =
   | { type: 'watts' }
   | { type: 'circuit'; feeder: Feeder }
+  | { type: 'spare'; spare: SpareWay }
   | { type: 'slot'; phase: Phase; way: number };
 
 export interface DbSheet extends SheetModel {
@@ -82,20 +84,28 @@ export function buildDbSheet(project: Project, boardId: string): DbSheet {
   // Slots: every way up to one spare way past the last used one, rounded up
   // to whole ELCB sections, like the printed form's blocks of rows.
   const byId = new Map(circuitRows.map((r) => [r.f.id, r]));
-  const lastWay = circuitRows.reduce((m, r) => Math.max(m, r.f.way!), 0);
+  const spares = dbSpares(board);
+  const lastWay = Math.max(circuitRows.reduce((m, r) => Math.max(m, r.f.way!), 0), ...spares.map((s) => s.way!));
   const waysPerElcb = Math.max(1, (board.elcbGroupSize || 6) / 3);
   const ways = Math.max(waysPerElcb, Math.ceil((lastWay + 1) / waysPerElcb) * waysPerElcb);
   const rows: SheetRow[] = [{ type: 'watts' }];
   for (let way = 1; way <= ways; way++) {
     const onWay = circuitRows.filter((r) => r.f.way === way);
+    const sparesOn = spares.filter((s) => s.way === way);
     const ryb = onWay.find((r) => r.f.phase === 'RYB');
     if (ryb) {
       rows.push({ type: 'circuit', feeder: ryb.f });
       continue;
     }
+    const rybSpare = sparesOn.find((s) => s.phase === 'RYB');
+    if (rybSpare) {
+      rows.push({ type: 'spare', spare: rybSpare });
+      continue;
+    }
     for (const p of SINGLE_PHASES) {
       const r = onWay.find((x) => x.f.phase === p);
-      rows.push(r ? { type: 'circuit', feeder: r.f } : { type: 'slot', phase: p, way });
+      const sp = sparesOn.find((s) => s.phase === p);
+      rows.push(r ? { type: 'circuit', feeder: r.f } : sp ? { type: 'spare', spare: sp } : { type: 'slot', phase: p, way });
     }
   }
 
@@ -109,6 +119,14 @@ export function buildDbSheet(project: Project, boardId: string): DbSheet {
     }
     if (row.type === 'slot') {
       line[at('ref')] = `${row.phase}${row.way}`;
+      return line;
+    }
+    if (row.type === 'spare') {
+      const s = row.spare;
+      line[at('ref')] = spareRef(s);
+      if (s.kind === 'spare') line[at('mcb')] = s.ratingA;
+      line[at('room')] = spareLabel(s);
+      line[at('remarks')] = s.remarks ?? '';
       return line;
     }
     const f = row.feeder;
@@ -149,7 +167,7 @@ export function buildDbSheet(project: Project, boardId: string): DbSheet {
   // One ELCB cell per section (all rows of its ways), labelled when it has circuits.
   if (board.elcbGroupSize) {
     for (let g = 0; g * waysPerElcb < ways; g++) {
-      const wayOf = (row: SheetRow) => (row.type === 'circuit' ? row.feeder.way! : row.type === 'slot' ? row.way : 0);
+      const wayOf = (row: SheetRow) => (row.type === 'circuit' ? row.feeder.way! : row.type === 'slot' ? row.way : row.type === 'spare' ? row.spare.way! : 0);
       const ys = rows.map((row, y) => ({ w: wayOf(row), y })).filter(({ w }) => w > g * waysPerElcb && w <= (g + 1) * waysPerElcb).map(({ y }) => y);
       if (!ys.length) continue;
       const e = elcbs.find((x) => x.index === g + 1);
@@ -180,7 +198,7 @@ export function buildDbSheet(project: Project, boardId: string): DbSheet {
 
   const shape = JSON.stringify([
     cols.map((c) => c.key),
-    rows.map((r) => (r.type === 'circuit' ? `c:${r.feeder.id}` : r.type === 'slot' ? `s:${r.phase}${r.way}` : 'w')),
+    rows.map((r) => (r.type === 'circuit' ? `c:${r.feeder.id}` : r.type === 'slot' ? `s:${r.phase}${r.way}` : r.type === 'spare' ? `p:${r.spare.id}:${r.spare.kind}` : 'w')),
     merges
   ]);
   const sheet: DbSheet = {
@@ -205,6 +223,7 @@ function cellStyles(sheet: DbSheet): Record<string, string> {
       const name = cellName(x, y);
       if (row.type === 'watts') out[name] = STYLE.highlight;
       else if (c.key === 'ref' && row.type === 'slot') out[name] = STYLE.muted;
+      else if (c.key === 'room' && row.type === 'spare') out[name] = `${STYLE.calc};font-weight:700`;
       else if (!isEditable(sheet, y, x)) out[name] = STYLE.calc;
       else out[name] = STYLE.input;
       if (c.key === 'check' && row.type === 'circuit') out[name] = `${STYLE.calc};font-weight:600;color:${statusColor(sheet.status[y])}`;
@@ -232,6 +251,8 @@ export function isEditable(sheet: DbSheet, y: number, x: number): boolean {
   // An empty way takes a room, points or remarks (that creates the circuit),
   // not sizes: those come from the load.
   if (row.type === 'slot') return col.key === 'room' || col.key === 'remarks' || col.key.startsWith('pt:');
+  // A spare takes its MCB rating and remarks; a space only remarks.
+  if (row.type === 'spare') return col.key === 'remarks' || (col.key === 'mcb' && row.spare.kind === 'spare');
   return true;
 }
 
@@ -294,6 +315,13 @@ export function applySheetEdits(project: Project, sheet: DbSheet, edits: SheetEd
   for (const [y, patch] of perRow) {
     const row = sheet.rows[y];
     let id: string;
+    if (row.type === 'spare') {
+      p = updateSpareWay(p, boardId, row.spare.id, {
+        ...(patch.breakerRatingA !== undefined ? { ratingA: patch.breakerRatingA } : {}),
+        ...('remarks' in patch ? { remarks: patch.remarks } : {})
+      });
+      continue;
+    }
     if (row.type === 'slot') {
       const hasContent = !!patch.room || !!patch.remarks || Object.values(patch.points ?? {}).some((n) => (n ?? 0) > 0);
       if (!hasContent) continue;

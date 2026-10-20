@@ -7,6 +7,7 @@ import { buildSection, buildStudyReportHtml, buildStudyWorkbook, scopeOf, setupO
 import { workbookBytes } from '../../docs/formWorkbook';
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
 import { Page } from '../ui';
+import { addG10RiserMockup } from '../../model/riserMockup';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const f1 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 1 });
@@ -48,6 +49,12 @@ export default function BusbarStudy({ project, onChange, onStatus }: { project: 
     const last = riser.floors[riser.floors.length - 1];
     setRiser({ floors: [...riser.floors, { id: `F${n}`, name: `Level ${n}`, kw: last?.kw ?? 50, pf: last?.pf ?? 0.9 }] });
   };
+  const addG10Mockup = () => {
+    const mock = addG10RiserMockup(project, riser?.sourceBoardId ?? boards.find((b) => !b.upstreamId)?.id);
+    onChange(mock.project);
+    setSel(mock.riserId);
+    onStatus?.(`G+10 mock-up added: 11 floor panels and tap-offs, busbar calculation, and drawing ${mock.project.drawingSet?.sheets.find((s) => s.id === mock.sheetId)?.number ?? ''}. Open Reports → Drawings to view the riser diagram.`);
+  };
   const fromBoards = () => {
     if (!riser?.sourceBoardId) return;
     const below = boards.filter((b) => b.upstreamId === riser.sourceBoardId);
@@ -82,6 +89,7 @@ export default function BusbarStudy({ project, onChange, onStatus }: { project: 
       intro="For high-rise buildings: a busway riser from a main board with a tap-off unit on each floor, instead of a cable to every floor. Enter the floors (or take them from the boards), and get the rating in copper or aluminium, conductor area, voltage drop floor by floor, short-circuit withstand, and the size, weight and parts."
       actions={<>
         <button className="chip" onClick={add}>+ Riser</button>
+        <button className="chip" onClick={addG10Mockup} title="Add an editable G+10 building, eleven floor SMDBs and loads, a busbar riser, and a riser drawing sheet">G+10 mock-up</button>
         <button className="chip" disabled={busy || !risers.length} onClick={() => exportSheet('pdf')}>PDF sheet</button>
         <button className="chip" disabled={busy || !risers.length} onClick={() => exportSheet('xlsx')}>Excel</button>
       </>}

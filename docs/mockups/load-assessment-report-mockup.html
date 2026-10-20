@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Load Assessment Report</title>
+<style>
+/* The report's own print tokens (src/docs/printStyles.ts): black on white, grey header fill, no colour. */
+html, body { background: #ddd; color-scheme: light; }
+body { font: 9pt/1.4 Arial, Helvetica, sans-serif; color: #000; margin: 0; padding: 16px; }
+.page { background: #fff; max-width: 190mm; margin: 0 auto 16px; padding: 14mm 12mm; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+.mock { max-width: 190mm; margin: 0 auto 10px; font: 10pt/1.4 Arial, sans-serif; color: #222; }
+h2 { font-size: 11pt; text-transform: uppercase; letter-spacing: .03em; margin: 0 0 6px; padding-bottom: 1.2mm; border-bottom: 1.2pt solid #000; }
+h3 { font-size: 9.5pt; margin: 12px 0 4px; }
+.grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2mm; margin: 8px 0; }
+.kpi { border: 0.4pt solid #000; padding: 1.6mm 2.4mm; } .kpi b { display: block; font-size: 11pt; } .kpi span { color: #444; font-size: 7.5pt; }
+table { border-collapse: collapse; width: 100%; margin: 4px 0 8px; font-size: 8pt; }
+th, td { border: 0.4pt solid #000; padding: 1.1mm 1.6mm; text-align: left; vertical-align: top; }
+th { background: #f2f2f2; font-weight: 700; }
+td.r, th.r { text-align: right; }
+tr.total td { background: #f2f2f2; font-weight: 700; }
+table.meta th { width: 38%; }
+.cap { font-size: 7.5pt; color: #444; margin: 0 0 2px; }
+.note { color: #444; }
+.warn { font-weight: 700; }
+.callout { border: 0.4pt solid #000; border-left: 2.4pt solid #000; padding: 2mm 3mm; margin: 3mm 0; }
+@media (max-width: 600px) { .page { padding: 16px; } .grid { grid-template-columns: repeat(2, 1fr); } table { font-size: 7pt; } }
+</style>
+</head>
+<body>
+<p class="mock"><b>Mockup:</b> the new Load assessment section of the Design Basis report. It comes after section 5 (Design criteria) and is included only when the project has a load assessment. The figures are the built-in "Residential tower" placeholders with one custom load added. It is printed in black and white only, in the same style as the rest of the report.</p>
+
+<div class="page">
+<h2>6. Load assessment</h2>
+<p class="note">Early-stage maximum demand from the building type, its area schedule and the services it needs, before load schedules exist (Design → Load assessment). It is not the designed load. The designed load is in section 1.</p>
+
+<h3>6.1 Building</h3>
+<table class="meta"><tbody>
+<tr><th>Building type</th><td>Residential tower</td></tr>
+<tr><th>Gross floor area above ground</th><td>24,000 m²</td></tr>
+<tr><th>Floors above ground</th><td>20</td></tr>
+<tr><th>Basement car park</th><td>8,000 m²</td></tr>
+<tr><th>Typical maximum demand for this type</th><td>50–90 VA/m² of GFA</td></tr>
+<tr><th>Share of HVAC and special services on the generator</th><td>15 %</td></tr>
+</tbody></table>
+
+<h3>6.2 Area schedule</h3>
+<p class="cap">Table 21</p>
+<table>
+<thead><tr><th>Space</th><th class="r">% of GFA</th><th class="r">Area (m²)</th><th class="r">Lighting (W/m²)</th><th class="r">Small power (W/m²)</th><th class="r">Cooling, thermal (W/m²)</th><th>Dwelling</th></tr></thead>
+<tbody>
+<tr><td>Apartment</td><td class="r">78.0</td><td class="r">18,720</td><td class="r">8</td><td class="r">35</td><td class="r">110</td><td>Yes</td></tr>
+<tr><td>Lobby / corridor</td><td class="r">10.0</td><td class="r">2,400</td><td class="r">6</td><td class="r">5</td><td class="r">80</td><td></td></tr>
+<tr><td>Gym / amenity</td><td class="r">3.0</td><td class="r">720</td><td class="r">10</td><td class="r">20</td><td class="r">150</td><td></td></tr>
+<tr><td>Retail / shop</td><td class="r">4.0</td><td class="r">960</td><td class="r">15</td><td class="r">20</td><td class="r">160</td><td></td></tr>
+<tr><td>Plant / electrical</td><td class="r">5.0</td><td class="r">1,200</td><td class="r">5</td><td class="r">10</td><td class="r">0</td><td></td></tr>
+<tr class="total"><td>Total</td><td class="r">100.0</td><td class="r">24,000</td><td colspan="4"></td></tr>
+</tbody></table>
+
+<h3>6.3 Service requirements</h3>
+<p class="cap">Table 22</p>
+<table>
+<thead><tr><th>Service</th><th>Selection</th><th class="r">Connected (kW)</th></tr></thead>
+<tbody>
+<tr><td>Cooling</td><td>VRF / VRV, 0.30 kW electrical per kW thermal</td><td class="r">754</td></tr>
+<tr><td>Domestic hot water</td><td>Electric heater per unit, 15 W/m² of dwelling areas</td><td class="r">281</td></tr>
+<tr><td>Cooking</td><td>Electric, 18 W/m² of dwelling areas</td><td class="r">337</td></tr>
+<tr><td>Lifts</td><td>5 lifts, automatic from floors, 22 kW each</td><td class="r">110</td></tr>
+<tr><td>EV charging</td><td>10 % of 320 bays, 7.4 kW per charger</td><td class="r">237</td></tr>
+<tr><td>Swimming pool plant</td><td>Included</td><td class="r">15</td></tr>
+<tr><td>Façade / feature lighting</td><td>2 kW per floor</td><td class="r">40</td></tr>
+<tr><td>Fire and life safety</td><td>Fire pump, jockey pump, stair pressurisation (generator only)</td><td class="r">73</td></tr>
+<tr><td>Rooftop BMU (custom)</td><td>1 × 30 kW, diversity 0.50, not on the generator</td><td class="r">30</td></tr>
+</tbody></table>
+<p class="note">Not selected: IT / server room, commercial kitchen, laundry, medical equipment.</p>
+
+<h3>6.4 Load categories and maximum demand</h3>
+<p class="cap">Table 23</p>
+<table>
+<thead><tr><th>Category</th><th class="r">Connected (kW)</th><th class="r">Diversity</th><th class="r">Demand (kW)</th><th class="r">On generator</th></tr></thead>
+<tbody>
+<tr><td>Lighting</td><td class="r">216</td><td class="r">0.90</td><td class="r">194</td><td class="r">100 %</td></tr>
+<tr><td>Small power</td><td class="r">713</td><td class="r">0.50</td><td class="r">356</td><td class="r">30 %</td></tr>
+<tr><td>HVAC — VRF / VRV</td><td class="r">754</td><td class="r">0.85</td><td class="r">641</td><td class="r">15 %</td></tr>
+<tr><td>Water heating</td><td class="r">281</td><td class="r">0.35</td><td class="r">98</td><td class="r">—</td></tr>
+<tr><td>Cooking</td><td class="r">337</td><td class="r">0.30</td><td class="r">101</td><td class="r">—</td></tr>
+<tr><td>Lifts (5)</td><td class="r">110</td><td class="r">0.60</td><td class="r">66</td><td class="r">100 %</td></tr>
+<tr><td>Pumps / ventilation</td><td class="r">89</td><td class="r">0.70</td><td class="r">62</td><td class="r">50 %</td></tr>
+<tr><td>EV charging</td><td class="r">237</td><td class="r">0.60</td><td class="r">142</td><td class="r">—</td></tr>
+<tr><td>Special services</td><td class="r">40</td><td class="r">0.70</td><td class="r">28</td><td class="r">15 %</td></tr>
+<tr><td>Fire and life safety (generator only)</td><td class="r">73</td><td class="r">—</td><td class="r">—</td><td class="r">100 %</td></tr>
+<tr><td>Rooftop BMU (custom)</td><td class="r">30</td><td class="r">0.50</td><td class="r">15</td><td class="r">—</td></tr>
+<tr class="total"><td>Sum of demands</td><td class="r">2,879</td><td></td><td class="r">1,704</td><td></td></tr>
+<tr><td colspan="3">× coincidence 0.90 = maximum demand</td><td class="r"><b>1,534 kW</b></td><td></td></tr>
+<tr><td colspan="3">÷ power factor 0.90</td><td class="r"><b>1,704 kVA</b></td><td></td></tr>
+</tbody></table>
+
+<h3>6.5 Supply</h3>
+<div class="grid">
+  <div class="kpi"><span>Maximum demand</span><b>1,534 kW · 1,704 kVA</b></div>
+  <div class="kpi"><span>VA/m² of GFA</span><b>71 VA/m²</b></div>
+  <div class="kpi"><span>Transformers</span><b>2 × 1,250 kVA</b></div>
+  <div class="kpi"><span>Standby generator</span><b>1 × 1,000 kVA</b></div>
+</div>
+<p class="cap">Table 24</p>
+<table>
+<thead><tr><th>Item</th><th>Value</th><th>Basis</th></tr></thead>
+<tbody>
+<tr><td>Load density</td><td>71 VA/m², within the typical band</td><td>50–90 VA/m² for "Residential tower"</td></tr>
+<tr><td>Transformers</td><td>2 × 1,250 kVA (2 duty, N)</td><td>Each loaded to 80 % or less, largest size 1,500 kVA, 400 V</td></tr>
+<tr><td>LV incomer per transformer</td><td>1,804 A</td><td>1,250 kVA at 400 V</td></tr>
+<tr><td>Essential demand</td><td>572 kW</td><td>Each category's demand × its share on the generator. Fire and life safety at full load.</td></tr>
+<tr><td>Standby generator</td><td>1 × 1,000 kVA</td><td>794 kVA required = 572 kW ÷ 0.90 pf × 1.25 margin</td></tr>
+</tbody></table>
+<p class="note">If the load density is outside the band, the first row reads <span class="warn">71 VA/m², OUTSIDE the typical band, check the area mix and services</span> in bold. No colour is used.</p>
+<div class="callout">The built-in densities and factors are placeholders until you replace them with your own library. This assessment is a planning estimate. Check it against the load schedules (section 1) as the design develops.</div>
+</div>
+</body>
+</html>
