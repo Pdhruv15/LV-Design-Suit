@@ -73,7 +73,7 @@ const hasDatabase = hasBridge && !!window.lvds.database;
 import type { MainView } from './views';
 import CommandPalette, { ShortcutHelp, type Command } from './components/CommandPalette';
 import Ribbon, { type BomCommand, tabForStage, tabForView, type DiagramTool, type RibbonTab } from './components/Ribbon';
-import { advanceStage, ifcIssued, nextStage, setTenderRoute, STAGE_INFO, stageOf, tenderRoute } from './model/designStage';
+import { advanceStage, ifcIssued, nextStage, prevStage, setTenderRoute, STAGE_INFO, stageOf, stepBackStage, tenderRoute } from './model/designStage';
 import ProjectSettings from './components/ProjectSettings';
 import type { BoardTab } from './components/BoardPanel';
 import BoardEditForm from './components/BoardEditForm';
@@ -304,6 +304,15 @@ export default function App() {
     setProject(next, { step: true });
     setStatus(`${STAGE_INFO[from].issue} recorded as Rev ${next.revisions![next.revisions!.length - 1].id}${to && to !== from ? ` — now at ${STAGE_INFO[to].label}` : ''}`);
     if (to && to !== from) setRibbonTab(tabForStage(to));
+  }
+  /** Undo a stage gate issued by mistake (the revision stays). */
+  function stepBack() {
+    const reopen = stageOf(project) === 'ifc' && ifcIssued(project), to = prevStage(project);
+    if (!reopen && !to) return;
+    if (!window.confirm(reopen ? 'Reopen IFC?\n\nThe IFC revision stays in the history; the project is no longer marked as issued for construction.' : `Go back to ${STAGE_INFO[to!].label}?\n\nThe issued revision stays in the history and remains the baseline; the drawings take the ${STAGE_INFO[to!].sheetStatus} status again.`)) return;
+    setProject(stepBackStage(project), { step: true });
+    setStatus(reopen ? 'IFC reopened' : `Back to ${STAGE_INFO[to!].label}`);
+    if (!reopen) setRibbonTab(tabForStage(to!));
   }
   const [showFeederForm, setShowFeederForm] = useState<'new' | 'edit' | null>(null);
   const [showBoardForm, setShowBoardForm] = useState(false);
@@ -1448,6 +1457,7 @@ export default function App() {
                 onEditBrief={() => setBriefDialog(true)}
                 onChangeProject={(p) => setProject(p, { step: true })}
                 onIssueStage={issueStage}
+                onStepBack={stepBack}
                 onRun={runNow}
                 onStatus={setStatus}
                 onGo={(g) => {

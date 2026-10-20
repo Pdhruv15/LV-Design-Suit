@@ -94,3 +94,20 @@ export function advanceStage(p: Project, o: { by?: string; date?: string; now?: 
 
 /** Whether the stage statuses are in the sheet status list (they are added there for the drawings page). */
 export const stageStatusesListed = () => ALL.every((s) => SHEET_STATUSES.includes(STAGE_INFO[s].sheetStatus));
+
+export const prevStage = (p: Project): DesignStage | undefined => stagesOf(p)[stageIndex(p) - 1];
+
+/** Undoes a stage gate issued by mistake: back to the previous stage (or, after the IFC issue, IFC is reopened).
+ * The issued revision stays in the history and stays the baseline, so what changes from here is still tracked;
+ * only the gate record is removed and the drawings take the stage's status again. */
+export function stepBackStage(p: Project): Project {
+  const gates = p.stage?.gates ?? [];
+  if (stageOf(p) === 'ifc' && ifcIssued(p)) {
+    const i = gates.map((g) => g.stage).lastIndexOf('ifc');
+    return { ...p, stage: { ...p.stage!, gates: gates.filter((_, k) => k !== i) } };
+  }
+  const to = prevStage(p);
+  if (!to) return p;
+  const i = gates.map((g) => g.stage).lastIndexOf(to);
+  return stampSheets({ ...p, stage: { ...(p.stage ?? { current: to }), current: to, gates: i < 0 ? gates : gates.filter((_, k) => k !== i) } }, STAGE_INFO[to].sheetStatus);
+}
