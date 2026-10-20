@@ -7,7 +7,7 @@ import { buildDashboardHtml } from '../../docs/dashboardPdf';
 import { safeFileName, savePdf } from '../../util/files';
 import { Page } from '../ui';
 import { splitTodo, stageChecklist } from '../../calc/projectReadiness';
-import { ifcIssued, nextStage as nextDesignStage, splitByStage, STAGE_INFO, stageOf, tenderRoute } from '../../model/designStage';
+import { ifcIssued, nextStage as nextDesignStage, prevStage as prevDesignStage, splitByStage, STAGE_INFO, stageOf, tenderRoute } from '../../model/designStage';
 import { deliverableProgress, PARTY_LABEL, ROLE_LABEL, SCOPE_ITEMS } from '../../model/brief';
 
 import type { MainView } from '../../views';
@@ -46,8 +46,10 @@ function Bars({ bars, unit = 'kW', empty }: { bars: DashBar[]; unit?: string; em
 
 /** The project at a glance: headline numbers, load breakdowns, transformer
  * loading and a to-do list; exports as a one-page PDF. */
-export default function ProjectDashboard({ project, run, stale, saved = false, onOpen, onEditBrief, onChangeProject, onGo, onRun, onStatus, onIssueStage }: {
+export default function ProjectDashboard({ project, run, stale, saved = false, onOpen, onEditBrief, onChangeProject, onGo, onRun, onStatus, onIssueStage, onStepBack }: {
   project: Project;
+  /** Back to the previous stage (a gate issued by mistake). */
+  onStepBack?: () => void;
   /** The stage gate: issue this stage's package and move on. */
   onIssueStage?: () => void;
   saved?: boolean;
@@ -134,6 +136,11 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
         {onIssueStage && !(stageOf(project) === 'ifc' && ifcIssued(project)) && (
           <button className="chip primary" onClick={onIssueStage} title="Records a revision, makes it the baseline and moves to the next stage">
             {stageOf(project) === 'ifc' ? 'Issue IFC' : `Issue ${STAGE_INFO[stageOf(project)].label.toLowerCase()} → ${STAGE_INFO[nextDesignStage(project)!].label}`}
+          </button>
+        )}
+        {onStepBack && (prevDesignStage(project) || ifcIssued(project)) && (
+          <button className="chip" onClick={onStepBack} title="Undo a stage issued by mistake: the revision stays in the history; only the stage goes back">
+            {stageOf(project) === 'ifc' && ifcIssued(project) ? 'Reopen IFC' : `Back to ${STAGE_INFO[prevDesignStage(project)!].label.toLowerCase()}`}
           </button>
         )}
       </section>

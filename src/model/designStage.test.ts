@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { newProject, type Project } from '../types';
-import { advanceStage, ifcIssued, nextStage, setTenderRoute, splitByStage, stageOf, stagesOf, stageStatusesListed } from './designStage';
+import { advanceStage, ifcIssued, nextStage, setTenderRoute, splitByStage, stageOf, stagesOf, stageStatusesListed, stepBackStage } from './designStage';
 import { baselineOf } from './designBaseline';
 import { changedSinceRevision } from './revisions';
 import { tabForStage, tabForView } from '../components/Ribbon';
@@ -88,5 +88,28 @@ describe('ribbon follows the stages', () => {
     expect(tabForView('voltage-drop')).toBe('detailed');
     expect(tabForView('submissions')).toBe('issue');
     expect(tabForView('db-schedule')).toBe('reports');
+  });
+});
+
+describe('step back a stage', () => {
+  it('returns to the previous stage, keeps the revision, drops the gate', () => {
+    const p = withSheets(newProject('A'));
+    const q = advanceStage(p, { date: '2026-10-20' });
+    const back = stepBackStage(q);
+    expect(stageOf(back)).toBe('concept');
+    expect(back.stage?.gates).toEqual([]);
+    expect(back.revisions).toHaveLength(1);
+    expect(back.drawingSet?.status).toBe('FOR CONCEPT REVIEW');
+    expect(back.drawingSet?.sheets[1].status).toBe('AS-BUILT');
+    expect(stepBackStage(back)).toBe(back); // nothing before concept
+  });
+  it('reopens IFC after the IFC issue', () => {
+    let p = newProject('A');
+    for (let i = 0; i < 4; i++) p = advanceStage(p, { date: '2026-10-20' });
+    expect(ifcIssued(p)).toBe(true);
+    const r = stepBackStage(p);
+    expect(stageOf(r)).toBe('ifc');
+    expect(ifcIssued(r)).toBe(false);
+    expect(stageOf(stepBackStage(r))).toBe('detailed');
   });
 });
