@@ -95,7 +95,8 @@ import { loadUserPresets, mergePresets, presetFromFeeder, presetsFile, readPrese
 import PresetEditor from './components/PresetEditor';
 import { isScheduleCircuit } from './calc/loadSchedule';
 import { CABLE_TYPE_DEFS, cableTypeDef } from './model/cableTypes';
-import { safeFileName, saveText } from './util/files';
+import { safeFileName, savePdf, saveText } from './util/files';
+import { buildConceptReportHtml } from './docs/conceptReport';
 const SldExportDialog = lazy(() => import('./components/SldExportDialog'));
 import PasteBoardDialog from './components/PasteBoardDialog';
 const EnclosureSizing = lazy(() => import('./components/EnclosureSizing'));
@@ -1140,7 +1141,8 @@ export default function App() {
           ifcIssued: ifcIssued(project),
           onAdvanceStage: issueStage,
           route: tenderRoute(project),
-          onRoute: (r) => setProject(setTenderRoute(project, r), { step: true })
+          onRoute: (r) => setProject(setTenderRoute(project, r), { step: true }),
+          onConceptReport: async () => { const m = await savePdf(`${safeFileName(project.name)} - concept design report.pdf`, buildConceptReportHtml(project, { preparedBy: prefs.profile.name }), { pageSize: 'A4', landscape: false }); if (m) setStatus(m); }
         }}
       />}
 

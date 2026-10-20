@@ -77,6 +77,8 @@ export interface RibbonActions {
   onAdvanceStage: () => void;
   route: TenderRoute;
   onRoute: (r: TenderRoute) => void;
+  /** Concept design report (one A4 page, PDF). */
+  onConceptReport: () => void;
 }
 
 /** Group captions under the ribbon groups (same order as the groups). */
@@ -229,7 +231,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         view('substation-area', 'Substation area', Building2, 'Minimum substation, RMU and LV room areas (Dubai Municipality DM-D-013)'),
         view('space-planning', 'Space plan', LayoutGrid, 'Space planning: areas → panels → transformers → RMUs')
       ],
-      [view('dashboard', 'Overview', LayoutDashboard, 'Overview: the stage checklist, key figures and what is outstanding'), gate('concept')]
+      [view('dashboard', 'Overview', LayoutDashboard, 'Overview: the stage checklist, key figures and what is outstanding'), { label: 'Concept report', icon: FileText, title: 'Concept design report (PDF, one A4 page): building, area schedule, maximum demand, supply and room areas', onClick: a.onConceptReport }, gate('concept')]
     ],
     schematic: [
       [
