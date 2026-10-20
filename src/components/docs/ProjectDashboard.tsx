@@ -133,6 +133,7 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
             {c.gate && <span className="m">Issued {new Date(c.gate.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}{c.gate.by ? ` · ${c.gate.by}` : ''}</span>}
           </div>
         ))}</div>
+        <div className="dash-actions">
         {onIssueStage && !(stageOf(project) === 'ifc' && ifcIssued(project)) && (
           <button className="chip primary" onClick={onIssueStage} title="Records a revision, makes it the baseline and moves to the next stage">
             {stageOf(project) === 'ifc' ? 'Issue IFC' : `Issue ${STAGE_INFO[stageOf(project)].label.toLowerCase()} → ${STAGE_INFO[nextDesignStage(project)!].label}`}
@@ -143,6 +144,7 @@ export default function ProjectDashboard({ project, run, stale, saved = false, o
             {stageOf(project) === 'ifc' && ifcIssued(project) ? 'Reopen IFC' : `Back to ${STAGE_INFO[prevDesignStage(project)!].label.toLowerCase()}`}
           </button>
         )}
+        </div>
       </section>
       <section className="card dash-brief">
         <h4>Scope and deliverables{brief && <span className="m"> — {ROLE_LABEL[brief.role].title.split(' — ')[0]}{progress.total ? ` · ${progress.done} / ${progress.total} delivered` : ''}</span>}
