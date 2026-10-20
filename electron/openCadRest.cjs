@@ -233,6 +233,27 @@ class OpenCadRestSession {
     return plan;
   }
 
+  /** Blocks placed in the active drawing (e.g. light fittings on a floor plan): [{ block, attributes }]. */
+  async readBlocks() {
+    if (!this.connected) throw new Error('OpenCADStudio is not connected. Open the floor plan in OpenCADStudio first.');
+    const out = [];
+    for (let offset = 0; out.length < MAX_ENTITIES;) {
+      const page = await this.ask(`/entities?type=Insert&fields=handle,block,attributes&limit=${PAGE}&offset=${offset}`);
+      const list = page.entities || [];
+      for (const e of list) {
+        if (!e || typeof e.block !== 'string') continue;
+        const attributes = {};
+        for (const [tag, value] of Object.entries(e.attributes && typeof e.attributes === 'object' ? e.attributes : {})) {
+          if (typeof value === 'string') attributes[tag] = value;
+        }
+        out.push({ block: e.block, attributes });
+      }
+      if (typeof page.next_offset !== 'number' || page.next_offset <= offset || !list.length) break;
+      offset = page.next_offset;
+    }
+    return out;
+  }
+
   async open(executable, drawings) {
     if (!Array.isArray(drawings) || drawings.length === 0) throw new Error('No drawing was supplied to OpenCADStudio.');
     let first = 0;

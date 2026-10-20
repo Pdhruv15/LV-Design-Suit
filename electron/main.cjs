@@ -324,6 +324,17 @@ handle('opencad:update', async (_evt, { files } = {}) => {
   const [sheet] = openCadStudio.writeTemporaryDrawings(app.getPath('temp'), Array.isArray(files) ? files.slice(0, 1) : files);
   return openCadSession.update(sheet);
 });
+// A floor plan (DWG or DXF) the engineer picks, opened in the live OpenCADStudio window (started if needed).
+handle('opencad:openPlan', async (evt) => {
+  const installation = openCadStudio.findInstallation();
+  if (!installation) throw new Error('OpenCADStudio is not installed. Install it in Applications, then try again.');
+  const result = await dialog.showOpenDialog(ownerOf(evt), { title: 'Open a floor plan in OpenCADStudio', defaultPath: ensureProjectsFolder(), filters: [{ name: 'CAD drawing', extensions: ['dwg', 'dxf'] }], properties: ['openFile'] });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  const session = await openCadSession.open(openCadStudio.executableForInstallation(installation), [result.filePaths[0]]);
+  return { file: path.basename(result.filePaths[0]), version: session.version };
+});
+// Blocks on the drawing active in OpenCADStudio, for counting fixtures per circuit.
+handle('opencad:blocks', () => openCadSession.readBlocks());
 handle('opencad:linked', async () => (await openCadSession.linkedEquipment()).map(({ tag, handles }) => ({ tag, objects: handles.length })));
 handle('opencad:status', () => ({ installed: !!openCadStudio.findInstallation(), ...openCadSession.status() }));
 
