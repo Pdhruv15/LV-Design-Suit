@@ -60,8 +60,12 @@ npm run dev
 ```
 
 This opens the app in an Electron window (with the Vite dev server on
-http://localhost:5173). Click **Explore sample** for a worked 415 V villa
+http://127.0.0.1:5173). Click **Explore sample** for a worked 415 V villa
 complex, or start a new project.
+
+The development window trusts only that exact address (set `LVDS_DEV_URL`
+to another loopback port if you need one). Development builds load the app
+from the dev server: never distribute them; ship the packaged app.
 
 ## Saving projects to Google Drive
 

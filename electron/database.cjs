@@ -4,10 +4,11 @@
 // overwrites one), reads them, and watches the folder for saves.
 const fs = require('node:fs');
 const path = require('node:path');
+const { LIMITS, readJsonLimited, assertFileWithin } = require('./limits.cjs');
 const ExcelJS = require('exceljs');
 const spec = require('./databaseSpec.json');
 
-const MAX_ROWS = 2000; // rows given data validation in new workbooks
+const MAX_ROWS = LIMITS.workbookRows; // rows given data validation in new workbooks (the most the app writes)
 
 // The database folder: its own setting when chosen (e.g. a Google Drive
 // folder shared with the team), else "LV Database" inside the projects folder.
@@ -23,6 +24,8 @@ function cellValue(v) {
     if ('richText' in v) return v.richText.map((t) => t.text).join('');
     if ('text' in v) return String(v.text);
     if (v instanceof Date) return v.toISOString();
+    if ('error' in v) return String(v.error); // e.g. #N/A
+    return ''; // anything else (images, unknown cell types): not data the app uses
   }
   return v;
 }
@@ -83,6 +86,7 @@ async function ensureDatabase(projectsFolder, seeds = {}) {
 }
 
 async function readBook(file, book) {
+  assertFileWithin(file, LIMITS.workbookBytes, book.file);
   const wb = new ExcelJS.Workbook();
   // Excel keeps an open file locked while saving; retry briefly.
   for (let attempt = 0; ; attempt++) {
@@ -180,7 +184,9 @@ async function writeBook(projectsFolder, bookId, rows) {
   if (!book) throw new Error(`Unknown workbook ${bookId}`);
   const folder = folderFor(projectsFolder);
   const file = path.join(folder, book.file);
+  if (rows.length > LIMITS.workbookRows) throw new Error(`${book.file}: at most ${LIMITS.workbookRows} rows can be written`);
   if (!fs.existsSync(file)) await createWorkbook(file, book, []);
+  assertFileWithin(file, LIMITS.workbookBytes, book.file);
   backup(folder, book.file);
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.readFile(file);
@@ -212,7 +218,7 @@ async function writeBook(projectsFolder, bookId, rows) {
  * feeder presets, notes), kept beside the workbooks so they sync too. */
 const LIBRARY = 'Library.json';
 function readLibrary(projectsFolder) {
-  try { return JSON.parse(fs.readFileSync(path.join(folderFor(projectsFolder), LIBRARY), 'utf8')); } catch { return {}; }
+  try { return readJsonLimited(path.join(folderFor(projectsFolder), LIBRARY), LIMITS.libraryBytes, LIBRARY); } catch { return {}; }
 }
 function writeLibrary(projectsFolder, data) {
   const folder = folderFor(projectsFolder);
