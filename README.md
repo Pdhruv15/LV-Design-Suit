@@ -7,7 +7,7 @@ power factor correction, drawings and submission reports. Projects are plain
 JSON files, so they sync cleanly through a Google Drive / OneDrive / Dropbox
 desktop folder.
 
-**Version 1.54** (see `package.json`). The app is in active use and active
+**Version 1.55** (see `package.json`). The app is in active use and active
 development.
 
 > **Engineering status.** The calculations are first-pass design checks, not
@@ -320,4 +320,6 @@ node dist-cli/lvds.mjs report "My project" --report calc-report --format pdf --e
 
 ## Licence
 
-LV Design Studio is **source-available** under the [PolyForm Shield License 1.0.0](LICENSE.md): you can use it — including for paid engineering design work — and read and change the code, but you may not sell it, offer it as a paid service, or build a competing product from it. The name "LV Design Studio" and its logo are not licensed. See [NOTICE.md](NOTICE.md).
+LV Design Studio is **open source**, dual-licensed under the [MIT License](LICENSE-MIT) or the [Apache License 2.0](LICENSE-APACHE), at your option. You may use, copy, change, distribute, sublicense and sell it, including in commercial and closed-source products — just keep the copyright and licence notice. The Apache 2.0 option also gives an explicit patent licence. See [NOTICE.md](NOTICE.md).
+
+Unless you state otherwise, any contribution you submit for inclusion is dual-licensed as above, without any additional terms.

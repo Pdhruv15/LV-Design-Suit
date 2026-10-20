@@ -1,8 +1,8 @@
 {
   "name": "lv-design-studio",
   "productName": "LV Design Studio",
-  "version": "1.54.0",
-  "license": "SEE LICENSE IN LICENSE.md",
+  "version": "1.55.0",
+  "license": "(MIT OR Apache-2.0)",
   "description": "Offline LV electrical design & calculation desktop app",
   "main": "electron/main.cjs",
   "type": "module",
