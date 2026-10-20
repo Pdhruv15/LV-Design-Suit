@@ -223,15 +223,19 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
   return { items: pages, warnings: [...new Set(warnings)] };
 }
 
+/** Frame, title block, notes and legend belong to no equipment: they are tagged with their sheet
+ * ("sheet:1", …) so an update in CAD can refresh them too (revision, schedules). */
+const sheetTagged = (items: DxfPrimitive[], index: number) => items.map((p) => (p.tag ? p : { ...p, tag: `sheet:${index}` }));
+
 /** One portable DXF per paper sheet, suitable for ZIP export. */
 export function buildSheetDxfPages(project: Project, svg: string, size: SheetSize, one?: SheetInfo): DxfSheetPage[] {
   const result = sheetPages(project, svg, size, one);
-  return result.items.map((items, i) => ({ data: toDxf(items, SHEET_LAYERS), index: i + 1, count: result.items.length, continuation: i > 0, warnings: result.warnings }));
+  return result.items.map((items, i) => ({ data: toDxf(sheetTagged(items, i + 1), SHEET_LAYERS), index: i + 1, count: result.items.length, continuation: i > 0, warnings: result.warnings }));
 }
 
 /** Compatibility API: a single DXF retains all continuation sheets arranged
  * side by side. User-facing exports use the individual paper sheets above. */
 export function buildSheetDxf(project: Project, svg: string, size: SheetSize, one?: SheetInfo): string {
   const result = sheetPages(project, svg, size, one);
-  return toDxf(result.items.flatMap((items, i) => items.map((p) => shift(p, i * (SHEET_MM[size].w + 20)))), SHEET_LAYERS);
+  return toDxf(result.items.flatMap((items, i) => sheetTagged(items, i + 1).map((p) => shift(p, i * (SHEET_MM[size].w + 20)))), SHEET_LAYERS);
 }

@@ -315,8 +315,14 @@ handle('opencad:openDxf', async (_evt, { files } = {}) => {
   const drawings = openCadStudio.writeTemporaryDrawings(app.getPath('temp'), files);
   const session = await openCadSession.open(openCadStudio.executableForInstallation(installation), drawings);
   // A drawing that opened but cannot be read back is still open: report it without the count.
-  const linked = await openCadSession.linkedEquipment().then((list) => list.length, () => undefined);
+  const linked = await openCadSession.remember().catch(() => undefined);
   return { files: drawings.map((file) => path.basename(file)), connected: session.connected, version: session.version, linked };
+});
+// Update the drawing open in OpenCADStudio in place: only changed boards, feeders and sheet furniture are redrawn.
+handle('opencad:update', async (_evt, { files } = {}) => {
+  if (!openCadSession.connected) throw new Error('OpenCADStudio is not open. Use Open in OpenCADStudio first.');
+  const [sheet] = openCadStudio.writeTemporaryDrawings(app.getPath('temp'), Array.isArray(files) ? files.slice(0, 1) : files);
+  return openCadSession.update(sheet);
 });
 handle('opencad:linked', async () => (await openCadSession.linkedEquipment()).map(({ tag, handles }) => ({ tag, objects: handles.length })));
 handle('opencad:status', () => ({ installed: !!openCadStudio.findInstallation(), ...openCadSession.status() }));

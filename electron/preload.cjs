@@ -45,7 +45,8 @@ contextBridge.exposeInMainWorld('lvds', {
   openCadStudio: {
     status: () => ipcRenderer.invoke('opencad:status'),
     openDxf: (files) => ipcRenderer.invoke('opencad:openDxf', { files }),
-    linked: () => ipcRenderer.invoke('opencad:linked')
+    linked: () => ipcRenderer.invoke('opencad:linked'),
+    update: (files) => ipcRenderer.invoke('opencad:update', { files })
   },
   files: {
     saveText: (opts) => ipcRenderer.invoke('files:saveText', opts),

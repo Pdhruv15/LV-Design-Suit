@@ -55,6 +55,8 @@ declare global {
         openDxf: (files: { name: string; content: string }[]) => Promise<{ files: string[]; connected: boolean; version?: string; linked?: number }>;
         /** Boards and feeders tagged in the drawing open in OpenCADStudio ("feeder:<id>", "board:<id>"), with their object counts. */
         linked?: () => Promise<{ tag: string; objects: number }[]>;
+        /** Redraws, in the drawing open in OpenCADStudio, only the boards, feeders and sheet furniture that changed (first sheet). */
+        update?: (files: { name: string; content: string }[]) => Promise<{ changed: string[]; added: string[]; removed: string[]; unchanged: number }>;
       };
       files: {
         /** Shows a save dialog and writes the text; resolves to the saved path, or null if cancelled. */

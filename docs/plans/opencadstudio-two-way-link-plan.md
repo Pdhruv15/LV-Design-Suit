@@ -16,14 +16,17 @@ design → CAD for drawings, CAD → design for measured quantities — without 
 
 ## Milestones
 
-### 3. Equipment tags (foundation)
+### 3. Equipment tags (foundation) — done (PR #256)
 Every exported DXF object carries extended data `LVDS` = `feeder:<id>` / `board:<id>` (R12 XDATA + APPID
 table), taken from the diagram groups that already hold these IDs. Works in plain DXF export too and survives
 saving as DWG. Live link gains a read: which tagged equipment is in the open drawing.
 
-### 4. Update in OpenCADStudio (design → CAD)
-Regenerate the sheet, compare per tag, delete and redraw the tagged objects of changed boards/feeders in the
-open document. Untagged objects are left in place.
+### 4. Update in OpenCADStudio (design → CAD) — done
+Regenerate the sheet, open it beside the drawing, compare per tag, copy the changed boards/feeders across and
+erase their old objects; close the temporary sheet. Untagged objects are left in place. Changes are judged
+against what LV Design Studio last sent to that drawing (not its CAD state), so a tagged object the engineer
+edited is kept unless its board or feeder changed. Frame, title block and notes carry `sheet:<n>` so revisions
+and schedules refresh too. First sheet only; continuation sheets are reopened.
 
 ### 5. Tag on the floor plan
 In LV Design Studio, pick a feeder or board, then click the polyline/block in OpenCADStudio

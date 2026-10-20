@@ -93,9 +93,11 @@ describe('equipment tags in DXF', () => {
     const found = new Set(entities(dxf).map(tagOf).filter(Boolean));
     for (const f of dxfExportProject.feeders) expect(found).toContain(`feeder:${f.id}`);
     for (const b of dxfExportProject.boards) expect(found).toContain(`board:${b.id}`);
-    // Sheet furniture (frame, title block, notes) belongs to no equipment.
+    // Sheet furniture (frame, title block, notes) belongs to no equipment, only to its sheet.
     const titleText = entities(dxf).filter((e) => e[0].value === 'TEXT' && e.some((x) => x.code === 8 && x.value === 'E-TITLE'));
     expect(titleText.length).toBeGreaterThan(0);
-    expect(titleText.every((e) => tagOf(e) === undefined)).toBe(true);
+    expect(titleText.every((e) => tagOf(e) === 'sheet:1')).toBe(true);
+    // Every object of the sheet is tagged, so an update can account for all of it.
+    expect(entities(dxf).filter((e) => ['LINE', 'POLYLINE', 'CIRCLE', 'TEXT', 'SOLID'].includes(e[0].value)).every((e) => tagOf(e))).toBe(true);
   });
 });
