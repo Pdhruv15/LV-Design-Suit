@@ -11,6 +11,7 @@ import LuxLayoutPlan from './LuxLayoutPlan';
 import { CandidatesTable, LineChart, PfcTriangles, PowerTriangle, RefTable, Steps, SupplyStrip } from './QuickAsides';
 import { Page } from './ui';
 import { quickInputErrors, quickNumber as num, type QuickErrors } from './quickInputs';
+import { fmtUpTo as fmt } from '../util/format';
 
 /** Quick calculators: everyday engineering sums, separate from the project.
  * Inputs are remembered on this computer between visits. */
@@ -59,7 +60,6 @@ function useInputs(card: string, initial: Vals): [Vals, (k: string, v: string) =
   ];
 }
 
-const fmt = (v: number, d = 2) => (Number.isFinite(v) ? v.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: 0 }) : '—');
 const InputErrors = createContext<QuickErrors>({});
 
 function Field({ label, v, k, set, unit, width = 90 }: { label: string; v: Vals; k: string; set: (k: string, v: string) => void; unit?: string; width?: number }) {
