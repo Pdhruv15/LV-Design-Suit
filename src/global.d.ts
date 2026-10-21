@@ -73,6 +73,8 @@ declare global {
         trays?: () => Promise<import('./model/cadTrays').CadTrayPlan>;
         /** Links the curves selected in OpenCADStudio to a tray route by name; '' unlinks them. */
         traySelection?: (name: string) => Promise<{ linked: number; skipped: number }>;
+        /** Copies the LV scripts for OpenCADStudio into a folder the engineer chooses; null if cancelled. */
+        copyScripts?: () => Promise<{ folder: string; files: string[] } | null>;
       };
       files: {
         /** Shows a save dialog and writes the text; resolves to the saved path, or null if cancelled. */

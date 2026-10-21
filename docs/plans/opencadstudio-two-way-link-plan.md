@@ -119,5 +119,14 @@ tray routes) has the template bar: pick a template, or save the current mapping;
 two and half of a plan's layers, it is offered ("Use ABC Architects (12 of 14 layers)"). Applying sets the roles of
 the layers it knows (any case) and leaves the others. Layer guesses also read RM as ROOM.
 
-Next: the same actions inside OpenCADStudio (add-in). 3D (elevations, vertical routes) waits for a BIM link — see
-Future development.
+## 10. LV scripts inside OpenCADStudio — done
+OpenCADStudio's bundled *Python Scripting* plugin (sandboxed RustPython: drawing access, no files / network / typed
+input; a native Rust add-in would need a rebuild per OCS release) runs the LV script pack in `opencadstudio/`:
+`lv_summary.py` (linked routes / trays / boards with plan lengths, as a table), `lv_room_areas.py` (m² labels,
+zones and twins skipped), `lv_tag_trays.py` (selected runs + a "TRAY A" label → `tray:A`), `lv_board_check.py`,
+`lv_untag.py`. Re-runs replace their own labels / table (marked with LVDS "area-label" / "summary-table").
+The app ships them (`opencadstudio/**` in the package) and copies them out with *Copy LV scripts for
+OpenCADStudio…*.
+
+Later, if wanted: a native add-in with its own LV ribbon tab. 3D (elevations, vertical routes) waits for a BIM link —
+see Future development.

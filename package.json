@@ -72,7 +72,8 @@
     "icon": "build/icon.png",
     "files": [
       "dist/**/*",
-      "electron/**/*"
+      "electron/**/*",
+      "opencadstudio/**/*"
     ],
     "directories": {
       "output": "release"
