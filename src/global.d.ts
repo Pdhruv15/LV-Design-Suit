@@ -69,6 +69,10 @@ declare global {
         plan?: () => Promise<import('./model/cadPlaces').CadPlan>;
         /** Marks the objects selected in OpenCADStudio as a board's symbol; '' unlinks them. */
         placeSelection?: (boardId: string) => Promise<{ linked: number }>;
+        /** Tray runs and linked cable routes on the active drawing, as paths in drawing units. */
+        trays?: () => Promise<import('./model/cadTrays').CadTrayPlan>;
+        /** Links the curves selected in OpenCADStudio to a tray route by name; '' unlinks them. */
+        traySelection?: (name: string) => Promise<{ linked: number; skipped: number }>;
       };
       files: {
         /** Shows a save dialog and writes the text; resolves to the saved path, or null if cancelled. */

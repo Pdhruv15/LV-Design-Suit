@@ -15,7 +15,7 @@ function tagOf(entity) {
   const records = entity && entity.properties && entity.properties.common && entity.properties.common.extended_data && entity.properties.common.extended_data.records;
   const record = Array.isArray(records) ? records.find((r) => r && r.application_name === TAG_APP) : undefined;
   const value = record && Array.isArray(record.values) && record.values[0] ? record.values[0].String : undefined;
-  return typeof value === 'string' && /^(feeder|board|sheet|route|place):/.test(value) ? value : undefined;
+  return typeof value === 'string' && /^(feeder|board|sheet|route|place|tray):/.test(value) ? value : undefined;
 }
 
 const xy = (p) => (p && typeof p.x === 'number' && typeof p.y === 'number' ? [p.x, p.y] : undefined);
@@ -26,6 +26,51 @@ function segmentLength(a, b, bulge) {
   const theta = 4 * Math.atan(Math.abs(bulge));
   return (chord / (2 * Math.sin(theta / 2))) * theta;
 }
+/** Points along a bulged polyline segment from a to b (straight: just b), every ~10°. */
+function segmentPoints(a, b, bulge) {
+  if (!bulge) return [b];
+  const theta = 4 * Math.atan(bulge); // signed sweep
+  const chord = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  if (!chord) return [b];
+  const r = chord / (2 * Math.sin(Math.abs(theta) / 2));
+  const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  const h = Math.sqrt(Math.max(0, r * r - (chord / 2) ** 2)) * (Math.abs(theta) > Math.PI ? -1 : 1) * Math.sign(theta);
+  const centre = [mid[0] - (h * (b[1] - a[1])) / chord, mid[1] + (h * (b[0] - a[0])) / chord];
+  const start = Math.atan2(a[1] - centre[1], a[0] - centre[0]);
+  const steps = Math.max(2, Math.ceil(Math.abs(theta) / (Math.PI / 18)));
+  return Array.from({ length: steps }, (_, i) => {
+    const t = start + (theta * (i + 1)) / steps;
+    return [centre[0] + r * Math.cos(t), centre[1] + r * Math.sin(t)];
+  });
+}
+/** A curve as a path of points (drawing units): lines, arcs, polylines with arc segments; else undefined. */
+function curvePoints(entity) {
+  const p = (entity && entity.properties) || {};
+  if (entity.type === 'Line') {
+    const a = xy(p.start), b = xy(p.end);
+    return a && b ? [a, b] : undefined;
+  }
+  if (entity.type === 'Arc' && typeof p.radius === 'number' && xy(p.center)) {
+    const c = xy(p.center);
+    const sweep = ((((p.end_angle - p.start_angle) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) || 2 * Math.PI;
+    const steps = Math.max(2, Math.ceil(sweep / (Math.PI / 18)));
+    return Array.from({ length: steps + 1 }, (_, i) => {
+      const t = p.start_angle + (sweep * i) / steps;
+      return [c[0] + p.radius * Math.cos(t), c[1] + p.radius * Math.sin(t)];
+    });
+  }
+  if (Array.isArray(p.vertices) && /polyline/i.test(entity.type)) {
+    const v = p.vertices.map((x) => ({ at: xy(x && x.location), bulge: Number(x && x.bulge) || 0 })).filter((x) => x.at);
+    if (v.length < 2) return undefined;
+    const closed = p.is_closed === true || !!(p.flags && typeof p.flags.bits === 'number' && p.flags.bits & 1);
+    const out = [v[0].at];
+    for (let i = 0; i + 1 < v.length; i += 1) out.push(...segmentPoints(v[i].at, v[i + 1].at, v[i].bulge));
+    if (closed) out.push(...segmentPoints(v[v.length - 1].at, v[0].at, v[v.length - 1].bulge));
+    return out;
+  }
+  return undefined;
+}
+
 const BOARD_ATTRIBUTES = ['TAG', 'BOARD', 'PANEL', 'DB', 'DB_REF', 'BOARD_ID', 'PANEL_ID'];
 /** A point for an entity read with detail=full: a block's insertion point, else its bounds centre. */
 function pointOf(entity) {
@@ -339,6 +384,47 @@ class OpenCadRestSession {
     return { units: typeof units === 'number' ? units : undefined, ...plan };
   }
 
+  /** Tray runs (curves tagged "tray:<route name>") and cable routes ("route:<feeder id>") of the active drawing as
+   * paths of points, in drawing units, for working out which trays each cable follows. */
+  async readTrays() {
+    if (!this.connected) throw new Error('OpenCADStudio is not connected. Open the floor plan in OpenCADStudio first.');
+    const trays = [], routes = [];
+    let seen = 0;
+    for (let offset = 0; seen < MAX_ENTITIES;) {
+      const page = await this.ask(`/entities?detail=full&limit=${PAGE}&offset=${offset}`);
+      const list = page.entities || [];
+      seen += list.length;
+      for (const e of list) {
+        const tag = tagOf(e);
+        if (!tag || !(tag.startsWith('tray:') || tag.startsWith('route:'))) continue;
+        const points = curvePoints(e);
+        if (!points) continue;
+        if (tag.startsWith('tray:')) trays.push({ name: tag.slice('tray:'.length), points, length: curveLength(e) });
+        else routes.push({ feederId: tag.slice('route:'.length), points });
+      }
+      if (typeof page.next_offset !== 'number' || page.next_offset <= offset || !list.length) break;
+      offset = page.next_offset;
+    }
+    const units = await this.ask('/sysvars?names=insunits').then((r) => (r.result && r.result.values ? r.result.values.insunits : undefined), () => undefined);
+    return { units: typeof units === 'number' ? units : undefined, trays, routes };
+  }
+
+  /** Links the curves selected in OpenCADStudio to a tray route by name ("A"); '' unlinks them. */
+  async traySelection(name) {
+    if (!this.connected) throw new Error('OpenCADStudio is not connected. Open the floor plan in OpenCADStudio first.');
+    const route = String(name || '').trim().toUpperCase();
+    if (route && !/^[\x21-\x7e]{1,40}$/.test(route)) throw new Error('A tray route name is letters, digits and signs without spaces, e.g. A or T-2.');
+    const selection = await this.ask('/get_selection', 'POST', {});
+    const picked = (selection.result && selection.result.entities) || [];
+    if (!picked.length) throw new Error('Nothing is selected in OpenCADStudio. Select the tray run there first.');
+    const curves = picked.filter((e) => e && typeof e.handle === 'string' && /^(Line|Arc|Polyline.*)$/.test(e.type));
+    for (const e of curves) {
+      if (route) await this.ask(`/entities/${e.handle}/xdata/${TAG_APP}`, 'PUT', [{ code: 1000, value: `tray:${route}` }]);
+      else await this.ask(`/entities/${e.handle}/xdata/${TAG_APP}`, 'DELETE').catch(() => undefined);
+    }
+    return { linked: curves.length, skipped: picked.length - curves.length };
+  }
+
   /** Marks the objects selected in OpenCADStudio as a board's symbol on the plan (tag "place:<board id>");
    * an empty id unlinks them. */
   async placeSelection(boardId) {
@@ -406,4 +492,4 @@ class OpenCadRestSession {
   }
 }
 
-module.exports = { availablePort, requestJson, OpenCadRestSession, TAG_APP, tagOf, fingerprint, curveLength };
+module.exports = { availablePort, requestJson, OpenCadRestSession, TAG_APP, tagOf, fingerprint, curveLength, curvePoints };
