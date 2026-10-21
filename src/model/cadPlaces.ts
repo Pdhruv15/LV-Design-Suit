@@ -7,9 +7,15 @@ export interface CadPlan {
   units?: number; // INSUNITS
   places: { boardId: string; x: number; y: number }[]; // symbols linked to a board by hand
   symbols: { name: string; x: number; y: number }[]; // blocks whose TAG / BOARD / PANEL attribute names a board
-  outlines: { layer: string; points: [number, number][] }[]; // closed polylines
+  outlines: { layer: string; points: [number, number][]; bulges?: number[] }[]; // closed polylines and hatch boundaries
   texts: { layer: string; x: number; y: number; text: string }[];
+  /** Room tag blocks: their NAME / ROOM and NO / NUMBER attribute values. */
+  tags?: { layer: string; x: number; y: number; name?: string; number?: string }[];
+  /** What each layer holds, for mapping layers to their meaning. */
+  layers?: CadLayerStats[];
 }
+
+export interface CadLayerStats { name: string; outlines: number; curves: number; texts: number; blocks: number; hatches: number }
 
 export interface BoardPlace {
   boardId: string;
@@ -33,6 +39,18 @@ export interface BoardPlacePull {
 
 const DEFAULT_ROOM_LAYER = /ROOM|SPACE|AREA/i;
 
+/** Which layers hold room outlines: the layers mapped as rooms, else layers whose name contains the given text,
+ * else any layer with ROOM, SPACE or AREA in its name. */
+function roomLayerTest(roomLayer?: string | Set<string>): (layer: string) => boolean {
+  if (roomLayer instanceof Set) return (layer) => roomLayer.has(layer.toLowerCase());
+  const part = roomLayer?.trim().toLowerCase();
+  return part ? (layer) => layer.toLowerCase().includes(part) : (layer) => DEFAULT_ROOM_LAYER.test(layer);
+}
+const roomLayersOf = (project: Project): string | Set<string> | undefined => {
+  const mapped = new Set((project.cadLayers ?? []).filter((m) => m.role === 'room').map((m) => m.layer.toLowerCase()));
+  return mapped.size ? mapped : project.cadRoomLayer;
+};
+
 /** Ray casting: is the point inside the closed outline? */
 export function inside([x, y]: [number, number], poly: [number, number][]): boolean {
   let hit = false;
@@ -47,8 +65,8 @@ const centroid = (poly: [number, number][]): [number, number] => [poly.reduce((s
 
 /** The room a point is in: the smallest room outline around it, named by the text inside that outline nearest its
  * centre (texts on a layer with NAME or ROOM first). */
-export function roomAt(plan: Pick<CadPlan, 'outlines' | 'texts'>, point: [number, number], roomLayer?: string): string | undefined {
-  const isRoom = (layer: string) => (roomLayer?.trim() ? layer.toLowerCase().includes(roomLayer.trim().toLowerCase()) : DEFAULT_ROOM_LAYER.test(layer));
+export function roomAt(plan: Pick<CadPlan, 'outlines' | 'texts'>, point: [number, number], roomLayer?: string | Set<string>): string | undefined {
+  const isRoom = roomLayerTest(roomLayer);
   const around = plan.outlines.filter((o) => isRoom(o.layer) && inside(point, o.points)).sort((a, b) => area(a.points) - area(b.points));
   for (const room of around) {
     const c = centroid(room.points);
@@ -95,7 +113,7 @@ export function pullBoardPlaces(project: Project, plan: CadPlan, level: LevelRef
   for (const b of project.boards) {
     const at = found.get(b.id);
     if (!at) continue;
-    const room = roomAt(plan, [at.x, at.y], project.cadRoomLayer);
+    const room = roomAt(plan, [at.x, at.y], roomLayersOf(project));
     if (!room) noRoom.push(b.id);
     const x = Math.round(at.x * unit.factor * 100) / 100, y = Math.round(at.y * unit.factor * 100) / 100;
     const sameLevel = !level || (b.level && levelKey(b.level) === levelKey(level));
@@ -107,7 +125,7 @@ export function pullBoardPlaces(project: Project, plan: CadPlan, level: LevelRef
       currentLocation: b.location, currentLevel: levelText(b), newLevel: level ? levelText(b, level) : levelText(b)
     });
   }
-  return { proposals, matching, unknown: [...unknown].sort(), noRoom, rooms: plan.outlines.filter((o) => (project.cadRoomLayer?.trim() ? o.layer.toLowerCase().includes(project.cadRoomLayer.trim().toLowerCase()) : DEFAULT_ROOM_LAYER.test(o.layer))).length, units: unit.source };
+  return { proposals, matching, unknown: [...unknown].sort(), noRoom, rooms: plan.outlines.filter((o) => roomLayerTest(roomLayersOf(project))(o.layer)).length, units: unit.source };
 }
 
 /** Sets the accepted boards' location (room, when one was found), level and position on the plan. */

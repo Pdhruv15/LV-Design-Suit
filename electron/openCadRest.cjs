@@ -79,14 +79,37 @@ function pointOf(entity) {
   if (b && Array.isArray(b.min) && Array.isArray(b.max)) return [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2];
   return undefined;
 }
-/** Vertices of a closed polyline (room outlines), else undefined. */
+/** A closed outline (room boundary) from a closed polyline or a hatch's outer boundary: its vertices, and the bulges
+ * of arc segments when it has any; else undefined. */
 function closedOutline(entity) {
   const p = entity.properties || {};
+  if (entity.type === 'Hatch' && Array.isArray(p.paths)) {
+    const path = p.paths.find((x) => x && x.flags && x.flags.bits & 1) || p.paths[0];
+    const points = [];
+    const bulges = [];
+    for (const edge of (path && path.edges) || []) {
+      if (edge && edge.Polyline && Array.isArray(edge.Polyline.vertices)) {
+        for (const v of edge.Polyline.vertices) { const at = xy(v); if (at) { points.push(at); bulges.push(Number(v.bulge) || 0); } }
+      } else if (edge && edge.Line && xy(edge.Line.start)) {
+        points.push(xy(edge.Line.start)); bulges.push(0);
+      }
+    }
+    return points.length >= 3 ? { points, ...(bulges.some(Boolean) ? { bulges } : {}) } : undefined;
+  }
   if (!/polyline/i.test(entity.type) || !Array.isArray(p.vertices)) return undefined;
   const closed = p.is_closed === true || !!(p.flags && typeof p.flags.bits === 'number' && p.flags.bits & 1);
-  const points = p.vertices.map((v) => xy(v && v.location)).filter(Boolean);
-  return closed && points.length >= 3 ? points : undefined;
+  const v = p.vertices.map((x) => ({ at: xy(x && x.location), bulge: Number(x && x.bulge) || 0 })).filter((x) => x.at);
+  if (!closed || v.length < 3) return undefined;
+  const bulges = v.map((x) => x.bulge);
+  return { points: v.map((x) => x.at), ...(bulges.some(Boolean) ? { bulges } : {}) };
 }
+const ROOM_NAME_ATTRIBUTES = ['NAME', 'ROOM', 'ROOM_NAME', 'ROOMNAME', 'SPACE', 'SPACE_NAME', 'ROOM-NAME'];
+const ROOM_NUMBER_ATTRIBUTES = ['NO', 'NUMBER', 'ROOM_NO', 'ROOM_NUMBER', 'ROOMNO', 'NUM', 'ROOM-NO'];
+const attributeOf = (attributes, names) => {
+  const key = Object.keys(attributes || {}).find((k) => names.includes(k.trim().toUpperCase()));
+  const value = key && typeof attributes[key] === 'string' ? attributes[key].trim() : '';
+  return value || undefined;
+};
 
 /** Plan length of a curve read with detail=full, in drawing units: lines, arcs, and polylines (2D, light-weight)
  * with arc segments. Anything else (circles, text, blocks) has no route length: 0. */
@@ -356,7 +379,13 @@ class OpenCadRestSession {
    * BOARD / PANEL attribute names a board), closed outlines (rooms) and texts (room names), in drawing units. */
   async readPlan() {
     if (!this.connected) throw new Error('OpenCADStudio is not connected. Open the floor plan in OpenCADStudio first.');
-    const plan = { places: [], symbols: [], outlines: [], texts: [] };
+    const plan = { places: [], symbols: [], outlines: [], texts: [], tags: [] };
+    const layers = new Map();
+    const count = (layer, kind) => {
+      const at = layers.get(layer) || { name: layer, outlines: 0, curves: 0, texts: 0, blocks: 0, hatches: 0 };
+      at[kind] += 1;
+      layers.set(layer, at);
+    };
     let seen = 0;
     for (let offset = 0; seen < MAX_ENTITIES;) {
       const page = await this.ask(`/entities?detail=full&limit=${PAGE}&offset=${offset}`);
@@ -366,22 +395,28 @@ class OpenCadRestSession {
         const tag = tagOf(e);
         const at = pointOf(e);
         if (tag && tag.startsWith('place:') && at) plan.places.push({ boardId: tag.slice('place:'.length), x: at[0], y: at[1] });
-        if (typeof e.block === 'string' && e.attributes && at) {
-          const key = Object.keys(e.attributes).find((k) => BOARD_ATTRIBUTES.includes(k.trim().toUpperCase()));
-          const value = key && typeof e.attributes[key] === 'string' ? e.attributes[key].trim() : '';
-          if (value) plan.symbols.push({ name: value, x: at[0], y: at[1] });
+        const layer = String(e.layer || '');
+        if (typeof e.block === 'string') {
+          count(layer, 'blocks');
+          if (e.attributes && at) {
+            const board = attributeOf(e.attributes, BOARD_ATTRIBUTES);
+            if (board) plan.symbols.push({ name: board, x: at[0], y: at[1] });
+            const name = attributeOf(e.attributes, ROOM_NAME_ATTRIBUTES), number = attributeOf(e.attributes, ROOM_NUMBER_ATTRIBUTES);
+            if (name || number) plan.tags.push({ layer, x: at[0], y: at[1], ...(name ? { name } : {}), ...(number ? { number } : {}) });
+          }
         }
         const outline = closedOutline(e);
-        if (outline) plan.outlines.push({ layer: String(e.layer || ''), points: outline });
+        if (outline) { plan.outlines.push({ layer, ...outline }); count(layer, e.type === 'Hatch' ? 'hatches' : 'outlines'); }
+        else if (/^(Line|Arc|Polyline.*)$/.test(e.type)) count(layer, 'curves');
         const p = e.properties || {};
         const text = typeof p.value === 'string' ? p.value : typeof p.text === 'string' ? p.text : typeof p.contents === 'string' ? p.contents : undefined;
-        if (/^(Text|MText|Multiline Text)$/i.test(e.type) && text && text.trim() && at) plan.texts.push({ layer: String(e.layer || ''), x: at[0], y: at[1], text: text.trim() });
+        if (/^(Text|MText|Multiline Text)$/i.test(e.type) && text && text.trim() && at) { plan.texts.push({ layer, x: at[0], y: at[1], text: text.trim() }); count(layer, 'texts'); }
       }
       if (typeof page.next_offset !== 'number' || page.next_offset <= offset || !list.length) break;
       offset = page.next_offset;
     }
     const units = await this.ask('/sysvars?names=insunits').then((r) => (r.result && r.result.values ? r.result.values.insunits : undefined), () => undefined);
-    return { units: typeof units === 'number' ? units : undefined, ...plan };
+    return { units: typeof units === 'number' ? units : undefined, ...plan, layers: [...layers.values()].sort((a, b) => a.name.localeCompare(b.name)) };
   }
 
   /** Tray runs (curves tagged "tray:<route name>") and cable routes ("route:<feeder id>") of the active drawing as

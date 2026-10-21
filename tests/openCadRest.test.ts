@@ -186,7 +186,15 @@ describe('OpenCADStudio live REST session', () => {
       places: [{ boardId: 'MDB-1', x: 20, y: 30 }],
       symbols: [{ name: 'DB-GF1', x: 22000, y: 1500 }],
       outlines: [{ layer: 'A-ROOM', points: [[0, 0], [10, 0], [10, 10]] }],
-      texts: [{ layer: 'A-ROOM-NAME', x: 5, y: 5, text: 'STORE' }]
+      texts: [{ layer: 'A-ROOM-NAME', x: 5, y: 5, text: 'STORE' }],
+      tags: [],
+      layers: [
+        { name: 'A-ROOM', outlines: 1, curves: 0, texts: 0, blocks: 0, hatches: 0 },
+        { name: 'A-ROOM-NAME', outlines: 0, curves: 0, texts: 1, blocks: 0, hatches: 0 },
+        { name: 'E-BOARD', outlines: 0, curves: 0, texts: 0, blocks: 1, hatches: 0 },
+        { name: 'E-CABLE', outlines: 0, curves: 1, texts: 0, blocks: 0, hatches: 0 },
+        { name: 'E-LIGHT', outlines: 0, curves: 0, texts: 0, blocks: 1, hatches: 0 }
+      ]
     });
   });
 

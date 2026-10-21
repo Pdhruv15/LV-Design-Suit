@@ -84,4 +84,21 @@ villa ground floor in mm — 8 named rooms, SMDB-GF and DB-GF1 symbols with TAG 
 unlinked cable routes on `E-CABLE` and two unlinked tray runs on `E-TRAY` (link as A — vertical — and B; the
 second cable route runs along A then B).
 
-All milestones of this plan are done.
+The sample also names the Guest bedroom with a room tag block (`RM-TAG`, NAME and NO attributes).
+
+## 7. Layer mapping and room areas — done
+Architects' floor plans carry no meaning, only layers, blocks, geometry and text, so the engineer says once what
+each layer is: room outline, room name, wall, cable tray, cable route, fixtures, boards or ignore (`project.cadLayers`;
+first guesses from AIA-style names and what the layer holds). Command palette → *Rooms and areas from CAD floor
+plan…* → Read plan → layer table → level → rooms:
+- every closed polyline or hatch on a room-outline layer is a room; area measured with arc segments, in m²;
+- name from a room tag block (NAME / ROOM…, number from NO / NUMBER…) inside it, else the room-name text nearest its
+  centre (area labels such as "20.00 m²" skipped); unnamed rooms are "Room 1"…, renamable in the review;
+- an outline around other rooms (a flat, a wing) is a zone, left out; a room drawn twice (polyline + hatch) counts once;
+- room type guessed from the name (kitchen, bedroom, bathroom, living, store, plant…), or the type chosen before for
+  that name (`project.cadRoomTypes`);
+- review against Building information rooms on that level: same name → area update, else a new room; rooms not on
+  the plan are listed and kept. Board locations use the room-outline layers of the map when set.
+
+Next: layer-map templates per consultant (saved in the LV Database), tray and route layers linked automatically
+from the map, and the same actions inside OpenCADStudio (add-in).
