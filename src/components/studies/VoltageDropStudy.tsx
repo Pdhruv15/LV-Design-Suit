@@ -9,7 +9,7 @@ import { resistanceFactor } from '../../calc/electrical';
 import { buildVdReportHtml, scopeLabel, startText, VD_HEADERS, vdCells } from '../../docs/voltageDropReport';
 import { saveCsv, savePdf, safeFileName } from '../../util/files';
 import EditCell from '../EditCell';
-import { Page, StatusCell, StatusCounts } from '../ui';
+import { CheckedNum, Page, StatusCell, StatusCounts } from '../ui';
 import type { Status } from '../../calc/electrical';
 
 const TEMPS: { value: string; label: string }[] = [
@@ -147,8 +147,8 @@ export default function VoltageDropStudy({ project, calcProject = project, stale
       }
     >
       <section className="card vd-settings">
-        <label className="row">Limit <input className="bi-text" style={{ width: 52 }} inputMode="decimal" defaultValue={project.vdLimitPct} key={project.vdLimitPct}
-          onBlur={(e) => { const n = Number(e.target.value); if (n > 0 && n !== project.vdLimitPct) onChange({ ...project, vdLimitPct: n }); }} /> %</label>
+        <label className="row">Limit <CheckedNum className="bi-text" width={52} value={project.vdLimitPct} rule={{ min: 0, minExclusive: true, unit: '%' }}
+          onSet={(n) => onChange({ ...project, vdLimitPct: n })} /> %</label>
         <label className="row">Conductor temperature
           <select className="chip" value={tempC === undefined ? '' : TEMPS.some((t) => t.value === String(tempC)) ? String(tempC) : 'custom'}
             onChange={(e) => onChange({ ...project, vdTempC: e.target.value === '' ? undefined : e.target.value === 'custom' ? (tempC ?? 80) : Number(e.target.value) })}>
@@ -156,7 +156,8 @@ export default function VoltageDropStudy({ project, calcProject = project, stale
             <option value="custom">Other…</option>
           </select>
           {tempC !== undefined && !TEMPS.some((t) => t.value === String(tempC)) && (
-            <><input className="bi-text" style={{ width: 52 }} inputMode="decimal" defaultValue={tempC} key={tempC} onBlur={(e) => { const n = Number(e.target.value); if (Number.isFinite(n) && n > -20 && n < 250) onChange({ ...project, vdTempC: n }); }} /> °C</>
+            <><CheckedNum className="bi-text" width={52} value={tempC} label="Conductor temperature" rule={{ min: -20, max: 250, minExclusive: true, maxExclusive: true, unit: '°C' }}
+              onSet={(n) => onChange({ ...project, vdTempC: n })} /> °C</>
           )}
           <span className="m">R × {resistanceFactor(tempC).toFixed(3)}</span>
         </label>

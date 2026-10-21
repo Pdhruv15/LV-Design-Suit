@@ -1,3 +1,4 @@
+import { ask } from '../ConfirmDialog';
 import { useMemo, useState } from 'react';
 import type { Project } from '../../types';
 import { boardDemandKw } from '../../calc/electrical';
@@ -116,8 +117,8 @@ export default function RevisionsView({ project, me = '', onChange, onStatus }: 
                   <button className="chip" onClick={() => { setFrom(r.id); setTo(CURRENT); }}>Compare with current</button>
                   <button className="chip" disabled={baseline?.revision.id === r.id && baseline.chosen} title="Measure the working draft against this revision. Only the baseline changes — your draft and BOQ stay as they are."
                     onClick={() => { onChange(setBaseline(project, r.id, me)); setFrom(r.id); setTo(CURRENT); onStatus(`Rev ${r.id} is now the baseline — your working draft is unchanged. Save the project to keep it.`); }}>Use as baseline</button>
-                  <button className="chip" onClick={() => {
-                    if (!window.confirm(`Replace the current design with Rev ${r.id}? Changes since the latest revision are lost unless you issue a revision first.`)) return;
+                  <button className="chip" onClick={async () => {
+                    if (!(await ask(`Replace the current design with Rev ${r.id}? Changes since the latest revision are lost unless you issue a revision first.`))) return;
                     onChange(restoreRevision(project, r.id));
                     onStatus(`Restored Rev ${r.id} — save the project to keep it`);
                   }}>Restore</button>

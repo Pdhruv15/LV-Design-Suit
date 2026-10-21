@@ -1,9 +1,10 @@
+import { ask } from '../ConfirmDialog';
 import { useMemo, useState } from 'react';
 import type { BuildingInfo, BuildingLevel, BuildingRoom, LevelKind, Project, ProjectBuilding, RoomType } from '../../types';
 import {
   buildingInfoOf, dbChecks, DEFAULT_ROOM_TYPES, LEVEL_KINDS, loadRoomTypeLibrary, newBuilding, roomLoad, roomsFromTable, roomTypesOf, saveRoomTypeLibrary, summarizeBuilding
 } from '../../calc/building';
-import { Page } from '../ui';
+import { Page, Modal } from '../ui';
 import { applyRiserLengths, benchOf, floorLoads, lpdOf, rulesOf, unitLoads } from '../../calc/buildingDesign';
 import { catalog } from '../../database/catalog';
 import { buildingSummaryHtml, buildingSummaryWorkbook } from '../../docs/buildingSummary';
@@ -157,8 +158,8 @@ export default function BuildingView({ project, onChange, onStatus }: { project:
                 {designed.dbs > 0 && <span title="Total of the DBs designed for this building's floors and flats">Designed <b>{f0(designed.kw)} kW</b> connected <span className="m">on {designed.dbs} DBs{designed.flats ? ` · ${designed.flats} flats` : ''}</span></span>}
               </div>
             )}
-            <button className="linkish bad" style={{ marginLeft: 0, alignSelf: 'flex-start' }} onClick={() => {
-              if (!window.confirm(`Delete ${b.name} and its ${info.rooms.filter((r) => r.buildingId === b.id).length} rooms?`)) return;
+            <button className="linkish bad" style={{ marginLeft: 0, alignSelf: 'flex-start' }} onClick={async () => {
+              if (!(await ask(`Delete ${b.name} and its ${info.rooms.filter((r) => r.buildingId === b.id).length} rooms?`))) return;
               set({ ...info, buildings: info.buildings.filter((x) => x.id !== b.id), rooms: info.rooms.filter((r) => r.buildingId !== b.id) });
               setSel('');
             }}>Delete this building</button>
@@ -190,9 +191,9 @@ export default function BuildingView({ project, onChange, onStatus }: { project:
                     <td><button className="linkish" style={{ marginLeft: 0 }} onClick={() => setUnitsFor(l.id)} title="Flats / tenants on each of these floors">{l.units?.length ? l.units.map((u) => `${u.count} × ${info.unitTypes?.find((t) => t.id === u.unitTypeId)?.name ?? '?'}`).join(', ') : '+ flats'}</button></td>
                     <td>{li.roomsM2 ? `${f0(li.roomsM2)} m²` : '—'}</td>
                     <td>{li.demandKw ? <>{f0(li.demandKw)} kW{li.count > 1 ? <span className="m"> ({f1(li.perFloorDemandKw)}/floor)</span> : null}</> : '—'}</td>
-                    <td><button className="icon-btn" title="Remove the level and its rooms" onClick={() => {
+                    <td><button className="icon-btn" title="Remove the level and its rooms" onClick={async () => {
                       const n = info.rooms.filter((r) => r.levelId === l.id).length;
-                      if (n && !window.confirm(`Remove ${l.name} and its ${n} rooms?`)) return;
+                      if (n && !(await ask(`Remove ${l.name} and its ${n} rooms?`))) return;
                       set({ ...info, buildings: info.buildings.map((x) => (x.id === b.id ? { ...x, levels: x.levels.filter((y) => y.id !== l.id) } : x)), rooms: info.rooms.filter((r) => r.levelId !== l.id) });
                     }}>✕</button></td>
                   </tr>
@@ -320,18 +321,16 @@ export default function BuildingView({ project, onChange, onStatus }: { project:
       {dialog === 'reuse' && <ReuseDialog project={project} onClose={() => setDialog(null)} onStatus={onStatus} onAdd={(next, ids, m) => { set(next); setSel(ids[0] ?? sel); setDialog(null); onStatus(m); }} />}
       {unitsFor && b && <LevelUnitsDialog info={info} b={b} levelId={unitsFor} onClose={() => setUnitsFor(null)} onSave={(u) => { setLevel(unitsFor, { units: u.length ? u : undefined }); setUnitsFor(null); }} />}
       {paste !== null && (
-        <div className="modal-backdrop" onClick={() => setPaste(null)}>
-          <div className="modal" style={{ maxWidth: 680 }} onClick={(e) => e.stopPropagation()}>
-            <h3>Paste rooms into {b?.name}</h3>
-            <p className="m">Copy the area schedule from Excel with these columns, in this order: <b>Level · Room · Type · Area (m²) · Count · DB</b> (Count and DB optional). A header row is skipped. New levels and room types are added.</p>
-            <textarea className="bi-paste" autoFocus value={paste} onChange={(e) => setPaste(e.target.value)} placeholder={'Typical floors\t2BR apartment\tApartment\t120\t6\tDB-TYP\nGround\tLobby\tLobby / corridor\t350\t\tSMDB-GF'} />
-            <div className="modal-actions">
-              <span className="sp" />
-              <button className="chip" onClick={() => setPaste(null)}>Cancel</button>
-              <button className="chip primary" disabled={!paste.trim()} onClick={importRooms}>Add rooms</button>
-            </div>
+        <Modal onClose={() => setPaste(null)} className="modal" style={{ maxWidth: 680 }}>
+          <h3>Paste rooms into {b?.name}</h3>
+          <p className="m">Copy the area schedule from Excel with these columns, in this order: <b>Level · Room · Type · Area (m²) · Count · DB</b> (Count and DB optional). A header row is skipped. New levels and room types are added.</p>
+          <textarea className="bi-paste" autoFocus value={paste} onChange={(e) => setPaste(e.target.value)} placeholder={'Typical floors\t2BR apartment\tApartment\t120\t6\tDB-TYP\nGround\tLobby\tLobby / corridor\t350\t\tSMDB-GF'} />
+          <div className="modal-actions">
+            <span className="sp" />
+            <button className="chip" onClick={() => setPaste(null)}>Cancel</button>
+            <button className="chip primary" disabled={!paste.trim()} onClick={importRooms}>Add rooms</button>
           </div>
-        </div>
+        </Modal>
       )}
     </Page>
   );

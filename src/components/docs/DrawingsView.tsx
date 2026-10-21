@@ -1,3 +1,4 @@
+import { ask } from '../ConfirmDialog';
 import { useEffect, useMemo, useState } from 'react';
 import { IssueDialog } from './IssueDialog';
 import type { Project, ProjectInfo, ProjectParams } from '../../types';
@@ -18,7 +19,7 @@ import { buildTransmittalHtml } from '../../docs/submissionReport';
 import { submissionForIssue } from '../../model/submissions';
 import { exportDrawingSet, exportEverythingZip, exportSheetsDxf, registerRows, sheetHtml, SheetPreview } from './sheetRender';
 import SheetGrid from './SheetGrid';
-import { Page } from '../ui';
+import { Page, Modal } from '../ui';
 import type { MainView } from '../../views';
 
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -93,8 +94,8 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
     save({ ...set, sheets: set.sheets.map((s) => (ids.has(s.id) ? { ...s, rev: nextRev(sheetRev(s, rev?.id)) } : s)) });
     onStatus(`Next revision on ${ids.size} sheet(s) — use Issue to record it with a date and transmittal`);
   };
-  const replaceSet = (next: DrawingSet) => {
-    if (set.sheets.length && !window.confirm('Replace the sheets with a new automatic set? (Status, revisions and issues of the old sheets are dropped.)')) return;
+  const replaceSet = async (next: DrawingSet) => {
+    if (set.sheets.length && !(await ask('Replace the sheets with a new automatic set? (Status, revisions and issues of the old sheets are dropped.)'))) return;
     save({ ...next, register: set.register, tags: set.tags, status: set.status, start: set.start, digits: set.digits, suffix: set.suffix, issues: set.issues });
     setTab('sheets');
   };
@@ -454,13 +455,11 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
       }} />}
 
       {preview && (
-        <div className="modal-backdrop" onClick={() => setPreview(null)}>
-          <div className="modal ds-preview" onClick={(e) => e.stopPropagation()}>
-            <h3>{preview.no} — {preview.size}{preview.fits === false && <span className="warn"> · crowded even on A1: split this sheet</span>}</h3>
-            <SheetPreview html={preview.html} size={preview.size} />
-            <div className="modal-actions"><span className="sp" /><button className="chip" onClick={() => setPreview(null)}>Close</button></div>
-          </div>
-        </div>
+        <Modal onClose={() => setPreview(null)} className="modal ds-preview">
+          <h3>{preview.no} — {preview.size}{preview.fits === false && <span className="warn"> · crowded even on A1: split this sheet</span>}</h3>
+          <SheetPreview html={preview.html} size={preview.size} />
+          <div className="modal-actions"><span className="sp" /><button className="chip" onClick={() => setPreview(null)}>Close</button></div>
+        </Modal>
       )}
     </Page>
   );
@@ -532,7 +531,7 @@ function SheetPanel({ sheet: s, set, project, boards, rev, onPatch, onClose, onR
           ) : <p className="m">Not issued yet — the title block shows the project's revisions.</p>}
         </div>
         <div className="dw-panel-foot">
-          <button className="chip danger" onClick={() => window.confirm(`Remove ${s.number}?`) && onRemove()}>Remove sheet</button>
+          <button className="chip danger" onClick={async () => (await ask(`Remove ${s.number}?`)) && onRemove()}>Remove sheet</button>
           <span className="sp" />
           <button className="chip" disabled={!drawable(s) || busy} onClick={onPreview}>{busy ? '…' : 'Preview'}</button>
           <button className="chip primary" onClick={onClose}>Done</button>

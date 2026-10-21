@@ -1,3 +1,4 @@
+import { ask } from '../ConfirmDialog';
 import { useState } from 'react';
 import type { Project } from '../../types';
 import { Page } from '../ui';
@@ -52,7 +53,7 @@ export default function ReceivedDocsView({ project, onChange, onStatus }: { proj
               <td style={{ whiteSpace: 'nowrap' }}>
                 {!isSuperseded(d) && (d.use === 'baseline' ? <button onClick={() => guard(() => onChange(setBaselineDoc(project, undefined)))}>Not baseline</button> : <button onClick={() => guard(() => onChange(setBaselineDoc(project, d.id)))}>Use as baseline</button>)}
                 <button onClick={() => { const l = window.prompt('Link or file path', d.link ?? ''); if (l !== null) guard(() => onChange(updateDoc(project, d.id, { link: l.trim() || undefined }))); }}>Link…</button>
-                <button onClick={() => { if (window.confirm(`Remove ${d.id} from the register? The file itself is not touched.`)) guard(() => onChange(removeDoc(project, d.id))); }}>Remove</button>
+                <button onClick={async () => { if (await ask(`Remove ${d.id} from the register? The file itself is not touched.`)) guard(() => onChange(removeDoc(project, d.id))); }}>Remove</button>
               </td>
             </tr>
           ))}

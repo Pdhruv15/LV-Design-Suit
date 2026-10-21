@@ -1,3 +1,4 @@
+import { ask } from './ConfirmDialog';
 import { useState } from 'react';
 import { withTemplate, type DefaultRow } from '../model/setupPreview';
 import { briefFromTemplate, SYSTEM_LABEL, type SetupTemplate } from '../model/setupTemplate';
@@ -189,7 +190,7 @@ export function BriefDialog({ initial, company, onSave, onSaveTemplate, onCancel
           {(Object.keys(ROLE_LABEL) as ProjectRole[]).map((r) => <option key={r} value={r}>{ROLE_LABEL[r].title}</option>)}
         </select>
       </label>
-      <p className="m">Changing the role keeps what you set. <button type="button" className="linkish" onClick={() => { if (window.confirm('Replace the scope and deliverables with this role’s suggestions? Your own deliverables, dates and ticks are lost. The parties are kept.')) setBrief(resetToRole(brief, brief.role, company)); }}>Reset scope and deliverables to the suggestions…</button></p>
+      <p className="m">Changing the role keeps what you set. <button type="button" className="linkish" onClick={async () => { if (await ask('Replace the scope and deliverables with this role’s suggestions? Your own deliverables, dates and ticks are lost. The parties are kept.')) setBrief(resetToRole(brief, brief.role, company)); }}>Reset scope and deliverables to the suggestions…</button></p>
       <div className="tabs feeder-tabs" role="tablist">
         {([['scope', 'Scope'], ['parties', 'Parties'], ['deliverables', 'Deliverables']] as const).map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}
       </div>

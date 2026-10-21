@@ -94,3 +94,29 @@ Checked by eye in dark and light: Project, 3 Detailed design, BOM / Cost and Sta
 
 - The desktop (Electron) window was not screenshot-toured; the web build shares the same header and ribbon code, minus the Download file button, so the desktop header is narrower than the case measured.
 - Windows rendering not checked.
+
+## Milestone 3 — forms, buttons, dialogs, validation
+
+Environment: macOS (Apple silicon), 21 Oct 2026. Base: milestone 2 (`7babe10`).
+
+| Check | Result |
+|---|---|
+| TypeScript, lint, build | clean ✅ |
+| Unit tests (`npm test`) | **1678 / 1678** (8 new: `ConfirmDialog.test.tsx` 5, `ui.test.ts` 3) ✅ |
+| PDF/DXF suite (`npm run test:pdf`) | **31 / 31**, compared against the committed darwin baselines ✅ |
+| Drawing text sizes | unchanged: every changed rule cross-checked against the 79 classes used on SVG elements; the one name match (`.tcc-wrap .legend`) is an HTML list ✅ |
+| Calculation code changed | none ✅ |
+
+New tests: question text split into title and detail; answers resolve one dialog at a time; Escape answers No; destructive questions start on Cancel; focus moves in, Tab wraps both ways, focus returns to the opener (also when a field has `autoFocus`); numbers read as typed (1,250 · 12,50,000 · 0,8 · −5) and out-of-range values explained, not clamped.
+
+**In the running app** (web version, sample project, 1280 × 800):
+
+- Ribbon Delete with MDB-1 selected → dialog "Delete MDB-1 and everything fed from it?", focus on Cancel, red "Delete MDB-1". Escape closed it, MDB-1 kept, focus back on the Delete button.
+- Load assessment, GFA = −500 → red edge, "Enter 0 or more m²", value not saved.
+- Voltage drop limit = 0 → "Enter more than 0 %", limit stays 4 %.
+- Command palette opens with focus in its search box; Escape returns focus to Search. (This check found a bug, fixed before commit: an `autoFocus` field made `<Modal>` remember the wrong element.)
+
+### Not yet verified
+
+- Each of the 27 converted dialogs was not opened one by one in the GUI; they share `<Modal>`, the conversion was mechanical and type-checked, and the shared behaviour is unit-tested. The CAD dialogs need OpenCADStudio and were not opened.
+- Electron desktop window and Windows not checked.

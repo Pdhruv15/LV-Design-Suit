@@ -1,3 +1,4 @@
+import { ask } from '../ConfirmDialog';
 import { useState } from 'react';
 import type { Project } from '../../types';
 import { LI_MODULE_AH, sizeUps, UPS_DEFAULTS, VRLA_BLOCK_AH, DC_VOLTAGES, type BatteryChem, type UpsLoad, type UpsSystem } from '../../calc/ups';
@@ -60,7 +61,7 @@ export default function UpsStudy({ project, onChange, onStatus }: {
     >
       {list.map((s) => <UpsCard key={s.id} project={project} s={s} upsBoardIds={upsBoards.map((b) => b.id)}
         onPatch={(p, step) => patch(s.id, p, step)}
-        onRemove={() => window.confirm(`Remove ${s.name}?`) && set(list.filter((x) => x.id !== s.id), true)}
+        onRemove={async () => (await ask(`Remove ${s.name}?`)) && set(list.filter((x) => x.id !== s.id), true)}
         onApply={(kva) => {
           onChange({ ...project, boards: project.boards.map((b) => (b.id === s.boardId ? { ...b, upsKva: kva } : b)) }, true);
           onStatus(`${s.boardId}: UPS set to ${kva} kVA on the SLD`);

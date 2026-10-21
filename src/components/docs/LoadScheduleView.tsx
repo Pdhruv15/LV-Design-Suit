@@ -1,3 +1,4 @@
+import { ask } from '../ConfirmDialog';
 import { useMemo, useRef, useState } from 'react';
 import { supplyChain } from '../../model/transformers';
 import { Plus, Scale, Trash2, Zap } from 'lucide-react';
@@ -340,7 +341,7 @@ export default function LoadScheduleView({
                           <td /><td />
                           <td><input className="room" value={sp.remarks ?? ''} onChange={(ev) => onChange(updateSpareWay(project, board.id, sp.id, { remarks: ev.target.value || undefined }))} aria-label={`${spareRef(sp)} remarks`} /></td>
                           <td>
-                            <button className="icon-btn" title={`Delete ${spareLabel(sp).toLowerCase()} ${spareRef(sp)}`} onClick={() => window.confirm(`Delete ${spareLabel(sp).toLowerCase()} ${spareRef(sp)}?`) && onChange(deleteSpareWay(project, board.id, sp.id).project)}>
+                            <button className="icon-btn" title={`Delete ${spareLabel(sp).toLowerCase()} ${spareRef(sp)}`} onClick={async () => (await ask(`Delete ${spareLabel(sp).toLowerCase()} ${spareRef(sp)}?`)) && onChange(deleteSpareWay(project, board.id, sp.id).project)}>
                               <Trash2 size={14} />
                             </button>
                           </td>
@@ -394,7 +395,7 @@ export default function LoadScheduleView({
                         </td>
                         <td><input className="room" data-cell={cell(f.id, 'remarks')} value={f.remarks ?? ''} onChange={(e) => patch(f.id, { remarks: e.target.value || undefined })} aria-label={`${r.ref} remarks`} /></td>
                         <td>
-                          <button className="icon-btn" title={`Delete ${r.ref}`} onClick={() => window.confirm(`Delete circuit ${r.ref}?`) && onChange(deleteCircuit(project, f.id))}>
+                          <button className="icon-btn" title={`Delete ${r.ref}`} onClick={async () => (await ask(`Delete circuit ${r.ref}?`)) && onChange(deleteCircuit(project, f.id))}>
                             <Trash2 size={14} />
                           </button>
                         </td>

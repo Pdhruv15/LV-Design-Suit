@@ -1,3 +1,4 @@
+import { Modal } from './ui';
 import { useState } from 'react';
 import type { DrawingInfo, Project } from '../types';
 import { buildSldSheetHtml, DEFAULT_DRAWING_TITLE, titleBlockOf } from '../docs/sldSheet';
@@ -77,38 +78,36 @@ export default function SldExportDialog({ project, onSave, onStatus, onClose, st
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Export SLD drawing</h3>
-        {stale && <p className="warn">⚠ The result labels on the diagram are out of date — press Run (F5) first if the drawing shows results.</p>}
-        <p className="m">The drawing shows the diagram as it is on screen — result labels, colours and generator mode included. Title block details are saved with the project.</p>
-        <div className="grid2">
-          <label style={{ gridColumn: '1 / -1' }}>Company / consultant<input value={d.company ?? ''} placeholder={project.info?.consultant ?? ''} onChange={(e) => set('company', e.target.value)} /></label>
-          <label style={{ gridColumn: '1 / -1' }}>Drawing title<input value={d.title ?? ''} placeholder={DEFAULT_DRAWING_TITLE} onChange={(e) => set('title', e.target.value)} /></label>
-          <label>Drawing no.<input value={d.number ?? ''} placeholder="e.g. E-SLD-001" onChange={(e) => set('number', e.target.value)} /></label>
-          <label>Sheet
-            <select value={d.sheet ?? 'A3'} onChange={(e) => set('sheet', e.target.value)}>
-              <option value="A4">A4 landscape</option>
-              <option value="A3">A3 landscape</option>
-              <option value="A2">A2 landscape</option>
-              <option value="A1">A1 landscape</option>
-            </select>
-          </label>
-          <label>Drawn<input value={d.drawnBy ?? ''} onChange={(e) => set('drawnBy', e.target.value)} /></label>
-          <label>Checked<input value={d.checkedBy ?? ''} onChange={(e) => set('checkedBy', e.target.value)} /></label>
-          <label>Approved<input value={d.approvedBy ?? ''} onChange={(e) => set('approvedBy', e.target.value)} /></label>
-          <label>Revision<input value={`${t.revision} · ${t.date}`} disabled title="From Documents → Revisions" /></label>
-        </div>
-        <div className="modal-actions">
-          <button className="chip" onClick={() => { onSave(d); onClose(); }}>Save details</button>
-          <span className="sp" />
-          <button className="chip" disabled={!!busy} onClick={() => run('svg')}>{busy === 'svg' ? 'Exporting…' : 'SVG'}</button>
-          <button className="chip" disabled={!!busy} onClick={() => run('dxf')} title="AutoCAD R12 DXF at the selected paper size, with editable layers and title block. Additional notes and schedules are included as continuation sheets in a ZIP.">{busy === 'dxf' ? 'Exporting…' : `DXF ${d.sheet ?? 'A3'} (CAD)`}</button>
-          {window.lvds?.openCadStudio && <button className="chip" disabled={!!busy} onClick={() => run('opencad')} title="Build the same editable DXF sheet and open it directly in OpenCADStudio.">{busy === 'opencad' ? 'Opening…' : 'Open in OpenCADStudio'}</button>}
-          {window.lvds?.openCadStudio?.update && <button className="chip" disabled={!!busy} onClick={() => run('cadupdate')} title="Redraw, in the drawing open in OpenCADStudio, only the boards and feeders that changed. Anything you drew yourself in CAD is kept.">{busy === 'cadupdate' ? 'Updating…' : 'Update in OpenCADStudio'}</button>}
-          <button className="chip primary" disabled={!!busy} onClick={() => run('pdf')}>{busy === 'pdf' ? 'Exporting…' : `PDF ${d.sheet ?? 'A3'}`}</button>
-        </div>
+    <Modal onClose={onClose} className="modal">
+      <h3>Export SLD drawing</h3>
+      {stale && <p className="warn">⚠ The result labels on the diagram are out of date — press Run (F5) first if the drawing shows results.</p>}
+      <p className="m">The drawing shows the diagram as it is on screen — result labels, colours and generator mode included. Title block details are saved with the project.</p>
+      <div className="grid2">
+        <label style={{ gridColumn: '1 / -1' }}>Company / consultant<input value={d.company ?? ''} placeholder={project.info?.consultant ?? ''} onChange={(e) => set('company', e.target.value)} /></label>
+        <label style={{ gridColumn: '1 / -1' }}>Drawing title<input value={d.title ?? ''} placeholder={DEFAULT_DRAWING_TITLE} onChange={(e) => set('title', e.target.value)} /></label>
+        <label>Drawing no.<input value={d.number ?? ''} placeholder="e.g. E-SLD-001" onChange={(e) => set('number', e.target.value)} /></label>
+        <label>Sheet
+          <select value={d.sheet ?? 'A3'} onChange={(e) => set('sheet', e.target.value)}>
+            <option value="A4">A4 landscape</option>
+            <option value="A3">A3 landscape</option>
+            <option value="A2">A2 landscape</option>
+            <option value="A1">A1 landscape</option>
+          </select>
+        </label>
+        <label>Drawn<input value={d.drawnBy ?? ''} onChange={(e) => set('drawnBy', e.target.value)} /></label>
+        <label>Checked<input value={d.checkedBy ?? ''} onChange={(e) => set('checkedBy', e.target.value)} /></label>
+        <label>Approved<input value={d.approvedBy ?? ''} onChange={(e) => set('approvedBy', e.target.value)} /></label>
+        <label>Revision<input value={`${t.revision} · ${t.date}`} disabled title="From Documents → Revisions" /></label>
       </div>
-    </div>
+      <div className="modal-actions">
+        <button className="chip" onClick={() => { onSave(d); onClose(); }}>Save details</button>
+        <span className="sp" />
+        <button className="chip" disabled={!!busy} onClick={() => run('svg')}>{busy === 'svg' ? 'Exporting…' : 'SVG'}</button>
+        <button className="chip" disabled={!!busy} onClick={() => run('dxf')} title="AutoCAD R12 DXF at the selected paper size, with editable layers and title block. Additional notes and schedules are included as continuation sheets in a ZIP.">{busy === 'dxf' ? 'Exporting…' : `DXF ${d.sheet ?? 'A3'} (CAD)`}</button>
+        {window.lvds?.openCadStudio && <button className="chip" disabled={!!busy} onClick={() => run('opencad')} title="Build the same editable DXF sheet and open it directly in OpenCADStudio.">{busy === 'opencad' ? 'Opening…' : 'Open in OpenCADStudio'}</button>}
+        {window.lvds?.openCadStudio?.update && <button className="chip" disabled={!!busy} onClick={() => run('cadupdate')} title="Redraw, in the drawing open in OpenCADStudio, only the boards and feeders that changed. Anything you drew yourself in CAD is kept.">{busy === 'cadupdate' ? 'Updating…' : 'Update in OpenCADStudio'}</button>}
+        <button className="chip primary" disabled={!!busy} onClick={() => run('pdf')}>{busy === 'pdf' ? 'Exporting…' : `PDF ${d.sheet ?? 'A3'}`}</button>
+      </div>
+    </Modal>
   );
 }

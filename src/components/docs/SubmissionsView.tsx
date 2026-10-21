@@ -1,3 +1,4 @@
+import { ask } from '../ConfirmDialog';
 import { useEffect, useState } from 'react';
 import type { Project } from '../../types';
 import {
@@ -176,7 +177,7 @@ function SubEditor({ s: start, project, me, isNew, onSave, onDelete, onClose }: 
       <button className="chip" onClick={() => set({ comments: [...s.comments, { id: String(Math.max(0, ...s.comments.map((x) => Number(x.id) || 0)) + 1), text: '' }] })}>+ Comment</button>
 
       <div className="modal-actions" style={{ marginTop: 12 }}>
-        {!isNew && <button className="chip" onClick={() => { if (window.confirm(`Delete ${s.id}?`)) onDelete(); }}>Delete</button>}
+        {!isNew && <button className="chip" onClick={async () => { if (await ask(`Delete ${s.id}?`)) onDelete(); }}>Delete</button>}
         <span className="sp" />
         <button className="chip" onClick={onClose}>Cancel</button>
         <button className="chip primary" disabled={!ok} onClick={() => onSave({ ...s, title: s.title.trim(), to: s.to.trim(), comments: s.comments.filter((c) => c.text.trim()) })}>Save</button>

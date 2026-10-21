@@ -1,3 +1,4 @@
+import { Modal } from './ui';
 import { useState } from 'react';
 import { buildingInfoOf, roomTypesOf } from '../calc/building';
 import { applyRooms, layerMapFor, proposeRooms, roomsFromPlan } from '../model/cadRooms';
@@ -58,90 +59,86 @@ export default function CadRoomsDialog({ project, onApply, onClose }: {
 
   if (!cad?.plan || !cad.openPlan) {
     return (
-      <div className="modal-backdrop" onClick={onClose}>
-        <div className="modal" onClick={(e) => e.stopPropagation()}>
-          <h3>Rooms and areas from CAD floor plan</h3>
-          <p className="m">Reading a floor plan needs the LV Design Studio desktop app and OpenCADStudio.</p>
-          <div className="modal-actions"><span className="sp" /><button className="chip" onClick={onClose}>Close</button></div>
-        </div>
-      </div>
+      <Modal onClose={onClose} className="modal">
+        <h3>Rooms and areas from CAD floor plan</h3>
+        <p className="m">Reading a floor plan needs the LV Design Studio desktop app and OpenCADStudio.</p>
+        <div className="modal-actions"><span className="sp" /><button className="chip" onClick={onClose}>Close</button></div>
+      </Modal>
     );
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal cad-rooms" onClick={(e) => e.stopPropagation()}>
-        <h3>Rooms and areas from CAD floor plan</h3>
-        <p className="m">
-          Say what each layer of the plan is. Every closed outline or hatch on a <b>room outline</b> layer becomes a room:
-          its area is measured, and its name comes from a room tag block or the <b>room name</b> text inside it. An outline
-          around other rooms (a flat, a wing) is left out. Nothing changes until you apply.
-        </p>
-        <div className="modal-actions">
-          <button className="chip" disabled={!!busy} onClick={openPlan}>{busy === 'open' ? 'Opening…' : 'Open floor plan…'}</button>
-          <span className="sp" />
-          <button className="chip primary" disabled={!!busy} onClick={readPlan}>{busy === 'read' ? 'Reading…' : plan ? 'Read again' : 'Read plan'}</button>
-        </div>
-        {note && <p className="m">{note}</p>}
-
-        {plan && (
-          <>
-            <h4>Layers</h4>
-            <CadLayerTable layers={plan.layers ?? []} roles={roles} onChange={setRole} onApplyMap={setRoles} />
-
-            {!floors.length ? (
-              <p className="m">Add the building and its levels in Building information first; rooms are kept per level.</p>
-            ) : (
-              <div className="ce-grid">
-                <label>This plan shows
-                  <select aria-label="Level of this plan" value={levelKey} onChange={(e) => setLevelKey(e.target.value)}>
-                    {floors.map((f) => <option key={f.key} value={f.key}>{floorLabel(project.building, f)}</option>)}
-                  </select>
-                </label>
-              </div>
-            )}
-
-            {read && (
-              <p className="m">
-                {read.rooms.length} room{read.rooms.length === 1 ? '' : 's'} · {read.units}
-                {read.zones ? ` · ${read.zones} outline${read.zones === 1 ? '' : 's'} around other rooms left out` : ''}
-                {review ? ` · ${changing.length} to add or update · ${rows.length - changing.length} already match` : ''}
-                {!read.rooms.length && ' — mark the layer with the room outlines as Room outline.'}
-              </p>
-            )}
-            {changing.length > 0 && (
-              <table className="bi-table compact">
-                <thead><tr><th /><th>Room</th><th>No.</th><th>Area (m²)</th><th>Now</th><th>Room type</th></tr></thead>
-                <tbody>
-                  {changing.map((r) => (
-                    <tr key={r.key}>
-                      <td><input type="checkbox" aria-label={`Accept ${r.name}`} checked={!skip.has(r.key)} onChange={(e) => setSkip((k) => { const n = new Set(k); if (e.target.checked) n.delete(r.key); else n.add(r.key); return n; })} /></td>
-                      <td><input aria-label={`Name of ${r.name}`} value={r.name} disabled={!!r.existingId} onChange={(e) => setNames((x) => ({ ...x, [r.key]: e.target.value }))} /></td>
-                      <td>{r.number ?? ''}</td>
-                      <td>{r.areaM2}</td>
-                      <td>{r.status === 'new' ? <i>new</i> : r.currentAreaM2}</td>
-                      <td>
-                        <select aria-label={`Room type of ${r.name}`} value={r.type ?? ''} onChange={(e) => setTypes((x) => ({ ...x, [r.key]: e.target.value }))}>
-                          <option value="">Choose…</option>
-                          {roomTypes.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-            {review && review.notOnPlan.length > 0 && <p className="m">On this level but not on the plan (kept): {review.notOnPlan.map((r) => r.name).join(', ')}</p>}
-            {accepted.some((r) => !r.type) && <p className="m">Rooms without a room type take {roomTypes[0]?.label ?? 'the first type'}.</p>}
-          </>
-        )}
-
-        <div className="modal-actions">
-          <span className="sp" />
-          <button className="chip" onClick={onClose}>Cancel</button>
-          <button className="chip primary" disabled={!plan || !floor || !!busy} onClick={apply}>Apply {accepted.length} room{accepted.length === 1 ? '' : 's'}</button>
-        </div>
+    <Modal onClose={onClose} className="modal cad-rooms">
+      <h3>Rooms and areas from CAD floor plan</h3>
+      <p className="m">
+        Say what each layer of the plan is. Every closed outline or hatch on a <b>room outline</b> layer becomes a room:
+        its area is measured, and its name comes from a room tag block or the <b>room name</b> text inside it. An outline
+        around other rooms (a flat, a wing) is left out. Nothing changes until you apply.
+      </p>
+      <div className="modal-actions">
+        <button className="chip" disabled={!!busy} onClick={openPlan}>{busy === 'open' ? 'Opening…' : 'Open floor plan…'}</button>
+        <span className="sp" />
+        <button className="chip primary" disabled={!!busy} onClick={readPlan}>{busy === 'read' ? 'Reading…' : plan ? 'Read again' : 'Read plan'}</button>
       </div>
-    </div>
+      {note && <p className="m">{note}</p>}
+
+      {plan && (
+        <>
+          <h4>Layers</h4>
+          <CadLayerTable layers={plan.layers ?? []} roles={roles} onChange={setRole} onApplyMap={setRoles} />
+
+          {!floors.length ? (
+            <p className="m">Add the building and its levels in Building information first; rooms are kept per level.</p>
+          ) : (
+            <div className="ce-grid">
+              <label>This plan shows
+                <select aria-label="Level of this plan" value={levelKey} onChange={(e) => setLevelKey(e.target.value)}>
+                  {floors.map((f) => <option key={f.key} value={f.key}>{floorLabel(project.building, f)}</option>)}
+                </select>
+              </label>
+            </div>
+          )}
+
+          {read && (
+            <p className="m">
+              {read.rooms.length} room{read.rooms.length === 1 ? '' : 's'} · {read.units}
+              {read.zones ? ` · ${read.zones} outline${read.zones === 1 ? '' : 's'} around other rooms left out` : ''}
+              {review ? ` · ${changing.length} to add or update · ${rows.length - changing.length} already match` : ''}
+              {!read.rooms.length && ' — mark the layer with the room outlines as Room outline.'}
+            </p>
+          )}
+          {changing.length > 0 && (
+            <table className="bi-table compact">
+              <thead><tr><th /><th>Room</th><th>No.</th><th>Area (m²)</th><th>Now</th><th>Room type</th></tr></thead>
+              <tbody>
+                {changing.map((r) => (
+                  <tr key={r.key}>
+                    <td><input type="checkbox" aria-label={`Accept ${r.name}`} checked={!skip.has(r.key)} onChange={(e) => setSkip((k) => { const n = new Set(k); if (e.target.checked) n.delete(r.key); else n.add(r.key); return n; })} /></td>
+                    <td><input aria-label={`Name of ${r.name}`} value={r.name} disabled={!!r.existingId} onChange={(e) => setNames((x) => ({ ...x, [r.key]: e.target.value }))} /></td>
+                    <td>{r.number ?? ''}</td>
+                    <td>{r.areaM2}</td>
+                    <td>{r.status === 'new' ? <i>new</i> : r.currentAreaM2}</td>
+                    <td>
+                      <select aria-label={`Room type of ${r.name}`} value={r.type ?? ''} onChange={(e) => setTypes((x) => ({ ...x, [r.key]: e.target.value }))}>
+                        <option value="">Choose…</option>
+                        {roomTypes.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {review && review.notOnPlan.length > 0 && <p className="m">On this level but not on the plan (kept): {review.notOnPlan.map((r) => r.name).join(', ')}</p>}
+          {accepted.some((r) => !r.type) && <p className="m">Rooms without a room type take {roomTypes[0]?.label ?? 'the first type'}.</p>}
+        </>
+      )}
+
+      <div className="modal-actions">
+        <span className="sp" />
+        <button className="chip" onClick={onClose}>Cancel</button>
+        <button className="chip primary" disabled={!plan || !floor || !!busy} onClick={apply}>Apply {accepted.length} room{accepted.length === 1 ? '' : 's'}</button>
+      </div>
+    </Modal>
   );
 }

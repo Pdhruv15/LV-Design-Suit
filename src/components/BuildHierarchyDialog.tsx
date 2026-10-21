@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { Modal } from './ui';
 import { useStable } from '../util/useStable';
 import { Building2, ChevronDown, ChevronRight, Copy, Layers, ListTree, X } from 'lucide-react';
 import type { Board, Project } from '../types';
@@ -106,19 +107,6 @@ export default function BuildHierarchyDialog({ project, onCreate, onClose, onBui
   const inputErrors = { mdb: source === 'create' ? quantityError(createN, 1, 20) : undefined,
     smdb: quantityError(smdb, 0, smdbBasis === 'total' ? 5000 : 50), db: quantityError(db, 0, dbBasis === 'total' ? 5000 : 50) };
 
-  useEffect(() => {
-    if (embedded) return; // a page, not a pop-up: no focus trap or Escape
-    dialog.current?.focus();
-    const key = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { event.preventDefault(); onClose(); }
-      if (event.key !== 'Tab' || !dialog.current) return;
-      const targets = Array.from(dialog.current.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex="0"]')).filter((el) => el.offsetParent !== null);
-      const first = targets[0], last = targets[targets.length - 1];
-      if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog.current)) { event.preventDefault(); last?.focus(); }
-      else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialog.current)) { event.preventDefault(); first?.focus(); }
-    };
-    window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key);
-  }, [onClose, embedded]);
 
   const create = () => {
     if (!plan.ok || !plan.boards.length) return;
@@ -217,5 +205,5 @@ export default function BuildHierarchyDialog({ project, onCreate, onClose, onBui
     </>;
   return embedded
     ? <div ref={dialog} className="bh bh-guided bh-embedded">{body}</div>
-    : <div className="modal-backdrop"><div ref={dialog} className="modal bh bh-guided" role="dialog" aria-modal="true" aria-labelledby="bh-title" tabIndex={-1}>{body}</div></div>;
+    : <Modal onClose={onClose} closeOnBackdrop={false} className="modal bh bh-guided" labelledBy="bh-title" boxRef={dialog}>{body}</Modal>;
 }

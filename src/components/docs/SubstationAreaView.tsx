@@ -1,3 +1,4 @@
+import { ask } from '../ConfirmDialog';
 import { useState } from 'react';
 import type { DmSubstationRoom, Project } from '../../types';
 import { dmSubstationAreas, DM_TITLE, DM_TYPES, dmType, substationsFromProject, type DmSubstationType } from '../../calc/dmSubstation';
@@ -25,10 +26,10 @@ export default function SubstationAreaView({ project, onChange, onStatus }: {
   const results = list.map((s) => ({ s, r: dmSubstationAreas(s.type, s.transformers) }));
   const total = results.reduce((a, x) => a + x.r.totalAreaM2, 0);
 
-  function fill() {
+  async function fill() {
     const { rooms, source } = substationsFromProject(project);
     if (!rooms.length) return onStatus('No transformers in the space plan or on the SLD yet — add substations by hand');
-    if (list.length && !window.confirm(`Replace the ${list.length} substation${list.length === 1 ? '' : 's'} here with ${rooms.length} from the ${source}?`)) return;
+    if (list.length && !(await ask(`Replace the ${list.length} substation${list.length === 1 ? '' : 's'} here with ${rooms.length} from the ${source}?`))) return;
     set(rooms, true);
     onStatus(`${rooms.length} substation${rooms.length === 1 ? '' : 's'} from the ${source} (one per RMU)`);
   }
@@ -86,7 +87,7 @@ export default function SubstationAreaView({ project, onChange, onStatus }: {
             <label>Building / location<input key={`b-${s.building ?? ''}`} defaultValue={s.building ?? ''} onBlur={(e) => e.target.value !== (s.building ?? '') && patch(s.id, { building: e.target.value || undefined })} /></label>
             <span className="sp" />
             <button className="chip" disabled={busy} onClick={() => exportPdf([s])}>PDF</button>
-            <button className="icon-btn" title={`Remove ${s.name}`} onClick={() => window.confirm(`Remove ${s.name}?`) && set(list.filter((x) => x.id !== s.id), true)}>✕</button>
+            <button className="icon-btn" title={`Remove ${s.name}`} onClick={async () => (await ask(`Remove ${s.name}?`)) && set(list.filter((x) => x.id !== s.id), true)}>✕</button>
           </div>
 
           {r.error ? <p className="bad dm-err">{r.error}</p> : (

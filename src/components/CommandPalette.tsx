@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Modal } from './ui';
 
 export type Command = {
   id: string;
@@ -38,34 +39,32 @@ export default function CommandPalette({ commands, onClose }: { commands: Comman
   useEffect(() => { listRef.current?.querySelector(`[data-i="${at}"]`)?.scrollIntoView({ block: 'nearest' }); }, [at]);
   const run = (c: Command | undefined) => { if (!c) return; onClose(); c.run(); };
   return (
-    <div className="modal-backdrop cmdk-backdrop" onMouseDown={onClose}>
-      <div className="cmdk" role="dialog" aria-label="Command palette" onMouseDown={(e) => e.stopPropagation()}>
-        <input autoFocus className="cmdk-input" placeholder="Go to a board, sheet or page, or run a command…" value={q} aria-label="Search commands"
-          role="combobox" aria-expanded aria-controls="cmdk-list" aria-activedescendant={list[at] ? `cmdk-${at}` : undefined}
-          onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'ArrowDown') { e.preventDefault(); setAt((i) => Math.min(list.length - 1, i + 1)); }
-            else if (e.key === 'ArrowUp') { e.preventDefault(); setAt((i) => Math.max(0, i - 1)); }
-            else if (e.key === 'Enter') { e.preventDefault(); run(list[at]); }
-            else if (e.key === 'Escape') { e.preventDefault(); onClose(); }
-          }} />
-        <div className="cmdk-list" id="cmdk-list" role="listbox" ref={listRef}>
-          {!list.length && <p className="m cmdk-empty">Nothing matches “{q}”.</p>}
-          {list.map((c, i) => (
-            <div key={c.id}>
-              {(i === 0 || list[i - 1].group !== c.group) && <div className="cmdk-group">{c.group}</div>}
-              <button id={`cmdk-${i}`} data-i={i} role="option" aria-selected={i === at} className={`cmdk-item${i === at ? ' on' : ''}`}
-                onMouseMove={() => i !== at && setAt(i)} onClick={() => run(c)}>
-                <span className="cmdk-label">{c.label}</span>
-                {c.hint && <span className="m cmdk-hint">{c.hint}</span>}
-                {c.keys && <kbd>{c.keys}</kbd>}
-              </button>
-            </div>
-          ))}
-        </div>
-        <div className="cmdk-foot m"><kbd>↑</kbd><kbd>↓</kbd> move · <kbd>Enter</kbd> go · <kbd>Esc</kbd> close · <kbd>?</kbd> all shortcuts</div>
+    <Modal onClose={onClose} className="cmdk" backdropClassName="cmdk-backdrop" label="Command palette">
+      <input autoFocus className="cmdk-input" placeholder="Go to a board, sheet or page, or run a command…" value={q} aria-label="Search commands"
+        role="combobox" aria-expanded aria-controls="cmdk-list" aria-activedescendant={list[at] ? `cmdk-${at}` : undefined}
+        onChange={(e) => setQ(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowDown') { e.preventDefault(); setAt((i) => Math.min(list.length - 1, i + 1)); }
+          else if (e.key === 'ArrowUp') { e.preventDefault(); setAt((i) => Math.max(0, i - 1)); }
+          else if (e.key === 'Enter') { e.preventDefault(); run(list[at]); }
+          else if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+        }} />
+      <div className="cmdk-list" id="cmdk-list" role="listbox" ref={listRef}>
+        {!list.length && <p className="m cmdk-empty">Nothing matches “{q}”.</p>}
+        {list.map((c, i) => (
+          <div key={c.id}>
+            {(i === 0 || list[i - 1].group !== c.group) && <div className="cmdk-group">{c.group}</div>}
+            <button id={`cmdk-${i}`} data-i={i} role="option" aria-selected={i === at} className={`cmdk-item${i === at ? ' on' : ''}`}
+              onMouseMove={() => i !== at && setAt(i)} onClick={() => run(c)}>
+              <span className="cmdk-label">{c.label}</span>
+              {c.hint && <span className="m cmdk-hint">{c.hint}</span>}
+              {c.keys && <kbd>{c.keys}</kbd>}
+            </button>
+          </div>
+        ))}
       </div>
-    </div>
+      <div className="cmdk-foot m"><kbd>↑</kbd><kbd>↓</kbd> move · <kbd>Enter</kbd> go · <kbd>Esc</kbd> close · <kbd>?</kbd> all shortcuts</div>
+    </Modal>
   );
 }
 
@@ -102,25 +101,18 @@ export const SHORTCUTS: [string, [string, string][]][] = [
 ];
 
 export function ShortcutHelp({ onClose }: { onClose: () => void }) {
-  useEffect(() => {
-    const k = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); onClose(); } };
-    window.addEventListener('keydown', k);
-    return () => window.removeEventListener('keydown', k);
-  }, [onClose]);
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
-      <div className="modal kbd-help" role="dialog" aria-label="Keyboard shortcuts" onMouseDown={(e) => e.stopPropagation()}>
-        <h3>Keyboard shortcuts</h3>
-        <div className="kbd-cols">
-          {SHORTCUTS.map(([group, rows]) => (
-            <section key={group}>
-              <h4>{group}</h4>
-              <dl>{rows.map(([k, what]) => <div key={k + what}><dt><kbd>{k}</kbd></dt><dd>{what}</dd></div>)}</dl>
-            </section>
-          ))}
-        </div>
-        <div className="modal-actions"><span className="sp" /><button className="chip" onClick={onClose}>Close</button></div>
+    <Modal onClose={onClose} className="modal kbd-help" label="Keyboard shortcuts">
+      <h3>Keyboard shortcuts</h3>
+      <div className="kbd-cols">
+        {SHORTCUTS.map(([group, rows]) => (
+          <section key={group}>
+            <h4>{group}</h4>
+            <dl>{rows.map(([k, what]) => <div key={k + what}><dt><kbd>{k}</kbd></dt><dd>{what}</dd></div>)}</dl>
+          </section>
+        ))}
       </div>
-    </div>
+      <div className="modal-actions"><span className="sp" /><button className="chip" onClick={onClose}>Close</button></div>
+    </Modal>
   );
 }

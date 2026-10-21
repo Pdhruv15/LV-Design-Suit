@@ -1,3 +1,4 @@
+import { ask } from '../ConfirmDialog';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Project } from '../../types';
 import { idbStore, MAX_CHECKPOINTS, newCheckpoint, restoredFrom, saveCheckpoint, type Checkpoint, type CheckpointStore } from '../../model/checkpoints';
@@ -23,14 +24,14 @@ export default function CheckpointsPanel({ project, onRestore, onStatus, store: 
     try { setList(await saveCheckpoint(store!, newCheckpoint(project, label))); onStatus(`Checkpoint saved (keeps the latest ${MAX_CHECKPOINTS}).`); } catch (e) { fail('Checkpoint')(e); }
   }
   async function restore(c: Checkpoint) {
-    if (!window.confirm(`Restore “${c.label}” (${when(c.at)})? The design goes back to that point as an edit you can undo. Issued revisions are not changed. A checkpoint of the current state is saved first.`)) return;
+    if (!(await ask(`Restore “${c.label}” (${when(c.at)})? The design goes back to that point as an edit you can undo. Issued revisions are not changed. A checkpoint of the current state is saved first.`))) return;
     try {
       setList(await saveCheckpoint(store!, newCheckpoint(project, `Before restoring “${c.label}”`, { auto: true })));
       onRestore(restoredFrom(project, c)); onStatus(`Restored “${c.label}”. Undo (Ctrl+Z) goes back; save the project to keep it.`);
     } catch (e) { fail('Restore')(e); }
   }
   async function del(c: Checkpoint) {
-    if (!window.confirm(`Delete checkpoint “${c.label}”?`)) return;
+    if (!(await ask(`Delete checkpoint “${c.label}”?`))) return;
     try { await store!.remove(c.id); await refresh(); } catch (e) { fail('Delete')(e); }
   }
 

@@ -1,3 +1,4 @@
+import { Modal } from '../ui';
 import { useState } from 'react';
 import { STANDARD_LOADS, type StandardLoad } from '../../data/standardLoads';
 import { inLibrary, withStandardLoads } from '../../database/standardLoads';
@@ -37,41 +38,39 @@ export default function StandardLoadsDialog({ rows, onDone, onClose }: {
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal standard-loads" onClick={(e) => e.stopPropagation()}>
-        <h3>Add standard loads</h3>
-        <p className="m">
-          A starting set of regular loads for <b>Loads.xlsx</b>, one or more per load schedule column. <b>The watts are
-          typical draft values</b> — check each one and change it to your own figure before adding. Added rows are marked
-          “Standard set — typical value, verify” in the Notes column. Items you already have (same reference or name) are
-          kept as they are; nothing in your file is changed.
-        </p>
-        <table className="bi-table compact">
-          <thead><tr><th /><th>Ref.</th><th>Name</th><th>Column</th><th>Power (W)</th><th>PF</th></tr></thead>
-          <tbody>
-            {items.map((l) => {
-              const exists = have(l);
-              return (
-                <tr key={l.reference} className={exists ? 'm' : undefined}>
-                  <td><input type="checkbox" aria-label={`Add ${l.reference}`} disabled={exists} checked={!exists && !off.has(l.reference)} onChange={(e) => setOff((s) => { const n = new Set(s); if (e.target.checked) n.delete(l.reference); else n.add(l.reference); return n; })} /></td>
-                  <td>{l.reference}</td>
-                  <td>{l.name}{exists && <i> — in your library (kept)</i>}</td>
-                  <td>{POINT_TYPES.find((p) => p.value === l.column)?.label}</td>
-                  <td><input aria-label={`Power of ${l.reference} (W)`} inputMode="decimal" style={{ width: '5.5em' }} disabled={exists} value={l.watts} onChange={(e) => edit(l.reference, { watts: num(e.target.value) ?? 0 })} /></td>
-                  <td><input aria-label={`Power factor of ${l.reference}`} inputMode="decimal" style={{ width: '4em' }} disabled={exists} value={l.pf ?? ''} placeholder="—" onChange={(e) => { const v = num(e.target.value); edit(l.reference, { pf: v !== undefined && v > 0 && v <= 1 ? v : undefined }); }} /></td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {!write && <p className="m">Adding to Loads.xlsx needs the LV Design Studio desktop app.</p>}
-        {note && <p className="m">{note}</p>}
-        <div className="modal-actions">
-          <span className="sp" />
-          <button className="chip" onClick={onClose}>Cancel</button>
-          <button className="chip primary" disabled={!write || busy || !chosen.length} onClick={add}>{busy ? 'Adding…' : `Add ${chosen.length} to Loads.xlsx`}</button>
-        </div>
+    <Modal onClose={onClose} className="modal standard-loads">
+      <h3>Add standard loads</h3>
+      <p className="m">
+        A starting set of regular loads for <b>Loads.xlsx</b>, one or more per load schedule column. <b>The watts are
+        typical draft values</b> — check each one and change it to your own figure before adding. Added rows are marked
+        “Standard set — typical value, verify” in the Notes column. Items you already have (same reference or name) are
+        kept as they are; nothing in your file is changed.
+      </p>
+      <table className="bi-table compact">
+        <thead><tr><th /><th>Ref.</th><th>Name</th><th>Column</th><th>Power (W)</th><th>PF</th></tr></thead>
+        <tbody>
+          {items.map((l) => {
+            const exists = have(l);
+            return (
+              <tr key={l.reference} className={exists ? 'm' : undefined}>
+                <td><input type="checkbox" aria-label={`Add ${l.reference}`} disabled={exists} checked={!exists && !off.has(l.reference)} onChange={(e) => setOff((s) => { const n = new Set(s); if (e.target.checked) n.delete(l.reference); else n.add(l.reference); return n; })} /></td>
+                <td>{l.reference}</td>
+                <td>{l.name}{exists && <i> — in your library (kept)</i>}</td>
+                <td>{POINT_TYPES.find((p) => p.value === l.column)?.label}</td>
+                <td><input aria-label={`Power of ${l.reference} (W)`} inputMode="decimal" style={{ width: '5.5em' }} disabled={exists} value={l.watts} onChange={(e) => edit(l.reference, { watts: num(e.target.value) ?? 0 })} /></td>
+                <td><input aria-label={`Power factor of ${l.reference}`} inputMode="decimal" style={{ width: '4em' }} disabled={exists} value={l.pf ?? ''} placeholder="—" onChange={(e) => { const v = num(e.target.value); edit(l.reference, { pf: v !== undefined && v > 0 && v <= 1 ? v : undefined }); }} /></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {!write && <p className="m">Adding to Loads.xlsx needs the LV Design Studio desktop app.</p>}
+      {note && <p className="m">{note}</p>}
+      <div className="modal-actions">
+        <span className="sp" />
+        <button className="chip" onClick={onClose}>Cancel</button>
+        <button className="chip primary" disabled={!write || busy || !chosen.length} onClick={add}>{busy ? 'Adding…' : `Add ${chosen.length} to Loads.xlsx`}</button>
       </div>
-    </div>
+    </Modal>
   );
 }

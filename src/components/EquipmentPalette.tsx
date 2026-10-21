@@ -1,3 +1,4 @@
+import { ask } from './ConfirmDialog';
 import { useMemo, useRef, useState } from 'react';
 import {
   Activity, CircleDot, Link2, ShieldAlert, ToggleLeft, ZapOff, BatteryCharging, BatteryFull, Star, Cable, Car, Cog, Cpu, Database, Fan, Flame, Gauge, Lightbulb, PanelLeftClose, PanelLeftOpen, Power, ShieldCheck, Snowflake, Sun, Waves, Zap,
@@ -202,7 +203,7 @@ export default function EquipmentPalette({ docked, onHint, library = [], presets
                         {item.kind === 'preset' && item.preset.id.startsWith('cmp-') && onEditComponent && (
                           <>
                             <button className="icon-btn" title="Edit this component (updates every copy)" onClick={(e) => { e.stopPropagation(); onEditComponent(item.preset.id.slice(4)); }}><Pencil size={12} /></button>
-                            {onDeleteComponent && <button className="icon-btn" title="Delete the component" onClick={(e) => { e.stopPropagation(); if (window.confirm(`Delete the component “${label}”? Copies on the SLD stay as ordinary loads.`)) onDeleteComponent(item.preset.id.slice(4)); }}>✕</button>}
+                            {onDeleteComponent && <button className="icon-btn" title="Delete the component" onClick={async (e) => { e.stopPropagation(); if (await ask(`Delete the component “${label}”? Copies on the SLD stay as ordinary loads.`)) onDeleteComponent(item.preset.id.slice(4)); }}>✕</button>}
                           </>
                         )}
                         {item.kind === 'preset' && !item.preset.id.startsWith('cmp-') && onEditPreset && (
@@ -212,7 +213,7 @@ export default function EquipmentPalette({ docked, onHint, library = [], presets
                         )}
                         {mine && onEditPreset && <button className="icon-btn" title="Duplicate" onClick={(e) => { e.stopPropagation(); onEditPreset(item.preset, 'copy'); }}><Copy size={12} /></button>}
                         {mine && onDeletePreset && item.kind === 'preset' && (
-                          <button className="icon-btn" title={`Delete the preset “${label}”`} onClick={(e) => { e.stopPropagation(); if (window.confirm(`Delete the preset “${label}”?`)) onDeletePreset(item.preset.id); }}>✕</button>
+                          <button className="icon-btn" title={`Delete the preset “${label}”`} onClick={async (e) => { e.stopPropagation(); if (await ask(`Delete the preset “${label}”?`)) onDeletePreset(item.preset.id); }}>✕</button>
                         )}
                         <button className={`icon-btn fav${fav ? ' on' : ''}`} title={fav ? 'Remove from favourites' : 'Add to favourites'} onClick={(e) => { e.stopPropagation(); setFavs(fav ? favs.filter((k) => k !== key) : [...favs, key]); }}>
                           <Star size={12} fill={fav ? 'currentColor' : 'none'} />

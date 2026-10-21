@@ -1,3 +1,4 @@
+import { ask, tell } from '../ConfirmDialog';
 import { useMemo, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import type { Project } from '../../types';
@@ -40,8 +41,8 @@ export default function MdSheetView({ project, boardId, onChange, onStatus, onSe
       const what = spareLabel(w).toLowerCase();
       return (
         <button className="icon-btn" aria-label={`Delete ${what}`} title={`Delete this ${what}`}
-          onClick={() => {
-            if (!window.confirm(`Delete this ${what} from ${boardId}?`)) return;
+          onClick={async () => {
+            if (!(await ask(`Delete this ${what} from ${boardId}?`))) return;
             const r = deleteSpareWay(project, boardId, w.id);
             onChange(r.project);
             onStatus(r.message);
@@ -57,9 +58,9 @@ export default function MdSheetView({ project, boardId, onChange, onStatus, onSe
     return (
       <button className={`icon-btn${block ? ' md-del-blocked' : ''}`} aria-label={`Delete feeder ${f.id}`}
         title={block ?? `Delete feeder ${f.id} (${label})`}
-        onClick={() => {
-          if (block) { onStatus(block); window.alert(block); return; }
-          if (!window.confirm(`Delete outgoing feeder ${f.id} (${label}) from ${boardId}?`)) return;
+        onClick={async () => {
+          if (block) { onStatus(block); void tell(block); return; }
+          if (!(await ask(`Delete outgoing feeder ${f.id} (${label}) from ${boardId}?`))) return;
           const r = deleteOutgoingFeeder(project, f.id);
           if (r.project !== project) onChange(r.project);
           onStatus(r.message);

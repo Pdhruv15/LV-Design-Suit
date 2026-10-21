@@ -1,6 +1,7 @@
+import { ask } from '../ConfirmDialog';
 import { useMemo, useState } from 'react';
 import type { Project } from '../../types';
-import { Page } from '../ui';
+import { CheckedNum, Page, type NumRule } from '../ui';
 import {
   assess, buildingFigures, COOL_SYSTEMS, DEFAULT_SPACES, DHW_SYSTEMS, laSpaces, laTypes, loadLaLibrary, newAssessment, rowArea, rowPct, rowsFromRooms,
   saveLaLibrary, setAreaMode, typeFromAssessment, type CategoryKey, type LaBuildingType, type LaCustomLoad, type LaFactors, type LaLibrary, type LaRow,
@@ -11,13 +12,12 @@ import { createMdbFromAssessment, LA_MDB } from '../../calc/loadAssessmentMdb';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const f1 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 1 });
-const num = (v: string) => (v.trim() === '' || Number.isNaN(+v.replace(/,/g, '')) ? undefined : +v.replace(/,/g, ''));
 
-/** A number cell that saves when you leave it (so typing isn't interrupted). */
-function Num({ value, onSet, width = 70, step, title }: { value?: number; onSet: (v: number) => void; width?: number; step?: number; title?: string }) {
+/** A number cell that saves when you leave it (so typing isn't interrupted); text that
+ * isn't a valid number gets a message under the cell and is not saved. */
+function Num({ value, onSet, width = 70, step, title, rule }: { value?: number; onSet: (v: number) => void; width?: number; step?: number; title?: string; rule?: NumRule }) {
   const shown = value === undefined ? '' : step && step < 1 ? String(+value.toFixed(3)) : String(+value.toFixed(2));
-  return <input className="bi-num" style={{ width }} inputMode="decimal" defaultValue={shown} key={shown} title={title}
-    onBlur={(e) => { const v = num(e.target.value); if (v !== undefined && v !== value) onSet(v); }} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} />;
+  return <CheckedNum value={value} shown={shown} onSet={onSet} width={width} title={title} rule={rule} />;
 }
 function Text({ value, onSet, width = 170 }: { value: string; onSet: (v: string) => void; width?: number }) {
   return <input className="bi-text" style={{ width }} defaultValue={value} key={value}
@@ -48,8 +48,8 @@ export default function LoadAssessmentView({ project, onChange, onStatus }: { pr
   const setRow = (i: number, p: Partial<LaRow>) => a && set({ ...a, rows: a.rows.map((x, j) => (j === i ? { ...x, ...p } : x)) });
   const setCust = (i: number, p: Partial<LaCustomLoad>) => a && set({ ...a, custom: a.custom.map((x, j) => (j === i ? { ...x, ...p } : x)) });
 
-  const pickType = (t: LaBuildingType) => {
-    if (a && a.typeId !== t.id && !window.confirm(`Start again from “${t.label}”? The area schedule, services and diversities are replaced (GFA, custom loads and supply settings are kept).`)) return;
+  const pickType = async (t: LaBuildingType) => {
+    if (a && a.typeId !== t.id && !(await ask(`Start again from “${t.label}”? The area schedule, services and diversities are replaced (GFA, custom loads and supply settings are kept).`))) return;
     const fig = buildingFigures(project);
     set(newAssessment(t, a ? { gfaM2: a.gfaM2, floors: a.floors, parkingM2: a.parkingM2, custom: a.custom, supply: a.supply, inReport: a.inReport } : { ...(fig.gfaM2 ? { gfaM2: fig.gfaM2 } : {}), ...(fig.floors ? { floors: fig.floors } : {}), parkingM2: fig.parkingM2 ?? (fig.gfaM2 ? 0 : 8000) }, lib));
   };
@@ -61,20 +61,20 @@ export default function LoadAssessmentView({ project, onChange, onStatus }: { pr
     setLib({ ...lib, types: [...lib.types.filter((x) => x.id !== id), t] }, asNew ? `Saved “${label}” as your building type` : `Saved “${label}” — your figures now replace the placeholders for this type`);
     if (asNew) set({ ...a, typeId: id, typeLabel: label });
   };
-  const deleteType = () => {
-    if (!a || !window.confirm(`Remove “${a.typeLabel}” from your library? This project keeps its assessment.`)) return;
+  const deleteType = async () => {
+    if (!a || !(await ask(`Remove “${a.typeLabel}” from your library? This project keeps its assessment.`))) return;
     setLib({ ...lib, types: lib.types.filter((x) => x.id !== a.typeId) }, `Removed “${a.typeLabel}” from your library`);
   };
   const mineType = a ? lib.types.find((t) => t.id === a.typeId) : undefined;
   const mains = project.boards.filter((b) => !b.upstreamId);
   const laMdbs = mains.filter((b) => b.generated === LA_MDB).map((b) => b.id);
   const picked = mains.some((b) => b.id === target && !laMdbs.includes(b.id)) ? target : '';
-  const createMdb = () => {
+  const createMdb = async () => {
     if (!a) return;
     const to = picked || undefined;
     const on = to ? [to] : laMdbs;
     const earlier = project.feeders.filter((f) => on.includes(f.boardId) && f.fromRoom?.startsWith('la:')).length;
-    if (earlier && !window.confirm(`Replace the ${earlier} feeders made earlier from the load assessment on ${on.join(', ')}? Your own feeders on ${on.length > 1 ? 'them' : 'it'} are kept.`)) return;
+    if (earlier && !(await ask(`Replace the ${earlier} feeders made earlier from the load assessment on ${on.join(', ')}? Your own feeders on ${on.length > 1 ? 'them' : 'it'} are kept.`))) return;
     const res = createMdbFromAssessment(project, a, to);
     onChange(res.project);
     const made = res.createdIds.length ? `Created ${res.createdIds.join(', ')}` : '';
@@ -116,10 +116,10 @@ export default function LoadAssessmentView({ project, onChange, onStatus }: { pr
     patch({ gfaM2: fig.gfaM2 ?? a.gfaM2, floors: fig.floors ?? a.floors, parkingM2: fig.parkingM2 ?? 0 });
     onStatus('GFA, floors and car park taken from Building information');
   };
-  const rowsFromBuilding = () => {
+  const rowsFromBuilding = async () => {
     const rows = rowsFromRooms(project, spaces);
     if (!rows.length) { onStatus('No rooms above ground in Building information'); return; }
-    if (!window.confirm(`Replace the area schedule with ${rows.length} spaces from the Building rooms (m²)?`)) return;
+    if (!(await ask(`Replace the area schedule with ${rows.length} spaces from the Building rooms (m²)?`))) return;
     set({ ...setAreaMode(a, 'm2'), rows });
     onStatus(`Area schedule from the Building rooms — check the densities of spaces not in your library`);
   };
@@ -130,7 +130,7 @@ export default function LoadAssessmentView({ project, onChange, onStatus }: { pr
       intro="Area × W/m² per space gives lighting, small power and cooling; the cooling system turns cooling into electrical kW; services and your custom loads add their own. Each category has its own diversity. Fire and life-safety loads are on the generator only. Built-in figures are placeholders — save your own as your library."
       actions={<>
         <button className="chip" onClick={fromBuilding} title="GFA above ground, floors and car park area from Building information">GFA from Building</button>
-        <button className="chip bad-btn" onClick={() => window.confirm('Clear this project’s load assessment?') && onChange({ ...project, loadAssessment: undefined })}>Clear</button>
+        <button className="chip bad-btn" onClick={async () => (await ask('Clear this project’s load assessment?')) && onChange({ ...project, loadAssessment: undefined })}>Clear</button>
       </>}
     >
       <div className="la-grid">
@@ -144,9 +144,9 @@ export default function LoadAssessmentView({ project, onChange, onStatus }: { pr
             <div className="la-box">
               <div className="bi-grid">
                 <label>Type name<Text value={a.typeLabel} onSet={(v) => patch({ typeLabel: v })} width={190} /></label>
-                <label title="Typical maximum demand per m² of GFA for this type">Typical VA/m² — low<Num value={a.vaBand[0]} onSet={(v) => patch({ vaBand: [v, a.vaBand[1]] })} /></label>
-                <label>Typical VA/m² — high<Num value={a.vaBand[1]} onSet={(v) => patch({ vaBand: [a.vaBand[0], v] })} /></label>
-                <label title="Share of the HVAC and special services kept on the standby generator">On generator (% of HVAC &amp; special)<Num value={a.essentialPct} onSet={(v) => patch({ essentialPct: v })} /></label>
+                <label title="Typical maximum demand per m² of GFA for this type">Typical VA/m² — low<Num value={a.vaBand[0]} onSet={(v) => patch({ vaBand: [v, a.vaBand[1]] })} rule={{ min: 0, unit: 'VA/m²' }} /></label>
+                <label>Typical VA/m² — high<Num value={a.vaBand[1]} onSet={(v) => patch({ vaBand: [a.vaBand[0], v] })} rule={{ min: 0, unit: 'VA/m²' }} /></label>
+                <label title="Share of the HVAC and special services kept on the standby generator">On generator (% of HVAC &amp; special)<Num value={a.essentialPct} onSet={(v) => patch({ essentialPct: v })} rule={{ min: 0, max: 100, unit: '%' }} /></label>
               </div>
               <div className="bi-actions" style={{ marginBottom: 0 }}>
                 <button className="chip" onClick={() => saveType(false)} title="Keep this type's space mix, densities, services, diversities and VA/m² band in your library">Save as my type</button>
@@ -155,7 +155,7 @@ export default function LoadAssessmentView({ project, onChange, onStatus }: { pr
               </div>
             </div>
             <div className="bi-grid">
-              <label>GFA above ground (m²)<Num value={a.gfaM2} onSet={(v) => patch({ gfaM2: v })} width={110} /></label>
+              <label>GFA above ground (m²)<Num value={a.gfaM2} onSet={(v) => patch({ gfaM2: v })} width={110} rule={{ min: 0, unit: 'm²' }} /></label>
               <label>Floors above ground<Num value={a.floors} onSet={(v) => patch({ floors: Math.max(1, Math.round(v)) })} width={80} /></label>
               <label>Basement car park (m²)<Num value={a.parkingM2} onSet={(v) => patch({ parkingM2: v })} width={110} /></label>
             </div>

@@ -1,3 +1,4 @@
+import { ask } from '../ConfirmDialog';
 import { useMemo, useRef, useState } from 'react';
 import type { Project } from '../../types';
 import {
@@ -36,8 +37,8 @@ export default function DesignReferencesView({ project, onApply, onStatus }: {
   const changes = useMemo(() => referenceChanges(project, saved), [project, saved]);
 
   const persist = (list: DesignReference[]) => { setRefs(list); saveUserReferences(list); };
-  const select = (id: string) => {
-    if (dirty && !window.confirm('Discard your unsaved changes to this reference?')) return;
+  const select = async (id: string) => {
+    if (dirty && !(await ask('Discard your unsaved changes to this reference?'))) return;
     setDraft(null); setPreview(false); setSelId(id);
   };
   const edit = (patch: Partial<DesignReference>) => setDraft({ ...ref, ...patch });
@@ -54,8 +55,8 @@ export default function DesignReferencesView({ project, onApply, onStatus }: {
   };
   const setEntry = (id: string, patch: Partial<RefEntry>) => edit({ entries: ref.entries.map((e) => (e.id === id ? { ...e, ...patch } : e)) });
 
-  function add(r: DesignReference, message: string) {
-    if (dirty && !window.confirm('Discard your unsaved changes to this reference?')) return;
+  async function add(r: DesignReference, message: string) {
+    if (dirty && !(await ask('Discard your unsaved changes to this reference?'))) return;
     const list = [...refs, r];
     persist(list);
     setDraft(null); setPreview(false); setSelId(r.id);
@@ -68,8 +69,8 @@ export default function DesignReferencesView({ project, onApply, onStatus }: {
     setDraft(null);
     onStatus(`Saved ${draft.name} (version ${list.find((r) => r.id === draft.id)?.version})`);
   }
-  function remove() {
-    if (readOnly || !window.confirm(`Delete the reference "${saved.name}"? Projects that used it keep their values.`)) return;
+  async function remove() {
+    if (readOnly || !(await ask(`Delete the reference "${saved.name}"? Projects that used it keep their values.`))) return;
     const list = refs.filter((r) => r.id !== saved.id);
     persist(list);
     setDraft(null); setSelId(list[0].id);

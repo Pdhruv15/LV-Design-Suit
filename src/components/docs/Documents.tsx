@@ -1,3 +1,4 @@
+import { ask } from '../ConfirmDialog';
 import { useMemo, useState } from 'react';
 import { statusOfText } from '../../calc/statusText';
 import type { Project } from '../../types';
@@ -107,7 +108,7 @@ export function ReportView({ project, onStatus, stale = false, docNo, onDocNo }:
   }, [project, docNo]);
   const ic = issueCounts(issues);
   async function exportPdf() {
-    if (ic.error && !window.confirm(`The pre-export check found ${ic.error} error(s) and ${ic.warning} warning(s) — listed above the preview.\n\nExport anyway?`)) return;
+    if (ic.error && !(await ask(`The pre-export check found ${ic.error} error(s) and ${ic.warning} warning(s) — listed above the preview.\n\nExport anyway?`))) return;
     setBusy(true);
     try {
       // Landscape and the document's own header / page numbers (CSS @page boxes), as the BOQ.

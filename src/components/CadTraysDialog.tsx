@@ -1,3 +1,4 @@
+import { Modal } from './ui';
 import { useState } from 'react';
 import { trayPlanOf } from '../calc/cableTray';
 import { autoRoutes, autoTrays } from '../model/cadAutoLink';
@@ -69,90 +70,86 @@ export default function CadTraysDialog({ project, onApply, onClose }: {
 
   if (!cad?.trays || !cad.traySelection || !cad.openPlan) {
     return (
-      <div className="modal-backdrop" onClick={onClose}>
-        <div className="modal" onClick={(e) => e.stopPropagation()}>
-          <h3>Tray routes from CAD floor plan</h3>
-          <p className="m">Reading a floor plan needs the LV Design Studio desktop app and OpenCADStudio.</p>
-          <div className="modal-actions"><span className="sp" /><button className="chip" onClick={onClose}>Close</button></div>
-        </div>
-      </div>
+      <Modal onClose={onClose} className="modal">
+        <h3>Tray routes from CAD floor plan</h3>
+        <p className="m">Reading a floor plan needs the LV Design Studio desktop app and OpenCADStudio.</p>
+        <div className="modal-actions"><span className="sp" /><button className="chip" onClick={onClose}>Close</button></div>
+      </Modal>
     );
   }
 
   const count = pull ? pull.feeders.filter((x) => !skipF.has(x.feederId)).length + pull.lengths.filter((x) => !skipL.has(x.name)).length : 0;
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal cad-trays" onClick={(e) => e.stopPropagation()}>
-        <h3>Tray routes from CAD floor plan</h3>
-        <p className="m">
-          Tray runs on the layers marked <b>Cable tray</b> are found and named by their labels (TRAY A, CT-2…); runs joined
-          to a named run take its name, the rest are T1, T2…. Any run can also be named by hand: select it in
-          OpenCADStudio, type its tray route and press Link selection. A feeder is on a tray where its cable route runs
-          within {TRAY_TOLERANCE_M} m of the tray for more than {TRAY_MIN_RUN_M} m; the trays are listed in order from its
-          board. Nothing changes until you apply.
-        </p>
-        <div className="modal-actions">
-          <button className="chip" disabled={!!busy} onClick={openPlan}>{busy === 'open' ? 'Opening…' : 'Open floor plan…'}</button>
-          <span className="sp" />
-          <input aria-label="Tray route name" list="cad-tray-names" placeholder="Tray route, e.g. A" style={{ width: '9em' }} value={name} onChange={(e) => setName(e.target.value.toUpperCase())} />
-          <datalist id="cad-tray-names">{known.map((n) => <option key={n} value={n} />)}</datalist>
-          <button className="chip" disabled={!!busy || !name.trim()} onClick={() => link(name.trim())}>{busy === 'link' ? 'Linking…' : 'Link selection'}</button>
-          <button className="chip" disabled={!!busy} onClick={() => link('')} title="Remove the tray link from the objects selected in OpenCADStudio">Unlink selection</button>
-        </div>
-        <div className="modal-actions">
-          <span className="sp" />
-          <button className="chip primary" disabled={!!busy} onClick={read}>{busy === 'pull' ? 'Reading…' : plan ? 'Pull again' : 'Pull tray routes'}</button>
-        </div>
-        {note && <p className="m">{note}</p>}
-
-        {pull && (
-          <>
-            <details>
-              <summary className="m">Layers — {marked('tray')} tray layer{marked('tray') === 1 ? '' : 's'}, {marked('route')} cable route layer{marked('route') === 1 ? '' : 's'}{!marked('tray') && ': mark the tray layer as Cable tray to find the runs automatically'}</summary>
-              <CadLayerTable layers={drawing?.layers ?? []} roles={roles} onChange={setRole} onApplyMap={(m) => { setRoles(m); setNote('Pull again to read the trays and routes on the layers as now marked.'); }} />
-            </details>
-            <p className="m">{plan!.trays.length} tray run{plan!.trays.length === 1 ? '' : 's'} ({auto?.trays.length ?? 0} from the tray layers) · {plan!.routes.length} cable route piece{plan!.routes.length === 1 ? '' : 's'} · {pull.units} · {pull.matching} feeder{pull.matching === 1 ? '' : 's'} already match</p>
-            {pull.feeders.length > 0 && (
-              <table className="bi-table compact">
-                <thead><tr><th /><th>Feeder</th><th>Tray route now</th><th>From CAD</th></tr></thead>
-                <tbody>
-                  {pull.feeders.map((x) => (
-                    <tr key={x.feederId}>
-                      <td><input type="checkbox" aria-label={`Accept ${x.label}`} checked={!skipF.has(x.feederId)} onChange={(e) => toggle(setSkipF, x.feederId, e.target.checked)} /></td>
-                      <td>{x.label}</td>
-                      <td>{x.current || '—'}</td>
-                      <td title={x.runs.map((r) => `${r.name}: ${r.m} m`).join(', ')}>{x.proposed || <i>on no tray</i>}{x.runs.length > 0 && <span className="m"> ({x.runs.map((r) => `${r.name} ${r.m} m`).join(', ')})</span>}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-            {pull.lengths.length > 0 && (
-              <table className="bi-table compact">
-                <thead><tr><th /><th>Tray route</th><th>Length now (m)</th><th>From CAD (m)</th></tr></thead>
-                <tbody>
-                  {pull.lengths.map((x) => (
-                    <tr key={x.name}>
-                      <td><input type="checkbox" aria-label={`Accept tray ${x.name}`} checked={!skipL.has(x.name)} onChange={(e) => toggle(setSkipL, x.name, e.target.checked)} /></td>
-                      <td>{x.name}{x.isNew && <span className="m"> (new)</span>}</td>
-                      <td>{x.currentM ?? '—'}</td>
-                      <td>{x.proposedM}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-            {pull.unknownFeeders.length > 0 && <p className="m">Cable routes linked to feeders no longer in the design (ignored): {pull.unknownFeeders.join(', ')}</p>}
-            {(auto?.routes.unmatched.length ?? 0) > 0 && <p className="m">Cable routes not linked (link them in Cable lengths from CAD floor plan): {auto!.routes.unmatched.map((u) => `${u.lengthM} m on ${u.layer} (${u.reason})`).join('; ')}</p>}
-          </>
-        )}
-
-        <div className="modal-actions">
-          <span className="sp" />
-          <button className="chip" onClick={onClose}>Cancel</button>
-          <button className="chip primary" disabled={!pull || !!busy} onClick={apply}>Apply {count} change{count === 1 ? '' : 's'}</button>
-        </div>
+    <Modal onClose={onClose} className="modal cad-trays">
+      <h3>Tray routes from CAD floor plan</h3>
+      <p className="m">
+        Tray runs on the layers marked <b>Cable tray</b> are found and named by their labels (TRAY A, CT-2…); runs joined
+        to a named run take its name, the rest are T1, T2…. Any run can also be named by hand: select it in
+        OpenCADStudio, type its tray route and press Link selection. A feeder is on a tray where its cable route runs
+        within {TRAY_TOLERANCE_M} m of the tray for more than {TRAY_MIN_RUN_M} m; the trays are listed in order from its
+        board. Nothing changes until you apply.
+      </p>
+      <div className="modal-actions">
+        <button className="chip" disabled={!!busy} onClick={openPlan}>{busy === 'open' ? 'Opening…' : 'Open floor plan…'}</button>
+        <span className="sp" />
+        <input aria-label="Tray route name" list="cad-tray-names" placeholder="Tray route, e.g. A" style={{ width: '9em' }} value={name} onChange={(e) => setName(e.target.value.toUpperCase())} />
+        <datalist id="cad-tray-names">{known.map((n) => <option key={n} value={n} />)}</datalist>
+        <button className="chip" disabled={!!busy || !name.trim()} onClick={() => link(name.trim())}>{busy === 'link' ? 'Linking…' : 'Link selection'}</button>
+        <button className="chip" disabled={!!busy} onClick={() => link('')} title="Remove the tray link from the objects selected in OpenCADStudio">Unlink selection</button>
       </div>
-    </div>
+      <div className="modal-actions">
+        <span className="sp" />
+        <button className="chip primary" disabled={!!busy} onClick={read}>{busy === 'pull' ? 'Reading…' : plan ? 'Pull again' : 'Pull tray routes'}</button>
+      </div>
+      {note && <p className="m">{note}</p>}
+
+      {pull && (
+        <>
+          <details>
+            <summary className="m">Layers — {marked('tray')} tray layer{marked('tray') === 1 ? '' : 's'}, {marked('route')} cable route layer{marked('route') === 1 ? '' : 's'}{!marked('tray') && ': mark the tray layer as Cable tray to find the runs automatically'}</summary>
+            <CadLayerTable layers={drawing?.layers ?? []} roles={roles} onChange={setRole} onApplyMap={(m) => { setRoles(m); setNote('Pull again to read the trays and routes on the layers as now marked.'); }} />
+          </details>
+          <p className="m">{plan!.trays.length} tray run{plan!.trays.length === 1 ? '' : 's'} ({auto?.trays.length ?? 0} from the tray layers) · {plan!.routes.length} cable route piece{plan!.routes.length === 1 ? '' : 's'} · {pull.units} · {pull.matching} feeder{pull.matching === 1 ? '' : 's'} already match</p>
+          {pull.feeders.length > 0 && (
+            <table className="bi-table compact">
+              <thead><tr><th /><th>Feeder</th><th>Tray route now</th><th>From CAD</th></tr></thead>
+              <tbody>
+                {pull.feeders.map((x) => (
+                  <tr key={x.feederId}>
+                    <td><input type="checkbox" aria-label={`Accept ${x.label}`} checked={!skipF.has(x.feederId)} onChange={(e) => toggle(setSkipF, x.feederId, e.target.checked)} /></td>
+                    <td>{x.label}</td>
+                    <td>{x.current || '—'}</td>
+                    <td title={x.runs.map((r) => `${r.name}: ${r.m} m`).join(', ')}>{x.proposed || <i>on no tray</i>}{x.runs.length > 0 && <span className="m"> ({x.runs.map((r) => `${r.name} ${r.m} m`).join(', ')})</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {pull.lengths.length > 0 && (
+            <table className="bi-table compact">
+              <thead><tr><th /><th>Tray route</th><th>Length now (m)</th><th>From CAD (m)</th></tr></thead>
+              <tbody>
+                {pull.lengths.map((x) => (
+                  <tr key={x.name}>
+                    <td><input type="checkbox" aria-label={`Accept tray ${x.name}`} checked={!skipL.has(x.name)} onChange={(e) => toggle(setSkipL, x.name, e.target.checked)} /></td>
+                    <td>{x.name}{x.isNew && <span className="m"> (new)</span>}</td>
+                    <td>{x.currentM ?? '—'}</td>
+                    <td>{x.proposedM}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {pull.unknownFeeders.length > 0 && <p className="m">Cable routes linked to feeders no longer in the design (ignored): {pull.unknownFeeders.join(', ')}</p>}
+          {(auto?.routes.unmatched.length ?? 0) > 0 && <p className="m">Cable routes not linked (link them in Cable lengths from CAD floor plan): {auto!.routes.unmatched.map((u) => `${u.lengthM} m on ${u.layer} (${u.reason})`).join('; ')}</p>}
+        </>
+      )}
+
+      <div className="modal-actions">
+        <span className="sp" />
+        <button className="chip" onClick={onClose}>Cancel</button>
+        <button className="chip primary" disabled={!pull || !!busy} onClick={apply}>Apply {count} change{count === 1 ? '' : 's'}</button>
+      </div>
+    </Modal>
   );
 }

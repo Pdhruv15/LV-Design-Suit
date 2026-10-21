@@ -1,3 +1,4 @@
+import { ask } from '../ConfirmDialog';
 import { STATUS_TEXT } from '../../calc/statusText';
 import { useMemo, useRef, useState } from 'react';
 import type { Feeder, Project, TrayCable, TrayMethod, TrayPlan, TrayRoute, TraySettings, TraySpacing } from '../../types';
@@ -182,9 +183,9 @@ function TrayDesignView({ project, onChange, onStatus, modeSwitch }: {
         <label>Cable data (brand)
           <select
             value={plan.ods ? 'custom' : brandOf(plan.brand).id}
-            onChange={(e) => {
+            onChange={async (e) => {
               if (e.target.value === 'custom') return;
-              if (plan.ods && !window.confirm('Replace your edited cable data with the brand\'s?')) return;
+              if (plan.ods && !(await ask('Replace your edited cable data with the brand\'s?'))) return;
               setPlan({ ...plan, brand: e.target.value, ods: undefined }, true);
             }}
           >
@@ -261,7 +262,7 @@ function TrayDesignView({ project, onChange, onStatus, modeSwitch }: {
           boards={boards.map((b) => b.id)}
           onProject={(p) => onChange(p, true)}
           onRoute={(patch, step) => setRoute(res.route.id, patch, step)}
-          onRemove={() => window.confirm(`Remove route ${res.route.name}? It is also taken off the cables' paths.`) && onChange(deleteRoute(project, res.route.id), true)}
+          onRemove={async () => (await ask(`Remove route ${res.route.name}? It is also taken off the cables' paths.`)) && onChange(deleteRoute(project, res.route.id), true)}
           onStatus={onStatus}
         />
       ))}

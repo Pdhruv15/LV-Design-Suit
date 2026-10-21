@@ -1,3 +1,4 @@
+import { ask } from '../ConfirmDialog';
 import { useMemo, useRef, useState } from 'react';
 import type { Project } from '../../types';
 import {
@@ -101,7 +102,7 @@ export default function TitleBlockDesigner({ project, onChange, onStatus, onPara
               if (!f) return;
               try { const x = JSON.parse(await f.text()) as TitleTemplate; if (!Array.isArray(x.cells) || !Array.isArray(x.cols)) throw new Error(); create(x, x.name || 'Imported'); onStatus(`Imported “${x.name}”`); } catch { onStatus('That file is not a title block'); }
             }} />
-            <button className="linkish bad" onClick={() => { if (window.confirm(`Delete “${t.name}”?`)) { setTemplates(templates.filter((x) => x.id !== t.id)); if (active === t.id) onChange({ ...project, titleTemplates: templates.filter((x) => x.id !== t.id), drawing: { ...project.drawing, titleTemplateId: undefined } }); setSel(''); } }}>Delete</button>
+            <button className="linkish bad" onClick={async () => { if (await ask(`Delete “${t.name}”?`)) { setTemplates(templates.filter((x) => x.id !== t.id)); if (active === t.id) onChange({ ...project, titleTemplates: templates.filter((x) => x.id !== t.id), drawing: { ...project.drawing, titleTemplateId: undefined } }); setSel(''); } }}>Delete</button>
           </div>
         </div>
 

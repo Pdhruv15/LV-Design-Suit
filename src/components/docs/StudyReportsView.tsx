@@ -1,3 +1,4 @@
+import { ask } from '../ConfirmDialog';
 import { useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
@@ -106,7 +107,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
     [calc, reportMeta, scope, sections, data, stale, basisOpt.designBasis, basisOpt.results]);
   const ic = issueCounts(issues);
   /** Errors are never hidden: exporting with any asks first. */
-  const confirmIssues = () => !ic.error || window.confirm(`The pre-export check found ${ic.error} error(s) and ${ic.warning} warning(s) — see the Pre-export check tab.\n\nExport anyway?`);
+  const confirmIssues = async () => !ic.error || (await ask(`The pre-export check found ${ic.error} error(s) and ${ic.warning} warning(s) — see the Pre-export check tab.\n\nExport anyway?`));
   const depth = (id: string) => {
     let d = 0;
     let b = project.boards.find((x) => x.id === id);
@@ -123,7 +124,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
 
   async function exportPdf() {
     if (!data || !sections.length) return;
-    if (!confirmIssues()) return;
+    if (!(await confirmIssues())) return;
     setBusy('pdf');
     try {
       const slds: Partial<Record<StudyReportKind, string>> = {};
@@ -154,7 +155,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
 
   async function exportExcel() {
     if (!sections.length) return;
-    if (!confirmIssues()) return;
+    if (!(await confirmIssues())) return;
     setBusy('xlsx');
     try {
       const bytes = await workbookBytes(buildStudyWorkbook(calc, scope, sections, { title, docNo: setup.docNo, preparedBy: setup.preparedBy, checkedBy: setup.checkedBy }));
@@ -169,7 +170,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
 
   async function exportWord() {
     if (!sections.length) return;
-    if (!confirmIssues()) return;
+    if (!(await confirmIssues())) return;
     setBusy('docx');
     try {
       const doc = buildStudyDocx(calc, scope, sections, reportMeta, basisOpt);
@@ -191,7 +192,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
   async function exportPack() {
     const toBytes = window.lvds?.files?.pdfBytes;
     const snap = run; // frozen here: later edits can't mix into this package
-    if (!confirmIssues()) return;
+    if (!(await confirmIssues())) return;
     if (!snap || !data || !sections.length) return;
     if (!toBytes) { onStatus('The issue package is made by the desktop app — download it, or use Export PDF here (opens the print dialog)'); return; }
     setBusy('pack');

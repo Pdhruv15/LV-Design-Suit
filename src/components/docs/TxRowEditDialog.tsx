@@ -1,3 +1,4 @@
+import { Modal } from '../ui';
 import { useEffect, useRef, useState } from 'react';
 import type { Board } from '../../types';
 import { rowCtText, type TxSummaryRow } from '../../docs/txSummary';
@@ -72,53 +73,51 @@ export default function TxRowEditDialog({ row, substation, onSave, onDelete, onC
   const shown = (label: string, v: string) => <label key={label} className="ce-ro">{label}<output>{v}</output></label>;
 
   return (
-    <div className="modal-backdrop" onClick={onClose} onKeyDown={(e) => e.key === 'Escape' && onClose()}>
-      <form ref={form} className="modal row-edit" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
-        <h3>Edit transformer: {initial.ref}</h3>
-        <p className="m">{r.manual ? 'Nothing drawn below yet — loads and meters are typed here.' : 'Loads and meters come from the boards below it.'} Changes apply on Save.</p>
+    <Modal onClose={onClose} className="modal row-edit" onSubmit={submit} boxRef={form}>
+      <h3>Edit transformer: {initial.ref}</h3>
+      <p className="m">{r.manual ? 'Nothing drawn below yet — loads and meters are typed here.' : 'Loads and meters come from the boards below it.'} Changes apply on Save.</p>
+      <div className="ce-grid">
+        {field('ref', 'Transformer reference')}
+        {field('substation', 'Substation')}
+        {shown('SP/TP', r.poles)}
+      </div>
+      <fieldset>
+        <legend>Main breaker</legend>
         <div className="ce-grid">
-          {field('ref', 'Transformer reference')}
-          {field('substation', 'Substation')}
-          {shown('SP/TP', r.poles)}
+          {field('rating', `${r.device} rating (A)`)}
+          {r.device === 'ACB' && field('setting', 'Setting (× In)', { ph: '1.0' })}
+          {field('faultKa', 'Fault duty (kA)')}
         </div>
-        <fieldset>
-          <legend>Main breaker</legend>
-          <div className="ce-grid">
-            {field('rating', `${r.device} rating (A)`)}
-            {r.device === 'ACB' && field('setting', 'Setting (× In)', { ph: '1.0' })}
-            {field('faultKa', 'Fault duty (kA)')}
-          </div>
-        </fieldset>
-        <fieldset>
-          <legend>Cable</legend>
-          <div className="ce-grid">
-            {field('cable', 'Cable size / type', { wide: true })}
-            {field('ecc', 'ECC size 1C, mm²', { ph: '2X150' })}
-          </div>
-        </fieldset>
-        <fieldset>
-          <legend>Connection load</legend>
-          <div className="ce-grid">
-            {(['R', 'Y', 'B'] as const).map((ph) => (r.manual ? field(ph, `${ph}-phase kW`, { ph: '0.00' }) : shown(`${ph}-phase kW`, kw(r.phases[ph]))))}
-            {shown('TCL (kW)', kw(r.tclKw))}
-            {field('df', 'D.F')}
-            {shown('MDL (kW)', kw(r.mdlKw))}
-          </div>
-        </fieldset>
-        <fieldset>
-          <legend>kWh meters</legend>
-          <div className="ce-grid">
-            {(['1-PH', '3-PH', 'CT'] as const).map((m) => (r.manual ? field(m, m) : shown(m, String(r.meters[m] || ''))))}
-          </div>
-        </fieldset>
-        {field('remarks', 'Remarks (CT ratio)')}
-        <div className="modal-actions">
-          <button type="button" className="chip bad-btn" onClick={onDelete}>{r.manual ? 'Remove transformer' : 'Remove with everything below'}</button>
-          <span className="sp" />
-          <button type="button" className="chip" onClick={onClose}>Cancel</button>
-          <button type="submit" className="chip primary">Save changes</button>
+      </fieldset>
+      <fieldset>
+        <legend>Cable</legend>
+        <div className="ce-grid">
+          {field('cable', 'Cable size / type', { wide: true })}
+          {field('ecc', 'ECC size 1C, mm²', { ph: '2X150' })}
         </div>
-      </form>
-    </div>
+      </fieldset>
+      <fieldset>
+        <legend>Connection load</legend>
+        <div className="ce-grid">
+          {(['R', 'Y', 'B'] as const).map((ph) => (r.manual ? field(ph, `${ph}-phase kW`, { ph: '0.00' }) : shown(`${ph}-phase kW`, kw(r.phases[ph]))))}
+          {shown('TCL (kW)', kw(r.tclKw))}
+          {field('df', 'D.F')}
+          {shown('MDL (kW)', kw(r.mdlKw))}
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>kWh meters</legend>
+        <div className="ce-grid">
+          {(['1-PH', '3-PH', 'CT'] as const).map((m) => (r.manual ? field(m, m) : shown(m, String(r.meters[m] || ''))))}
+        </div>
+      </fieldset>
+      {field('remarks', 'Remarks (CT ratio)')}
+      <div className="modal-actions">
+        <button type="button" className="chip bad-btn" onClick={onDelete}>{r.manual ? 'Remove transformer' : 'Remove with everything below'}</button>
+        <span className="sp" />
+        <button type="button" className="chip" onClick={onClose}>Cancel</button>
+        <button type="submit" className="chip primary">Save changes</button>
+      </div>
+    </Modal>
   );
 }

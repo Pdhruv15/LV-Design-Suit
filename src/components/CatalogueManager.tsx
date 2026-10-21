@@ -1,3 +1,4 @@
+import { ask } from './ConfirmDialog';
 import { useRef, useState } from 'react';
 import type { EnclosureCatalogue, EnclosureConfig, Dims } from '../calc/enclosure';
 import {
@@ -76,7 +77,7 @@ export default function CatalogueManager({ onClose, onStatus }: { onClose: () =>
             <div className="row">
               <button className="chip" onClick={() => add(emptyCatalogue())}>Add</button>
               <button className="chip" disabled={!sel} onClick={() => sel && add(duplicateCatalogue(sel))} title="Copy, then change the supplier, dimensions and rules">Duplicate</button>
-              <button className="chip" disabled={locked} onClick={() => { if (sel && confirm(`Delete ${sel.supplier} — ${sel.range} from your library? Panels sized with it keep their copy.`)) { persist(cats.filter((c) => c.id !== sel.id)); setSelId(cats[0]?.id ?? ''); } }}>Delete</button>
+              <button className="chip" disabled={locked} onClick={async () => { if (sel && (await ask(`Delete ${sel.supplier} — ${sel.range} from your library? Panels sized with it keep their copy.`))) { persist(cats.filter((c) => c.id !== sel.id)); setSelId(cats[0]?.id ?? ''); } }}>Delete</button>
             </div>
             <h4>Excel</h4>
             <div className="row">

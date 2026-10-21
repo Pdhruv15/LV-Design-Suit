@@ -1,3 +1,4 @@
+import { Modal } from './ui';
 import { useState } from 'react';
 import type { LibraryLoad } from '../database/database';
 import { applyCadLoads, pullCadLoads, type CadLoadPull } from '../model/cadLoads';
@@ -54,92 +55,88 @@ export default function CadLoadsDialog({ project, library, onApply, onClose }: {
 
   if (!cad?.blocks || !cad.openPlan) {
     return (
-      <div className="modal-backdrop" onClick={onClose}>
-        <div className="modal" onClick={(e) => e.stopPropagation()}>
-          <h3>Loads from CAD floor plan</h3>
-          <p className="m">Reading a floor plan needs the LV Design Studio desktop app and OpenCADStudio.</p>
-          <div className="modal-actions"><span className="sp" /><button className="chip" onClick={onClose}>Close</button></div>
-        </div>
-      </div>
+      <Modal onClose={onClose} className="modal">
+        <h3>Loads from CAD floor plan</h3>
+        <p className="m">Reading a floor plan needs the LV Design Studio desktop app and OpenCADStudio.</p>
+        <div className="modal-actions"><span className="sp" /><button className="chip" onClick={onClose}>Close</button></div>
+      </Modal>
     );
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal cad-loads" onClick={(e) => e.stopPropagation()}>
-        <h3>Loads from CAD floor plan</h3>
-        <p className="m">
-          Fixtures on the drawing open in OpenCADStudio are counted per circuit. A block named like a library reference
-          (L1, S13…) is that item; other block names are mapped once below. The circuit comes from the block’s
-          CCT attribute, e.g. <b>DB-GF1/R3</b>. Nothing changes until you apply.
-        </p>
-        <div className="modal-actions">
-          <button className="chip" disabled={!!busy} onClick={openPlan}>{busy === 'open' ? 'Opening…' : 'Open floor plan…'}</button>
-          <button className="chip primary" disabled={!!busy} onClick={read}>{busy === 'pull' ? 'Reading…' : blocks ? 'Pull again' : 'Pull loads'}</button>
-        </div>
-        {note && <p className="m">{note}</p>}
-        {!mappable.length && <p className="m">The load library has no items with a reference and schedule column, so no block can be counted yet. Connect the LV Database, or add the standard set: Database → Loads.xlsx → Add standard loads….</p>}
+    <Modal onClose={onClose} className="modal cad-loads">
+      <h3>Loads from CAD floor plan</h3>
+      <p className="m">
+        Fixtures on the drawing open in OpenCADStudio are counted per circuit. A block named like a library reference
+        (L1, S13…) is that item; other block names are mapped once below. The circuit comes from the block’s
+        CCT attribute, e.g. <b>DB-GF1/R3</b>. Nothing changes until you apply.
+      </p>
+      <div className="modal-actions">
+        <button className="chip" disabled={!!busy} onClick={openPlan}>{busy === 'open' ? 'Opening…' : 'Open floor plan…'}</button>
+        <button className="chip primary" disabled={!!busy} onClick={read}>{busy === 'pull' ? 'Reading…' : blocks ? 'Pull again' : 'Pull loads'}</button>
+      </div>
+      {note && <p className="m">{note}</p>}
+      {!mappable.length && <p className="m">The load library has no items with a reference and schedule column, so no block can be counted yet. Connect the LV Database, or add the standard set: Database → Loads.xlsx → Add standard loads….</p>}
 
-        {pull && (
-          <>
-            <p className="m">
-              {blocks!.length} blocks read · {pull.proposals.length} circuit{pull.proposals.length === 1 ? '' : 's'} differ · {pull.matching} already match
-            </p>
-            {pull.proposals.length > 0 && (
+      {pull && (
+        <>
+          <p className="m">
+            {blocks!.length} blocks read · {pull.proposals.length} circuit{pull.proposals.length === 1 ? '' : 's'} differ · {pull.matching} already match
+          </p>
+          {pull.proposals.length > 0 && (
+            <table className="bi-table compact">
+              <thead><tr><th /><th>Circuit</th><th>Design now</th><th>From CAD</th><th>W</th></tr></thead>
+              <tbody>
+                {pull.proposals.map((x) => (
+                  <tr key={x.feederId}>
+                    <td><input type="checkbox" aria-label={`Accept ${x.ref}`} checked={!skip.has(x.feederId)} onChange={(e) => setSkip((s) => { const n = new Set(s); if (e.target.checked) n.delete(x.feederId); else n.add(x.feederId); return n; })} /></td>
+                    <td>{x.ref}</td>
+                    <td>{x.currentText}</td>
+                    <td>{x.proposedText}</td>
+                    <td>{x.currentW} → {x.proposedW}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {mapRows.length > 0 && (
+            <>
+              <h4>Block mapping{pull.unmapped.length ? ` — ${pull.unmapped.length} to map` : ''}</h4>
               <table className="bi-table compact">
-                <thead><tr><th /><th>Circuit</th><th>Design now</th><th>From CAD</th><th>W</th></tr></thead>
+                <thead><tr><th>Block</th><th>Count</th><th>Library item</th><th title="How many of the item one block stands for, e.g. 2 for a twin socket mapped to a single socket">Each block is</th></tr></thead>
                 <tbody>
-                  {pull.proposals.map((x) => (
-                    <tr key={x.feederId}>
-                      <td><input type="checkbox" aria-label={`Accept ${x.ref}`} checked={!skip.has(x.feederId)} onChange={(e) => setSkip((s) => { const n = new Set(s); if (e.target.checked) n.delete(x.feederId); else n.add(x.feederId); return n; })} /></td>
-                      <td>{x.ref}</td>
-                      <td>{x.currentText}</td>
-                      <td>{x.proposedText}</td>
-                      <td>{x.currentW} → {x.proposedW}</td>
+                  {mapRows.map((u) => (
+                    <tr key={u.block}>
+                      <td>{u.block}</td>
+                      <td>{u.count}</td>
+                      <td>
+                        <select aria-label={`Library item for ${u.block}`} value={rowOf(u.block)?.reference ?? ''} onChange={(e) => mapBlock(u.block, e.target.value)}>
+                          <option value="">— not a load —</option>
+                          {mappable.map((l) => <option key={l.reference} value={l.reference}>{l.reference} · {l.name} ({l.watts} W)</option>)}
+                        </select>
+                      </td>
+                      <td>
+                        <input aria-label={`Items per ${u.block} block`} type="number" min={1} step={1} style={{ width: '4em' }} disabled={!rowOf(u.block)}
+                          value={rowOf(u.block)?.per ?? 1} onChange={(e) => mapBlock(u.block, rowOf(u.block)!.reference, Math.max(1, Math.round(Number(e.target.value) || 1)))} /> ×
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            )}
-            {mapRows.length > 0 && (
-              <>
-                <h4>Block mapping{pull.unmapped.length ? ` — ${pull.unmapped.length} to map` : ''}</h4>
-                <table className="bi-table compact">
-                  <thead><tr><th>Block</th><th>Count</th><th>Library item</th><th title="How many of the item one block stands for, e.g. 2 for a twin socket mapped to a single socket">Each block is</th></tr></thead>
-                  <tbody>
-                    {mapRows.map((u) => (
-                      <tr key={u.block}>
-                        <td>{u.block}</td>
-                        <td>{u.count}</td>
-                        <td>
-                          <select aria-label={`Library item for ${u.block}`} value={rowOf(u.block)?.reference ?? ''} onChange={(e) => mapBlock(u.block, e.target.value)}>
-                            <option value="">— not a load —</option>
-                            {mappable.map((l) => <option key={l.reference} value={l.reference}>{l.reference} · {l.name} ({l.watts} W)</option>)}
-                          </select>
-                        </td>
-                        <td>
-                          <input aria-label={`Items per ${u.block} block`} type="number" min={1} step={1} style={{ width: '4em' }} disabled={!rowOf(u.block)}
-                            value={rowOf(u.block)?.per ?? 1} onChange={(e) => mapBlock(u.block, rowOf(u.block)!.reference, Math.max(1, Math.round(Number(e.target.value) || 1)))} /> ×
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </>
-            )}
-            {pull.noCircuit.length > 0 && <p className="m">No CCT attribute (not counted): {pull.noCircuit.map((x) => `${x.count} × ${x.block}`).join(', ')}</p>}
-            {pull.unknownCircuits.length > 0 && <p className="m">Circuit not in the design (not counted): {pull.unknownCircuits.map((x) => `${x.ref} (${x.count})`).join(', ')}</p>}
-          </>
-        )}
+            </>
+          )}
+          {pull.noCircuit.length > 0 && <p className="m">No CCT attribute (not counted): {pull.noCircuit.map((x) => `${x.count} × ${x.block}`).join(', ')}</p>}
+          {pull.unknownCircuits.length > 0 && <p className="m">Circuit not in the design (not counted): {pull.unknownCircuits.map((x) => `${x.ref} (${x.count})`).join(', ')}</p>}
+        </>
+      )}
 
-        <div className="modal-actions">
-          <span className="sp" />
-          <button className="chip" onClick={onClose}>Cancel</button>
-          <button className="chip primary" disabled={!pull || !!busy} onClick={apply}>
-            Apply {pull ? pull.proposals.filter((x) => !skip.has(x.feederId)).length : 0} circuit changes
-          </button>
-        </div>
+      <div className="modal-actions">
+        <span className="sp" />
+        <button className="chip" onClick={onClose}>Cancel</button>
+        <button className="chip primary" disabled={!pull || !!busy} onClick={apply}>
+          Apply {pull ? pull.proposals.filter((x) => !skip.has(x.feederId)).length : 0} circuit changes
+        </button>
       </div>
-    </div>
+    </Modal>
   );
 }

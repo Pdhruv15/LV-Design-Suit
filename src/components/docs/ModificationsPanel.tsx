@@ -1,3 +1,4 @@
+import { ask } from '../ConfirmDialog';
 import { useEffect, useState } from 'react';
 import type { Project } from '../../types';
 import type { MainView } from '../../views';
@@ -68,14 +69,14 @@ export default function ModificationsPanel({ project, me, run, onChange, onApply
     onStatus(`Recorded ${res.record.ops.length} change${res.record.ops.length === 1 ? '' : 's'}${res.unsupported ? ` — ${res.unsupported} other difference${res.unsupported === 1 ? '' : 's'} (added or removed equipment, other fields) cannot be recorded this way` : ''}`);
   }
 
-  function step(to: ModStatus) {
+  async function step(to: ModStatus) {
     if (!rec) return;
     const decision = to === 'accepted' || to === 'rejected';
     const by = decision && !me.trim() ? window.prompt('Who is making this decision? (a typed name — the app does not verify identities)')?.trim() || '' : me;
     if (decision && !by) { onStatus('A name is needed to record the decision.'); return; }
     const note = decision || to === 'superseded' ? window.prompt(to === 'superseded' ? 'What supersedes it (e.g. MOD-004), or why?' : to === 'rejected' ? 'Reason for rejecting it (required)' : 'Reason for accepting it') : '';
     if (note === null) return;
-    if (to === 'draft' && !window.confirm(rec.decision ? 'Return it to a draft to edit it? The earlier decision stops applying, and it needs a new decision after you change it.' : 'Return it to a draft to edit it?')) return;
+    if (to === 'draft' && !(await ask(rec.decision ? 'Return it to a draft to edit it? The earlier decision stops applying, and it needs a new decision after you change it.' : 'Return it to a draft to edit it?'))) return;
     const evidenceRef = to === 'accepted' || to === 'rejected' ? window.prompt('Where is the evidence for this decision kept? (optional)') ?? undefined : undefined;
     const t = transition(project, rec, to, { by, evidenceRef, note: note || undefined, supersededBy: to === 'superseded' && /^MOD-\d+$/i.test(note ?? '') ? note!.toUpperCase() : undefined });
     if (!t.ok) { onStatus(t.error); if (t.conflicts) setConflict(t.conflicts); return; }
@@ -209,7 +210,7 @@ export default function ModificationsPanel({ project, me, run, onChange, onApply
               {rec.status !== 'accepted' && <button className="chip" onClick={() => { edit(reconcile(project, rec, me)); setConflict(null); }} title="Re-base the proposal on the values the design has now; recorded in its history">Reconcile on the current values</button>}
               {rec.status === 'accepted' && <>
                 <button className="chip" onClick={() => apply('skip')} title="Apply the changes that still match; leave the edited values alone">Apply the rest, keep later edits</button>
-                <button className="chip" onClick={() => { if (window.confirm('Overwrite the later edits with the proposed values?')) apply('overwrite'); }} title="Replace the values edited since with the proposed ones">Overwrite later edits…</button>
+                <button className="chip" onClick={async () => { if (await ask('Overwrite the later edits with the proposed values?')) apply('overwrite'); }} title="Replace the values edited since with the proposed ones">Overwrite later edits…</button>
               </>}
             </div>
           )}

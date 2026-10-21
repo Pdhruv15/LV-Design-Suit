@@ -43,7 +43,7 @@ Legacy names `--border`, `--accent`, `--fg`, `--muted` are aliases kept so older
 | `--radius-sm/md/lg` | 6 / 9 / 12 px | controls / cards / dialogs |
 | `--fs-xs/sm/md` | 11 / 12 / 13 px | captions & table headers / secondary / body |
 
-Headings: page 18 px semibold (`.stage-head h3`), dialog 16 px, card 13 px semibold. No new font sizes; half-pixel sizes (11.5, 12.5) are being retired (milestone 3).
+Headings: page 18 px semibold (`.stage-head h3`), dialog 16 px, card 13 px semibold. No new font sizes and no half-pixel sizes in screen UI. Drawing text (SVG) keeps its own sizes: exports copy them.
 
 ## Components (existing classes, now on tokens)
 
@@ -56,7 +56,9 @@ Headings: page 18 px semibold (`.stage-head h3`), dialog 16 px, card 13 px semib
 | Icons in chrome | `lucide-react` | no Unicode glyphs (▾ ● ⚠ ✕ ✓ ▶) as icons; state in words beside the icon (`sub: 'unsaved'`) |
 | Input / select | plain `input`, `select` | base style is zero-specificity (`:where`) so grids stay compact; full height inside `.modal`, `.form-kv`, toolbars |
 | Number with unit | `<NumField>` (`ui.tsx`) | commits on Enter/blur; unit shown after the box |
-| Dialog | `<Modal>` (`ui.tsx`) | Escape closes the top dialog only; backdrop click closes; actions bottom-right, primary last (`.modal-actions`) |
+| Dialog | `<Modal>` (`ui.tsx`) | Escape closes the top dialog only; backdrop click closes (`closeOnBackdrop={false}` for long tasks); focus is trapped inside and returns to the opener; actions bottom-right, primary last (`.modal-actions`). Never build `.modal-backdrop` by hand |
+| Confirm / notice | `await ask('Delete MDB-1? Detail…')`, `tell(title, message)` (`ConfirmDialog.tsx`) | never `window.confirm/alert`. The first question is the title, the rest the detail; delete/remove/replace/… make a red button named after the action, focus on Cancel |
+| Validated number | `<CheckedNum rule={{ min, max, unit }}>`, `checkNumber()` | message under the field in words, `--bad` edge, nothing saved or clamped until it is valid |
 | Page | `<Page title intro actions>` | every study/document page |
 | Status | `<StatusCell>`, `<StatusCounts>`, `.ok/.warn/.bad` | word + colour |
 | Stale results | `<StaleBanner>` | inputs changed since the last run |
@@ -73,7 +75,7 @@ Figma has matching component sets for Button, Input, Status badge, Tab, Nav item
 ## Accessibility checklist for new UI
 
 - [ ] Keyboard reachable; visible `:focus-visible` ring (2 px `--acc`)
-- [ ] Dialogs through `<Modal>` (Escape closes the top one; focus trapping is planned in milestone 3)
+- [ ] Dialogs through `<Modal>` (Escape closes the top one, focus trapped and returned)
 - [ ] Icon-only buttons have `title` and `aria-label`
 - [ ] Errors next to the field, in words, with `--bad`; not colour alone
 - [ ] Checked in both themes
