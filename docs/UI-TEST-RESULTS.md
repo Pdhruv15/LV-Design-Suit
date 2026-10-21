@@ -143,3 +143,26 @@ Environment: macOS (Apple silicon), 21 Oct 2026. Base: milestone 3 (`e20da62`).
 - BOQ bill and per-circuit cost table were not scrolled in the GUI (same `.table-scroll` rule as the cable schedule).
 - Selection and Coordination cards checked by type and unit test only, not opened in the GUI.
 - Electron desktop window and Windows not checked.
+
+## Milestone 5 — SLD editor
+
+Environment: macOS (Apple silicon), 21 Oct 2026. Base: milestone 4 (`bb5e2b5`).
+
+| Check | Result |
+|---|---|
+| TypeScript, lint, build | clean ✅ |
+| Unit tests (`npm test`) | **1681 / 1681** (1 new: export lookup finds the drawing, not a toolbar icon; it also proves the old selector would have picked an icon) ✅ |
+| PDF/DXF suite (`npm run test:pdf`) | **31 / 31**, darwin baselines, after the export-lookup change ✅ |
+| Calculation code changed | none ✅ |
+
+**In the running app** (web version, sample project, 1440 × 900):
+
+- Toolbar shows the Drawing and View groups; icons 15 px; `.sysdiag > svg` is the drawing (has its data size).
+- Drawing focused: + → 125 %, + → 156 %, → pans the view by 10 % of its width, 0 → 100 %.
+- Board properties (MDB-1, General tab): headings General and On the SLD (the duplicate heading over the framed On the SLD group was removed before commit).
+- Palette: group headers are buttons (expanded = true), search "RCD" lists results, Escape clears the search.
+
+### Not yet verified
+
+- A PDF / DXF export started from the SLD export dialog in the GUI (covered by the unit test of the lookup and by the PDF suite's sheet exports).
+- Electron desktop window and Windows not checked.

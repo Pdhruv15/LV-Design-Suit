@@ -11,7 +11,7 @@ import { safeFileName, saveBinary, savePdf, saveText } from '../util/files';
 
 /** The diagram on screen (full extent), as printable SVG. */
 function currentSvg(): { svg: string; w: number; h: number } | undefined {
-  const live = document.querySelector<SVGSVGElement>('.sysdiag svg');
+  const live = document.querySelector<SVGSVGElement>('.sysdiag > svg');
   if (!live) return undefined;
   const w = Number(live.dataset.w);
   const h = Number(live.dataset.h);

@@ -8,8 +8,8 @@ Small, separately tested milestones on branch `ui/design-system`. No rebuild, no
 | 2 | Header, ribbon, sidebar and navigation | ✅ done, verified |
 | 3 | Forms, buttons, dialogs, validation | ✅ done, verified |
 | 4 | Engineering tables and result displays | ✅ done, verified |
-| 5 | SLD editor interface | next |
-| 6 | Report preview and export interface | planned |
+| 5 | SLD editor interface | ✅ done, verified |
+| 6 | Report preview and export interface | next |
 | 7 | Final consistency review (both themes, every screen) | planned |
 
 ## 1 — Tokens and theme ✅
@@ -49,12 +49,14 @@ Small, separately tested milestones on branch `ui/design-system`. No rebuild, no
 - Utility classes `u-flush`, `u-mb-2`, `u-mb-3` replace the repeated margins in `DesignReferencesView`. Not done on purpose: `SystemDiagram.tsx` inline styles are SVG drawing text sizes that exports copy, and the remaining inline widths are one-offs.
 - "◀ Hide cable list / ▶ Choose cables" glyphs on Voltage drop replaced with Lucide icons.
 
-## 5 — SLD editor
+## 5 — SLD editor ✅
 
-- Group canvas tools (IEC / DEWA, cable no., text, zoom, fit, full screen) into one labelled toolbar with tooltips.
-- Equipment palette: search, recently used.
-- Properties panel: section headings, consistent field widths.
-- Canvas: visible zoom level, keyboard pan/zoom documented in Help.
+- Canvas toolbar in two labelled groups, **Drawing** (IEC / Icons, DEWA, Cable no., Text) and **View** (grid, zoom out, zoom level, zoom in, fit, full screen), on a panel so it reads over the drawing. Every button has a tooltip; toggles report `aria-pressed`; glyphs (▦ ⁙ □ ⤢ ✕) replaced with Lucide icons.
+- Visible zoom level (100 % = whole drawing fitted; click it to fit). Keyboard on the focused drawing: + / − zoom, 0 fit, arrow keys pan 10 %, Esc leaves full screen. Listed in the ? shortcut list and in a new **Keyboard shortcuts** section on the Help page (same data, so they cannot drift apart).
+- Equipment palette: search and Recently used already existed; group headers are now buttons with `aria-expanded` (were clickable headings, not keyboard reachable), the search box is labelled and Escape clears it, delete buttons use icons with labels.
+- Board properties: a heading over each field group when a tab shows several (General, Incomer & protection, Location & make; On the SLD keeps its own framed legend); one label column width in the inspector so fields line up across tabs; `.pn h4` on the type scale.
+- SLD results bar: ⚠ / ✓ / ✕ replaced with icons (the words stay).
+- **Export safety fix found during this milestone:** the SLD export, drawing sheets and study reports picked the drawing with `.sysdiag svg` (the first SVG in the diagram). With icons in the toolbar that would have exported an icon. The lookups now use `.sysdiag > svg` (the drawing is the diagram's direct child, also in the riser diagrams), the matching CSS rules too, and `SystemDiagram.export.test.tsx` renders the real SLD and fails if the export selector can reach a toolbar icon.
 
 ## 6 — Reports and export
 

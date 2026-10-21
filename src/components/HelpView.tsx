@@ -3,6 +3,7 @@ import type { CalcRun, StudyKey } from '../calc/runs';
 import type { MainView } from '../views';
 import { PHASE_LABEL, QUICK_PATHS, startChecklist, WORKFLOW, type ChecklistItem } from '../help/guide';
 import { Page } from './ui';
+import { SHORTCUTS } from './CommandPalette';
 
 type Go = (v: MainView | 'settings') => void;
 
@@ -74,6 +75,17 @@ export default function HelpView({ project, run, stale, saved, onGo }: { project
             ))}
           </tbody>
         </table>
+      </section>
+      <section className="card u-mb-3" style={{ marginTop: 12 }}>
+        <h4>Keyboard shortcuts <span className="m">— also with ? anywhere</span></h4>
+        <div className="kbd-cols">
+          {SHORTCUTS.map(([group, rows]) => (
+            <section key={group}>
+              <h4>{group}</h4>
+              <dl>{rows.map(([k, what]) => <div key={k + what}><dt><kbd>{k}</kbd></dt><dd>{what}</dd></div>)}</dl>
+            </section>
+          ))}
+        </div>
       </section>
     </Page>
   );

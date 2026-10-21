@@ -2,7 +2,7 @@ import { ask } from './ConfirmDialog';
 import { useMemo, useRef, useState } from 'react';
 import {
   Activity, CircleDot, Link2, ShieldAlert, ToggleLeft, ZapOff, BatteryCharging, BatteryFull, Star, Cable, Car, Cog, Cpu, Database, Fan, Flame, Gauge, Lightbulb, PanelLeftClose, PanelLeftOpen, Power, ShieldCheck, Snowflake, Sun, Waves, Zap,
-  ChevronDown, ChevronRight, Pencil, Copy, Download, Upload, Plus, Plug, Heater, PanelTop, Info, type LucideIcon
+  ChevronDown, ChevronRight, Pencil, Copy, Download, Upload, Plus, Plug, Heater, PanelTop, Info, X, type LucideIcon
 } from 'lucide-react';
 import { dropHint, itemKey, PALETTE, type PaletteEntry, type PaletteItem } from '../model/sldEdit';
 import { BUILT_IN_PRESETS, presetCard, presetParts, type FeederPreset } from '../model/presets';
@@ -117,7 +117,8 @@ export default function EquipmentPalette({ docked, onHint, library = [], presets
           <button className="icon-btn" onClick={toggle} title="Hide the library"><PanelLeftClose size={15} /></button>
         </div>
       </>}
-      <input className="palette-search" type="search" placeholder="Search… (AHU, RCD, SMDB)" value={query} onChange={(e) => setQuery(e.target.value)} />
+      <input className="palette-search" type="search" aria-label="Search the equipment library" placeholder="Search… (AHU, RCD, SMDB)" value={query} onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Escape' && query) { e.stopPropagation(); setQuery(''); } }} />
       {onQty && (
         <label className="palette-qty" title="Loads and presets dropped on a busbar are added this many times">
           Drop <input inputMode="numeric" value={qty} onChange={(e) => onQty(Math.max(1, Math.min(50, Math.round(+e.target.value) || 1)))} /> at a time
@@ -132,10 +133,14 @@ export default function EquipmentPalette({ docked, onHint, library = [], presets
         const closed = !q && collapsed.includes(group);
         return (
           <div key={group} className="palette-group">
-            <h5 onClick={() => !q && setCollapsed(closed ? collapsed.filter((g) => g !== group) : [...collapsed, group])} className={q ? '' : 'toggle'}>
-              {!q && (closed ? <ChevronRight size={12} /> : <ChevronDown size={12} />)} {group}
-              {!q && <span className="m palette-count">{entries.length}</span>}
-            </h5>
+            {q ? <h5>{group}</h5> : (
+              <h5 className="toggle">
+                <button type="button" aria-expanded={!closed} onClick={() => setCollapsed(closed ? collapsed.filter((g) => g !== group) : [...collapsed, group])}>
+                  {closed ? <ChevronRight size={12} aria-hidden /> : <ChevronDown size={12} aria-hidden />} {group}
+                  <span className="m palette-count">{entries.length}</span>
+                </button>
+              </h5>
+            )}
             {isComp && !closed && onEditComponent && (
               <div className="palette-tools">
                 <button className="icon-btn" title="New component" onClick={() => onEditComponent(null)}><Plus size={13} /></button>
@@ -203,7 +208,7 @@ export default function EquipmentPalette({ docked, onHint, library = [], presets
                         {item.kind === 'preset' && item.preset.id.startsWith('cmp-') && onEditComponent && (
                           <>
                             <button className="icon-btn" title="Edit this component (updates every copy)" onClick={(e) => { e.stopPropagation(); onEditComponent(item.preset.id.slice(4)); }}><Pencil size={12} /></button>
-                            {onDeleteComponent && <button className="icon-btn" title="Delete the component" onClick={async (e) => { e.stopPropagation(); if (await ask(`Delete the component “${label}”? Copies on the SLD stay as ordinary loads.`)) onDeleteComponent(item.preset.id.slice(4)); }}>✕</button>}
+                            {onDeleteComponent && <button className="icon-btn" title="Delete the component" onClick={async (e) => { e.stopPropagation(); if (await ask(`Delete the component “${label}”? Copies on the SLD stay as ordinary loads.`)) onDeleteComponent(item.preset.id.slice(4)); }} aria-label={`Delete the component ${label}`}><X size={12} aria-hidden /></button>}
                           </>
                         )}
                         {item.kind === 'preset' && !item.preset.id.startsWith('cmp-') && onEditPreset && (
@@ -213,7 +218,7 @@ export default function EquipmentPalette({ docked, onHint, library = [], presets
                         )}
                         {mine && onEditPreset && <button className="icon-btn" title="Duplicate" onClick={(e) => { e.stopPropagation(); onEditPreset(item.preset, 'copy'); }}><Copy size={12} /></button>}
                         {mine && onDeletePreset && item.kind === 'preset' && (
-                          <button className="icon-btn" title={`Delete the preset “${label}”`} onClick={async (e) => { e.stopPropagation(); if (await ask(`Delete the preset “${label}”?`)) onDeletePreset(item.preset.id); }}>✕</button>
+                          <button className="icon-btn" title={`Delete the preset “${label}”`} onClick={async (e) => { e.stopPropagation(); if (await ask(`Delete the preset “${label}”?`)) onDeletePreset(item.preset.id); }} aria-label={`Delete the preset ${label}`}><X size={12} aria-hidden /></button>
                         )}
                         <button className={`icon-btn fav${fav ? ' on' : ''}`} title={fav ? 'Remove from favourites' : 'Add to favourites'} onClick={(e) => { e.stopPropagation(); setFavs(fav ? favs.filter((k) => k !== key) : [...favs, key]); }}>
                           <Star size={12} fill={fav ? 'currentColor' : 'none'} />

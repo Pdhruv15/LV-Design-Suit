@@ -57,7 +57,7 @@ async function captureSld(drawing: Project, data: CalcData, key: StudyReportKind
       />
     ));
     await new Promise((r) => requestAnimationFrame(() => r(null)));
-    const svg = host.querySelector<SVGSVGElement>('.sysdiag svg');
+    const svg = host.querySelector<SVGSVGElement>('.sysdiag > svg');
     return svg ? printableSvg(svg, Number(svg.dataset.w), Number(svg.dataset.h)) : undefined;
   } finally {
     root.unmount();

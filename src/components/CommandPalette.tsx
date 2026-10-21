@@ -85,7 +85,10 @@ export const SHORTCUTS: [string, [string, string][]][] = [
     ['V', 'Select tool'], ['H', 'Pan tool'],
     [`${mod}C / ${mod}V`, 'Copy / paste the selected board'],
     ['Delete', 'Delete the selected board or circuit'],
-    ['F2', 'Edit the focused board or circuit']
+    ['F2', 'Edit the focused board or circuit'],
+    ['+ / −', 'Zoom in / out (click the drawing first)'], ['0', 'Fit the whole drawing'],
+    ['← ↑ → ↓', 'Pan the drawing'], ['Scroll', 'Zoom at the pointer'],
+    ['Esc', 'Leave full screen']
   ]],
   ['Panel tree', [
     ['Tab / ⇧Tab', 'Indent / outdent (change what supplies it)'],

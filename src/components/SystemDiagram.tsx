@@ -1,3 +1,4 @@
+import { Grid3x3, Grip, Maximize2, Minimize2, Scan, Square, ZoomIn, ZoomOut } from 'lucide-react';
 import { withNetwork } from '../calc/network';
 import { txTag } from '../model/transformers';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
@@ -474,6 +475,8 @@ export default function SystemDiagram({
     if (!pt) return;
     setVb((v) => { const w = Math.min(v.w, 1400), h = (w / v.w) * v.h; return { x: pt.x - w / 2, y: pt.y - h / 2, w, h }; });
   }, [focus, layout]);
+  /** Zoom level shown in the toolbar: 100 % = the whole drawing fitted. */
+  const zoomPct = Math.round((W / vb.w) * 100);
   function zoom(factor: number, cx = vb.x + vb.w / 2, cy = vb.y + vb.h / 2) {
     setVb((v) => {
       const w = Math.min(Math.max(v.w * factor, 200), layout.width * 3);
@@ -637,21 +640,45 @@ export default function SystemDiagram({
     <div
       ref={rootRef}
       className={`sysdiag ${tool === 'pan' ? 'pan' : ''}${dropCls('canvas')}${stale ? ' stale' : ''}${lodLevel}`}
+      tabIndex={0}
+      aria-label="Single line diagram. Plus and minus zoom, 0 fits, arrow keys pan."
+      onKeyDown={(e) => {
+        // Keyboard zoom and pan while the drawing (or a board or circuit on it) has focus; not in text boxes or buttons.
+        if (e.ctrlKey || e.metaKey || e.altKey || (e.target as HTMLElement).closest('input,select,textarea,button,[contenteditable="true"]')) return;
+        const pan = (dx: number, dy: number) => setVb((v) => ({ ...v, x: v.x + dx * v.w * 0.1, y: v.y + dy * v.h * 0.1 }));
+        const act: Record<string, () => void> = {
+          '+': () => zoom(1 / 1.25), '=': () => zoom(1 / 1.25), '-': () => zoom(1.25), '_': () => zoom(1.25), '0': () => setVb(full),
+          ArrowLeft: () => pan(-1, 0), ArrowRight: () => pan(1, 0), ArrowUp: () => pan(0, -1), ArrowDown: () => pan(0, 1)
+        };
+        const f = act[e.key];
+        if (f) { e.preventDefault(); f(); }
+      }}
       style={{ ...(resizable && !fullScreen && (height ?? autoHeight) ? { height: height ?? autoHeight } : {}), ...(lodLevel === ' lod-far' ? { '--lod-fs': `${Math.min(22, 10 / pxPerUnit).toFixed(1)}px` } : {}) } as CSSProperties}
     >
-      <div className="sysdiag-tools" role="toolbar" aria-label="Diagram zoom">
-        {onDrawing && <button className="chip" onClick={() => onDrawing({ symbols: iec ? 'simple' : 'iec' })} title={iec ? 'IEC 60617 symbols — switch to simple icons' : 'Simple icons — switch to IEC 60617 symbols'}>{iec ? 'IEC' : 'Icons'}</button>}
-        {onDrawing && <button className={`chip${dewa ? ' on' : ''}`} onClick={() => onDrawing({ sldStyle: dewa ? 'standard' : undefined })} title="DEWA submission style: a frame around each panel with its summary (LOC, TCL, DF, MDL), way numbers and DEWA wording">DEWA</button>}
-        {onDrawing && <button className={`chip${project.drawing?.cableLabels === 'ref' ? ' on' : ''}`} onClick={() => onDrawing({ cableLabels: project.drawing?.cableLabels === 'ref' ? undefined : 'ref' })} title="Cable text as reference numbers (CABLE SCHEDULE legend). Off: full description on screen; drawing sheets switch to numbers by themselves when crowded.">Cable no.</button>}
-        {lod && <button className={`chip${detail === 'all' ? ' on' : ''}`} onClick={toggleDetail} aria-pressed={detail === 'all'}
-          title={detail === 'auto' ? 'Text follows the zoom: names only when zoomed out, ratings and cables closer in. Click to always show all text.' : 'All text shown at every zoom. Click to let the text follow the zoom.'}>
-          {detail === 'auto' ? 'Text: Auto' : 'Text: All'}
-        </button>}
-        <button className="chip" onClick={nextGrid} title="Grid: lines, dots or none">{grid === 'lines' ? '▦' : grid === 'dots' ? '⁙' : '□'}</button>
-        <button className="chip" onClick={() => zoom(1 / 1.25)} aria-label="Zoom in">+</button>
-        <button className="chip" onClick={() => zoom(1.25)} aria-label="Zoom out">−</button>
-        <button className="chip" onClick={() => setVb(full)}>Fit</button>
-        {onToggleFullScreen && <button className="chip" onClick={onToggleFullScreen} title={fullScreen ? 'Exit full screen (Esc)' : 'Full screen'}>{fullScreen ? '✕' : '⤢'}</button>}
+      <div className="sysdiag-tools" role="toolbar" aria-label="Diagram tools">
+        {(onDrawing || lod) && (
+          <div className="sd-group" role="group" aria-label="Drawing">
+            <span className="sd-cap">Drawing</span>
+            {onDrawing && <button className="chip" onClick={() => onDrawing({ symbols: iec ? 'simple' : 'iec' })} title={iec ? 'IEC 60617 symbols — click for simple icons' : 'Simple icons — click for IEC 60617 symbols'}>{iec ? 'IEC' : 'Icons'}</button>}
+            {onDrawing && <button className={`chip${dewa ? ' on' : ''}`} aria-pressed={dewa} onClick={() => onDrawing({ sldStyle: dewa ? 'standard' : undefined })} title="DEWA submission style: a frame around each panel with its summary (LOC, TCL, DF, MDL), way numbers and DEWA wording">DEWA</button>}
+            {onDrawing && <button className={`chip${project.drawing?.cableLabels === 'ref' ? ' on' : ''}`} aria-pressed={project.drawing?.cableLabels === 'ref'} onClick={() => onDrawing({ cableLabels: project.drawing?.cableLabels === 'ref' ? undefined : 'ref' })} title="Cable text as reference numbers (CABLE SCHEDULE legend). Off: full description on screen; drawing sheets switch to numbers by themselves when crowded.">Cable no.</button>}
+            {lod && <button className={`chip${detail === 'all' ? ' on' : ''}`} onClick={toggleDetail} aria-pressed={detail === 'all'}
+              title={detail === 'auto' ? 'Text follows the zoom: names only when zoomed out, ratings and cables closer in. Click to always show all text.' : 'All text shown at every zoom. Click to let the text follow the zoom.'}>
+              {detail === 'auto' ? 'Text: Auto' : 'Text: All'}
+            </button>}
+          </div>
+        )}
+        <div className="sd-group" role="group" aria-label="View">
+          <span className="sd-cap">View</span>
+          <button className="chip" onClick={nextGrid} title={`Grid: ${grid === 'lines' ? 'lines' : grid === 'dots' ? 'dots' : 'none'} — click for ${grid === 'lines' ? 'dots' : grid === 'dots' ? 'none' : 'lines'}`} aria-label={`Grid: ${grid}`}>
+            {grid === 'lines' ? <Grid3x3 size={15} aria-hidden /> : grid === 'dots' ? <Grip size={15} aria-hidden /> : <Square size={15} aria-hidden />}
+          </button>
+          <button className="chip" onClick={() => zoom(1.25)} aria-label="Zoom out" title="Zoom out (− with the drawing focused, or the mouse wheel)"><ZoomOut size={15} aria-hidden /></button>
+          <button className="chip sd-zoom" onClick={() => setVb(full)} title="Zoom level, relative to the whole drawing — click to fit (0)" aria-label={`Zoom ${zoomPct} %, click to fit`}>{zoomPct} %</button>
+          <button className="chip" onClick={() => zoom(1 / 1.25)} aria-label="Zoom in" title="Zoom in (+ with the drawing focused, or the mouse wheel)"><ZoomIn size={15} aria-hidden /></button>
+          <button className="chip" onClick={() => setVb(full)} aria-label="Fit the drawing" title="Fit the whole drawing (0)"><Scan size={15} aria-hidden /></button>
+          {onToggleFullScreen && <button className="chip" onClick={onToggleFullScreen} aria-label={fullScreen ? 'Exit full screen' : 'Full screen'} title={fullScreen ? 'Exit full screen (Esc)' : 'Full screen'}>{fullScreen ? <Minimize2 size={15} aria-hidden /> : <Maximize2 size={15} aria-hidden />}</button>}
+        </div>
       </div>
       {lodLevel && (
         <div className="lod-hint" role="status">

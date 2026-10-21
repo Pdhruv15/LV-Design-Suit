@@ -88,7 +88,11 @@ tr.sel{background:color-mix(in srgb,var(--acc) 12%,transparent);box-shadow:inset
 .kv{display:grid;grid-template-columns:auto 1fr;gap:5px 12px}
 .kv dt{color:var(--mut)}
 .kv dd{margin:0;text-align:right}
-.pn h4{margin:var(--space-3) 0 var(--space-1);font-size:12px;font-weight:500;color:var(--mut)}
+.pn h4{margin:var(--space-3) 0 var(--space-1);font-size:var(--fs-xs);font-weight:600;letter-spacing:.03em;color:var(--mut)}
+/* Properties panel: a heading across both columns of a field group; labels in one column width so fields line up across tabs. */
+.form-kv .kv-head{grid-column:1/-1;margin:var(--space-2) 0 0;padding-top:var(--space-2);border-top:1px solid var(--line);font-size:var(--fs-xs);font-weight:600;letter-spacing:.03em;color:var(--mut)}
+.form-kv .kv-head:first-child{margin-top:0;padding-top:0;border-top:0}
+.side .form-kv{grid-template-columns:minmax(96px,40%) minmax(0,1fr)}
 .supply-chain{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:0 0 var(--space-2);font-size:12px}
 .supply-chain span{display:inline-flex;align-items:center;gap:4px}
 .supply-chain span:first-child,.supply-chain b{padding:2px 7px;border-radius:5px;background:var(--p2);font-weight:400}
@@ -145,10 +149,15 @@ code{background:var(--p2);padding:1px 5px;border-radius:4px}
 .sld-edit.full{position:fixed;inset:0;z-index:60;background:var(--bg);padding:10px}
 .sld-edit.full .sysdiag{height:auto;margin-top:0}
 .sld-edit.full .palette{max-height:none}
-.sysdiag svg{width:100%;height:100%;display:block;cursor:grab;touch-action:none;user-select:none}
-.sysdiag svg:active{cursor:grabbing}
-.sysdiag-tools{position:absolute;top:8px;right:8px;display:flex;gap:4px;z-index:1}
+.sysdiag>svg{width:100%;height:100%;display:block;cursor:grab;touch-action:none;user-select:none}
+.sysdiag>svg:active{cursor:grabbing}
+.sysdiag-tools{position:absolute;top:8px;right:8px;display:flex;gap:var(--space-2);z-index:1}
 .sysdiag-tools .chip{padding:0 var(--space-2);min-width:var(--control-h)}
+/* Canvas toolbar: labelled groups (Drawing, View) on a panel so they stay readable over the drawing. */
+.sd-group{display:flex;align-items:center;gap:4px;padding:3px 4px 3px var(--space-2);background:color-mix(in srgb,var(--panel) 92%,transparent);border:1px solid var(--line);border-radius:var(--radius-md);box-shadow:var(--shadow-pop)}
+.sd-cap{font-size:var(--fs-xs);color:var(--mut);margin-right:2px}
+.sysdiag-tools .sd-zoom{min-width:58px;font-variant-numeric:tabular-nums}
+.sysdiag:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
 .sysdiag .bus{stroke:var(--bus);stroke-width:4;stroke-linecap:round}
 .sysdiag .bus.sel{stroke:var(--acc)}
 .sysdiag .ln.mv{stroke:var(--acc);opacity:.7}
@@ -252,7 +261,7 @@ tr.total td{background:var(--p2);font-weight:600}
 .ribbon-group.more{position:static}
 .ribbon-menu{position:absolute;top:100%;z-index:60;display:flex;flex-direction:column;min-width:200px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px;box-shadow:var(--shadow-pop)}
 .ribbon-menu button{flex-direction:row;justify-content:flex-start;min-width:0;padding:8px 10px;font-size:13px}
-.sysdiag.pan svg,.sysdiag.pan .fd,.sysdiag.pan .bd{cursor:grab}
+.sysdiag.pan>svg,.sysdiag.pan .fd,.sysdiag.pan .bd{cursor:grab}
 /* ---- Diagram results ---- */
 .results-bar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px}
 .results-bar .toggle{border:1px solid var(--line);border-radius:14px;padding:3px 10px;color:var(--mut);font-size:12px}
@@ -384,7 +393,7 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 .sysdiag .bd.drop-ok .bus,.sysdiag .bd.drop-ok .box{stroke:var(--acc);stroke-width:5}
 .sysdiag .bd.drop-ok .box{stroke-width:2.5}
 .sysdiag .fd.drop-ok .ln,.sysdiag .fd.drop-ok .sym,.sysdiag .fd.drop-ok .load{stroke:var(--acc);stroke-width:2.5}
-.sysdiag.drop-ok svg{outline:2px dashed var(--acc);outline-offset:-4px}
+.sysdiag.drop-ok>svg{outline:2px dashed var(--acc);outline-offset:-4px}
 .sysdiag .cable-lbl{cursor:pointer}
 .sysdiag .cable-lbl:hover{fill:var(--acc);text-decoration:underline dotted}
 .move-ghost{position:absolute;z-index:5;pointer-events:none;background:var(--acc);color:var(--on-acc);font-size:12px;font-weight:600;padding:3px 8px;border-radius:5px;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.35)}
@@ -609,7 +618,8 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 .palette-search{width:100%;box-sizing:border-box;background:var(--p2);color:var(--tx);border:1px solid var(--field-line);border-radius:6px;padding:5px 7px;font:inherit;font-size:var(--fs-sm);margin:4px 0}
 .palette-qty{display:flex;align-items:center;gap:5px;font-size:var(--fs-sm);color:var(--mut);margin-bottom:2px}
 .palette-qty input{width:36px;padding:2px 4px;text-align:center}
-.palette-group h5.toggle{cursor:pointer;user-select:none;display:flex;align-items:center;gap:3px}
+.palette-group h5.toggle button{display:flex;align-items:center;gap:3px;width:100%;padding:2px 0;font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit;user-select:none;text-align:left}
+.palette-group h5.toggle button:hover{color:var(--tx)}
 .palette-count{margin-left:auto;font-size:10px;font-weight:400}
 .palette-tools{display:flex;gap:2px;margin:-2px 0 4px}
 .palette-acts{margin-left:auto;display:inline-flex;gap:0}
