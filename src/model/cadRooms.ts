@@ -34,6 +34,11 @@ export function guessRole(layer: CadLayerStats): CadLayerRole {
 export function layerMapFor(project: Project, layers: CadLayerStats[]): CadLayerMap[] {
   return layers.map((l) => ({ layer: l.name, role: project.cadLayers?.find((m) => m.layer.toLowerCase() === l.name.toLowerCase())?.role ?? guessRole(l) }));
 }
+/** The project with this plan's layer roles saved over its earlier ones (other layers kept). */
+export const withLayerMap = (project: Project, layers: CadLayerMap[]): Project => ({
+  ...project,
+  cadLayers: [...(project.cadLayers ?? []).filter((m) => !layers.some((l) => l.layer.toLowerCase() === m.layer.toLowerCase())), ...layers]
+});
 export const layersWith = (map: CadLayerMap[], role: CadLayerRole) => new Set(map.filter((m) => m.role === role).map((m) => m.layer.toLowerCase()));
 
 /** Area of a closed outline in drawing units², arc segments included (bulge = tan(θ/4)). */
@@ -157,6 +162,5 @@ export function applyRooms(project: Project, accepted: RoomProposal[], buildingI
   }
   const chosen = accepted.filter((a) => a.type).map((a) => ({ name: a.name, type: a.type! }));
   const remembered = [...(project.cadRoomTypes ?? []).filter((r) => !chosen.some((c) => c.name.toLowerCase() === r.name.toLowerCase())), ...chosen];
-  const savedLayers = [...(project.cadLayers ?? []).filter((m) => !layers.some((l) => l.layer.toLowerCase() === m.layer.toLowerCase())), ...layers];
-  return { ...project, building: { ...info, rooms }, cadLayers: savedLayers, ...(remembered.length ? { cadRoomTypes: remembered } : {}) };
+  return { ...withLayerMap(project, layers), building: { ...info, rooms }, ...(remembered.length ? { cadRoomTypes: remembered } : {}) };
 }

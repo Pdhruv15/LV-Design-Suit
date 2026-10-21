@@ -100,5 +100,17 @@ plan…* → Read plan → layer table → level → rooms:
 - review against Building information rooms on that level: same name → area update, else a new room; rooms not on
   the plan are listed and kept. Board locations use the room-outline layers of the map when set.
 
-Next: layer-map templates per consultant (saved in the LV Database), tray and route layers linked automatically
-from the map, and the same actions inside OpenCADStudio (add-in).
+## 8. Auto-link from the layer map — done
+With the layer map, routes and trays need no picking (2D plan geometry only):
+- **Cable routes** on cable-route layers: curves whose ends coincide (≤ 0.1 m) are joined, except ends at a board
+  (≤ 0.6 m from its symbol — separate cables end side by side there). The two free ends are matched to what they
+  touch (≤ 1 m): board ↔ board → the feeder between them; board ↔ fixture with a CCT attribute → that circuit on
+  that board. The path is oriented from the feeder's own board. Branched, looped or unmatched routes are listed with
+  the reason, to link by hand. Routes linked by hand win.
+- **Tray runs** on tray layers: named by the nearest label within 1.5 m ("TRAY A", "CT-2", "Cable tray B", or a short
+  name on a tray layer); runs joined to a named run take its name; the rest are T1, T2…; runs linked by hand keep
+  their name.
+- Cable lengths and tray routes dialogs show the layer table (shared with rooms) and save the map on apply.
+
+Next: layer-map templates per consultant (saved in the LV Database), and the same actions inside OpenCADStudio
+(add-in). 3D (elevations, vertical routes) waits for a BIM link — see Future development.

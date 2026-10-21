@@ -1,14 +1,10 @@
 import { useState } from 'react';
 import { buildingInfoOf, roomTypesOf } from '../calc/building';
-import { applyRooms, LAYER_ROLES, layerMapFor, proposeRooms, roomsFromPlan } from '../model/cadRooms';
+import { applyRooms, layerMapFor, proposeRooms, roomsFromPlan } from '../model/cadRooms';
+import CadLayerTable from './CadLayerTable';
 import type { CadPlan } from '../model/cadPlaces';
 import { floorLabel, floorList } from '../model/levels';
 import type { CadLayerMap, CadLayerRole, Project } from '../types';
-
-const holds = (l: NonNullable<CadPlan['layers']>[number]) => [
-  l.outlines && `${l.outlines} outline${l.outlines === 1 ? '' : 's'}`, l.hatches && `${l.hatches} hatch${l.hatches === 1 ? '' : 'es'}`,
-  l.curves && `${l.curves} line${l.curves === 1 ? '' : 's'}`, l.texts && `${l.texts} text${l.texts === 1 ? '' : 's'}`, l.blocks && `${l.blocks} block${l.blocks === 1 ? '' : 's'}`
-].filter(Boolean).join(' · ');
 
 /** Rooms and areas from an architect's floor plan: the engineer says what each layer is (room outline, room name…),
  * then each closed outline on a room layer becomes a room with its area and the name inside it, for the chosen
@@ -91,22 +87,7 @@ export default function CadRoomsDialog({ project, onApply, onClose }: {
         {plan && (
           <>
             <h4>Layers</h4>
-            <table className="bi-table compact">
-              <thead><tr><th>Layer</th><th>Holds</th><th>Is</th></tr></thead>
-              <tbody>
-                {(plan.layers ?? []).map((l) => (
-                  <tr key={l.name}>
-                    <td>{l.name}</td>
-                    <td>{holds(l) || '—'}</td>
-                    <td>
-                      <select aria-label={`Layer ${l.name} is`} value={roles.find((m) => m.layer === l.name)?.role ?? 'ignore'} onChange={(e) => setRole(l.name, e.target.value as CadLayerRole)}>
-                        {LAYER_ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-                      </select>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <CadLayerTable layers={plan.layers ?? []} roles={roles} onChange={setRole} />
 
             {!floors.length ? (
               <p className="m">Add the building and its levels in Building information first; rooms are kept per level.</p>

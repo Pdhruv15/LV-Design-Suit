@@ -179,8 +179,12 @@ describe('OpenCADStudio live REST session', () => {
         if (route.startsWith('/sysvars')) return { result: { values: { insunits: 6 } } };
         return {};
       }
-    }) as unknown as { open: (e: string, d: string[]) => Promise<unknown>; readPlan: () => Promise<unknown> };
+    }) as unknown as { open: (e: string, d: string[]) => Promise<unknown>; readPlan: (o?: { curveLayers?: string[] }) => Promise<unknown> };
     await session.open('/x', ['/tmp/plan.dwg']);
+    // Curves come back only for the layers asked for.
+    expect(((await session.readPlan({ curveLayers: ['e-cable'] })) as { curves: unknown[] }).curves).toEqual([
+      { layer: 'E-CABLE', points: [[0, 0], [10, 0], [10, 10]], length: 20 }
+    ]);
     expect(await session.readPlan()).toEqual({
       units: 6,
       places: [{ boardId: 'MDB-1', x: 20, y: 30 }],
@@ -188,6 +192,8 @@ describe('OpenCADStudio live REST session', () => {
       outlines: [{ layer: 'A-ROOM', points: [[0, 0], [10, 0], [10, 10]] }],
       texts: [{ layer: 'A-ROOM-NAME', x: 5, y: 5, text: 'STORE' }],
       tags: [],
+      curves: [], // none asked for, none linked by hand
+      fixtures: [{ x: 1, y: 1, cct: 'DB-GF1/R1' }],
       layers: [
         { name: 'A-ROOM', outlines: 1, curves: 0, texts: 0, blocks: 0, hatches: 0 },
         { name: 'A-ROOM-NAME', outlines: 0, curves: 0, texts: 1, blocks: 0, hatches: 0 },

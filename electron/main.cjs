@@ -339,7 +339,7 @@ handle('opencad:blocks', () => openCadSession.readBlocks());
 handle('opencad:routes', () => openCadSession.readRoutes());
 handle('opencad:linkSelection', (_evt, feederId) => openCadSession.linkSelection(typeof feederId === 'string' ? feederId : ''));
 // Board locations: what the floor plan says (board symbols, room outlines, names); mark the selection as a board.
-handle('opencad:plan', () => openCadSession.readPlan());
+handle('opencad:plan', (_evt, options) => openCadSession.readPlan({ curveLayers: options && Array.isArray(options.curveLayers) ? options.curveLayers.slice(0, 200) : [] }));
 handle('opencad:placeSelection', (_evt, boardId) => openCadSession.placeSelection(typeof boardId === 'string' ? boardId : ''));
 // Tray routes: tray runs and cable routes as paths; link the selected curves to a tray route by name.
 handle('opencad:trays', () => openCadSession.readTrays());

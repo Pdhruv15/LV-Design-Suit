@@ -13,6 +13,10 @@ export interface CadPlan {
   tags?: { layer: string; x: number; y: number; name?: string; number?: string }[];
   /** What each layer holds, for mapping layers to their meaning. */
   layers?: CadLayerStats[];
+  /** Open curves on the layers asked for (tray and route layers), and curves linked by hand ("route:…", "tray:…"). */
+  curves?: { layer: string; points: [number, number][]; length: number; tag?: string }[];
+  /** Fixture blocks with a circuit attribute (CCT…), for matching a cable route's end to its circuit. */
+  fixtures?: { x: number; y: number; cct: string }[];
 }
 
 export interface CadLayerStats { name: string; outlines: number; curves: number; texts: number; blocks: number; hatches: number }
