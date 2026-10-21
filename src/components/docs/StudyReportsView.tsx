@@ -13,6 +13,7 @@ import { workbookBytes } from '../../docs/formWorkbook';
 import { buildStudyDocx, docxBytes } from '../../docs/studyWord';
 import { mergePdfs } from '../../docs/mergePdf';
 import { packageCoverHtml, packageStamp, snapshotId, unresolvedChecks, type PackageMeta } from '../../docs/issuePackage';
+import { setOf } from '../../model/drawingSet';
 import { PDFDocument } from 'pdf-lib';
 import { buildDashboard } from '../../calc/dashboard';
 import { buildDashboardHtml } from '../../docs/dashboardPdf';
@@ -208,9 +209,16 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
       // The study report exactly as Export PDF makes it: contents page numbers, header and footer.
       const report = (pages: Record<string, number>) => buildStudyReportHtml(p, snapScope, snapSections, meta, slds, { ...basisOpt, data: snapData, pages });
       parts.push((await renderPdf(report({}), { cssPages: true, frame: pageFrame(reportDoc(p, meta)), paginate: report }, title))!);
+      const titles = ['Project summary', title];
+      // The drawing set from the same frozen run: register and every sheet, as Export set makes them.
+      const drawings = setup.packageDrawings !== false
+        ? await (await import('./sheetRender')).drawingSetPdfParts(p, setOf(p), snap, toBytes)
+        : { parts: [], titles: [], sheets: 0, register: false };
+      parts.push(...drawings.parts);
+      titles.push(...drawings.titles);
       const schedules = panelScheduleDocs(p, snapScope.boards);
       for (const schedule of schedules) parts.push(await toBytes({ html: schedule.html, cssPages: true }));
-      const titles = ['Project summary', title, ...schedules.map((schedule) => schedule.title)];
+      titles.push(...schedules.map((schedule) => schedule.title));
       const counts = await Promise.all(parts.map(async (bytes) => (await PDFDocument.load(bytes)).getPageCount()));
       const pm: PackageMeta = { ...meta, calculatedAt: snap.at, snapshot: snapshotId(p) };
       const list = titles.map((t, i) => ({ title: t, pages: counts[i] }));
@@ -225,7 +233,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
       const bytes = await mergePdfs([cover, ...parts], packageStamp(p, pm), ['Issue package — contents and open items', ...titles]);
       const m = await saveBinary(`${safeFileName(`${project.name} ${setup.docNo ?? ''} issue package ${pm.snapshot}`.trim())}.pdf`, bytes, 'PDF', 'pdf', 'application/pdf');
       const open = unresolvedChecks(snapSections).length;
-      if (m) onStatus(`${m} — snapshot ${pm.snapshot}: cover, summary, ${snapSections.length} stud${snapSections.length > 1 ? 'ies' : 'y'}, ${schedules.length} panel schedule${schedules.length === 1 ? '' : 's'} · ${open} unresolved check${open === 1 ? '' : 's'} listed`);
+      if (m) onStatus(`${m} — snapshot ${pm.snapshot}: cover, summary, ${snapSections.length} stud${snapSections.length > 1 ? 'ies' : 'y'}, ${drawings.sheets ? `${drawings.sheets} drawing${drawings.sheets === 1 ? '' : 's'}${drawings.register ? ' + register' : ''}, ` : ''}${schedules.length} panel schedule${schedules.length === 1 ? '' : 's'} · ${open} unresolved check${open === 1 ? '' : 's'} listed`);
     } catch (e) {
       onStatus(`Issue package failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -355,6 +363,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
           <label className="sr-check"><input type="checkbox" checked={setup.designBasis !== false} onChange={(e) => set({ designBasis: e.target.checked })} /> Executive summary and design basis (scope, system description, codes and standards, design criteria, and the load assessment when added from its page) before the studies</label>
           <label className="sr-check"><input type="checkbox" checked={setup.resultsSummary !== false} onChange={(e) => set({ resultsSummary: e.target.checked })} /> Results and compliance summaries (equipment, load, cables, charts, design checks) after the studies</label>
           <label className="sr-check"><input type="checkbox" checked={setup.separate} onChange={(e) => set({ separate: e.target.checked })} /> A separate PDF for each study</label>
+          <label className="sr-check"><input type="checkbox" checked={setup.packageDrawings !== false} onChange={(e) => set({ packageDrawings: e.target.checked })} /> Issue package: the drawing set (register and every sheet of Documents → Drawings, from the same calculation run)</label>
           <div className="sr-fields">
             {text('title', 'Report title', defaultTitle(setup.studies, matchingType(setup)))}
             {text('docNo', 'Document no.', 'e.g. E-CALC-003')}
