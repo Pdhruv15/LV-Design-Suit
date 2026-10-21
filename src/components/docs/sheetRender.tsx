@@ -241,29 +241,38 @@ export async function prepareSheets(project: Project, set: DrawingSet, run?: Cal
   return pages;
 }
 
+/** The drawing set as PDF parts — the drawing register (when the set has one) and every drawable sheet, built from
+ * the given calculation run — with a title for each part. Shared by Export set and the issue package, so both hold
+ * exactly the same drawings. */
+export async function drawingSetPdfParts(project: Project, set: DrawingSet, run: CalcRun | undefined, toBytes: (o: { html: string; cssPages?: boolean }) => Promise<Uint8Array>, only?: string[], withRegister = !only, prepare = prepareSheets): Promise<{ parts: Uint8Array[]; titles: string[]; sheets: number; register: boolean }> {
+  const rev = currentRevision(project);
+  const pages = await prepare(project, set, run, only);
+  const parts: Uint8Array[] = [];
+  const reg = !!set.register && withRegister && pages.length > 0;
+  if (reg) {
+    const sizes = pages.map((p) => [p.s.id, p.size] as [string, string]);
+    const rows = registerRows(only ? { ...set, sheets: set.sheets.filter((s) => only.includes(s.id)) } : set, sizes, rev?.id);
+    parts.push(await toBytes({ html: registerHtml(project, rows, rev?.id ?? '—', rev?.date ?? new Date().toISOString().slice(0, 10), set.issues, project.drawing?.company ?? project.info?.consultant ?? ''), cssPages: true }));
+  }
+  for (const p of pages) parts.push(await toBytes({ html: p.html, cssPages: true }));
+  const titles = [...(reg ? ['Drawing register'] : []), ...pages.map((p) => `${p.s.number}  ${p.s.title}`)];
+  return { parts, titles, sheets: pages.length, register: reg };
+}
+
 export async function exportDrawingSet(project: Project, set: DrawingSet, run: CalcRun | undefined, each: boolean, onStatus: (m: string) => void, only?: string[], withRegister = !only): Promise<void> {
   try {
-    const rev = currentRevision(project);
-    const pages = await prepareSheets(project, set, run, only);
     const toBytes = window.lvds?.files?.pdfBytes;
     if (each || !toBytes) {
+      const pages = await prepareSheets(project, set, run, only);
       let n = 0;
       for (const p of pages) if (await savePdf(`${safeFileName(`${p.s.number} ${p.s.title}`)}.pdf`, p.html, { pageSize: p.size, landscape: true })) n++;
       onStatus(`Saved ${n} of ${pages.length} sheets${!toBytes && !each ? ' (one PDF per sheet — the combined set needs the desktop app)' : ''}`);
       return;
     }
-    const parts: Uint8Array[] = [];
-    const reg = set.register && withRegister;
-    if (reg) {
-      const sizes = pages.map((p) => [p.s.id, p.size] as [string, string]);
-      const rows = registerRows(only ? { ...set, sheets: set.sheets.filter((s) => only.includes(s.id)) } : set, sizes, rev?.id);
-      parts.push(await toBytes({ html: registerHtml(project, rows, rev?.id ?? '—', rev?.date ?? new Date().toISOString().slice(0, 10), set.issues, project.drawing?.company ?? project.info?.consultant ?? ''), cssPages: true }));
-    }
-    for (const p of pages) parts.push(await toBytes({ html: p.html, cssPages: true }));
-    const titles = [...(reg ? ['Drawing register'] : []), ...pages.map((p) => `${p.s.number}  ${p.s.title}`)];
-    const bytes = await (await import('../../docs/mergePdf')).mergePdfs(parts, `${project.name} · SLD set · ${revisionStamp(project)}`, titles);
+    const d = await drawingSetPdfParts(project, set, run, toBytes, only, withRegister);
+    const bytes = await (await import('../../docs/mergePdf')).mergePdfs(d.parts, `${project.name} · SLD set · ${revisionStamp(project)}`, d.titles);
     const m = await saveBinary(`${safeFileName(`${project.name} SLD drawing set`)}.pdf`, bytes, 'PDF', 'pdf', 'application/pdf');
-    if (m) onStatus(`${m} — ${pages.length} sheets${reg ? ' + register' : ''}`);
+    if (m) onStatus(`${m} — ${d.sheets} sheets${d.register ? ' + register' : ''}`);
   } catch (e) {
     onStatus(`Export failed: ${e instanceof Error ? e.message : String(e)}`);
   }

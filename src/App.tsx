@@ -1,4 +1,5 @@
 import { pickProject } from './model/projectStore';
+import { autoCheckpoint } from './model/checkpoints';
 import { chooseProjectFile, downloadProjectFile } from './util/webApp';
 import WebBanner from './components/WebBanner';
 import { ask as askUser, askText, ConfirmHost, tell } from './components/ConfirmDialog';
@@ -317,6 +318,7 @@ export default function App() {
     const what = from === 'ifc' ? 'Issue the IFC package' : `Issue the ${STAGE_INFO[from].label.toLowerCase()} package and move to ${to ? STAGE_INFO[to].label : 'the next stage'}`;
     if (!(await askUser({ title: `${what}?`, message: `This records a revision (drawings ${STAGE_INFO[from].sheetStatus}) and makes it the baseline; later changes are tracked against it.`, confirmLabel: from === 'ifc' ? 'Issue IFC' : 'Issue and move on' }))) return;
     const next = advanceStage(project, { by: prefs.profile.name });
+    void autoCheckpoint(project, `Before issuing the ${STAGE_INFO[from].label.toLowerCase()} package`, undefined, setStatus);
     setProject(next, { step: true });
     setStatus(`${STAGE_INFO[from].issue} recorded as Rev ${next.revisions![next.revisions!.length - 1].id}${to && to !== from ? ` — now at ${STAGE_INFO[to].label}` : ''}`);
     if (to && to !== from) setRibbonTab(tabForStage(to));
@@ -1543,7 +1545,7 @@ export default function App() {
             {view === 'submissions' && <SubmissionsView project={project} draft={subDraft} me={prefs.profile.name ? initialsOf(prefs.profile.name) : ''} onChange={(p) => { setProject(p, { step: true }); setSubDraft(undefined); }} onStatus={setStatus} />}
             {view === 'review' && <ReviewView project={project} me={prefs.profile.name} run={run} stale={staleKeys} onChange={(p) => setProject(p)} onStatus={setStatus} onGo={(v) => setView(v)} />}
             {view === 'modifications' && <ChangesView project={project} me={prefs.profile.name} run={run} onChange={(p) => setProject(p)} onApply={(p) => setProject(p, { step: true })} onStatus={setStatus} onGo={(v) => setView(v)} />}
-            {view === 'revisions' && <><RevisionsView project={project} me={prefs.profile.name ? initialsOf(prefs.profile.name) : ''} onChange={setProject} onStatus={setStatus} /><div style={{ padding: '0 16px 16px' }}><CheckpointsPanel project={project} onRestore={(p) => setProject(p, { step: true })} onStatus={setStatus} /></div></>}
+            {view === 'revisions' && <><RevisionsView project={project} me={prefs.profile.name ? initialsOf(prefs.profile.name) : ''} onChange={setProject} onStatus={setStatus} /><div style={{ padding: '0 16px 16px' }}><CheckpointsPanel project={project} onRestore={(p) => setProject(p, { step: true })} onOpenCopy={(p, m) => guard('opening another project', () => loadIntoApp(p, undefined, m))} onStatus={setStatus} /></div></>}
             {view === 'projects' && (
               <ProjectsDashboard
                 list={projectList}
@@ -1658,28 +1660,28 @@ export default function App() {
       {showCadRooms && (
         <Suspense fallback={null}><CadRoomsDialog
           project={project}
-          onApply={(next, message) => { setProject(next, { step: true }); setStatus(message); setShowCadRooms(false); }}
+          onApply={(next, message) => { void autoCheckpoint(project, 'Before Rooms and areas from CAD', undefined, setStatus); setProject(next, { step: true }); setStatus(message); setShowCadRooms(false); }}
           onClose={() => setShowCadRooms(false)}
         /></Suspense>
       )}
       {showCadTrays && (
         <Suspense fallback={null}><CadTraysDialog
           project={project}
-          onApply={(next, message) => { setProject(next, { step: true }); setStatus(message); setShowCadTrays(false); }}
+          onApply={(next, message) => { void autoCheckpoint(project, 'Before Tray routes from CAD', undefined, setStatus); setProject(next, { step: true }); setStatus(message); setShowCadTrays(false); }}
           onClose={() => setShowCadTrays(false)}
         /></Suspense>
       )}
       {showCadPlaces && (
         <Suspense fallback={null}><CadPlacesDialog
           project={project}
-          onApply={(next, message) => { setProject(next, { step: true }); setStatus(message); setShowCadPlaces(false); }}
+          onApply={(next, message) => { void autoCheckpoint(project, 'Before Board locations from CAD', undefined, setStatus); setProject(next, { step: true }); setStatus(message); setShowCadPlaces(false); }}
           onClose={() => setShowCadPlaces(false)}
         /></Suspense>
       )}
       {showCadLengths && (
         <Suspense fallback={null}><CadLengthsDialog
           project={project}
-          onApply={(next, message) => { setProject(next, { step: true }); setStatus(message); setShowCadLengths(false); }}
+          onApply={(next, message) => { void autoCheckpoint(project, 'Before Cable lengths from CAD', undefined, setStatus); setProject(next, { step: true }); setStatus(message); setShowCadLengths(false); }}
           onClose={() => setShowCadLengths(false)}
         /></Suspense>
       )}
@@ -1687,7 +1689,7 @@ export default function App() {
         <Suspense fallback={null}><CadLoadsDialog
           project={project}
           library={db.loads}
-          onApply={(next, message) => { setProject(next, { step: true }); setStatus(message); setShowCadLoads(false); }}
+          onApply={(next, message) => { void autoCheckpoint(project, 'Before Loads from CAD', undefined, setStatus); setProject(next, { step: true }); setStatus(message); setShowCadLoads(false); }}
           onClose={() => setShowCadLoads(false)}
         /></Suspense>
       )}
@@ -1722,7 +1724,7 @@ export default function App() {
       {conflict && (
         <ConflictDialog name={conflict.mine.name} mine={conflict.mine} disk={conflict.disk}
           onCancel={() => setConflict(null)}
-          onOverwrite={() => { setConflict(null); void saveProject(undefined, true); }}
+          onOverwrite={() => { if (conflict.disk) void autoCheckpoint(conflict.disk, 'Version on disk, before it was overwritten', undefined, setStatus); setConflict(null); void saveProject(undefined, true); }}
           onSaveCopy={() => { setConflict(null); saveAs(`${conflict.mine.name} (my changes)`); }}
           onLoadDisk={useDiskVersion} />
       )}

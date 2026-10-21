@@ -644,6 +644,8 @@ export interface StudyReportSetup {
   studies: StudyReportKind[];
   sld: boolean; // an SLD of the scope with each study's results
   separate: boolean; // one PDF per study
+  /** The drawing set (register + every sheet, from the same run) in the issue package (default on). */
+  packageDrawings?: boolean;
   title?: string;
   docNo?: string;
   projectNo?: string;

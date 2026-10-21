@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import type { Project } from '../../types';
 import { boardDemandKw } from '../../calc/electrical';
 import { isScheduleCircuit } from '../../calc/loadSchedule';
+import { autoCheckpoint } from '../../model/checkpoints';
 import { countByClass, currentRevision, diffProjects, issueRevision, nextRevisionId, restoreRevision, snapshotOf, type Change, type Snapshot } from '../../model/revisions';
 import { CLASS_LABEL, type ChangeClass } from '../../model/changeClass';
 import { baselineOf, clearBaseline, setBaseline } from '../../model/designBaseline';
@@ -59,6 +60,7 @@ export default function RevisionsView({ project, me = '', onChange, onStatus }: 
       return;
     }
     const next = issueRevision(project, { description, by });
+    void autoCheckpoint(project, `Before issuing Rev ${currentRevision(next)!.id}`, undefined, onStatus);
     onChange(next);
     setDescription('');
     setFrom(currentRevision(next)!.id);
@@ -119,6 +121,7 @@ export default function RevisionsView({ project, me = '', onChange, onStatus }: 
                     onClick={() => { onChange(setBaseline(project, r.id, me)); setFrom(r.id); setTo(CURRENT); onStatus(`Rev ${r.id} is now the baseline — your working draft is unchanged. Save the project to keep it.`); }}>Use as baseline</button>
                   <button className="chip" onClick={async () => {
                     if (!(await ask(`Replace the current design with Rev ${r.id}? Changes since the latest revision are lost unless you issue a revision first.`))) return;
+                    void autoCheckpoint(project, `Before restoring Rev ${r.id}`, undefined, onStatus);
                     onChange(restoreRevision(project, r.id));
                     onStatus(`Restored Rev ${r.id} — save the project to keep it`);
                   }}>Restore</button>
