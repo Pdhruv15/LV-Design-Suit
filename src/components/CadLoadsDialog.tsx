@@ -21,6 +21,13 @@ export default function CadLoadsDialog({ project, library, onApply, onClose }: {
   const p = { ...project, cadBlocks: map };
   const pull: CadLoadPull | null = blocks ? pullCadLoads(p, blocks, library) : null;
   const mappable = library.filter((l) => l.reference && l.column);
+  // Blocks to map, and blocks mapped here, stay listed together so a mapping can be changed after it is chosen.
+  const mapRows = pull ? [
+    ...pull.unmapped,
+    ...map.filter((r) => !pull.unmapped.some((u) => u.block.toLowerCase() === r.block.toLowerCase()))
+      .map((r) => ({ block: r.block, count: blocks!.filter((b) => b.block.toLowerCase() === r.block.toLowerCase()).length }))
+      .filter((r) => r.count > 0)
+  ] : [];
 
   async function act(kind: string, run: () => Promise<void>) {
     setBusy(kind);
@@ -32,7 +39,9 @@ export default function CadLoadsDialog({ project, library, onApply, onClose }: {
     if (r) { setNote(`Opened ${r.file} in OpenCADStudio. Pull loads when the plan is ready.`); setBlocks(null); }
   });
   const read = () => act('pull', async () => { setBlocks(await cad!.blocks!()); setSkip(new Set()); });
-  const mapBlock = (block: string, reference: string) => setMap((m) => [...m.filter((r) => r.block.toLowerCase() !== block.toLowerCase()), ...(reference ? [{ block, reference }] : [])]);
+  const rowOf = (block: string) => map.find((r) => r.block.toLowerCase() === block.toLowerCase());
+  const mapBlock = (block: string, reference: string, per = rowOf(block)?.per) =>
+    setMap((m) => [...m.filter((r) => r.block.toLowerCase() !== block.toLowerCase()), ...(reference ? [{ block, reference, ...(per && per > 1 ? { per } : {}) }] : [])]);
 
   function apply() {
     if (!pull) return;
@@ -92,21 +101,25 @@ export default function CadLoadsDialog({ project, library, onApply, onClose }: {
                 </tbody>
               </table>
             )}
-            {pull.unmapped.length > 0 && (
+            {mapRows.length > 0 && (
               <>
-                <h4>Blocks to map ({pull.unmapped.length})</h4>
+                <h4>Block mapping{pull.unmapped.length ? ` — ${pull.unmapped.length} to map` : ''}</h4>
                 <table className="bi-table compact">
-                  <thead><tr><th>Block</th><th>Count</th><th>Library item</th></tr></thead>
+                  <thead><tr><th>Block</th><th>Count</th><th>Library item</th><th title="How many of the item one block stands for, e.g. 2 for a twin socket mapped to a single socket">Each block is</th></tr></thead>
                   <tbody>
-                    {pull.unmapped.map((u) => (
+                    {mapRows.map((u) => (
                       <tr key={u.block}>
                         <td>{u.block}</td>
                         <td>{u.count}</td>
                         <td>
-                          <select aria-label={`Library item for ${u.block}`} value={map.find((r) => r.block.toLowerCase() === u.block.toLowerCase())?.reference ?? ''} onChange={(e) => mapBlock(u.block, e.target.value)}>
+                          <select aria-label={`Library item for ${u.block}`} value={rowOf(u.block)?.reference ?? ''} onChange={(e) => mapBlock(u.block, e.target.value)}>
                             <option value="">— not a load —</option>
                             {mappable.map((l) => <option key={l.reference} value={l.reference}>{l.reference} · {l.name} ({l.watts} W)</option>)}
                           </select>
+                        </td>
+                        <td>
+                          <input aria-label={`Items per ${u.block} block`} type="number" min={1} step={1} style={{ width: '4em' }} disabled={!rowOf(u.block)}
+                            value={rowOf(u.block)?.per ?? 1} onChange={(e) => mapBlock(u.block, rowOf(u.block)!.reference, Math.max(1, Math.round(Number(e.target.value) || 1)))} /> ×
                         </td>
                       </tr>
                     ))}
