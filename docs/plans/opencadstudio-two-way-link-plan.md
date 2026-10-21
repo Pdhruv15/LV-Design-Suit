@@ -42,7 +42,12 @@ PANEL attribute naming the board, or linked by hand the same way (tag `place:<bo
   smallest closed outline around the symbol on a room layer (default any layer with ROOM / SPACE / AREA, or the
   project's `cadRoomLayer`), named by the text inside nearest its centre (ALL CAPS tidied). The engineer picks the
   level the plan shows. Accepted rows set the board's `location`, `level` and `planPoint` (metres).
-- **Tray routes:** which tagged tray runs a cable route follows → feeder `trayRoute`, feeding tray sizing.
+- **Tray routes — done:** command palette → *Tray routes from CAD floor plan…*. Tray runs are linked by name
+  (*Link selection* → tag `tray:<name>`, in capitals). A feeder is on a tray where its linked cable route runs
+  within 0.5 m of the tray for more than 2 m (a square crossing reads ≈ 1 m, so it does not count); the route's
+  pieces are chained and oriented from the source board's `planPoint` when known, so `trayRoute` lists the trays
+  in order ("A-B"). Tray route lengths come from the linked runs; tray routes named for the first time are added
+  to the tray plan. Both reviewed per row.
 - **Loads from the plan — done:** see *Loads mapping* below.
 
 Each pull shows a change list to accept or reject per row.
@@ -75,5 +80,8 @@ review table. The row shows the breakdown, e.g. "48.2 m route + 6 m vertical + 3
 ## Sample
 `docs/samples/sample-ground-floor-plan.dxf` (from `node scripts/make-sample-floor-plan.mjs`): the sample project's
 villa ground floor in mm — 8 named rooms, SMDB-GF and DB-GF1 symbols with TAG attributes, `L1` lights and
-`SKT-TWIN` twin sockets with CCT attributes (Living lighting 14 vs 12 designed, Kitchen sockets 6 vs 5), and two
-unlinked cable routes on `E-CABLE`.
+`SKT-TWIN` twin sockets with CCT attributes (Living lighting 14 vs 12 designed, Kitchen sockets 6 vs 5), two
+unlinked cable routes on `E-CABLE` and two unlinked tray runs on `E-TRAY` (link as A — vertical — and B; the
+second cable route runs along A then B).
+
+All milestones of this plan are done.

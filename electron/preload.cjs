@@ -52,7 +52,9 @@ contextBridge.exposeInMainWorld('lvds', {
     routes: () => ipcRenderer.invoke('opencad:routes'),
     linkSelection: (feederId) => ipcRenderer.invoke('opencad:linkSelection', feederId),
     plan: () => ipcRenderer.invoke('opencad:plan'),
-    placeSelection: (boardId) => ipcRenderer.invoke('opencad:placeSelection', boardId)
+    placeSelection: (boardId) => ipcRenderer.invoke('opencad:placeSelection', boardId),
+    trays: () => ipcRenderer.invoke('opencad:trays'),
+    traySelection: (name) => ipcRenderer.invoke('opencad:traySelection', name)
   },
   files: {
     saveText: (opts) => ipcRenderer.invoke('files:saveText', opts),

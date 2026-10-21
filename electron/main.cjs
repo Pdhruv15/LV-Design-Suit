@@ -341,6 +341,9 @@ handle('opencad:linkSelection', (_evt, feederId) => openCadSession.linkSelection
 // Board locations: what the floor plan says (board symbols, room outlines, names); mark the selection as a board.
 handle('opencad:plan', () => openCadSession.readPlan());
 handle('opencad:placeSelection', (_evt, boardId) => openCadSession.placeSelection(typeof boardId === 'string' ? boardId : ''));
+// Tray routes: tray runs and cable routes as paths; link the selected curves to a tray route by name.
+handle('opencad:trays', () => openCadSession.readTrays());
+handle('opencad:traySelection', (_evt, name) => openCadSession.traySelection(typeof name === 'string' ? name : ''));
 handle('opencad:linked', async () => (await openCadSession.linkedEquipment()).map(({ tag, handles }) => ({ tag, objects: handles.length })));
 handle('opencad:status', () => ({ installed: !!openCadStudio.findInstallation(), ...openCadSession.status() }));
 
