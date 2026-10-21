@@ -177,7 +177,7 @@ table.ls tr.ls-spare td{color:var(--mut)}
 .summary svg text{fill:var(--tx)}
 .summary svg .m{fill:var(--mut);font-size:11px}
 table.compact{min-width:0}
-table.compact th,table.compact td{padding:5px 8px}
+table.compact th,table.compact td{padding:var(--space-1) var(--space-2)}
 .note{margin:8px 0 0;font-size:11px}
 .section-title{margin:var(--space-5) var(--gutter) 0;font-size:var(--fs-md);font-weight:600}
 @media (max-width:1200px){.cards{grid-template-columns:minmax(0,1fr)}}
@@ -214,7 +214,15 @@ select.chip{padding:0 var(--space-2)}
 .tcc .fault-line{stroke:var(--bad);stroke-width:1.2;stroke-dasharray:5 4}
 .legend{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .legend span{display:inline-block;width:18px;height:3px;border-radius:2px;margin-right:8px;vertical-align:middle}
-table.schedule td,table.schedule th{padding:6px 8px}
+table.schedule td,table.schedule th{padding:var(--space-1) var(--space-2)}
+/* Wide schedules (cable schedule, BOQ): the header row and the first column stay in view while scrolling either way.
+   Sticky cells need their own background; with collapsed borders the lines are drawn as shadows so they move with the cell. */
+.table-scroll{overflow:auto;max-height:calc(100vh - 240px);min-height:200px;border:1px solid var(--line);border-radius:var(--radius-md)}
+.table-scroll>table thead th{position:sticky;top:0;z-index:2;background:var(--panel);box-shadow:inset 0 -1px var(--line)}
+.table-scroll>table tbody td:first-child,.table-scroll>table tfoot td:first-child{position:sticky;left:0;z-index:1;background:var(--bg);box-shadow:inset -1px 0 var(--line)}
+.table-scroll>table thead th:first-child{left:0;z-index:3;box-shadow:inset 0 -1px var(--line),inset -1px 0 var(--line)}
+.table-scroll>table tbody tr:hover td:first-child{background:color-mix(in srgb,var(--p2) 70%,var(--bg))}
+.table-scroll>table tr.total td:first-child{background:var(--p2)}
 tr.total td{background:var(--p2);font-weight:600}
 .report-preview{width:100%;height:70vh;border:1px solid var(--line);border-radius:8px;background:#fff}
 /* ---- Ribbon ---- */
@@ -653,25 +661,25 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 /* ---- Classic tables with Excel-style editing (ClassicGrid / useExcelGrid) ---- */
 .gx-wrap{overflow:auto;max-height:62vh;border:1px solid var(--line);border-radius:8px}
 .gx{border-collapse:collapse;width:100%;font-size:var(--fs-sm)}
-.gx th{position:sticky;top:0;z-index:1;background:var(--panel);color:var(--mut);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.02em;padding:6px 6px;border-bottom:1px solid var(--line);border-right:1px solid color-mix(in srgb,var(--line) 60%,transparent);white-space:normal;line-height:1.2;vertical-align:bottom}
+.gx th{position:sticky;top:0;z-index:1;background:var(--panel);color:var(--mut);font-weight:600;font-size:var(--fs-xs);letter-spacing:.02em;padding:6px 6px;border-bottom:1px solid var(--line);border-right:1px solid color-mix(in srgb,var(--line) 60%,transparent);white-space:normal;line-height:1.2;vertical-align:bottom}
 .gx thead tr:first-child th.gx-group{color:var(--tx);text-align:center;border-bottom:1px solid var(--line)}
 .gx thead tr:nth-child(2) th{top:26px}
 .gx thead tr:only-child th{top:0}
 .gx th.gx-blank{border-bottom:none}
-.gx td{padding:0 6px;height:28px;border-bottom:1px solid color-mix(in srgb,var(--line) 70%,transparent);border-right:1px solid color-mix(in srgb,var(--line) 45%,transparent);text-align:center;white-space:nowrap}
+.gx td{padding:0 6px;height:32px;border-bottom:1px solid color-mix(in srgb,var(--line) 70%,transparent);border-right:1px solid color-mix(in srgb,var(--line) 45%,transparent);text-align:center;white-space:nowrap}
 .gx td.l{text-align:left}
 .gx td.gx-calc{color:var(--mut);background:color-mix(in srgb,var(--p2) 40%,transparent)}
 .gx td.gx-label{font-weight:700;text-align:left;background:var(--p2);color:var(--bus)}
 .gx td.gx-muted{opacity:.5}
 .gx td.gx-act,.gx th.gx-act{padding:0 2px;width:30px;min-width:30px;border-right:none}
 .gx td.gx-in{padding:0}
-.gx td.gx-in input,.gx td.gx-in select{width:100%;min-width:60px;height:28px;border:0;background:transparent;color:var(--tx);font:inherit;padding:0 6px;text-align:inherit;outline:none}
+.gx td.gx-in input,.gx td.gx-in select{width:100%;min-width:60px;height:32px;border:0;background:transparent;color:var(--tx);font:inherit;padding:0 6px;text-align:inherit;outline:none}
 .gx td.gx-in.l input{text-align:left}
 .gx td.gx-in select{cursor:pointer}
 .gx td.gx-in input:focus,.gx td.gx-in select:focus,.gx td[data-cell]:focus{box-shadow:inset 0 0 0 2px var(--acc);background:color-mix(in srgb,var(--acc) 10%,transparent)}
 .gx td[data-cell]{outline:none}
 .gx tbody tr:hover td{background:color-mix(in srgb,var(--p2) 55%,transparent)}
-.gx tfoot td{position:sticky;bottom:0;background:var(--panel);font-weight:700;border-top:1px solid var(--line);height:30px}
+.gx tfoot td{position:sticky;bottom:0;background:var(--panel);font-weight:700;border-top:1px solid var(--line);height:32px}
 td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent) !important}
 .plan-areas-grid{max-height:45vh}
 /* ---- Calculations on demand ---- */
@@ -978,7 +986,7 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .bom-totals{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:var(--fs-sm);margin:4px 0}
 .bom-sec b{color:var(--acc)}
 .bom-table{width:100%;border-collapse:collapse;font-size:var(--fs-sm)}
-.bom-table th,.bom-table td{border-bottom:1px solid var(--line);padding:4px 6px;text-align:left;vertical-align:top}
+.bom-table th,.bom-table td{border-bottom:1px solid var(--line);padding:var(--space-1) var(--space-2);text-align:left;vertical-align:top}
 .bom-table td.num{text-align:right;white-space:nowrap}
 .bom-sec-row td{font-weight:700;background:color-mix(in srgb,var(--acc) 12%,transparent)}
 .bom-missing td:nth-child(5) input{border-color:var(--warn)}
@@ -1017,8 +1025,11 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .dr-panels{font-size:11px;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 .vd-settings{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-bottom:10px;font-size:var(--fs-sm)}
-.vd-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:8px;margin-bottom:10px}
-.vd-card .dash-value.ok{color:var(--ok)}.vd-card .dash-value.warn{color:var(--warn)}.vd-card .dash-value.bad{color:var(--bad)}
+/* Study summary cards (<ResultCards> / <ResultCard>): same tile everywhere; status = coloured value + its word. */
+.result-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--space-2);margin-bottom:var(--space-3)}
+.result-value{display:flex;align-items:baseline;gap:var(--space-2);max-width:100%;min-width:0}
+.result-card .dash-value.ok{color:var(--ok)}.result-card .dash-value.warn{color:var(--warn)}.result-card .dash-value.bad{color:var(--bad)}
+.result-status{flex:none;font-size:var(--fs-xs);font-weight:600;letter-spacing:.03em;padding:1px 6px;border:1px solid currentColor;border-radius:999px}
 .vd-profile{margin-bottom:10px}.vd-profile h4{margin:0 0 4px}.vd-profile svg{width:100%;height:auto;max-height:230px}
 .vd-grid{stroke:var(--line);stroke-width:1}.vd-limit{stroke:var(--bad);stroke-width:1.5;stroke-dasharray:6 4}
 .vd-ax{font-size:10px;fill:var(--mut)}.vd-ax.bad{fill:var(--bad)}
@@ -1595,3 +1606,7 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .la-flag{border-radius:8px;padding:8px 10px;font-size:12px;margin-top:8px;border:1px solid var(--line)}
 .la-flag.ok{border-color:color-mix(in srgb,var(--ok) 50%,transparent);color:var(--ok)}
 .la-flag.warn{border-color:color-mix(in srgb,var(--warn) 60%,transparent);color:var(--warn)}
+/* Spacing utilities (in place of repeated inline styles). Later rules win, so u-flush u-mb-2 = margin 0 0 8px. */
+.u-flush{margin:0}
+.u-mb-2{margin-bottom:var(--space-2)}
+.u-mb-3{margin-bottom:var(--space-3)}

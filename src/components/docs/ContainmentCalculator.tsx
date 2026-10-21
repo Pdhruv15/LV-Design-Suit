@@ -79,7 +79,7 @@ export default function ContainmentCalculator({ project, onChange, onStatus }: {
 
       <div className="pfcc-out">
         {!r.count ? <section className="card"><p className="m">Add cables on the left — the containment, its cross-section and the report appear here.</p></section> : <>
-          <div className="vd-cards">
+          <div className="result-cards">
             <div className="dash-tile"><span className="dash-label">{CONTAINMENT_LABEL[t]}</span><span className={`dash-value ${r.status === 'fail' ? 'bad' : ''}`}>{r.size}</span><span className="dash-sub">{r.fillPct ? `fill ${f0(r.fillPct)} %` : ''}{r.sparePct !== undefined ? ` · spare ${f0(r.sparePct)} %` : ''}</span></div>
             <div className="dash-tile"><span className="dash-label">Cables</span><span className="dash-value">{r.count}</span><span className="dash-sub">Σ OD {f0(r.sumOdMm)} mm · area {f0(r.areaMm2)} mm²</span></div>
             <div className="dash-tile"><span className="dash-label">Weight</span><span className="dash-value">{f0(r.kgPerM)} kg/m</span><span className="dash-sub">for the supports</span></div>

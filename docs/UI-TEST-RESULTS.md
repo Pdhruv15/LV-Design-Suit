@@ -120,3 +120,26 @@ New tests: question text split into title and detail; answers resolve one dialog
 
 - Each of the 27 converted dialogs was not opened one by one in the GUI; they share `<Modal>`, the conversion was mechanical and type-checked, and the shared behaviour is unit-tested. The CAD dialogs need OpenCADStudio and were not opened.
 - Electron desktop window and Windows not checked.
+
+## Milestone 4 — tables and results
+
+Environment: macOS (Apple silicon), 21 Oct 2026. Base: milestone 3 (`e20da62`).
+
+| Check | Result |
+|---|---|
+| TypeScript, lint, build | clean ✅ |
+| Unit tests (`npm test`) | **1680 / 1680** (2 new: `ResultCard.test.tsx`) ✅ |
+| PDF/DXF suite (`npm run test:pdf`) | **31 / 31**, darwin baselines ✅ |
+| Calculation code changed | none; the new cards only show figures already calculated for the tables ✅ |
+
+**In the running app** (web version, sample project, 1440 × 900):
+
+- Cable schedule (36 rows): scrolled 200 px down and 400 px right inside the table; header row stayed at the top edge and the cable tag column at the left edge; rows 32 px.
+- Earthing cards: worst loop DB-EV 0.2656 Ω PASS (max Zs 0.3613 Ω, same as the table row), 36 circuits 36 pass, source data complete, protective conductors adequate.
+- Voltage drop: worst case "2.57 % PASS" (the word is new), other cards unchanged.
+
+### Not yet verified
+
+- BOQ bill and per-circuit cost table were not scrolled in the GUI (same `.table-scroll` rule as the cable schedule).
+- Selection and Coordination cards checked by type and unit test only, not opened in the GUI.
+- Electron desktop window and Windows not checked.

@@ -217,7 +217,7 @@ export default function BomView({ command, project, results, me = '', onChange, 
             <span>Subtotal <b>{money(bom.subtotal)}</b>{list?.markupPct ? <> · +{list.markupPct} % <b>{money(bom.markup)}</b></> : null}{bom.discount ? <> · −{custom?.discountPct} % <b>{money(bom.discount)}</b></> : null}{bom.vat ? <> · Total excl. VAT <b>{money(bom.total)}</b> · VAT {validVat(custom?.vatPct)} % <b>{money(bom.vat)}</b></> : null} · {bom.vat ? 'Grand total' : 'Total'} <b>{cur} {money(bom.grandTotal)}</b></span>
           </div>
           <input className="bi-text" style={{ width: 260, margin: '6px 0' }} placeholder="Filter items…" value={filter} onChange={(e) => setFilter(e.target.value)} />
-          <div className="tw">
+          <div className="table-scroll">
             <table className="bom-table">
               <thead><tr><th>Item</th><th>Description</th><th>Unit</th><th>Qty</th><th>Supply rate</th><th>Install rate</th><th>Amount</th><th>Location / note</th></tr></thead>
               <tbody>

@@ -21,6 +21,26 @@ export function StatusCounts({ statuses }: { statuses: Status[] }) {
   );
 }
 
+/** Summary cards above a study's table: the worst case, the limit, the counts. One pattern for every study. */
+export function ResultCards({ children }: { children: ReactNode }) {
+  return <div className="result-cards">{children}</div>;
+}
+
+/** One summary figure. A status colours the value and adds its word (PASS / WARNING / FAIL), never colour alone;
+ * with onClick the card is a link (e.g. to the worst circuit). */
+export function ResultCard({ label, value, sub, status, onClick, title }: { label: string; value: ReactNode; sub?: ReactNode; status?: Status; onClick?: () => void; title?: string }) {
+  return (
+    <button type="button" className={`dash-tile result-card${onClick ? ' link' : ''}`} onClick={onClick} disabled={!onClick} title={title}>
+      <span className="dash-label">{label}</span>
+      <span className="result-value">
+        <span className={`dash-value ${status ?? ''}`}>{value}</span>
+        {status && <span className={`result-status ${status}`}>{STATUS_LABEL[status]}</span>}
+      </span>
+      {sub && <span className="dash-sub">{sub}</span>}
+    </button>
+  );
+}
+
 /** Shown on study results while their inputs changed since the last run. */
 export function StaleBanner({ stale, onRun, what }: { stale: string[]; onRun: () => void; what?: string }) {
   if (!stale.length) return null;

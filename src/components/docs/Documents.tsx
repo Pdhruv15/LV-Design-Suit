@@ -13,18 +13,20 @@ import { subtree } from '../../calc/pfc';
 function ScheduleTable({ schedule }: { schedule: Schedule }) {
   const cls = (v: string | number) => statusOfText(v);
   return (
-    <table className="schedule">
-      <thead>
-        <tr>{schedule.headers.map((h) => <th key={h}>{h}</th>)}</tr>
-      </thead>
-      <tbody>
-        {schedule.rows.map((r, i) => (
-          <tr key={i} className={schedule.totalRows?.includes(i) ? 'total' : ''}>
-            {r.map((c, j) => <td key={j} className={cls(c)}>{c}</td>)}
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="table-scroll">
+      <table className="schedule">
+        <thead>
+          <tr>{schedule.headers.map((h) => <th key={h}>{h}</th>)}</tr>
+        </thead>
+        <tbody>
+          {schedule.rows.map((r, i) => (
+            <tr key={i} className={schedule.totalRows?.includes(i) ? 'total' : ''}>
+              {r.map((c, j) => <td key={j} className={cls(c)}>{c}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

@@ -1,3 +1,4 @@
+import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { Fragment, useMemo, useState } from 'react';
 import type { Project } from '../../types';
 import { cables } from '../../calc/cableTable';
@@ -9,7 +10,7 @@ import { resistanceFactor } from '../../calc/electrical';
 import { buildVdReportHtml, scopeLabel, startText, VD_HEADERS, vdCells } from '../../docs/voltageDropReport';
 import { saveCsv, savePdf, safeFileName } from '../../util/files';
 import EditCell from '../EditCell';
-import { CheckedNum, Page, StatusCell, StatusCounts } from '../ui';
+import { CheckedNum, Page, ResultCard, ResultCards, StatusCell, StatusCounts } from '../ui';
 import type { Status } from '../../calc/electrical';
 
 const TEMPS: { value: string; label: string }[] = [
@@ -164,18 +165,18 @@ export default function VoltageDropStudy({ project, calcProject = project, stale
         <label className="row"><input type="checkbox" checked={!!project.vdFinalCircuits} onChange={(e) => onChange({ ...project, vdFinalCircuits: e.target.checked || undefined })} /> Worst final circuit of each DB</label>
         <label className="row"><input type="checkbox" checked={onlyIssues} onChange={(e) => setOnlyIssues(e.target.checked)} /> Only check / fail</label>
         <span className="sp" />
-        <button className="chip" onClick={() => setPickOpen(!pickOpen)}>{pickOpen ? '◀ Hide cable list' : '▶ Choose cables'}</button>
+        <button className="chip" onClick={() => setPickOpen(!pickOpen)}>{pickOpen ? <><PanelLeftClose size={14} aria-hidden /> Hide cable list</> : <><PanelLeftOpen size={14} aria-hidden /> Choose cables</>}</button>
       </section>
 
-      <div className="vd-cards">
-        <VdCard label="Worst voltage drop" value={worst ? `${worst.totalPct.toFixed(2)} %` : '—'} status={worst?.status} sub={worst ? `${worst.feeder.id} → ${worst.toName}` : 'No cables'} onClick={worst ? () => setFocusId(worst.feeder.id) : undefined} />
-        <VdCard label="Limit" value={`${project.vdLimitPct} %`} sub={`source to load · ${tempC === undefined ? 'R20 × 1.2' : `${tempC} °C`}`} />
-        <VdCard label="Results" value={`${allRows.length} cables`} sub={<StatusCounts statuses={allRows.map((r) => r.status)} />} />
-        <VdCard label="Longest cable" value={longest ? `${longest.feeder.lengthM} m` : '—'} sub={longest ? `${longest.feeder.id} → ${longest.toName} · ${longest.totalPct.toFixed(2)} %` : ''} onClick={longest ? () => setFocusId(longest.feeder.id) : undefined} />
-        <VdCard label="Motor starting" value={worstStart ? `${worstStart.startPct!.toFixed(1)} %` : '—'} status={worstStart ? (worstStart.startPct! > motorStartVdLimit() ? 'bad' : 'ok') : undefined}
+      <ResultCards>
+        <ResultCard label="Worst voltage drop" value={worst ? `${worst.totalPct.toFixed(2)} %` : '—'} status={worst?.status} sub={worst ? `${worst.feeder.id} → ${worst.toName}` : 'No cables'} onClick={worst ? () => setFocusId(worst.feeder.id) : undefined} />
+        <ResultCard label="Limit" value={`${project.vdLimitPct} %`} sub={`source to load · ${tempC === undefined ? 'R20 × 1.2' : `${tempC} °C`}`} />
+        <ResultCard label="Results" value={`${allRows.length} cables`} sub={<StatusCounts statuses={allRows.map((r) => r.status)} />} />
+        <ResultCard label="Longest cable" value={longest ? `${longest.feeder.lengthM} m` : '—'} sub={longest ? `${longest.feeder.id} → ${longest.toName} · ${longest.totalPct.toFixed(2)} %` : ''} onClick={longest ? () => setFocusId(longest.feeder.id) : undefined} />
+        <ResultCard label="Motor starting" value={worstStart ? `${worstStart.startPct!.toFixed(1)} %` : '—'} status={worstStart ? (worstStart.startPct! > motorStartVdLimit() ? 'bad' : 'ok') : undefined}
           sub={worstStart ? `${worstStart.toName} · limit ${motorStartVdLimit()} %` : 'No motors selected'} onClick={worstStart ? () => setFocusId(worstStart.feeder.id) : undefined} />
-        <VdCard label="Busbar risers" value={risers.some((r) => r.noType) ? 'Not calculated' : worstRiser ? `${worstRiser.exactTopPct.toFixed(2)} %` : '—'} status={risers.some((r) => r.noType) ? 'bad' : worstRiser?.status} sub={worstRiser ? `${worstRiser.riser.name} · top tap-off` : 'None in the project'} />
-      </div>
+        <ResultCard label="Busbar risers" value={risers.some((r) => r.noType) ? 'Not calculated' : worstRiser ? `${worstRiser.exactTopPct.toFixed(2)} %` : '—'} status={risers.some((r) => r.noType) ? 'bad' : worstRiser?.status} sub={worstRiser ? `${worstRiser.riser.name} · top tap-off` : 'None in the project'} />
+      </ResultCards>
 
       {focus && path.length > 0 && <VdProfile path={path} limit={project.vdLimitPct} title={`${focus.feeder.id} → ${focus.toName}`} isWorst={focus === worst} />}
 
@@ -278,16 +279,6 @@ export default function VoltageDropStudy({ project, calcProject = project, stale
         </div>
       </div>
     </Page>
-  );
-}
-
-function VdCard({ label, value, sub, status, onClick }: { label: string; value: string; sub?: React.ReactNode; status?: Status; onClick?: () => void }) {
-  return (
-    <button className={`dash-tile vd-card${onClick ? ' link' : ''}`} onClick={onClick} disabled={!onClick}>
-      <span className="dash-label">{label}</span>
-      <span className={`dash-value ${status ?? ''}`}>{value}</span>
-      {sub && <span className="dash-sub">{sub}</span>}
-    </button>
   );
 }
 

@@ -107,15 +107,15 @@ export default function DesignReferencesView({ project, onApply, onStatus }: {
         <input ref={fileRef} type="file" accept=".json,application/json" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void importFile(f); }} />
       </>}
     >
-      <section className="card" style={{ marginBottom: 12 }}>
+      <section className="card u-mb-3">
         {project.designReference ? (
-          <p style={{ margin: 0 }}>
+          <p className="u-flush">
             This project uses <b>{project.designReference.name}</b> version {project.designReference.version}, applied {fmtDate(project.designReference.appliedAt)}.
             {drift.length > 0 && <span className="warn"> {drift.length} value{drift.length > 1 ? 's' : ''} changed in the project since: {drift.map((k) => REF_FIELDS.find((f) => f.key === k)!.label).join(', ')}.</span>}
             {applied.newer && <span className="warn"> The reference has been edited since (now version {applied.ref!.version}) — apply it again to update.</span>}
             {applied.missing && <span className="m"> The reference is no longer in your library; the project keeps its values.</span>}
           </p>
-        ) : <p className="m" style={{ margin: 0 }}>This project has no design reference yet. Pick one below and apply it.</p>}
+        ) : <p className="m u-flush">This project has no design reference yet. Pick one below and apply it.</p>}
       </section>
 
       <div className="ref-grid">
@@ -138,9 +138,9 @@ export default function DesignReferencesView({ project, onApply, onStatus }: {
         </section>
 
         <div>
-          <section className="card" style={{ marginBottom: 12 }}>
+          <section className="card u-mb-3">
             <div className="stage-head">
-              <h4 style={{ margin: 0 }}>{ref.name || 'Unnamed reference'}</h4>
+              <h4 className="u-flush">{ref.name || 'Unnamed reference'}</h4>
               <div className="row">
                 {dirty ? <>
                   <button className="chip" onClick={() => setDraft(null)}>Discard</button>
@@ -192,8 +192,8 @@ export default function DesignReferencesView({ project, onApply, onStatus }: {
             </div>
           </section>
 
-          <section className="card" style={{ marginBottom: 12 }}>
-            <h4 style={{ margin: '0 0 8px' }}>Design values</h4>
+          <section className="card u-mb-3">
+            <h4 className="u-flush u-mb-2">Design values</h4>
             <p className="m">Applied to the project's settings. Leave a value blank if this reference does not set it.</p>
             <div className="ref-scroll">
               <table className="compact"><thead><tr><th>Setting</th><th className="num">Value</th><th>Clause</th><th>Note</th><th className="num">This project</th></tr></thead><tbody>
@@ -218,7 +218,7 @@ export default function DesignReferencesView({ project, onApply, onStatus }: {
           </section>
 
           <section className="card">
-            <h4 style={{ margin: '0 0 8px' }}>Reference entries</h4>
+            <h4 className="u-flush u-mb-2">Reference entries</h4>
             <p className="m">Your own look-up data: limits, rules, clauses, anything you check against. Not applied to the project.</p>
             <div className="ref-scroll">
               <table className="compact"><thead><tr><th>Topic</th><th>Value</th><th>Unit</th><th>Clause / reference</th><th>Note</th><th /></tr></thead><tbody>

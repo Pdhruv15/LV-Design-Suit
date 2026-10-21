@@ -7,8 +7,8 @@ Small, separately tested milestones on branch `ui/design-system`. No rebuild, no
 | 1 | Design tokens, light/dark theme, colour defects D1–D4 | ✅ done, verified |
 | 2 | Header, ribbon, sidebar and navigation | ✅ done, verified |
 | 3 | Forms, buttons, dialogs, validation | ✅ done, verified |
-| 4 | Engineering tables and result displays | next |
-| 5 | SLD editor interface | planned |
+| 4 | Engineering tables and result displays | ✅ done, verified |
+| 5 | SLD editor interface | next |
 | 6 | Report preview and export interface | planned |
 | 7 | Final consistency review (both themes, every screen) | planned |
 
@@ -41,12 +41,13 @@ Small, separately tested milestones on branch `ui/design-system`. No rebuild, no
 
 **Left for later (follow-up):** 28 `window.prompt()` calls in 8 files (sheet markup text, sheet rename/number, modification and review records) need a text-input dialog, ideally small forms rather than chains of prompts. `<NumField>` elsewhere still clamps out-of-range values silently; moving it to `checkNumber()` is the next validation step.
 
-## 4 — Tables and results
+## 4 — Tables and results ✅
 
-- One table density (32 px rows) across `ClassicGrid`, `table.schedule`, `table.compact`.
-- Sticky header row and first column for wide schedules (BOQ, cable schedule).
-- Result summary cards in one pattern (worst case, limit, pass/warn/fail counts), as in the Voltage drop screen.
-- Move the most-repeated inline styles to utility classes, starting with `SystemDiagram.tsx`, `DesignReferencesView.tsx`, `SubmissionsView.tsx`.
+- One density: 32 px rows in `ClassicGrid` (`.gx`, was 28 px), `table.schedule`, `table.compact` and the BOQ tables, padding on the spacing tokens. `.gx` headers no longer forced to UPPERCASE (it turned mm² into MM² and kA into KA). The DEWA load schedule (`table.ls`) keeps its form-like density on purpose.
+- `.table-scroll`: header row and first column stay in view while scrolling either way. Used by the schedules on the Documents tab (cable schedule, equipment, DB schedule), the BOQ bill and the per-circuit cost table.
+- `<ResultCards>` / `<ResultCard>` (`ui.tsx`): one summary-card pattern; a status shows as coloured value **plus its word** (PASS / WARNING / FAIL). Voltage drop moved onto it (its worst-case card was colour only before). New cards, from results already calculated, on Earthing (worst loop impedance, results, source data, protective conductors), Selection (results, failing now, changes recommended) and Coordination (breaker pairs, overload ratio under 1.6, partial short-circuit selectivity, busbar fault level). The pass/warning/fail counts moved from the page header into a Results card on these screens. PFC and containment calculators use the same grid.
+- Utility classes `u-flush`, `u-mb-2`, `u-mb-3` replace the repeated margins in `DesignReferencesView`. Not done on purpose: `SystemDiagram.tsx` inline styles are SVG drawing text sizes that exports copy, and the remaining inline widths are one-offs.
+- "◀ Hide cable list / ▶ Choose cables" glyphs on Voltage drop replaced with Lucide icons.
 
 ## 5 — SLD editor
 
