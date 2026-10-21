@@ -20,7 +20,18 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
 .crumb .linkish{margin-left:0;color:inherit}
 .crumb .linkish:hover{color:var(--tx)}
 .crumb b{color:var(--tx);font-weight:500}
-.saved{color:var(--ok);margin-left:6px;font-size:11px}
+.saved{color:var(--ok);margin-left:6px;font-size:var(--fs-xs)}
+/* One header row on desktop widths: the project name and the status message shorten (full text in their tooltips) instead of pushing Profile onto a second row. */
+@media (min-width:1200px){
+  .top{flex-wrap:nowrap}
+  .top>*{flex:none}
+  .top>.sp{flex:1}
+  .top>.crumb{flex:0 1 auto;flex-wrap:nowrap;white-space:nowrap;overflow:hidden}
+  .crumb>*{flex:none}
+  .crumb .crumb-project{flex:0 1 auto;min-width:4em;overflow:hidden}
+  .crumb .crumb-project b{display:block;overflow:hidden;text-overflow:ellipsis}
+  .crumb .saved{flex:0 6 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+}
 .sp{flex:1}
 .chip{display:inline-flex;align-items:center;justify-content:center;gap:var(--space-1);min-height:var(--control-h);padding:0 var(--space-3);border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--p2);color:var(--tx);white-space:nowrap;line-height:1.2;text-decoration:none;transition:border-color .12s,background-color .12s}
 .chip:hover:not(:disabled){border-color:var(--line-strong);background:color-mix(in srgb,var(--p2) 80%,var(--acc))}
@@ -208,10 +219,13 @@ tr.total td{background:var(--p2);font-weight:600}
 .ribbon-tabs button{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--control-h);padding:0 var(--space-4);border-radius:var(--radius-sm) var(--radius-sm) 0 0;color:var(--mut);white-space:nowrap}
 .ribbon-tabs button:hover{color:var(--tx);background:var(--p2)}
 .ribbon-tabs button.on{background:var(--acc);color:var(--on-acc);font-weight:600}
+/* The design stage the project is in: a badge, so it never reads as the selected tab (solid fill). */
+.stage-now{font-size:var(--fs-xs);font-weight:600;line-height:1;padding:2px 6px;border:1px solid var(--ok);border-radius:999px;color:var(--ok)}
+.ribbon-tabs button.on .stage-now{background:var(--panel)}
 .ribbon-tools{display:flex;align-items:stretch;gap:0;padding:var(--space-1) calc(var(--gutter) - var(--space-2));background:var(--p2);border-top:1px solid var(--line);overflow-x:auto}
 .ribbon-group{display:flex;flex-direction:column;align-items:stretch;gap:2px;padding:0 var(--space-2);border-right:1px solid var(--line)}
 .ribbon-group-btns{display:flex;gap:2px;flex:1}
-.ribbon-caption{font-size:10.5px;color:var(--mut);text-align:center;letter-spacing:.02em;line-height:1.2;padding-top:1px;white-space:nowrap}
+.ribbon-caption{font-size:var(--fs-xs);color:var(--mut);text-align:center;letter-spacing:.02em;line-height:1.2;padding-top:1px;white-space:nowrap}
 .ribbon-group:last-child{border-right:0}
 .ribbon-group button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--space-1);min-width:62px;min-height:52px;padding:var(--space-1) var(--space-2);border-radius:var(--radius-sm);color:var(--tx);font-size:11.5px;white-space:nowrap}
 .ribbon-group button:hover:not(:disabled){background:var(--panel)}
@@ -657,7 +671,7 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .stale-banner{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin:var(--space-2) 0;padding:var(--space-2) var(--space-3);border:1px solid var(--warn);border-radius:var(--radius-md);background:color-mix(in srgb,var(--warn) 12%,var(--panel));font-size:12.5px}
 .sysdiag.stale .res,.sysdiag.stale circle[style*="fill"],.sysdiag.stale .disc-ring,.sysdiag.stale .heat-legend{opacity:.35}
 .sysdiag.stale g.fd .ln[style*="stroke"],.sysdiag.stale .bus[style*="stroke"]{opacity:.4}
-.calc-state{font-size:12px}.calc-state.warn{color:var(--warn)}.calc-state.ok{color:var(--ok)}
+.calc-state{display:inline-flex;align-items:center;gap:var(--space-1);font-size:12px}.calc-state.warn{color:var(--warn)}.calc-state.ok{color:var(--ok)}
 .run-chip{font-weight:600}
 .run-chip.stale,.ribbon-tools button.stale{color:var(--warn);border-color:var(--warn);animation:runPulse 1.6s ease-in-out infinite}
 @keyframes runPulse{50%{box-shadow:0 0 0 3px color-mix(in srgb,var(--warn) 35%,transparent)}}
@@ -695,7 +709,7 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .logo-box .m{color:#667}
 .user-chip{gap:var(--space-2);padding-left:var(--space-1)}
 .user-chip .av{width:22px;height:22px;border-radius:50%;background:var(--acc);color:var(--on-acc);font-size:10.5px;font-weight:700;display:flex;align-items:center;justify-content:center}
-.dirty-dot{color:var(--warn);margin-left:4px}
+.dirty-dot{display:inline-block;flex:none;width:8px;height:8px;margin-left:4px;border-radius:50%;background:var(--warn)}
 .recover-bar{display:flex;align-items:center;gap:var(--space-2) var(--space-3);padding:var(--space-2) var(--gutter);background:color-mix(in srgb,var(--warn) 12%,transparent);border-bottom:1px solid var(--warn);font-size:13px;flex-wrap:wrap}
 .nav .nav-more{color:var(--mut);font-size:12px}
 
@@ -1231,11 +1245,12 @@ button.calc-chip.warn{color:var(--warn);border-color:color-mix(in srgb,var(--war
 /* Ribbon split button (Add board ▾) */
 .ribbon-split{position:relative;display:inline-flex;align-items:stretch}
 .ribbon-split > button:first-child{padding-right:4px}
-.ribbon-split-arrow{min-width:0 !important;padding:0 4px !important;font-size:11px;align-self:center;height:28px}
+.ribbon-split-arrow{min-width:0 !important;padding:0 2px !important;align-self:center;height:28px}
+.ribbon-menu-label{display:inline-flex;align-items:center;gap:2px}
 .ribbon-split-menu{position:fixed;z-index:200;min-width:140px;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow-pop);padding:4px;display:grid}
 .ribbon-split-menu button{all:unset;cursor:pointer;padding:6px 10px;border-radius:5px;font-size:12.5px;white-space:nowrap}
 .ribbon-split-menu hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
-.ribbon-sub{font-size:10.5px;color:var(--mut);margin-top:-3px;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ribbon-sub{font-size:var(--fs-xs);color:var(--mut);margin-top:-3px;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ribbon-split-menu button:hover,.ribbon-split-menu button:focus-visible{background:color-mix(in srgb,var(--acc) 18%,transparent)}
 /* Equipment palette cards: icon · name · value, protection underneath; actions overlay the right edge */
 .palette-resize{position:absolute;top:0;right:-3px;width:6px;height:100%;cursor:col-resize;z-index:2}
@@ -1292,7 +1307,7 @@ button.calc-chip.warn{color:var(--warn);border-color:color-mix(in srgb,var(--war
 
 /* Web version strip */
 .web-banner{display:flex;align-items:center;gap:var(--space-2) var(--space-3);flex-wrap:wrap;padding:var(--space-2) var(--gutter);background:color-mix(in srgb,var(--acc) 12%,var(--panel));border-bottom:1px solid var(--line);font-size:12.5px}
-.web-ok{color:var(--ok)}
+.web-ok{display:inline-flex;align-items:center;gap:var(--space-1);color:var(--ok)}
 .sheet-refs{display:inline-flex;gap:4px;flex-wrap:wrap;max-width:50%;overflow:hidden}.sheet-refs .chip{padding:0 var(--space-2);font-size:var(--fs-xs);min-height:20px}
 
 .enc-cols{display:grid;grid-template-columns:minmax(260px,1fr) minmax(320px,1.4fr) minmax(260px,1fr);gap:10px;align-items:start}

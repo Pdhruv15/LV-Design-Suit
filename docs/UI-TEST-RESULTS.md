@@ -65,3 +65,32 @@ npx tsc --noEmit && npx eslint . --max-warnings 0 && npm test && npm run build
 # PDF/DXF (Linux as root needs the two prefixes; macOS: just npm run test:pdf)
 ELECTRON_DISABLE_SANDBOX=1 xvfb-run -a npm run test:pdf
 ```
+
+## Milestone 2 — header, ribbon, navigation
+
+Environment: macOS (Apple silicon), Node, Electron from `package.json`, 21 Oct 2026. Base: milestone 1 (`ae6de76`).
+
+| Check | Result |
+|---|---|
+| TypeScript (`tsc --noEmit`) | 0 errors ✅ |
+| Lint (`eslint . --max-warnings 0`) | clean ✅ |
+| Build (`npm run build`) | ok ✅ |
+| Unit tests (`npm test`) | **1670 / 1670** (5 new in `Ribbon.test.tsx`) ✅ |
+| PDF/DXF suite (`npm run test:pdf`, real Electron) | **31 / 31**, compared against the committed **darwin** visual baselines ✅ |
+| Calculation code changed | none (`src/calc`, `src/engines`, `src/data`, `src/database`, `src/types.ts` untouched) ✅ |
+| Project file format changed | no ✅ |
+
+**Measured in the running app** (Vite, web version, sample project):
+
+| Width | Header height before | After |
+|---|---|---|
+| 1280 px | 89 px (two rows: Download file and Profile wrapped) | **49 px**, one row |
+| 1200 px | two rows | **49 px**, one row, no overflow |
+| 1000 px | wraps | wraps (unchanged, by design below 1200 px) |
+
+Checked by eye in dark and light: Project, 3 Detailed design, BOM / Cost and Standards ribbons (captions present), the Now badge on the selected and unselected tab, the unsaved dot and "unsaved" under Save, and the status bar icons.
+
+### Not yet verified
+
+- The desktop (Electron) window was not screenshot-toured; the web build shares the same header and ribbon code, minus the Download file button, so the desktop header is narrower than the case measured.
+- Windows rendering not checked.

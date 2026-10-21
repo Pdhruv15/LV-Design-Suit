@@ -1,6 +1,7 @@
 import { pickProject } from './model/projectStore';
 import { chooseProjectFile, downloadProjectFile } from './util/webApp';
 import WebBanner from './components/WebBanner';
+import { CircleCheck, Play, TriangleAlert, X } from 'lucide-react';
 import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Feeder, Board, Project, newProject } from './types';
 import { sampleProject } from './data/sampleProject';
@@ -1100,8 +1101,8 @@ export default function App() {
             <button className="linkish" onClick={() => setView('projects')} title="All projects">Projects</button> / <button className="linkish crumb-project" onClick={() => setView('dashboard')} title={`${project.name} — Overview`}><b>{project.name}</b></button>
             {' / '}{view === 'dashboard' ? <b>Overview</b> : <button className="linkish" onClick={() => setView('dashboard')} title="This project's overview">Overview</button>}
           </>}
-          {!home && dirty && <span className="dirty-dot" title={currentFile ? 'Unsaved changes — Ctrl+S / ⌘S to save' : 'Not saved yet — Ctrl+S / ⌘S to save'}>●</span>}
-          {status && <span className="saved">{status}</span>}
+          {!home && dirty && <span className="dirty-dot" role="img" aria-label="Unsaved changes" title={currentFile ? 'Unsaved changes — Ctrl+S / ⌘S to save' : 'Not saved yet — Ctrl+S / ⌘S to save'} />}
+          {status && <span className="saved" title={status}>{status}</span>}
         </div>
         <div className="sp" />
         {home
@@ -1109,7 +1110,7 @@ export default function App() {
           : <>
             <button className="chip cmdk-open" onClick={() => setPaletteOpen(true)} title="Find a board, sheet or page, or run a command (? lists every shortcut)">Search <kbd>{MOD}K</kbd></button>
             {saveState.kind === 'failed' && <span className="save-failed" role="alert" title={saveState.msg}>Not saved — {saveState.msg && saveState.msg.length > 60 ? `${saveState.msg.slice(0, 60)}…` : saveState.msg}</span>}
-            <button className="chip" disabled={saveState.kind === 'saving'} onClick={() => saveProject()} title="Save (Ctrl+S / ⌘S) — New, Open and Save as are on the Project tab">{saveState.kind === 'saving' ? 'Saving…' : saveState.kind === 'failed' ? 'Retry save' : `Save${dirty ? ' ●' : ''}`}</button>
+            <button className="chip" disabled={saveState.kind === 'saving'} onClick={() => saveProject()} title="Save (Ctrl+S / ⌘S) — New, Open and Save as are on the Project tab">{saveState.kind === 'saving' ? 'Saving…' : saveState.kind === 'failed' ? 'Retry save' : <>Save{dirty && <span className="dirty-dot" role="img" aria-label="unsaved changes" />}</>}</button>
           </>}
         {!home && !hasBridge && <button className="chip" onClick={() => setStatus(downloadProjectFile(project))} title="Download this project as a file to keep on your computer (opens here or in the desktop app)">Download file</button>}
         <button className="chip user-chip" onClick={() => setShowPrefs(true)} title={prefs.profile.name ? `${signature(prefs.profile)} — profile & preferences` : 'Set up your profile: name, designation, company, logo and design defaults'}>
@@ -1384,7 +1385,7 @@ export default function App() {
                       {!bad.length && !warn.length && <span className="rd-chip">all within limits</span>}
                     </>;
                   })()}
-                  {resTab && <button className="icon-btn" title="Close" onClick={() => { setResTab(null); try { localStorage.setItem('lvds.resTab', ''); } catch { /* ignore */ } }}>✕</button>}
+                  {resTab && <button className="icon-btn" title="Close" aria-label="Close the results" onClick={() => { setResTab(null); try { localStorage.setItem('lvds.resTab', ''); } catch { /* ignore */ } }}><X size={14} aria-hidden /></button>}
                 </div>
                 {resTab && (
                   <div className="rd-body">
@@ -1579,9 +1580,12 @@ export default function App() {
         <span>Vd limit: {project.vdLimitPct}%</span>
         <span className="sp" />
         <span className={`calc-state ${staleKeys.length ? 'warn' : 'ok'}`} title={staleKeys.length ? `Out of date: ${stale.join(', ')}` : undefined}>
-          {staleKeys.length ? `⚠ ${staleKeys.length} stud${staleKeys.length === 1 ? 'y' : 'ies'} out of date` : `✓ Calculations up to date${run ? ` (${new Date(run.at).toLocaleTimeString()})` : ''}`}
+          {staleKeys.length ? <TriangleAlert size={13} aria-hidden /> : <CircleCheck size={13} aria-hidden />}
+          {staleKeys.length ? `${staleKeys.length} stud${staleKeys.length === 1 ? 'y' : 'ies'} out of date` : `Calculations up to date${run ? ` (${new Date(run.at).toLocaleTimeString()})` : ''}`}
         </span>
-        <button className={`chip run-chip${staleKeys.length ? ' stale' : ''}`} onClick={runNow} title="Run the network studies (F5)">▶ Run (F5)</button>
+        <button className={`chip run-chip${staleKeys.length ? ' stale' : ''}`} onClick={runNow} title="Run the network studies (F5)">
+          <Play size={12} aria-hidden /> Run (F5)
+        </button>
         <button className="chip" onClick={() => setProject({ ...project, calc: { ...project.calc, autoRun: !autoRun } })} title="Run the studies on every change (small projects)">
           Auto-run: {autoRun ? 'on' : 'off'}
         </button>

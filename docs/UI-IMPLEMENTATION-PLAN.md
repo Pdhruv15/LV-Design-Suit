@@ -5,8 +5,8 @@ Small, separately tested milestones on branch `ui/design-system`. No rebuild, no
 | # | Milestone | Status |
 |---|---|---|
 | 1 | Design tokens, light/dark theme, colour defects D1–D4 | ✅ done, verified |
-| 2 | Header, ribbon, sidebar and navigation | next |
-| 3 | Forms, buttons, dialogs, validation | planned |
+| 2 | Header, ribbon, sidebar and navigation | ✅ done, verified |
+| 3 | Forms, buttons, dialogs, validation | next |
 | 4 | Engineering tables and result displays | planned |
 | 5 | SLD editor interface | planned |
 | 6 | Report preview and export interface | planned |
@@ -20,12 +20,14 @@ Small, separately tested milestones on branch `ui/design-system`. No rebuild, no
 - `styles.css`: 68 hard-coded colours/shadows replaced by tokens; undefined variables fixed; duplicate `.seg` merged; `color-scheme` so scrollbars and checkboxes follow the theme.
 - Figma file with matching variables, components and a two-theme screen preview.
 
-## 2 — Header, ribbon, navigation
+## 2 — Header, ribbon, navigation ✅
 
-- Header: one row at ≥1200 px (profile chip currently wraps to a second row and costs 40 px of height on every screen).
-- Ribbon: consistent group captions and disabled states; keyboard arrow-key movement between ribbon tabs (`role=tablist` semantics).
-- Active stage clearly distinguished from the "now" stage marker.
-- Replace Unicode glyph icons in chrome with the Lucide set already in use (`lucide-react`, no new dependency).
+- Header: one row at ≥1200 px (89 → 49 px at 1280 px). The project name and the status message shorten with an ellipsis (full text in the tooltip); below 1200 px it wraps as before.
+- Ribbon: every group on every tab has a caption (BOM / Cost, Standards, Recent and More had none); captions and sub-labels on `--fs-xs`. Arrow keys, Home and End already moved between tabs; tabs now also point at the tools with `aria-controls`.
+- Current design stage: a green outlined **Now** badge instead of muted "· now" text, which was low-contrast on the selected (solid) tab. Selected tab = solid fill; current stage = badge.
+- Unicode glyphs in chrome replaced with Lucide icons: split-button and menu arrows (▾), status bar (⚠ ✓ ▶), close buttons (✕), offline-ready (✓). Unsaved changes: a CSS dot plus the word "unsaved" under Save; database issues: "n to check" under Database (was "(n ⚠)").
+- `src/components/Ribbon.test.tsx` guards captions, the no-glyph rule, the stage badge and tab/tool linkage.
+- Left for later milestones: glyphs in the SLD results bar (`DiagramResultsBar`, M5) and in `<StaleBanner>` (M3).
 
 ## 3 — Forms, buttons, dialogs, validation
 

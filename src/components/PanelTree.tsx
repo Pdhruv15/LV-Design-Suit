@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, IndentDecrease, IndentIncrease, Info, PanelLeftClose, PanelLeftOpen, Plus, Power, Waves } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, IndentDecrease, IndentIncrease, Info, PanelLeftClose, PanelLeftOpen, Plus, Power, Waves, X } from 'lucide-react';
 import type { Board, Project } from '../types';
 import type { FeederResult, Status } from '../calc/electrical';
 import { boardSummary } from '../calc/summary';
@@ -308,7 +308,7 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
       )}
       {moveFor && (
         <div className="tree-move" role="dialog" aria-label={`Move ${moveFor} under`} onMouseDown={(e) => e.stopPropagation()}>
-          <div className="tree-menu-h">Supply {moveFor} from… <span className="sp" /><button className="icon-btn" onClick={() => setMoveFor(null)}>✕</button></div>
+          <div className="tree-menu-h">Supply {moveFor} from… <span className="sp" /><button className="icon-btn" title="Close" aria-label="Close" onClick={() => setMoveFor(null)}><X size={14} aria-hidden /></button></div>
           <input autoFocus type="search" placeholder="Find a board…" value={moveQ} onChange={(e) => setMoveQ(e.target.value)} onKeyDown={(e) => e.key === 'Escape' && setMoveFor(null)} />
           <div className="tree-move-list">
             {project.boards.filter((t) => `${t.id} ${t.name}`.toLowerCase().includes(moveQ.trim().toLowerCase())).map((t) => {

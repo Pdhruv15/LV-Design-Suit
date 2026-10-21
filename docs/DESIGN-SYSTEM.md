@@ -52,6 +52,8 @@ Headings: page 18 px semibold (`.stage-head h3`), dialog 16 px, card 13 px semib
 | Button | `button.chip` | Secondary by default. `.chip.primary` once per view and last in a dialog. `.chip.bad-btn` for destructive actions. `.chip.sm` inside tables. |
 | Segmented control | `.seg > button(.on)` | 2–4 mutually exclusive views. One definition (was two). |
 | Tabs | `.tabs > button(.on)` | accent text + 2 px underline |
+| Ribbon | `<Ribbon>` | every group has a caption (`CAPTIONS`, tested); selected tab is a solid fill; the project's current stage is a `.stage-now` badge, never a fill |
+| Icons in chrome | `lucide-react` | no Unicode glyphs (▾ ● ⚠ ✕ ✓ ▶) as icons; state in words beside the icon (`sub: 'unsaved'`) |
 | Input / select | plain `input`, `select` | base style is zero-specificity (`:where`) so grids stay compact; full height inside `.modal`, `.form-kv`, toolbars |
 | Number with unit | `<NumField>` (`ui.tsx`) | commits on Enter/blur; unit shown after the box |
 | Dialog | `<Modal>` (`ui.tsx`) | Escape closes the top dialog only; backdrop click closes; actions bottom-right, primary last (`.modal-actions`) |

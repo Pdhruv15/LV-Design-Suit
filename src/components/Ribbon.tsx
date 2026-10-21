@@ -28,7 +28,7 @@ interface Tool {
   page?: boolean;
   /** Small second line under the label (e.g. the board it acts on). */
   sub?: string;
-  /** Split button: the ▾ part offers these; `sep` draws a line above an item. */
+  /** Split button: the arrow part offers these; `sep` draws a line above an item. */
   menu?: { label: string; title: string; onClick: () => void; sep?: boolean }[];
 }
 
@@ -84,13 +84,15 @@ export interface RibbonActions {
 }
 
 /** Group captions under the ribbon groups (same order as the groups). */
-const CAPTIONS: Partial<Record<RibbonTab, string[]>> = {
+export const CAPTIONS: Record<RibbonTab, string[]> = {
   home: ['Project', 'Diagram & history', 'Setup'],
   concept: ['Load', 'Supply', 'Stage'],
   schematic: ['History', 'Distribution', 'Main systems', 'Stage'],
   detailed: ['Run', 'Canvas', 'Boards', 'Equipment', 'Selection', 'Calculate', 'Stage'],
   reports: ['Schedules', 'Drawings and reports'],
-  issue: ['Tender', 'Track', 'Send', 'IFC']
+  issue: ['Tender', 'Track', 'Send', 'IFC'],
+  cost: ['Bill', 'Add to the bill', 'Rates', 'Issue and export'],
+  standards: ['Project data']
 };
 
 const ADD_BOARD: { kind: BoardKind; ratingA: number }[] = [
@@ -203,7 +205,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       [
         { label: 'New', icon: FilePlus2, title: 'New project', onClick: a.onNew },
         view('projects', 'Open', FolderOpen, 'All projects: open, duplicate, status'),
-        { label: a.dirty ? 'Save ●' : 'Save', icon: Save, title: 'Save (Ctrl+S / ⌘S)', onClick: a.onSave, stale: a.dirty },
+        { label: 'Save', icon: Save, sub: a.dirty ? 'unsaved' : undefined, title: a.dirty ? 'Save (Ctrl+S / ⌘S) — there are unsaved changes' : 'Save (Ctrl+S / ⌘S)', onClick: a.onSave, stale: a.dirty },
         { label: 'Save as', icon: SaveAll, title: 'Save as a new project (Ctrl+Shift+S / ⇧⌘S)', onClick: a.onSaveAs },
         { label: 'Share sample', icon: ShieldCheck, title: 'Export anonymized sample: a copy without the client, site or people, to share a technical issue', onClick: a.onAnonymizedSample }
       ],
@@ -243,7 +245,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'Redo', icon: Redo2, title: 'Redo (⇧⌘Z / Ctrl+Y)', onClick: a.onRedo, disabled: !a.canRedo }
       ],
       [
-        { label: 'Boards', icon: AddBoardIcon, title: `Add a board fed from ${a.boardId || 'an existing board'} — ▾ for an SMDB, MCC or EMDB with its usual rating, or Build hierarchy to create many at once`, onClick: () => a.onAddBoard(), page: true, menu: boardMenu },
+        { label: 'Boards', icon: AddBoardIcon, title: `Add a board fed from ${a.boardId || 'an existing board'} — the arrow beside it for an SMDB, MCC or EMDB with its usual rating, or Build hierarchy to create many at once`, onClick: () => a.onAddBoard(), page: true, menu: boardMenu },
         view('panels', 'Build hierarchy', ListTree, 'Panels: create by count, edit levels and connections in one list, rename by level; typical floors, repeat group, templates'),
         view('design', 'SLD', Network, 'Single line diagram — main boards and risers at this stage'),
         view('busbar', 'Busbar riser', AlignVerticalSpaceAround, 'Busbar trunking risers for high-rise buildings: rating (Cu / Al), area, voltage drop per floor, size and weight')
@@ -264,13 +266,13 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'Pan', icon: Hand, title: 'Pan tool — drag to move around the diagram without selecting (H)', onClick: () => { a.onView('design'); a.onTool('pan'); }, active: a.view === 'design' && a.tool === 'pan' }
       ],
       [
-        { label: 'Boards', icon: AddBoardIcon, title: `Add a board fed from ${a.boardId || 'an existing board'} — ▾ for a DB, SMDB, MCC or EMDB with its usual rating, or Build hierarchy to create many at once`, onClick: () => a.onAddBoard(), active: a.view === 'panels', page: true, menu: boardMenu },
+        { label: 'Boards', icon: AddBoardIcon, title: `Add a board fed from ${a.boardId || 'an existing board'} — the arrow beside it for a DB, SMDB, MCC or EMDB with its usual rating, or Build hierarchy to create many at once`, onClick: () => a.onAddBoard(), active: a.view === 'panels', page: true, menu: boardMenu },
         { label: 'Board', icon: BoardPropsIcon, sub: a.boardId || undefined, title: a.boardId ? `Properties of ${a.boardId}: general, supply (its transformer and feed chain), electrical, protection, location` : 'Board properties — select a board first', onClick: a.onBoardProperties, disabled: !a.boardId },
         { label: 'Schedule', icon: Table2, title: `Load distribution schedule of ${a.boardId}: circuits, spare ways, R / Y / B balance`, onClick: go('load-schedule'), active: a.view === 'load-schedule', page: true },
         { label: 'Enclosure', icon: Box, title: 'Enclosure sizing: the board\'s physical space (modules) from a supplier catalogue — candidates, dimensioned preview', onClick: go('enclosure'), active: a.view === 'enclosure', page: true }
       ],
       [
-        { label: 'Add load', icon: Zap, title: `Add a load ${addTo} — ▾ for a motor, solar PV, EV charger or a feeder cable`, onClick: () => a.onAddFeeder({ loadType: 'general' }),
+        { label: 'Add load', icon: Zap, title: `Add a load ${addTo} — the arrow beside it for a motor, solar PV, EV charger or a feeder cable`, onClick: () => a.onAddFeeder({ loadType: 'general' }),
           menu: [
             { label: 'Load', title: `Add a load ${addTo}`, onClick: () => a.onAddFeeder({ loadType: 'general' }) },
             { label: 'Motor', title: `Add a motor ${addTo}`, onClick: () => a.onAddFeeder({ loadType: 'motor', powerFactor: 0.86, demandFactor: 1 }) },
@@ -306,7 +308,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         ...(a.route === 'before-ifc' ? [gate('tender')] : []),
         { label: 'Tender queries', icon: MessageCircleQuestion, title: 'Tenderers\' queries and the answers (Review list, type Tender query); open ones keep the tender stage open', onClick: go('review') },
         { label: 'BOQ', icon: Receipt, title: 'Bill of quantities for the tender', onClick: () => a.onBom('boq') },
-        { label: 'Route', icon: Route, sub: a.route === 'before-ifc' ? 'Tender first' : 'IFC for tender', title: a.route === 'before-ifc' ? 'Tender before IFC: a tender stage between detailed design and IFC — ▾ to change' : 'The IFC package is used for tender (no separate tender stage) — ▾ to change', onClick: () => a.onRoute(a.route === 'before-ifc' ? 'from-ifc' : 'before-ifc'),
+        { label: 'Route', icon: Route, sub: a.route === 'before-ifc' ? 'Tender first' : 'IFC for tender', title: a.route === 'before-ifc' ? 'Tender before IFC: a tender stage between detailed design and IFC — the arrow beside it changes this' : 'The IFC package is used for tender (no separate tender stage) — the arrow beside it changes this', onClick: () => a.onRoute(a.route === 'before-ifc' ? 'from-ifc' : 'before-ifc'),
           menu: [
             { label: 'Tender before IFC', title: 'Detailed design → Tender → IFC (design-bid-build)', onClick: () => a.onRoute('before-ifc') },
             { label: 'IFC used for tender', title: 'Detailed design → IFC; the IFC package goes to tender', onClick: () => a.onRoute('from-ifc') }
@@ -348,7 +350,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       [
         { label: 'Project settings', icon: Scale, title: 'Voltage, ambient, voltage-drop limit and sizing targets', onClick: a.onSettings },
         view('design-references', 'Design references', BookOpen, 'DEWA, IEC, BS 7671, ADDC, EtihadWE and your own design values — apply one to this project'),
-        view('database', a.dbIssues ? `Database (${a.dbIssues} ⚠)` : 'Database', Database, 'Your equipment, cable, breaker and parameter data (Excel, synced by Drive)')
+        { ...view('database', 'Database', Database, a.dbIssues ? `Your equipment, cable, breaker and parameter data (Excel, synced by Drive) — ${a.dbIssues} to check` : 'Your equipment, cable, breaker and parameter data (Excel, synced by Drive)'), sub: a.dbIssues ? `${a.dbIssues} to check` : undefined, stale: a.dbIssues > 0 }
       ]
     ]
   };
@@ -357,7 +359,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
     <div className={`ribbon${collapsed ? ' collapsed' : ''}`} ref={rootRef}>
       <div className="ribbon-tabs" role="tablist" aria-label="Ribbon">
         {TABS.map(({ id, label, icon: I }, ti) => (
-          <button key={id} role="tab" aria-selected={tab === id} tabIndex={tab === id ? 0 : -1} className={tab === id ? 'on' : ''}
+          <button key={id} id={`ribbon-tab-${id}`} role="tab" aria-selected={tab === id} aria-controls="ribbon-tools" tabIndex={tab === id ? 0 : -1} className={tab === id ? 'on' : ''}
             onClick={() => { if (collapsed) setPeek(tab === id ? !peek : true); onTab(id); }}
             onDoubleClick={toggleCollapsed} title={collapsed ? 'Click to show its tools · double-click to keep the ribbon open' : 'Double-click to collapse the ribbon (Ctrl+F1)'}
             onKeyDown={(e) => {
@@ -371,7 +373,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
             }}>
             <I size={16} strokeWidth={1.8} />
             {TABS[ti].step ? `${TABS[ti].step} ${label}` : label}
-            {TABS[ti].stages?.includes(a.stage) && <span className="m"> · now</span>}
+            {TABS[ti].stages?.includes(a.stage) && <span className="stage-now" title={`The project is at ${STAGE_INFO[a.stage].label}`}>Now</span>}
           </button>
         ))}
         <span className="sp" />
@@ -380,7 +382,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
           {collapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
         </button>
       </div>
-      {(!collapsed || peek) && <div className={`ribbon-tools${collapsed ? ' peek' : ''}`} onClick={(e) => {
+      {(!collapsed || peek) && <div id="ribbon-tools" className={`ribbon-tools${collapsed ? ' peek' : ''}`} onClick={(e) => {
         // A tool was used: put the dropped-down tools away (not for buttons that open a menu of their own).
         const b = (e.target as HTMLElement).closest('button');
         if (collapsed && b && !b.hasAttribute('aria-haspopup') && !b.hasAttribute('aria-expanded')) setPeek(false);
@@ -401,7 +403,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
                   <span key={label} className="ribbon-split">
                     {btn}
                     <button className="ribbon-split-arrow" title={`${label}: more options`} aria-haspopup="menu" aria-expanded={splitOpen === label} disabled={disabled}
-                      onClick={(e) => { e.stopPropagation(); const r = (e.currentTarget.parentElement ?? e.currentTarget).getBoundingClientRect(); setSplitAt({ x: r.left, y: r.bottom + 2 }); setSplitOpen(splitOpen === label ? null : label); }}>▾</button>
+                      onClick={(e) => { e.stopPropagation(); const r = (e.currentTarget.parentElement ?? e.currentTarget).getBoundingClientRect(); setSplitAt({ x: r.left, y: r.bottom + 2 }); setSplitOpen(splitOpen === label ? null : label); }}><ChevronDown size={14} strokeWidth={1.8} aria-hidden /></button>
                     {splitOpen === label && (
                       <div className="ribbon-split-menu" role="menu" style={{ left: splitAt.x, top: splitAt.y }} onMouseDown={(e) => e.stopPropagation()}>
                         {menu.map((m) => <span key={m.label} style={{ display: 'contents' }}>{m.sep && <hr />}<button role="menuitem" title={m.title} onClick={() => { setSplitOpen(null); m.onClick(); }}>{m.label}</button></span>)}
@@ -425,6 +427,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
           <div className="ribbon-group more" ref={moreRef}>
             <button
               title="Recently opened projects"
+              aria-haspopup="menu"
               aria-expanded={moreOpen}
               onClick={(e) => {
                 const ribbon = e.currentTarget.closest('.ribbon')!.getBoundingClientRect();
@@ -433,8 +436,9 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
               }}
             >
               <Clock size={20} strokeWidth={1.6} />
-              <span>Recent ▾</span>
+              <span className="ribbon-menu-label">Recent <ChevronDown size={12} strokeWidth={1.8} aria-hidden /></span>
             </button>
+            <div className="ribbon-caption">Open</div>
             {moreOpen && (
               <div className="ribbon-menu" role="menu" style={{ left: menuLeft }}>
                 {a.recent.map((r) => (
@@ -450,6 +454,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
           <div className="ribbon-group more" ref={moreRef}>
             <button
               title="More tools"
+              aria-haspopup="menu"
               aria-expanded={moreOpen}
               onClick={(e) => {
                 // The menu is anchored to the ribbon (so the scrolling toolbar can't clip it); line it up under this button.
@@ -461,6 +466,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
               <Ellipsis size={20} strokeWidth={1.6} />
               <span>More</span>
             </button>
+            <div className="ribbon-caption">Other tools</div>
             {moreOpen && (
               <div className="ribbon-menu" role="menu" style={{ left: menuLeft }}>
                 <button role="menuitem" onClick={() => { setMoreOpen(false); a.onView('engines'); }}>Load flow (OpenDSS / pandapower)</button>
