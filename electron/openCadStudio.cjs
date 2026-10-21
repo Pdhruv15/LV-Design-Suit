@@ -91,7 +91,26 @@ function writeTemporaryDrawings(tempRoot, files) {
   });
 }
 
+/** The LV scripts for OpenCADStudio (Python, run with Run Script… / PY_RUN), shipped beside the app. */
+const SCRIPTS_DIR = path.join(__dirname, '..', 'opencadstudio');
+
+/** Copies the LV scripts (*.py and README.md) into a folder the engineer chose; the same files there are replaced,
+ * other files are left alone. Returns the copied file names. */
+function copyScripts(destination, source = SCRIPTS_DIR) {
+  if (!destination || !path.isAbsolute(destination)) throw new Error('Choose a folder for the scripts.');
+  const files = fs.readdirSync(source).filter((f) => /^lv_[a-z0-9_]+\.py$/.test(f) || f === 'README.md').sort();
+  if (!files.length) throw new Error('The LV scripts are missing from this installation.');
+  fs.mkdirSync(destination, { recursive: true });
+  for (const f of files) {
+    fs.copyFileSync(path.join(source, f), path.join(destination, f));
+    fs.chmodSync(path.join(destination, f), 0o644); // copies out of app.asar come owner-only; the folder may be shared
+  }
+  return files;
+}
+
 module.exports = {
+  copyScripts,
+  SCRIPTS_DIR,
   installationCandidates,
   findInstallation,
   executableForInstallation,

@@ -344,6 +344,13 @@ handle('opencad:placeSelection', (_evt, boardId) => openCadSession.placeSelectio
 // Tray routes: tray runs and cable routes as paths; link the selected curves to a tray route by name.
 handle('opencad:trays', () => openCadSession.readTrays());
 handle('opencad:traySelection', (_evt, name) => openCadSession.traySelection(typeof name === 'string' ? name : ''));
+// The LV scripts for OpenCADStudio, copied to a folder the engineer chooses (they run inside OpenCADStudio).
+handle('opencad:copyScripts', async (evt) => {
+  const result = await dialog.showOpenDialog(ownerOf(evt), { title: 'Copy the LV scripts for OpenCADStudio to…', defaultPath: ensureProjectsFolder(), properties: ['openDirectory', 'createDirectory'] });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  const folder = path.join(result.filePaths[0], 'LV scripts for OpenCADStudio');
+  return { folder, files: openCadStudio.copyScripts(folder) };
+});
 handle('opencad:linked', async () => (await openCadSession.linkedEquipment()).map(({ tag, handles }) => ({ tag, objects: handles.length })));
 handle('opencad:status', () => ({ installed: !!openCadStudio.findInstallation(), ...openCadSession.status() }));
 

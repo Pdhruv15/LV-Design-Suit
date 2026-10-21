@@ -897,6 +897,14 @@ export default function App() {
     cmd('Board locations from CAD floor plan…', () => setShowCadPlaces(true), undefined, 'OpenCADStudio DWG DXF room level position');
     cmd('Tray routes from CAD floor plan…', () => setShowCadTrays(true), undefined, 'OpenCADStudio DWG DXF cable tray route length');
     cmd('Rooms and areas from CAD floor plan…', () => setShowCadRooms(true), undefined, 'OpenCADStudio DWG DXF architect layers room area m2 building');
+    cmd('Copy LV scripts for OpenCADStudio…', async () => {
+      const copy = window.lvds?.openCadStudio?.copyScripts;
+      if (!copy) { setStatus('The OpenCADStudio scripts come with the LV Design Studio desktop app'); return; }
+      try {
+        const r = await copy();
+        if (r) setStatus(`Copied ${r.files.filter((f) => f.endsWith('.py')).length} LV scripts to ${r.folder} — in OpenCADStudio use Python Scripting → Run Script…`);
+      } catch (e) { setStatus(`Could not copy the scripts: ${e instanceof Error ? e.message : String(e)}`); }
+    }, undefined, 'OpenCADStudio add-in python script room area summary tray tag board');
     cmd('System diagram', () => { design(); setDiagramMode('system'); }, `${mod}1`, 'SLD');
     cmd('Riser diagram', () => { design(); setDiagramMode('riser'); }, `${mod}4`, 'riser schematic building levels');
     if (board) cmd(`Board diagram — ${board.id}`, () => { design(); setDiagramMode('board'); }, `${mod}2`);
