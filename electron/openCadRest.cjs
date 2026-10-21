@@ -377,9 +377,12 @@ class OpenCadRestSession {
 
   /** What a floor plan says about where boards are: board symbols (tagged "place:<board id>", or blocks whose TAG /
    * BOARD / PANEL attribute names a board), closed outlines (rooms) and texts (room names), in drawing units. */
-  async readPlan() {
+  async readPlan(options = {}) {
+    // Curves are only returned for the layers asked for (an architect's plan has many thousands of wall lines),
+    // plus any curve linked by hand to a route or a tray.
+    const curveLayers = new Set((Array.isArray(options.curveLayers) ? options.curveLayers : []).filter((l) => typeof l === 'string').map((l) => l.toLowerCase()));
     if (!this.connected) throw new Error('OpenCADStudio is not connected. Open the floor plan in OpenCADStudio first.');
-    const plan = { places: [], symbols: [], outlines: [], texts: [], tags: [] };
+    const plan = { places: [], symbols: [], outlines: [], texts: [], tags: [], curves: [], fixtures: [] };
     const layers = new Map();
     const count = (layer, kind) => {
       const at = layers.get(layer) || { name: layer, outlines: 0, curves: 0, texts: 0, blocks: 0, hatches: 0 };
@@ -401,13 +404,22 @@ class OpenCadRestSession {
           if (e.attributes && at) {
             const board = attributeOf(e.attributes, BOARD_ATTRIBUTES);
             if (board) plan.symbols.push({ name: board, x: at[0], y: at[1] });
+            const cct = attributeOf(e.attributes, ['CCT', 'CIRCUIT', 'CKT', 'CCT_REF', 'CIRCUIT_REF']);
+            if (cct) plan.fixtures.push({ x: at[0], y: at[1], cct });
             const name = attributeOf(e.attributes, ROOM_NAME_ATTRIBUTES), number = attributeOf(e.attributes, ROOM_NUMBER_ATTRIBUTES);
             if (name || number) plan.tags.push({ layer, x: at[0], y: at[1], ...(name ? { name } : {}), ...(number ? { number } : {}) });
           }
         }
         const outline = closedOutline(e);
         if (outline) { plan.outlines.push({ layer, ...outline }); count(layer, e.type === 'Hatch' ? 'hatches' : 'outlines'); }
-        else if (/^(Line|Arc|Polyline.*)$/.test(e.type)) count(layer, 'curves');
+        else if (/^(Line|Arc|Polyline.*)$/.test(e.type)) {
+          count(layer, 'curves');
+          const linked = tag && (tag.startsWith('route:') || tag.startsWith('tray:'));
+          if (linked || curveLayers.has(layer.toLowerCase())) {
+            const points = curvePoints(e);
+            if (points) plan.curves.push({ layer, points, length: curveLength(e), ...(linked ? { tag } : {}) });
+          }
+        }
         const p = e.properties || {};
         const text = typeof p.value === 'string' ? p.value : typeof p.text === 'string' ? p.text : typeof p.contents === 'string' ? p.contents : undefined;
         if (/^(Text|MText|Multiline Text)$/i.test(e.type) && text && text.trim() && at) { plan.texts.push({ layer, x: at[0], y: at[1], text: text.trim() }); count(layer, 'texts'); }

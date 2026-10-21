@@ -1,6 +1,7 @@
 // Writes docs/samples/sample-ground-floor-plan.dxf: a ground-floor plan of the built-in sample project's villa
 // (R12 DXF, millimetres) for trying the OpenCADStudio link — rooms with names, the SMDB-GF and DB-GF1 board
-// symbols, light and socket fixtures with CCT circuit attributes, two unlinked cable routes and two unlinked tray runs.
+// symbols, light and socket fixtures with CCT circuit attributes, two cable routes (each from a board to a board or a
+// light) and two labelled tray runs.
 // Run: node scripts/make-sample-floor-plan.mjs
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -96,18 +97,20 @@ for (const x of [9000, 12000, 15000, 17000]) insert('SKT-TWIN', 'E-POWER', x, 84
 for (const x of [13000, 15500, 18000]) insert('SKT-TWIN', 'E-POWER', x, 400, { CCT: 'DB-GF1/B7' });
 // Cable routes (not linked yet): SMDB-GF → DB-GF1, and DB-GF1 → Living lighting.
 polyline('E-CABLE', [[21600, 6000], [21000, 6000], [21000, 1500], [21600, 1500]]);
-polyline('E-CABLE', [[21600, 1800], [19500, 1800], [19500, 9000], [13000, 9000], [13000, 11500]]);
+polyline('E-CABLE', [[21600, 1800], [19500, 1800], [19500, 9000], [13000, 9000], [13000, 9750]]); // ends at a Living light
 // Tray runs (not linked yet): A up the corridor beside the kitchen, B along to the living room. The second cable
 // route runs along A, then B.
 polyline('E-TRAY', [[19650, 1500], [19650, 9150]]);
 polyline('E-TRAY', [[19650, 9150], [12500, 9150]]);
+text('E-TRAY', 19900, 5000, 250, 'TRAY A');
+text('E-TRAY', 16000, 9400, 250, 'TRAY B');
 // Notes
 const notes = [
   'SAMPLE GROUND FLOOR PLAN - LV DESIGN STUDIO DEMONSTRATION PROJECT (NOT FOR CONSTRUCTION). UNITS: MM.',
   'LOADS FROM CAD: L1 = LIBRARY REFERENCE L1; MAP SKT-TWIN TO S13 x 2. CIRCUIT FROM THE CCT ATTRIBUTE.',
-  'CABLE LENGTHS: SELECT A MAGENTA ROUTE ON E-CABLE, CHOOSE THE FEEDER, LINK SELECTION, THEN PULL LENGTHS.',
+  'CABLE LENGTHS: ROUTES ON E-CABLE LINK THEMSELVES BY THE BOARDS / LIGHT THEIR ENDS TOUCH (E-CABLE = CABLE ROUTE).',
   'BOARD LOCATIONS: BOARDS ARE FOUND BY THEIR TAG ATTRIBUTE; ROOMS ARE CLOSED OUTLINES ON A-ROOM.',
-  'TRAY ROUTES: LINK THE CYAN RUNS ON E-TRAY AS A (VERTICAL) AND B, LINK THE CABLE ROUTES, THEN PULL TRAY ROUTES.',
+  'TRAY ROUTES: RUNS ON E-TRAY ARE NAMED BY THEIR TRAY A / TRAY B LABELS (E-TRAY = CABLE TRAY).',
   'ROOMS AND AREAS: A-ROOM = ROOM OUTLINE, A-ROOM-NAME = ROOM NAME (TEXTS AND THE RM-TAG BLOCK).'
 ];
 notes.forEach((line, i) => text('NOTES', 0, -800 - i * 450, 250, line));

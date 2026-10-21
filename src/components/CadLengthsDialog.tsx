@@ -1,13 +1,19 @@
 import { useState } from 'react';
+import { autoRoutes } from '../model/cadAutoLink';
 import { applyCadLengths, CAD_LENGTH_DEFAULTS, lengthBreakdown, pullCadLengths, type CadRoute } from '../model/cadLengths';
-import type { CadLengthSettings, Feeder, Project } from '../types';
+import type { CadPlan } from '../model/cadPlaces';
+import { withLayerMap } from '../model/cadRooms';
+import type { CadLayerMap, CadLayerRole, CadLengthSettings, Feeder, Project } from '../types';
+import CadLayerTable from './CadLayerTable';
+import { readPlanWithCurves } from './cadPlanRead';
 
 const feederLabel = (f: Feeder) => (f.feedsBoardId ? `${f.boardId} → ${f.feedsBoardId}` : `${f.boardId} ${f.phase && f.way ? `${f.phase}${f.way}` : ''} ${f.name}`.replace(/\s+/g, ' ').trim());
 const num = (v: string) => { const n = Number(v.replace(',', '.')); return Number.isFinite(n) && n >= 0 ? n : undefined; };
 
-/** Cable lengths from a CAD floor plan: the engineer links each feeder's route (selected curves in OpenCADStudio)
- * once; a pull measures the linked routes, adds the allowances and shows the lengths beside the design. Nothing
- * changes until the engineer applies. */
+/** Cable lengths from a CAD floor plan: routes on the cable route layers are linked to their feeders by the boards
+ * and fixtures their ends touch, and any route can be linked by hand (selected curves in OpenCADStudio). A pull
+ * measures the routes, adds the allowances and shows the lengths beside the design. Nothing changes until the
+ * engineer applies. */
 export default function CadLengthsDialog({ project, onApply, onClose }: {
   project: Project;
   onApply: (next: Project, message: string) => void;
@@ -18,6 +24,8 @@ export default function CadLengthsDialog({ project, onApply, onClose }: {
   const [note, setNote] = useState('');
   const [feederId, setFeederId] = useState('');
   const [read, setRead] = useState<{ units?: number; routes: CadRoute[] } | null>(null);
+  const [plan, setPlan] = useState<CadPlan | null>(null);
+  const [roles, setRoles] = useState<CadLayerMap[]>([]);
   const [settings, setSettings] = useState<CadLengthSettings>(project.cadLength ?? {});
   const [vertical, setVertical] = useState<Record<string, number | undefined>>({});
   const [skip, setSkip] = useState<Set<string>>(new Set());
@@ -27,7 +35,13 @@ export default function CadLengthsDialog({ project, onApply, onClose }: {
     cadLength: settings,
     feeders: project.feeders.map((f) => (f.id in vertical ? { ...f, cadVerticalM: vertical[f.id] } : f))
   };
-  const pull = read ? pullCadLengths(working, read.routes, read.units) : null;
+  // Routes linked by hand, plus routes on the route layers linked by what their ends touch.
+  const auto = plan ? autoRoutes(project, plan, roles) : null;
+  const handLinked = new Set(read?.routes.map((r) => r.feederId));
+  const autoIds = new Set((auto?.routes ?? []).filter((r) => !handLinked.has(r.feederId)).map((r) => r.feederId));
+  const routes: CadRoute[] = read ? [...read.routes, ...(auto?.routes ?? []).filter((r) => autoIds.has(r.feederId)).map((r) => ({ feederId: r.feederId, length: r.length, pieces: r.pieces.length }))] : [];
+  const pull = read ? pullCadLengths(working, routes, read.units ?? plan?.units) : null;
+  const routeLayers = roles.filter((m) => m.role === 'route').length;
   const feeders = [...project.feeders].filter((f) => !f.generation).sort((a, b) => feederLabel(a).localeCompare(feederLabel(b)));
 
   async function act(kind: string, run: () => Promise<void>) {
@@ -37,7 +51,7 @@ export default function CadLengthsDialog({ project, onApply, onClose }: {
   }
   const openPlan = () => act('open', async () => {
     const r = await cad!.openPlan!();
-    if (r) { setNote(`Opened ${r.file} in OpenCADStudio. Select a feeder’s cable route there, then link it here.`); setRead(null); }
+    if (r) { setNote(`Opened ${r.file} in OpenCADStudio. Routes on the cable route layers link themselves; select any other route there and link it here.`); setRead(null); setPlan(null); }
   });
   const link = (id: string) => act(id ? 'link' : 'unlink', async () => {
     const r = await cad!.linkSelection!(id);
@@ -45,13 +59,18 @@ export default function CadLengthsDialog({ project, onApply, onClose }: {
     setNote(`${what}${r.skipped ? ` (${r.skipped} skipped: only lines, arcs and polylines are routes)` : ''}.`);
     if (read) setRead(await cad!.routes!());
   });
-  const measure = () => act('pull', async () => { setRead(await cad!.routes!()); setSkip(new Set()); });
+  const measure = () => act('pull', async () => {
+    const [hand, withCurves] = await Promise.all([cad!.routes!(), readPlanWithCurves(cad!, project, roles)]);
+    setRead(hand); setPlan(withCurves.plan); setRoles(withCurves.roles); setSkip(new Set());
+  });
+  const setRole = (layer: string, role: CadLayerRole) => { setRoles((m) => m.map((x) => (x.layer === layer ? { ...x, role } : x))); setNote('Pull again to read the routes on the layers as now marked.'); };
 
   function apply() {
     if (!pull) return;
     const accepted = pull.proposals.filter((x) => !skip.has(x.feederId));
     const changedSettings = JSON.stringify(settings) !== JSON.stringify(project.cadLength ?? {});
-    const base = { ...working, ...(changedSettings ? { cadLength: Object.keys(settings).length ? settings : undefined } : { cadLength: project.cadLength }) };
+    const withSettings = { ...working, ...(changedSettings ? { cadLength: Object.keys(settings).length ? settings : undefined } : { cadLength: project.cadLength }) };
+    const base = roles.length ? withLayerMap(withSettings, roles) : withSettings;
     onApply(applyCadLengths(base, accepted), accepted.length
       ? `Cable lengths from CAD: ${accepted.length} feeder${accepted.length === 1 ? '' : 's'} updated — run the calculations to check voltage drop`
       : 'Cable lengths from CAD: allowances saved, no lengths changed');
@@ -75,8 +94,10 @@ export default function CadLengthsDialog({ project, onApply, onClose }: {
       <div className="modal cad-lengths" onClick={(e) => e.stopPropagation()}>
         <h3>Cable lengths from CAD floor plan</h3>
         <p className="m">
-          Link each feeder’s cable route once: select its lines or polylines in OpenCADStudio, choose the feeder here and
-          press Link selection. Pull lengths measures the linked routes and adds the allowances. Nothing changes until you apply.
+          Cable routes on the layers marked <b>Cable route</b> link themselves: a route from one board to another is the
+          feeder between them, a route from a board to a light or socket is that fixture’s circuit (its CCT attribute).
+          Any other route can be linked by hand: select it in OpenCADStudio, choose the feeder here and press Link
+          selection. Pull lengths measures the routes and adds the allowances. Nothing changes until you apply.
         </p>
         <div className="modal-actions">
           <button className="chip" disabled={!!busy} onClick={openPlan}>{busy === 'open' ? 'Opening…' : 'Open floor plan…'}</button>
@@ -108,7 +129,11 @@ export default function CadLengthsDialog({ project, onApply, onClose }: {
 
         {pull && (
           <>
-            <p className="m">{read!.routes.length} linked route{read!.routes.length === 1 ? '' : 's'} · {pull.units} · {pull.proposals.length} differ · {pull.matching} already match</p>
+            <details>
+              <summary className="m">Layers — {routeLayers ? `${routeLayers} cable route layer${routeLayers === 1 ? '' : 's'}` : 'mark the layer with the cable routes as Cable route to link them automatically'}</summary>
+              <CadLayerTable layers={plan?.layers ?? []} roles={roles} onChange={setRole} />
+            </details>
+            <p className="m">{read!.routes.length} linked by hand · {autoIds.size} linked from the route layers · {pull.units} · {pull.proposals.length} differ · {pull.matching} already match</p>
             {pull.proposals.length > 0 && (
               <table className="bi-table compact">
                 <thead><tr><th /><th>Feeder</th><th>Now (m)</th><th>From CAD</th><th>Vertical (m)</th></tr></thead>
@@ -116,7 +141,7 @@ export default function CadLengthsDialog({ project, onApply, onClose }: {
                   {pull.proposals.map((x) => (
                     <tr key={x.feederId}>
                       <td><input type="checkbox" aria-label={`Accept ${x.label}`} checked={!skip.has(x.feederId)} onChange={(e) => setSkip((k) => { const n = new Set(k); if (e.target.checked) n.delete(x.feederId); else n.add(x.feederId); return n; })} /></td>
-                      <td>{x.label}</td>
+                      <td>{x.label}{autoIds.has(x.feederId) && <span className="m" title="Linked from the route layer by the boards / fixture its ends touch"> · auto</span>}</td>
                       <td>{x.currentM}</td>
                       <td title={`${x.pieces} linked object${x.pieces === 1 ? '' : 's'}`}>{lengthBreakdown(x)}</td>
                       <td><input aria-label={`Vertical allowance for ${x.label}`} inputMode="decimal" style={{ width: '4.5em' }} value={vertical[x.feederId] ?? project.feeders.find((f) => f.id === x.feederId)?.cadVerticalM ?? ''} placeholder={String(s.verticalM)} onChange={(e) => setVertical((v) => ({ ...v, [x.feederId]: num(e.target.value) }))} /></td>
@@ -126,6 +151,9 @@ export default function CadLengthsDialog({ project, onApply, onClose }: {
               </table>
             )}
             {pull.unknownFeeders.length > 0 && <p className="m">Routes linked to feeders no longer in the design (ignored): {pull.unknownFeeders.join(', ')}</p>}
+            {(auto?.unmatched.length ?? 0) > 0 && (
+              <p className="m">Not linked — link by hand: {auto!.unmatched.map((u) => `${u.lengthM} m on ${u.layer} (${u.reason})`).join('; ')}</p>
+            )}
           </>
         )}
 
