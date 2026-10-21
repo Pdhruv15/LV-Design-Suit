@@ -56,6 +56,12 @@ for (const [x, y] of [[-400, -150], [400, -150], [400, 150], [-400, 150]]) { g(0
 g(0, 'SEQEND'); g(8, '0');
 attdef('TAG', 'Board', 250);
 g(0, 'ENDBLK'); g(8, '0');
+// Room tag: NAME and NO attributes (as many architects tag rooms).
+g(0, 'BLOCK'); g(8, '0'); g(2, 'RM-TAG'); g(70, 2); g(10, 0); g(20, 0); g(30, 0); g(3, 'RM-TAG');
+g(0, 'CIRCLE'); g(8, '0'); g(10, 0); g(20, 0); g(30, 0); g(40, 350);
+attdef('NAME', 'Room name', 450);
+attdef('NO', 'Room number', -150);
+g(0, 'ENDBLK'); g(8, '0');
 g(0, 'ENDSEC');
 
 // ---- entities
@@ -68,7 +74,9 @@ const rooms = [
 ];
 for (const [name, x1, y1, x2, y2] of rooms) {
   rect('A-ROOM', x1, y1, x2, y2);
-  text('A-ROOM-NAME', (x1 + x2) / 2, y2 - 700, 300, name, true);
+  // The guest bedroom is named by a room tag block instead of a text.
+  if (name === 'GUEST BEDROOM') insert('RM-TAG', 'A-ROOM-NAME', (x1 + x2) / 2, y2 - 1200, { NAME: 'Guest bedroom', NO: 'G.05' });
+  else text('A-ROOM-NAME', (x1 + x2) / 2, y2 - 700, 300, name, true);
 }
 // Boards: the TAG attribute names the board.
 insert('DB-PANEL', 'E-BOARD', 22000, 6000, { TAG: 'SMDB-GF' });
@@ -99,7 +107,8 @@ const notes = [
   'LOADS FROM CAD: L1 = LIBRARY REFERENCE L1; MAP SKT-TWIN TO S13 x 2. CIRCUIT FROM THE CCT ATTRIBUTE.',
   'CABLE LENGTHS: SELECT A MAGENTA ROUTE ON E-CABLE, CHOOSE THE FEEDER, LINK SELECTION, THEN PULL LENGTHS.',
   'BOARD LOCATIONS: BOARDS ARE FOUND BY THEIR TAG ATTRIBUTE; ROOMS ARE CLOSED OUTLINES ON A-ROOM.',
-  'TRAY ROUTES: LINK THE CYAN RUNS ON E-TRAY AS A (VERTICAL) AND B, LINK THE CABLE ROUTES, THEN PULL TRAY ROUTES.'
+  'TRAY ROUTES: LINK THE CYAN RUNS ON E-TRAY AS A (VERTICAL) AND B, LINK THE CABLE ROUTES, THEN PULL TRAY ROUTES.',
+  'ROOMS AND AREAS: A-ROOM = ROOM OUTLINE, A-ROOM-NAME = ROOM NAME (TEXTS AND THE RM-TAG BLOCK).'
 ];
 notes.forEach((line, i) => text('NOTES', 0, -800 - i * 450, 250, line));
 g(0, 'ENDSEC'); g(0, 'EOF');

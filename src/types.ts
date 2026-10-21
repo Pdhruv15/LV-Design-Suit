@@ -336,6 +336,9 @@ export interface Board {
 /** One CAD block name → the library item (Loads.xlsx reference) it is, and how many it counts as (twin socket: 2). */
 export interface CadBlockMap { block: string; reference: string; per?: number }
 
+export type CadLayerRole = 'room' | 'room-name' | 'wall' | 'tray' | 'route' | 'fixture' | 'board' | 'ignore';
+export interface CadLayerMap { layer: string; role: CadLayerRole }
+
 /** Length = (measured route + vertical + terminations) × (1 + waste %), rounded up to a whole metre. */
 export interface CadLengthSettings {
   units?: 'mm' | 'cm' | 'm'; // drawing units when the drawing does not say (INSUNITS 0); default mm
@@ -415,6 +418,10 @@ export interface Project {
   cadLength?: CadLengthSettings;
   /** CAD floor plans: layer name (or part of it) of the room outlines; default any layer with ROOM, SPACE or AREA. */
   cadRoomLayer?: string;
+  /** What each layer of the project's CAD floor plans means (room outline, room name, tray…). */
+  cadLayers?: CadLayerMap[];
+  /** Room names on CAD floor plans → the room type chosen for them (remembered between pulls). */
+  cadRoomTypes?: { name: string; type: string }[];
   substations?: DmSubstationRoom[]; // DM-D-013 minimum substation / LV room areas
   studyReport?: StudyReportSetup; // the study report being prepared (Reports → Study reports)
   calcReportDocNo?: string; // document number on page 1 of the calculation report
