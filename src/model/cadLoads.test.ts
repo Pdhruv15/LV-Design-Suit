@@ -90,6 +90,19 @@ describe('loads from the CAD floor plan', () => {
     expect(prop.proposedText).toBe('8×L1 10 W + 1×EXFAN');
   });
 
+  it('replaces single 13 A sockets with the twin sockets CAD counts, instead of adding to them', () => {
+    const twin: LibraryLoad = { reference: 'TS1', name: '13A twin socket-outlet', column: 's13t', watts: 400 };
+    const { p, socket, socketRef } = project();
+    const pull = pullCadLoads(p, Array.from({ length: 3 }, () => block('TS1', `DB-GF1/${socketRef}`)), [...loads, twin]);
+    const prop = pull.proposals.find((x) => x.feederId === socket)!;
+    expect(prop.currentText).toBe('2×S13');
+    expect(prop.proposedText).toBe('3×TS1 400 W');
+    expect(prop.points).toEqual({ s13t: 3 });
+    const f = applyCadLoads(p, [prop]).feeders.find((x) => x.id === socket)!;
+    expect(f.points).toEqual({ s13t: 3 });
+    expect(circuitWatts(f, p.boards[1])).toBe(1200);
+  });
+
   it('applies accepted proposals through the schedule edit', () => {
     const { p, light, lightRef } = project();
     const pull = pullCadLoads(p, Array.from({ length: 3 }, () => block('L1', `DB-GF1/${lightRef}`)), loads);

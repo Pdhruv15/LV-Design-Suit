@@ -81,11 +81,11 @@ export default function CadPlacesDialog({ project, onApply, onClose }: {
         <div className="ce-grid">
           <label>This plan shows
             <select aria-label="Level of this plan" value={levelKeyChosen} onChange={(e) => setLevelKeyChosen(e.target.value)}>
-              <option value="">— keep each board’s level —</option>
+              <option value="">Keep levels</option>
               {floors.map((f) => <option key={f.key} value={f.key}>{floorLabel(project.building, f)}</option>)}
             </select>
           </label>
-          <label>Room outline layer<input value={roomLayer} placeholder="any layer with ROOM, SPACE or AREA" onChange={(e) => setRoomLayer(e.target.value)} /></label>
+          <label>Room outline layer<input value={roomLayer} placeholder="ROOM, SPACE or AREA" title="Layer name, or part of it, of the room outlines. Blank: any layer whose name has ROOM, SPACE or AREA" onChange={(e) => setRoomLayer(e.target.value)} /></label>
         </div>
         {!floors.length && <p className="m">No levels yet (Building information), so boards keep their level; rooms and positions still update.</p>}
 

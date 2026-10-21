@@ -3,6 +3,11 @@ import { findLibraryLoad, loadItemFromLibrary, type LibraryLoad } from '../datab
 import { updateCircuit } from './schedule';
 import type { CadBlockMap, CircuitLoadItem, Feeder, PointType, Project } from '../types';
 
+/** Point types that are the same kind of outlet: a plan that counts twin sockets replaces the single sockets the
+ * design counted (and the other way round), rather than adding to them. */
+const FAMILY: Partial<Record<PointType, PointType[]>> = { s13: ['s13', 's13t'], s13t: ['s13', 's13t'] };
+const replacedBy = (types: Set<PointType>) => new Set<PointType>([...types].flatMap((t) => FAMILY[t] ?? [t]));
+
 /** A block placed on a CAD floor plan: its block name and attribute values (tag → value). */
 export interface CadBlock { block: string; attributes: Record<string, string> }
 
@@ -15,6 +20,7 @@ export interface CadLoadProposal {
   boardId: string;
   ref: string; // "DB-GF1 R3"
   items: CircuitLoadItem[]; // the circuit's items after the pull
+  points: Partial<Record<PointType, number>>; // its point counts after the pull
   currentText: string;
   proposedText: string;
   currentW: number;
@@ -88,17 +94,19 @@ export function pullCadLoads(project: Project, blocks: CadBlock[], loads: Librar
     const board = project.boards.find((b) => b.id === f.boardId);
     const fromCad = [...cad.values()].map(({ load, quantity }) => loadItemFromLibrary(load, load.column!, quantity));
     const types = new Set<PointType>(fromCad.map((it) => it.pointType));
+    const replaced = replacedBy(types);
     const current = normalizeLoadItems(f.loadItems);
-    const items = normalizeLoadItems([...current.filter((it) => !types.has(it.pointType)), ...fromCad]);
-    const points = { ...f.points };
+    const items = normalizeLoadItems([...current.filter((it) => !replaced.has(it.pointType)), ...fromCad]);
+    const points: Partial<Record<PointType, number>> = { ...f.points };
+    for (const t of replaced) delete points[t];
     for (const t of types) points[t] = items.filter((it) => it.pointType === t).reduce((s, it) => s + it.quantity, 0);
     const proposed: Feeder = { ...f, points, loadItems: items };
     const before = { currentText: circuitText(f), currentW: circuitWatts(f, board) };
     const after = { proposedText: circuitText(proposed), proposedW: circuitWatts(proposed, board) };
     // Same counts and watts is a match, whether or not the circuit was itemized (no noise in the review).
-    const sameCounts = [...types].every((t) => (f.points?.[t] ?? 0) === points[t]);
+    const sameCounts = [...replaced].every((t) => (f.points?.[t] ?? 0) === (points[t] ?? 0));
     if ((sameItems(current, items) || sameCounts) && before.currentW === after.proposedW) { matching += 1; continue; }
-    proposals.push({ feederId: f.id, boardId: f.boardId, ref: `${f.boardId} ${circuitRef(f) ?? f.name}`, items, ...before, ...after });
+    proposals.push({ feederId: f.id, boardId: f.boardId, ref: `${f.boardId} ${circuitRef(f) ?? f.name}`, items, points, ...before, ...after });
   }
   return {
     proposals,
@@ -124,9 +132,7 @@ export function applyCadLoads(project: Project, accepted: CadLoadProposal[]): Pr
   let p = project;
   for (const a of accepted) {
     const items = normalizeLoadItems(a.items);
-    const points: Partial<Record<PointType, number>> = { ...p.feeders.find((f) => f.id === a.feederId)?.points };
-    for (const t of new Set(items.map((it) => it.pointType))) points[t] = items.filter((it) => it.pointType === t).reduce((s, it) => s + it.quantity, 0);
-    p = updateCircuit(p, a.feederId, { loadItems: items.length ? items : undefined, points });
+    p = updateCircuit(p, a.feederId, { loadItems: items.length ? items : undefined, points: { ...a.points } });
   }
   return p;
 }
