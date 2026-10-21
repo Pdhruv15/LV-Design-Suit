@@ -14,14 +14,15 @@ describe('checkpoints', () => {
     expect(c.project.feeders[0].lengthM).toBe(p.feeders[0].lengthM);
     expect(edited.feeders[0].lengthM).toBe(999);
   });
-  it('keeps a bounded number, dropping automatic then oldest, never the new one', async () => {
+  it('keeps the latest automatic ones up to the limit and every named one (decision D5), never the new one', async () => {
     const store = new MemoryStore();
-    await saveCheckpoint(store, newCheckpoint(p, 'mine 1', { now: at(1) }), 3);
-    await saveCheckpoint(store, newCheckpoint(p, 'auto', { auto: true, now: at(2) }), 3);
-    await saveCheckpoint(store, newCheckpoint(p, 'mine 2', { now: at(3) }), 3);
-    const list = await saveCheckpoint(store, newCheckpoint(p, 'mine 3', { now: at(4) }), 3);
-    expect(list.map((c) => c.label)).toEqual(['mine 3', 'mine 2', 'mine 1']);
-    expect(excess(list, 3)).toEqual([]);
+    await saveCheckpoint(store, newCheckpoint(p, 'mine 1', { now: at(1) }), 2);
+    await saveCheckpoint(store, newCheckpoint(p, 'auto 1', { auto: true, now: at(2) }), 2);
+    await saveCheckpoint(store, newCheckpoint(p, 'auto 2', { auto: true, now: at(3) }), 2);
+    await saveCheckpoint(store, newCheckpoint(p, 'mine 2', { now: at(4) }), 2);
+    const list = await saveCheckpoint(store, newCheckpoint(p, 'auto 3', { auto: true, now: at(5) }), 2);
+    expect(list.map((c) => c.label)).toEqual(['auto 3', 'mine 2', 'auto 2', 'mine 1']);
+    expect(excess(list, 2)).toEqual([]);
   });
   it('does not mix projects', async () => {
     const store = new MemoryStore();

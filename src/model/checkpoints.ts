@@ -5,7 +5,8 @@ import type { Project } from '../types';
  * bounded (the oldest unlabelled ones go first). Restoring puts the checkpoint's design into the open project as an ordinary,
  * undoable edit; revisions issued since stay exactly as they are. */
 export interface Checkpoint { id: string; projectId: string; at: string; label: string; /** Made by the app (before a restore), not by the user. */ auto?: boolean; project: Project }
-export const MAX_CHECKPOINTS = 12;
+/** Retention (decision D5): the latest automatic checkpoints are kept up to this many; every labelled one is kept. */
+export const MAX_AUTO_CHECKPOINTS = 20;
 
 /** Where checkpoints are kept; IndexedDB in the app, memory in tests. */
 export interface CheckpointStore {
@@ -20,15 +21,14 @@ export function newCheckpoint(p: Project, label: string, opts: { auto?: boolean;
   return { id: `cp-${now.getTime().toString(36)}-${Math.random().toString(36).slice(2, 6)}`, projectId: p.id, at: now.toISOString(), label: label.trim() || 'Checkpoint', ...(opts.auto ? { auto: true } : {}), project: JSON.parse(JSON.stringify(p)) };
 }
 
-/** The checkpoints to delete so no more than `max` remain: automatic ones first, then oldest. A user's labelled checkpoint outlives automatic ones. */
-export function excess(list: Checkpoint[], max = MAX_CHECKPOINTS): Checkpoint[] {
-  const over = list.length - max;
-  if (over <= 0) return [];
-  const byAge = [...list].sort((a, b) => a.at.localeCompare(b.at));
-  return [...byAge.filter((c) => c.auto), ...byAge.filter((c) => !c.auto)].slice(0, over);
+/** The checkpoints to delete: the oldest automatic ones beyond `maxAuto`. A checkpoint the engineer made (labelled) is never
+ * deleted by the app (decision D5). */
+export function excess(list: Checkpoint[], maxAuto = MAX_AUTO_CHECKPOINTS): Checkpoint[] {
+  const auto = list.filter((c) => c.auto).sort((a, b) => a.at.localeCompare(b.at));
+  return auto.slice(0, Math.max(0, auto.length - maxAuto));
 }
 
-export async function saveCheckpoint(store: CheckpointStore, c: Checkpoint, max = MAX_CHECKPOINTS): Promise<Checkpoint[]> {
+export async function saveCheckpoint(store: CheckpointStore, c: Checkpoint, max = MAX_AUTO_CHECKPOINTS): Promise<Checkpoint[]> {
   await store.put(c);
   const list = await store.list(c.projectId);
   const drop = excess(list, max).filter((x) => x.id !== c.id);
@@ -42,6 +42,20 @@ export function restoredFrom(current: Project, c: Checkpoint): Project {
   const old: Project = JSON.parse(JSON.stringify(c.project));
   return { ...old, id: current.id, createdAt: current.createdAt, revisions: current.revisions, baseline: current.baseline };
 }
+
+/** An automatic checkpoint of the design as it is now, taken before a big change (issuing, a CAD pull, overwriting after a
+ * conflict, importing a backup). Never blocks the change: a project without an identity yet, or storage that fails, is
+ * reported through `onError` (if given) and otherwise ignored. */
+export async function autoCheckpoint(p: Project, label: string, store: CheckpointStore | undefined = idbStore(), onError?: (m: string) => void): Promise<void> {
+  if (!p.id || !store) return;
+  try {
+    await saveCheckpoint(store, newCheckpoint(p, label, { auto: true }));
+    // An open Checkpoints panel shows the new one straight away.
+    if (typeof window !== 'undefined' && typeof CustomEvent !== 'undefined') window.dispatchEvent(new CustomEvent(CHECKPOINTS_CHANGED, { detail: p.id }));
+  } catch (e) { onError?.(`Automatic checkpoint not saved: ${e instanceof Error ? e.message : String(e)}`); }
+}
+/** Window event sent after an automatic checkpoint is saved (detail: the project id). */
+export const CHECKPOINTS_CHANGED = 'lvds-checkpoints-changed';
 
 export class MemoryStore implements CheckpointStore {
   private m = new Map<string, Checkpoint>();
