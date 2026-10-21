@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { ask } from '../ConfirmDialog';
 import { useMemo, useState } from 'react';
 import type { PlanPanel, Project, SpacePlan, SpaceUse } from '../../types';
@@ -170,7 +171,7 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated }
                     )}
                   </td>
                   <td>{f0(panelLoad(plan, p.id).demandKva)}</td>
-                  <td><button className="icon-btn" title={`Remove ${p.id}`} onClick={() => setPlan({ ...plan, panels: plan.panels.filter((x) => x.id !== p.id), areas: plan.areas.map((a) => (a.panel === p.id ? { ...a, panel: undefined } : a)) }, true)}>✕</button></td>
+                  <td><button className="icon-btn" title={`Remove ${p.id}`} onClick={() => setPlan({ ...plan, panels: plan.panels.filter((x) => x.id !== p.id), areas: plan.areas.map((a) => (a.panel === p.id ? { ...a, panel: undefined } : a)) }, true)} aria-label={`Remove ${p.id}`}><X size={14} aria-hidden /></button></td>
                 </tr>
               ))}
               {plan.panels.length === 0 && <tr><td colSpan={7} className="m">No panels yet — Auto-assign creates them from the areas.</td></tr>}
@@ -195,7 +196,7 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated }
                   <td>{t.panels.map((p) => p.id).join(', ') || '—'}</td>
                   <td>{f0(t.demandKva)}</td>
                   <td className={t.status}><b>{t.loadingPct.toFixed(0)}%</b></td>
-                  <td><button className="icon-btn" title={`Remove ${t.transformer.id}`} onClick={() => setPlan({ ...plan, transformers: plan.transformers.filter((x) => x.id !== t.transformer.id), panels: plan.panels.map((p) => (p.transformer === t.transformer.id ? { ...p, transformer: undefined } : p)) }, true)}>✕</button></td>
+                  <td><button className="icon-btn" title={`Remove ${t.transformer.id}`} onClick={() => setPlan({ ...plan, transformers: plan.transformers.filter((x) => x.id !== t.transformer.id), panels: plan.panels.map((p) => (p.transformer === t.transformer.id ? { ...p, transformer: undefined } : p)) }, true)} aria-label={`Remove ${t.transformer.id}`}><X size={14} aria-hidden /></button></td>
                 </tr>
               ))}
               {plan.transformers.length === 0 && <tr><td colSpan={7} className="m">No transformers yet — Auto-assign sizes them.</td></tr>}

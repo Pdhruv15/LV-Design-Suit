@@ -10,7 +10,7 @@ Small, separately tested milestones on branch `ui/design-system`. No rebuild, no
 | 4 | Engineering tables and result displays | ✅ done, verified |
 | 5 | SLD editor interface | ✅ done, verified |
 | 6 | Report preview and export interface | ✅ done, verified |
-| 7 | Final consistency review (both themes, every screen) | next |
+| 7 | Final consistency review (both themes, every screen) | ✅ done, verified |
 
 ## 1 — Tokens and theme ✅
 
@@ -63,6 +63,17 @@ Small, separately tested milestones on branch `ui/design-system`. No rebuild, no
 - `<ExportBar>` (`ui.tsx`): one export strip — **Scope**, **Revision** (what is printed on the documents), **Save to** (desktop: you choose the folder; browser: download / print dialog), then the formats with the primary last. Why export is blocked is written out, not only in a tooltip. Used by Study reports, Export centre, SLD export and the Calculation report. The forms behind them (studies, boards, title-block fields) stay where they were: rebuilding them into one form would risk what they export.
 - Export centre had two primary buttons; Zip of PDFs is now secondary, One PDF primary. SLD export: the disabled Revision box moved into the strip.
 - `<PaperPreview>` (`PaperPreview.tsx`): the report on its own paper size at true proportions, scaled to fit, with dashed page-margin guides and a label (e.g. "A4 landscape · margins 21 / 14 / 16 / 16 mm"). Size and margins are read from the report's own last unnamed `@page` rule, as the printer applies it, so the preview cannot disagree with the PDF. Only the preview copy gets the margins as screen padding; the exported HTML is unchanged (tested). Used by Study reports and the Calculation report. Paper is white in both themes.
+
+## 7 — Final consistency review ✅
+
+A scripted tour of the running app opened **every screen in both themes** (46 per theme: every page on every ribbon tab, the four SLD views, quick calculators, projects home) and checked each for text contrast against its real background (WCAG AA, opacity included), glyph icons in buttons, hard-coded colours in screen UI and page overflow. Fixed:
+
+- **Glyph icons:** 43 ✕ remove / close buttons in 27 files → Lucide X with a label (from the button's tooltip, else "Remove"); arrow toggles (▸ ▾ ◀ ▶ ◂) → chevrons with `aria-expanded`; BOQ ✎ → pencil icon (help text now says "the pencil button"). The ✓ ! ✕ marks in check lists stay: there they are status symbols next to words.
+- **Contrast:** BOQ "by others" rows were faded with opacity (2.9:1) → secondary text colour; BOQ edit buttons no longer half-transparent; New project card subtitle, quick-calculator labels lifted. Light theme: `--bus` #b45309 → #a64b07 (group labels in grids and voltage drop), `--ok` #137535 → #116b30 (PASS on selected rows), `--mut` #56657e → #505f77; earth pit badge text follows the theme. Dark values unchanged.
+- **Protection chart:** curve colours were fixed hex values, pale on the light chart; now theme tokens `--curve-1…8` (dark = the original colours, light ≥ 4.8:1 on white).
+- **Ribbon at 1440 px:** Detailed design was 24 px and BOM / Cost 103 px too wide; buttons 56 px min (was 62) with 6 px side padding, and "Bill of quantities" is "BOQ" on the ribbon (full name in the tooltip). Every tab now fits at 1440 px; narrower windows scroll the ribbon as before.
+
+After the fixes the tour finds nothing in either theme except the protection legend swatches, which are the curve colours themselves (now tokens).
 
 ## Decisions needing the owner
 

@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { ask } from '../ConfirmDialog';
 import { useEffect, useState } from 'react';
 import type { Project } from '../../types';
@@ -149,7 +150,7 @@ function SubEditor({ s: start, project, me, isNew, onSave, onDelete, onClose }: 
             <td><input className="bi-text" style={{ width: 50 }} value={d.rev} onChange={(e) => setDoc(i, { rev: e.target.value })} /></td>
             <td><input className="bi-text" style={{ width: 80 }} value={d.format ?? ''} placeholder="PDF" onChange={(e) => setDoc(i, { format: e.target.value || undefined })} /></td>
             <td><input className="bi-text" style={{ width: 44 }} inputMode="numeric" value={d.copies ?? ''} placeholder="1" onChange={(e) => { const n = Number(e.target.value); setDoc(i, { copies: e.target.value && Number.isFinite(n) && n > 0 ? Math.round(n) : undefined }); }} /></td>
-            <td className="acts"><button className="icon-btn" title="Remove" onClick={() => set({ docs: s.docs.filter((_, k) => k !== i) })}>✕</button></td>
+            <td className="acts"><button className="icon-btn" title="Remove" onClick={() => set({ docs: s.docs.filter((_, k) => k !== i) })} aria-label="Remove"><X size={14} aria-hidden /></button></td>
           </tr>
         ))}</tbody>
       </table>
@@ -171,7 +172,7 @@ function SubEditor({ s: start, project, me, isNew, onSave, onDelete, onClose }: 
           <input className="bi-text" style={{ flex: 2 }} value={c.text} placeholder="Comment received" onChange={(e) => setComment(c.id, { text: e.target.value })} />
           <input className="bi-text" style={{ flex: 2 }} value={c.action ?? ''} placeholder="Action taken / response" onChange={(e) => setComment(c.id, { action: e.target.value || undefined })} />
           <label className="row" style={{ gap: 4 }}><input type="checkbox" checked={!!c.closed} onChange={(e) => setComment(c.id, { closed: e.target.checked ? today() : undefined })} /> closed</label>
-          <button className="icon-btn" title="Remove" onClick={() => set({ comments: s.comments.filter((x) => x.id !== c.id) })}>✕</button>
+          <button className="icon-btn" title="Remove" onClick={() => set({ comments: s.comments.filter((x) => x.id !== c.id) })} aria-label="Remove"><X size={14} aria-hidden /></button>
         </div>
       ))}
       <button className="chip" onClick={() => set({ comments: [...s.comments, { id: String(Math.max(0, ...s.comments.map((x) => Number(x.id) || 0)) + 1), text: '' }] })}>+ Comment</button>

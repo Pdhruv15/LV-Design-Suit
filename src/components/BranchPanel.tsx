@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { Project } from '../types';
 import { applyBranchCopies, assemblyFrom, branchSummary, extractBranch, loadAssemblies, otherFloors, planBranchCopies, saveAssemblies, type Assembly, type Branch } from '../model/branchCopy';
@@ -77,7 +78,7 @@ export default function BranchPanel({ mode, project, onCreate, onClose }: {
                 {assemblies.map((a) => (
                   <div key={a.id} className={`bh-row${asmId === a.id ? ' on' : ''}`} onClick={() => setAsmId(a.id)}>
                     <span style={{ flex: 1, minWidth: 0 }}><b>{a.name}</b><br /><span className="m">{branchSummary(a.branch)} · {a.savedAt}</span>{a.note && <><br /><span className="m">{a.note}</span></>}</span>
-                    <button className="icon-btn" title={`Delete ${a.name} from your library`} onClick={(e) => { e.stopPropagation(); removeAssembly(a.id); }}>✕</button>
+                    <button className="icon-btn" title={`Delete ${a.name} from your library`} onClick={(e) => { e.stopPropagation(); removeAssembly(a.id); }} aria-label={`Delete ${a.name} from your library`}><X size={14} aria-hidden /></button>
                   </div>
                 ))}
               </div>

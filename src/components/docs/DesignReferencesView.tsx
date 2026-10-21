@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { ask } from '../ConfirmDialog';
 import { useMemo, useRef, useState } from 'react';
 import type { Project } from '../../types';
@@ -229,7 +230,7 @@ export default function DesignReferencesView({ project, onApply, onStatus }: {
                     <td><input value={e.unit ?? ''} disabled={readOnly} style={{ width: 50 }} onChange={(x) => setEntry(e.id, { unit: x.target.value || undefined })} /></td>
                     <td><input value={e.clause ?? ''} disabled={readOnly} style={{ width: 150 }} onChange={(x) => setEntry(e.id, { clause: x.target.value || undefined })} /></td>
                     <td><input value={e.note ?? ''} disabled={readOnly} style={{ width: '100%', minWidth: 140 }} onChange={(x) => setEntry(e.id, { note: x.target.value || undefined })} /></td>
-                    <td>{!readOnly && <button className="icon-btn" title="Remove" onClick={() => edit({ entries: ref.entries.filter((x) => x.id !== e.id) })}>✕</button>}</td>
+                    <td>{!readOnly && <button className="icon-btn" title="Remove" onClick={() => edit({ entries: ref.entries.filter((x) => x.id !== e.id) })} aria-label="Remove"><X size={14} aria-hidden /></button>}</td>
                   </tr>
                 ))}
                 {!ref.entries.length && <tr><td colSpan={6} className="m">{readOnly ? 'No entries.' : 'Add rules you look up often, e.g. “Socket-outlets per circuit — 6”.'}</td></tr>}

@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { ask, tell } from '../ConfirmDialog';
 import { useMemo, useState } from 'react';
 import type { Board, Project } from '../../types';
@@ -94,7 +95,7 @@ export default function TxSummaryView({ project, onChange, onSettings }: { proje
                     : <td key={m} className="gx-calc" title="kWh meters of everything below">{r.meters[m] || ''}</td>)}
                   <td className="gx-in l txs-rem"><In value={r.board.supply?.ctRatio ? `${r.board.supply.ctRatio} CT` : rowCtText(r)} w="100%" onSet={(v) => setSupply(r.board, { ctRatio: v.replace(/\s*CT\s*$/i, '').trim() || undefined })} /></td>
                   <td className="txs-act">
-                    <button className="icon-btn" title={r.manual ? 'Remove this transformer' : `Remove ${r.board.id} and everything below it`} onClick={() => removeRow(r.board.id, r.manual)}>✕</button>
+                    <button className="icon-btn" title={r.manual ? 'Remove this transformer' : `Remove ${r.board.id} and everything below it`} onClick={() => removeRow(r.board.id, r.manual)} aria-label={r.manual ? 'Remove this transformer' : `Remove ${r.board.id} and everything below it`}><X size={14} aria-hidden /></button>
                   </td>
                 </tr>
               ))

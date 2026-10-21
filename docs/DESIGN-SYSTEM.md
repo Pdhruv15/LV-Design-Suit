@@ -19,12 +19,13 @@ Principles, for engineering software used for hours at a time:
 | `--p2` | raised: inputs, chips, hover rows | `#14233f` | `#eef2f8` |
 | `--line` / `--line-strong` | dividers / hover edges | `#20304f` / `#2f4570` | `#d5dce8` / `#b4c0d4` |
 | `--field-line` | form control edge (≥3:1) | `#52709f` | `#74839c` |
-| `--tx` / `--mut` | text / secondary text | `#dbe4f5` / `#8093b5` | `#142035` / `#56657e` |
+| `--tx` / `--mut` | text / secondary text | `#dbe4f5` / `#8093b5` | `#142035` / `#505f77` |
 | `--acc` / `--on-acc` | primary action, selection, focus / text on it | `#4aa8ff` / `#04101f` | `#1a66c9` / `#ffffff` |
-| `--ok` `--warn` `--bad` | pass / check / fail | `#37d67a` `#f5c04a` `#ff5d6c` | `#137535` `#8f5606` `#c81e3a` |
-| `--bus` | SLD busbars | `#ffb347` | `#b45309` |
+| `--ok` `--warn` `--bad` | pass / check / fail | `#37d67a` `#f5c04a` `#ff5d6c` | `#116b30` `#8f5606` `#c81e3a` |
+| `--bus` | SLD busbars, board group labels | `#ffb347` | `#a64b07` |
 | `--res-cur` `--res-fault` `--res-pf` | SLD result labels | | |
 | `--ph-r` `--ph-y` `--ph-b` `--ph-ryb` | phase colours | | |
+| `--curve-1` … `--curve-8` | chart series (protection curves) | original curve colours | darker, ≥ 4.8:1 on white |
 | `--backdrop`, `--shadow-pop`, `--shadow-modal`, `--shadow-palette`, `--shadow-paper`, `--row-sub` | overlays and elevation | | |
 
 **Contrast** (checked by `src/theme/tokens.test.ts` on every test run): all text tokens are ≥4.5:1 on `--bg`, `--panel` and `--p2` in both themes; `--field-line` is ≥3:1 on `--panel` and `--p2`.

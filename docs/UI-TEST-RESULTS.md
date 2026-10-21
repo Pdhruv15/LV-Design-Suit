@@ -184,3 +184,25 @@ Environment: macOS (Apple silicon), 21 Oct 2026. Base: milestone 5 (`dc71cdc`).
 
 - Exports were not run from the GUI in this milestone (the export functions did not change; the PDF suite passes).
 - The desktop "Save to" wording was not seen in Electron (the web wording was).
+
+## Milestone 7 — final consistency review
+
+Environment: macOS (Apple silicon), 21 Oct 2026. Base: milestone 6 (`1f96729`).
+
+| Check | Result |
+|---|---|
+| TypeScript, lint, build | clean ✅ |
+| Unit tests (`npm test`) | **1685 / 1685** ✅ |
+| PDF/DXF suite (`npm run test:pdf`) | **31 / 31**, darwin baselines ✅ |
+| `npm audit --omit=dev` | 0 vulnerabilities ✅ |
+| `npm run check:privacy` | 881 files, 0 findings ✅ |
+| Calculation code changed | none ✅ |
+
+**Screen tour** (web version, sample project, 1440 × 900, run in the browser pane): 46 screens × 2 themes. Before fixes: dark 25 findings, light 80 (most were one header chip, see below). After fixes: none in either theme apart from the protection legend swatches (data colours, now tokens). Ribbon: no tab overflows at 1440 px (was Detailed design 24 px, BOM / Cost 103 px).
+
+Tour artefact, not a defect: in the hidden browser pane CSS transitions do not advance, so a chip that was on screen when the theme switched kept its 0.12 s background transition frozen at the dark colour (`getAnimations()` showed it running at time 0). In a visible window it completes at once.
+
+### Not yet verified
+
+- Electron desktop window and Windows (all checks here ran in the web build of the same code).
+- Figma variables are not updated with the three light-theme changes (`--bus`, `--ok`, `--mut`) or the new `--curve-*` tokens: the Figma connector is not connected in this session.

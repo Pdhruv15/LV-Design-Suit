@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { ask } from '../ConfirmDialog';
 import { useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -388,7 +389,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
                   set({ ...rest, mode: rest.mode ?? (rest.boards.length ? 'selected' : 'all'), boards: kept });
                   onStatus(gone.length ? `Loaded "${p.name}" — ${gone.length} board(s) no longer exist and were left out: ${gone.join(', ')}${kept.length ? '' : '. Tick the boards again.'}` : `Loaded "${p.name}"`);
                 }}>{p.name}</button>
-                <button className="icon-btn" title={`Delete "${p.name}"`} onClick={() => onChange({ ...project, studyReportPresets: presets.filter((x) => x.id !== p.id) })}>✕</button>
+                <button className="icon-btn" title={`Delete "${p.name}"`} onClick={() => onChange({ ...project, studyReportPresets: presets.filter((x) => x.id !== p.id) })} aria-label={`Delete "${p.name}"`}><X size={14} aria-hidden /></button>
               </span>
             ))}
             {!presets.length && <span className="m">Save this choice of boards and studies to repeat it for the next revision.</span>}

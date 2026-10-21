@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { ask } from '../ConfirmDialog';
 import { useMemo, useState } from 'react';
 import type { BuildingInfo, BuildingLevel, BuildingRoom, LevelKind, Project, ProjectBuilding, RoomType } from '../../types';
@@ -195,7 +196,7 @@ export default function BuildingView({ project, onChange, onStatus }: { project:
                       const n = info.rooms.filter((r) => r.levelId === l.id).length;
                       if (n && !(await ask(`Remove ${l.name} and its ${n} rooms?`))) return;
                       set({ ...info, buildings: info.buildings.map((x) => (x.id === b.id ? { ...x, levels: x.levels.filter((y) => y.id !== l.id) } : x)), rooms: info.rooms.filter((r) => r.levelId !== l.id) });
-                    }}>✕</button></td>
+                    }} aria-label="Remove the level and its rooms"><X size={14} aria-hidden /></button></td>
                   </tr>
                 );
               })}
@@ -239,7 +240,7 @@ export default function BuildingView({ project, onChange, onStatus }: { project:
                     </td>
                     <td>{f1(x.connectedKw)} kW <span className="m">{x.type ? `${x.type.wPerM2} W/m²` : ''}</span></td>
                     <td>{f1(x.demandKw)} kW</td>
-                    <td><button className="icon-btn" title="Remove" onClick={() => set({ ...info, rooms: info.rooms.filter((y) => y.id !== r.id) })}>✕</button></td>
+                    <td><button className="icon-btn" title="Remove" onClick={() => set({ ...info, rooms: info.rooms.filter((y) => y.id !== r.id) })} aria-label="Remove"><X size={14} aria-hidden /></button></td>
                   </tr>
                 );
               })}
@@ -304,7 +305,7 @@ export default function BuildingView({ project, onChange, onStatus }: { project:
                   <td><Cell value={t.demandFactor} onSet={(v) => v !== undefined && setTypes(types.map((x) => (x.id === t.id ? { ...x, demandFactor: v } : x)))} width={70} /></td>
                   <td><Cell value={t.lux} onSet={(v) => setTypes(types.map((x) => (x.id === t.id ? { ...x, lux: v } : x)))} width={70} /></td>
                   <td>{info.rooms.filter((r) => r.type === t.id).length}</td>
-                  <td>{!info.rooms.some((r) => r.type === t.id) && <button className="icon-btn" title="Remove" onClick={() => setTypes(types.filter((x) => x.id !== t.id))}>✕</button>}</td>
+                  <td>{!info.rooms.some((r) => r.type === t.id) && <button className="icon-btn" title="Remove" onClick={() => setTypes(types.filter((x) => x.id !== t.id))} aria-label="Remove"><X size={14} aria-hidden /></button>}</td>
                 </tr>
               ))}
             </tbody>

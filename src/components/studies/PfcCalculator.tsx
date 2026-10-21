@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { Project } from '../../types';
 import { calcPfc, PFC_CALC_DEFAULT, pfText, phasorSvg, powerTriangleSvg, type PfcCalcInput, type PfcInputMode } from '../../calc/pfcCalc';
@@ -69,7 +70,7 @@ export default function PfcCalculator({ project, onChange, onStatus }: { project
                 <tr key={i}>
                   <td><input className="bi-text" style={{ width: 120 }} value={l.name} onChange={(e) => set({ loads: loads.map((x, k) => (k === i ? { ...x, name: e.target.value } : x)) })} /></td>
                   {(['kw', 'pf', 'qty'] as const).map((k) => <td key={k}><input className="bi-num" style={{ width: 56 }} inputMode="decimal" value={l[k]} onChange={(e) => { const n = Number(e.target.value); if (Number.isFinite(n)) set({ loads: loads.map((x, j) => (j === i ? { ...x, [k]: n } : x)) }); }} /></td>)}
-                  <td><button className="icon-btn" onClick={() => set({ loads: loads.filter((_, k) => k !== i) })}>✕</button></td>
+                  <td><button className="icon-btn" onClick={() => set({ loads: loads.filter((_, k) => k !== i) })} aria-label="Remove"><X size={14} aria-hidden /></button></td>
                 </tr>
               ))}
             </tbody>

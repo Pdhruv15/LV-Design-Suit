@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { ask } from '../ConfirmDialog';
 import { useMemo, useState } from 'react';
 import { boardLocation } from '../../model/levels';
@@ -153,7 +154,7 @@ export default function BusbarStudy({ project, onChange, onStatus }: { project: 
                     <td>{r?.tapOffA ? `${r.tapOffA} A${(f.count ?? 1) > 1 ? ` × ${f.count}` : ''}` : '—'}</td>
                     <td>{r ? f1(r.heightM) : '—'}</td>
                     <td className={r && r.vdPct > project.vdLimitPct / 2 ? 'warn' : ''}>{r ? `${f2(r.vdPct)} %` : '—'}</td>
-                    <td><button className="icon-btn" title="Remove" onClick={() => setRiser({ floors: riser.floors.filter((x) => x.id !== f.id) })}>✕</button></td>
+                    <td><button className="icon-btn" title="Remove" onClick={() => setRiser({ floors: riser.floors.filter((x) => x.id !== f.id) })} aria-label="Remove"><X size={14} aria-hidden /></button></td>
                   </tr>
                 );
               })}
@@ -248,7 +249,7 @@ export default function BusbarStudy({ project, onChange, onStatus }: { project: 
                     setData(dataMat, data[dataMat].map((x, k) => (k === i ? { ...x, [c.key]: v } : x)));
                   }} /></td>
                 ))}
-                <td><button className="icon-btn" title="Remove" onClick={() => setData(dataMat, data[dataMat].filter((_, k) => k !== i))}>✕</button></td>
+                <td><button className="icon-btn" title="Remove" onClick={() => setData(dataMat, data[dataMat].filter((_, k) => k !== i))} aria-label="Remove"><X size={14} aria-hidden /></button></td>
               </tr>
             ))}
           </tbody>

@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { ask } from '../ConfirmDialog';
 import { STATUS_TEXT } from '../../calc/statusText';
 import { useMemo, useRef, useState } from 'react';
@@ -397,7 +398,7 @@ function RouteCard({ project, plan, res, boards, onProject, onRoute, onRemove, o
           <label>risers <Num value={fit.risers} width={40} placeholder="0" onSet={(v) => setFit('risers', v)} /></label>
         </span>
         <span className="sp" />
-        <button className="icon-btn" title={`Remove route ${r.name}`} onClick={onRemove}>✕</button>
+        <button className="icon-btn" title={`Remove route ${r.name}`} onClick={onRemove} aria-label={`Remove route ${r.name}`}><X size={14} aria-hidden /></button>
       </div>
 
       <div className="tray-add">
@@ -476,7 +477,8 @@ function RouteCard({ project, plan, res, boards, onProject, onRoute, onRemove, o
                         className="icon-btn"
                         title={manual ? 'Remove this cable' : `Take ${l.feederId} off route ${r.name} (and its path)`}
                         onClick={() => (manual ? onRoute({ cables: r.cables.filter((x) => x.id !== l.cableId) }, true) : onProject(removeFeederFromRoute(project, r.id, l.feederId!)))}
-                      >✕</button>
+                        aria-label={manual ? 'Remove this cable' : `Take ${l.feederId} off route ${r.name} (and its path)`}
+                      ><X size={14} aria-hidden /></button>
                     )}
                   </td>
                 </tr>

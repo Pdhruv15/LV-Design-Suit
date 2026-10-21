@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { ask } from '../ConfirmDialog';
 import { useState } from 'react';
 import type { DmSubstationRoom, Project } from '../../types';
@@ -87,7 +88,7 @@ export default function SubstationAreaView({ project, onChange, onStatus }: {
             <label>Building / location<input key={`b-${s.building ?? ''}`} defaultValue={s.building ?? ''} onBlur={(e) => e.target.value !== (s.building ?? '') && patch(s.id, { building: e.target.value || undefined })} /></label>
             <span className="sp" />
             <button className="chip" disabled={busy} onClick={() => exportPdf([s])}>PDF</button>
-            <button className="icon-btn" title={`Remove ${s.name}`} onClick={async () => (await ask(`Remove ${s.name}?`)) && set(list.filter((x) => x.id !== s.id), true)}>✕</button>
+            <button className="icon-btn" title={`Remove ${s.name}`} onClick={async () => (await ask(`Remove ${s.name}?`)) && set(list.filter((x) => x.id !== s.id), true)} aria-label={`Remove ${s.name}`}><X size={14} aria-hidden /></button>
           </div>
 
           {r.error ? <p className="bad dm-err">{r.error}</p> : (

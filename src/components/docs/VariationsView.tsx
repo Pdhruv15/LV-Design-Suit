@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { ask } from '../ConfirmDialog';
 import { useState } from 'react';
 import type { BomItem } from '../../calc/bom';
@@ -163,7 +164,7 @@ function VoEditor({ vo, project, bom, cur, isNew, onSave, onDelete, onClose }: {
                   </select>
                 </>
               )}</td>
-              <td className="acts"><button className="icon-btn" title="Remove line" onClick={() => set({ lines: v.lines.filter((x) => x.id !== l.id) })}>✕</button></td>
+              <td className="acts"><button className="icon-btn" title="Remove line" onClick={() => set({ lines: v.lines.filter((x) => x.id !== l.id) })} aria-label="Remove line"><X size={14} aria-hidden /></button></td>
             </tr>
           ))}
           <tr><td /><td colSpan={5}><b>Net value</b> <span className="m">(excluding VAT)</span></td><td className="num"><b>{signed(netOf(v)) || '0.00'}</b></td><td colSpan={2} /></tr>

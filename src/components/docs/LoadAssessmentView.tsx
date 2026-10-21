@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { ask } from '../ConfirmDialog';
 import { useMemo, useState } from 'react';
 import type { Project } from '../../types';
@@ -182,7 +183,7 @@ export default function LoadAssessmentView({ project, onChange, onStatus }: { pr
                     <td><Num value={row.pwr} onSet={(v) => setRow(i, { pwr: v })} /></td>
                     <td><Num value={row.clg} onSet={(v) => setRow(i, { clg: v })} /></td>
                     <td style={{ textAlign: 'center' }}><input type="checkbox" checked={!!row.dwelling} onChange={(e) => setRow(i, { dwelling: e.target.checked || undefined })} /></td>
-                    <td><button className="icon-btn" title="Remove" onClick={() => patch({ rows: a.rows.filter((_, j) => j !== i) })}>✕</button></td>
+                    <td><button className="icon-btn" title="Remove" onClick={() => patch({ rows: a.rows.filter((_, j) => j !== i) })} aria-label="Remove"><X size={14} aria-hidden /></button></td>
                   </tr>
                 ))}
               </tbody>
@@ -291,7 +292,7 @@ export default function LoadAssessmentView({ project, onChange, onStatus }: { pr
                     <td><Num value={c.diversity} onSet={(v) => setCust(i, { diversity: v })} step={0.05} width={60} /></td>
                     <td style={{ textAlign: 'center' }}><input type="checkbox" checked={c.onGenerator} onChange={(e) => setCust(i, { onGenerator: e.target.checked })} /></td>
                     <td>{f1(c.qty * c.kw)} kW</td>
-                    <td><button className="icon-btn" title="Remove" onClick={() => patch({ custom: a.custom.filter((_, j) => j !== i) })}>✕</button></td>
+                    <td><button className="icon-btn" title="Remove" onClick={() => patch({ custom: a.custom.filter((_, j) => j !== i) })} aria-label="Remove"><X size={14} aria-hidden /></button></td>
                   </tr>
                 ))}
                 {!a.custom.length && <tr><td colSpan={7} className="m">No custom loads.</td></tr>}

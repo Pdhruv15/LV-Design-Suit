@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { ask } from '../ConfirmDialog';
 import { useState } from 'react';
 import type { Project } from '../../types';
@@ -101,7 +102,7 @@ function UpsCard({ project, s, upsBoardIds, onPatch, onRemove, onApply }: {
           </select>
         </label>
         <span className="sp" />
-        <button className="icon-btn" title={`Remove ${s.name}`} onClick={onRemove}>✕</button>
+        <button className="icon-btn" title={`Remove ${s.name}`} onClick={onRemove} aria-label={`Remove ${s.name}`}><X size={14} aria-hidden /></button>
       </div>
 
       {!s.boardId && (
@@ -118,7 +119,7 @@ function UpsCard({ project, s, upsBoardIds, onPatch, onRemove, onApply }: {
                   <td><NumField label="" value={l.va} width={70} optional placeholder={l.w ? f0(l.w / pf) : ''} onSet={(v) => setLoad(l.id, { va: v })} /></td>
                   <td><NumField label="" value={l.pf} width={50} optional placeholder="0.9" min={0.1} max={1} onSet={(v) => setLoad(l.id, { pf: v })} /></td>
                   <td>{f1(((l.w ?? (l.va ?? 0) * pf) * l.qty) / 1000)}</td>
-                  <td><button className="icon-btn" title="Remove" onClick={() => onPatch({ loads: s.loads.filter((x) => x.id !== l.id) }, true)}>✕</button></td>
+                  <td><button className="icon-btn" title="Remove" onClick={() => onPatch({ loads: s.loads.filter((x) => x.id !== l.id) }, true)} aria-label="Remove"><X size={14} aria-hidden /></button></td>
                 </tr>
               );
             })}

@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { Modal } from '../ui';
 import { useMemo, useState } from 'react';
 import type { BuildingInfo, MeterType, Project, ProjectBuilding, RoomType, UnitType } from '../../types';
@@ -89,7 +90,7 @@ export function UnitTypesCard({ info, onChange, onStatus }: { info: BuildingInfo
                 <select className="bi-sel" value={u.meter ?? ''} onChange={(e) => setU(u.id, { meter: (e.target.value || undefined) as MeterType | undefined })} title="kWh meter on the unit's incomer">
                   <option value="">Meter: by load</option>{METER_TYPES.map((m) => <option key={m} value={m}>{m}</option>)}
                 </select>
-                <button className="icon-btn" disabled={used(u.id)} title={used(u.id) ? 'Placed on a level — remove it there first' : 'Remove'} onClick={() => set(units.filter((x) => x.id !== u.id))}>✕</button>
+                <button className="icon-btn" disabled={used(u.id)} title={used(u.id) ? 'Placed on a level — remove it there first' : 'Remove'} onClick={() => set(units.filter((x) => x.id !== u.id))} aria-label={used(u.id) ? 'Placed on a level — remove it there first' : 'Remove'}><X size={14} aria-hidden /></button>
               </div>
               <table className="bi-table compact">
                 <tbody>
@@ -98,7 +99,7 @@ export function UnitTypesCard({ info, onChange, onStatus }: { info: BuildingInfo
                       <td><input className="bi-text" style={{ width: 120 }} defaultValue={r.name} key={r.name} onBlur={(e) => setU(u.id, { rooms: u.rooms.map((x, k) => (k === i ? { ...x, name: e.target.value || x.name } : x)) })} /></td>
                       <td><select className="bi-sel" value={r.type} onChange={(e) => setU(u.id, { rooms: u.rooms.map((x, k) => (k === i ? { ...x, type: e.target.value } : x)) })}>{types.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}</select></td>
                       <td><N value={r.areaM2} onSet={(v) => v && setU(u.id, { rooms: u.rooms.map((x, k) => (k === i ? { ...x, areaM2: v } : x)) })} width={54} /> m²</td>
-                      <td><button className="icon-btn" onClick={() => setU(u.id, { rooms: u.rooms.filter((_, k) => k !== i) })}>✕</button></td>
+                      <td><button className="icon-btn" onClick={() => setU(u.id, { rooms: u.rooms.filter((_, k) => k !== i) })} aria-label="Remove"><X size={14} aria-hidden /></button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -127,7 +128,7 @@ export function LevelUnitsDialog({ info, b, levelId, onSave, onClose }: { info: 
             <div key={i} className="row" style={{ gap: 8, margin: '4px 0' }}>
               <select className="bi-sel" value={r.unitTypeId} onChange={(e) => setRows(rows.map((x, k) => (k === i ? { ...x, unitTypeId: e.target.value } : x)))}>{units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
               ×<input className="bi-num" style={{ width: 54 }} inputMode="numeric" value={r.count} onChange={(e) => setRows(rows.map((x, k) => (k === i ? { ...x, count: Math.max(0, Math.round(Number(e.target.value) || 0)) } : x)))} /> per floor
-              <button className="icon-btn" onClick={() => setRows(rows.filter((_, k) => k !== i))}>✕</button>
+              <button className="icon-btn" onClick={() => setRows(rows.filter((_, k) => k !== i))} aria-label="Remove"><X size={14} aria-hidden /></button>
             </div>
           ))}
           <button className="chip" onClick={() => setRows([...rows, { unitTypeId: units[0].id, count: 4 }])}>+ Unit type</button>

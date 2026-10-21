@@ -1,3 +1,4 @@
+import { X, ChevronDown } from 'lucide-react';
 import { ask } from '../ConfirmDialog';
 import { useEffect, useMemo, useState } from 'react';
 import { IssueDialog } from './IssueDialog';
@@ -143,7 +144,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
         <div className="dw-export">
           {none && <span className="m dw-hint">Create sheets to enable export</span>}
           <button className="chip primary" disabled={!!busy || none} onClick={() => exportSet(false)}>{busy === 'set' ? 'Building…' : 'Export set (one PDF)'}</button>
-          <button className="chip" disabled={none} onClick={() => setExportOpen(!exportOpen)} aria-expanded={exportOpen}>More exports ▾</button>
+          <button className="chip" disabled={none} onClick={() => setExportOpen(!exportOpen)} aria-expanded={exportOpen}>More exports <ChevronDown size={14} aria-hidden /></button>
           {exportOpen && (
             <div className="dw-menu" onMouseLeave={() => setExportOpen(false)}>
               <button onClick={() => exportSet(true)}>PDF per sheet</button>
@@ -487,7 +488,7 @@ function SheetPanel({ sheet: s, set, project, boards, rev, onPatch, onClose, onR
           <span className="dr-dot" style={{ background: statusColor(s.status || set.status) }} />
           <h3>{s.number}</h3>
           <span className="sp" />
-          <button className="icon-btn" title="Close" onClick={onClose}>✕</button>
+          <button className="icon-btn" title="Close" onClick={onClose} aria-label="Close"><X size={14} aria-hidden /></button>
         </div>
         <div className="dw-panel-body">
           <div className="form-kv">

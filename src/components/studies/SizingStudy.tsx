@@ -1,3 +1,4 @@
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Fragment, useMemo, useState } from 'react';
 import type { Project, StudySettings } from '../../types';
 import { isEssential, settingsOf } from '../../calc/sizing';
@@ -121,7 +122,7 @@ export function TransformerGeneratorStudy({ project, onChange, onStatus }: { pro
                 <Fragment key={r.board.id}>
                   <tr>
                     <td>
-                      <button className="linkish txg-toggle" onClick={() => setOpen(isOpen ? open.filter((x) => x !== r.board.id) : [...open, r.board.id])} title="What the demand is made of">{isOpen ? '▾' : '▸'}</button>
+                      <button className="linkish txg-toggle" onClick={() => setOpen(isOpen ? open.filter((x) => x !== r.board.id) : [...open, r.board.id])} title="What the demand is made of" aria-label="What the demand is made of" aria-expanded={isOpen}>{isOpen ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}</button>
                       <b>{r.board.id}</b>
                     </td>
                     <td>{f0(r.demandKva)} kVA<div className="m">PF {r.pf.toFixed(2)}{r.pfcKvar ? ` · −${f0(r.pfcKvar)} kvar PFC` : ''}</div></td>

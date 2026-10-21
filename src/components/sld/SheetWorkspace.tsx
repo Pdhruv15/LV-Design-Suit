@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { Modal } from '../ui';
 import { ask } from '../ConfirmDialog';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -354,7 +355,7 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
           {s.kind === 'system' && (
             <details><summary>Revision clouds ({(s.clouds ?? []).length})</summary>
               {(s.clouds ?? []).map((c, i) => (
-                <div key={i} className="row">△{c.rev} around {c.boards.join(', ')} <button className="icon-btn" title="Remove" onClick={() => patch({ clouds: (s.clouds ?? []).filter((_, k) => k !== i) || undefined })}>✕</button></div>
+                <div key={i} className="row">△{c.rev} around {c.boards.join(', ')} <button className="icon-btn" title="Remove" onClick={() => patch({ clouds: (s.clouds ?? []).filter((_, k) => k !== i) || undefined })} aria-label="Remove"><X size={14} aria-hidden /></button></div>
               ))}
               <CloudAdd boards={s.boards} rev={nextRev(sheetRev(s, rev?.id))} onAdd={(c) => patch({ clouds: [...(s.clouds ?? []), c] })} />
             </details>
@@ -364,7 +365,7 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
               {markups.map((m) => (
                 <div key={m.id} className={`row markup-row${m.id === selId ? ' on' : ''}`}>
                   <button className="linkish" onClick={() => { setTool('select'); setSelId(m.id); }}>{MARKUP_LABEL[m.kind]}{m.kind === 'cloud' && m.rev ? ` △${m.rev}` : ''}{m.text ? `: ${m.text.split('\n')[0].slice(0, 28)}` : ''}</button>
-                  <button className="icon-btn" title="Remove" onClick={() => { setMarkups(markups.filter((x) => x.id !== m.id)); if (m.id === selId) setSelId(null); }}>✕</button>
+                  <button className="icon-btn" title="Remove" onClick={() => { setMarkups(markups.filter((x) => x.id !== m.id)); if (m.id === selId) setSelId(null); }} aria-label="Remove"><X size={14} aria-hidden /></button>
                 </div>
               ))}
               {markups.length > 0 && <button className="linkish" onClick={async () => { if (await ask(`Remove all ${markups.length} markups from ${s.number}?`)) { setMarkups([]); setSelId(null); } }}>Remove all</button>}
@@ -373,7 +374,7 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
           )}
           <details><summary>Arrows and callouts ({(s.arrows ?? []).length})</summary>
             {(s.arrows ?? []).map((a, i) => (
-              <div key={i} className="row">→ {a.target.replace(/^f:/, '')}: “{a.text}” <button className="icon-btn" title="Remove" onClick={() => patch({ arrows: (s.arrows ?? []).filter((_, k) => k !== i) })}>✕</button></div>
+              <div key={i} className="row">→ {a.target.replace(/^f:/, '')}: “{a.text}” <button className="icon-btn" title="Remove" onClick={() => patch({ arrows: (s.arrows ?? []).filter((_, k) => k !== i) })} aria-label="Remove"><X size={14} aria-hidden /></button></div>
             ))}
             <ArrowAdd project={project} boards={s.boards} onAdd={(a) => patch({ arrows: [...(s.arrows ?? []), a] })} />
           </details>

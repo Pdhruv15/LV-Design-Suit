@@ -1,3 +1,4 @@
+import { X, Pencil } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { BomCommand } from '../Ribbon';
 import type { Project } from '../../types';
@@ -232,8 +233,8 @@ export default function BomView({ command, project, results, me = '', onChange, 
                       <td className="num">{money(s.amount)}</td>
                       <td className="acts">
                         <button className="icon-btn" title={`Add an item to section ${s.section}`} onClick={() => setDialog({ kind: 'item', item: newItem(s.section), isNew: true })}>＋</button>
-                        {own && <button className="icon-btn" title="Rename section" onClick={() => setDialog({ kind: 'section', section: { id: s.section, title: s.title } })}>✎</button>}
-                        {own && !s.items.length && <button className="icon-btn" title="Remove the empty section" onClick={() => setCustom({ sections: (custom?.sections ?? []).filter((c) => c.id !== s.section) })}>✕</button>}
+                        {own && <button className="icon-btn" title="Rename section" onClick={() => setDialog({ kind: 'section', section: { id: s.section, title: s.title } })} aria-label="Rename section"><Pencil size={13} aria-hidden /></button>}
+                        {own && !s.items.length && <button className="icon-btn" title="Remove the empty section" onClick={() => setCustom({ sections: (custom?.sections ?? []).filter((c) => c.id !== s.section) })} aria-label="Remove the empty section"><X size={14} aria-hidden /></button>}
                       </td>
                     </tr>,
                     ...rows.map((it) => {
@@ -242,7 +243,7 @@ export default function BomView({ command, project, results, me = '', onChange, 
                       const cls = [it.missingRate ? 'bom-missing' : '', it.source === 'excluded' ? 'bom-excluded' : '', it.changed ? 'bom-changed' : ''].filter(Boolean).join(' ');
                       return (
                         <tr key={it.key} className={cls || undefined}>
-                          <td className="m bom-no">{it.no ?? `${s.section}.${s.items.indexOf(it) + 1}`}<button className="icon-btn" title="Edit quantity, work action and responsibilities" onClick={() => openRow(it)}>✎</button></td>
+                          <td className="m bom-no">{it.no ?? `${s.section}.${s.items.indexOf(it) + 1}`}<button className="icon-btn" title="Edit quantity, work action and responsibilities" onClick={() => openRow(it)} aria-label="Edit quantity, work action and responsibilities"><Pencil size={13} aria-hidden /></button></td>
                           <td>
                             {it.description || <span className="m">(no description)</span>}
                             {manual && <span className="bom-tag">manual</span>}
@@ -271,7 +272,7 @@ export default function BomView({ command, project, results, me = '', onChange, 
               </tbody>
             </table>
           </div>
-          <p className="m">Design quantities come from panels, schedules and routes. Use ✎ to adjust a quantity, record existing work or assign supply and installation separately. Schedule equipment counts are optional in Scope & review. “typ.” rates are illustrative; replace them with quoted rates.</p>
+          <p className="m">Design quantities come from panels, schedules and routes. Use the pencil button to adjust a quantity, record existing work or assign supply and installation separately. Schedule equipment counts are optional in Scope & review. “typ.” rates are illustrative; replace them with quoted rates.</p>
         </>
       )}
 
@@ -373,7 +374,7 @@ function ScopePage({ custom, review, items, onEdit, onChange, onExtras }: { cust
           })}
         </tbody></table>
       </> : <p className="ok">No outstanding automated checks. Confirm the measured scope and supplier quotations before tender.</p>}
-      <p className="m">Quantities from the design can be adjusted using ✎ in Bill of quantities. Keep the source reference on each measured item. Link separately listed components to a quoted package when their cost is already included.</p>
+      <p className="m">Quantities from the design can be adjusted with the pencil button in Bill of quantities. Keep the source reference on each measured item. Link separately listed components to a quoted package when their cost is already included.</p>
     </section>
   </>;
 }

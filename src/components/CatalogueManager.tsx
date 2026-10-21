@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { ask } from './ConfirmDialog';
 import { useRef, useState } from 'react';
 import type { EnclosureCatalogue, EnclosureConfig, Dims } from '../calc/enclosure';
@@ -116,7 +117,7 @@ export default function CatalogueManager({ onClose, onStatus }: { onClose: () =>
                         <td><input className="bi-num" style={{ width: 52 }} value={r.deductModules} onChange={(e) => set({ deductModules: n(e.target.value) ?? 0 })} /></td>
                         <td>{opt('elcbMin')}</td><td>{opt('elcbMax')}</td><td>{opt('incomerMinA')}</td><td>{opt('incomerMaxA')}</td>
                         <td><input className="bi-text" value={r.extra ?? ''} onChange={(e) => set({ extra: e.target.value || undefined })} /></td>
-                        <td><button className="icon-btn" onClick={() => update({ rules: sel.rules.filter((_, j) => j !== i) })}>✕</button></td>
+                        <td><button className="icon-btn" onClick={() => update({ rules: sel.rules.filter((_, j) => j !== i) })} aria-label="Remove"><X size={14} aria-hidden /></button></td>
                       </tr>
                     );
                   })}</tbody>
@@ -140,7 +141,7 @@ export default function CatalogueManager({ onClose, onStatus }: { onClose: () =>
                           <td><input className="bi-num" style={{ width: 46 }} value={k.grossModules} onChange={(e) => setConfig(i, { grossModules: n(e.target.value) ?? 0 })} /></td>
                           {sel.family === 'modular' ? <><td>{dims('surface')}</td><td>{dims('flush')}</td></> : <td>{dims('fabricated')}</td>}
                           {sel.rules.map((r) => <td key={r.id}><input className="bi-num" style={{ width: 46 }} value={k.usable[r.id] ?? ''} onChange={(e) => setConfig(i, { usable: { ...k.usable, [r.id]: n(e.target.value) ?? null } })} /></td>)}
-                          <td><button className="icon-btn" onClick={() => update({ configs: sel.configs.filter((_, j) => j !== i) })}>✕</button></td>
+                          <td><button className="icon-btn" onClick={() => update({ configs: sel.configs.filter((_, j) => j !== i) })} aria-label="Remove"><X size={14} aria-hidden /></button></td>
                         </tr>
                       );
                     })}</tbody>
@@ -172,7 +173,7 @@ export default function CatalogueManager({ onClose, onStatus }: { onClose: () =>
                     <td className="cm-dims">{(['widthMm', 'heightMm', 'depthMm'] as const).map((k) => <input key={k} className="bi-num" style={{ width: 44 }} value={d[k] ?? ''} onChange={(e) => set({ [k]: n(e.target.value) })} />)}</td>
                     <td><input className="bi-text" style={{ width: 80 }} value={d.mounting ?? ''} onChange={(e) => set({ mounting: e.target.value || undefined })} /></td>
                     <td><input className="bi-text" value={d.accessories ?? ''} onChange={(e) => set({ accessories: e.target.value || undefined })} /></td>
-                    <td><button className="icon-btn" title="Duplicate" onClick={() => saveDevs([...devices.slice(0, i + 1), { ...d, id: `dv-${Date.now().toString(36)}` }, ...devices.slice(i + 1)])}>⧉</button><button className="icon-btn" onClick={() => saveDevs(devices.filter((_, j) => j !== i))}>✕</button></td>
+                    <td><button className="icon-btn" title="Duplicate" onClick={() => saveDevs([...devices.slice(0, i + 1), { ...d, id: `dv-${Date.now().toString(36)}` }, ...devices.slice(i + 1)])}>⧉</button><button className="icon-btn" onClick={() => saveDevs(devices.filter((_, j) => j !== i))} aria-label="Remove"><X size={14} aria-hidden /></button></td>
                   </tr>
                 );
               })}</tbody>

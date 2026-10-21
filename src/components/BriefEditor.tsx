@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { ask } from './ConfirmDialog';
 import { useState } from 'react';
 import { withTemplate, type DefaultRow } from '../model/setupPreview';
@@ -70,7 +71,7 @@ export function DeliverablesStep({ brief, onChange }: { brief: ProjectBrief; onC
               <td><input type="checkbox" checked={!!d.done} onChange={(e) => set(d.id, { done: e.target.checked })} title="Delivered" /></td>
               <td><input className="bi-text" value={d.title} onChange={(e) => set(d.id, { title: e.target.value })} /></td>
               <td><input type="date" value={d.targetDate ?? ''} onChange={(e) => set(d.id, { targetDate: e.target.value || undefined })} /></td>
-              <td className="acts"><button type="button" className="icon-btn" title="Remove" onClick={() => remove(d.id)}>✕</button></td>
+              <td className="acts"><button type="button" className="icon-btn" title="Remove" onClick={() => remove(d.id)} aria-label="Remove"><X size={14} aria-hidden /></button></td>
             </tr>
           ))}
           {brief.deliverables.length === 0 && <tr><td colSpan={4} className="m">No deliverables yet.</td></tr>}

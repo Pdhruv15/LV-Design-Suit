@@ -320,7 +320,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
     ],
     cost: [
       [
-        { label: 'Bill of quantities', icon: Receipt, title: 'Full BOQ by tender section, priced from your price list', onClick: () => a.onBom('boq'), active: a.view === 'boq' },
+        { label: 'BOQ', icon: Receipt, title: 'Bill of quantities: full BOQ by tender section, priced from your price list', onClick: () => a.onBom('boq'), active: a.view === 'boq' },
         { label: 'Scope', icon: ClipboardCheck, title: 'Fit-out / new installation, schedule point quantities, responsibility and tender checks', onClick: () => a.onBom('scope') },
         { label: 'Revisions', icon: History, title: 'BOQ revisions (Rev 0, 1, 2…) and every line changed between them', onClick: () => a.onBom('changes') },
         { label: 'Variations', icon: GitPullRequestArrow, title: 'Variations to the contract (VO-001…): additions and omissions, status, contract sum', onClick: () => a.onBom('variations') },

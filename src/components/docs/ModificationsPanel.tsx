@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { ask } from '../ConfirmDialog';
 import { useEffect, useState } from 'react';
 import type { Project } from '../../types';
@@ -165,7 +166,7 @@ export default function ModificationsPanel({ project, me, run, onChange, onApply
           <div className="m">
             Evidence and references{editable ? '' : rec.evidence?.length ? '' : ': none'}
             {(rec.evidence ?? []).map((e, i) => (
-              <div key={i}>• {e.ref}{e.note ? ` — ${e.note}` : ''} {editable && <button className="icon-btn" title="Remove" onClick={() => edit({ ...rec, evidence: (rec.evidence ?? []).filter((_, j) => j !== i) })}>✕</button>}</div>
+              <div key={i}>• {e.ref}{e.note ? ` — ${e.note}` : ''} {editable && <button className="icon-btn" title="Remove" onClick={() => edit({ ...rec, evidence: (rec.evidence ?? []).filter((_, j) => j !== i) })} aria-label="Remove"><X size={14} aria-hidden /></button>}</div>
             ))}
             {editable && <button className="chip" onClick={() => { const ref = window.prompt('Reference (e.g. DEWA comment 12, markup SLD-03, document RD-002)')?.trim(); if (!ref) return; const note = window.prompt('Note (optional)')?.trim(); edit({ ...rec, evidence: [...(rec.evidence ?? []), { ref, note: note || undefined }] }); }}>Add reference…</button>}
             <span> — references are notes; a received PDF or DXF is evidence only, never the editable baseline.</span>
@@ -174,7 +175,7 @@ export default function ModificationsPanel({ project, me, run, onChange, onApply
             <thead><tr><th>Item</th><th>Current design</th><th>Expected before</th><th>Proposed</th><th /></tr></thead>
             <tbody>
               {rec.ops.map((o) => { const d = opView(project, o); return (
-                <tr key={o.id} className={d.state !== 'matches' && !rec.applied ? 'warn' : ''}><td>{d.item}</td><td>{d.current}{d.state === 'changed' && !rec.applied ? ' ⚠' : ''}</td><td>{d.expectedBefore}</td><td><b>{d.proposed}</b></td><td>{editable && <button className="icon-btn" title="Remove this change" onClick={() => guard(() => edit(removeOp(rec, o.id)))}>✕</button>}</td></tr>
+                <tr key={o.id} className={d.state !== 'matches' && !rec.applied ? 'warn' : ''}><td>{d.item}</td><td>{d.current}{d.state === 'changed' && !rec.applied ? ' ⚠' : ''}</td><td>{d.expectedBefore}</td><td><b>{d.proposed}</b></td><td>{editable && <button className="icon-btn" title="Remove this change" onClick={() => guard(() => edit(removeOp(rec, o.id)))} aria-label="Remove this change"><X size={14} aria-hidden /></button>}</td></tr>
               ); })}
               {rec.ops.length === 0 && <tr><td colSpan={5} className="m">No changes yet.</td></tr>}
             </tbody>

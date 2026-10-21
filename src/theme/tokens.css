@@ -76,6 +76,15 @@
   --gutter: var(--space-4);
 
   color-scheme: dark;
+  /* Chart series (protection curves): one colour per curve, ≥3:1 on the chart background. */
+  --curve-1: #4aa8ff;
+  --curve-2: #b784ff;
+  --curve-3: #37d6c6;
+  --curve-4: #ff8fb1;
+  --curve-5: #9fd356;
+  --curve-6: #f5c04a;
+  --curve-7: #ff9f43;
+  --curve-8: #7fd1ff;
 }
 
 /* ---- Colour: light ---- (all text pairs >= 4.5:1, control edges >= 3:1; see DESIGN-SYSTEM.md) */
@@ -86,11 +95,11 @@
   --line: #d5dce8;
   --line-strong: #b4c0d4;
   --tx: #142035;
-  --mut: #56657e;
+  --mut: #505f77;
   --acc: #1a66c9;
   --on-acc: #ffffff;
-  --bus: #b45309;
-  --ok: #137535;
+  --bus: #a64b07;
+  --ok: #116b30;
   --warn: #8f5606;
   --bad: #c81e3a;
   --field-line: #74839c;
@@ -109,4 +118,12 @@
   --shadow-paper: 0 2px 10px rgba(20, 32, 53, .18);
   --row-sub: rgba(20, 32, 53, .025);
   color-scheme: light;
+  --curve-1: #1a66c9;
+  --curve-2: #7c3aed;
+  --curve-3: #0f7f74;
+  --curve-4: #c2185b;
+  --curve-5: #4d7c0f;
+  --curve-6: #a16207;
+  --curve-7: #c2410c;
+  --curve-8: #0369a1;
 }

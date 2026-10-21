@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { Modal } from '../ui';
 import { ask } from '../ConfirmDialog';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -152,7 +153,7 @@ export function ReuseDialog({ project, onAdd, onClose, onStatus }: {
                         <td style={{ whiteSpace: 'nowrap' }}>
                           <button className="chip primary" onClick={() => { setSource({ kind: 'preset', preset: p }); setRooms(true); }}>Use</button>
                           <button className="icon-btn" title="Export this preset" onClick={async () => { const m = await saveText(`${safeFileName(p.name)}.json`, exportBuildingPresets([p]), 'Building preset', 'json'); if (m) onStatus(m); }}>⤓</button>
-                          <button className="icon-btn" title="Delete this preset" onClick={async () => (await ask(`Delete the building preset "${p.name}"? Projects made from it keep their buildings.`)) && storePresets(presets.filter((x) => x.id !== p.id))}>✕</button>
+                          <button className="icon-btn" title="Delete this preset" onClick={async () => (await ask(`Delete the building preset "${p.name}"? Projects made from it keep their buildings.`)) && storePresets(presets.filter((x) => x.id !== p.id))} aria-label="Delete this preset"><X size={14} aria-hidden /></button>
                         </td>
                       </tr>
                     );
