@@ -206,3 +206,19 @@ Tour artefact, not a defect: in the hidden browser pane CSS transitions do not a
 
 - Electron desktop window and Windows (all checks here ran in the web build of the same code).
 - Figma variables are not updated with the three light-theme changes (`--bus`, `--ok`, `--mut`) or the new `--curve-*` tokens: the Figma connector is not connected in this session.
+
+## Follow-up — text-input dialogs (prompt() replaced)
+
+Environment: macOS (Apple silicon), 21 Oct 2026. Base: `03f2f5a` (Version 1.69).
+
+| Check | Result |
+|---|---|
+| TypeScript, lint, build | clean ✅ |
+| Unit tests (`npm test`) | **1688 / 1688** (3 new: form values trimmed from one form, first field focused; required field blocks Save with "Required" and `aria-invalid`; Cancel / Escape give null; choice list) ✅ |
+| PDF/DXF suite (`npm run test:pdf`) | **31 / 31**, darwin baselines ✅ |
+| `window.prompt(` left in `src` | none (only the no-host fallback inside `ConfirmDialog.tsx`) ✅ |
+| Calculation code changed | none ✅ |
+
+In the running app: Changes → New modification… opens one form (Title, Why? (optional), Where does it come from? (optional)), focus in Title; Escape closed it, nothing was created, focus returned to the button. A layout fix was made before commit: "(optional)" sat on its own line because a general modal-label rule stacks label contents.
+
+Not opened in the GUI: the markup, sheet and review forms (same component, unit-tested).

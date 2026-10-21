@@ -1,4 +1,4 @@
-import { ask } from '../ConfirmDialog';
+import { ask, askText } from '../ConfirmDialog';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Project } from '../../types';
 import { idbStore, MAX_CHECKPOINTS, newCheckpoint, restoredFrom, saveCheckpoint, type Checkpoint, type CheckpointStore } from '../../model/checkpoints';
@@ -19,7 +19,7 @@ export default function CheckpointsPanel({ project, onRestore, onStatus, store: 
   const fail = (what: string) => (e: unknown) => onStatus(`${what} failed: ${e instanceof Error ? e.message : String(e)}`);
 
   async function create() {
-    const label = window.prompt('Name this checkpoint, e.g. Before client comments', '');
+    const label = await askText('Save a checkpoint', { label: 'Name', placeholder: 'e.g. Before client comments', confirmLabel: 'Save checkpoint' });
     if (label === null) return;
     try { setList(await saveCheckpoint(store!, newCheckpoint(project, label))); onStatus(`Checkpoint saved (keeps the latest ${MAX_CHECKPOINTS}).`); } catch (e) { fail('Checkpoint')(e); }
   }

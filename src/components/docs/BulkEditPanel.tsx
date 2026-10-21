@@ -1,3 +1,4 @@
+import { askText } from '../ConfirmDialog';
 import { useMemo, useState } from 'react';
 import type { Project } from '../../types';
 import type { MainView } from '../../views';
@@ -37,12 +38,12 @@ export default function BulkEditPanel({ project, me, onChange, onApply, onStatus
   const toggle = (id: string) => setPicked((l) => (l.includes(id) ? l.filter((x) => x !== id) : [...l, id]));
   const reset = () => { setShow(false); setPicked([]); setValue(''); setTitle(''); setReason(''); };
 
-  function save(applyNow: boolean) {
+  async function save(applyNow: boolean) {
     if (!preview || preview.error || !preview.changed) return;
     if (!reason.trim()) { onStatus('Say why: a bulk edit needs a reason.'); return; }
     let p = withRecord(project, preview.record);
     if (!applyNow) { onChange(p); onStatus(`Saved ${preview.record.id} as a draft (${preview.changed} change${preview.changed === 1 ? '' : 's'}).`); reset(); return; }
-    const by = me.trim() || window.prompt('Your name, recorded with the decision (typed text)')?.trim() || '';
+    const by = me.trim() || (await askText('Who is applying this bulk edit?', { label: 'Your name', hint: 'Typed text, recorded with the decision', required: true, confirmLabel: 'Apply' })) || '';
     if (!by) { onStatus('A name is needed to record the decision.'); return; }
     for (const s of ['proposed', 'accepted'] as const) {
       const t = transition(p, p.modifications!.find((m) => m.id === preview.record.id)!, s, { by, note: 'Bulk edit applied directly' });

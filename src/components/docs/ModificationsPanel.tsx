@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import { ask } from '../ConfirmDialog';
+import { ask, askForm, type AskField } from '../ConfirmDialog';
 import { useEffect, useState } from 'react';
 import type { Project } from '../../types';
 import type { MainView } from '../../views';
@@ -49,20 +49,26 @@ export default function ModificationsPanel({ project, me, run, onChange, onApply
   const edit = (r: ModificationRecord) => (r.status === 'draft' ? setBuf(r) : save(r));
   const guard = (fn: () => void) => { try { fn(); } catch (e) { onStatus(e instanceof ModificationError || e instanceof Error ? e.message : String(e)); } };
 
-  function create() {
-    const title = window.prompt('Title of the modification, e.g. Upsize cooker circuit cable');
-    if (!title?.trim()) return;
-    const reason = window.prompt('Why? (the reason for the change)') ?? '';
-    const origin = window.prompt('Where does it come from? (comment, query or request reference — optional)') ?? '';
+  async function create() {
+    const v = await askForm({ title: 'New modification', confirmLabel: 'Create', fields: [
+      { key: 'title', label: 'Title', placeholder: 'e.g. Upsize cooker circuit cable', required: true },
+      { key: 'reason', label: 'Why?', placeholder: 'The reason for the change', multiline: true },
+      { key: 'origin', label: 'Where does it come from?', placeholder: 'Comment, query or request reference' }
+    ] });
+    if (!v) return;
+    const { title, reason, origin } = v;
     const r = newModification(project, { title, reason, origin, author: me });
     onChange(withRecord(project, r));
     setSel(r.id);
   }
 
-  function fromDraft() {
-    const title = window.prompt('Title for the changes already made in the working draft');
-    if (!title?.trim()) return;
-    const reason = window.prompt('Why were they made?') ?? '';
+  async function fromDraft() {
+    const v = await askForm({ title: 'Record the changes in the working draft', confirmLabel: 'Record', fields: [
+      { key: 'title', label: 'Title', required: true },
+      { key: 'reason', label: 'Why were they made?', multiline: true }
+    ] });
+    if (!v) return;
+    const { title, reason } = v;
     const res = recordFromDraft(project, { title, reason, author: me });
     if (!res) { onStatus('No field changes to record: there is no baseline, or the draft matches it.'); return; }
     onChange(withRecord(project, res.record));
@@ -73,12 +79,19 @@ export default function ModificationsPanel({ project, me, run, onChange, onApply
   async function step(to: ModStatus) {
     if (!rec) return;
     const decision = to === 'accepted' || to === 'rejected';
-    const by = decision && !me.trim() ? window.prompt('Who is making this decision? (a typed name — the app does not verify identities)')?.trim() || '' : me;
-    if (decision && !by) { onStatus('A name is needed to record the decision.'); return; }
-    const note = decision || to === 'superseded' ? window.prompt(to === 'superseded' ? 'What supersedes it (e.g. MOD-004), or why?' : to === 'rejected' ? 'Reason for rejecting it (required)' : 'Reason for accepting it') : '';
-    if (note === null) return;
+    // One form for what this step records: who decides (when no profile name), the reason, the evidence.
+    const fields: AskField[] = [
+      ...(decision && !me.trim() ? [{ key: 'by', label: 'Who is making this decision?', hint: 'A typed name — the app does not verify identities', required: true }] : []),
+      ...(decision || to === 'superseded' ? [{ key: 'note', label: to === 'superseded' ? 'What supersedes it (e.g. MOD-004), or why?' : to === 'rejected' ? 'Reason for rejecting it' : 'Reason for accepting it', multiline: true, required: to === 'rejected' }] : []),
+      ...(decision ? [{ key: 'evidence', label: 'Where is the evidence for this decision kept?' }] : [])
+    ];
+    const verb = ACTION[to].replace('…', '');
+    const v = fields.length ? await askForm({ title: `${verb} ${rec.id}`, confirmLabel: verb, fields }) : ({} as Record<string, string>);
+    if (!v) return;
+    const by = decision && !me.trim() ? v.by : me;
+    const note = v.note ?? '';
     if (to === 'draft' && !(await ask(rec.decision ? 'Return it to a draft to edit it? The earlier decision stops applying, and it needs a new decision after you change it.' : 'Return it to a draft to edit it?'))) return;
-    const evidenceRef = to === 'accepted' || to === 'rejected' ? window.prompt('Where is the evidence for this decision kept? (optional)') ?? undefined : undefined;
+    const evidenceRef = decision ? v.evidence || undefined : undefined;
     const t = transition(project, rec, to, { by, evidenceRef, note: note || undefined, supersededBy: to === 'superseded' && /^MOD-\d+$/i.test(note ?? '') ? note!.toUpperCase() : undefined });
     if (!t.ok) { onStatus(t.error); if (t.conflicts) setConflict(t.conflicts); return; }
     setConflict(null);
@@ -168,7 +181,13 @@ export default function ModificationsPanel({ project, me, run, onChange, onApply
             {(rec.evidence ?? []).map((e, i) => (
               <div key={i}>• {e.ref}{e.note ? ` — ${e.note}` : ''} {editable && <button className="icon-btn" title="Remove" onClick={() => edit({ ...rec, evidence: (rec.evidence ?? []).filter((_, j) => j !== i) })} aria-label="Remove"><X size={14} aria-hidden /></button>}</div>
             ))}
-            {editable && <button className="chip" onClick={() => { const ref = window.prompt('Reference (e.g. DEWA comment 12, markup SLD-03, document RD-002)')?.trim(); if (!ref) return; const note = window.prompt('Note (optional)')?.trim(); edit({ ...rec, evidence: [...(rec.evidence ?? []), { ref, note: note || undefined }] }); }}>Add reference…</button>}
+            {editable && <button className="chip" onClick={async () => {
+              const v = await askForm({ title: 'Add a reference', confirmLabel: 'Add', fields: [
+                { key: 'ref', label: 'Reference', placeholder: 'e.g. DEWA comment 12, markup SLD-03, document RD-002', required: true },
+                { key: 'note', label: 'Note' }
+              ] });
+              if (v) edit({ ...rec, evidence: [...(rec.evidence ?? []), { ref: v.ref, note: v.note || undefined }] });
+            }}>Add reference…</button>}
             <span> — references are notes; a received PDF or DXF is evidence only, never the editable baseline.</span>
           </div>
           <table className="schedule">

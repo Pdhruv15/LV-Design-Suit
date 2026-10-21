@@ -1,7 +1,7 @@
 import { pickProject } from './model/projectStore';
 import { chooseProjectFile, downloadProjectFile } from './util/webApp';
 import WebBanner from './components/WebBanner';
-import { ask as askUser, ConfirmHost, tell } from './components/ConfirmDialog';
+import { ask as askUser, askText, ConfirmHost, tell } from './components/ConfirmDialog';
 import { CircleCheck, Play, TriangleAlert, X } from 'lucide-react';
 import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Feeder, Board, Project, newProject } from './types';
@@ -1733,7 +1733,7 @@ export default function App() {
       )}
       {briefDialog && (
         <BriefDialog initial={project.brief} company={prefs.profile.company}
-          onSaveTemplate={(b) => { const n = window.prompt('Name this setup template (e.g. Villa, DEWA consultant)')?.trim(); if (!n) return; const t = templateFrom(applyBrief(project, b), n); setStatus(saveTemplates([...loadTemplates(), t]) ? `Saved setup template “${n}”: scope, deliverables and system defaults. No party names or project data are kept.` : 'Could not save the template in this browser'); }}
+          onSaveTemplate={async (b) => { const n = await askText('Save as a setup template', { label: 'Template name', placeholder: 'e.g. Villa, DEWA consultant', required: true }); if (!n) return; const t = templateFrom(applyBrief(project, b), n); setStatus(saveTemplates([...loadTemplates(), t]) ? `Saved setup template “${n}”: scope, deliverables and system defaults. No party names or project data are kept.` : 'Could not save the template in this browser'); }}
           onCancel={() => setBriefDialog(false)}
           onSave={(b) => { setBriefDialog(false); setProject(applyBrief(project, b), { step: true }); setStatus('Scope and deliverables updated — save the project to keep them'); }} />
       )}

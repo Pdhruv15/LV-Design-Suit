@@ -39,7 +39,9 @@ Small, separately tested milestones on branch `ui/design-system`. No rebuild, no
 - Inline validation: `checkNumber()` and `<CheckedNum>` (`ui.tsx`). Bad input stays in the box, the edge turns `--bad`, a message in words sits under it ("Enter 0 to 100 %"), and nothing is saved until it is fixed; Escape restores the saved value. Applied to Load assessment (every number cell; GFA and VA/m² 0 or more, generator share 0–100 %) and Voltage drop (limit more than 0 %, custom conductor temperature −20 to 250 °C, the ranges the code already accepted). Previously bad input was silently ignored while the box kept showing it.
 - Last glyphs in `ui.tsx` (`<StaleBanner>` ▶, `<FocusChip>` ✕) replaced with Lucide icons.
 
-**Left for later (follow-up):** 28 `window.prompt()` calls in 8 files (sheet markup text, sheet rename/number, modification and review records) need a text-input dialog, ideally small forms rather than chains of prompts. `<NumField>` elsewhere still clamps out-of-range values silently; moving it to `checkNumber()` is the next validation step.
+**Follow-up, done after milestone 7:** all 28 `window.prompt()` calls (8 files) replaced by `askForm()` / `askText()` (`ConfirmDialog.tsx`): an in-app form with labelled fields, "(optional)" marked, required fields blocked with "Required" under the field, text areas where text can run to several lines (Ctrl+Enter / ⌘Enter saves), and choice lists. Chains of prompts became one form each: new modification (title, why, origin), record draft changes, accept / reject / supersede (decider, reason, evidence), add a reference, reviewer decision (name, decision, conditions), withdraw / reopen / close a review comment. "Apply which template" is now a list to pick from instead of typing a name. Markup notes and callouts take real new lines (| still works). Cancel / Escape behave as prompt()'s Cancel did. One native `alert()` remains, in `model/projectStore.ts` (model code).
+
+**Still open:** `<NumField>` elsewhere clamps out-of-range values silently; moving it to `checkNumber()` is the next validation step.
 
 ## 4 — Tables and results ✅
 

@@ -59,6 +59,7 @@ Headings: page 18 px semibold (`.stage-head h3`), dialog 16 px, card 13 px semib
 | Number with unit | `<NumField>` (`ui.tsx`) | commits on Enter/blur; unit shown after the box |
 | Dialog | `<Modal>` (`ui.tsx`) | Escape closes the top dialog only; backdrop click closes (`closeOnBackdrop={false}` for long tasks); focus is trapped inside and returns to the opener; actions bottom-right, primary last (`.modal-actions`). Never build `.modal-backdrop` by hand |
 | Confirm / notice | `await ask('Delete MDB-1? Detail…')`, `tell(title, message)` (`ConfirmDialog.tsx`) | never `window.confirm/alert`. The first question is the title, the rest the detail; delete/remove/replace/… make a red button named after the action, focus on Cancel |
+| Text input | `await askText(title, { label, required, multiline, options })`, `await askForm({ title, fields })` | never `window.prompt`; several questions = one form; null when cancelled |
 | Validated number | `<CheckedNum rule={{ min, max, unit }}>`, `checkNumber()` | message under the field in words, `--bad` edge, nothing saved or clamped until it is valid |
 | Page | `<Page title intro actions>` | every study/document page |
 | Status | `<StatusCell>`, `<StatusCounts>`, `.ok/.warn/.bad` | word + colour |
