@@ -87,7 +87,7 @@ export default function CadRoomsDialog({ project, onApply, onClose }: {
         {plan && (
           <>
             <h4>Layers</h4>
-            <CadLayerTable layers={plan.layers ?? []} roles={roles} onChange={setRole} />
+            <CadLayerTable layers={plan.layers ?? []} roles={roles} onChange={setRole} onApplyMap={setRoles} />
 
             {!floors.length ? (
               <p className="m">Add the building and its levels in Building information first; rooms are kept per level.</p>

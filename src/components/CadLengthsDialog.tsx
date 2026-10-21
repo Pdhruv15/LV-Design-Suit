@@ -131,7 +131,7 @@ export default function CadLengthsDialog({ project, onApply, onClose }: {
           <>
             <details>
               <summary className="m">Layers — {routeLayers ? `${routeLayers} cable route layer${routeLayers === 1 ? '' : 's'}` : 'mark the layer with the cable routes as Cable route to link them automatically'}</summary>
-              <CadLayerTable layers={plan?.layers ?? []} roles={roles} onChange={setRole} />
+              <CadLayerTable layers={plan?.layers ?? []} roles={roles} onChange={setRole} onApplyMap={(m) => { setRoles(m); setNote('Pull again to read the routes on the layers as now marked.'); }} />
             </details>
             <p className="m">{read!.routes.length} linked by hand · {autoIds.size} linked from the route layers · {pull.units} · {pull.proposals.length} differ · {pull.matching} already match</p>
             {pull.proposals.length > 0 && (

@@ -109,7 +109,7 @@ export default function CadTraysDialog({ project, onApply, onClose }: {
           <>
             <details>
               <summary className="m">Layers — {marked('tray')} tray layer{marked('tray') === 1 ? '' : 's'}, {marked('route')} cable route layer{marked('route') === 1 ? '' : 's'}{!marked('tray') && ': mark the tray layer as Cable tray to find the runs automatically'}</summary>
-              <CadLayerTable layers={drawing?.layers ?? []} roles={roles} onChange={setRole} />
+              <CadLayerTable layers={drawing?.layers ?? []} roles={roles} onChange={setRole} onApplyMap={(m) => { setRoles(m); setNote('Pull again to read the trays and routes on the layers as now marked.'); }} />
             </details>
             <p className="m">{plan!.trays.length} tray run{plan!.trays.length === 1 ? '' : 's'} ({auto?.trays.length ?? 0} from the tray layers) · {plan!.routes.length} cable route piece{plan!.routes.length === 1 ? '' : 's'} · {pull.units} · {pull.matching} feeder{pull.matching === 1 ? '' : 's'} already match</p>
             {pull.feeders.length > 0 && (

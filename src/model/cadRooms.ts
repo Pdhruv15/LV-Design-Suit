@@ -22,8 +22,9 @@ export function guessRole(layer: CadLayerStats): CadLayerRole {
   const n = layer.name.toUpperCase();
   if (/TRAY|LADDER|TRUNK/.test(n)) return 'tray';
   if (/CABLE|ROUTE|CONDUIT|WIRING/.test(n)) return 'route';
-  if (/(ROOM|SPACE|AREA).*(NAME|TAG|TEXT|IDEN|NUM|NO\b)|(NAME|TAG|IDEN).*(ROOM|SPACE)/.test(n)) return 'room-name';
-  if (/ROOM|SPACE|AREA|ZONE/.test(n) && layer.outlines + layer.hatches > 0) return 'room';
+  // RM is the usual short form of ROOM (RM-NAMES, A-RM-TAG).
+  if (/(ROOM|\bRM\b|SPACE|AREA).*(NAME|TAG|TEXT|IDEN|NUM|NO\b)|(NAME|TAG|IDEN).*(ROOM|\bRM\b|SPACE)/.test(n)) return 'room-name';
+  if (/ROOM|\bRM\b|SPACE|AREA|ZONE/.test(n) && layer.outlines + layer.hatches > 0) return 'room';
   if (/WALL|PARTITION|COLUMN|COLM/.test(n)) return 'wall';
   if (/BOARD|PANEL|\bDB\b|SWBD|MDB/.test(n)) return 'board';
   if (/LIGHT|LTG|POWER|SOCKET|FIXT|DEVICE/.test(n)) return 'fixture';

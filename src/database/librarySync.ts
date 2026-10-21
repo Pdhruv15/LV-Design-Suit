@@ -1,9 +1,9 @@
 /** Libraries that don't fit a table — title blocks, components, feeder
- * presets, SLD notes, price lists saved from the BOQ, design references, building presets — are kept in
+ * presets, SLD notes, price lists saved from the BOQ, design references, building presets, CAD layer templates — are kept in
  * LV Database/Library.json beside the workbooks, so they sync through Google
  * Drive to every computer. This computer keeps a working copy. */
 
-export const LIBRARY_KEYS = ['lvds.titleTemplates', 'lvds.components', 'lvds.feederPresets', 'lvds.sldNotes', 'lvds.priceLists', 'lvds.sheetTemplates', 'lvds.assemblies', 'lvds.enclosureCatalogues', 'lvds.deviceDims', 'lvds.designReferences', 'lvds.buildingPresets'] as const;
+export const LIBRARY_KEYS = ['lvds.titleTemplates', 'lvds.components', 'lvds.feederPresets', 'lvds.sldNotes', 'lvds.priceLists', 'lvds.sheetTemplates', 'lvds.assemblies', 'lvds.enclosureCatalogues', 'lvds.deviceDims', 'lvds.designReferences', 'lvds.buildingPresets', 'lvds.cadLayerTemplates'] as const;
 
 const bridge = () => (typeof window !== 'undefined' ? window.lvds?.database : undefined);
 
