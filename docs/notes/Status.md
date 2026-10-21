@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-20_
+_Last updated: 2026-10-21_
 
 ## Current development focus
 
@@ -11,6 +11,7 @@ _Last updated: 2026-10-20_
 - Privacy (v1.56): sample project uses Demo Owner / Demo Engineering Consultants / DEMO-001 / "Demonstration Project — Not for Construction"; Project → Share sample exports an anonymized copy (allowlist, ids P01 / C001, same results) as JSON or a calculation report PDF with no Author; local API needs a Bearer token (api-token file, 0600) and refuses browser origins; CI privacy check (paths, e-mails, device-name commit addresses); docs/privacy.md.
 - Concept report (v1.57): without a load assessment, Supply shows the SLD transformers and their loading at the SLD maximum demand (generator to confirm), so it agrees with the space table; header status no longer wraps.
 - Concept report (v1.58): space requirements table has fixed, balanced column widths (28 / 18 / 18 / 18 / 18 %).
+- UI design system (v1.69): design tokens with an optional light theme (Preferences → Appearance & saving → Colour theme; dark stays the default); one-row header, captioned ribbon with a Now stage badge; shared dialogs with focus trap and in-app confirmations; inline number validation; 32 px tables with sticky schedules; result cards with status in words; SLD toolbar groups, zoom level and keyboard pan / zoom; one export strip and paper-sized report preview. Docs: docs/UI-IMPLEMENTATION-PLAN.md, DESIGN-SYSTEM.md, UI-TEST-RESULTS.md. No calculation changes.
 - LV scripts for OpenCADStudio (v1.68): Python scripts run inside OpenCADStudio (Run Script… / PY_RUN) on the LVDS links — summary table, room area labels, tray tagging from a label, board check, untag; Copy LV scripts for OpenCADStudio… copies them out. Native ribbon add-in left for later.
 - Layer-map templates (v1.67): every CAD layer table can save the mapping under an architect / consultant name in the LV Database (Library.json) and offers a saved template that knows most of a plan's layers; layer guesses read RM as ROOM.
 - Auto-link and standard loads (v1.66): cable routes on route layers link themselves by the boards / fixture their ends touch, tray runs on tray layers are named by their labels (no picking); Database → Loads.xlsx → Add standard loads… adds 21 regular loads with typical values to review ("typical value, verify").
