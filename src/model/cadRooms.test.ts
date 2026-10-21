@@ -35,6 +35,10 @@ describe('layer mapping', () => {
     expect(guessRole(stats('A-AREA', { outlines: 3 }))).toBe('room');
     expect(guessRole(stats('A-AREA-IDEN', { texts: 3 }))).toBe('room-name');
     expect(guessRole(stats('ROOM NAMES', { texts: 3 }))).toBe('room-name');
+    expect(guessRole(stats('RM-NAMES', { texts: 3 }))).toBe('room-name'); // RM = room
+    expect(guessRole(stats('A-RM-TAG', { blocks: 3 }))).toBe('room-name');
+    expect(guessRole(stats('RM-OUTLINE', { outlines: 3 }))).toBe('room');
+    expect(guessRole(stats('FIRM-LOGO', { outlines: 3 }))).toBe('ignore'); // "RM" inside a word is not a room
     expect(guessRole(stats('A-WALL'))).toBe('wall');
     expect(guessRole(stats('E-TRAY'))).toBe('tray');
     expect(guessRole(stats('E-CABLE'))).toBe('route');

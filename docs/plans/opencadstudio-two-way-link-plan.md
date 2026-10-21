@@ -112,5 +112,12 @@ With the layer map, routes and trays need no picking (2D plan geometry only):
   their name.
 - Cable lengths and tray routes dialogs show the layer table (shared with rooms) and save the map on apply.
 
-Next: layer-map templates per consultant (saved in the LV Database), and the same actions inside OpenCADStudio
-(add-in). 3D (elevations, vertical routes) waits for a BIM link — see Future development.
+## 9. Layer-map templates — done
+A layer mapping can be saved under the architect's or consultant's name ("ABC Architects") in the LV Database
+(Library.json, `lvds.cadLayerTemplates`, synced like the other libraries). Every layer table (rooms, cable lengths,
+tray routes) has the template bar: pick a template, or save the current mapping; when a saved template knows at least
+two and half of a plan's layers, it is offered ("Use ABC Architects (12 of 14 layers)"). Applying sets the roles of
+the layers it knows (any case) and leaves the others. Layer guesses also read RM as ROOM.
+
+Next: the same actions inside OpenCADStudio (add-in). 3D (elevations, vertical routes) waits for a BIM link — see
+Future development.
