@@ -1,3 +1,4 @@
+import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Project } from '../types';
 import { earthingLayout, kindInfo, patchEarthing, pitStatus, setPitTest, DEFAULT_BONDING, EARTHING_SYSTEMS, type EarthPit } from '../model/earthingPlan';
@@ -184,7 +185,7 @@ export default function EarthingView({ project, onChange, onStatus, embedded = f
   };
 
   const actions = (<>
-        <button className={`chip${drawer ? ' on' : ''}`} aria-pressed={drawer} onClick={() => setDrawer(!drawer)} title="Pits per equipment, electrode, conductor and bonding">Settings {drawer ? '◂' : '▸'}</button>
+        <button className={`chip${drawer ? ' on' : ''}`} aria-pressed={drawer} onClick={() => setDrawer(!drawer)} title="Pits per equipment, electrode, conductor and bonding">Settings {drawer ? <ChevronLeft size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}</button>
         <MenuButton label="Export sheet" title={tab === 'riser' ? 'This sheet of the earthing riser diagram (A3, black and white); the whole set from Drawings' : tab === 'floor' ? 'This floor earthing sheet (A3, black and white, with the panel schedule); the whole set from Drawings' : `Earthing schematic as drawing sheet ${earthSheetNo(project)} (A3, black and white, with the pit schedule)`} align="right">
           {(close) => tab === 'riser' || tab === 'floor' ? (
             <>
@@ -242,7 +243,7 @@ export default function EarthingView({ project, onChange, onStatus, embedded = f
                 {editing && edit && (
                   <div className="earth-pop" style={{ left: edit.x, top: edit.y }} onClick={(e) => e.stopPropagation()} key={`${editing.id}-${edit.n}`}>
                     <div className="earth-pop-h"><b>{editing.id}</b> <span className="m">{itemOf(editing.itemKey).equipment} · {kindInfo(editing.kind).label} · ≤ {kindInfo(editing.kind).limitOhm} Ω</span>
-                      <button className="icon-btn" aria-label="Close" onClick={() => setEdit(null)}>✕</button></div>
+                      <button className="icon-btn" aria-label="Close" onClick={() => setEdit(null)}><X size={14} aria-hidden /></button></div>
                     <label>Measured Ω<input autoFocus inputMode="decimal" defaultValue={editing.measured ?? ''} onBlur={(e) => test(editing.id, { measured: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} /></label>
                     <label>Test date<input type="date" defaultValue={editing.date ?? ''} onBlur={(e) => test(editing.id, { date: e.target.value })} /></label>
                     <label>Tested by<input defaultValue={editing.by ?? ''} placeholder="name" onBlur={(e) => test(editing.id, { by: e.target.value })} /></label>

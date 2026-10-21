@@ -1,17 +1,22 @@
 import { useMemo } from 'react';
 import type { Project } from '../../types';
 import { evaluateEarthingAll, breakerTypeOf, C_MIN, disconnectionLabel, K_CPC_XLPE_CU, loopFigures } from '../../calc/earthing';
-import { FocusChip, Page, StatusCell, StatusCounts } from '../ui';
+import { FocusChip, Page, ResultCard, ResultCards, StatusCell, StatusCounts } from '../ui';
 import { subtree } from '../../calc/pfc';
 
 export default function EarthingStudy({ project, onSelectFeeder, focus, onClearFocus }: { project: Project; onSelectFeeder: (id: string) => void; focus?: string | null; onClearFocus?: () => void }) {
   const all = useMemo(() => evaluateEarthingAll(project), [project]);
   const results = useMemo(() => { if (!focus) return all; const ids = subtree(project, focus); return all.filter((r) => ids.has(r.feeder.boardId)); }, [all, project, focus]);
+  // Summary: the circuit whose Zs is closest to (or furthest over) its maximum; circuits without source data; CPCs too small.
+  const share = (r: (typeof results)[number]) => (r.maxZsOhm > 0 && Number.isFinite(r.maxZsOhm) ? r.zsOhm / r.maxZsOhm : -1);
+  const worst = results.reduce<(typeof results)[number] | undefined>((w, r) => (!w || share(r) > share(w) ? r : w), undefined);
+  const missing = results.filter((r) => r.sourceMissing).length;
+  const cpcSmall = results.filter((r) => r.adiabatic === 'bad').length;
 
   return (
     <Page
       title="Earthing — fault loop impedance and disconnection time"
-      actions={<><FocusChip id={focus} onClear={onClearFocus} /><StatusCounts statuses={results.map((r) => r.status)} /></>}
+      actions={<FocusChip id={focus} onClear={onClearFocus} />}
       intro={
         <>
           TN-S system. Zs = Ze + (R1 + R2) at operating temperature; minimum fault current If = {C_MIN} × U0 / Zs. A circuit
@@ -21,6 +26,13 @@ export default function EarthingStudy({ project, onSelectFeeder, focus, onClearF
         </>
       }
     >
+      <ResultCards>
+        <ResultCard label="Worst loop impedance" value={worst && share(worst) >= 0 ? `${worst.zsOhm.toFixed(4)} Ω` : '—'} status={worst?.disconnection}
+          sub={worst && share(worst) >= 0 ? `${worst.feeder.id} · max Zs ${worst.maxZsOhm.toFixed(4)} Ω` : 'No circuits'} onClick={worst ? () => onSelectFeeder(worst.feeder.id) : undefined} />
+        <ResultCard label="Results" value={`${results.length} circuit${results.length === 1 ? '' : 's'}`} sub={<StatusCounts statuses={results.map((r) => r.status)} />} />
+        <ResultCard label="Source data" value={missing ? `${missing} not verified` : 'Complete'} status={missing ? 'bad' : undefined} sub={missing ? 'Ze is not assumed — see below the table' : 'Ze known for every circuit'} />
+        <ResultCard label="Protective conductors" value={cpcSmall ? `${cpcSmall} too small` : 'Adequate'} status={cpcSmall ? 'bad' : undefined} sub="adiabatic check, S ≥ I·√t / k" />
+      </ResultCards>
       <table>
         <thead>
           <tr>

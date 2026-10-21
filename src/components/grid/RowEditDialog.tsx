@@ -1,3 +1,4 @@
+import { Modal } from '../ui';
 import { useEffect, useRef, useState } from 'react';
 import type { SheetEdit, SheetModel } from '../../docs/sheet';
 
@@ -38,35 +39,33 @@ export default function RowEditDialog({ model, y, focusX, hidden, onSave, onClos
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose} onKeyDown={(e) => e.key === 'Escape' && onClose()}>
-      <form ref={form} className="modal row-edit" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
-        <h3>Edit: {title}</h3>
-        <p className="m">White fields are typed; the rest are calculated. Changes apply on Save.</p>
-        <div className="ce-grid">
-          {xs.map((x) => {
-            const col = model.cols[x];
-            const value = draft[x] ?? text(x);
-            const set = (v: string) => setDraft({ ...draft, [x]: v });
-            if (!model.editable(y, x)) return <label key={x} className="ce-ro">{label(x)}<output>{text(x)}</output></label>;
-            return (
-              <label key={x} className={col.align === 'left' && !col.source ? 'ce-wide' : undefined}>{label(x)}
-                {col.source ? (
-                  <select data-x={x} value={value} onChange={(e) => set(e.target.value)}>
-                    {!col.source.includes(value) && <option value={value}>{value}</option>}
-                    {col.source.map((o) => <option key={o} value={o}>{o || '—'}</option>)}
-                  </select>
-                ) : (
-                  <input data-x={x} value={value} inputMode={typeof row[x] === 'number' ? 'decimal' : undefined} onChange={(e) => set(e.target.value)} />
-                )}
-              </label>
-            );
-          })}
-        </div>
-        <div className="modal-actions">
-          <button type="button" className="chip" onClick={onClose}>Cancel</button>
-          <button type="submit" className="chip primary">Save changes</button>
-        </div>
-      </form>
-    </div>
+    <Modal onClose={onClose} className="modal row-edit" onSubmit={submit} boxRef={form}>
+      <h3>Edit: {title}</h3>
+      <p className="m">White fields are typed; the rest are calculated. Changes apply on Save.</p>
+      <div className="ce-grid">
+        {xs.map((x) => {
+          const col = model.cols[x];
+          const value = draft[x] ?? text(x);
+          const set = (v: string) => setDraft({ ...draft, [x]: v });
+          if (!model.editable(y, x)) return <label key={x} className="ce-ro">{label(x)}<output>{text(x)}</output></label>;
+          return (
+            <label key={x} className={col.align === 'left' && !col.source ? 'ce-wide' : undefined}>{label(x)}
+              {col.source ? (
+                <select data-x={x} value={value} onChange={(e) => set(e.target.value)}>
+                  {!col.source.includes(value) && <option value={value}>{value}</option>}
+                  {col.source.map((o) => <option key={o} value={o}>{o || '—'}</option>)}
+                </select>
+              ) : (
+                <input data-x={x} value={value} inputMode={typeof row[x] === 'number' ? 'decimal' : undefined} onChange={(e) => set(e.target.value)} />
+              )}
+            </label>
+          );
+        })}
+      </div>
+      <div className="modal-actions">
+        <button type="button" className="chip" onClick={onClose}>Cancel</button>
+        <button type="submit" className="chip primary">Save changes</button>
+      </div>
+    </Modal>
   );
 }

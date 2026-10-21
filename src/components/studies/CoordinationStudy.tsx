@@ -4,7 +4,7 @@ import { breakerTypeOf } from '../../calc/earthing';
 import TccChart from '../TccChart';
 import { evaluateSelectivity } from '../../calc/protection';
 import { faultCurrentKA, impedanceToBoard } from '../../calc/electrical';
-import { Page, StatusCell, StatusCounts } from '../ui';
+import { Page, ResultCard, ResultCards, StatusCell, StatusCounts } from '../ui';
 
 export default function CoordinationStudy({ project, board, onBoard }: { project: Project; /** Picked in the panel tree. */ board?: string; onBoard?: (id: string) => void }) {
   const incomers = project.feeders.filter((f) => f.feedsBoardId);
@@ -21,13 +21,18 @@ export default function CoordinationStudy({ project, board, onBoard }: { project
   return (
     <Page
       title="Protection coordination"
-      actions={<StatusCounts statuses={all.map((r) => r.status)} />}
       intro="Selectivity between each sub-board's incoming breaker and its outgoing breakers: overload selectivity needs In(up) ÷ In(down) ≥ 1.6; short-circuit selectivity is total when the upstream breaker's magnetic no-trip threshold is above the maximum fault at the downstream breaker, otherwise partial up to that threshold. The curves are generic shapes for comparison, not manufacturer data — confirm final coordination with the manufacturer's selectivity tables."
     >
       {incomers.length === 0 ? (
         <p className="m">Add a sub-board (fed through an incomer) to see coordination between breakers.</p>
       ) : (
         <>
+          <ResultCards>
+            <ResultCard label="Breaker pairs" value={String(all.length)} sub={<StatusCounts statuses={all.map((r) => r.status)} />} />
+            <ResultCard label="Overload ratio under 1.6" value={String(all.filter((r) => !r.ratioOk).length)} sub="In upstream ÷ In downstream" />
+            <ResultCard label="Partial short-circuit selectivity" value={String(all.filter((r) => r.shortCircuit === 'partial').length)} sub="up to the upstream no-trip threshold" />
+            {boardId && <ResultCard label={`Fault level at ${boardId}`} value={`${busFaultKA.toFixed(1)} kA`} sub="maximum, at the busbar" />}
+          </ResultCards>
           <label className="setting">
             Board
             <select value={boardId} onChange={(e) => setBoardId(e.target.value)}>

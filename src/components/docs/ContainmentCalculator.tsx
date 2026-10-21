@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { useMemo } from 'react';
 import type { Project } from '../../types';
 import { calcContainment, CONTAINMENT_DEFAULT, CONTAINMENT_LABEL, containmentSvg, type ContainmentInput, type ContainmentType } from '../../calc/containment';
@@ -69,7 +70,7 @@ export default function ContainmentCalculator({ project, onChange, onStatus }: {
                 <td><select className="bi-sel" value={c.csaMm2} onChange={(e) => set({ cables: cables.map((x, k) => (k === i ? { ...x, csaMm2: Number(e.target.value) } : x)) })}>{SIZES.map((n) => <option key={n} value={n}>{n}</option>)}</select></td>
                 <td><input className="bi-num" style={{ width: 44 }} inputMode="numeric" value={c.qty} onChange={(e) => { const n = Number(e.target.value); if (Number.isFinite(n)) set({ cables: cables.map((x, k) => (k === i ? { ...x, qty: Math.max(0, Math.round(n)) } : x)) }); }} /></td>
                 <td><input className="bi-num" style={{ width: 50 }} inputMode="decimal" value={c.odMm ?? ''} placeholder={r.lines.find((l) => l.name === c.name && l.csaMm2 === c.csaMm2)?.od.toFixed(1) ?? ''} onChange={(e) => { const n = e.target.value === '' ? undefined : Number(e.target.value); if (n === undefined || Number.isFinite(n)) set({ cables: cables.map((x, k) => (k === i ? { ...x, odMm: n } : x)) }); }} /></td>
-                <td><button className="icon-btn" onClick={() => set({ cables: cables.filter((_, k) => k !== i) })}>✕</button></td>
+                <td><button className="icon-btn" onClick={() => set({ cables: cables.filter((_, k) => k !== i) })} aria-label="Remove"><X size={14} aria-hidden /></button></td>
               </tr>
             ))}
           </tbody>
@@ -79,7 +80,7 @@ export default function ContainmentCalculator({ project, onChange, onStatus }: {
 
       <div className="pfcc-out">
         {!r.count ? <section className="card"><p className="m">Add cables on the left — the containment, its cross-section and the report appear here.</p></section> : <>
-          <div className="vd-cards">
+          <div className="result-cards">
             <div className="dash-tile"><span className="dash-label">{CONTAINMENT_LABEL[t]}</span><span className={`dash-value ${r.status === 'fail' ? 'bad' : ''}`}>{r.size}</span><span className="dash-sub">{r.fillPct ? `fill ${f0(r.fillPct)} %` : ''}{r.sparePct !== undefined ? ` · spare ${f0(r.sparePct)} %` : ''}</span></div>
             <div className="dash-tile"><span className="dash-label">Cables</span><span className="dash-value">{r.count}</span><span className="dash-sub">Σ OD {f0(r.sumOdMm)} mm · area {f0(r.areaMm2)} mm²</span></div>
             <div className="dash-tile"><span className="dash-label">Weight</span><span className="dash-value">{f0(r.kgPerM)} kg/m</span><span className="dash-sub">for the supports</span></div>

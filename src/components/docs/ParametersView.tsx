@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { pushLibrary } from '../../database/librarySync';
 import { DEWA_GENERAL_NOTES } from '../../docs/sldNotes';
 import { useMemo, useState } from 'react';
@@ -29,7 +30,7 @@ export default function ParametersView({ project, onChange, onStatus, onTitleBlo
             onBlur={(e) => setP({ custom: custom.map((c) => (c.name === x.name ? { ...c, value: e.target.value } : c)) })} />
         ) : <span>{x.value || <span className="m">— (set in Project settings / Building)</span>}</span>}
       </td>
-      <td>{x.editable === 'custom' && <button className="icon-btn" title="Remove" onClick={() => setP({ custom: custom.filter((c) => c.name !== x.name) })}>✕</button>}</td>
+      <td>{x.editable === 'custom' && <button className="icon-btn" title="Remove" onClick={() => setP({ custom: custom.filter((c) => c.name !== x.name) })} aria-label="Remove"><X size={14} aria-hidden /></button>}</td>
     </tr>
   );
   const groups: ParamDef['group'][] = ['People & dates', 'Your own', 'Project', 'Design'];

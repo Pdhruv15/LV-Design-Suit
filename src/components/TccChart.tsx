@@ -2,7 +2,8 @@ import type { Feeder } from '../types';
 import { breakerTypeOf, instantaneousTripA } from '../calc/earthing';
 import { genericTripTimeS } from '../calc/protection';
 
-const COLORS = ['#4aa8ff', '#b784ff', '#37d6c6', '#ff8fb1', '#9fd356', '#f5c04a', '#ff9f43', '#7fd1ff'];
+/** One theme token per curve (--curve-1…8 in tokens.css): the dark values are the original colours, light ones darker for white. */
+const curveColor = (n: number) => `var(--curve-${(n % 8) + 1})`;
 
 // Chart ranges (log-log) and plot box.
 const I_MIN = 10, I_MAX = 100000, T_MIN = 0.01, T_MAX = 10000;
@@ -66,13 +67,13 @@ export default function TccChart({ feeders, faultKA, bold, label, compact }: {
           </g>
         )}
         {feeders.map((f, n) => (
-          <path key={f.id} d={curvePath(f)} fill="none" stroke={COLORS[n % COLORS.length]} strokeWidth={f.id === bold ? 2.6 : 1.6} />
+          <path key={f.id} d={curvePath(f)} fill="none" style={{ stroke: curveColor(n) }} strokeWidth={f.id === bold ? 2.6 : 1.6} />
         ))}
       </svg>
       <ul className="legend">
         {feeders.map((f, n) => (
           <li key={f.id}>
-            <span style={{ background: COLORS[n % COLORS.length] }} />
+            <span style={{ background: curveColor(n) }} />
             {label ? label(f, n) : `${f.id} — ${f.breakerRatingA} A ${breakerTypeOf(f)}`}
           </li>
         ))}

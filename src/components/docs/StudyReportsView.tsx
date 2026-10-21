@@ -1,3 +1,5 @@
+import { X } from 'lucide-react';
+import { ask } from '../ConfirmDialog';
 import { useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
@@ -23,10 +25,11 @@ import { applyReportType, matchingType, REPORT_TYPES } from '../../docs/reportTy
 import { issueCounts, validateReport } from '../../docs/reportValidation';
 import { ISSUE_STATUSES, missingFields, pageFrame, reportDoc, type ReportMeta } from '../../docs/reportFrame';
 import SystemDiagram from '../SystemDiagram';
-import { Page, StaleBanner } from '../ui';
+import { ExportBar, Page, StaleBanner } from '../ui';
+import { PaperPreview } from '../PaperPreview';
 import { useStable } from '../../util/useStable';
 import { offerSubmission } from '../../model/submissions';
-import { currentRevision } from '../../model/revisions';
+import { currentRevision, revisionStamp } from '../../model/revisions';
 
 const noop = () => {};
 /** A table row with a status cell that is a warning or worse. */
@@ -57,7 +60,7 @@ async function captureSld(drawing: Project, data: CalcData, key: StudyReportKind
       />
     ));
     await new Promise((r) => requestAnimationFrame(() => r(null)));
-    const svg = host.querySelector<SVGSVGElement>('.sysdiag svg');
+    const svg = host.querySelector<SVGSVGElement>('.sysdiag > svg');
     return svg ? printableSvg(svg, Number(svg.dataset.w), Number(svg.dataset.h)) : undefined;
   } finally {
     root.unmount();
@@ -107,7 +110,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
     [calc, reportMeta, scope, sections, data, stale, basisOpt.designBasis, basisOpt.results]);
   const ic = issueCounts(issues);
   /** Errors are never hidden: exporting with any asks first. */
-  const confirmIssues = () => !ic.error || window.confirm(`The pre-export check found ${ic.error} error(s) and ${ic.warning} warning(s) — see the Pre-export check tab.\n\nExport anyway?`);
+  const confirmIssues = async () => !ic.error || (await ask(`The pre-export check found ${ic.error} error(s) and ${ic.warning} warning(s) — see the Pre-export check tab.\n\nExport anyway?`));
   const depth = (id: string) => {
     let d = 0;
     let b = project.boards.find((x) => x.id === id);
@@ -124,7 +127,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
 
   async function exportPdf() {
     if (!data || !sections.length) return;
-    if (!confirmIssues()) return;
+    if (!(await confirmIssues())) return;
     setBusy('pdf');
     try {
       const slds: Partial<Record<StudyReportKind, string>> = {};
@@ -155,7 +158,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
 
   async function exportExcel() {
     if (!sections.length) return;
-    if (!confirmIssues()) return;
+    if (!(await confirmIssues())) return;
     setBusy('xlsx');
     try {
       const bytes = await workbookBytes(buildStudyWorkbook(calc, scope, sections, { title, docNo: setup.docNo, preparedBy: setup.preparedBy, checkedBy: setup.checkedBy }));
@@ -170,7 +173,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
 
   async function exportWord() {
     if (!sections.length) return;
-    if (!confirmIssues()) return;
+    if (!(await confirmIssues())) return;
     setBusy('docx');
     try {
       const doc = buildStudyDocx(calc, scope, sections, reportMeta, basisOpt);
@@ -192,7 +195,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
   async function exportPack() {
     const toBytes = window.lvds?.files?.pdfBytes;
     const snap = run; // frozen here: later edits can't mix into this package
-    if (!confirmIssues()) return;
+    if (!(await confirmIssues())) return;
     if (!snap || !data || !sections.length) return;
     if (!toBytes) { onStatus('The issue package is made by the desktop app — download it, or use Export PDF here (opens the print dialog)'); return; }
     setBusy('pack');
@@ -258,18 +261,18 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
     <Page
       title="Study reports"
       intro="Reports for a submission: choose the scope (whole installation or selected boards) and the studies, then export. Calculations always cover the whole network; the report shows only the part you chose."
-      actions={
-        <>
-          {blockedWhy && <span className="m sr-why">{blockedWhy}</span>}
-          <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportExcel} title={blockedWhy ?? 'Excel: the result tables of each study (no SLDs, no method text)'}>{busy === 'xlsx' ? 'Exporting…' : 'Excel'}</button>
-          <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportWord} title={blockedWhy ?? 'Word (.docx): editable report — method, summary and tables (no SLDs)'}>{busy === 'docx' ? 'Exporting…' : 'Word'}</button>
-          <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportPack} title={blockedWhy ?? 'One PDF from the last calculation run: cover + project summary + this report with SLDs + every available panel schedule in scope, including MCC and EMCC MD forms; snapshot ID on every page'}>{busy === 'pack' ? 'Building…' : window.lvds?.files?.pdfBytes ? 'Issue package (PDF)' : 'Issue package · desktop app'}</button>
-          <button className="chip primary" disabled={blocked || !sections.length || !!busy} onClick={exportPdf} title={blockedWhy ?? `PDF: method, summary and tables of each study${setup.sld ? ', with an SLD of the chosen boards showing its results' : ''}`}>
-            {busy === 'pdf' ? 'Exporting…' : setup.separate && sections.length > 1 ? `Export ${sections.length} PDFs` : 'Export PDF'}
-          </button>
-        </>
-      }
     >
+      <ExportBar
+        scope={<>{scope.all ? 'Whole installation' : scope.roots.map((b) => b.id).join(', ')} · {sections.length} stud{sections.length === 1 ? 'y' : 'ies'}{setup.sld ? ' · with SLD' : ''}</>}
+        revision={revisionStamp(project)}
+        blocked={blockedWhy ?? (!sections.length ? 'Choose at least one study on the Studies tab.' : undefined)}>
+        <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportExcel} title={blockedWhy ?? 'Excel: the result tables of each study (no SLDs, no method text)'}>{busy === 'xlsx' ? 'Exporting…' : 'Excel'}</button>
+        <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportWord} title={blockedWhy ?? 'Word (.docx): editable report — method, summary and tables (no SLDs)'}>{busy === 'docx' ? 'Exporting…' : 'Word'}</button>
+        <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportPack} title={blockedWhy ?? 'One PDF from the last calculation run: cover + project summary + this report with SLDs + every available panel schedule in scope, including MCC and EMCC MD forms; snapshot ID on every page'}>{busy === 'pack' ? 'Building…' : window.lvds?.files?.pdfBytes ? 'Issue package (PDF)' : 'Issue package · desktop app'}</button>
+        <button className="chip primary" disabled={blocked || !sections.length || !!busy} onClick={exportPdf} title={blockedWhy ?? `PDF: method, summary and tables of each study${setup.sld ? ', with an SLD of the chosen boards showing its results' : ''}`}>
+          {busy === 'pdf' ? 'Exporting…' : setup.separate && sections.length > 1 ? `Export ${sections.length} PDFs` : 'Export PDF'}
+        </button>
+      </ExportBar>
       {stale.length > 0 && <StaleBanner stale={stale} onRun={onRun} what="the report" />}
 
       <div className="tabs sr-tabs" role="tablist">
@@ -395,7 +398,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
                   set({ ...rest, mode: rest.mode ?? (rest.boards.length ? 'selected' : 'all'), boards: kept });
                   onStatus(gone.length ? `Loaded "${p.name}" — ${gone.length} board(s) no longer exist and were left out: ${gone.join(', ')}${kept.length ? '' : '. Tick the boards again.'}` : `Loaded "${p.name}"`);
                 }}>{p.name}</button>
-                <button className="icon-btn" title={`Delete "${p.name}"`} onClick={() => onChange({ ...project, studyReportPresets: presets.filter((x) => x.id !== p.id) })}>✕</button>
+                <button className="icon-btn" title={`Delete "${p.name}"`} onClick={() => onChange({ ...project, studyReportPresets: presets.filter((x) => x.id !== p.id) })} aria-label={`Delete "${p.name}"`}><X size={14} aria-hidden /></button>
               </span>
             ))}
             {!presets.length && <span className="m">Save this choice of boards and studies to repeat it for the next revision.</span>}
@@ -443,7 +446,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
       {tab === 'preview' && data && sections.length > 0 && (
         <section className="sr-preview">
           <p className="m">The report as it will print (single line diagrams are added on export; page header, footer and numbers are added to the PDF).</p>
-          <iframe title="Report preview" sandbox="" srcDoc={buildStudyReportHtml(calc, scope, sections, reportMeta, {}, basisOpt)} />
+          <PaperPreview title="Report preview" html={buildStudyReportHtml(calc, scope, sections, reportMeta, {}, basisOpt)} />
         </section>
       )}
       {tab === 'contents' && sections.length > 0 && (

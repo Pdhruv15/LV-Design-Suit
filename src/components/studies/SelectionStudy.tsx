@@ -3,7 +3,7 @@ import type { Project } from '../../types';
 import { evaluateFeeder } from '../../calc/electrical';
 import { breakerTypeOf } from '../../calc/earthing';
 import { applyAllRecommendations, applyRecommendation, recommend, type SelectionMode } from '../../calc/sizing';
-import { FocusChip, Page, StatusCell, StatusCounts } from '../ui';
+import { FocusChip, Page, ResultCard, ResultCards, StatusCell, StatusCounts } from '../ui';
 import { subtree } from '../../calc/pfc';
 
 /** Current vs recommended breaker (In, type, Icu) and cable for every
@@ -25,7 +25,6 @@ export default function SelectionStudy({ project, onChange, focus, onClearFocus 
       actions={
         <>
           <FocusChip id={focus} onClear={onClearFocus} />
-          <StatusCounts statuses={rows.map((r) => r.result.status)} />
           <div className="seg" role="radiogroup" aria-label="Selection mode">
             <button role="radio" aria-checked={mode === 'fix'} className={mode === 'fix' ? 'on' : ''} onClick={() => setMode('fix')}>Fix only</button>
             <button role="radio" aria-checked={mode === 'optimise'} className={mode === 'optimise' ? 'on' : ''} onClick={() => setMode('optimise')}>Optimise</button>
@@ -37,6 +36,11 @@ export default function SelectionStudy({ project, onChange, focus, onClearFocus 
       }
       intro="Fix only upsizes what fails and keeps anything already adequate; Optimise also downsizes oversized breakers, Icu ratings and cables. Criteria: breaker In ≥ Ib ÷ 0.85 (keeps loading under 85 %), Icu ≥ the fault level at the supply busbar, and the smallest cable with Iz ≥ In that keeps the total voltage drop within 85 % of the limit (incomers get a 1 % share). Apply all works top-down so each circuit sees the final upstream values."
     >
+      <ResultCards>
+        <ResultCard label="Results" value={`${rows.length} circuit${rows.length === 1 ? '' : 's'}`} sub={<StatusCounts statuses={rows.map((r) => r.result.status)} />} />
+        <ResultCard label="Failing now" value={String(rows.filter((r) => r.result.status === 'bad').length)} status={rows.some((r) => r.result.status === 'bad') ? 'bad' : rows.length ? 'ok' : undefined} sub="breaker or cable as designed" />
+        <ResultCard label="Changes recommended" value={String(pending)} sub={mode === 'fix' ? 'Fix only: upsizes what fails' : 'Optimise: also downsizes oversized items'} />
+      </ResultCards>
       <table>
         <thead>
           <tr>

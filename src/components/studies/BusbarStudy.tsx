@@ -1,3 +1,5 @@
+import { X } from 'lucide-react';
+import { ask } from '../ConfirmDialog';
 import { useMemo, useState } from 'react';
 import { boardLocation } from '../../model/levels';
 import type { Project } from '../../types';
@@ -126,7 +128,7 @@ export default function BusbarStudy({ project, onChange, onStatus }: { project: 
               <label>Elbows<input inputMode="numeric" value={riser.elbows} onChange={(e) => setRiser({ elbows: Math.max(0, Math.round(num(e.target.value) ?? 0)) })} /></label>
             </div>
             <div className="bb-row-actions">
-              <button className="linkish bad" style={{ marginLeft: 0 }} onClick={() => { if (window.confirm(`Delete ${riser.name}?`)) { setRisers(risers.filter((r) => r.id !== riser.id)); setSel(''); } }}>Delete this riser</button>
+              <button className="linkish bad" style={{ marginLeft: 0 }} onClick={async () => { if (await ask(`Delete ${riser.name}?`)) { setRisers(risers.filter((r) => r.id !== riser.id)); setSel(''); } }}>Delete this riser</button>
             </div>
           </section>
 
@@ -152,7 +154,7 @@ export default function BusbarStudy({ project, onChange, onStatus }: { project: 
                     <td>{r?.tapOffA ? `${r.tapOffA} A${(f.count ?? 1) > 1 ? ` × ${f.count}` : ''}` : '—'}</td>
                     <td>{r ? f1(r.heightM) : '—'}</td>
                     <td className={r && r.vdPct > project.vdLimitPct / 2 ? 'warn' : ''}>{r ? `${f2(r.vdPct)} %` : '—'}</td>
-                    <td><button className="icon-btn" title="Remove" onClick={() => setRiser({ floors: riser.floors.filter((x) => x.id !== f.id) })}>✕</button></td>
+                    <td><button className="icon-btn" title="Remove" onClick={() => setRiser({ floors: riser.floors.filter((x) => x.id !== f.id) })} aria-label="Remove"><X size={14} aria-hidden /></button></td>
                   </tr>
                 );
               })}
@@ -233,7 +235,7 @@ export default function BusbarStudy({ project, onChange, onStatus }: { project: 
             {(['cu', 'al'] as const).map((m) => <button key={m} className={dataMat === m ? 'on' : ''} onClick={() => setDataMat(m)}>{MATERIAL_LABEL[m]}</button>)}
           </span>
           <button className="chip" onClick={() => setData(dataMat, [...data[dataMat], { ...data[dataMat][data[dataMat].length - 1] ?? TYPICAL_BUSBAR_DATA[dataMat][0], ratingA: (data[dataMat][data[dataMat].length - 1]?.ratingA ?? 0) + 1 }])}>+ Rating</button>
-          {project.busbarData && <button className="chip" onClick={() => { if (window.confirm('Go back to the typical busway data?')) onChange({ ...project, busbarData: undefined }); }}>Back to typical</button>}
+          {project.busbarData && <button className="chip" onClick={async () => { if (await ask('Go back to the typical busway data?')) onChange({ ...project, busbarData: undefined }); }}>Back to typical</button>}
         </div>
         <table className="bb-datatable">
           <thead><tr>{DATA_COLS.map((c) => <th key={c.key}>{c.label}</th>)}<th /></tr></thead>
@@ -247,7 +249,7 @@ export default function BusbarStudy({ project, onChange, onStatus }: { project: 
                     setData(dataMat, data[dataMat].map((x, k) => (k === i ? { ...x, [c.key]: v } : x)));
                   }} /></td>
                 ))}
-                <td><button className="icon-btn" title="Remove" onClick={() => setData(dataMat, data[dataMat].filter((_, k) => k !== i))}>✕</button></td>
+                <td><button className="icon-btn" title="Remove" onClick={() => setData(dataMat, data[dataMat].filter((_, k) => k !== i))} aria-label="Remove"><X size={14} aria-hidden /></button></td>
               </tr>
             ))}
           </tbody>

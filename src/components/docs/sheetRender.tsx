@@ -43,7 +43,7 @@ export async function renderSheet(project: Project, set: DrawingSet, s: DrawingS
       if (!s.buildingId) return undefined;
       flushSync(() => root.render(s.riserStyle === 'feeders' ? <FeederRiserDiagram project={project} buildingId={s.buildingId!} /> : <RiserDiagram project={project} buildingId={s.buildingId!} />));
       await new Promise((r) => requestAnimationFrame(() => r(null)));
-      const svg = host.querySelector<SVGSVGElement>('.sysdiag svg');
+      const svg = host.querySelector<SVGSVGElement>('.sysdiag > svg');
       if (!svg) return undefined;
       const w = Number(svg.dataset.w), h = Number(svg.dataset.h);
       return { svg: printableSvg(svg, w, h), w, h };
@@ -71,7 +71,7 @@ export async function renderSheet(project: Project, set: DrawingSet, s: DrawingS
         selectedFeederId={null} selectedBoardId={null} onSelectFeeder={noop} onSelectBoard={noop} />
     ));
     await new Promise((r) => requestAnimationFrame(() => r(null)));
-    const svg = host.querySelector<SVGSVGElement>('.sysdiag svg');
+    const svg = host.querySelector<SVGSVGElement>('.sysdiag > svg');
     if (!svg) return undefined;
     const w = Number(svg.dataset.w), h = Number(svg.dataset.h);
     return { svg: printableSvg(svg, w, h), w, h };

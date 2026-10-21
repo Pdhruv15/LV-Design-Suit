@@ -1,3 +1,4 @@
+import { ask } from './ConfirmDialog';
 import { useState } from 'react';
 import type { Board, Project } from '../types';
 import BoardFields, { BOARD_FIELD_GROUPS, type BoardFieldGroup } from './BoardFields';
@@ -52,9 +53,9 @@ export default function BoardEditForm({
           <button
             type="button"
             className="chip bad-btn"
-            onClick={() => {
+            onClick={async () => {
               const extra = subBoards ? ` and the ${subBoards} board(s) fed from it` : '';
-              if (window.confirm(`Delete ${board.id}, its ${feeders} feeder(s)${extra}? This can't be undone.`)) onDelete();
+              if (await ask(`Delete ${board.id}, its ${feeders} feeder(s)${extra}? This can't be undone.`)) onDelete();
             }}
           >
             Delete board

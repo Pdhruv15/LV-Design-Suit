@@ -1,3 +1,4 @@
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Board, Project } from '../types';
 import { evaluateFeeder, type FeederResult } from '../calc/electrical';
@@ -125,10 +126,10 @@ export default function BoardSheetView({ project, board, results, selected, onSe
   return (
     <div className="board-sheet">
       <div className="bs-bar">
-        <button className="chip" disabled={!prev} onClick={() => prev && onBoard(prev.id)} title={prev ? `Previous board in supply order: ${prev.id}` : 'First board'}>◀ {prev?.id ?? ''}</button>
+        <button className="chip" disabled={!prev} onClick={() => prev && onBoard(prev.id)} title={prev ? `Previous board in supply order: ${prev.id}` : 'First board'}>{prev && <ChevronLeft size={14} aria-hidden />} {prev?.id ?? ''}</button>
         <b>{board.id}</b>
         <span className="m">{board.name && board.name !== board.id ? board.name : ''}{board.upstreamId ? ` · fed from ${board.upstreamId}` : ' · main board'}{at >= 0 ? ` · ${at + 1} of ${order.length}` : ''}</span>
-        <button className="chip" disabled={!next} onClick={() => next && onBoard(next.id)} title={next ? `Next board in supply order: ${next.id}` : 'Last board'}>{next?.id ?? ''} ▶</button>
+        <button className="chip" disabled={!next} onClick={() => next && onBoard(next.id)} title={next ? `Next board in supply order: ${next.id}` : 'Last board'}>{next?.id ?? ''} {next && <ChevronRight size={14} aria-hidden />}</button>
         <span className="sp" />
         <button className={`chip${allCircuits ? ' on' : ''}`} aria-pressed={allCircuits} onClick={() => setAllCircuits((v) => !v)}
           title="The SLD stops at final circuits: it draws feeders to boards and major equipment, and the lighting and power circuits as one box referring to the DB load schedule. Show them one by one to move phases on the drawing.">

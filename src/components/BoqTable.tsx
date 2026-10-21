@@ -49,28 +49,30 @@ export default function BoqTable({ results, projectName, project }: { results: F
         <button className="chip" onClick={exportCsv}>Export CSV</button>
       </div>
       {byType.length > 1 && <p className="m">Cable by type: {byType.map(([t, m]) => `${t} ${Math.round(m)} m`).join(' · ')}.</p>}
-      <table>
-        <thead>
-          <tr>
-            <th>Circuit</th><th>Description</th><th>Type</th><th>Cable</th><th>Length</th>
-            <th>Cable rate</th><th>Cable cost</th><th>Breaker</th><th>Breaker cost</th><th>Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.id}>
-              <td>{r.id}</td><td>{r.name}</td><td className={r.fireRated ? 'fr-cell' : undefined}>{r.type}</td><td>{r.runs > 1 ? `${r.runs} × ` : ''}{r.cableCsaMm2} mm²</td><td>{r.lengthM} m</td>
-              <td>{r.cableRate}/m</td><td>{r.cableCost.toFixed(0)}</td>
-              <td>{r.breakerRatingA} A</td><td>{r.breakerCost.toFixed(0)}</td>
-              <td><b>{r.total.toFixed(0)}</b></td>
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Circuit</th><th>Description</th><th>Type</th><th>Cable</th><th>Length</th>
+              <th>Cable rate</th><th>Cable cost</th><th>Breaker</th><th>Breaker cost</th><th>Total</th>
             </tr>
-          ))}
-          <tr>
-            <td colSpan={9} style={{ textAlign: 'right', fontWeight: 600 }}>Grand total ({CURRENCY})</td>
-            <td style={{ fontWeight: 700 }}>{grandTotal.toFixed(0)}</td>
-          </tr>
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id}>
+                <td>{r.id}</td><td>{r.name}</td><td className={r.fireRated ? 'fr-cell' : undefined}>{r.type}</td><td>{r.runs > 1 ? `${r.runs} × ` : ''}{r.cableCsaMm2} mm²</td><td>{r.lengthM} m</td>
+                <td>{r.cableRate}/m</td><td>{r.cableCost.toFixed(0)}</td>
+                <td>{r.breakerRatingA} A</td><td>{r.breakerCost.toFixed(0)}</td>
+                <td><b>{r.total.toFixed(0)}</b></td>
+              </tr>
+            ))}
+            <tr>
+              <td colSpan={9} style={{ textAlign: 'right', fontWeight: 600 }}>Grand total ({CURRENCY})</td>
+              <td style={{ fontWeight: 700 }}>{grandTotal.toFixed(0)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

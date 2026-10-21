@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { Project } from '../../types';
 import { calcPfc, PFC_CALC_DEFAULT, pfText, phasorSvg, powerTriangleSvg, type PfcCalcInput, type PfcInputMode } from '../../calc/pfcCalc';
@@ -69,7 +70,7 @@ export default function PfcCalculator({ project, onChange, onStatus }: { project
                 <tr key={i}>
                   <td><input className="bi-text" style={{ width: 120 }} value={l.name} onChange={(e) => set({ loads: loads.map((x, k) => (k === i ? { ...x, name: e.target.value } : x)) })} /></td>
                   {(['kw', 'pf', 'qty'] as const).map((k) => <td key={k}><input className="bi-num" style={{ width: 56 }} inputMode="decimal" value={l[k]} onChange={(e) => { const n = Number(e.target.value); if (Number.isFinite(n)) set({ loads: loads.map((x, j) => (j === i ? { ...x, [k]: n } : x)) }); }} /></td>)}
-                  <td><button className="icon-btn" onClick={() => set({ loads: loads.filter((_, k) => k !== i) })}>✕</button></td>
+                  <td><button className="icon-btn" onClick={() => set({ loads: loads.filter((_, k) => k !== i) })} aria-label="Remove"><X size={14} aria-hidden /></button></td>
                 </tr>
               ))}
             </tbody>
@@ -80,7 +81,7 @@ export default function PfcCalculator({ project, onChange, onStatus }: { project
 
       <div className="pfcc-out">
         {r.p <= 0 ? <section className="card"><p className="m">Enter the {input.mode === 'bill' ? 'kWh, kvarh and hours from the bill' : input.mode === 'loads' ? 'loads' : 'measured values'} on the left — the bank, diagrams and report appear here.</p></section> : <>
-        <div className="vd-cards">
+        <div className="result-cards">
           <div className="dash-tile"><span className="dash-label">Power factor</span><span className="dash-value"><span className={r.pf1 < input.targetPf || r.leading1 ? 'warn' : 'ok'}>{pfText(r.pf1, r.leading1, 2)}</span> → <span className={r.pf2 >= input.targetPf - 1e-9 && !r.leading2 ? 'ok' : 'warn'}>{pfText(r.pf2, r.leading2)}</span></span><span className="dash-sub">target {input.targetPf}</span></div>
           <div className="dash-tile"><span className="dash-label">Capacitor bank</span><span className="dash-value">{r.bankKvar ? `${r.bankKvar} kvar` : 'None'}</span><span className={`dash-sub${r.bankKvar && !r.targetReached ? ' warn' : ''}`}>{r.leading1 ? 'load is leading — capacitors cannot correct it' : r.bankKvar ? `installed ${r.steps} × ${r.stepKvar} kvar · ${r.activeSteps} switched in (${r.activeKvar} kvar)${r.targetReached ? '' : ' · target not reachable'}${r.detunedPct ? ` · ${r.detunedPct} % detuned` : ''} · need ${f1(r.requiredKvar)}` : 'already at target'}</span></div>
           <div className="dash-tile"><span className="dash-label">Load</span><span className="dash-value">{f0(r.p)} kW</span><span className="dash-sub">{f0(r.s1)} → {f0(r.s2)} kVA · frees {f0(r.releasedKva)} kVA</span></div>

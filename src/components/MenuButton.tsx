@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 
 /** A toolbar button that opens a small panel (menu items, ticks, selects).
  * Closes on a click outside or Escape. */
@@ -15,7 +16,7 @@ export default function MenuButton({ label, title, active, children, align = 'le
   }, [open]);
   return (
     <div className="menu-btn" ref={ref}>
-      <button className={`chip${active ? ' on' : ''}`} title={title} aria-expanded={open} onClick={() => setOpen(!open)}>{label} ▾</button>
+      <button className={`chip${active ? ' on' : ''}`} title={title} aria-expanded={open} onClick={() => setOpen(!open)}>{label} <ChevronDown size={14} strokeWidth={1.8} aria-hidden /></button>
       {open && <div className={`menu-pop ${align}`}>{children(() => setOpen(false))}</div>}
     </div>
   );

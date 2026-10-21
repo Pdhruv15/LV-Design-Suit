@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Project } from '../../types';
 import type { MainView } from '../../views';
 import { Page } from '../ui';
+import { askForm } from '../ConfirmDialog';
 import { buildDashboard } from '../../calc/dashboard';
 import { STUDY_LABEL, type CalcRun, type StudyKey } from '../../calc/runs';
 import { buildReviewDoc, defaultSetup, reviewHtml, SECTION_IDS, SECTION_LABEL, type ReviewReportSetup, type SectionId } from '../../docs/reviewReport';
@@ -57,11 +58,14 @@ export default function ReviewView({ project, me = "", run, stale = [], onChange
       if (m) onStatus(m);
     } catch (e) { onStatus(`Export failed: ${e instanceof Error ? e.message : String(e)}`); } finally { setBusy(''); }
   }
-  const recordDecision = () => {
-    const by = (me.trim() || window.prompt('Reviewer name (typed text)') || '').trim(); if (!by) return;
-    const outcome = window.prompt('Reviewer decision, in your own words (e.g. "Accepted subject to the conditions below")')?.trim(); if (!outcome) return;
-    const conditions = window.prompt('Conditions (optional)')?.trim() || undefined;
-    saveSetup({ ...setup, decision: { outcome, by, at: new Date().toISOString(), conditions } });
+  const recordDecision = async () => {
+    const v = await askForm({ title: 'Record the reviewer’s decision', confirmLabel: 'Record decision', fields: [
+      ...(me.trim() ? [] : [{ key: 'by', label: 'Reviewer name', hint: 'Typed text', required: true }]),
+      { key: 'outcome', label: 'Decision, in your own words', placeholder: 'e.g. Accepted subject to the conditions below', multiline: true, required: true },
+      { key: 'conditions', label: 'Conditions', multiline: true }
+    ] });
+    if (!v) return;
+    saveSetup({ ...setup, decision: { outcome: v.outcome, by: me.trim() || v.by, at: new Date().toISOString(), conditions: v.conditions || undefined } });
   };
   const guard = (fn: () => void) => { try { fn(); } catch (e) { onStatus(e instanceof CommentError || e instanceof Error ? e.message : String(e)); } };
   const shown = list.filter((c) => filter === 'all' || (filter === 'active' ? c.status !== 'closed' && c.status !== 'withdrawn' || needsReReview(project, c) : c.status === filter));
@@ -73,14 +77,22 @@ export default function ReviewView({ project, me = "", run, stale = [], onChange
       revisionId: project.revisions?.[project.revisions.length - 1]?.id, ref: f.kind && f.refId ? { kind: f.kind, id: f.refId } : undefined });
     onChange(withComment(project, c)); setSel(c.id); setF({ ...f, finding: '', criterion: '', requiredAction: '', refId: '' }); onStatus(`Raised ${c.id}.`);
   });
-  const move = (c: ReviewComment, to: CommentStatus) => guard(() => {
+  const move = async (c: ReviewComment, to: CommentStatus) => {
+    // Ask first (a reason to withdraw or reopen; the reviewer's name when closing without a profile name), then record.
     const needNote = to === 'withdrawn' || (to === 'open' && (c.status === 'closed' || c.status === 'withdrawn'));
-    const note = needNote ? window.prompt(to === 'withdrawn' ? 'Why is it withdrawn?' : 'Why is it reopened?') ?? '' : undefined;
-    if (needNote && !note?.trim()) return;
-    const by = to === 'closed' && !me.trim() ? window.prompt('Reviewer name (typed text; recorded with the decision)') ?? '' : me;
-    onChange(withComment(project, moveComment(project, c, to, { by, note, response: to === 'responded' ? text : undefined, evidence: to === 'awaiting-evidence' ? text : undefined })));
-    setText('');
-  });
+    const askBy = to === 'closed' && !me.trim();
+    const v = needNote || askBy ? await askForm({ title: `${to === 'withdrawn' ? 'Withdraw' : to === 'closed' ? 'Close' : 'Reopen'} ${c.id}`, confirmLabel: to === 'withdrawn' ? 'Withdraw' : to === 'closed' ? 'Close' : 'Reopen', fields: [
+      ...(needNote ? [{ key: 'note', label: to === 'withdrawn' ? 'Why is it withdrawn?' : 'Why is it reopened?', multiline: true, required: true }] : []),
+      ...(askBy ? [{ key: 'by', label: 'Reviewer name', hint: 'Typed text; recorded with the decision' }] : [])
+    ] }) : ({} as Record<string, string>);
+    if (!v) return;
+    const note = needNote ? v.note : undefined;
+    const by = askBy ? v.by ?? '' : me;
+    guard(() => {
+      onChange(withComment(project, moveComment(project, c, to, { by, note, response: to === 'responded' ? text : undefined, evidence: to === 'awaiting-evidence' ? text : undefined })));
+      setText('');
+    });
+  };
 
   return (
     <Page title="Design review" intro="Review comments raised against the design: each has what was found, the rule it is judged against, what is required, who answers, and the reviewer's decision. A response does not close a comment — only the reviewer does. These are people's comments, separate from the app's own calculation checks, and no approval is implied.">

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FolderOpen, Copy, Trash2, Plus, Search, ArrowRight, Sparkles, Archive, ArchiveRestore, Pencil, ChevronUp, ChevronDown, Undo2 } from 'lucide-react';
+import { FolderOpen, Copy, Trash2, Plus, Search, ArrowRight, Sparkles, Archive, ArchiveRestore, Pencil, ChevronUp, ChevronDown, Undo2, ChevronRight } from 'lucide-react';
 import { PROJECT_STATUSES, type ProjectStatus } from '../types';
 import { whenText, type ProjectMeta, type TrashedProject } from '../model/projectStore';
 import { facets, filterProjects, NO_FILTERS, sortProjects, type ArchiveFilter, type ListFilters, type SortBy, type SortKey } from '../model/projectList';
@@ -159,7 +159,7 @@ export default function ProjectsDashboard({ list, recent, currentFile, currentNa
 
       {trash.length > 0 && (
         <>
-          <h4 className="projects-h"><button className="linkish trash-toggle" onClick={() => setShowTrash(!showTrash)}>{showTrash ? '▾' : '▸'} Trash ({trash.length})</button></h4>
+          <h4 className="projects-h"><button className="linkish trash-toggle" aria-expanded={showTrash} onClick={() => setShowTrash(!showTrash)}>{showTrash ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />} Trash ({trash.length})</button></h4>
           {showTrash && (
             <>
               <p className="m">Deleted projects are kept for 30 days, then removed for good.</p>

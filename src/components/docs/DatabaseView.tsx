@@ -1,5 +1,6 @@
+import { ask } from '../ConfirmDialog';
 import { useEffect, useMemo, useState } from 'react';
-import { ExternalLink, FolderOpen, RefreshCw } from 'lucide-react';
+import { ExternalLink, FolderOpen, RefreshCw, X } from 'lucide-react';
 import { BOOKS, DATABASE_FOLDER, type Database } from '../../database/database';
 import { Page } from '../ui';
 import StandardLoadsDialog from './StandardLoadsDialog';
@@ -143,7 +144,7 @@ export default function DatabaseView({ db, available, onRefresh, onApplyParamete
 
       <div className="db-tabs" role="tablist">
         {books.map((b) => (
-          <button key={b.id} role="tab" aria-selected={tab === b.id} className={tab === b.id ? 'on' : ''} onClick={() => { if (draft && !window.confirm('Leave without saving your edits?')) return; setTab(b.id); setDraft(null); }}>
+          <button key={b.id} role="tab" aria-selected={tab === b.id} className={tab === b.id ? 'on' : ''} onClick={async () => { if (draft && !(await ask('Leave without saving your edits?'))) return; setTab(b.id); setDraft(null); }}>
             {b.file.replace('.xlsx', '')} <span className="m">({(db.raw?.books[b.id]?.rows ?? []).length})</span>{changes[b.id] && <span className="db-dot" title="Changed since you last looked" />}
           </button>
         ))}
@@ -193,7 +194,7 @@ export default function DatabaseView({ db, available, onRefresh, onApplyParamete
                     ) : String(r[c.key] ?? '')}
                   </td>
                 ))}
-                {draft && <td><button className="icon-btn" title="Delete row" onClick={() => setDraft(draft.filter((_, k) => k !== i))}>✕</button></td>}
+                {draft && <td><button className="icon-btn" title="Delete row" onClick={() => setDraft(draft.filter((_, k) => k !== i))} aria-label="Delete row"><X size={14} aria-hidden /></button></td>}
               </tr>
             ))}
           </tbody>

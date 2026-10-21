@@ -1,3 +1,5 @@
+import { X } from 'lucide-react';
+import { ask, tell } from '../ConfirmDialog';
 import { useMemo, useState } from 'react';
 import type { Board, Project } from '../../types';
 import { addTransformerRow, buildTxSummary, nextSubstationName, rowCtText } from '../../docs/txSummary';
@@ -17,9 +19,9 @@ export default function TxSummaryView({ project, onChange, onSettings }: { proje
   const setBoard = (id: string, patch: Partial<Board>) => onChange({ ...project, boards: project.boards.map((b) => (b.id === id ? { ...b, ...patch } : b)) });
   const setSupply = (b: Board, patch: NonNullable<Board['supply']>) => setBoard(b.id, { supply: { ...b.supply, ...patch } });
   const addRow = (substation: string) => onChange(addTransformerRow(project, substation).project);
-  const removeRow = (id: string, manual: boolean) => {
-    if (!window.confirm(manual ? `Remove ${id}?` : `Remove ${id} and every board and circuit below it?`)) return;
-    try { onChange(deleteBoard(project, id)); } catch (e) { window.alert(e instanceof Error ? e.message : String(e)); }
+  const removeRow = async (id: string, manual: boolean) => {
+    if (!(await ask(manual ? `Remove ${id}?` : `Remove ${id} and every board and circuit below it?`))) return;
+    try { onChange(deleteBoard(project, id)); } catch (e) { void tell(e instanceof Error ? e.message : String(e)); }
   };
   const In = ({ value, onSet, w = '100%', ph }: { value?: string | number; onSet: (v: string) => void; w?: number | string; ph?: string }) => (
     <input style={{ width: w }} defaultValue={value ?? ''} key={String(value ?? '')} placeholder={ph}
@@ -93,7 +95,7 @@ export default function TxSummaryView({ project, onChange, onSettings }: { proje
                     : <td key={m} className="gx-calc" title="kWh meters of everything below">{r.meters[m] || ''}</td>)}
                   <td className="gx-in l txs-rem"><In value={r.board.supply?.ctRatio ? `${r.board.supply.ctRatio} CT` : rowCtText(r)} w="100%" onSet={(v) => setSupply(r.board, { ctRatio: v.replace(/\s*CT\s*$/i, '').trim() || undefined })} /></td>
                   <td className="txs-act">
-                    <button className="icon-btn" title={r.manual ? 'Remove this transformer' : `Remove ${r.board.id} and everything below it`} onClick={() => removeRow(r.board.id, r.manual)}>✕</button>
+                    <button className="icon-btn" title={r.manual ? 'Remove this transformer' : `Remove ${r.board.id} and everything below it`} onClick={() => removeRow(r.board.id, r.manual)} aria-label={r.manual ? 'Remove this transformer' : `Remove ${r.board.id} and everything below it`}><X size={14} aria-hidden /></button>
                   </td>
                 </tr>
               ))

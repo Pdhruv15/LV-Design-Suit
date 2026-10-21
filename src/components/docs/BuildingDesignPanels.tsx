@@ -1,3 +1,5 @@
+import { X } from 'lucide-react';
+import { Modal } from '../ui';
 import { useMemo, useState } from 'react';
 import type { BuildingInfo, MeterType, Project, ProjectBuilding, RoomType, UnitType } from '../../types';
 import { METER_TYPES } from '../../types';
@@ -88,7 +90,7 @@ export function UnitTypesCard({ info, onChange, onStatus }: { info: BuildingInfo
                 <select className="bi-sel" value={u.meter ?? ''} onChange={(e) => setU(u.id, { meter: (e.target.value || undefined) as MeterType | undefined })} title="kWh meter on the unit's incomer">
                   <option value="">Meter: by load</option>{METER_TYPES.map((m) => <option key={m} value={m}>{m}</option>)}
                 </select>
-                <button className="icon-btn" disabled={used(u.id)} title={used(u.id) ? 'Placed on a level — remove it there first' : 'Remove'} onClick={() => set(units.filter((x) => x.id !== u.id))}>✕</button>
+                <button className="icon-btn" disabled={used(u.id)} title={used(u.id) ? 'Placed on a level — remove it there first' : 'Remove'} onClick={() => set(units.filter((x) => x.id !== u.id))} aria-label={used(u.id) ? 'Placed on a level — remove it there first' : 'Remove'}><X size={14} aria-hidden /></button>
               </div>
               <table className="bi-table compact">
                 <tbody>
@@ -97,7 +99,7 @@ export function UnitTypesCard({ info, onChange, onStatus }: { info: BuildingInfo
                       <td><input className="bi-text" style={{ width: 120 }} defaultValue={r.name} key={r.name} onBlur={(e) => setU(u.id, { rooms: u.rooms.map((x, k) => (k === i ? { ...x, name: e.target.value || x.name } : x)) })} /></td>
                       <td><select className="bi-sel" value={r.type} onChange={(e) => setU(u.id, { rooms: u.rooms.map((x, k) => (k === i ? { ...x, type: e.target.value } : x)) })}>{types.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}</select></td>
                       <td><N value={r.areaM2} onSet={(v) => v && setU(u.id, { rooms: u.rooms.map((x, k) => (k === i ? { ...x, areaM2: v } : x)) })} width={54} /> m²</td>
-                      <td><button className="icon-btn" onClick={() => setU(u.id, { rooms: u.rooms.filter((_, k) => k !== i) })}>✕</button></td>
+                      <td><button className="icon-btn" onClick={() => setU(u.id, { rooms: u.rooms.filter((_, k) => k !== i) })} aria-label="Remove"><X size={14} aria-hidden /></button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -118,24 +120,22 @@ export function LevelUnitsDialog({ info, b, levelId, onSave, onClose }: { info: 
   const [rows, setRows] = useState(l.units ?? []);
   const units = info.unitTypes ?? [];
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
-        <h3>Flats on {l.name}{(l.count ?? 1) > 1 ? ` (each of ${l.count} floors)` : ''}</h3>
-        {!units.length ? <p className="m">Add unit types first (Flats / tenants, below the rooms).</p> : (
-          <>
-            {rows.map((r, i) => (
-              <div key={i} className="row" style={{ gap: 8, margin: '4px 0' }}>
-                <select className="bi-sel" value={r.unitTypeId} onChange={(e) => setRows(rows.map((x, k) => (k === i ? { ...x, unitTypeId: e.target.value } : x)))}>{units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
-                ×<input className="bi-num" style={{ width: 54 }} inputMode="numeric" value={r.count} onChange={(e) => setRows(rows.map((x, k) => (k === i ? { ...x, count: Math.max(0, Math.round(Number(e.target.value) || 0)) } : x)))} /> per floor
-                <button className="icon-btn" onClick={() => setRows(rows.filter((_, k) => k !== i))}>✕</button>
-              </div>
-            ))}
-            <button className="chip" onClick={() => setRows([...rows, { unitTypeId: units[0].id, count: 4 }])}>+ Unit type</button>
-          </>
-        )}
-        <div className="modal-actions"><span className="sp" /><button className="chip" onClick={onClose}>Cancel</button><button className="chip primary" onClick={() => onSave(rows.filter((r) => r.count > 0))}>Save</button></div>
-      </div>
-    </div>
+    <Modal onClose={onClose} className="modal" style={{ maxWidth: 460 }}>
+      <h3>Flats on {l.name}{(l.count ?? 1) > 1 ? ` (each of ${l.count} floors)` : ''}</h3>
+      {!units.length ? <p className="m">Add unit types first (Flats / tenants, below the rooms).</p> : (
+        <>
+          {rows.map((r, i) => (
+            <div key={i} className="row" style={{ gap: 8, margin: '4px 0' }}>
+              <select className="bi-sel" value={r.unitTypeId} onChange={(e) => setRows(rows.map((x, k) => (k === i ? { ...x, unitTypeId: e.target.value } : x)))}>{units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
+              ×<input className="bi-num" style={{ width: 54 }} inputMode="numeric" value={r.count} onChange={(e) => setRows(rows.map((x, k) => (k === i ? { ...x, count: Math.max(0, Math.round(Number(e.target.value) || 0)) } : x)))} /> per floor
+              <button className="icon-btn" onClick={() => setRows(rows.filter((_, k) => k !== i))} aria-label="Remove"><X size={14} aria-hidden /></button>
+            </div>
+          ))}
+          <button className="chip" onClick={() => setRows([...rows, { unitTypeId: units[0].id, count: 4 }])}>+ Unit type</button>
+        </>
+      )}
+      <div className="modal-actions"><span className="sp" /><button className="chip" onClick={onClose}>Cancel</button><button className="chip primary" onClick={() => onSave(rows.filter((r) => r.count > 0))}>Save</button></div>
+    </Modal>
   );
 }
 
@@ -146,24 +146,22 @@ export function GenerateDialog({ project, b, onDone, onClose }: { project: Proje
   const existing = plan.filter((d) => project.boards.some((x) => x.id === d.id)).length;
   const flats = plan.filter((d) => d.unit).length;
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
-        <h3>Generate DBs and load schedules — {b.name}</h3>
-        <p>From the rooms and flats: <b>{plan.length} DBs</b> ({plan.length - flats} common, {flats} flats), each with lighting, socket, A/C, water heater and cooker circuits by the room type rules, phases balanced, incomer sized with its length from the riser{flats ? ' and a kWh meter per flat' : ''}.</p>
-        {existing > 0 && <p className="warn">{existing} of these DBs already exist: their generated circuits are replaced; circuits you added yourself are kept.</p>}
-        <label className="row" style={{ gap: 8 }}>Fed from
-          <select className="bi-sel" value={src} onChange={(e) => setSrc(e.target.value)}>{project.boards.filter((x) => (x.kind ?? (x.upstreamId ? 'DB' : 'MDB')) !== 'DB').map((x) => <option key={x.id} value={x.id}>{x.id} — {x.name}</option>)}</select>
-        </label>
-        <p className="m">Rooms with a DB chosen in “Served by” are left on that DB. Watts per point are placeholders (lighting 40 W, 13A socket 200 W, water heater 1.5 kW, cooker 3 kW, A/C by the rule) — edit them on each load schedule.</p>
-        <div className="bi-plan">{plan.slice(0, 40).map((d) => <span key={d.id} className={project.boards.some((x) => x.id === d.id) ? 'm' : ''}>{d.id}</span>)}{plan.length > 40 && <span className="m">+{plan.length - 40} more</span>}</div>
-        <div className="modal-actions"><span className="sp" /><button className="chip" onClick={onClose}>Cancel</button>
-          <button className="chip primary" disabled={!plan.length || !src} onClick={() => {
-            const r = generateBuildingDbs({ ...project, building: { ...project.building!, buildings: project.building!.buildings.map((x) => (x.id === b.id ? { ...x, riser: { ...x.riser, fromBoardId: src } } : x)) } }, b.id, src);
-            onDone(r.project, `${r.dbs.length} DBs, ${r.circuits} circuits${r.replaced ? ` (${r.replaced} earlier generated circuits replaced)` : ''} — check the load schedules`);
-          }}>Generate {plan.length} DBs</button>
-        </div>
+    <Modal onClose={onClose} className="modal" style={{ maxWidth: 560 }}>
+      <h3>Generate DBs and load schedules — {b.name}</h3>
+      <p>From the rooms and flats: <b>{plan.length} DBs</b> ({plan.length - flats} common, {flats} flats), each with lighting, socket, A/C, water heater and cooker circuits by the room type rules, phases balanced, incomer sized with its length from the riser{flats ? ' and a kWh meter per flat' : ''}.</p>
+      {existing > 0 && <p className="warn">{existing} of these DBs already exist: their generated circuits are replaced; circuits you added yourself are kept.</p>}
+      <label className="row" style={{ gap: 8 }}>Fed from
+        <select className="bi-sel" value={src} onChange={(e) => setSrc(e.target.value)}>{project.boards.filter((x) => (x.kind ?? (x.upstreamId ? 'DB' : 'MDB')) !== 'DB').map((x) => <option key={x.id} value={x.id}>{x.id} — {x.name}</option>)}</select>
+      </label>
+      <p className="m">Rooms with a DB chosen in “Served by” are left on that DB. Watts per point are placeholders (lighting 40 W, 13A socket 200 W, water heater 1.5 kW, cooker 3 kW, A/C by the rule) — edit them on each load schedule.</p>
+      <div className="bi-plan">{plan.slice(0, 40).map((d) => <span key={d.id} className={project.boards.some((x) => x.id === d.id) ? 'm' : ''}>{d.id}</span>)}{plan.length > 40 && <span className="m">+{plan.length - 40} more</span>}</div>
+      <div className="modal-actions"><span className="sp" /><button className="chip" onClick={onClose}>Cancel</button>
+        <button className="chip primary" disabled={!plan.length || !src} onClick={() => {
+          const r = generateBuildingDbs({ ...project, building: { ...project.building!, buildings: project.building!.buildings.map((x) => (x.id === b.id ? { ...x, riser: { ...x.riser, fromBoardId: src } } : x)) } }, b.id, src);
+          onDone(r.project, `${r.dbs.length} DBs, ${r.circuits} circuits${r.replaced ? ` (${r.replaced} earlier generated circuits replaced)` : ''} — check the load schedules`);
+        }}>Generate {plan.length} DBs</button>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -174,32 +172,30 @@ export function ServicesDialog({ project, b, onDone, onClose }: { project: Proje
   const set = (id: string, patch: Partial<ServiceItem>) => setItems(items.map((x) => (x.id === id ? { ...x, ...patch } : x)));
   const total = items.reduce((s, x) => s + x.kw * x.qty, 0);
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 640 }} onClick={(e) => e.stopPropagation()}>
-        <h3>Common area services — {b.name}</h3>
-        <p className="m">Typical starting values from the building (floors, car park area) — placeholders, set your own kW. Each unit becomes a feeder; standby units are left out of the TCL duty; life-safety loads are marked essential.</p>
-        <table className="bi-table">
-          <thead><tr><th>Service</th><th>Qty</th><th>kW each</th><th>Standby</th><th>Essential</th></tr></thead>
-          <tbody>
-            {items.map((x) => (
-              <tr key={x.id} className={x.qty ? '' : 'm'}>
-                <td>{x.label}</td>
-                <td><input className="bi-num" style={{ width: 48 }} inputMode="numeric" value={x.qty} onChange={(e) => set(x.id, { qty: Math.max(0, Math.round(Number(e.target.value) || 0)) })} /></td>
-                <td><input className="bi-num" style={{ width: 60 }} inputMode="decimal" value={x.kw} onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) set(x.id, { kw: v }); }} /></td>
-                <td><input className="bi-num" style={{ width: 40 }} inputMode="numeric" value={x.standby ?? 0} onChange={(e) => set(x.id, { standby: Math.max(0, Math.round(Number(e.target.value) || 0)) || undefined })} /></td>
-                <td><input type="checkbox" checked={!!x.essential} onChange={(e) => set(x.id, { essential: e.target.checked || undefined })} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <div className="modal-actions">
-          <label className="row" style={{ gap: 6 }}>On board <select className="bi-sel" value={board} onChange={(e) => setBoard(e.target.value)}>{project.boards.map((x) => <option key={x.id} value={x.id}>{x.id}</option>)}</select></label>
-          <span className="m">{f1(total)} kW in {items.reduce((s, x) => s + x.qty, 0)} feeders</span>
-          <span className="sp" /><button className="chip" onClick={onClose}>Cancel</button>
-          <button className="chip primary" disabled={!board || !items.some((x) => x.qty)} onClick={() => { const r = addServices(project, board, items.filter((x) => x.qty > 0)); onDone(r.project, `Added ${r.added} service feeders on ${board}`); }}>Add to {board}</button>
-        </div>
+    <Modal onClose={onClose} className="modal" style={{ maxWidth: 640 }}>
+      <h3>Common area services — {b.name}</h3>
+      <p className="m">Typical starting values from the building (floors, car park area) — placeholders, set your own kW. Each unit becomes a feeder; standby units are left out of the TCL duty; life-safety loads are marked essential.</p>
+      <table className="bi-table">
+        <thead><tr><th>Service</th><th>Qty</th><th>kW each</th><th>Standby</th><th>Essential</th></tr></thead>
+        <tbody>
+          {items.map((x) => (
+            <tr key={x.id} className={x.qty ? '' : 'm'}>
+              <td>{x.label}</td>
+              <td><input className="bi-num" style={{ width: 48 }} inputMode="numeric" value={x.qty} onChange={(e) => set(x.id, { qty: Math.max(0, Math.round(Number(e.target.value) || 0)) })} /></td>
+              <td><input className="bi-num" style={{ width: 60 }} inputMode="decimal" value={x.kw} onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) set(x.id, { kw: v }); }} /></td>
+              <td><input className="bi-num" style={{ width: 40 }} inputMode="numeric" value={x.standby ?? 0} onChange={(e) => set(x.id, { standby: Math.max(0, Math.round(Number(e.target.value) || 0)) || undefined })} /></td>
+              <td><input type="checkbox" checked={!!x.essential} onChange={(e) => set(x.id, { essential: e.target.checked || undefined })} /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="modal-actions">
+        <label className="row" style={{ gap: 6 }}>On board <select className="bi-sel" value={board} onChange={(e) => setBoard(e.target.value)}>{project.boards.map((x) => <option key={x.id} value={x.id}>{x.id}</option>)}</select></label>
+        <span className="m">{f1(total)} kW in {items.reduce((s, x) => s + x.qty, 0)} feeders</span>
+        <span className="sp" /><button className="chip" onClick={onClose}>Cancel</button>
+        <button className="chip primary" disabled={!board || !items.some((x) => x.qty)} onClick={() => { const r = addServices(project, board, items.filter((x) => x.qty > 0)); onDone(r.project, `Added ${r.added} service feeders on ${board}`); }}>Add to {board}</button>
       </div>
-    </div>
+    </Modal>
   );
 }
 

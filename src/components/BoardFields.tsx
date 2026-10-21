@@ -11,6 +11,8 @@ export const BOARD_FIELD_GROUPS: [BoardFieldGroup, string][] = [['board', 'Gener
  * 'general': equipment data (all groups, or only `groups`); 'source': transformer data (main boards). */
 export default function BoardFields({ board, onChange, section, building, groups, earthing }: { board: Board; onChange: (b: Board) => void; section: 'general' | 'source'; building?: BuildingInfo; groups?: BoardFieldGroup[]; earthing?: EarthingPlan }) {
   const show = (g: BoardFieldGroup) => !groups || groups.includes(g);
+  // A heading over each group when a tab shows more than one (the tab name already says it otherwise).
+  const head = (g: BoardFieldGroup) => (!groups || groups.length > 1) && <h4 className="kv-head">{BOARD_FIELD_GROUPS.find(([k]) => k === g)?.[1]}</h4>;
   const floors = floorList(building);
   const isMain = !board.upstreamId;
   function set<K extends keyof Board>(key: K, value: Board[K]) {
@@ -55,6 +57,7 @@ export default function BoardFields({ board, onChange, section, building, groups
     <div className="form-kv">
       {show('board') && (
         <>
+          {head('board')}
           <label>Name{text('name')}</label>
           <label>
             Type
@@ -89,6 +92,7 @@ export default function BoardFields({ board, onChange, section, building, groups
       )}
       {show('incomer') && (
         <>
+          {head('incomer')}
           <label>Standby generator (kVA, via ATS)
             <input inputMode="decimal" value={board.standby?.kva ?? ''} placeholder="none"
               title="Leave blank for no generator. Everything on and below this board then counts as essential load."
@@ -164,6 +168,7 @@ export default function BoardFields({ board, onChange, section, building, groups
       )}
       {show('location') && (
         <>
+          {head('location')}
           <label title="The floor, from Building information — the one list of levels used everywhere (SLD summary box, riser diagram, schedules)">Level
             {floors.length ? (
               <select value={board.level && findFloor(building, board.level) ? levelKey(board.level) : ''} onChange={(e) => set('level', floors.find((f) => f.key === e.target.value)?.ref)}>

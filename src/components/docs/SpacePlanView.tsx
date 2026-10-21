@@ -1,3 +1,5 @@
+import { X } from 'lucide-react';
+import { ask } from '../ConfirmDialog';
 import { useMemo, useState } from 'react';
 import type { PlanPanel, Project, SpacePlan, SpaceUse } from '../../types';
 import { autoAssign, DEFAULT_USES, emptyPlan, panelLoad, PLAN_TRANSFORMER_SIZES, summarize, usesOf } from '../../calc/spacePlan';
@@ -50,12 +52,12 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated }
     onStatus(`${fresh ? 'Re-planned' : 'Assigned'}: ${next.panels.length} panels on ${t.transformers.length} × transformers, ${t.rmus.length} RMU${t.rmus.length === 1 ? '' : 's'}`);
   }
 
-  function createSld() {
+  async function createSld() {
     if (sum.unassignedAreas.length || sum.unfedPanels.length) {
       onStatus('Assign every area to a panel and every panel to a transformer first — use Auto-assign');
       return;
     }
-    if (!window.confirm('Create the SLD from this plan? It replaces the current boards and feeders (you can undo).')) return;
+    if (!(await ask('Create the SLD from this plan? It replaces the current boards and feeders (you can undo).'))) return;
     const r = planToSld(project, plan);
     onChange({ ...r.project, spacePlan: plan }, true);
     onStatus(`Created the SLD: ${r.counts.rmus} RMU${r.counts.rmus === 1 ? '' : 's'}, ${r.counts.transformers} transformers, ${r.counts.panels} panels, ${r.counts.loads} planned loads — breakers and cables sized`);
@@ -74,12 +76,12 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated }
         <>
           {!!project.building?.rooms.length && (
             <button className="chip" title="One area per room of the Building information (area × its room type's W/m²); the room types become the use types"
-              onClick={() => { if (!plan.areas.length || window.confirm(`Replace the ${plan.areas.length} areas with the ${project.building!.rooms.length} rooms from Building information?`)) { setPlan(spaceAreasFromRooms(project.building!, plan), true); onStatus(`Took ${project.building!.rooms.length} rooms from Building information`); } }}>
+              onClick={async () => { if (!plan.areas.length || (await ask(`Replace the ${plan.areas.length} areas with the ${project.building!.rooms.length} rooms from Building information?`))) { setPlan(spaceAreasFromRooms(project.building!, plan), true); onStatus(`Took ${project.building!.rooms.length} rooms from Building information`); } }}>
               Take areas from the rooms
             </button>
           )}
           <button className="chip" onClick={() => auto(false)} title="Fill in what's missing, keeping your assignments">Auto-assign</button>
-          <button className="chip" onClick={() => window.confirm('Clear all panels, transformers and assignments and plan again?') && auto(true)}>Re-plan from scratch</button>
+          <button className="chip" onClick={async () => (await ask('Clear all panels, transformers and assignments and plan again?')) && auto(true)}>Re-plan from scratch</button>
           <button className="chip primary" onClick={createSld}>Create SLD</button>
         </>
       }
@@ -169,7 +171,7 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated }
                     )}
                   </td>
                   <td>{f0(panelLoad(plan, p.id).demandKva)}</td>
-                  <td><button className="icon-btn" title={`Remove ${p.id}`} onClick={() => setPlan({ ...plan, panels: plan.panels.filter((x) => x.id !== p.id), areas: plan.areas.map((a) => (a.panel === p.id ? { ...a, panel: undefined } : a)) }, true)}>✕</button></td>
+                  <td><button className="icon-btn" title={`Remove ${p.id}`} onClick={() => setPlan({ ...plan, panels: plan.panels.filter((x) => x.id !== p.id), areas: plan.areas.map((a) => (a.panel === p.id ? { ...a, panel: undefined } : a)) }, true)} aria-label={`Remove ${p.id}`}><X size={14} aria-hidden /></button></td>
                 </tr>
               ))}
               {plan.panels.length === 0 && <tr><td colSpan={7} className="m">No panels yet — Auto-assign creates them from the areas.</td></tr>}
@@ -194,7 +196,7 @@ export default function SpacePlanView({ project, onChange, onStatus, onCreated }
                   <td>{t.panels.map((p) => p.id).join(', ') || '—'}</td>
                   <td>{f0(t.demandKva)}</td>
                   <td className={t.status}><b>{t.loadingPct.toFixed(0)}%</b></td>
-                  <td><button className="icon-btn" title={`Remove ${t.transformer.id}`} onClick={() => setPlan({ ...plan, transformers: plan.transformers.filter((x) => x.id !== t.transformer.id), panels: plan.panels.map((p) => (p.transformer === t.transformer.id ? { ...p, transformer: undefined } : p)) }, true)}>✕</button></td>
+                  <td><button className="icon-btn" title={`Remove ${t.transformer.id}`} onClick={() => setPlan({ ...plan, transformers: plan.transformers.filter((x) => x.id !== t.transformer.id), panels: plan.panels.map((p) => (p.transformer === t.transformer.id ? { ...p, transformer: undefined } : p)) }, true)} aria-label={`Remove ${t.transformer.id}`}><X size={14} aria-hidden /></button></td>
                 </tr>
               ))}
               {plan.transformers.length === 0 && <tr><td colSpan={7} className="m">No transformers yet — Auto-assign sizes them.</td></tr>}

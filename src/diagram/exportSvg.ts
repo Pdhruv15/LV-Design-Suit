@@ -1,6 +1,7 @@
 import type { DxfPrimitive } from '../docs/dxf';
 import { pathPoints } from './svgPath';
 import { dashedRuns } from './svgDash';
+import { withPrintTheme } from '../theme/theme';
 export { pathPoints } from './svgPath';
 
 /** The SLD for printing and CAD: the live diagram copied with its computed
@@ -28,6 +29,11 @@ function printPalette(): Map<string, string> {
 }
 
 export function printableSvg(live: SVGSVGElement, width: number, height: number): string {
+  // The palette below maps the dark theme's colours; read everything with it in force.
+  return withPrintTheme(() => printableSvgDark(live, width, height));
+}
+
+function printableSvgDark(live: SVGSVGElement, width: number, height: number): string {
   const palette = printPalette();
   const clone = live.cloneNode(true) as SVGSVGElement;
   const src = [live, ...live.querySelectorAll('*')];

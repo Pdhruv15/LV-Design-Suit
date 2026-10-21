@@ -1,3 +1,4 @@
+import { Modal } from './ui';
 import { useState } from 'react';
 import { autoRoutes } from '../model/cadAutoLink';
 import { applyCadLengths, CAD_LENGTH_DEFAULTS, lengthBreakdown, pullCadLengths, type CadRoute } from '../model/cadLengths';
@@ -78,93 +79,89 @@ export default function CadLengthsDialog({ project, onApply, onClose }: {
 
   if (!cad?.routes || !cad.linkSelection || !cad.openPlan) {
     return (
-      <div className="modal-backdrop" onClick={onClose}>
-        <div className="modal" onClick={(e) => e.stopPropagation()}>
-          <h3>Cable lengths from CAD floor plan</h3>
-          <p className="m">Measuring cable routes needs the LV Design Studio desktop app and OpenCADStudio.</p>
-          <div className="modal-actions"><span className="sp" /><button className="chip" onClick={onClose}>Close</button></div>
-        </div>
-      </div>
+      <Modal onClose={onClose} className="modal">
+        <h3>Cable lengths from CAD floor plan</h3>
+        <p className="m">Measuring cable routes needs the LV Design Studio desktop app and OpenCADStudio.</p>
+        <div className="modal-actions"><span className="sp" /><button className="chip" onClick={onClose}>Close</button></div>
+      </Modal>
     );
   }
 
   const setting = (k: 'verticalM' | 'terminationM' | 'wastePct', v: string) => setSettings((x) => ({ ...x, [k]: num(v) }));
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal cad-lengths" onClick={(e) => e.stopPropagation()}>
-        <h3>Cable lengths from CAD floor plan</h3>
-        <p className="m">
-          Cable routes on the layers marked <b>Cable route</b> link themselves: a route from one board to another is the
-          feeder between them, a route from a board to a light or socket is that fixture’s circuit (its CCT attribute).
-          Any other route can be linked by hand: select it in OpenCADStudio, choose the feeder here and press Link
-          selection. Pull lengths measures the routes and adds the allowances. Nothing changes until you apply.
-        </p>
-        <div className="modal-actions">
-          <button className="chip" disabled={!!busy} onClick={openPlan}>{busy === 'open' ? 'Opening…' : 'Open floor plan…'}</button>
-          <span className="sp" />
-          <select aria-label="Feeder to link" value={feederId} onChange={(e) => setFeederId(e.target.value)}>
-            <option value="">Choose a feeder…</option>
-            {feeders.map((f) => <option key={f.id} value={f.id}>{feederLabel(f)}</option>)}
-          </select>
-          <button className="chip" disabled={!!busy || !feederId} onClick={() => link(feederId)}>{busy === 'link' ? 'Linking…' : 'Link selection'}</button>
-          <button className="chip" disabled={!!busy} onClick={() => link('')} title="Remove the route link from the objects selected in OpenCADStudio">Unlink selection</button>
-        </div>
-
-        <div className="ce-grid">
-          <label>Vertical per run (m)<input inputMode="decimal" value={settings.verticalM ?? ''} placeholder={String(CAD_LENGTH_DEFAULTS.verticalM)} onChange={(e) => setting('verticalM', e.target.value)} /></label>
-          <label>Terminations, both ends (m)<input inputMode="decimal" value={settings.terminationM ?? ''} placeholder={String(CAD_LENGTH_DEFAULTS.terminationM)} onChange={(e) => setting('terminationM', e.target.value)} /></label>
-          <label>Waste (%)<input inputMode="decimal" value={settings.wastePct ?? ''} placeholder={String(CAD_LENGTH_DEFAULTS.wastePct)} onChange={(e) => setting('wastePct', e.target.value)} /></label>
-          <label>Units if the drawing has none
-            <select value={s.units} onChange={(e) => setSettings((x) => ({ ...x, units: e.target.value as CadLengthSettings['units'] }))}>
-              <option value="mm">mm</option><option value="cm">cm</option><option value="m">m</option>
-            </select>
-          </label>
-        </div>
-
-        <div className="modal-actions">
-          <span className="sp" />
-          <button className="chip primary" disabled={!!busy} onClick={measure}>{busy === 'pull' ? 'Measuring…' : read ? 'Pull again' : 'Pull lengths'}</button>
-        </div>
-        {note && <p className="m">{note}</p>}
-
-        {pull && (
-          <>
-            <details>
-              <summary className="m">Layers — {routeLayers ? `${routeLayers} cable route layer${routeLayers === 1 ? '' : 's'}` : 'mark the layer with the cable routes as Cable route to link them automatically'}</summary>
-              <CadLayerTable layers={plan?.layers ?? []} roles={roles} onChange={setRole} onApplyMap={(m) => { setRoles(m); setNote('Pull again to read the routes on the layers as now marked.'); }} />
-            </details>
-            <p className="m">{read!.routes.length} linked by hand · {autoIds.size} linked from the route layers · {pull.units} · {pull.proposals.length} differ · {pull.matching} already match</p>
-            {pull.proposals.length > 0 && (
-              <table className="bi-table compact">
-                <thead><tr><th /><th>Feeder</th><th>Now (m)</th><th>From CAD</th><th>Vertical (m)</th></tr></thead>
-                <tbody>
-                  {pull.proposals.map((x) => (
-                    <tr key={x.feederId}>
-                      <td><input type="checkbox" aria-label={`Accept ${x.label}`} checked={!skip.has(x.feederId)} onChange={(e) => setSkip((k) => { const n = new Set(k); if (e.target.checked) n.delete(x.feederId); else n.add(x.feederId); return n; })} /></td>
-                      <td>{x.label}{autoIds.has(x.feederId) && <span className="m" title="Linked from the route layer by the boards / fixture its ends touch"> · auto</span>}</td>
-                      <td>{x.currentM}</td>
-                      <td title={`${x.pieces} linked object${x.pieces === 1 ? '' : 's'}`}>{lengthBreakdown(x)}</td>
-                      <td><input aria-label={`Vertical allowance for ${x.label}`} inputMode="decimal" style={{ width: '4.5em' }} value={vertical[x.feederId] ?? project.feeders.find((f) => f.id === x.feederId)?.cadVerticalM ?? ''} placeholder={String(s.verticalM)} onChange={(e) => setVertical((v) => ({ ...v, [x.feederId]: num(e.target.value) }))} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-            {pull.unknownFeeders.length > 0 && <p className="m">Routes linked to feeders no longer in the design (ignored): {pull.unknownFeeders.join(', ')}</p>}
-            {(auto?.unmatched.length ?? 0) > 0 && (
-              <p className="m">Not linked — link by hand: {auto!.unmatched.map((u) => `${u.lengthM} m on ${u.layer} (${u.reason})`).join('; ')}</p>
-            )}
-          </>
-        )}
-
-        <div className="modal-actions">
-          <span className="sp" />
-          <button className="chip" onClick={onClose}>Cancel</button>
-          <button className="chip primary" disabled={!pull || !!busy} onClick={apply}>
-            Apply {pull ? pull.proposals.filter((x) => !skip.has(x.feederId)).length : 0} lengths
-          </button>
-        </div>
+    <Modal onClose={onClose} className="modal cad-lengths">
+      <h3>Cable lengths from CAD floor plan</h3>
+      <p className="m">
+        Cable routes on the layers marked <b>Cable route</b> link themselves: a route from one board to another is the
+        feeder between them, a route from a board to a light or socket is that fixture’s circuit (its CCT attribute).
+        Any other route can be linked by hand: select it in OpenCADStudio, choose the feeder here and press Link
+        selection. Pull lengths measures the routes and adds the allowances. Nothing changes until you apply.
+      </p>
+      <div className="modal-actions">
+        <button className="chip" disabled={!!busy} onClick={openPlan}>{busy === 'open' ? 'Opening…' : 'Open floor plan…'}</button>
+        <span className="sp" />
+        <select aria-label="Feeder to link" value={feederId} onChange={(e) => setFeederId(e.target.value)}>
+          <option value="">Choose a feeder…</option>
+          {feeders.map((f) => <option key={f.id} value={f.id}>{feederLabel(f)}</option>)}
+        </select>
+        <button className="chip" disabled={!!busy || !feederId} onClick={() => link(feederId)}>{busy === 'link' ? 'Linking…' : 'Link selection'}</button>
+        <button className="chip" disabled={!!busy} onClick={() => link('')} title="Remove the route link from the objects selected in OpenCADStudio">Unlink selection</button>
       </div>
-    </div>
+
+      <div className="ce-grid">
+        <label>Vertical per run (m)<input inputMode="decimal" value={settings.verticalM ?? ''} placeholder={String(CAD_LENGTH_DEFAULTS.verticalM)} onChange={(e) => setting('verticalM', e.target.value)} /></label>
+        <label>Terminations, both ends (m)<input inputMode="decimal" value={settings.terminationM ?? ''} placeholder={String(CAD_LENGTH_DEFAULTS.terminationM)} onChange={(e) => setting('terminationM', e.target.value)} /></label>
+        <label>Waste (%)<input inputMode="decimal" value={settings.wastePct ?? ''} placeholder={String(CAD_LENGTH_DEFAULTS.wastePct)} onChange={(e) => setting('wastePct', e.target.value)} /></label>
+        <label>Units if the drawing has none
+          <select value={s.units} onChange={(e) => setSettings((x) => ({ ...x, units: e.target.value as CadLengthSettings['units'] }))}>
+            <option value="mm">mm</option><option value="cm">cm</option><option value="m">m</option>
+          </select>
+        </label>
+      </div>
+
+      <div className="modal-actions">
+        <span className="sp" />
+        <button className="chip primary" disabled={!!busy} onClick={measure}>{busy === 'pull' ? 'Measuring…' : read ? 'Pull again' : 'Pull lengths'}</button>
+      </div>
+      {note && <p className="m">{note}</p>}
+
+      {pull && (
+        <>
+          <details>
+            <summary className="m">Layers — {routeLayers ? `${routeLayers} cable route layer${routeLayers === 1 ? '' : 's'}` : 'mark the layer with the cable routes as Cable route to link them automatically'}</summary>
+            <CadLayerTable layers={plan?.layers ?? []} roles={roles} onChange={setRole} onApplyMap={(m) => { setRoles(m); setNote('Pull again to read the routes on the layers as now marked.'); }} />
+          </details>
+          <p className="m">{read!.routes.length} linked by hand · {autoIds.size} linked from the route layers · {pull.units} · {pull.proposals.length} differ · {pull.matching} already match</p>
+          {pull.proposals.length > 0 && (
+            <table className="bi-table compact">
+              <thead><tr><th /><th>Feeder</th><th>Now (m)</th><th>From CAD</th><th>Vertical (m)</th></tr></thead>
+              <tbody>
+                {pull.proposals.map((x) => (
+                  <tr key={x.feederId}>
+                    <td><input type="checkbox" aria-label={`Accept ${x.label}`} checked={!skip.has(x.feederId)} onChange={(e) => setSkip((k) => { const n = new Set(k); if (e.target.checked) n.delete(x.feederId); else n.add(x.feederId); return n; })} /></td>
+                    <td>{x.label}{autoIds.has(x.feederId) && <span className="m" title="Linked from the route layer by the boards / fixture its ends touch"> · auto</span>}</td>
+                    <td>{x.currentM}</td>
+                    <td title={`${x.pieces} linked object${x.pieces === 1 ? '' : 's'}`}>{lengthBreakdown(x)}</td>
+                    <td><input aria-label={`Vertical allowance for ${x.label}`} inputMode="decimal" style={{ width: '4.5em' }} value={vertical[x.feederId] ?? project.feeders.find((f) => f.id === x.feederId)?.cadVerticalM ?? ''} placeholder={String(s.verticalM)} onChange={(e) => setVertical((v) => ({ ...v, [x.feederId]: num(e.target.value) }))} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {pull.unknownFeeders.length > 0 && <p className="m">Routes linked to feeders no longer in the design (ignored): {pull.unknownFeeders.join(', ')}</p>}
+          {(auto?.unmatched.length ?? 0) > 0 && (
+            <p className="m">Not linked — link by hand: {auto!.unmatched.map((u) => `${u.lengthM} m on ${u.layer} (${u.reason})`).join('; ')}</p>
+          )}
+        </>
+      )}
+
+      <div className="modal-actions">
+        <span className="sp" />
+        <button className="chip" onClick={onClose}>Cancel</button>
+        <button className="chip primary" disabled={!pull || !!busy} onClick={apply}>
+          Apply {pull ? pull.proposals.filter((x) => !skip.has(x.feederId)).length : 0} lengths
+        </button>
+      </div>
+    </Modal>
   );
 }

@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { LOAD_TYPES, type LoadType, type StarterType } from '../types';
 import { STARTERS } from '../calc/motor';
@@ -62,7 +63,7 @@ export default function ComponentEditor({ project, initial, onSave, onClose }: {
             <td><input value={f.name} disabled={REQUIRED.includes(f.name)} onChange={(e) => setField('inputs', i, { name: clean(e.target.value) })} /></td>
             <td><input inputMode="decimal" value={f.value ?? ''} onChange={(e) => setField('inputs', i, { value: e.target.value === '' ? undefined : +e.target.value })} /></td>
             <td><input value={f.unit ?? ''} onChange={(e) => setField('inputs', i, { unit: e.target.value || undefined })} /></td>
-            <td>{!REQUIRED.includes(f.name) && <button type="button" className="icon-btn" onClick={() => set('inputs', c.inputs.filter((_, k) => k !== i))}>✕</button>}</td>
+            <td>{!REQUIRED.includes(f.name) && <button type="button" className="icon-btn" onClick={() => set('inputs', c.inputs.filter((_, k) => k !== i))} aria-label="Remove"><X size={14} aria-hidden /></button>}</td>
           </tr>
         ))}
       </tbody></table>
@@ -76,7 +77,7 @@ export default function ComponentEditor({ project, initial, onSave, onClose }: {
             <td><input style={{ minWidth: 240 }} value={f.formula ?? ''} onChange={(e) => setField('results', i, { formula: e.target.value })} /></td>
             <td><input value={f.unit ?? ''} onChange={(e) => setField('results', i, { unit: e.target.value || undefined })} /></td>
             <td className={Number.isFinite(values[f.name]) ? '' : 'bad'}>{Number.isFinite(values[f.name]) ? +values[f.name].toFixed(3) : '?'}</td>
-            <td><button type="button" className="icon-btn" onClick={() => set('results', c.results.filter((_, k) => k !== i))}>✕</button></td>
+            <td><button type="button" className="icon-btn" onClick={() => set('results', c.results.filter((_, k) => k !== i))} aria-label="Remove"><X size={14} aria-hidden /></button></td>
           </tr>
         ))}
       </tbody></table>

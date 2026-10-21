@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { POINT_TEMPLATES, STUDY_DEFAULTS, type Project, type StudySettings } from '../types';
 import { defaultsFromProject, readLogo, signature, type DesignDefaults, type Preferences, type UserProfile } from '../model/profile';
 import { Modal } from './ui';
+import { THEME_LABEL, type ThemePref } from '../theme/theme';
 
 type Tab = 'me' | 'defaults' | 'app';
 const ELCB_MA = [10, 30, 100, 300];
@@ -37,7 +38,7 @@ export default function PreferencesDialog({ prefs, project, onSave, onApplyToPro
       <div className="tabs prefs-tabs">
         <button type="button" className={tab === 'me' ? 'on' : ''} onClick={() => setTab('me')}>My details</button>
         <button type="button" className={tab === 'defaults' ? 'on' : ''} onClick={() => setTab('defaults')}>New project defaults</button>
-        <button type="button" className={tab === 'app' ? 'on' : ''} onClick={() => setTab('app')}>Saving</button>
+        <button type="button" className={tab === 'app' ? 'on' : ''} onClick={() => setTab('app')}>Appearance &amp; saving</button>
       </div>
 
       {tab === 'me' && (
@@ -140,6 +141,12 @@ export default function PreferencesDialog({ prefs, project, onSave, onApplyToPro
 
       {tab === 'app' && (
         <>
+          <label>Colour theme
+            <select value={p.app.theme ?? 'dark'} onChange={(e) => setP((x) => ({ ...x, app: { ...x.app, theme: e.target.value as ThemePref } }))}>
+              {(Object.keys(THEME_LABEL) as ThemePref[]).map((t) => <option key={t} value={t}>{THEME_LABEL[t]}</option>)}
+            </select>
+          </label>
+          <p className="m">Changes the screen only. Drawings, PDFs and DXF files are always produced black on white.</p>
           <label>Recovery copy of unsaved work
             <select value={p.app.autosaveMin} onChange={(e) => setP((x) => ({ ...x, app: { ...x.app, autosaveMin: +e.target.value } }))}>
               <option value={1}>Every minute</option>

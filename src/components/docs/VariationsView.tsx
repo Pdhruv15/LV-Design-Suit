@@ -1,3 +1,5 @@
+import { X } from 'lucide-react';
+import { ask } from '../ConfirmDialog';
 import { useState } from 'react';
 import type { BomItem } from '../../calc/bom';
 import type { Project } from '../../types';
@@ -45,9 +47,9 @@ export default function VariationsView({ project, items, bom, cur, onChange, onS
     const m = await saveBinary(`${base} - Variation register.xlsx`, await workbookBytes(buildVariationWorkbook(project)), 'Excel', 'xlsx', XLSX);
     if (m) onStatus(m);
   }
-  function fold() {
+  async function fold() {
     const ids = foldable.map((v) => v.id);
-    if (!window.confirm(`Bring ${ids.join(', ')} into the working BOQ? Quantities of the BOQ items change and new items are added to the bill; the next BOQ revision marks them △. The contract sum is not changed.`)) return;
+    if (!(await ask(`Bring ${ids.join(', ')} into the working BOQ? Quantities of the BOQ items change and new items are added to the bill; the next BOQ revision marks them △. The contract sum is not changed.`))) return;
     onChange(foldVariations(project, items, bom, ids));
     onStatus(`${ids.join(', ')} brought into the BOQ — issue BOQ Rev ${revisions.length} to record them`);
   }
@@ -162,7 +164,7 @@ function VoEditor({ vo, project, bom, cur, isNew, onSave, onDelete, onClose }: {
                   </select>
                 </>
               )}</td>
-              <td className="acts"><button className="icon-btn" title="Remove line" onClick={() => set({ lines: v.lines.filter((x) => x.id !== l.id) })}>✕</button></td>
+              <td className="acts"><button className="icon-btn" title="Remove line" onClick={() => set({ lines: v.lines.filter((x) => x.id !== l.id) })} aria-label="Remove line"><X size={14} aria-hidden /></button></td>
             </tr>
           ))}
           <tr><td /><td colSpan={5}><b>Net value</b> <span className="m">(excluding VAT)</span></td><td className="num"><b>{signed(netOf(v)) || '0.00'}</b></td><td colSpan={2} /></tr>
@@ -192,7 +194,7 @@ function VoEditor({ vo, project, bom, cur, isNew, onSave, onDelete, onClose }: {
       </div>
       <p className="m">BOQ items use their contract rate; new items are numbered {v.id}/1, /2 … with an agreed rate. Approved variations are added to the contract sum; the contract BOQ itself changes only when you bring them in.</p>
       <div className="modal-actions">
-        {!isNew && v.status === 'draft' && <button className="chip" onClick={() => { if (window.confirm(`Delete ${v.id}?`)) onDelete(); }}>Delete</button>}
+        {!isNew && v.status === 'draft' && <button className="chip" onClick={async () => { if (await ask(`Delete ${v.id}?`)) onDelete(); }}>Delete</button>}
         <span className="sp" />
         <button className="chip" onClick={onClose}>Cancel</button>
         <button className="chip primary" disabled={!ok} onClick={() => onSave({ ...v, title: v.title.trim() })}>Save</button>

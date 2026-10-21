@@ -1,3 +1,6 @@
+import { X } from 'lucide-react';
+import { Modal } from '../ui';
+import { ask, askText } from '../ConfirmDialog';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Project } from '../../types';
@@ -44,14 +47,14 @@ export function SheetTabs({ project, active, selectedBoardId, outlinesOn, onActi
   const idx = (id: string) => set.sheets.findIndex((s) => s.id === id);
   const close = () => { setMenu(null); setAddOpen(false); };
 
-  const act = (what: string, id: string) => {
+  const act = async (what: string, id: string) => {
     const s = set.sheets.find((x) => x.id === id)!;
     const i = idx(id);
     close();
-    if (what === 'rename') { const t = window.prompt('Sheet title', s.title); if (t?.trim()) save({ ...set, sheets: set.sheets.map((x) => (x.id === id ? { ...x, title: t.trim() } : x)) }); }
-    if (what === 'number') { const n = window.prompt('Drawing number (typed numbers are kept when sheets move)', s.number); if (n?.trim()) save({ ...set, manualNumbers: true, sheets: set.sheets.map((x) => (x.id === id ? { ...x, number: n.trim() } : x)) }); }
+    if (what === 'rename') { const t = await askText(`Rename ${s.number}`, { label: 'Sheet title', initial: s.title, required: true, confirmLabel: 'Rename' }); if (t) save({ ...set, sheets: set.sheets.map((x) => (x.id === id ? { ...x, title: t } : x)) }); }
+    if (what === 'number') { const n = await askText('Drawing number', { label: 'Drawing number', initial: s.number, hint: 'Typed numbers are kept when sheets move', required: true }); if (n) save({ ...set, manualNumbers: true, sheets: set.sheets.map((x) => (x.id === id ? { ...x, number: n } : x)) }); }
     if (what === 'dup') { const copy = { ...s, id: `sh-${Date.now().toString(36)}`, number: '', title: `${s.title} (copy)`, history: undefined, issuedHash: undefined, rev: undefined }; const sheets = [...set.sheets]; sheets.splice(i + 1, 0, copy); save(renumber({ ...set, sheets })); onActive(copy.id); }
-    if (what === 'del' && window.confirm(`Delete ${s.number}?`)) { save(renumber({ ...set, sheets: set.sheets.filter((x) => x.id !== id) })); if (active === id) onActive(null); }
+    if (what === 'del' && (await ask(`Delete ${s.number}?`))) { save(renumber({ ...set, sheets: set.sheets.filter((x) => x.id !== id) })); if (active === id) onActive(null); }
     if (what === 'left' || what === 'right') { const j = what === 'left' ? i - 1 : i + 1; if (j < 0 || j >= set.sheets.length) return; const sheets = [...set.sheets]; [sheets[i], sheets[j]] = [sheets[j], sheets[i]]; save(renumber({ ...set, sheets })); }
     if (what === 'pdf') void exportDrawingSet(project, set, run, false, onStatus, [id], false);
     if (what === 'dxf') void exportSheetsDxf(project, set, run, onStatus, [id]);
@@ -101,7 +104,7 @@ export function SheetTabs({ project, active, selectedBoardId, outlinesOn, onActi
               const earthing = set.sheets.find((x) => x.kind === 'earthing');
               return <button title="The earthing schematic from Design → Earth pits, as a drawing sheet" onClick={() => { close(); if (earthing) { onActive(earthing.id); return; } const r = addEarthingSheet(set); save(r.set); onActive(r.id); }}>{earthing ? 'Earthing schematic (open)' : 'Earthing schematic'}</button>;
             })()}
-            <button onClick={() => { close(); const n = Number(window.prompt('Panels per sheet', '10')); if (!n) return; if (set.sheets.length && !window.confirm('Replace all sheets?')) return; save({ ...sheetsByCount(project, n, set.prefix), register: set.register, tags: set.tags, status: set.status, issues: set.issues }); }}>Split all panels into sheets…</button>
+            <button onClick={async () => { close(); const n = Math.round(Number(await askText('Split all panels into sheets', { label: 'Panels per sheet', initial: '10', required: true, confirmLabel: 'Split' }))); if (!(n > 0)) return; if (set.sheets.length && !(await ask('Replace all sheets?'))) return; save({ ...sheetsByCount(project, n, set.prefix), register: set.register, tags: set.tags, status: set.status, issues: set.issues }); }}>Split all panels into sheets…</button>
           </div>
         )}
       </div>
@@ -352,7 +355,7 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
           {s.kind === 'system' && (
             <details><summary>Revision clouds ({(s.clouds ?? []).length})</summary>
               {(s.clouds ?? []).map((c, i) => (
-                <div key={i} className="row">△{c.rev} around {c.boards.join(', ')} <button className="icon-btn" title="Remove" onClick={() => patch({ clouds: (s.clouds ?? []).filter((_, k) => k !== i) || undefined })}>✕</button></div>
+                <div key={i} className="row">△{c.rev} around {c.boards.join(', ')} <button className="icon-btn" title="Remove" onClick={() => patch({ clouds: (s.clouds ?? []).filter((_, k) => k !== i) || undefined })} aria-label="Remove"><X size={14} aria-hidden /></button></div>
               ))}
               <CloudAdd boards={s.boards} rev={nextRev(sheetRev(s, rev?.id))} onAdd={(c) => patch({ clouds: [...(s.clouds ?? []), c] })} />
             </details>
@@ -362,16 +365,16 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
               {markups.map((m) => (
                 <div key={m.id} className={`row markup-row${m.id === selId ? ' on' : ''}`}>
                   <button className="linkish" onClick={() => { setTool('select'); setSelId(m.id); }}>{MARKUP_LABEL[m.kind]}{m.kind === 'cloud' && m.rev ? ` △${m.rev}` : ''}{m.text ? `: ${m.text.split('\n')[0].slice(0, 28)}` : ''}</button>
-                  <button className="icon-btn" title="Remove" onClick={() => { setMarkups(markups.filter((x) => x.id !== m.id)); if (m.id === selId) setSelId(null); }}>✕</button>
+                  <button className="icon-btn" title="Remove" onClick={() => { setMarkups(markups.filter((x) => x.id !== m.id)); if (m.id === selId) setSelId(null); }} aria-label="Remove"><X size={14} aria-hidden /></button>
                 </div>
               ))}
-              {markups.length > 0 && <button className="linkish" onClick={() => { if (window.confirm(`Remove all ${markups.length} markups from ${s.number}?`)) { setMarkups([]); setSelId(null); } }}>Remove all</button>}
+              {markups.length > 0 && <button className="linkish" onClick={async () => { if (await ask(`Remove all ${markups.length} markups from ${s.number}?`)) { setMarkups([]); setSelId(null); } }}>Remove all</button>}
               <p className="m">Draw on the sheet with the Markup button above it. They stay on this sheet when the design changes and print in the PDF and DXF.</p>
             </details>
           )}
           <details><summary>Arrows and callouts ({(s.arrows ?? []).length})</summary>
             {(s.arrows ?? []).map((a, i) => (
-              <div key={i} className="row">→ {a.target.replace(/^f:/, '')}: “{a.text}” <button className="icon-btn" title="Remove" onClick={() => patch({ arrows: (s.arrows ?? []).filter((_, k) => k !== i) })}>✕</button></div>
+              <div key={i} className="row">→ {a.target.replace(/^f:/, '')}: “{a.text}” <button className="icon-btn" title="Remove" onClick={() => patch({ arrows: (s.arrows ?? []).filter((_, k) => k !== i) })} aria-label="Remove"><X size={14} aria-hidden /></button></div>
             ))}
             <ArrowAdd project={project} boards={s.boards} onAdd={(a) => patch({ arrows: [...(s.arrows ?? []), a] })} />
           </details>
@@ -380,9 +383,9 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
               <select className="chip" value="" onChange={(e) => { const t = templates.find((x) => x.id === e.target.value); if (t) { save({ ...set, sheets: set.sheets.map((x) => (x.id === s.id ? applyTemplate(x, t) : x)) }); onStatus(`Template “${t.name}” applied`); } }}>
                 <option value="">Apply a template…</option>{templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
-              <button className="chip" onClick={() => { const n = window.prompt('Template name (paper, cable text, values printed, notes, status, scale)', s.title); if (!n?.trim()) return; saveSheetTemplates([...templates, templateFromSheet(s, n.trim())]); onStatus(`Saved template “${n.trim()}”`); }}>Save this sheet as a template</button>
+              <button className="chip" onClick={async () => { const n = await askText('Save this sheet as a template', { label: 'Template name', initial: s.title, hint: 'Keeps paper, cable text, values printed, notes, status and scale', required: true }); if (!n) return; saveSheetTemplates([...templates, templateFromSheet(s, n)]); onStatus(`Saved template “${n}”`); }}>Save this sheet as a template</button>
               {templates.length > 0 && (
-                <button className="chip" onClick={() => { const t = templates.find((x) => x.name === window.prompt(`Apply which template to all sheets? (${templates.map((x) => x.name).join(', ')})`)); if (t) { save({ ...set, sheets: set.sheets.map((x) => applyTemplate(x, t)) }); onStatus(`Template “${t.name}” applied to all sheets`); } }}>Apply to all sheets…</button>
+                <button className="chip" onClick={async () => { const name = await askText('Apply a template to all sheets', { label: 'Template', options: templates.map((x) => x.name), confirmLabel: 'Apply to all sheets' }); const t = templates.find((x) => x.name === name); if (t) { save({ ...set, sheets: set.sheets.map((x) => applyTemplate(x, t)) }); onStatus(`Template “${t.name}” applied to all sheets`); } }}>Apply to all sheets…</button>
               )}
             </div>
           </details>
@@ -469,36 +472,34 @@ function PublishDialog({ project, run, onClose, onChange, onStatus, onOpen }: { 
   const bad = all.filter((c) => c.level === 'bad').length;
   const rev = currentRevision(project);
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 640 }} onClick={(e) => e.stopPropagation()}>
-        <h3>Publish the drawings</h3>
-        <p className="m">{set.sheets.length} sheet(s). {crowded === null ? 'Checking sheet sizes…' : all.length ? `${bad} problem(s), ${all.length - bad} warning(s):` : 'No issues found by the checks — engineering review still required.'}</p>
-        <ul className="pub-checks">
-          {all.map((c, i) => (
-            <li key={i} className={c.level}>
-              <span>{c.level === 'bad' ? '✕' : '!'}</span> {c.text}
-              {c.sheetId && <button className="linkish" onClick={() => onOpen(c.sheetId!)}>Open</button>}
-            </li>
-          ))}
-        </ul>
-        <div className="modal-actions">
-          <button className="chip" onClick={onClose}>Close</button>
-          <span className="sp" />
-          <button className="chip" disabled={!!busy || !set.sheets.length} onClick={async () => { setBusy('dxf'); try { await exportSheetsDxf(project, set, run, onStatus); } finally { setBusy(''); } }}>{busy === 'dxf' ? 'Building…' : 'DXF per sheet'}</button>
-          <button className="chip" disabled={!!busy || !set.sheets.length} onClick={async () => { setBusy('zip'); try { await exportEverythingZip(project, set, run, onStatus); } finally { setBusy(''); } }}>{busy === 'zip' ? 'Building…' : 'Everything (ZIP)'}</button>
-          <button className="chip" disabled={!!busy || !set.sheets.length} onClick={async () => { setBusy('set'); try { await exportDrawingSet(project, set, run, false, onStatus); } finally { setBusy(''); } }}>{busy === 'set' ? 'Building…' : 'Export set (one PDF)'}</button>
-          <button className="chip primary" disabled={!set.sheets.length} onClick={() => setIssuing(true)}>Issue all sheets…</button>
-        </div>
-        {issuing && <IssueDialog sheets={set.sheets} projectRev={rev?.id} onClose={() => setIssuing(false)} onIssue={async (o, pdf) => {
-          const r = issueSheets(set, set.sheets.map((s) => s.id), o, rev?.id, (s) => sheetHash(project, set, s));
-          const next = { ...project, drawingSet: r.set };
-          onChange(next);
-          setIssuing(false);
-          onStatus(`Issued ${r.issue.id}: ${r.issue.sheets.length} sheet(s) — ${o.purpose}`);
-          if (pdf) { setBusy('set'); try { await exportDrawingSet(next, r.set, run, false, onStatus); } finally { setBusy(''); } }
-          onClose();
-        }} />}
+    <Modal onClose={onClose} className="modal" style={{ maxWidth: 640 }}>
+      <h3>Publish the drawings</h3>
+      <p className="m">{set.sheets.length} sheet(s). {crowded === null ? 'Checking sheet sizes…' : all.length ? `${bad} problem(s), ${all.length - bad} warning(s):` : 'No issues found by the checks — engineering review still required.'}</p>
+      <ul className="pub-checks">
+        {all.map((c, i) => (
+          <li key={i} className={c.level}>
+            <span>{c.level === 'bad' ? '✕' : '!'}</span> {c.text}
+            {c.sheetId && <button className="linkish" onClick={() => onOpen(c.sheetId!)}>Open</button>}
+          </li>
+        ))}
+      </ul>
+      <div className="modal-actions">
+        <button className="chip" onClick={onClose}>Close</button>
+        <span className="sp" />
+        <button className="chip" disabled={!!busy || !set.sheets.length} onClick={async () => { setBusy('dxf'); try { await exportSheetsDxf(project, set, run, onStatus); } finally { setBusy(''); } }}>{busy === 'dxf' ? 'Building…' : 'DXF per sheet'}</button>
+        <button className="chip" disabled={!!busy || !set.sheets.length} onClick={async () => { setBusy('zip'); try { await exportEverythingZip(project, set, run, onStatus); } finally { setBusy(''); } }}>{busy === 'zip' ? 'Building…' : 'Everything (ZIP)'}</button>
+        <button className="chip" disabled={!!busy || !set.sheets.length} onClick={async () => { setBusy('set'); try { await exportDrawingSet(project, set, run, false, onStatus); } finally { setBusy(''); } }}>{busy === 'set' ? 'Building…' : 'Export set (one PDF)'}</button>
+        <button className="chip primary" disabled={!set.sheets.length} onClick={() => setIssuing(true)}>Issue all sheets…</button>
       </div>
-    </div>
+      {issuing && <IssueDialog sheets={set.sheets} projectRev={rev?.id} onClose={() => setIssuing(false)} onIssue={async (o, pdf) => {
+        const r = issueSheets(set, set.sheets.map((s) => s.id), o, rev?.id, (s) => sheetHash(project, set, s));
+        const next = { ...project, drawingSet: r.set };
+        onChange(next);
+        setIssuing(false);
+        onStatus(`Issued ${r.issue.id}: ${r.issue.sheets.length} sheet(s) — ${o.purpose}`);
+        if (pdf) { setBusy('set'); try { await exportDrawingSet(next, r.set, run, false, onStatus); } finally { setBusy(''); } }
+        onClose();
+      }} />}
+    </Modal>
   );
 }

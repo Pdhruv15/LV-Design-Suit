@@ -1,3 +1,4 @@
+import { ask } from '../ConfirmDialog';
 import { useMemo, useState } from 'react';
 import { statusOfText } from '../../calc/statusText';
 import type { Project } from '../../types';
@@ -6,24 +7,28 @@ import { buildReportHtml, calcReportData } from '../../docs/calcReport';
 import { issueCounts, validateReport } from '../../docs/reportValidation';
 import { scheduleHtml } from '../../docs/sheetPdf';
 import { saveCsv, savePdf, safeFileName } from '../../util/files';
-import { FocusChip, Page } from '../ui';
+import { ExportBar, FocusChip, Page } from '../ui';
+import { revisionStamp } from '../../model/revisions';
+import { PaperPreview } from '../PaperPreview';
 import { subtree } from '../../calc/pfc';
 
 function ScheduleTable({ schedule }: { schedule: Schedule }) {
   const cls = (v: string | number) => statusOfText(v);
   return (
-    <table className="schedule">
-      <thead>
-        <tr>{schedule.headers.map((h) => <th key={h}>{h}</th>)}</tr>
-      </thead>
-      <tbody>
-        {schedule.rows.map((r, i) => (
-          <tr key={i} className={schedule.totalRows?.includes(i) ? 'total' : ''}>
-            {r.map((c, j) => <td key={j} className={cls(c)}>{c}</td>)}
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="table-scroll">
+      <table className="schedule">
+        <thead>
+          <tr>{schedule.headers.map((h) => <th key={h}>{h}</th>)}</tr>
+        </thead>
+        <tbody>
+          {schedule.rows.map((r, i) => (
+            <tr key={i} className={schedule.totalRows?.includes(i) ? 'total' : ''}>
+              {r.map((c, j) => <td key={j} className={cls(c)}>{c}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -107,7 +112,7 @@ export function ReportView({ project, onStatus, stale = false, docNo, onDocNo }:
   }, [project, docNo]);
   const ic = issueCounts(issues);
   async function exportPdf() {
-    if (ic.error && !window.confirm(`The pre-export check found ${ic.error} error(s) and ${ic.warning} warning(s) — listed above the preview.\n\nExport anyway?`)) return;
+    if (ic.error && !(await ask(`The pre-export check found ${ic.error} error(s) and ${ic.warning} warning(s) — listed above the preview.\n\nExport anyway?`))) return;
     setBusy(true);
     try {
       // Landscape and the document's own header / page numbers (CSS @page boxes), as the BOQ.
@@ -121,15 +126,19 @@ export function ReportView({ project, onStatus, stale = false, docNo, onDocNo }:
     <Page
       title="Calculation report"
       intro="Results summary and design basis, then load assessment, transformer and generator sizing, cable and breaker sizing, load flow and voltage drop, short circuit, earth fault loop, discrimination, power factor correction, DB and cable schedules, and assumptions — the same sections and figures as the study reports, A4 landscape, black and white. Prepared / checked / approved come from Parameters; blank ones are left for signing."
-      actions={<>{onDocNo && <input className="chip" value={docNo ?? ''} placeholder="Doc no." aria-label="Document number" onChange={(e) => onDocNo(e.target.value)} />}<button className="chip primary" disabled={busy || stale} title={stale ? 'Run the calculations first (F5)' : undefined} onClick={exportPdf}>{busy ? 'Exporting…' : 'Export PDF'}</button></>}
     >
+      <ExportBar scope="Whole installation · every section of the calculation report" revision={revisionStamp(project)}
+        blocked={stale ? 'Run the calculations first (F5): the report would show out-of-date results.' : undefined}
+        lead={onDocNo && <input className="chip" value={docNo ?? ''} placeholder="Doc no." aria-label="Document number" onChange={(e) => onDocNo(e.target.value)} />}>
+        <button className="chip primary" disabled={busy || stale} onClick={exportPdf}>{busy ? 'Exporting…' : 'Export PDF'}</button>
+      </ExportBar>
       <details className="card" open={ic.error > 0}>
         <summary>Pre-export check — {issues.length ? `${ic.error} error(s), ${ic.warning} warning(s), ${ic.info} note(s)` : 'no issues found'}</summary>
         {issues.length > 0 && <table className="schedule"><thead><tr><th>Level</th><th>Area</th><th>Issue</th></tr></thead><tbody>
           {issues.map((x, i) => <tr key={i}><td className={x.level === 'error' ? 'bad' : x.level === 'warning' ? 'warn' : 'm'}>{x.level.toUpperCase()}</td><td>{x.area}</td><td>{x.message}</td></tr>)}
         </tbody></table>}
       </details>
-      <iframe className="report-preview" title="Report preview" srcDoc={html} sandbox="" />
+      <PaperPreview title="Report preview" html={html} />
     </Page>
   );
 }

@@ -2,6 +2,8 @@ import { pickProject } from './model/projectStore';
 import { autoCheckpoint } from './model/checkpoints';
 import { chooseProjectFile, downloadProjectFile } from './util/webApp';
 import WebBanner from './components/WebBanner';
+import { ask as askUser, askText, ConfirmHost, tell } from './components/ConfirmDialog';
+import { CircleCheck, Play, TriangleAlert, X } from 'lucide-react';
 import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Feeder, Board, Project, newProject } from './types';
 import { sampleProject } from './data/sampleProject';
@@ -115,6 +117,7 @@ import { discriminationChain } from './calc/protection';
 import { pasteBoard } from './model/copyBoard';
 import { draftFromOffer, onSubmissionOffer, type Submission, type SubmissionOffer } from './model/submissions';
 import { applyDefaults, applyProfile, initialsOf, loadPrefs, savePrefs, signature, type Preferences } from './model/profile';
+import { applyTheme } from './theme/theme';
 import { clearRecovery, deleteProjectFile, inDesktop, listProjects, loadProject, emptyTrash, listTrash, loadProjectStamped, readRecoveries, recentFiles, restoreProject, saveProjectFile, statProject, touchRecent, whenText, writeRecovery, type ProjectMeta, type Recovery, type TrashedProject } from './model/projectStore';
 import { applyDetails, withArchived, type ProjectDetails } from './model/projectList';
 import ProjectDetailsDialog from './components/ProjectDetailsDialog';
@@ -209,6 +212,7 @@ export default function App() {
   const [readOnly, setReadOnly] = useState<string | null>(null);
   const [compare, setCompare] = useState<{ aName: string; bName: string; a: Project; b: Project } | null>(null);
   const [prefs, setPrefs] = useState<Preferences>(loadPrefs);
+  useEffect(() => applyTheme(prefs.app.theme), [prefs.app.theme]);
   const [showPrefs, setShowPrefs] = useState(false);
   const [recent, setRecent] = useState<string[]>(recentFiles);
   // One recovery copy per project; the newest is offered first.
@@ -309,10 +313,10 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- only when another project is opened, not on every stage change
   useEffect(() => { setRibbonTab(tabForStage(stageNow)); }, [project.id]);
   /** The stage gate: issue this stage's package as a revision (the new baseline) and move to the next stage. */
-  function issueStage() {
+  async function issueStage() {
     const from = stageOf(project), to = nextStage(project);
     const what = from === 'ifc' ? 'Issue the IFC package' : `Issue the ${STAGE_INFO[from].label.toLowerCase()} package and move to ${to ? STAGE_INFO[to].label : 'the next stage'}`;
-    if (!window.confirm(`${what}?\n\nThis records a revision (drawings ${STAGE_INFO[from].sheetStatus}) and makes it the baseline; later changes are tracked against it.`)) return;
+    if (!(await askUser({ title: `${what}?`, message: `This records a revision (drawings ${STAGE_INFO[from].sheetStatus}) and makes it the baseline; later changes are tracked against it.`, confirmLabel: from === 'ifc' ? 'Issue IFC' : 'Issue and move on' }))) return;
     const next = advanceStage(project, { by: prefs.profile.name });
     void autoCheckpoint(project, `Before issuing the ${STAGE_INFO[from].label.toLowerCase()} package`, undefined, setStatus);
     setProject(next, { step: true });
@@ -320,10 +324,12 @@ export default function App() {
     if (to && to !== from) setRibbonTab(tabForStage(to));
   }
   /** Undo a stage gate issued by mistake (the revision stays). */
-  function stepBack() {
+  async function stepBack() {
     const reopen = stageOf(project) === 'ifc' && ifcIssued(project), to = prevStage(project);
     if (!reopen && !to) return;
-    if (!window.confirm(reopen ? 'Reopen IFC?\n\nThe IFC revision stays in the history; the project is no longer marked as issued for construction.' : `Go back to ${STAGE_INFO[to!].label}?\n\nThe issued revision stays in the history and remains the baseline; the drawings take the ${STAGE_INFO[to!].sheetStatus} status again.`)) return;
+    if (!(await askUser(reopen
+      ? { title: 'Reopen IFC?', message: 'The IFC revision stays in the history; the project is no longer marked as issued for construction.', confirmLabel: 'Reopen IFC' }
+      : { title: `Go back to ${STAGE_INFO[to!].label}?`, message: `The issued revision stays in the history and remains the baseline; the drawings take the ${STAGE_INFO[to!].sheetStatus} status again.`, confirmLabel: 'Go back' }))) return;
     setProject(stepBackStage(project), { step: true });
     setStatus(reopen ? 'IFC reopened' : `Back to ${STAGE_INFO[to!].label}`);
     if (!reopen) setRibbonTab(tabForStage(to!));
@@ -613,7 +619,7 @@ export default function App() {
     try { checkProjectShape(p, file ?? 'The file'); } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setStatus(msg);
-      window.alert(msg);
+      void tell('This file can’t be opened', msg);
       return;
     }
     // Older files get an id and version here; opening alone never counts as an unsaved change.
@@ -698,7 +704,7 @@ export default function App() {
 
   async function deleteFile(file: string) {
     const m = projectList.find((x) => x.file === file);
-    if (!window.confirm(`Delete the project “${m?.name ?? file}”? It moves to the trash and can be restored for 30 days.`)) return;
+    if (!(await askUser({ title: `Delete the project “${m?.name ?? file}”?`, message: 'It moves to the trash and can be restored for 30 days.', confirmLabel: 'Move to trash', danger: true }))) return;
     try {
       await deleteProjectFile(file);
       setRecent(touchRecent(file, true));
@@ -753,7 +759,7 @@ export default function App() {
   }
 
   async function emptyTheTrash() {
-    if (!window.confirm(`Delete the ${trashList.length} project${trashList.length === 1 ? '' : 's'} in the trash for good? This cannot be undone.`)) return;
+    if (!(await askUser({ title: `Delete the ${trashList.length} project${trashList.length === 1 ? '' : 's'} in the trash for good?`, message: 'This cannot be undone.', confirmLabel: 'Empty trash', danger: true }))) return;
     await emptyTrash();
     refreshList();
   }
@@ -815,9 +821,13 @@ export default function App() {
     return b ?? project.boards.find((x) => !x.upstreamId);
   };
 
-  function confirmDeleteSelected() {
-    if (panel === 'feeder' && selectedFeeder) { if (window.confirm(`Delete feeder ${selectedFeeder.id}?`)) deleteFeeder(selectedFeeder.id); return; }
-    if (board && window.confirm(`Delete ${board.id} and everything fed from it?`)) removeBoard(board.id);
+  async function confirmDeleteSelected() {
+    if (panel === 'feeder' && selectedFeeder) { if (await askUser({ title: `Delete feeder ${selectedFeeder.id}?`, confirmLabel: 'Delete feeder', danger: true })) deleteFeeder(selectedFeeder.id); return; }
+    if (board) await confirmRemoveBoard(board.id);
+  }
+  /** Deletes a board and everything below it, after asking. */
+  async function confirmRemoveBoard(id: string) {
+    if (await askUser({ title: `Delete ${id} and everything fed from it?`, confirmLabel: `Delete ${id}`, danger: true })) removeBoard(id);
   }
 
   function editFeeder(id: string) {
@@ -972,7 +982,7 @@ export default function App() {
    * with everything below it. */
   function deleteSelection() {
     if (panel === 'feeder' && selectedFeeder) return confirmDeleteSelected();
-    if (panel === 'board' && board && window.confirm(`Delete ${board.id} and everything fed from it?`)) removeBoard(board.id);
+    if (panel === 'board' && board) void confirmRemoveBoard(board.id);
   }
 
   // ⌘Z / Ctrl+Z undo, ⇧⌘Z / Ctrl+Y redo, Delete on the diagram. Typing in a
@@ -1100,8 +1110,8 @@ export default function App() {
             <button className="linkish" onClick={() => setView('projects')} title="All projects">Projects</button> / <button className="linkish crumb-project" onClick={() => setView('dashboard')} title={`${project.name} — Overview`}><b>{project.name}</b></button>
             {' / '}{view === 'dashboard' ? <b>Overview</b> : <button className="linkish" onClick={() => setView('dashboard')} title="This project's overview">Overview</button>}
           </>}
-          {!home && dirty && <span className="dirty-dot" title={currentFile ? 'Unsaved changes — Ctrl+S / ⌘S to save' : 'Not saved yet — Ctrl+S / ⌘S to save'}>●</span>}
-          {status && <span className="saved">{status}</span>}
+          {!home && dirty && <span className="dirty-dot" role="img" aria-label="Unsaved changes" title={currentFile ? 'Unsaved changes — Ctrl+S / ⌘S to save' : 'Not saved yet — Ctrl+S / ⌘S to save'} />}
+          {status && <span className="saved" title={status}>{status}</span>}
         </div>
         <div className="sp" />
         {home
@@ -1109,7 +1119,7 @@ export default function App() {
           : <>
             <button className="chip cmdk-open" onClick={() => setPaletteOpen(true)} title="Find a board, sheet or page, or run a command (? lists every shortcut)">Search <kbd>{MOD}K</kbd></button>
             {saveState.kind === 'failed' && <span className="save-failed" role="alert" title={saveState.msg}>Not saved — {saveState.msg && saveState.msg.length > 60 ? `${saveState.msg.slice(0, 60)}…` : saveState.msg}</span>}
-            <button className="chip" disabled={saveState.kind === 'saving'} onClick={() => saveProject()} title="Save (Ctrl+S / ⌘S) — New, Open and Save as are on the Project tab">{saveState.kind === 'saving' ? 'Saving…' : saveState.kind === 'failed' ? 'Retry save' : `Save${dirty ? ' ●' : ''}`}</button>
+            <button className="chip" disabled={saveState.kind === 'saving'} onClick={() => saveProject()} title="Save (Ctrl+S / ⌘S) — New, Open and Save as are on the Project tab">{saveState.kind === 'saving' ? 'Saving…' : saveState.kind === 'failed' ? 'Retry save' : <>Save{dirty && <span className="dirty-dot" role="img" aria-label="unsaved changes" />}</>}</button>
           </>}
         {!home && !hasBridge && <button className="chip" onClick={() => setStatus(downloadProjectFile(project))} title="Download this project as a file to keep on your computer (opens here or in the desktop app)">Download file</button>}
         <button className="chip user-chip" onClick={() => setShowPrefs(true)} title={prefs.profile.name ? `${signature(prefs.profile)} — profile & preferences` : 'Set up your profile: name, designation, company, logo and design defaults'}>
@@ -1204,9 +1214,9 @@ export default function App() {
             onSchedule: (id) => { setActiveBoardId(id); setView('load-schedule'); },
             onCopy: copyBoard,
             onPaste: (id) => { setActiveBoardId(id); setPasteTarget(id); },
-            onDelete: (id) => { if (window.confirm(`Delete ${id} and everything fed from it?`)) removeBoard(id); },
-            onMove: (id, to) => {
-              if (!window.confirm(`${moveSummary(project, id, to)}\n\nMove it? (Ctrl+Z undoes.)`)) return;
+            onDelete: (id) => { void confirmRemoveBoard(id); },
+            onMove: async (id, to) => {
+              if (!(await askUser({ title: `Supply ${id} from ${to}?`, message: `${moveSummary(project, id, to)}\n\nCtrl+Z / ⌘Z undoes it.`, confirmLabel: 'Move it' }))) return;
               setProject(moveBoard(project, id, to), { step: true });
               setStatus(`${id} is now supplied from ${to} — check the incomer cable length.`);
             },
@@ -1329,8 +1339,8 @@ export default function App() {
                       setStatus(`${boardId} moved to ${set.sheets.find((x) => x.id === sheetId)?.number}`);
                     } : undefined}
                     onDrawing={(d) => setProject((p) => ({ ...p, drawing: { ...p.drawing, ...d } }))}
-                    onRemoveTie={(id) => {
-                      if (!window.confirm(`Remove bus coupler ${id}?`)) return;
+                    onRemoveTie={async (id) => {
+                      if (!(await askUser({ title: `Remove bus coupler ${id}?`, confirmLabel: 'Remove', danger: true }))) return;
                       setProject(removeTie(project, id), { step: true });
                       setStatus(`Removed bus coupler ${id}`);
                     }}
@@ -1384,7 +1394,7 @@ export default function App() {
                       {!bad.length && !warn.length && <span className="rd-chip">all within limits</span>}
                     </>;
                   })()}
-                  {resTab && <button className="icon-btn" title="Close" onClick={() => { setResTab(null); try { localStorage.setItem('lvds.resTab', ''); } catch { /* ignore */ } }}>✕</button>}
+                  {resTab && <button className="icon-btn" title="Close" aria-label="Close the results" onClick={() => { setResTab(null); try { localStorage.setItem('lvds.resTab', ''); } catch { /* ignore */ } }}><X size={14} aria-hidden /></button>}
                 </div>
                 {resTab && (
                   <div className="rd-body">
@@ -1579,14 +1589,19 @@ export default function App() {
         <span>Vd limit: {project.vdLimitPct}%</span>
         <span className="sp" />
         <span className={`calc-state ${staleKeys.length ? 'warn' : 'ok'}`} title={staleKeys.length ? `Out of date: ${stale.join(', ')}` : undefined}>
-          {staleKeys.length ? `⚠ ${staleKeys.length} stud${staleKeys.length === 1 ? 'y' : 'ies'} out of date` : `✓ Calculations up to date${run ? ` (${new Date(run.at).toLocaleTimeString()})` : ''}`}
+          {staleKeys.length ? <TriangleAlert size={13} aria-hidden /> : <CircleCheck size={13} aria-hidden />}
+          {staleKeys.length ? `${staleKeys.length} stud${staleKeys.length === 1 ? 'y' : 'ies'} out of date` : `Calculations up to date${run ? ` (${new Date(run.at).toLocaleTimeString()})` : ''}`}
         </span>
-        <button className={`chip run-chip${staleKeys.length ? ' stale' : ''}`} onClick={runNow} title="Run the network studies (F5)">▶ Run (F5)</button>
+        <button className={`chip run-chip${staleKeys.length ? ' stale' : ''}`} onClick={runNow} title="Run the network studies (F5)">
+          <Play size={12} aria-hidden /> Run (F5)
+        </button>
         <button className="chip" onClick={() => setProject({ ...project, calc: { ...project.calc, autoRun: !autoRun } })} title="Run the studies on every change (small projects)">
           Auto-run: {autoRun ? 'on' : 'off'}
         </button>
         <span>{hasBridge ? `Projects folder: ${projectsFolder}` : 'Web version — projects are saved in this browser'}</span>
       </div>}
+
+      <ConfirmHost />
 
       {showFeederForm && board && (
         <FeederForm
@@ -1720,7 +1735,7 @@ export default function App() {
       )}
       {briefDialog && (
         <BriefDialog initial={project.brief} company={prefs.profile.company}
-          onSaveTemplate={(b) => { const n = window.prompt('Name this setup template (e.g. Villa, DEWA consultant)')?.trim(); if (!n) return; const t = templateFrom(applyBrief(project, b), n); setStatus(saveTemplates([...loadTemplates(), t]) ? `Saved setup template “${n}”: scope, deliverables and system defaults. No party names or project data are kept.` : 'Could not save the template in this browser'); }}
+          onSaveTemplate={async (b) => { const n = await askText('Save as a setup template', { label: 'Template name', placeholder: 'e.g. Villa, DEWA consultant', required: true }); if (!n) return; const t = templateFrom(applyBrief(project, b), n); setStatus(saveTemplates([...loadTemplates(), t]) ? `Saved setup template “${n}”: scope, deliverables and system defaults. No party names or project data are kept.` : 'Could not save the template in this browser'); }}
           onCancel={() => setBriefDialog(false)}
           onSave={(b) => { setBriefDialog(false); setProject(applyBrief(project, b), { step: true }); setStatus('Scope and deliverables updated — save the project to keep them'); }} />
       )}

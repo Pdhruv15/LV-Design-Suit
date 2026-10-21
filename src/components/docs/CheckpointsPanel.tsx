@@ -1,3 +1,4 @@
+import { ask, askText } from '../ConfirmDialog';
 import { copyProject } from '../../model/projectMigrate';
 import { BACKUP_EXT, buildBackup, checkpointsFor, readBackup } from '../../model/projectBackup';
 import { safeFileName, saveBinary } from '../../util/files';
@@ -34,12 +35,12 @@ export default function CheckpointsPanel({ project, onRestore, onOpenCopy, onSta
   const fail = (what: string) => (e: unknown) => onStatus(`${what} failed: ${e instanceof Error ? e.message : String(e)}`);
 
   async function create() {
-    const label = window.prompt('Name this checkpoint, e.g. Before client comments', '');
+    const label = await askText('Save a checkpoint', { label: 'Name', placeholder: 'e.g. Before client comments', confirmLabel: 'Save checkpoint' });
     if (label === null) return;
     try { setList(await saveCheckpoint(store!, newCheckpoint(project, label))); onStatus('Checkpoint saved — checkpoints you name are kept until you delete them.'); } catch (e) { fail('Checkpoint')(e); }
   }
   async function restore(c: Checkpoint) {
-    if (!window.confirm(`Restore “${c.label}” (${when(c.at)})? The design goes back to that point as an edit you can undo. Issued revisions are not changed. A checkpoint of the current state is saved first.`)) return;
+    if (!(await ask(`Restore “${c.label}” (${when(c.at)})? The design goes back to that point as an edit you can undo. Issued revisions are not changed. A checkpoint of the current state is saved first.`))) return;
     try {
       setList(await saveCheckpoint(store!, newCheckpoint(project, `Before restoring “${c.label}”`, { auto: true })));
       onRestore(restoredFrom(project, c)); onStatus(`Restored “${c.label}”. Undo (Ctrl+Z) goes back; save the project to keep it.`);
@@ -58,9 +59,10 @@ export default function CheckpointsPanel({ project, onRestore, onOpenCopy, onSta
     try {
       const b = await readBackup(new Uint8Array(await file.arrayBuffer()));
       const made = new Date(b.manifest.exportedAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-      if (!window.confirm(`Import the backup of “${b.project.name}”?\n\nMade ${made} with LV Design Studio ${b.manifest.appVersion}, with ${b.checkpoints.length} checkpoint${b.checkpoints.length === 1 ? '' : 's'}. Every file in it passed its check.`)) return;
+      if (!(await ask({ title: `Import the backup of “${b.project.name}”?`, message: `Made ${made} with LV Design Studio ${b.manifest.appVersion}, with ${b.checkpoints.length} checkpoint${b.checkpoints.length === 1 ? '' : 's'}. Every file in it passed its check.`, confirmLabel: 'Import' }))) return;
       const same = !!project.id && b.project.id === project.id;
-      const replace = same && window.confirm('This backup is of the open project. Replace the open project with it?\n\nOK: replace it — the open design is kept as a checkpoint first, and the backup’s checkpoints are added.\nCancel: open the backup as a new project instead.');
+      // Two ways on: replace the open project, or (the other button, as Cancel was before) open the backup as a new project.
+      const replace = same && await ask({ title: 'This backup is of the open project. Replace the open project with it?', message: 'Replace: the open design is kept as a checkpoint first, and the backup’s checkpoints are added.\nOpen as a new project: the open project is not changed.', confirmLabel: 'Replace the open project', cancelLabel: 'Open as a new project' });
       if (replace) {
         await autoCheckpoint(project, 'Before importing a backup', store, onStatus);
         const known = new Set((await store!.list(project.id!)).map((c) => c.id));
@@ -78,7 +80,7 @@ export default function CheckpointsPanel({ project, onRestore, onOpenCopy, onSta
   }
 
   async function del(c: Checkpoint) {
-    if (!window.confirm(`Delete checkpoint “${c.label}”?`)) return;
+    if (!(await ask(`Delete checkpoint “${c.label}”?`))) return;
     try { await store!.remove(c.id); await refresh(); } catch (e) { fail('Delete')(e); }
   }
 

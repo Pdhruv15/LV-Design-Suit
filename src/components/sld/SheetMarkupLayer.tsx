@@ -1,3 +1,4 @@
+import { askText } from '../ConfirmDialog';
 import { useRef, useState } from 'react';
 import { ArrowUpRight, Cloud, CloudCog, Crosshair, MessageSquareText, MousePointer2, Slash, Square, Trash2, Type , type LucideIcon } from 'lucide-react';
 import {
@@ -43,8 +44,10 @@ export const arrowFromDrag = (target: string, a: Pt, b: Pt, mmPerUnit: number, t
 });
 export const MARKUP_SIZES = [2.5, 3.5, 5];
 
-const textOf = (m: SheetMarkup) => (m.text ?? '').split('\n').join(' | ');
 const fromText = (s: string) => s.split('|').map((x) => x.trim()).join('\n').trim();
+/** Text typed in the dialog: Enter or | starts a new line. */
+const fromInput = (s: string) => fromText(s.replace(/\r?\n/g, '|'));
+const TEXT_HINT = 'Enter (or |) starts a new line; Ctrl+Enter / ⌘Enter saves';
 
 type Drag =
   | { mode: 'new'; a: Pt; b: Pt }
@@ -83,7 +86,7 @@ export default function SheetMarkupLayer({ markups, mmW, mmH, width, height, too
   const sel = byId(selected);
   const selShown = sel && drag && drag.mode !== 'new' && drag.cur.id === sel.id ? drag.cur : sel;
 
-  const down = (e: React.PointerEvent) => {
+  const down = async (e: React.PointerEvent) => {
     const p = point(e);
     const el = e.target as Element;
     if (tool === 'select') {
@@ -96,8 +99,8 @@ export default function SheetMarkupLayer({ markups, mmW, mmH, width, height, too
       return;
     }
     if (tool === 'text') {
-      const t = window.prompt('Note text (use | for a new line)', '');
-      const text = t ? fromText(t) : '';
+      const t = await askText('Add a note', { label: 'Note text', multiline: true, hint: TEXT_HINT, confirmLabel: 'Add note' });
+      const text = t ? fromInput(t) : '';
       if (text) { const m: SheetMarkup = { id: newMarkupId(), kind: 'text', x: p[0], y: p[1], text, color, size }; onChange([...markups, m]); onSelect(m.id); onTool('select'); }
       return;
     }
@@ -117,7 +120,7 @@ export default function SheetMarkupLayer({ markups, mmW, mmH, width, height, too
     else setDrag({ ...drag, cur: dragHandle(drag.cur, drag.handle, p[0], p[1]) });
   };
 
-  const up = () => {
+  const up = async () => {
     const d = drag;
     setDrag(null);
     if (!d) return;
@@ -134,7 +137,7 @@ export default function SheetMarkupLayer({ markups, mmW, mmH, width, height, too
       if (tool === 'parrow') {
         const t = anchorAt(anchors, d.a);
         if (!t || Math.hypot(d.b[0] - d.a[0], d.b[1] - d.a[1]) < 3) return;
-        const text = window.prompt(`Arrow text for ${t.target.replace(/^f:/, 'circuit ')}`, '')?.trim();
+        const text = await askText(`Arrow text for ${t.target.replace(/^f:/, 'circuit ')}`, { label: 'Arrow text', required: true, confirmLabel: 'Add arrow' });
         if (!text) return;
         onPanelArrow?.(arrowFromDrag(t.target, d.a, d.b, mmPerUnit, text));
         onTool('select');
@@ -143,8 +146,8 @@ export default function SheetMarkupLayer({ markups, mmW, mmH, width, height, too
       let m = markupFromDrag(tool, d.a, d.b, { color, rev: tool === 'cloud' ? rev : undefined, size: tool === 'callout' ? size : undefined });
       if (!m) return;
       if (tool === 'callout') {
-        const t = window.prompt('Callout text (use | for a new line)', '');
-        const text = t ? fromText(t) : '';
+        const t = await askText('Add a callout', { label: 'Callout text', multiline: true, hint: TEXT_HINT, confirmLabel: 'Add callout' });
+        const text = t ? fromInput(t) : '';
         if (!text) return;
         m = { ...m, text };
       }
@@ -154,12 +157,12 @@ export default function SheetMarkupLayer({ markups, mmW, mmH, width, height, too
     } else if (JSON.stringify(d.cur) !== JSON.stringify(byId(d.cur.id))) replace(d.cur);
   };
 
-  const edit = (e: React.MouseEvent) => {
+  const edit = async (e: React.MouseEvent) => {
     if (tool !== 'select') return;
     const m = byId((e.target as Element).closest('[data-mid]')?.getAttribute('data-mid'));
     if (!m) return;
-    if (m.kind === 'cloud') { const r = window.prompt('Revision shown in the cloud triangle (blank = none)', m.rev ?? ''); if (r !== null) replace({ ...m, rev: r.trim() || undefined }); }
-    else if (m.kind === 'text' || m.kind === 'callout') { const t = window.prompt('Text (use | for a new line)', textOf(m)); if (t !== null && fromText(t)) replace({ ...m, text: fromText(t) }); }
+    if (m.kind === 'cloud') { const r = await askText('Revision cloud', { label: 'Revision shown in the triangle', initial: m.rev ?? '', hint: 'Leave empty for none' }); if (r !== null) replace({ ...m, rev: r || undefined }); }
+    else if (m.kind === 'text' || m.kind === 'callout') { const t = await askText(m.kind === 'text' ? 'Edit the note' : 'Edit the callout', { label: 'Text', initial: m.text ?? '', multiline: true, hint: TEXT_HINT }); if (t !== null && fromInput(t)) replace({ ...m, text: fromInput(t) }); }
   };
 
   const drawing = tool !== 'select';
