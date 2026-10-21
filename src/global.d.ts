@@ -65,6 +65,10 @@ declare global {
         routes?: () => Promise<{ units?: number; routes: { feederId: string; length: number; pieces: number }[] }>;
         /** Links the curves selected in OpenCADStudio to a feeder's route; '' unlinks them. */
         linkSelection?: (feederId: string) => Promise<{ linked: number; skipped: number }>;
+        /** What the active floor plan says about board locations, in drawing units, with its INSUNITS code. */
+        plan?: () => Promise<import('./model/cadPlaces').CadPlan>;
+        /** Marks the objects selected in OpenCADStudio as a board's symbol; '' unlinks them. */
+        placeSelection?: (boardId: string) => Promise<{ linked: number }>;
       };
       files: {
         /** Shows a save dialog and writes the text; resolves to the saved path, or null if cancelled. */

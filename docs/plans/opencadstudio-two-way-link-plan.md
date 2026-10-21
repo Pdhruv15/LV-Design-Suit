@@ -30,14 +30,18 @@ and schedules refresh too. First sheet only; continuation sheets are reopened.
 
 ### 5. Tag on the floor plan — routes done
 Cable routes: select lines / arcs / polylines in OpenCADStudio, choose the feeder in LV Design Studio, *Link
-selection* (tag `route:<feeder id>`); *Unlink selection* removes it. Board blocks (for locations): next.
+selection* (tag `route:<feeder id>`); *Unlink selection* removes it. Board symbols: found by a TAG / BOARD /
+PANEL attribute naming the board, or linked by hand the same way (tag `place:<board id>`).
 
 ### 6. Pull from CAD (CAD → design), reviewed
 - **Cable lengths — done:** command palette → *Cable lengths from CAD floor plan…*. Measured plan length of the
   linked curves (lines, arcs, polylines with arc segments), converted by the drawing's INSUNITS (else the
   project's unit setting) → (route + vertical + terminations) × (1 + waste), rounded up to a metre → feeder
   `lengthM`, reviewed per feeder; "length to check" is cleared on accepted rows. Run the calculations after.
-- **Board locations / rooms:** position of each tagged board block, and the room/floor it falls in.
+- **Board locations / rooms — done:** command palette → *Board locations from CAD floor plan…*. Room = the
+  smallest closed outline around the symbol on a room layer (default any layer with ROOM / SPACE / AREA, or the
+  project's `cadRoomLayer`), named by the text inside nearest its centre (ALL CAPS tidied). The engineer picks the
+  level the plan shows. Accepted rows set the board's `location`, `level` and `planPoint` (metres).
 - **Tray routes:** which tagged tray runs a cable route follows → feeder `trayRoute`, feeding tray sizing.
 - **Loads from the plan — done:** see *Loads mapping* below.
 
@@ -67,3 +71,9 @@ Command palette → *Loads from CAD floor plan…* → Open floor plan… (DWG/D
 `project.cadLength`: vertical per run (default 6 m), terminations both ends (3 m), waste (5 %), units when the
 drawing has none (mm). Per-feeder `cadVerticalM` overrides the vertical (risers, plant rooms), set in the
 review table. The row shows the breakdown, e.g. "48.2 m route + 6 m vertical + 3 m terminations, +5 % = 61 m".
+
+## Sample
+`docs/samples/sample-ground-floor-plan.dxf` (from `node scripts/make-sample-floor-plan.mjs`): the sample project's
+villa ground floor in mm — 8 named rooms, SMDB-GF and DB-GF1 symbols with TAG attributes, `L1` lights and
+`SKT-TWIN` twin sockets with CCT attributes (Living lighting 14 vs 12 designed, Kitchen sockets 6 vs 5), and two
+unlinked cable routes on `E-CABLE`.

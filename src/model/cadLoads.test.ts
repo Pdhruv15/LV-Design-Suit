@@ -81,6 +81,15 @@ describe('loads from the CAD floor plan', () => {
     expect(socket).toBeTruthy();
   });
 
+  it('shows the circuit’s other points beside the items CAD replaces', () => {
+    let p = base();
+    const a = addCircuit(p, 'DB-GF1'); p = updateCircuit(a.project, a.id, { points: { ltg: 8, exfan: 1 } });
+    const ref = circuitRef(p.feeders.find((f) => f.id === a.id)!)!;
+    const prop = pullCadLoads(p, Array.from({ length: 8 }, () => block('L1', `DB-GF1/${ref}`)), loads).proposals[0];
+    expect(prop.currentText).toBe('8×LTG + 1×EXFAN');
+    expect(prop.proposedText).toBe('8×L1 10 W + 1×EXFAN');
+  });
+
   it('applies accepted proposals through the schedule edit', () => {
     const { p, light, lightRef } = project();
     const pull = pullCadLoads(p, Array.from({ length: 3 }, () => block('L1', `DB-GF1/${lightRef}`)), loads);

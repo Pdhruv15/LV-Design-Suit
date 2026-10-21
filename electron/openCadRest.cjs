@@ -15,7 +15,7 @@ function tagOf(entity) {
   const records = entity && entity.properties && entity.properties.common && entity.properties.common.extended_data && entity.properties.common.extended_data.records;
   const record = Array.isArray(records) ? records.find((r) => r && r.application_name === TAG_APP) : undefined;
   const value = record && Array.isArray(record.values) && record.values[0] ? record.values[0].String : undefined;
-  return typeof value === 'string' && /^(feeder|board|sheet|route):/.test(value) ? value : undefined;
+  return typeof value === 'string' && /^(feeder|board|sheet|route|place):/.test(value) ? value : undefined;
 }
 
 const xy = (p) => (p && typeof p.x === 'number' && typeof p.y === 'number' ? [p.x, p.y] : undefined);
@@ -26,6 +26,23 @@ function segmentLength(a, b, bulge) {
   const theta = 4 * Math.atan(Math.abs(bulge));
   return (chord / (2 * Math.sin(theta / 2))) * theta;
 }
+const BOARD_ATTRIBUTES = ['TAG', 'BOARD', 'PANEL', 'DB', 'DB_REF', 'BOARD_ID', 'PANEL_ID'];
+/** A point for an entity read with detail=full: a block's insertion point, else its bounds centre. */
+function pointOf(entity) {
+  if (Array.isArray(entity.position) && entity.position.length >= 2) return [entity.position[0], entity.position[1]];
+  const b = entity.bounds;
+  if (b && Array.isArray(b.min) && Array.isArray(b.max)) return [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2];
+  return undefined;
+}
+/** Vertices of a closed polyline (room outlines), else undefined. */
+function closedOutline(entity) {
+  const p = entity.properties || {};
+  if (!/polyline/i.test(entity.type) || !Array.isArray(p.vertices)) return undefined;
+  const closed = p.is_closed === true || !!(p.flags && typeof p.flags.bits === 'number' && p.flags.bits & 1);
+  const points = p.vertices.map((v) => xy(v && v.location)).filter(Boolean);
+  return closed && points.length >= 3 ? points : undefined;
+}
+
 /** Plan length of a curve read with detail=full, in drawing units: lines, arcs, and polylines (2D, light-weight)
  * with arc segments. Anything else (circles, text, blocks) has no route length: 0. */
 function curveLength(entity) {
@@ -288,6 +305,53 @@ class OpenCadRestSession {
     }
     const units = await this.ask('/sysvars?names=insunits').then((r) => (r.result && r.result.values ? r.result.values.insunits : undefined), () => undefined);
     return { units: typeof units === 'number' ? units : undefined, routes: [...tagged.values()] };
+  }
+
+  /** What a floor plan says about where boards are: board symbols (tagged "place:<board id>", or blocks whose TAG /
+   * BOARD / PANEL attribute names a board), closed outlines (rooms) and texts (room names), in drawing units. */
+  async readPlan() {
+    if (!this.connected) throw new Error('OpenCADStudio is not connected. Open the floor plan in OpenCADStudio first.');
+    const plan = { places: [], symbols: [], outlines: [], texts: [] };
+    let seen = 0;
+    for (let offset = 0; seen < MAX_ENTITIES;) {
+      const page = await this.ask(`/entities?detail=full&limit=${PAGE}&offset=${offset}`);
+      const list = page.entities || [];
+      seen += list.length;
+      for (const e of list) {
+        const tag = tagOf(e);
+        const at = pointOf(e);
+        if (tag && tag.startsWith('place:') && at) plan.places.push({ boardId: tag.slice('place:'.length), x: at[0], y: at[1] });
+        if (typeof e.block === 'string' && e.attributes && at) {
+          const key = Object.keys(e.attributes).find((k) => BOARD_ATTRIBUTES.includes(k.trim().toUpperCase()));
+          const value = key && typeof e.attributes[key] === 'string' ? e.attributes[key].trim() : '';
+          if (value) plan.symbols.push({ name: value, x: at[0], y: at[1] });
+        }
+        const outline = closedOutline(e);
+        if (outline) plan.outlines.push({ layer: String(e.layer || ''), points: outline });
+        const p = e.properties || {};
+        const text = typeof p.value === 'string' ? p.value : typeof p.text === 'string' ? p.text : typeof p.contents === 'string' ? p.contents : undefined;
+        if (/^(Text|MText|Multiline Text)$/i.test(e.type) && text && text.trim() && at) plan.texts.push({ layer: String(e.layer || ''), x: at[0], y: at[1], text: text.trim() });
+      }
+      if (typeof page.next_offset !== 'number' || page.next_offset <= offset || !list.length) break;
+      offset = page.next_offset;
+    }
+    const units = await this.ask('/sysvars?names=insunits').then((r) => (r.result && r.result.values ? r.result.values.insunits : undefined), () => undefined);
+    return { units: typeof units === 'number' ? units : undefined, ...plan };
+  }
+
+  /** Marks the objects selected in OpenCADStudio as a board's symbol on the plan (tag "place:<board id>");
+   * an empty id unlinks them. */
+  async placeSelection(boardId) {
+    if (!this.connected) throw new Error('OpenCADStudio is not connected. Open the floor plan in OpenCADStudio first.');
+    if (boardId && !/^[\x21-\x7e]{1,193}$/.test(boardId)) throw new Error('That board cannot be linked (its ID has unusual characters).');
+    const selection = await this.ask('/get_selection', 'POST', {});
+    const picked = ((selection.result && selection.result.entities) || []).filter((e) => e && typeof e.handle === 'string');
+    if (!picked.length) throw new Error('Nothing is selected in OpenCADStudio. Select the board symbol there first.');
+    for (const e of picked) {
+      if (boardId) await this.ask(`/entities/${e.handle}/xdata/${TAG_APP}`, 'PUT', [{ code: 1000, value: `place:${boardId}` }]);
+      else await this.ask(`/entities/${e.handle}/xdata/${TAG_APP}`, 'DELETE').catch(() => undefined);
+    }
+    return { linked: picked.length };
   }
 
   /** Links the curves selected in OpenCADStudio to a feeder's cable route (tag "route:<id>"); other selected

@@ -22,3 +22,6 @@ api-token
 *.private.*
 *.client.json
 .lvds-agent/
+
+# OpenCADStudio lock files next to opened drawings
+*.ocs.lock

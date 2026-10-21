@@ -126,7 +126,7 @@ export const FEEDER_FIELDS: Fields<Feeder> = [
 
 export const BOARD_FIELDS: Fields<Board> = [
   ['name', 'Name'], ['kind', 'Type'], ['upstreamId', 'Fed from'], ['ratedCurrentA', 'Rating (A)'], ['sourceKva', 'Transformer (kVA)'],
-  ['sourceImpedancePct', 'Transformer Z (%)'], ['location', 'Location'], ['pointWatts', 'WATT / UNIT'], ['elcbGroupSize', 'Circuits per ELCB'],
+  ['sourceImpedancePct', 'Transformer Z (%)'], ['location', 'Location'], ['planPoint', 'Position on the floor plan'], ['pointWatts', 'WATT / UNIT'], ['elcbGroupSize', 'Circuits per ELCB'],
   ['elcbSensitivityMa', 'ELCB sensitivity'], ['supply', 'Incoming supply'], ['standby', 'Standby generator'], ['level', 'Level'], ['earthRiser', 'Earth riser'],
   ['sourceXr', 'Transformer X/R'], ['vectorGroup', 'Vector group'], ['protection', 'Incomer protection'], ['upsKva', 'UPS (kVA)'],
   ['busbarMaterial', 'Busbar material'], ['ipRating', 'IP rating'], ['manufacturer', 'Manufacturer'], ['model', 'Model'], ['instruments', 'Instruments on the SLD'], ['incomerDevice', 'Incomer device on the SLD'],
@@ -148,7 +148,7 @@ export const DATA_SETS: Fields<Snapshot> = [
   ['ties', 'Bus couplers'], ['pv', 'Solar PV'], ['substations', 'Substation rooms'], ['txGen', 'Transformer & generator plan'], ['pfc', 'Power factor correction plan'],
   ['spacePlan', 'Space plan'], ['pfcCalc', 'Power factor calculator'], ['containmentCalc', 'Containment calculator'], ['components', 'Own components'],
   ['drawing', 'SLD title block and drawing settings'], ['titleTemplates', 'Title block templates'], ['params', 'Parameters'], ['studyReport', 'Study report setup'], ['calcReportDocNo', 'Calculation report document no.'], ['vdReportDocNo', 'Voltage drop report document no.'], ['panelPrefixes', 'Panel naming'],
-  ['tags', 'Tags'], ['notes', 'Notes'], ['brief', 'Scope and deliverables'], ['modifications', 'Modification records'], ['reviewComments', 'Review comments'], ['reviewReport', 'Review report setup'], ['receivedDocs', 'Received documents'], ['vdSelection', 'Circuits chosen for voltage drop'], ['feederPresets', 'Feeder presets'], ['cadBlocks', 'CAD block mapping'], ['cadLength', 'CAD cable length allowances'],
+  ['tags', 'Tags'], ['notes', 'Notes'], ['brief', 'Scope and deliverables'], ['modifications', 'Modification records'], ['reviewComments', 'Review comments'], ['reviewReport', 'Review report setup'], ['receivedDocs', 'Received documents'], ['vdSelection', 'Circuits chosen for voltage drop'], ['feederPresets', 'Feeder presets'], ['cadBlocks', 'CAD block mapping'], ['cadLength', 'CAD cable length allowances'], ['cadRoomLayer', 'CAD room outline layer'],
   ['studyReportPresets', 'Study report presets'], ['calc', 'Calculation options']
 ];
 const sizeOf = (v: unknown) => (Array.isArray(v) ? `${v.length} item(s)` : v === undefined || v === null ? '—' : 'set');

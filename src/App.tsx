@@ -101,6 +101,7 @@ import { buildConceptReportHtml } from './docs/conceptReport';
 const SldExportDialog = lazy(() => import('./components/SldExportDialog'));
 const CadLoadsDialog = lazy(() => import('./components/CadLoadsDialog'));
 const CadLengthsDialog = lazy(() => import('./components/CadLengthsDialog'));
+const CadPlacesDialog = lazy(() => import('./components/CadPlacesDialog'));
 import PasteBoardDialog from './components/PasteBoardDialog';
 const EnclosureSizing = lazy(() => import('./components/EnclosureSizing'));
 import EarthingView from './components/EarthingView';
@@ -250,6 +251,7 @@ export default function App() {
   const [showExport, setShowExport] = useState(false);
   const [showCadLoads, setShowCadLoads] = useState(false);
   const [showCadLengths, setShowCadLengths] = useState(false);
+  const [showCadPlaces, setShowCadPlaces] = useState(false);
   // Copy / paste of a board with everything below it.
   const [copiedBoard, setCopiedBoard] = useState<string | null>(null);
   const [pasteTarget, setPasteTarget] = useState<string | null>(null);
@@ -888,6 +890,7 @@ export default function App() {
     cmd('Export the SLD…', () => { design(); setDiagramMode('system'); setShowExport(true); }, undefined, 'PDF DXF SVG');
     cmd('Loads from CAD floor plan…', () => setShowCadLoads(true), undefined, 'OpenCADStudio DWG DXF blocks fixtures count');
     cmd('Cable lengths from CAD floor plan…', () => setShowCadLengths(true), undefined, 'OpenCADStudio DWG DXF route measure length');
+    cmd('Board locations from CAD floor plan…', () => setShowCadPlaces(true), undefined, 'OpenCADStudio DWG DXF room level position');
     cmd('System diagram', () => { design(); setDiagramMode('system'); }, `${mod}1`, 'SLD');
     cmd('Riser diagram', () => { design(); setDiagramMode('riser'); }, `${mod}4`, 'riser schematic building levels');
     if (board) cmd(`Board diagram — ${board.id}`, () => { design(); setDiagramMode('board'); }, `${mod}2`);
@@ -1622,6 +1625,13 @@ export default function App() {
             setEditPreset(null);
           }}
         />
+      )}
+      {showCadPlaces && (
+        <Suspense fallback={null}><CadPlacesDialog
+          project={project}
+          onApply={(next, message) => { setProject(next, { step: true }); setStatus(message); setShowCadPlaces(false); }}
+          onClose={() => setShowCadPlaces(false)}
+        /></Suspense>
       )}
       {showCadLengths && (
         <Suspense fallback={null}><CadLengthsDialog
