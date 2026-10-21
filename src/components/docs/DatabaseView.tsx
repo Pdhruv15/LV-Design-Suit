@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ExternalLink, FolderOpen, RefreshCw } from 'lucide-react';
 import { BOOKS, DATABASE_FOLDER, type Database } from '../../database/database';
 import { Page } from '../ui';
+import StandardLoadsDialog from './StandardLoadsDialog';
 
 type Row = Record<string, string | number>;
 interface Col { key: string; header: string; width?: number; required?: boolean; number?: boolean; list?: string[]; help?: string }
@@ -43,6 +44,7 @@ export default function DatabaseView({ db, available, onRefresh, onApplyParamete
   const [tab, setTab] = useState(books[0].id);
   const [draft, setDraft] = useState<Row[] | null>(null); // editing copy
   const [busy, setBusy] = useState(false);
+  const [standard, setStandard] = useState(false);
   const [seen, setSeen] = useState(loadSeen);
   const [dbFolder, setDbFolder] = useState<string | undefined>();
   useEffect(() => { window.lvds?.settings.get().then((x) => setDbFolder(x.databaseFolder)); }, []);
@@ -158,6 +160,7 @@ export default function DatabaseView({ db, available, onRefresh, onApplyParamete
           <button className="chip primary" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save to Excel'}</button>
         </>}
         {book.id === 'parameters' && <button className="chip" disabled={!Object.keys(db.parameters).length} onClick={onApplyParameters}>Apply to this project</button>}
+        {book.id === 'loads' && canWrite && !draft && <button className="chip" title="Add a starting set of regular loads (lights, sockets, fans, A/C…) with typical values to review" onClick={() => setStandard(true)}>Add standard loads…</button>}
       </div>
       {rawBook?.error && <p className="bad">{rawBook.file}: {rawBook.error}</p>}
       {ch && !draft && (
@@ -197,6 +200,13 @@ export default function DatabaseView({ db, available, onRefresh, onApplyParamete
         </table>
       </div>
       <p className="m">* required. Hover a heading for its meaning. Each workbook also has a “Read me” sheet. Saving from here keeps your Excel formatting and dropdowns; the last 20 versions are kept in {DATABASE_FOLDER}/Backups.</p>
+      {standard && (
+        <StandardLoadsDialog
+          rows={(db.raw?.books.loads?.rows ?? []) as Row[]}
+          onDone={(m) => { setStandard(false); onStatus?.(m); onRefresh(); }}
+          onClose={() => setStandard(false)}
+        />
+      )}
     </Page>
   );
 }

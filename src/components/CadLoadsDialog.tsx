@@ -78,7 +78,7 @@ export default function CadLoadsDialog({ project, library, onApply, onClose }: {
           <button className="chip primary" disabled={!!busy} onClick={read}>{busy === 'pull' ? 'Reading…' : blocks ? 'Pull again' : 'Pull loads'}</button>
         </div>
         {note && <p className="m">{note}</p>}
-        {!mappable.length && <p className="m">The load library has no items with a reference and schedule column, so no block can be counted yet. Connect the LV Database (Loads.xlsx) first.</p>}
+        {!mappable.length && <p className="m">The load library has no items with a reference and schedule column, so no block can be counted yet. Connect the LV Database, or add the standard set: Database → Loads.xlsx → Add standard loads….</p>}
 
         {pull && (
           <>
