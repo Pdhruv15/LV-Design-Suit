@@ -6,8 +6,8 @@
 
 | Page / asset | Contents |
 |---|---|
-| Variables · `Theme/Dark` | 23 colour tokens, the dark theme |
-| Variables · `Theme/Light` | the same 23 names, light values |
+| Variables · `Theme/Dark` | 31 colour tokens, the dark theme (incl. `chart/curve-1…8`, added with v1.69) |
+| Variables · `Theme/Light` | the same 31 names, light values (synced with v1.69: `text/muted`, `status/ok`, `diagram/bus` darker) |
 | Variables · `Dimension` | spacing (4–24), radius (6/9/12), control heights (32/26), font sizes (11/12/13) |
 | **Components** | Button (Default/Primary/Danger × Default/Disabled), Input (Default/Focus/Error/Disabled), Status badge (Pass/Warning/Fail), Tab, Nav item, Table cell |
 | **Screens** | Voltage drop study, dark and light, at 1280 × 800 (illustrative data) |

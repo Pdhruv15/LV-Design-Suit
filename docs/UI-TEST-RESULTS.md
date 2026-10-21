@@ -205,7 +205,7 @@ Tour artefact, not a defect: in the hidden browser pane CSS transitions do not a
 ### Not yet verified
 
 - Electron desktop window and Windows (all checks here ran in the web build of the same code).
-- Figma variables are not updated with the three light-theme changes (`--bus`, `--ok`, `--mut`) or the new `--curve-*` tokens: the Figma connector is not connected in this session.
+- Figma variables: synced afterwards (Figma connector connected) — `Theme/Light` `text/muted`, `status/ok`, `diagram/bus` updated; `chart/curve-1…8` added to both theme collections with `var(--curve-n)` code syntax.
 
 ## Follow-up — text-input dialogs (prompt() replaced)
 
