@@ -3,7 +3,7 @@ import type { Project } from '../../types';
 import type { CalcRun, StudyKey } from '../../calc/runs';
 import { renderPdf, safeFileName, saveBinary } from '../../util/files';
 import { revisionStamp } from '../../model/revisions';
-import { Page } from '../ui';
+import { ExportBar, Page } from '../ui';
 import { CATALOGUE, CATEGORIES, unavailable, type ExportContext } from './exportCatalogue';
 
 /** Export centre: every PDF document in one list, by the seven groups of the PDF plan. Tick the
@@ -62,14 +62,18 @@ export default function ExportCentre({ project, run, stale, onStatus }: { projec
     <Page
       title="Export centre"
       intro="Every PDF document of the project in one list. Tick what you need and export a zip of PDFs, or one PDF with a bookmark per document. Each document is the same as from its own page, built from the saved settings and the last calculation run. Drawings and the issue package are exported from their own pages."
-      actions={<>
-        <button className="chip" onClick={() => pickAll(true)}>Select all available</button>
-        <button className="chip" onClick={() => pickAll(false)} disabled={!picked.size}>Clear</button>
-        <button className="chip primary" disabled={!desktop || !chosen.length || !!busy} onClick={() => exportAs('zip')} title={desktop ? undefined : 'PDF export needs the desktop app'}>{busy === 'zip' ? 'Exporting…' : `Zip of PDFs (${chosen.length})`}</button>
-        <button className="chip primary" disabled={!desktop || !chosen.length || !!busy} onClick={() => exportAs('merged')} title={desktop ? undefined : 'PDF export needs the desktop app'}>{busy === 'merged' ? 'Exporting…' : 'One PDF'}</button>
-      </>}
     >
-      {!desktop && <p className="note">PDF export needs the desktop app. In the browser, export each document from its own page (the print dialog).</p>}
+      <ExportBar
+        scope={chosen.length ? `${chosen.length} document${chosen.length === 1 ? '' : 's'} ticked` : 'Nothing ticked yet'}
+        revision={revisionStamp(project)}
+        blocked={!desktop ? 'PDF export needs the desktop app. In the browser, export each document from its own page (the print dialog).' : !chosen.length ? 'Tick the documents to export below.' : undefined}
+        lead={<>
+          <button className="chip" onClick={() => pickAll(true)}>Select all available</button>
+          <button className="chip" onClick={() => pickAll(false)} disabled={!picked.size}>Clear</button>
+        </>}>
+        <button className="chip" disabled={!desktop || !chosen.length || !!busy} onClick={() => exportAs('zip')} title={desktop ? undefined : 'PDF export needs the desktop app'}>{busy === 'zip' ? 'Exporting…' : `Zip of PDFs (${chosen.length})`}</button>
+        <button className="chip primary" disabled={!desktop || !chosen.length || !!busy} onClick={() => exportAs('merged')} title={desktop ? undefined : 'PDF export needs the desktop app'}>{busy === 'merged' ? 'Exporting…' : 'One PDF'}</button>
+      </ExportBar>
       {CATEGORIES.map((cat, i) => {
         const entries = CATALOGUE.filter((e) => e.category === cat);
         return (

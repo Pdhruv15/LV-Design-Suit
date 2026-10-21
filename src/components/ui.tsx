@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type FormEvent, type MutableRefObject, type ReactNode, type Ref } from 'react';
-import { Play, X } from 'lucide-react';
+import { Play, TriangleAlert, X } from 'lucide-react';
 import { STATUS_TEXT } from '../calc/statusText';
 import type { Status } from '../calc/electrical';
 
@@ -18,6 +18,25 @@ export function StatusCounts({ statuses }: { statuses: Status[] }) {
       <span className="warn">{n('warn')} warning</span>
       <span className="bad">{n('bad')} fail</span>
     </span>
+  );
+}
+
+/** Where an export goes, in words: the desktop app asks for the folder; the browser downloads, and prints PDFs. */
+export const exportDestination = () => (typeof window !== 'undefined' && window.lvds?.files ? 'You choose the folder when saving' : 'This browser: files download; PDFs open the print dialog');
+
+/** One export pattern for every export screen: what is exported (scope), the revision printed on it, where it
+ * goes, then the formats with the primary one last. Why export is blocked is written out, not only in tooltips. */
+export function ExportBar({ scope, revision, blocked, lead, children }: { scope: ReactNode; revision?: ReactNode; blocked?: string; lead?: ReactNode; children: ReactNode }) {
+  return (
+    <section className="export-bar" aria-label="Export">
+      <dl className="export-facts">
+        <div><dt>Scope</dt><dd>{scope}</dd></div>
+        {revision && <div><dt>Revision</dt><dd>{revision}</dd></div>}
+        <div><dt>Save to</dt><dd>{exportDestination()}</dd></div>
+      </dl>
+      {blocked && <p className="export-blocked" role="status"><TriangleAlert size={13} aria-hidden /> {blocked}</p>}
+      <div className="export-actions">{lead}<span className="sp" />{children}</div>
+    </section>
   );
 }
 

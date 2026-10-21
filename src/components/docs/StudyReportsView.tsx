@@ -23,10 +23,11 @@ import { applyReportType, matchingType, REPORT_TYPES } from '../../docs/reportTy
 import { issueCounts, validateReport } from '../../docs/reportValidation';
 import { ISSUE_STATUSES, missingFields, pageFrame, reportDoc, type ReportMeta } from '../../docs/reportFrame';
 import SystemDiagram from '../SystemDiagram';
-import { Page, StaleBanner } from '../ui';
+import { ExportBar, Page, StaleBanner } from '../ui';
+import { PaperPreview } from '../PaperPreview';
 import { useStable } from '../../util/useStable';
 import { offerSubmission } from '../../model/submissions';
-import { currentRevision } from '../../model/revisions';
+import { currentRevision, revisionStamp } from '../../model/revisions';
 
 const noop = () => {};
 /** A table row with a status cell that is a warning or worse. */
@@ -251,18 +252,18 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
     <Page
       title="Study reports"
       intro="Reports for a submission: choose the scope (whole installation or selected boards) and the studies, then export. Calculations always cover the whole network; the report shows only the part you chose."
-      actions={
-        <>
-          {blockedWhy && <span className="m sr-why">{blockedWhy}</span>}
-          <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportExcel} title={blockedWhy ?? 'Excel: the result tables of each study (no SLDs, no method text)'}>{busy === 'xlsx' ? 'Exporting…' : 'Excel'}</button>
-          <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportWord} title={blockedWhy ?? 'Word (.docx): editable report — method, summary and tables (no SLDs)'}>{busy === 'docx' ? 'Exporting…' : 'Word'}</button>
-          <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportPack} title={blockedWhy ?? 'One PDF from the last calculation run: cover + project summary + this report with SLDs + every available panel schedule in scope, including MCC and EMCC MD forms; snapshot ID on every page'}>{busy === 'pack' ? 'Building…' : window.lvds?.files?.pdfBytes ? 'Issue package (PDF)' : 'Issue package · desktop app'}</button>
-          <button className="chip primary" disabled={blocked || !sections.length || !!busy} onClick={exportPdf} title={blockedWhy ?? `PDF: method, summary and tables of each study${setup.sld ? ', with an SLD of the chosen boards showing its results' : ''}`}>
-            {busy === 'pdf' ? 'Exporting…' : setup.separate && sections.length > 1 ? `Export ${sections.length} PDFs` : 'Export PDF'}
-          </button>
-        </>
-      }
     >
+      <ExportBar
+        scope={<>{scope.all ? 'Whole installation' : scope.roots.map((b) => b.id).join(', ')} · {sections.length} stud{sections.length === 1 ? 'y' : 'ies'}{setup.sld ? ' · with SLD' : ''}</>}
+        revision={revisionStamp(project)}
+        blocked={blockedWhy ?? (!sections.length ? 'Choose at least one study on the Studies tab.' : undefined)}>
+        <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportExcel} title={blockedWhy ?? 'Excel: the result tables of each study (no SLDs, no method text)'}>{busy === 'xlsx' ? 'Exporting…' : 'Excel'}</button>
+        <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportWord} title={blockedWhy ?? 'Word (.docx): editable report — method, summary and tables (no SLDs)'}>{busy === 'docx' ? 'Exporting…' : 'Word'}</button>
+        <button className="chip" disabled={blocked || !sections.length || !!busy} onClick={exportPack} title={blockedWhy ?? 'One PDF from the last calculation run: cover + project summary + this report with SLDs + every available panel schedule in scope, including MCC and EMCC MD forms; snapshot ID on every page'}>{busy === 'pack' ? 'Building…' : window.lvds?.files?.pdfBytes ? 'Issue package (PDF)' : 'Issue package · desktop app'}</button>
+        <button className="chip primary" disabled={blocked || !sections.length || !!busy} onClick={exportPdf} title={blockedWhy ?? `PDF: method, summary and tables of each study${setup.sld ? ', with an SLD of the chosen boards showing its results' : ''}`}>
+          {busy === 'pdf' ? 'Exporting…' : setup.separate && sections.length > 1 ? `Export ${sections.length} PDFs` : 'Export PDF'}
+        </button>
+      </ExportBar>
       {stale.length > 0 && <StaleBanner stale={stale} onRun={onRun} what="the report" />}
 
       <div className="tabs sr-tabs" role="tablist">
@@ -435,7 +436,7 @@ export default function StudyReportsView({ project, me, run, stale, onRun, onCha
       {tab === 'preview' && data && sections.length > 0 && (
         <section className="sr-preview">
           <p className="m">The report as it will print (single line diagrams are added on export; page header, footer and numbers are added to the PDF).</p>
-          <iframe title="Report preview" sandbox="" srcDoc={buildStudyReportHtml(calc, scope, sections, reportMeta, {}, basisOpt)} />
+          <PaperPreview title="Report preview" html={buildStudyReportHtml(calc, scope, sections, reportMeta, {}, basisOpt)} />
         </section>
       )}
       {tab === 'contents' && sections.length > 0 && (

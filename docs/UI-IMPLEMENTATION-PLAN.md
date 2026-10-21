@@ -9,8 +9,8 @@ Small, separately tested milestones on branch `ui/design-system`. No rebuild, no
 | 3 | Forms, buttons, dialogs, validation | ✅ done, verified |
 | 4 | Engineering tables and result displays | ✅ done, verified |
 | 5 | SLD editor interface | ✅ done, verified |
-| 6 | Report preview and export interface | next |
-| 7 | Final consistency review (both themes, every screen) | planned |
+| 6 | Report preview and export interface | ✅ done, verified |
+| 7 | Final consistency review (both themes, every screen) | next |
 
 ## 1 — Tokens and theme ✅
 
@@ -58,10 +58,11 @@ Small, separately tested milestones on branch `ui/design-system`. No rebuild, no
 - SLD results bar: ⚠ / ✓ / ✕ replaced with icons (the words stay).
 - **Export safety fix found during this milestone:** the SLD export, drawing sheets and study reports picked the drawing with `.sysdiag svg` (the first SVG in the diagram). With icons in the toolbar that would have exported an icon. The lookups now use `.sysdiag > svg` (the drawing is the diagram's direct child, also in the riser diagrams), the matching CSS rules too, and `SystemDiagram.export.test.tsx` renders the real SLD and fails if the export selector can reach a toolbar icon.
 
-## 6 — Reports and export
+## 6 — Reports and export ✅
 
-- One export panel pattern (format, scope, revision, destination) shared by Study reports, Export centre and SLD export.
-- Report preview frame consistent with paper size and margin guides.
+- `<ExportBar>` (`ui.tsx`): one export strip — **Scope**, **Revision** (what is printed on the documents), **Save to** (desktop: you choose the folder; browser: download / print dialog), then the formats with the primary last. Why export is blocked is written out, not only in a tooltip. Used by Study reports, Export centre, SLD export and the Calculation report. The forms behind them (studies, boards, title-block fields) stay where they were: rebuilding them into one form would risk what they export.
+- Export centre had two primary buttons; Zip of PDFs is now secondary, One PDF primary. SLD export: the disabled Revision box moved into the strip.
+- `<PaperPreview>` (`PaperPreview.tsx`): the report on its own paper size at true proportions, scaled to fit, with dashed page-margin guides and a label (e.g. "A4 landscape · margins 21 / 14 / 16 / 16 mm"). Size and margins are read from the report's own last unnamed `@page` rule, as the printer applies it, so the preview cannot disagree with the PDF. Only the preview copy gets the margins as screen padding; the exported HTML is unchanged (tested). Used by Study reports and the Calculation report. Paper is white in both themes.
 
 ## Decisions needing the owner
 

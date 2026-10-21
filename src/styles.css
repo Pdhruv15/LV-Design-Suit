@@ -233,7 +233,6 @@ table.schedule td,table.schedule th{padding:var(--space-1) var(--space-2)}
 .table-scroll>table tbody tr:hover td:first-child{background:color-mix(in srgb,var(--p2) 70%,var(--bg))}
 .table-scroll>table tr.total td:first-child{background:var(--p2)}
 tr.total td{background:var(--p2);font-weight:600}
-.report-preview{width:100%;height:70vh;border:1px solid var(--line);border-radius:8px;background:#fff}
 /* ---- Ribbon ---- */
 .ribbon{position:relative;z-index:20;background:var(--panel);border-bottom:1px solid var(--line)}
 .ribbon-tabs{display:flex;align-items:center;gap:var(--space-1);padding:var(--space-2) var(--gutter) 0;overflow-x:auto}
@@ -510,7 +509,6 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 .sr-fields input,.sr-save input{padding:4px 6px;font-size:var(--fs-sm)}
 .sr-type-list{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .sr-type-list .chip.on{background:var(--acc);color:var(--on-acc)}
-.sr-preview iframe{width:100%;height:70vh;border:1px solid var(--line);border-radius:6px;background:#fff}
 .sr-checks td{vertical-align:top}
 .sr-standards{display:grid;gap:3px;margin-top:8px;color:var(--mut);font-size:var(--fs-sm)}
 .sr-standards textarea,.sr-fields select{padding:4px 6px;font-size:var(--fs-sm);resize:vertical}
@@ -1620,3 +1618,22 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .u-flush{margin:0}
 .u-mb-2{margin-bottom:var(--space-2)}
 .u-mb-3{margin-bottom:var(--space-3)}
+/* Export strip (<ExportBar>): scope, revision, destination, then the formats with the primary one last. */
+.export-bar{display:grid;gap:var(--space-2);margin:0 0 var(--space-3);padding:var(--space-3);border:1px solid var(--line);border-radius:var(--radius-md);background:var(--panel)}
+.modal .export-bar{margin:var(--space-1) 0 0;padding:var(--space-3) 0 0;border-width:1px 0 0;border-radius:0;background:none}
+.export-facts{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-5);margin:0;font-size:var(--fs-sm)}
+.export-facts div{display:flex;gap:var(--space-2);min-width:0}
+.export-facts dt{color:var(--mut)}
+.export-facts dd{margin:0;min-width:0}
+.export-blocked,.export-note{display:flex;align-items:center;gap:var(--space-1);margin:0;font-size:var(--fs-sm)}
+.export-blocked{color:var(--warn)}
+.export-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2)}
+/* Report preview (<PaperPreview>): the report on its own paper size, scaled to fit, with dashed page-margin guides.
+   Paper is white in both themes on purpose (as drawing sheets). */
+.paper-preview{margin:0}
+.paper-preview figcaption{margin:0 0 var(--space-1);font-size:var(--fs-xs)}
+.paper-desk{display:flex;justify-content:center;height:70vh;padding:16px;overflow:hidden;background:var(--p2);border:1px solid var(--line);border-radius:var(--radius-md)}
+.paper-sheet{position:relative;flex:none;transform-origin:top center;background:#fff;box-shadow:var(--shadow-paper)}
+.paper-sheet iframe{display:block;width:100%;height:100%;border:0;background:#fff}
+.paper-guides{position:absolute;pointer-events:none;border:1px dashed rgba(26,102,201,.6);border-bottom:0}
+

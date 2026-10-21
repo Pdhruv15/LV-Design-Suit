@@ -65,6 +65,8 @@ Headings: page 18 px semibold (`.stage-head h3`), dialog 16 px, card 13 px semib
 | Table | plain `table`; `th.num`/`td.num` right-aligned; `tr.sel` selected; `tr.total` | 32 px rows everywhere (also `.gx`, `.schedule`, `.compact`), 11 px semibold headers in written case — never uppercase (units) |
 | Wide schedule | `<div className="table-scroll"><table>` | header row and first column sticky; the box scrolls, not the page |
 | Study summary | `<ResultCards><ResultCard label value status sub onClick>` | worst case first, then limit / counts; status = colour + word; click goes to the worst item |
+| Export | `<ExportBar scope revision blocked lead>` + format buttons | scope, revision, save to, formats; one primary, last; blocked reason in words |
+| Report preview | `<PaperPreview html title>` | paper size and margins from the report's own `@page`; dashed margin guides; never edits the exported HTML |
 
 Figma has matching component sets for Button, Input, Status badge, Tab, Nav item and Table cell.
 

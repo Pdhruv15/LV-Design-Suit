@@ -166,3 +166,21 @@ Environment: macOS (Apple silicon), 21 Oct 2026. Base: milestone 4 (`bb5e2b5`).
 
 - A PDF / DXF export started from the SLD export dialog in the GUI (covered by the unit test of the lookup and by the PDF suite's sheet exports).
 - Electron desktop window and Windows not checked.
+
+## Milestone 6 — reports and export
+
+Environment: macOS (Apple silicon), 21 Oct 2026. Base: milestone 5 (`dc71cdc`).
+
+| Check | Result |
+|---|---|
+| TypeScript, lint, build | clean ✅ |
+| Unit tests (`npm test`) | **1685 / 1685** (4 new in `PaperPreview.test.tsx`: page read from `@page`, named pages ignored, fallback, exported HTML untouched) ✅ |
+| PDF/DXF suite (`npm run test:pdf`) | **31 / 31**, darwin baselines ✅ |
+| Calculation / export code changed | none (export functions and their HTML untouched; only the buttons moved) ✅ |
+
+**In the running app** (web version, sample project, 1440 × 900): the strip shows Scope, Revision, Save to and the formats on Calculation report, Study reports (Excel, Word, Issue package, Export PDF primary), Export centre (One PDF primary; the "needs the desktop app" reason shown in words) and the SLD export dialog (Save details, SVG, DXF A3, PDF A3 primary). Calculation report preview: A4 landscape sheet, 1123 px wide at 100 %, margin guides, label "A4 landscape · margins 21 / 14 / 16 / 16 mm".
+
+### Not yet verified
+
+- Exports were not run from the GUI in this milestone (the export functions did not change; the PDF suite passes).
+- The desktop "Save to" wording was not seen in Electron (the web wording was).
