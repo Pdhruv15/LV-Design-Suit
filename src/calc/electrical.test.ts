@@ -11,6 +11,7 @@ import {
   voltageDropPct,
   zMagnitude
 } from './electrical';
+import { suggestCable } from './voltageDrop';
 import type { Feeder, Project } from '../types';
 
 const SQRT3 = Math.sqrt(3);
@@ -83,6 +84,11 @@ describe('transformer and fault level', () => {
     expect(r.endFaultKA).toBeLessThan(25);
     expect(r.icuStatus).toBe('bad');
     expect(r.status).toBe('bad');
+  });
+
+  it('treats an ideal zero-impedance source as an unbounded fault level', () => {
+    // Ik″ = c × U / (√3 × |Z|); as |Z| → 0, Ik″ → ∞.
+    expect(faultCurrentKA({ r: 0, x: 0 }, 415)).toBe(Infinity);
   });
 });
 
@@ -174,5 +180,22 @@ describe('cable selection', () => {
 
   it('returns null when nothing fits', () => {
     expect(selectCable(500, 2000, 415, 4, 0.85, 45, 4)).toBeNull();
+  });
+
+  it('selects the first cable that satisfies both Iz and voltage drop', () => {
+    // At 45 °C: Iz(35) = 168 × 0.87 = 146.16 A, but ΔV(35) = √3 × 100 × 0.1 × (0.524 × 1.2) / 415 = 2.62 %;
+    // 50 mm² gives ΔV = √3 × 100 × 0.1 × (0.387 × 1.2) / 415 = 1.94 %, so it is the first size within 2 %.
+    expect(selectCable(100, 100, 415, 4, 1, 45, 2, 100)).toBe(50);
+  });
+});
+
+describe('voltage-drop cable suggestion', () => {
+  it('returns the hand-checked first larger cable within the total limit', () => {
+    const f = feeder({ loadKw: kwFor(100, 1), powerFactor: 1, lengthM: 100, cableCsaMm2: 25 });
+    const p = { ...project([f]), vdLimitPct: 2 };
+    const result = suggestCable(p, f)!;
+    // 35 mm² gives 2.62 %; 50 mm² gives √3 × 100 A × 0.1 km × 0.4644 Ω/km / 415 V × 100 = 1.94 %.
+    expect(result.csaMm2).toBe(50);
+    expect(result.totalPct).toBeCloseTo(1.938, 3);
   });
 });
