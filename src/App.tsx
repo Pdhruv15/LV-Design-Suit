@@ -2,7 +2,7 @@ import { pickProject } from './model/projectStore';
 import { autoCheckpoint } from './model/checkpoints';
 import { chooseProjectFile, downloadProjectFile } from './util/webApp';
 import WebBanner from './components/WebBanner';
-import { ask as askUser, askText, ConfirmHost, tell } from './components/ConfirmDialog';
+import { ask as askUser, askForm, askText, ConfirmHost, tell } from './components/ConfirmDialog';
 import { CircleCheck, Play, TriangleAlert, X } from 'lucide-react';
 import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Feeder, Board, Project, newProject } from './types';
@@ -90,7 +90,7 @@ import { useHistory } from './model/history';
 import { runCalculations, staleStudies, STUDY_LABEL, type CalcRun } from './calc/runs';
 import { StaleBanner } from './components/ui';
 import { generatorScenario, transformerOutage, type SupplyMode } from './calc/scenario';
-import { removeTie } from './model/sldEdit';
+import { removeTie, TIE_OPERATION, tieRatings, updateTie } from './model/sldEdit';
 import type { ColorBy } from './diagram/heatmap';
 import { applyMove, dropMany, libraryEntries, type DropResult, type DropTarget, type MoveItem, type PaletteItem } from './model/sldEdit';
 import EquipmentPalette from './components/EquipmentPalette';
@@ -1339,10 +1339,28 @@ export default function App() {
                       setStatus(`${boardId} moved to ${set.sheets.find((x) => x.id === sheetId)?.number}`);
                     } : undefined}
                     onDrawing={(d) => setProject((p) => ({ ...p, drawing: { ...p.drawing, ...d } }))}
-                    onRemoveTie={async (id) => {
-                      if (!(await askUser({ title: `Remove bus coupler ${id}?`, confirmLabel: 'Remove', danger: true }))) return;
-                      setProject(removeTie(project, id), { step: true });
-                      setStatus(`Removed bus coupler ${id}`);
+                    onEditTie={async (id) => {
+                      const t = project.ties?.find((x) => x.id === id);
+                      if (!t) return;
+                      const r = await askForm({
+                        title: `Bus coupler ${id}`, message: `${t.a} ↔ ${t.b}`, confirmLabel: 'Apply',
+                        fields: [
+                          { key: 'op', label: 'Operation', required: true, options: Object.values(TIE_OPERATION), initial: t.closed ? TIE_OPERATION.closed : TIE_OPERATION.open,
+                            hint: 'Normally closed: the busbar fault is from both transformers and they share the load (checked in Transformer & generator)' },
+                          { key: 'rating', label: 'Rating', required: true, options: tieRatings(t.ratingA), initial: `${t.ratingA} A` }
+                        ]
+                      });
+                      if (!r) return;
+                      if (r.op === TIE_OPERATION.remove) {
+                        if (!(await askUser({ title: `Remove bus coupler ${id}?`, confirmLabel: 'Remove', danger: true }))) return;
+                        setProject(removeTie(project, id), { step: true });
+                        setStatus(`Removed bus coupler ${id}`);
+                        return;
+                      }
+                      const closed = r.op === TIE_OPERATION.closed, ratingA = parseInt(r.rating, 10) || t.ratingA;
+                      if (closed === !!t.closed && ratingA === t.ratingA) return;
+                      setProject((p) => updateTie(p, id, { closed, ratingA }), { step: true });
+                      setStatus(`${id}: ${ratingA} A, ${closed ? 'normally closed — transformers in parallel' : 'normally open'} (undo with ⌘Z)`);
                     }}
                     onDropItem={dropItem}
                     onMoveItem={moveItem}

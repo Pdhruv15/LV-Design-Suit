@@ -1,5 +1,5 @@
 import { selectCable } from '../calc/electrical';
-import { applyRecommendation, generatorForBoard, generatorChoiceForBoard, recommend, sizePfc } from '../calc/sizing';
+import { applyRecommendation, generatorForBoard, generatorChoiceForBoard, recommend, sizePfc, STANDARD_BREAKER_A } from '../calc/sizing';
 import type { LibraryLoad } from '../database/database';
 import { BOARD_KINDS, settingsOf, type Board, type BoardKind, type Feeder, type LoadType, type Project, type StarterType } from '../types';
 import { isMotor, STARTERS } from '../calc/motor';
@@ -487,6 +487,26 @@ export function tiePartner(project: Project, boardId: string): Board | undefined
 }
 
 export const removeTie = (project: Project, id: string): Project => ({ ...project, ties: (project.ties ?? []).filter((t) => t.id !== id) });
+
+/** The coupler dialog's choices: operation (or removal) and the standard ratings from 400 A, with the present one. */
+export const TIE_OPERATION = {
+  open: 'Normally open — closes when one transformer is out',
+  closed: 'Normally closed — transformers in parallel',
+  remove: 'Remove this coupler'
+} as const;
+export const tieRatings = (ratingA: number): string[] =>
+  [...new Set([...STANDARD_BREAKER_A.filter((a) => a >= 400), ratingA])].sort((x, y) => x - y).map((a) => `${a} A`);
+
+/** Sets a coupler's rating or operation: `closed` = normally closed (transformers in parallel); open drops the flag. */
+export const updateTie = (project: Project, id: string, patch: { ratingA?: number; closed?: boolean }): Project => ({
+  ...project,
+  ties: (project.ties ?? []).map((t) => {
+    if (t.id !== id) return t;
+    const { closed: _closed, ...rest } = t;
+    const closed = patch.closed ?? t.closed;
+    return { ...rest, ratingA: patch.ratingA ?? t.ratingA, ...(closed ? { closed: true } : {}) };
+  })
+});
 
 /** Where an item can go, for when it's dropped somewhere it can't. */
 export function dropHint(item: PaletteItem): string {
