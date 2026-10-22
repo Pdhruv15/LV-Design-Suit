@@ -20,9 +20,24 @@ export function dssName(s: string): string {
   return s.replace(/[^A-Za-z0-9_-]/g, '_');
 }
 
+/** Stable, case-insensitively unique OpenDSS names for project identifiers. */
+export function uniqueDssNames(ids: string[]): Map<string, string> {
+  const out = new Map<string, string>();
+  const used = new Set<string>();
+  for (const id of ids) {
+    if (out.has(id)) continue;
+    const base = dssName(id) || '_';
+    let name = base;
+    for (let n = 2; used.has(name.toLowerCase()); n++) name = `${base}_${n}`;
+    used.add(name.toLowerCase());
+    out.set(id, name);
+  }
+  return out;
+}
+
 const fmt = (n: number, digits = 6) => Number(n.toFixed(digits)).toString();
-const busbar = (boardId: string) => `bb_${dssName(boardId)}`;
-const loadBus = (feederId: string) => `ld_${dssName(feederId)}`;
+const busbar = (boardName: string) => `bb_${boardName}`;
+const loadBus = (feederName: string) => `ld_${feederName}`;
 const isSinglePhase = (f: Feeder) => f.cores === 2;
 const lineCodeName = (csa: number, singlePhase: boolean, runs = 1) => `cu${String(csa).replace('.', 'p')}_${singlePhase ? '1ph' : '3ph'}${runs > 1 ? `_x${runs}` : ''}`;
 
@@ -36,6 +51,10 @@ export function exportDss(project: Project): DssExport {
   const kvLL = project.voltageV / 1000;
   const kvLN = kvLL / Math.sqrt(3);
   const out: string[] = [];
+  const boardNames = uniqueDssNames(project.boards.map((b) => b.id));
+  const feederNames = uniqueDssNames(project.feeders.map((f) => f.id));
+  const boardName = (id: string) => boardNames.get(id) ?? dssName(id);
+  const feederName = (id: string) => feederNames.get(id) ?? dssName(id);
 
   out.push(
     `! LV Design Studio — OpenDSS export`,
@@ -73,7 +92,7 @@ export function exportDss(project: Project): DssExport {
     const rPct = b.sourceImpedancePct / Math.sqrt(1 + xr * xr);
     const xPct = rPct * xr;
     out.push(
-      `New Transformer.TX_${dssName(b.id)} phases=3 windings=2 buses=[sourcebus ${busbar(b.id)}] conns=[delta wye] ` +
+      `New Transformer.TX_${boardName(b.id)} phases=3 windings=2 buses=[sourcebus ${busbar(boardName(b.id))}] conns=[delta wye] ` +
         `kVs=[${MV_KV} ${fmt(kvLL)}] kVAs=[${b.sourceKva} ${b.sourceKva}] XHL=${fmt(xPct, 4)} %loadloss=${fmt(rPct, 4)} %noloadloss=0 %imag=0`
     );
   }
@@ -108,12 +127,12 @@ export function exportDss(project: Project): DssExport {
     const single = isSinglePhase(f);
     const phases = single ? 1 : 3;
     const nodes = single ? '.1' : '';
-    const toBus = f.feedsBoardId ? busbar(f.feedsBoardId) : loadBus(f.id);
-    const name = dssName(f.id);
+    const toBus = f.feedsBoardId ? busbar(boardName(f.feedsBoardId)) : loadBus(feederName(f.id));
+    const name = feederName(f.id);
 
     out.push(`! ${f.id} — ${f.name}`);
     out.push(
-      `New Line.${name} phases=${phases} bus1=${busbar(f.boardId)}${nodes} bus2=${toBus}${nodes} ` +
+      `New Line.${name} phases=${phases} bus1=${busbar(boardName(f.boardId))}${nodes} bus2=${toBus}${nodes} ` +
         `linecode=${lineCodeName(f.cableCsaMm2, single, runsOf(f))} length=${fmt(f.lengthM, 3)} units=m`
     );
 
@@ -124,13 +143,13 @@ export function exportDss(project: Project): DssExport {
 
     const kv = single ? kvLN : kvLL;
     if (f.kvar) {
-      out.push(`New Capacitor.${name} bus1=${loadBus(f.id)}${nodes} phases=${phases} kv=${fmt(kv, 4)} kvar=${fmt(f.kvar, 3)}`);
+      out.push(`New Capacitor.${name} bus1=${loadBus(name)}${nodes} phases=${phases} kv=${fmt(kv, 4)} kvar=${fmt(f.kvar, 3)}`);
       continue;
     }
     const kw = f.loadKw * f.demandFactor;
     const element = f.generation ? 'Generator' : 'Load';
     out.push(
-      `New ${element}.${name} bus1=${loadBus(f.id)}${nodes} phases=${phases} kv=${fmt(kv, 4)} kW=${fmt(kw, 3)} pf=${fmt(f.powerFactor, 3)} model=1`
+      `New ${element}.${name} bus1=${loadBus(name)}${nodes} phases=${phases} kv=${fmt(kv, 4)} kW=${fmt(kw, 3)} pf=${fmt(f.powerFactor, 3)} model=1`
     );
   }
   out.push(``);
