@@ -14,19 +14,21 @@ Principles, for engineering software used for hours at a time:
 
 | Token | Role | Dark | Light |
 |---|---|---|---|
-| `--bg` | canvas, diagram background | `#0a1120` | `#f4f6fa` |
+| `--bg` | canvas, diagram background | `#0a1120` | `#f5f6f8` |
 | `--panel` | header, sidebar, cards, dialogs | `#0f1a2f` | `#ffffff` |
-| `--p2` | raised: inputs, chips, hover rows | `#14233f` | `#eef2f8` |
-| `--line` / `--line-strong` | dividers / hover edges | `#20304f` / `#2f4570` | `#d5dce8` / `#b4c0d4` |
-| `--field-line` | form control edge (≥3:1) | `#52709f` | `#74839c` |
-| `--tx` / `--mut` | text / secondary text | `#dbe4f5` / `#8093b5` | `#142035` / `#505f77` |
-| `--acc` / `--on-acc` | primary action, selection, focus / text on it | `#4aa8ff` / `#04101f` | `#1a66c9` / `#ffffff` |
-| `--ok` `--warn` `--bad` | pass / check / fail | `#37d67a` `#f5c04a` `#ff5d6c` | `#116b30` `#8f5606` `#c81e3a` |
+| `--p2` | raised: inputs, chips, hover rows | `#14233f` | `#f0f2f5` |
+| `--line` / `--line-strong` | dividers / hover edges | `#20304f` / `#2f4570` | `#dde1e7` / `#c4cad3` |
+| `--field-line` | form control edge (≥3:1) | `#52709f` | `#7c8594` |
+| `--tx` / `--mut` | text / secondary text | `#dbe4f5` / `#8093b5` | `#1f2733` / `#59636f` |
+| `--acc` / `--on-acc` | primary action, selection, focus / text on it | `#4aa8ff` / `#04101f` | `#1f69c9` / `#ffffff` |
+| `--ok` `--warn` `--bad` | pass / check / fail | `#37d67a` `#f5c04a` `#ff5d6c` | `#177336` `#8a5d00` `#cf222e` |
 | `--bus` | SLD busbars, board group labels | `#ffb347` | `#a64b07` |
 | `--res-cur` `--res-fault` `--res-pf` | SLD result labels | | |
 | `--ph-r` `--ph-y` `--ph-b` `--ph-ryb` | phase colours | | |
 | `--curve-1` … `--curve-8` | chart series (protection curves) | original curve colours | darker, ≥ 4.8:1 on white |
 | `--backdrop`, `--shadow-pop`, `--shadow-modal`, `--shadow-palette`, `--shadow-paper`, `--row-sub` | overlays and elevation | | |
+
+**Light theme (v2, Oct 2026):** neutral cool greys, body text about 15:1 rather than near-black, status colours close to common GitHub/Fluent values. Proposal frame: Figma *Screens* page, "Light theme v2 (proposal)".
 
 **Contrast** (checked by `src/theme/tokens.test.ts` on every test run): all text tokens are ≥4.5:1 on `--bg`, `--panel` and `--p2` in both themes; `--field-line` is ≥3:1 on `--panel` and `--p2`.
 
@@ -53,7 +55,7 @@ Headings: page 18 px semibold (`.stage-head h3`), dialog 16 px, card 13 px semib
 | Button | `button.chip` | Secondary by default. `.chip.primary` once per view and last in a dialog. `.chip.bad-btn` for destructive actions. `.chip.sm` inside tables. |
 | Segmented control | `.seg > button(.on)` | 2–4 mutually exclusive views. One definition (was two). |
 | Tabs | `.tabs > button(.on)` | accent text + 2 px underline |
-| Ribbon | `<Ribbon>` | every group has a caption (`CAPTIONS`, tested); selected tab is a solid fill; the project's current stage is a `.stage-now` badge, never a fill |
+| Ribbon | `<Ribbon>` | every group has a caption (`CAPTIONS`, tested); selected tab is a solid fill (light theme: the tab takes the tool-strip colour with a 2 px accent top edge, and the active tool is an accent tint, so there are no large solid-blue blocks on white); the project's current stage is a `.stage-now` badge, never a fill |
 | Icons in chrome | `lucide-react` | no Unicode glyphs (▾ ● ⚠ ✕ ✓ ▶) as icons; state in words beside the icon (`sub: 'unsaved'`) |
 | Input / select | plain `input`, `select` | base style is zero-specificity (`:where`) so grids stay compact; full height inside `.modal`, `.form-kv`, toolbars |
 | Number with unit | `<NumField>` (`ui.tsx`) | commits on Enter/blur; unit shown after the box |
