@@ -15,6 +15,7 @@ import { boardSummary, boardsInSupplyOrder } from '../calc/summary';
 import { settingsOf } from '../calc/sizing';
 import { planPfc, pfcPlanOf, STRATEGY_LABEL } from '../calc/pfc';
 import { sizeGeneratorByBoards, sizeTransformers, txGenPlanOf, type TxRow } from '../calc/txGen';
+import { parallelOperation } from '../calc/parallelTx';
 import { MATERIAL_LABEL, sizeRiser } from '../calc/busbar';
 import { motorStartVdLimit, vdRow, type VdRow } from '../calc/voltageDrop';
 import { incomerBasis } from '../calc/electrical';
@@ -192,6 +193,7 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
       method: [
         'Maximum prospective symmetrical 3-phase fault current Ik″, simplified method based on IEC 60909-0 (preliminary — not a full IEC 60909 study): voltage factor c max = 1.05, cable R at 20 °C, upstream MV network infinite, transformer correction factor KT not applied.',
         'Source impedance from the transformer rating and %Z (split by its X/R ratio); cable R at 20 °C and X per km; parallel runs divide the impedance.',
+        ...((p.ties ?? []).some((t) => t.closed) ? ['Main boards joined by a closed bus coupler: the transformers run in parallel and their impedances combine (coupler impedance neglected), so the busbar fault is from all of them together.'] : []),
         'Breaking capacity check: the fault at the breaker terminals (supply busbar) must not exceed the breaker Icu. Fault at the cable end: 3-phase for 3/4-core circuits, line-to-neutral for 2-core.',
         'Motor contribution and generation are neglected.'
       ],
@@ -358,6 +360,7 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
     const plan = txGenPlanOf(p);
     const tx = sizeTransformers(p, plan).filter((r) => scope.ids.has(r.board.id));
     const gen = sizeGeneratorByBoards(p, plan);
+    const par = parallelOperation(p).filter((g) => g.boards.some((id) => scope.ids.has(id)));
     const txStatus = (r: TxRow): Status => (r.adequate === false ? 'bad' : r.outage && !r.outage.ok ? 'warn' : r.checks && (r.checks.icuOk === false || r.checks.busbarOk === false) ? 'warn' : 'ok');
     // A generator demand above the largest standard set is a failure, never left out.
     const genNeeded = gen.demandKw > 0 || gen.recommendedKva !== undefined;
@@ -365,7 +368,7 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
     const genStatus: Status | undefined = !genNeeded ? undefined : genTooBig || gen.installedOk === false ? 'bad' : 'ok';
     const genSize = genTooBig ? `${n(Math.max(gen.runningDesignKva, gen.startDesignKva), 0)} kVA needed (${gen.governing}) — above the largest standard set` : `${gen.recommendedKva} kVA / ${n(gen.recommendedKw ?? 0, 0)} kW`;
     const genScope = scope.all ? '' : ' (sized for the whole installation — the generator is shared)';
-    const statuses = [...tx.map(txStatus), ...(genStatus ? [genStatus] : [])];
+    const statuses = [...tx.map(txStatus), ...par.map((g) => g.status), ...(genStatus ? [genStatus] : [])];
     const pfcTaken = tx.some((r) => r.pfcKvar > 0);
     return {
       key, title: info.title, statuses,
@@ -373,6 +376,7 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
         `Transformer per main board: maximum demand${pfcTaken ? ' (after the planned power factor correction)' : ''} × (1 + ${set.futureGrowthPct} % growth) ÷ ${set.transformerMaxLoadingPct} % design loading, next ${plan.sizeList === 'dewa' ? 'DEWA standard size (500 / 1000 / 1500 kVA)' : 'IEC standard size'}.`,
         'For that size: full-load current and main breaker, LV fault level (typical IEC 60076-5 impedance, infinite MV source), voltage regulation at the design demand.',
         `Bus couplers: with one transformer out, the other carries both boards up to ${plan.emergencyLoadingPct} % of its rating. Duty / standby: two transformers, each for the whole load.`,
+        ...(par.length ? ['Transformers in parallel (closed bus coupler), IEC 60076-8: the joined demand is shared in proportion to kVA ÷ uk %; each share within the design loading; the coupler carries what one side supplies beyond its own load. Same vector group required; uk % within 10 % and ratings within 2 : 1 for even sharing; same voltage ratio and tap position assumed. The busbar fault is from all the transformers together; the earth fault loop keeps one transformer (coupler open, the minimum fault).'] : []),
         `Standby generator from the boards on it (share of each), plus circuits marked essential. The set must carry the running kVA and the running kW at ${set.generatorMaxLoadingPct} % loading: rating ≥ max(kVA ÷ ${set.generatorMaxLoadingPct / 100}, kW ÷ (0.8 × ${set.generatorMaxLoadingPct / 100})), with rated kW = 0.8 × rated kVA unless the Generators list gives the set's kW; or larger if the largest motor, started last, would dip the voltage over ${MOTOR_START_DIP_LIMIT_PCT} % (X′d ${GENERATOR_XD_TRANSIENT_PCT} %).`
       ],
       summary: [
@@ -388,6 +392,13 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
             r.checks ? `${n(r.checks.flcA, 0)} A · ${r.checks.acbA} A` : '—',
             r.checks ? `${n(r.checks.faultKa, 1)} · ${r.checks.minIcuKa ?? '—'}` : '—',
             r.checks ? `${n(r.checks.regulationPct, 1)} %` : '—', S(txStatus(r))]) },
+        ...par.flatMap((g) => [{ title: `Transformers in parallel — ${g.boards.join(' + ')}`, headers: ['Transformer', 'Rating · uk', 'Vector group', 'Section load (kVA)', 'Share (kVA)', 'Loading', 'Result'],
+          rows: [
+            ...g.transformers.map((t) => [t.boardId, `${t.kva} kVA · ${t.impedancePct} %`, t.vectorGroup, n(t.sectionKva, 0), n(t.shareKva, 0), `${n(t.loadingPct, 0)} %`, S(t.status)]),
+            ...g.couplers.map((c) => [`Coupler ${c.tie.id}`, `${c.tie.ratingA} A`, `${c.tie.a} ↔ ${c.tie.b}`, '—', c.currentA !== undefined ? `${n(c.currentA, 0)} A` : 'ring — not worked out', c.loadingPct !== undefined ? `${n(c.loadingPct, 0)} %` : '—', S(c.status)]),
+            ['Joined busbar', `${n(g.demandKva, 0)} kVA demand`, '—', '—', '—', `fault ${n(g.faultKA, 1)} kA`, S('ok')],
+            ...g.conditions.map((c) => ['Condition', c.text, '—', '—', '—', '—', S(c.status)])
+          ] }]),
         ...(tx.some((r) => r.outage) ? [{ title: 'Bus coupler — one transformer out', headers: ['Transformer', 'Also carries', 'Load (kVA)', 'Of its rating', 'Result'],
           rows: tx.filter((r) => r.outage).map((r) => [r.board.id, r.outage!.with, n(r.outage!.kva, 0), r.outage!.pctOfRecommended !== undefined ? `${n(r.outage!.pctOfRecommended, 0)} %` : '—', S(r.outage!.ok ? 'ok' : 'warn')]) }] : []),
         ...(genNeeded ? [

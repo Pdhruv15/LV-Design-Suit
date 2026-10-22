@@ -278,13 +278,41 @@ export function impedanceToBoard(project: Project, boardId: string, seen = new S
   return memoized(project, `zUp:${boardId}`, () => impedanceToBoardOf(project, board, seen));
 }
 
+/** Main boards joined to this one by closed bus couplers (transformers in
+ * parallel), this one first. Only main boards with transformer data take part;
+ * a board without closed ties is alone. */
+export function parallelGroup(project: Project, boardId: string): Board[] {
+  const fed = (id: string) => project.boards.find((b) => b.id === id && !b.upstreamId && b.sourceKva && b.sourceImpedancePct);
+  const first = fed(boardId);
+  if (!first) return [];
+  const group = [first];
+  for (let i = 0; i < group.length; i++) {
+    for (const t of project.ties ?? []) {
+      if (!t.closed || (t.a !== group[i].id && t.b !== group[i].id)) continue;
+      const other = fed(t.a === group[i].id ? t.b : t.a);
+      if (other && !group.includes(other)) group.push(other);
+    }
+  }
+  return group;
+}
+
+/** Source impedance of transformers in parallel: 1 / Σ (1 / Zi), as phasors. */
+export function parallelZ(zs: Impedance[]): Impedance {
+  let g = 0, b = 0;
+  for (const z of zs) { const m = z.r * z.r + z.x * z.x; g += z.r / m; b -= z.x / m; }
+  const m = g * g + b * b;
+  return { r: g / m, x: -b / m };
+}
+
 function impedanceToBoardOf(project: Project, board: Board, seen: Set<string>): Impedance {
   const fallback = { r: 0, x: 0.01 };
 
   if (!board.upstreamId) {
-    return board.sourceKva && board.sourceImpedancePct
-      ? transformerImpedance(board.sourceKva, board.sourceImpedancePct, project.voltageV, board.sourceXr)
-      : fallback;
+    if (!board.sourceKva || !board.sourceImpedancePct) return fallback;
+    // A closed coupler joins the busbars: every transformer on them feeds a fault (couplers taken as 0 Ω).
+    const group = parallelGroup(project, board.id);
+    const zs = group.map((b) => transformerImpedance(b.sourceKva!, b.sourceImpedancePct!, project.voltageV, b.sourceXr));
+    return zs.length > 1 ? parallelZ(zs) : transformerImpedance(board.sourceKva, board.sourceImpedancePct, project.voltageV, board.sourceXr);
   }
 
   const incomer = findIncomer(project, board);
