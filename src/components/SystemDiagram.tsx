@@ -32,6 +32,8 @@ import { evaluateEarthingAll } from '../calc/earthing';
 import { earthingLayout } from '../model/earthingPlan';
 import { INCOMER_DEVICES, incomerDeviceOf, type Board, type Feeder } from '../types';
 import { getDragItem, setDragItem } from '../diagram/dragItem';
+import { CO_GEN_REACH, ChangeoverIncomers } from '../diagram/ChangeoverSym';
+import { atsLines, atsOf, changeoverBreakers, isInterlocked } from '../model/changeover';
 
 interface Tag {
   text: string;
@@ -304,13 +306,15 @@ export default function SystemDiagram({
     }
     return slots;
   }, [layout]);
+  /** Where each board box hangs from (higher than its busbar on a mains / generator changeover). */
+  const headOf = useMemo(() => new Map(layout.boards.map((n) => [n.board.id, n.headY])), [layout]);
   /** Box around these panels: board box, summary box, busbar and outgoing ways. */
   const boardsBox = (ids: string[], pad: number) => {
     const ns = layout.boards.filter((n) => ids.includes(n.board.id));
     if (!ns.length) return null;
     const x1 = Math.min(...ns.map((n) => (n.terminal ? n.x - 66 : n.busX1 - 12))) - pad;
-    const x2 = Math.max(...ns.map((n) => (n.terminal ? n.x + 135 : Math.max(n.busX2 + 12, n.x + 135)))) + pad;
-    const y1 = Math.min(...ns.map((n) => n.busY - (dewa ? 165 : 70))) - pad;
+    const x2 = Math.max(...ns.map((n) => (n.terminal ? n.x + 135 : Math.max(n.busX2 + 12, n.x + 135, n.genX !== undefined ? n.genX + CO_GEN_REACH + 5 : -Infinity)))) + pad;
+    const y1 = Math.min(...ns.map((n) => n.headY - (dewa ? 165 : 70))) - pad;
     const y2 = Math.max(...ns.map((n) => n.busY + (n.terminal ? 10 : 120))) + pad;
     return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
   };
@@ -779,7 +783,7 @@ export default function SystemDiagram({
           return (
             <g key={`from-${r.board.id}`} className="from-up">
               <path d={`M${r.x - 7} 60 L${r.x} 72 L${r.x + 7} 60`} className="ln" />
-              <line x1={r.x} y1="40" x2={r.x} y2={r.busY - 58} className="ln" />
+              <line x1={r.x} y1="40" x2={r.x} y2={r.headY - 58} className="ln" />
               <text className="b" x={r.x + 14} y="46">From {r.board.upstreamId}{fromSheet?.[r.board.id] ? ` — sheet ${fromSheet[r.board.id]}` : ''}</text>
               {inc && <text className="m" x={r.x + 14} y="60">{inc.id}: {cableSizeText(inc)}, {inc.lengthM} m · {inc.breakerRatingA} A</text>}
             </g>
@@ -798,8 +802,8 @@ export default function SystemDiagram({
               </>
             ) : <text className="m" x={r.x + 24} y="76">{r.board.supply.ratingA ? `${r.board.supply.ratingA} A ${r.board.supply.device ?? ''}` : 'meter cabinet'}{r.board.supply.meter ? ` · ${r.board.supply.meter} meter` : ''}</text>}
             <line x1={r.x} y1="34" x2={r.x} y2="52" className="ln" />
-            <line x1={r.x} y1="78" x2={r.x} y2={r.busY - 58} className="ln" />
-            <text className="m" x={r.x - 8} y={r.busY - 72} textAnchor="end">{project.voltageV} V</text>
+            <line x1={r.x} y1="78" x2={r.x} y2={r.headY - 58} className="ln" />
+            <text className="m" x={r.x - 8} y={r.headY - 72} textAnchor="end">{project.voltageV} V</text>
           </g>
         ) : (
           <g key={`tx-${r.board.id}`} className="tx" data-lv-id={`board:${r.board.id}`} onDoubleClick={edit(onEditBoard, r.board.id)}>
@@ -812,8 +816,8 @@ export default function SystemDiagram({
               {r.board.sourceKva ? `${r.board.sourceKva} kVA · ${r.board.sourceImpedancePct ?? '—'}% Z` : 'no source data'}
             </text>
             {r.board.sourceKva && <text className="m" x={r.x + 24} y="113">{r.board.vectorGroup ?? 'Dyn11'} · 11 / {(project.voltageV / 1000).toFixed(3)} kV</text>}
-            <line x1={r.x} y1="114" x2={r.x} y2={r.busY - 58} className="ln" />
-            <text className="m" x={r.x - 8} y={r.busY - (dewa ? 96 : protectionOf(r.board) ? 84 : 72)} textAnchor="end">{project.voltageV} V</text>
+            <line x1={r.x} y1="114" x2={r.x} y2={r.headY - 58} className="ln" />
+            <text className="m" x={r.x - 8} y={r.headY - (dewa ? 96 : protectionOf(r.board) ? 84 : 72)} textAnchor="end">{project.voltageV} V</text>
             {scenario?.outage?.failedId === r.board.id && (
               <g className="failed-tx">
                 <line x1={r.x - 20} y1="68" x2={r.x + 20} y2="116" />
@@ -846,7 +850,7 @@ export default function SystemDiagram({
           const sp = b.earthing?.spacingM ?? 6;
           const ids = lvIds?.length === pits ? ` · ${lvIds.join(', ')}` : '';
           // MET: a bar inside the main board's frame, right of its name box.
-          const nb = nameBox(b, r), y1 = nb.top;
+          const nb = nameBox(b, { ...r, busY: r.headY }), y1 = nb.top;
           const runX = ox + 116;
           const metX1 = Math.max(runX - 25, r.busX1 - 7 + nb.w + 13), metY = y1 + 20;
           const metMid = metX1 + 25;
@@ -967,7 +971,7 @@ export default function SystemDiagram({
           const status = r?.status ?? 'ok';
           const sel = f.id === selectedFeederId;
           const y = n.busY;
-          const endY = n.childBoardId ? y + layout.levelH - 58 : y + 76;
+          const endY = n.childBoardId ? (headOf.get(n.childBoardId) ?? y + layout.levelH) - 58 : y + 76;
           const tagY = dewa ? 16 : 0; // DEWA: cable text takes two lines
           const cadSlot = cadSlots.get(f.id) ?? LEAF_W;
           const cadCableDx = f.kwhMeter && !n.childBoardId ? (f.kwhMeter === 'CT' ? 50 : 35) : 0;
@@ -1129,8 +1133,11 @@ export default function SystemDiagram({
         })}
 
         {/* Boards: box on the incoming line, then the busbar */}
-        {layout.boards.map((n) => {
-          if (cull && (n.busX2 < viewX1 || n.busX1 > viewX2)) return null;
+        {layout.boards.map((real) => {
+          if (cull && (real.busX2 < viewX1 || real.busX1 > viewX2)) return null;
+          // Everything above the incomer hangs from the head (the busbar, or higher on a mains /
+          // generator changeover); the busbar, its label and what is on it stay on the real busbar.
+          const n = real.headY === real.busY ? real : { ...real, busY: real.headY };
           const b = n.board;
           const s = summaries.get(b.id)!;
           const status = worst([s.loadingStatus, ...(feedersOn.get(b.id) ?? []).map((f) => byFeeder.get(f.id)?.status)]);
@@ -1161,41 +1168,55 @@ export default function SystemDiagram({
               onKeyDown={(e) => (e.key === 'Enter' ? onSelectBoard(b.id) : e.key === 'F2' && edit(onEditBoard, b.id)())}
             >
               <title>{`${b.id} — double-click to edit`}</title>
-              {!n.terminal && <line x1={n.busX1} y1={n.busY} x2={n.busX2} y2={n.busY} className={`bus ${sel ? 'sel' : ''}`}
+              {!n.terminal && <line x1={n.busX1} y1={real.busY} x2={n.busX2} y2={real.busY} className={`bus ${sel ? 'sel' : ''}`}
                 style={boardHeat(b.id) ? { stroke: boardHeat(b.id) } : undefined} />}
               {/* Wide invisible band along the busbar, so drops don't need pixel precision. */}
-              {onDropItem && <line x1={n.busX1 - 20} y1={n.busY} x2={n.busX2 + 20} y2={n.busY} className="bus-hit" />}
+              {onDropItem && <line x1={n.busX1 - 20} y1={real.busY} x2={n.busX2 + 20} y2={real.busY} className="bus-hit" />}
               <line x1={n.x} y1={n.busY - 22} x2={n.x} y2={n.busY} className="ln" />
-              {b.standby && (() => {
-                // ATS (one box on the incoming line) or two ACBs, mains and
-                // generator, mechanically / electrically interlocked.
-                const acb = b.standby.changeover === 'ACB';
-                const gx = acb ? n.x + 67 : n.x + 45;
-                const gy = n.busY - (acb ? 72 : 80);
+              {b.standby && isInterlocked(b) && real.genX !== undefined && (() => {
+                // Mains and generator incomers into the busbar, each with its own breaker and
+                // instruments, electro-mechanically interlocked (DEWA submission drawings).
+                const k = changeoverBreakers(project, b)!;
+                const g = scenario?.generators.find((x) => x.boardId === b.id);
+                return (
+                  <>
+                    <ChangeoverIncomers x={n.x} genX={real.genX} headY={real.headY} busY={real.busY} kva={b.standby.kva}
+                      mains={k.mains} generator={k.generator} instruments={hasInstruments(b)} pmu={!!b.pmu} spd={b.spd} />
+                    {g && (
+                      <>
+                        <circle cx={real.genX} cy={real.headY - 40} r="14" className="gen-live" />
+                        <text x={real.genX + 15} y={real.headY - 56} className={`res ${g.loadingPct > 100 ? 'bad' : g.loadingPct > 80 ? 'warn' : 'ok'}`}>ON · {g.loadingPct.toFixed(0)}% loaded</text>
+                        {g.largestMotor && (
+                          <text x={real.genX + 15} y={real.headY - 70} className={`res ${g.largestMotor.dipPct > MOTOR_START_DIP_LIMIT_PCT ? 'bad' : 'ok'}`}>
+                            {g.largestMotor.feeder.name || g.largestMotor.feeder.id} start: dip {g.largestMotor.dipPct.toFixed(0)}%
+                          </text>
+                        )}
+                      </>
+                    )}
+                  </>
+                );
+              })()}
+              {b.standby && !isInterlocked(b) && (() => {
+                // ATS: one box on the incoming line, its rating and type beside it; the generator to its right.
+                const gx = n.x + 45;
+                const gy = n.busY - 80;
                 const g = scenario?.generators.find((x) => x.boardId === b.id);
                 const cls = g ? (g.loadingPct > 100 ? 'bad' : g.loadingPct > 80 ? 'warn' : 'ok') : '';
                 const m = g?.largestMotor;
+                const ats = atsOf(project, b)!;
                 return (
                   <g className="standby">
-                    <title>{`Standby generator ${b.standby.kva} kVA through ${acb ? 'interlocked mains and generator ACBs' : 'an ATS'} — everything on ${b.id} is essential load`}</title>
-                    {acb ? (
-                      <>
-                        <rect x={n.x - 2} y={n.busY - 89} width="4" height="13" className="bg-fill" />
-                        <SwitchSym x={n.x} y={n.busY - 92} kind="acb" />
-                        <line x1={n.x} y1={gy} x2={n.x + 18} y2={gy} className="ln" />
-                        <rect x={n.x + 18} y={gy - 6} width="20" height="12" rx="1" className="sym" />
-                        <path d={`M${n.x + 24} ${gy - 3} l8 6 M${n.x + 32} ${gy - 3} l-8 6`} className="ln" />
-                        <line x1={n.x + 38} y1={gy} x2={gx - 11} y2={gy} className="ln" />
-                        <path d={`M${n.x + 7} ${n.busY - 84} L${n.x + 28} ${n.busY - 84} L${n.x + 28} ${gy - 6}`} className="ln interlock" />
-                        <text x={n.x + 9} y={n.busY - 76} className="acc-t b">IL</text>
-                      </>
-                    ) : (
-                      <>
-                        <rect x={n.x - 11} y={n.busY - 88} width="22" height="15" rx="2" className="sym" />
-                        <text x={n.x} y={n.busY - 77} textAnchor="middle" className="b" style={{ fontSize: 8 }}>ATS</text>
-                        <line x1={n.x + 11} y1={gy} x2={gx - 11} y2={gy} className="ln" />
-                      </>
-                    )}
+                    <title>{`Standby generator ${b.standby.kva} kVA through an ${atsLines(ats).join(', ')} — everything on ${b.id} is essential load`}</title>
+                    <rect x={n.x - 11} y={n.busY - 88} width="22" height="15" rx="2" className="sym" />
+                    <text x={n.x} y={n.busY - 77} textAnchor="middle" className="b" style={{ fontSize: 8 }}>ATS</text>
+                    {/* N (mains) on the incoming line, E (generator) on the generator side; the ATS rating and type
+                        above the generator, right of the line (the panel's name box is on the left). */}
+                    <text x={n.x + 5} y={n.busY - 92} className="acc-t">N</text>
+                    <text x={n.x + 14} y={n.busY - 84} className="acc-t">E</text>
+                    {atsLines(ats).map((t, i) => (
+                      <text key={t} x={n.x + 14} y={n.busY - 136 + i * 11} className={i ? 'dev-k' : 'dev'}>{t}</text>
+                    ))}
+                    <line x1={n.x + 11} y1={gy} x2={gx - 11} y2={gy} className="ln" />
                     <circle cx={gx} cy={gy} r="11" className="sym" />
                     <text x={gx} y={gy + 4} textAnchor="middle" className="b" style={{ fontSize: 11 }}>G</text>
                     <text x={gx + 15} y={gy + 3} className="m">{b.standby.kva} kVA</text>
@@ -1228,9 +1249,9 @@ export default function SystemDiagram({
                     <text x={n.x - 16} y={cy + 3} textAnchor="end" className="acc-t">{txt}</text>
                     {cap && (
                       <>
-                        <path d={`M${n.x + 4.5} ${cy} H${cap.x - 22} V${n.busY + 22}`} className="ln interlock" />
-                        <rect x={cap.x - 31} y={n.busY + 22} width="18" height="11" rx="1" className="sym" />
-                        <text x={cap.x - 22} y={n.busY + 30} textAnchor="middle" className="acc-t b">PFR</text>
+                        <path d={`M${n.x + 4.5} ${cy} H${cap.x - 22} V${real.busY + 22}`} className="ln interlock" />
+                        <rect x={cap.x - 31} y={real.busY + 22} width="18" height="11" rx="1" className="sym" />
+                        <text x={cap.x - 22} y={real.busY + 30} textAnchor="middle" className="acc-t b">PFR</text>
                       </>
                     )}
                   </g>
@@ -1247,7 +1268,7 @@ export default function SystemDiagram({
                 // Panel frame: busbar, outgoing ways and incomer; cables cross it at a gland mark.
                 // The panel's name box sits just inside the frame's top-left corner: name, TCL, MDL, location and
                 // the prospective fault level at the board (the breaker's own Icu is on the incomer line).
-                const x1 = n.busX1 - 7, x2 = n.busX2 + 7, y2 = n.busY + 47;
+                const x1 = n.busX1 - 7, x2 = Math.max(n.busX2 + 7, real.genX !== undefined ? real.genX + CO_GEN_REACH : -Infinity), y2 = real.busY + 47;
                 const nb = nameBox(b, n);
                 const y1 = nb.top;
                 const gland = (x: number, gy: number) => <path key={`${x}-${gy}`} d={`M${x - 5} ${gy - 4} q3 4 0 8 M${x + 5} ${gy - 4} q-3 4 0 8`} className="ln" />;
@@ -1312,20 +1333,25 @@ export default function SystemDiagram({
                 const al = b.busbarMaterial === 'aluminium';
                 const full = `${ways} WAY ${b.ratedCurrentA} A TPN+E ${al ? 'ALUMINIUM' : 'COPPER'} BUSBAR`;
                 const head = `${b.ratedCurrentA} A TPN+E`, tail = `${al ? 'Al' : 'Cu'} BUSBAR`;
-                const oneLine = (head.length + tail.length + 1) * 6.8 < n.busX2 - n.x - 10;
+                // On a changeover both ends carry an incomer: the label goes under the busbar's left end,
+                // where no outgoing way drops.
+                const co = isInterlocked(b);
+                const oneLine = !co && (head.length + tail.length + 1) * 6.8 < n.busX2 - n.x - 10;
+                const lx = co ? n.busX1 + 4 : n.busX2, anchor = co ? 'start' : 'end';
+                const [y1, y2] = co ? [real.busY + 16, real.busY + 28] : [real.busY - 17, real.busY - 5];
                 // Separate <text> lines (not tspans), and the tooltip on the group, so the CAD export reads each line as is.
                 return (
                   <g><title>{full}</title>
-                    {oneLine ? <text x={n.busX2} y={n.busY - 5} textAnchor="end" className="dev bus-t">{`${head} ${tail}`}</text> : (
+                    {oneLine ? <text x={lx} y={real.busY - 5} textAnchor={anchor} className="dev bus-t">{`${head} ${tail}`}</text> : (
                       <>
-                        <text x={n.busX2} y={n.busY - 17} textAnchor="end" className="dev bus-t">{head}</text>
-                        <text x={n.busX2} y={n.busY - 5} textAnchor="end" className="dev bus-t">{tail}</text>
+                        <text x={lx} y={y1} textAnchor={anchor} className="dev bus-t">{head}</text>
+                        <text x={lx} y={y2} textAnchor={anchor} className="dev bus-t">{tail}</text>
                       </>
                     )}
                   </g>
                 );
               })()}
-              {hasInstruments(b) && !n.terminal && (() => {
+              {hasInstruments(b) && !n.terminal && !isInterlocked(b) && (() => {
                 // Ammeter and voltmeter with selector switches, R-Y-B lamps: inside the panel, left of the board box.
                 const room = n.x - 66 - n.busX1;
                 const x0 = room >= 50 ? n.busX1 + 2 : n.busX1 - 52;
@@ -1352,7 +1378,7 @@ export default function SystemDiagram({
                   </g>
                 );
               })()}
-              {b.spd && (
+              {b.spd && !isInterlocked(b) && (
                 <g className="acc">
                   <title>{`Surge protection device, Type ${b.spd === 'T1+2' ? '1+2' : b.spd.slice(1)}`}</title>
                   {(() => {

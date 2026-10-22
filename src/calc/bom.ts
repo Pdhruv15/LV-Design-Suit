@@ -13,6 +13,7 @@ import { scheduleGroupOf } from '../model/scheduleGroups';
 import { mainBoards, txTag } from '../model/transformers';
 import { sizeRoute, trayPlanOf, trayQuantities } from './cableTray';
 import { elcbGroups, normalizeLoadItems, pointLabel, scheduleCircuits } from './loadSchedule';
+import { atsOf, changeoverBreakers, incomersOf } from '../model/changeover';
 
 /** Bill of materials: every item the design already knows about, rolled up
  * into tender BOQ sections. Each item has a stable key, so a price list
@@ -133,22 +134,32 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
         { quantitySource: 'Load schedule ELCB groups' });
       group.circuits.forEach((c) => groupedRcdCircuits.add(c.id));
     }
-    if (b.spd) add('B', `spd:${b.spd}`, `Surge protection device, Type ${b.spd === 'T1+2' ? '1+2' : b.spd.slice(1)}, 4P, with backup fuse / MCB`, 'no', 1, b.id);
+    // Instruments, PMU and SPD are counted per incomer: two on a mains / generator changeover.
+    const incomers = incomersOf(b);
+    if (b.spd) add('B', `spd:${b.spd}`, `Surge protection device, Type ${b.spd === 'T1+2' ? '1+2' : b.spd.slice(1)}, 4P, with backup fuse / MCB`, 'no', incomers, b.id);
+    if (b.pmu) add('C', 'pmu', 'Power meter (PMU) with CTs, RS485 / Modbus to BMS', 'no', incomers, b.id);
     const prot = b.protection;
     const ct = prot?.ctRatio ?? b.supply?.ctRatio;
     if (ct) add('C', `ct:${ct}`, `Current transformers ${ct}, class 1 / 5P (set of 3)`, 'set', 1, b.id);
     for (const r of prot?.relays ?? []) add('B', `relay:${r}`, { ELR: 'Earth leakage relay with core balance CT', EFR: 'Earth fault relay', UVR: 'Under-voltage relay', OVR: 'Over-voltage relay' }[r], 'no', 1, b.id);
     if (prot?.apfc) add('C', 'pfr', 'Power factor relay (APFC controller) with CT', 'no', 1, b.id);
     if (b.standby) {
-      if (b.standby.changeover === 'ACB') {
-        add('B', `acb-il:${rating ?? '-'}`, `Mains / generator changeover: 2 × ACB ${rating ?? ''} A 4P with mechanical and electrical interlock`, 'set', 1, b.id);
-      } else add('B', `ats:${rating ?? '-'}`, `Automatic transfer switch ${rating ?? ''} A 4P`, 'no', 1, b.id);
+      const co = changeoverBreakers(p, b);
+      const ats = atsOf(p, b);
+      if (co) {
+        const brk = (k: typeof co.mains, who: string) => `${who} ${k.device} ${k.ratingA ?? ''} A 4P${k.drawOut ? ' draw-out' : ''}${k.icuKa ? ` ${k.icuKa} kA` : ''}`;
+        add('B', `acb-il:${co.mains.ratingA ?? '-'}:${co.generator.ratingA ?? '-'}:${co.mains.icuKa ?? '-'}`,
+          `Mains / generator changeover: ${brk(co.mains, 'mains')} + ${brk(co.generator, 'generator')}, with electro-mechanical interlock (one closed at a time)`, 'set', 1, b.id);
+      } else if (ats) {
+        add('B', `ats:${ats.ratingA ?? '-'}:${ats.transition}:${ats.category}`,
+          `Automatic transfer switch ${ats.ratingA ?? ''} A 4P, switched neutral, ${ats.transition} transition, ${ats.category} (IEC 60947-6-1)`, 'no', 1, b.id);
+      }
       add('D', `gen:${b.standby.kva}`, `Standby diesel generator ${b.standby.kva} kVA, 400/230 V, with AMF panel, fuel tank and canopy`, 'no', 1, b.id);
     }
     if ((b.instruments ?? !b.upstreamId) && p.feeders.some((f) => f.boardId === b.id)) {
-      add('C', 'ammeter-ss', 'Ammeter with selector switch and CTs, 96 × 96 mm', 'no', 1, b.id);
-      add('C', 'voltmeter-ss', 'Voltmeter with selector switch and protection fuses, 96 × 96 mm', 'no', 1, b.id);
-      add('C', 'lamps-ryb', 'Indicating lamps R-Y-B, LED, with fuses', 'set', 1, b.id);
+      add('C', 'ammeter-ss', 'Ammeter with selector switch and CTs, 96 × 96 mm', 'no', incomers, b.id);
+      add('C', 'voltmeter-ss', 'Voltmeter with selector switch and protection fuses, 96 × 96 mm', 'no', incomers, b.id);
+      add('C', 'lamps-ryb', 'Indicating lamps R-Y-B, LED, with fuses', 'set', incomers, b.id);
     }
     if (b.earthing?.show ?? !b.upstreamId) {
       const el = b.earthing?.electrodeM ?? p.earthingPlan?.electrodeM ?? 3;

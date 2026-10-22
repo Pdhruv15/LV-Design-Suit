@@ -1,6 +1,7 @@
 import type { Board, Feeder, Project, SpareWay } from '../types';
 import { isDbBoard, spareWaysOf } from '../model/spareWays';
 import { isScheduleCircuit } from '../calc/loadSchedule';
+import { isInterlocked } from '../model/changeover';
 
 /** Horizontal slot per load, vertical distance between board levels. */
 export const LEAF_W = 132;
@@ -19,6 +20,11 @@ export interface BoardNode {
   depth: number;
   x: number; // centre of the board box / incomer drop
   busY: number;
+  /** Where the board box and everything above the incomer hang from: the busbar, or higher on a
+   * mains / generator changeover, whose two incomers and their instruments fill the space between. */
+  headY: number;
+  /** Generator incomer of an interlocked changeover: where it drops into the busbar. */
+  genX?: number;
   busX1: number;
   busX2: number;
 }
@@ -57,6 +63,10 @@ export interface SystemLayout {
  * board are laid out as extra roots so nothing silently disappears. */
 /** DEWA submission style: more room above each panel for its frame and summary box. */
 export const DEWA_EXTRA_Y = 110;
+/** Mains / generator changeover: height of its two incomers with instruments, and the slots
+ * kept free beside its feeders (left for the mains instruments, right for the generator incomer). */
+export const CHANGEOVER_H = 200;
+const CHANGEOVER_LEFT = 1, CHANGEOVER_RIGHT = 2;
 
 export function layoutSystem(project: Project, extraY = 0): SystemLayout {
   const rootY = ROOT_BUS_Y + extraY;
@@ -80,7 +90,8 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
       return sum + (child ? units(child.id, path) : 1);
     }, busSpares(boardId).length);
     path.delete(boardId);
-    const u = Math.max(1, n);
+    const b = byId.get(boardId);
+    const u = Math.max(1, n) + (b && isInterlocked(b) ? CHANGEOVER_LEFT + CHANGEOVER_RIGHT : 0);
     unitsCache.set(boardId, u);
     return u;
   };
@@ -93,7 +104,8 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
   const place = (board: Board, left: number, depth: number): BoardNode => {
     placed.add(board.id);
     const busY = rootY + depth * levelH;
-    let cursor = left;
+    const co = isInterlocked(board);
+    let cursor = left + (co ? CHANGEOVER_LEFT * LEAF_W : 0);
     const xs: number[] = [];
     for (const f of children(board.id)) {
       const child = subBoard(f);
@@ -116,17 +128,22 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
       xs.push(x);
       cursor += LEAF_W;
     }
-    const x = xs.length ? (Math.min(...xs) + Math.max(...xs)) / 2 : left + LEAF_W / 2;
+    const x = xs.length ? (Math.min(...xs) + Math.max(...xs)) / 2 : cursor + LEAF_W / 2;
     const half = LEAF_W * 0.38;
+    // The generator incomer drops in beyond the last way, with room on its right for its instruments.
+    const genX = co ? Math.max(cursor, x + half) + LEAF_W * 0.6 : undefined;
     const node: BoardNode = {
       board,
       circuits: scheduled(board.id),
-      terminal: xs.length === 0,
+      terminal: xs.length === 0 && !co,
       depth,
       x,
       busY,
-      busX1: Math.min(x - half, xs.length ? Math.min(...xs) - half : x - half),
-      busX2: Math.max(x + half, xs.length ? Math.max(...xs) + half : x + half)
+      headY: busY,
+      genX,
+      // A changeover's busbar runs under its mains instruments too, as on DEWA drawings.
+      busX1: co ? left + 12 : Math.min(x - half, xs.length ? Math.min(...xs) - half : x - half),
+      busX2: Math.max(x + half, xs.length ? Math.max(...xs) + half : x + half, genX !== undefined ? genX + 14 : -Infinity)
     };
     boards.push(node);
     return node;
@@ -148,6 +165,21 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
   }
 
   const maxDepth = boards.reduce((m, b) => Math.max(m, b.depth), 0);
+  // A level with a changeover board is taller by CHANGEOVER_H; the levels below move down with it.
+  const shift: number[] = [];
+  for (let d = 0, sum = 0; d <= maxDepth; d++) {
+    sum += boards.some((b) => b.depth === d && isInterlocked(b.board)) ? CHANGEOVER_H : 0;
+    shift[d] = sum;
+  }
+  if (shift[maxDepth]) {
+    const depthOf = new Map(boards.map((b) => [b.board.id, b.depth]));
+    for (const b of boards) {
+      b.busY += shift[b.depth];
+      b.headY = b.busY - (isInterlocked(b.board) ? CHANGEOVER_H : 0);
+    }
+    for (const f of feeders) f.busY += shift[depthOf.get(f.feeder.boardId) ?? 0];
+    for (const w of spares) w.busY += shift[depthOf.get(w.boardId) ?? 0];
+  }
   const utilityX = roots.length ? (roots[0].x + roots[roots.length - 1].x) / 2 : MARGIN_X + LEAF_W / 2;
   return {
     boards,
@@ -156,7 +188,7 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
     roots,
     utilityX,
     width: Math.max(left + MARGIN_X, 480),
-    height: rootY + maxDepth * levelH + 250, // room for load labels and result tags
+    height: rootY + maxDepth * levelH + (shift[maxDepth] ?? 0) + 250, // room for load labels and result tags
     levelH,
     rootY
   };
