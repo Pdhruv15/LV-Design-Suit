@@ -22,7 +22,7 @@ Ideas and features agreed for later. One note per idea; link it here.
 - UPS leading kvar
 - Unbalanced load flow
 - Clickable links in PDF reports
-- Drawing set in the issue package
+- ~~Drawing set in the issue package~~ — done: the issue package includes the drawing register and every sheet of Documents → Drawings from the same calculation run (option in report setup, on by default)
 
 ## To confirm with supplier
 - Enclosure chart: 600 × 500 shows 6 usable modules for > 12 ELCB
