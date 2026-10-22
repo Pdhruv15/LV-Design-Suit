@@ -119,7 +119,7 @@ export const SYM_SCALE = { device: 0.5, load: 0.875, legend: 0.6 } as const;
 const n = (v: number) => +v.toFixed(2);
 
 /** A symbol path (absolute M L H V A Z only) mapped to drawing coordinates. */
-export function placePath(d: string, map: (u: number, v: number) => [number, number], s: number): string {
+export function placePath(d: string, map: (u: number, v: number) => [number, number], s: number, mirror = false): string {
   const tok = d.match(/[A-Za-z]|-?\d*\.?\d+/g) ?? [];
   const out: string[] = [];
   let cmd = '', u = 0, v = 0, i = 0;
@@ -137,7 +137,7 @@ export function placePath(d: string, map: (u: number, v: number) => [number, num
     else if (cmd === 'A') {
       const rx = num(), ry = num(), rot = num(), large = num(), sweep = num();
       u = num(); v = num();
-      out.push(`${n(rx * s)} ${n(ry * s)} ${rot} ${large} ${sweep} ${map(u, v).map(n).join(' ')}`);
+      out.push(`${n(rx * s)} ${n(ry * s)} ${rot} ${large} ${mirror ? 1 - sweep : sweep} ${map(u, v).map(n).join(' ')}`);
     } else throw new Error(`Symbol path value without a command: ${d}`);
   }
   return out.join(' ');
@@ -146,10 +146,11 @@ export function placePath(d: string, map: (u: number, v: number) => [number, num
 const CLASS: Record<SymCls, string> = { ln: 'ln', sym: 'sym', open: 'sym-open', fill: 'sym-fill', thick: 'ln thick', dash: 'ln' };
 const DASH = { strokeDasharray: '2 1.5' };
 
-/** Draw a library symbol with its body centre at (x, y). */
-export function Sym({ id, x, y, s = 1, labels = false }: { id: SymbolId; x: number; y: number; s?: number; labels?: boolean }) {
+/** Draw a library symbol with its body centre at (x, y). `flip` mirrors it
+ * top to bottom, for a device drawn upward from a busbar. */
+export function Sym({ id, x, y, s = 1, labels = false, flip = false }: { id: SymbolId; x: number; y: number; s?: number; labels?: boolean; flip?: boolean }) {
   const X = (u: number) => n(x + (u - SYM_CX) * s);
-  const Y = (v: number) => n(y + (v - SYM_CY) * s);
+  const Y = (v: number) => n(y + (v - SYM_CY) * (flip ? -s : s));
   const map = (u: number, v: number): [number, number] => [X(u), Y(v)];
   return (
     <g className="iec">
@@ -157,10 +158,10 @@ export function Sym({ id, x, y, s = 1, labels = false }: { id: SymbolId; x: numb
         const cls = q.k === 't' ? '' : CLASS[q.c ?? (q.k === 'p' ? 'ln' : 'sym')];
         const style = q.k !== 't' && q.c === 'dash' ? DASH : undefined;
         switch (q.k) {
-          case 'p': return <path key={i} d={placePath(q.d, map, s)} className={cls} style={style} />;
+          case 'p': return <path key={i} d={placePath(q.d, map, s, flip)} className={cls} style={style} />;
           case 'c': return <circle key={i} cx={X(q.cx)} cy={Y(q.cy)} r={n(q.r * s)} className={cls} style={style} />;
           case 'e': return <ellipse key={i} cx={X(q.cx)} cy={Y(q.cy)} rx={n(q.rx * s)} ry={n(q.ry * s)} className={cls} style={style} />;
-          case 'r': return <rect key={i} x={X(q.x)} y={Y(q.y)} width={n(q.w * s)} height={n(q.h * s)} className={cls} style={style} />;
+          case 'r': return <rect key={i} x={X(q.x)} y={flip ? Y(q.y + q.h) : Y(q.y)} width={n(q.w * s)} height={n(q.h * s)} className={cls} style={style} />;
           case 't':
             if (q.side && !labels) return null;
             return <text key={i} x={X(q.x)} y={Y(q.y) + (q.b ? 4 : 3)} textAnchor={q.side ? 'start' : 'middle'} className={q.b ? 'iec-t b' : 'iec-t s'}>{q.s}</text>;

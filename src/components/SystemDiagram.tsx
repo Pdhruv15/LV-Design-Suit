@@ -8,7 +8,8 @@ import type { DrawingInfo, Project } from '../types';
 import { cableTypeOf, CABLE_TYPE_DEFS, labelCode, needsFireRated } from '../model/cableTypes';
 import { cableRefOf } from '../model/cableRefs';
 import { dbSpares, spareBreaker } from '../model/spareWays';
-import { LEGEND_ROW, LEGEND_SYM_X, LEGEND_TEXT_X, legendEntries, legendWidth, LoadSym, polesText, SwitchSym, switchKindOf } from '../diagram/IecSymbols';
+import { FeederSwitchSym, LEGEND_ROW, LEGEND_SYM_X, LEGEND_TEXT_X, legendEntries, legendWidth, LoadSym, polesText, rcdInSwitch, starterSymbolOf, SwitchSym, switchKindOf } from '../diagram/IecSymbols';
+import { Sym, SYM_SCALE } from '../diagram/symbolLibrary';
 import { izText, type FeederResult, type Status } from '../calc/electrical';
 import { boardSummary, loadTypeOf } from '../calc/summary';
 import { failReasons, quickFixes } from '../calc/quickFix';
@@ -1005,7 +1006,7 @@ export default function SystemDiagram({
             >
               <title>{`${f.id} — double-click to edit`}</title>
               <line x1={n.x} y1={y} x2={n.x} y2={y + 18} className="ln" />
-              {iec ? <SwitchSym x={n.x} y={y + 18} kind={switchKindOf(f)} /> : <rect x={n.x - 6} y={y + 18} width="12" height="16" className="sym" />}
+              {iec ? <FeederSwitchSym x={n.x} y={y + 18} f={f} /> : <rect x={n.x - 6} y={y + 18} width="12" height="16" className="sym" />}
               {chain?.has(f.id) && (
                 <rect x={n.x - 11} y={y + 13} width="22" height="26" rx="4" className={`disc-ring ${chain.get(f.id)}`}>
                   <title>{`Discrimination: ${chain.get(f.id) === 'ok' ? 'selective' : chain.get(f.id) === 'warn' ? 'partial' : 'not selective'}`}</title>
@@ -1067,18 +1068,29 @@ export default function SystemDiagram({
                     </g>
                   );
                 };
+                // IEC: an RCBO / RCCB is drawn in the breaker slot, and the starter
+                // as its library symbol at the foot of the column.
+                const elcb = dev.elcb && !(iec && rcdInSwitch(f)) ? dev.elcb : undefined;
+                const starter = dev.starterType && !n.childBoardId ? dev.starterType : undefined;
                 const items: { key: string; label: string }[] = [];
-                if (dev.elcb) items.push({ key: 'elcb', label: dev.elcb.label });
-                if (dev.starter && !n.childBoardId) items.push({ key: 'starter', label: dev.starter });
+                if (elcb) items.push({ key: 'elcb', label: elcb.label });
+                if (starter && !iec) items.push({ key: 'starter', label: dev.starter! });
                 for (const e of dev.extras) items.push({ key: e, label: e });
+                const sy = y + 28.5 + items.length * 12;
                 return (
                   <>
                     {items.map((it, i) => box(i, it.label, it.key))}
-                    {dev.elcb && (
+                    {starter && iec && (
+                      <g className="acc" data-dxf-layer="DEVICE">
+                        <line x1={n.x - 8 - shiftX} y1={sy} x2={n.x} y2={sy} className="ln" />
+                        <Sym id={starterSymbolOf(starter)} x={n.x - 15 - shiftX} y={sy} s={SYM_SCALE.device} />
+                      </g>
+                    )}
+                    {elcb && (
                       <g className="acc">
-                        <title>{`Earth leakage protection${dev.elcb.ma ? ` ${dev.elcb.ma} mA` : ''}`}</title>
-                        <ellipse cx={n.x - 8 - shiftX - dev.elcb.label.length * 5.2 - 6 - 5} cy={y + 26.5} rx="4.5" ry="2.2" className="sym-ln" />
-                        {dev.elcb.ma ? <text x={n.x - 8 - shiftX} y={y + 19} textAnchor="end" className="acc-t" style={{ fontSize: 7 }}>{dev.elcb.ma}mA</text> : null}
+                        <title>{`Earth leakage protection${elcb.ma ? ` ${elcb.ma} mA` : ''}`}</title>
+                        <ellipse cx={n.x - 8 - shiftX - elcb.label.length * 5.2 - 6 - 5} cy={y + 26.5} rx="4.5" ry="2.2" className="sym-ln" />
+                        {elcb.ma ? <text x={n.x - 8 - shiftX} y={y + 19} textAnchor="end" className="acc-t" style={{ fontSize: 7 }}>{elcb.ma}mA</text> : null}
                       </g>
                     )}
                   </>
@@ -1090,11 +1102,10 @@ export default function SystemDiagram({
                 return (
                 <g className="acc">
                   <title>{f.kwhMeter === 'CT' ? 'CT-operated kWh meter' : `${f.kwhMeter} direct kWh meter`}</title>
-                  {f.kwhMeter === 'CT' && <circle cx={n.x} cy={my} r="4.5" className="sym-ln" />}
-                  <line x1={n.x + (f.kwhMeter === 'CT' ? 4.5 : 0)} y1={my} x2={n.x + 10} y2={my} className="ln" style={f.kwhMeter === 'CT' ? { strokeDasharray: '2 1.5' } : undefined} />
-                  <rect x={n.x + 10} y={my - 6} width="24" height="12" rx="2" className="sym" />
-                  <text x={n.x + 22} y={my + 3} textAnchor="middle" className="acc-t b">kWh</text>
-                  {f.kwhMeter === 'CT' && <text x={n.x + 37} y={my + 3} className="acc-t">CT</text>}
+                  {f.kwhMeter === 'CT' && <Sym id="ct" x={n.x} y={my} s={SYM_SCALE.device} />}
+                  <line x1={n.x + (f.kwhMeter === 'CT' ? 7 : 0)} y1={my} x2={n.x + 10} y2={my} className="ln" style={f.kwhMeter === 'CT' ? { strokeDasharray: '2 1.5' } : undefined} />
+                  <Sym id="kwh" x={n.x + 17} y={my} s={SYM_SCALE.device} />
+                  {f.kwhMeter === 'CT' && <text x={n.x + 27} y={my + 3} className="acc-t">CT</text>}
                 </g>
                 );
               })()}
@@ -1399,12 +1410,7 @@ export default function SystemDiagram({
                     return (
                       <>
                         <line x1={sx} y1={sy} x2={sx} y2={sy - 12} className="ln" />
-                        <rect x={sx - 6} y={sy - 26} width="12" height="14" className="sym" />
-                        <path d={`M${sx + 2} ${sy - 24} l-3 5 h3 l-3 5`} className="sym-ln" />
-                        <line x1={sx} y1={sy - 26} x2={sx} y2={sy - 31} className="ln" />
-                        <line x1={sx - 6} y1={sy - 31} x2={sx + 6} y2={sy - 31} className="ln" />
-                        <line x1={sx - 4} y1={sy - 34} x2={sx + 4} y2={sy - 34} className="ln" />
-                        <line x1={sx - 2} y1={sy - 37} x2={sx + 2} y2={sy - 37} className="ln" />
+                        <Sym id="spd" x={sx} y={sy - 20} s={SYM_SCALE.device} flip />
                         <text x={sx - 9} y={sy - 16} textAnchor="end" className="acc-t">SPD {b.spd === 'T1+2' ? 'T1+2' : b.spd}</text>
                       </>
                     );

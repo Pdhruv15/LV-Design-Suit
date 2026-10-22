@@ -23,3 +23,26 @@ describe('SLD export lookup', () => {
     expect(host.querySelector('.sysdiag svg')?.closest('.sysdiag-tools')).not.toBeNull();
   });
 });
+
+describe('SLD library symbols', () => {
+  it('draws the starter, RCBO, kWh / CT and PMU from the model', () => {
+    const motor = sampleProject.feeders.find((f) => !f.feedsBoardId && (f.loadType === 'motor' || f.loadType === 'fire-pump'))!;
+    const project = {
+      ...sampleProject,
+      boards: sampleProject.boards.map((b) => ({ ...b, pmu: true })),
+      feeders: sampleProject.feeders.map((f) => (f.id === motor.id ? { ...f, starter: 'VFD' as const, rcdMa: 30, kwhMeter: 'CT' as const } : f))
+    };
+    const html = renderToStaticMarkup(
+      <SystemDiagram project={project} calcProject={project} results={evaluateProject(project)}
+        selectedFeederId={null} selectedBoardId={null} onSelectFeeder={noop} onSelectBoard={noop} onDrawing={noop} />
+    );
+    const host = document.createElement('div');
+    host.innerHTML = html;
+    const g = host.querySelector(`[data-lv-id="feeder:${motor.id}"]`)!;
+    const texts = [...g.querySelectorAll('text')].map((t) => t.textContent);
+    expect(texts).toEqual(expect.arrayContaining(['f1', 'f2', 'kWh'])); // VFD symbol and kWh meter
+    expect(texts).not.toContain('VFD'); // no boxed starter label in IEC style
+    expect(texts).not.toContain('ELCB'); // the RCBO symbol carries it
+    expect(g.querySelectorAll('ellipse').length).toBe(1); // RCBO toroid
+  });
+});

@@ -1,6 +1,7 @@
 import { breakerLines, type IncomerBreaker } from '../model/changeover';
 import type { SpdType } from '../types';
 import { SwitchSym } from './IecSymbols';
+import { Sym, SYM_SCALE } from './symbolLibrary';
 
 /** Rows of an incomer's instruments, measured up from the busbar (DEWA submission
  * drawings): ammeters on CTs, R-Y-B lamps, the breaker's OC / SC / EF trip
@@ -14,8 +15,8 @@ const CELL = 18, GAP = 3;
 
 /** A row of labelled cells beside an incomer line at (x, y); side −1 = to the left, +1 = to the right.
  * `ct`: taken from a current transformer (ring on the line), else a voltage tap (dot). */
-function Row({ x, y, side, cells, round, ct, wide }: { x: number; y: number; side: 1 | -1; cells: string[]; round?: boolean; ct?: boolean; wide?: boolean }) {
-  const w = wide ? 28 : CELL;
+function Row({ x, y, side, cells, round, ct }: { x: number; y: number; side: 1 | -1; cells: string[]; round?: boolean; ct?: boolean }) {
+  const w = CELL;
   const total = cells.length * w + (cells.length - 1) * GAP;
   const x0 = side < 0 ? x - 14 - total : x + 14;
   const order = side < 0 ? cells : [...cells].reverse();
@@ -43,8 +44,8 @@ function Incomer({ x, top, busY, side, breaker, instruments, pmu, spd }: {
   const y = (k: keyof typeof CO_ROWS) => busY - CO_ROWS[k];
   const lines = breakerLines(breaker);
   const tx = x + side * 14, anchor = side < 0 ? 'end' : 'start';
-  // BMS arrow: out from the PMU box, away from the incomer.
-  const pmuEnd = x + side * (14 + 28), bmsX = pmuEnd + side * 46;
+  // PMU in the middle of its 28-wide cell, BMS arrow out from it, away from the incomer.
+  const pmuX = x + side * 28, pmuEnd = pmuX + side * 7, bmsX = x + side * 88;
   // SPD hangs below the voltmeter row, clear of the breaker text.
   const sx = x + side * 52;
   return (
@@ -55,7 +56,9 @@ function Incomer({ x, top, busY, side, breaker, instruments, pmu, spd }: {
       <Row x={x} y={y('trip')} side={side} cells={['EF', 'SC', 'OC']} ct />
       {pmu && (
         <>
-          <Row x={x} y={y('pmu')} side={side} cells={['PMU']} ct wide />
+          <circle cx={x} cy={y('pmu')} r="4" className="sym-ln" />
+          <line x1={x + side * 4} y1={y('pmu')} x2={pmuX - side * 7} y2={y('pmu')} className="ln" />
+          <Sym id="pmu" x={pmuX} y={y('pmu')} s={SYM_SCALE.device} />
           <line x1={pmuEnd} y1={y('pmu')} x2={bmsX} y2={y('pmu')} className="ln" />
           <path d={`M${bmsX} ${y('pmu')} l${-side * 6} -3.5 v7 z`} className="sym-fill" />
           <text x={bmsX + side * 5} y={y('pmu') + 3} textAnchor={anchor} className="acc-t">TO BMS</text>
@@ -65,11 +68,9 @@ function Incomer({ x, top, busY, side, breaker, instruments, pmu, spd }: {
       {spd && (
         <g>
           {!instruments && <line x1={x} y1={y('volts')} x2={sx} y2={y('volts')} className="ln" />}
-          <line x1={sx} y1={y('volts') + (instruments ? 7 : 0)} x2={sx} y2={y('spd') - 7} className="ln" />
-          <rect x={sx - 12} y={y('spd') - 7} width="24" height="14" className="sym" />
-          <text x={sx} y={y('spd') + 3} textAnchor="middle" className="acc-t b" style={{ fontSize: 8 }}>SPD</text>
-          <line x1={sx + side * 12} y1={y('spd')} x2={sx + side * 22} y2={y('spd')} className="ln" />
-          <path d={`M${sx + side * 22} ${y('spd')} v5 m-6 0 h12 m-10 3 h8 m-6 3 h4`} className="ln" />
+          <line x1={sx} y1={y('volts') + (instruments ? 7 : 0)} x2={sx} y2={y('spd') - 8} className="ln" />
+          <Sym id="spd" x={sx} y={y('spd')} s={SYM_SCALE.device} />
+          <text x={sx + side * 7} y={y('spd') + 3} textAnchor={anchor} className="acc-t b" style={{ fontSize: 8 }}>SPD</text>
         </g>
       )}
       <rect x={x - 2} y={y('breaker') - 7} width="4" height="31" className="bg-fill" />
