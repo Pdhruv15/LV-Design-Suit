@@ -21,7 +21,7 @@ Covered without UI changes: the new building on an outgoing way of the existing 
 
 ## UPS: input filter and generator leading kvar
 
-The calculations support it (v1.78): `inputFilterKvar` (the UPS input filter's leading kvar at light load, from the datasheet) and `genLeadingPct` (the leading kvar the standby generator absorbs, % of its kVA, from its reactive capability curve) on a UPS. Blank, they are 10 % of the UPS kVA and 10 % of the generator kVA. The result already shows in the UPS study notes and the dashboard. Waiting for approval of:
+The calculations support it (v1.78): `inputFilterKvar` (the UPS input filter's leading kvar at light load, from the datasheet) and `genLeadingPct` (the leading kvar the standby generator absorbs, % of its kVA, from its reactive capability curve) on a UPS. Blank, they are 10 % of the UPS kVA and 10 % of the generator kVA. The result already shows in the UPS study notes and the dashboard. Approved and done 2026-10-22 (v1.78): both inputs are in the UPS study after *UPS output PF*. As proposed:
 
 1. **UPS study → UPS inputs**, after *Output power factor*: *Input filter (kvar leading)* with placeholder "10 % of UPS kVA", and *Generator absorbs (% leading)* with placeholder "10". Same inputs as the fields beside them.
 2. **No other change**: the check stays in the notes line and the dashboard to-do list.
