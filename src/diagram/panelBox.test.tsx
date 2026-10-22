@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { boxedBoardIds, hiddenBoardIds, panelSymbolOf } from './panelBox';
-import { layoutSystem, LEAF_W } from './layout';
+import { BOX_DY, layoutSystem, LEAF_W } from './layout';
 import { legendEntries } from './IecSymbols';
 import SystemDiagram from '../components/SystemDiagram';
 import { sampleProject } from '../data/sampleProject';
@@ -34,45 +34,51 @@ describe('panel symbols for boards drawn as one box', () => {
     expect(of('CAP')).toBe('p-apfc');
   });
 
-  it('boxes only sub-boards that have a panel symbol, and hides what is below them', () => {
+  it('boxes end boards only: a panel feeding ways keeps its busbar', () => {
     const p = proj([
-      { id: 'MDB', name: 'M', sldBox: true }, { id: 'S', name: 'S', kind: 'SMDB', upstreamId: 'MDB', sldBox: true },
-      { id: 'D', name: 'D', upstreamId: 'S' }, { id: 'U', name: 'U', kind: 'UPS', upstreamId: 'MDB', sldBox: true }
-    ], []);
-    expect([...boxedBoardIds(p)]).toEqual(['S']);
-    expect([...hiddenBoardIds(p)].sort()).toEqual(['D', 'S']);
+      { id: 'MDB', name: 'M' }, { id: 'S', name: 'S', kind: 'SMDB', upstreamId: 'MDB' }, { id: 'D', name: 'D', upstreamId: 'S' },
+      { id: 'S2', name: 'S2', kind: 'SMDB', upstreamId: 'MDB', spareWays: [{ id: 'w', ratingA: 32 }] as Board['spareWays'] },
+      { id: 'U', name: 'U', kind: 'UPS', upstreamId: 'MDB' }, { id: 'CAP', name: 'C', upstreamId: 'MDB' }
+    ], [
+      fd('INC-S', 'MDB', { feedsBoardId: 'S' }), fd('INC-D', 'S', { feedsBoardId: 'D' }), fd('R1', 'D', { phase: 'R', way: 1 }),
+      fd('C1', 'CAP', { loadType: 'capacitor' })
+    ]);
+    // D: final circuits only. CAP: its steps are inside the APFC panel. S feeds D, S2 has a spare way on its busbar, U has no symbol, MDB is the main board.
+    expect([...boxedBoardIds(p)].sort()).toEqual(['CAP', 'D']);
+    expect([...hiddenBoardIds(p)].sort()).toEqual(['CAP', 'D']);
   });
 
-  it('lays a boxed board out in one load slot, with nothing below it', () => {
+  it('lays an end board out in a load slot on its parent level', () => {
     const p = proj(
-      [{ id: 'MDB', name: 'M' }, { id: 'S', name: 'S', kind: 'SMDB', upstreamId: 'MDB', sldBox: true }, { id: 'D', name: 'D', upstreamId: 'S' }],
-      [fd('INC-S', 'MDB', { feedsBoardId: 'S' }), fd('A', 'S'), fd('B', 'S'), fd('INC-D', 'S', { feedsBoardId: 'D' }), fd('X', 'D'), fd('L', 'MDB')]
+      [{ id: 'MDB', name: 'M' }, { id: 'S', name: 'S', kind: 'SMDB', upstreamId: 'MDB' }, { id: 'D', name: 'D', upstreamId: 'S' }],
+      [fd('INC-S', 'MDB', { feedsBoardId: 'S' }), fd('A', 'S'), fd('INC-D', 'S', { feedsBoardId: 'D' }), fd('R1', 'D', { phase: 'R', way: 1 }), fd('L', 'MDB')]
     );
     const l = layoutSystem(p);
-    expect(l.boards.map((b) => b.board.id)).toEqual(['MDB']);
-    expect(l.feeders.map((f) => f.feeder.id)).toEqual(['INC-S', 'L']);
-    const inc = l.feeders.find((f) => f.feeder.id === 'INC-S')!;
-    expect(inc.panelBoardId).toBe('S');
+    const s = l.boards.find((b) => b.board.id === 'S')!, d = l.boards.find((b) => b.board.id === 'D')!;
+    expect(d.boxed).toBe(true);
+    expect(d.depth).toBe(2);
+    expect(d.busY).toBe(s.busY + BOX_DY);
+    expect(d.circuits.map((c) => c.id)).toEqual(['R1']);
+    const inc = l.feeders.find((f) => f.feeder.id === 'INC-D')!;
+    expect(inc.panelBoardId).toBe('D');
     expect(inc.childBoardId).toBeUndefined();
-    expect(l.feeders[1].x - inc.x).toBe(LEAF_W);
-    // Unboxed, the sub-board takes its own three slots and a level below.
-    const open = layoutSystem({ ...p, boards: p.boards.map((b) => ({ ...b, sldBox: undefined })) });
-    expect(open.boards).toHaveLength(3);
+    expect(d.x).toBe(inc.x);
+    expect(inc.x - l.feeders.find((f) => f.feeder.id === 'A')!.x).toBe(LEAF_W);
+    expect(l.height).toBe(layoutSystem({ ...p, feeders: p.feeders.filter((f) => f.id !== 'INC-D') }).height); // no extra level
   });
 
-  it('draws the panel symbol with the board name on the SLD, and lists it in the legend', () => {
-    const project: Project = { ...sampleProject, boards: sampleProject.boards.map((b) => (b.id === 'SMDB-GF' ? { ...b, sldBox: true } : b)) };
+  it('draws an end board as its panel symbol on the SLD, and lists it in the legend', () => {
+    const project = sampleProject;
     const html = renderToStaticMarkup(
       <SystemDiagram project={project} calcProject={project} results={evaluateProject(project)}
         selectedFeederId={null} selectedBoardId={null} onSelectFeeder={() => {}} onSelectBoard={() => {}} onDrawing={() => {}} />
     );
     const host = document.createElement('div');
     host.innerHTML = html;
-    const g = host.querySelector('[data-lv-id="feeder:INC-GF"]')!;
-    const texts = [...g.querySelectorAll('text')].map((t) => t.textContent);
-    expect(texts).toEqual(expect.arrayContaining(['SMDB', 'SMDB-GF']));
-    expect(host.querySelector('[data-lv-id="feeder:INC-DBGF1"]')).toBeNull(); // below the box: on its own sheet only
-    const keys = legendEntries(project).map((e) => e.key);
-    expect(keys).toContain('p-smdb');
+    const texts = [...host.querySelector('[data-lv-id="feeder:INC-DBGF1"]')!.querySelectorAll('text')].map((t) => t.textContent);
+    expect(texts).toEqual(expect.arrayContaining(['DB', 'DB-GF1'])); // DB-GF1 has final circuits only
+    const smdb = [...host.querySelector('[data-lv-id="feeder:INC-GF"]')!.querySelectorAll('text')].map((t) => t.textContent);
+    expect(smdb).not.toContain('SMDB'); // SMDB-GF feeds ways: drawn with its busbar
+    expect(legendEntries(project).map((e) => e.key)).toContain('p-db');
   });
 });

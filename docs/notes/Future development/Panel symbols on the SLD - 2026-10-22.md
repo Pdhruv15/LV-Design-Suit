@@ -4,7 +4,7 @@ The symbol library (PR #300) has six panel symbols: `p-mdb`, `p-smdb`, `p-db`, `
 
 ## Where a panel box helps
 
-1. **Collapsed sub-boards on the SLD (main proposal).** Today every sub-board is drawn in full: busbar, incomer and all its ways. On large projects the sheet gets very wide. Add a per-board "show as one box" switch. When it is on, the feeder that serves the board ends in the panel symbol at load scale (`SYM_SCALE.load`, the same slot as a load) instead of dropping to a full busbar. The board ID, kW and Ib go underneath, in the same three text lines a load uses, and the board's own ways are left out of that sheet. The full board is still drawn on its own panel sheet (`boardSheet.ts`).
+1. **Collapsed sub-boards on the SLD (main proposal).** Today every sub-board is drawn in full: busbar, incomer and all its ways. On large projects the sheet gets very wide. When a board is at the end of the tree, the feeder that serves the board ends in the panel symbol at load scale (`SYM_SCALE.load`, the same slot as a load) instead of dropping to a full busbar. The board ID, kW and Ib go underneath, in the same three text lines a load uses, and the board's own ways are left out of that sheet. The full board is still drawn on its own panel sheet (`boardSheet.ts`).
 2. **Riser diagram (`RiserDiagram.tsx`, `FeederRiserDiagram.tsx`).** The riser already shows boards as boxes. The panel symbol could replace the plain box so the riser and SLD look alike. Text and sizes would stay the same.
 3. **Board sheets: the "fed from" stub.** At the top of a panel sheet, the upstream board could be drawn as its panel symbol with the feeder ID.
 
@@ -24,8 +24,9 @@ The symbol library (PR #300) has six panel symbols: `p-mdb`, `p-smdb`, `p-db`, `
 
 ## Decision (2026-10-22)
 
-Approved with the recommendation, and built:
+Built as option 1, then changed on review. There is **no per-board switch**: the panel symbol is used **automatically for end boards only**.
 
-- Option 1, set per board: `Board.sldBox` ("Show as one box" under **On the SLD** in the board fields, sub-boards only). Main boards, meter cabinets and UPS boards are never boxed.
-- An EMDB uses `p-mdb`, because it is a main board. Its board ID still shows that it is the emergency board.
+- An end board is a sub-board with no ways of its own on the SLD. Its final circuits stay on its load schedule. An APFC panel also counts, because its capacitor steps are inside it. It is drawn as its panel symbol in a load's slot under its feeder, with its ID, name and demand. Double-click the box to open its load schedule.
+- A feeder panel (one feeding ways or other boards, such as SMDB-FF with its loads) keeps its busbar. Main boards, mains/generator changeovers, meter cabinets and UPS boards are never boxed.
+- An EMDB uses `p-mdb`, because it is a main board.
 - Options 2 (riser) and 3 (the "fed from" stub on board sheets) are **still open**. They wait for a separate go-ahead.

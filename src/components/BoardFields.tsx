@@ -219,12 +219,6 @@ export default function BoardFields({ board, onChange, section, building, groups
               <input type="checkbox" checked={!!board.pmu} onChange={(e) => set('pmu', e.target.checked || undefined)} />
               Power meter (PMU) to BMS
             </label>
-            {!isMain && (
-              <label className="row" title="Draw this board on the SLD as one panel box at the end of its feeder; its ways stay on its own panel sheet">
-                <input type="checkbox" checked={!!board.sldBox} onChange={(e) => set('sldBox', e.target.checked || undefined)} />
-                Show as one box (no busbar or ways)
-              </label>
-            )}
             <label className="row">
               <input type="checkbox" checked={board.earthing?.show ?? isMain} onChange={(e) => setEarth({ show: e.target.checked === isMain ? undefined : e.target.checked })} />
               Earth pit detail{!isMain && ' (main boards only)'}

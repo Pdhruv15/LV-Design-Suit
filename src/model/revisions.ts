@@ -130,7 +130,7 @@ export const BOARD_FIELDS: Fields<Board> = [
   ['elcbSensitivityMa', 'ELCB sensitivity'], ['supply', 'Incoming supply'], ['standby', 'Standby generator'], ['level', 'Level'], ['earthRiser', 'Earth riser'],
   ['sourceXr', 'Transformer X/R'], ['vectorGroup', 'Vector group'], ['protection', 'Incomer protection'], ['upsKva', 'UPS (kVA)'],
   ['busbarMaterial', 'Busbar material'], ['ipRating', 'IP rating'], ['manufacturer', 'Manufacturer'], ['model', 'Model'], ['instruments', 'Instruments on the SLD'], ['incomerDevice', 'Incomer device on the SLD'],
-  ['earthing', 'Earth pit detail on the SLD'], ['rmu', 'RMU'], ['spd', 'Surge protection'], ['pmu', 'Power meter (PMU) to BMS'], ['sldBox', 'Shown as one box on the SLD'], ['existing', 'Existing (recorded maximum demand)'], ['enclosure', 'Enclosure'], ['form4', 'Form-4 enclosure'], ['substation', 'Substation'],
+  ['earthing', 'Earth pit detail on the SLD'], ['rmu', 'RMU'], ['spd', 'Surge protection'], ['pmu', 'Power meter (PMU) to BMS'], ['existing', 'Existing (recorded maximum demand)'], ['enclosure', 'Enclosure'], ['form4', 'Form-4 enclosure'], ['substation', 'Substation'],
   ['mdDemandFactor', 'MD demand factor'], ['txRef', 'Transformer reference'], ['summaryLoad', 'Summary load'], ['summaryMeters', 'Summary meters'],
   ['pointItems', 'Library item per column'], ['spareNames', 'Spare names'], ['spareWays', 'Spares and spaces'], ['elcbRatingA', 'ELCB rating (A)']
 ];

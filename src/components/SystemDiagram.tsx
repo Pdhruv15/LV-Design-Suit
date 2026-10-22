@@ -1128,7 +1128,10 @@ export default function SystemDiagram({
                   {panel && sym ? (
                     <>
                       <line x1={n.x} y1={y + 76} x2={n.x} y2={y + 80} className="ln" />
-                      <Sym id={sym} x={n.x} y={y + 94} s={SYM_SCALE.load} />
+                      <g className="sched" onDoubleClick={(e) => { e.stopPropagation(); edit(onOpenSchedule, panel.id)(); }}>
+                        <title>{`${panel.id}: its final circuits are on the load schedule — double-click to open it`}</title>
+                        <Sym id={sym} x={n.x} y={y + 94} s={SYM_SCALE.load} />
+                      </g>
                     </>
                   ) : iec ? (
                     <>
@@ -1167,6 +1170,7 @@ export default function SystemDiagram({
 
         {/* Boards: box on the incoming line, then the busbar */}
         {layout.boards.map((real) => {
+          if (real.boxed) return null; // drawn as a panel box on its feeder
           if (cull && (real.busX2 < viewX1 || real.busX1 > viewX2)) return null;
           // Everything above the incomer hangs from the head (the busbar, or higher on a mains /
           // generator changeover); the busbar, its label and what is on it stay on the real busbar.
