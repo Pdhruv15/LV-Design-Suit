@@ -2,6 +2,7 @@ import { faultCurrentKA, impedanceToBoard, upstreamVoltageDropPct, type Status }
 import { settingsOf, type Board, type Feeder, type LoadType, type Project } from '../types';
 import { switchedOnBoard } from './capSwitching';
 import { memoized, networkOf } from './network';
+import { recordedPQ } from '../model/existing';
 
 const SQRT3 = Math.sqrt(3);
 
@@ -30,17 +31,22 @@ function add(a: PowerTotals, b: PowerTotals): PowerTotals {
 /** Everything supplied through a board, including all downstream boards.
  * Real and reactive power are summed separately, so the combined kVA and
  * power factor are correct for loads with different power factors. */
-export function boardTotals(project: Project, boardId: string, seen = new Set<string>()): PowerTotals {
+export function boardTotals(project: Project, boardId: string, seen = new Set<string>(), covered = false): PowerTotals {
   if (seen.has(boardId)) return ZERO;
   seen.add(boardId);
-  return memoized(project, `totals:${boardId}`, () => boardTotalsOf(project, boardId, seen));
+  return memoized(project, `totals:${boardId}${covered ? ':covered' : ''}`, () => boardTotalsOf(project, boardId, seen, covered));
 }
 
-function boardTotalsOf(project: Project, boardId: string, seen: Set<string>): PowerTotals {
+/** `covered`: a recorded maximum demand above (or on) this board already includes its existing load. */
+function boardTotalsOf(project: Project, boardId: string, seen: Set<string>, covered: boolean): PowerTotals {
   const own = networkOf(project)?.feedersByBoard.get(boardId) ?? project.feeders.filter((f) => f.boardId === boardId);
-  const caps = own.filter((f) => f.kvar && !f.feedsBoardId);
-  const base = own.filter((f) => !caps.includes(f)).reduce((acc, f) => {
-    if (f.feedsBoardId) return add(acc, boardTotals(project, f.feedsBoardId, seen));
+  const board = networkOf(project)?.boardById.get(boardId) ?? project.boards.find((b) => b.id === boardId);
+  const rec = !covered && board ? recordedPQ(project, board) : undefined;
+  const cov = covered || !!rec;
+  const recorded: PowerTotals = rec ? { connectedKw: rec.p, demandKw: rec.p, demandKvar: rec.q, generationKw: 0 } : ZERO;
+  const caps = own.filter((f) => f.kvar && !f.feedsBoardId && !(cov && f.existing));
+  const base = own.filter((f) => !caps.includes(f) && !(cov && f.existing && !f.feedsBoardId)).reduce((acc, f) => {
+    if (f.feedsBoardId) return add(acc, boardTotals(project, f.feedsBoardId, seen, cov));
     const kw = f.loadKw * f.demandFactor;
     if (f.generation) return add(acc, { ...ZERO, generationKw: kw });
     const pf = Math.min(Math.max(f.powerFactor, 0.01), 1);
@@ -50,7 +56,7 @@ function boardTotalsOf(project: Project, boardId: string, seen: Set<string>): Po
       demandKvar: kw * Math.tan(Math.acos(pf)),
       generationKw: 0
     });
-  }, ZERO);
+  }, recorded);
   if (!caps.length) return base;
   // Capacitor banks: the steps the relay switches in at this load (no leading), not the full rating.
   const sw = switchedOnBoard(caps, base.demandKw, base.demandKvar, settingsOf(project).pfTarget);

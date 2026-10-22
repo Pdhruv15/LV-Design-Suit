@@ -193,6 +193,10 @@ export interface Feeder {
   breakerRatingA: number;
   breakerIcuKa: number; // breaking capacity
   generation?: boolean; // true for PV / generator feeders
+  /** Already installed (an extension / retrofit): its breaker and cable are checked against the new load,
+   * drawn dashed and tagged EXISTING, and left out of the BOQ. Under a board with a recorded maximum
+   * demand its load is part of that reading, so it is not added again. */
+  existing?: boolean;
   loadType?: LoadType; // drives the diagram icon; defaults to 'general' ('pv' when generation)
   breakerType?: BreakerType; // default: MCB type C up to 63 A, MCCB above
   breakerImMultiple?: number; // MCCB/ACB instantaneous setting as a multiple of In (default 10)
@@ -255,6 +259,22 @@ export interface SpareWay {
   remarks?: string;
 }
 
+/** An existing board (or transformer, on a main board) and its recorded maximum demand. */
+export interface ExistingInfo {
+  /** Recorded maximum demand, kVA; or as a current (A) when only that was read. */
+  recordedKva?: number;
+  recordedA?: number;
+  /** Power factor of the recorded demand (default 0.9). */
+  powerFactor?: number;
+  /** Margin added to the recorded demand, % (default 0). */
+  marginPct?: number;
+  /** When and how it was recorded, e.g. "2026-08-12", "DEWA reading" / "logger, 7 days". */
+  recordedOn?: string;
+  source?: string;
+  /** Spare ways available on the board at the survey (for the spare-ways check). */
+  spareWays?: number;
+}
+
 export interface Board {
   id: string;
   name: string;
@@ -305,6 +325,9 @@ export interface Board {
   spd?: SpdType;
   /** Power meter (PMU) on the incomer, connected to the BMS (on each incomer of a changeover). */
   pmu?: boolean;
+  /** Already installed (an extension / retrofit): drawn dashed and tagged EXISTING, left out of the BOQ.
+   * Its recorded maximum demand covers all existing load at and below it; new load is added on top. */
+  existing?: ExistingInfo;
   /** Incoming supply of a board fed by the authority (meter cabinet / MDB
    * with no upstream board): the INCOMER row of the connected load form. */
   supply?: {

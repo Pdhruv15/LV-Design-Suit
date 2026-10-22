@@ -124,6 +124,9 @@ export function legendEntries(project: Project): LegendEntry[] {
     <g className="iec"><rect x={x - 11} y={y - 7} width="22" height="14" rx="2" className="sym" /><text x={x} y={y + 3} textAnchor="middle" className="iec-t s">ATS</text></g>
   ));
   add('bus', 'Busbar', (x, y) => <line x1={x - 12} y1={y} x2={x + 12} y2={y} className="bus" />);
+  if (project.boards.some((b) => b.existing) || project.feeders.some((f) => f.existing)) add('existing', 'EXISTING: already installed, not in the BOQ', (x, y) => (
+    <line x1={x - 12} y1={y} x2={x + 12} y2={y} className="ln" style={{ strokeDasharray: '5 3' }} />
+  ));
   if (drawn.length) add('cable', `Cable ${cableTypeDef(DEFAULT_CABLE_TYPE).label.replace(/ \(.*\)$/, '')} unless marked`, (x, y) => <line x1={x} y1={y - 10} x2={x} y2={y + 10} className="ln" />);
   if (drawn.some((f) => cableTypeOf(project, f).fireRated)) add('fr', 'Fire-rated cable (FR, MICC)', (x, y) => <line x1={x} y1={y - 10} x2={x} y2={y + 10} className="ln fr" />);
   const others = [...new Set(drawn.map((f) => labelCode(project, f)).filter((c) => c && c !== 'FR' && c !== 'MICC'))];

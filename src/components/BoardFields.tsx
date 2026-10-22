@@ -69,6 +69,29 @@ export default function BoardFields({ board, onChange, section, building, groups
             </select>
           </label>
           <label>Rated current (A){num('ratedCurrentA', 1, 'e.g. 400')}</label>
+          <fieldset className="relays">
+            <legend>Existing installation</legend>
+            <label className="row" title="Already installed (an extension / retrofit): drawn dashed and tagged EXISTING, left out of the BOQ, checked against its recorded demand plus the new load">
+              <input type="checkbox" checked={!!board.existing} onChange={(e) => set('existing', e.target.checked ? {} : undefined)} />
+              Existing board{!board.upstreamId && board.sourceKva ? ' and transformer' : ''}
+            </label>
+            {board.existing && (() => {
+              const ex = board.existing;
+              const setEx = (patch: Partial<NonNullable<Board['existing']>>) => set('existing', { ...ex, ...patch });
+              const n = (v: string) => (v.trim() === '' || Number.isNaN(+v) ? undefined : +v);
+              return (
+                <div className="earth-kv" title="The recorded maximum demand covers all existing load on and below this board; new load is added on top">
+                  <label>Recorded MD (kVA)<input inputMode="decimal" value={ex.recordedKva ?? ''} placeholder="from DEWA / logger" onChange={(e) => setEx({ recordedKva: n(e.target.value) })} /></label>
+                  <label>or as current (A)<input inputMode="decimal" value={ex.recordedA ?? ''} placeholder="if read in A" onChange={(e) => setEx({ recordedA: n(e.target.value) })} /></label>
+                  <label>Power factor<input inputMode="decimal" value={ex.powerFactor ?? ''} placeholder="0.9" onChange={(e) => setEx({ powerFactor: n(e.target.value) })} /></label>
+                  <label>Margin (%)<input inputMode="decimal" value={ex.marginPct ?? ''} placeholder="0" onChange={(e) => setEx({ marginPct: n(e.target.value) })} /></label>
+                  <label>Recorded on<input value={ex.recordedOn ?? ''} placeholder="e.g. 2026-08-12" onChange={(e) => setEx({ recordedOn: e.target.value || undefined })} /></label>
+                  <label>Source<input value={ex.source ?? ''} placeholder="DEWA reading / logger 7 days" onChange={(e) => setEx({ source: e.target.value || undefined })} /></label>
+                  <label>Spare ways at survey<input inputMode="numeric" value={ex.spareWays ?? ''} placeholder="count" onChange={(e) => setEx({ spareWays: n(e.target.value) })} /></label>
+                </div>
+              );
+            })()}
+          </fieldset>
           {board.kind === 'UPS' && (
             <label>UPS rating (kVA)
               <input inputMode="decimal" value={board.upsKva ?? ''} placeholder="e.g. 20"
