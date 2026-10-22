@@ -23,12 +23,21 @@ function Row({ x, y, side, cells, round, ct }: { x: number; y: number; side: 1 |
   return (
     <g>
       {ct ? <circle cx={x} cy={y} r="4" className="sym-ln" /> : <circle cx={x} cy={y} r="2.2" className="sym-fill" />}
-      <line x1={x + side * (ct ? 4 : 2)} y1={y} x2={side < 0 ? x0 + total : x0} y2={y} className="ln" />
+      {/* To the first cell; across all of them for lamps, which sit on the line. */}
+      <line x1={x + side * (ct ? 4 : 2)} y1={y} x2={round ? (side < 0 ? x0 : x0 + total) : side < 0 ? x0 + total : x0} y2={y} className="ln" />
       {order.map((c, i) => {
         const cx = x0 + i * (w + GAP) + w / 2;
+        // Library symbols: ammeter / voltmeter, and a lamp (tapped off the row's line) with its phase above.
+        if (c === 'A' || c === 'V') return <Sym key={`${c}-${i}`} id={c === 'A' ? 'ammeter' : 'voltmeter'} x={cx} y={y} s={SYM_SCALE.device} />;
+        if (round) return (
+          <g key={`${c}-${i}`}>
+            <Sym id="lamp" x={cx - 10} y={y} s={SYM_SCALE.device} />
+            <text x={cx} y={y - 5} textAnchor="middle" className="acc-t b" style={{ fontSize: 7 }}>{c}</text>
+          </g>
+        );
         return (
           <g key={`${c}-${i}`}>
-            {round ? <circle cx={cx} cy={y} r={CELL / 2} className="sym" /> : <rect x={cx - w / 2} y={y - 7} width={w} height="14" className="sym" />}
+            <rect x={cx - w / 2} y={y - 7} width={w} height="14" className="sym" />
             <text x={cx} y={y + 3} textAnchor="middle" className="acc-t b" style={{ fontSize: 8.5 }}>{c}</text>
           </g>
         );
@@ -98,8 +107,7 @@ export function ChangeoverIncomers({ x, genX, headY, busY, kva, mains, generator
       <Incomer x={genX} top={gy + 11} busY={busY} side={1} breaker={generator} instruments={instruments} pmu={pmu} spd={spd} />
       <text x={x - 6} y={busY - CO_ROWS.amps - 13} textAnchor="end" className="acc-t b">MAINS (N)</text>
       <text x={genX + 6} y={busY - CO_ROWS.amps - 13} className="acc-t b">GENERATOR (E)</text>
-      <circle cx={genX} cy={gy} r="11" className="sym" />
-      <text x={genX} y={gy + 4} textAnchor="middle" className="b" style={{ fontSize: 11 }}>G</text>
+      <Sym id="gen" x={genX} y={gy} s={SYM_SCALE.load} />
       <text x={genX + 15} y={gy - 2} className="m">STANDBY GENERATOR</text>
       <text x={genX + 15} y={gy + 11} className="m">{kva} kVA</text>
       <path d={`M${x + 5} ${by} L${x + 28} ${ly} H${genX - 28} L${genX - 5} ${by}`} className="ln" />
