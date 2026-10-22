@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { PDFDict, PDFDocument, PDFName } from 'pdf-lib';
 import { mergePdfs } from './mergePdf';
 import { finishPdf, htmlTitle } from './pdfTools';
+import { EMPTY_BYTES, MALFORMED_OFFICE_BYTES } from '../../tests/fixtures/importExport';
 
 const blank = async (n: number) => { const d = await PDFDocument.create(); for (let i = 0; i < n; i++) d.addPage([595, 842]); return d.save(); };
 
@@ -22,6 +23,12 @@ describe('PDF finishing', () => {
     const many = await finishPdf(await PDFDocument.load(await blank(3)), { title: 'Voltage drop' });
     expect(many.length).toBeGreaterThan(0);
     expect(htmlTitle('<html><head><title>A &amp; B</title></head></html>')).toBe('A & B');
+  });
+  it('rejects empty and malformed PDF input with the failing part number', async () => {
+    await expect(mergePdfs([], 'Empty')).rejects.toThrow('no PDF parts');
+    await expect(mergePdfs([EMPTY_BYTES], 'Empty')).rejects.toThrow('part 1: the file is empty');
+    await expect(mergePdfs([await blank(1), MALFORMED_OFFICE_BYTES], 'Broken')).rejects.toThrow('part 2: the file is not a valid PDF');
+    await expect(finishPdf(await PDFDocument.create(), { title: 'No pages' })).rejects.toThrow('no pages');
   });
 });
 
