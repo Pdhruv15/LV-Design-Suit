@@ -75,6 +75,7 @@ describe('IEC symbols and legend', () => {
       feeders: sampleProject.feeders.map((f, i) => (i === 0 ? { ...f, rcdMa: 30, kwhMeter: 'CT' as const } : f))
     };
     const k2 = legendEntries(withAcc).map((e) => e.key);
-    expect(k2).toEqual(expect.arrayContaining(['rcd', 'ct', 'kwh', 'spd']));
+    expect(k2).toEqual(expect.arrayContaining(['rcbo', 'ct', 'kwh', 'spd']));
+    expect(k2).not.toContain('rcd'); // the RCBO symbol already shows it
   });
 });

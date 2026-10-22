@@ -1,9 +1,10 @@
-import type { Feeder } from '../types';
+import type { Feeder, StarterType } from '../types';
 import { isMotor, starterInfo, starterOf } from '../calc/motor';
 
 /** Boxed devices drawn on a feeder in the SLD: the motor starter and the earth leakage device. */
 export interface SldDevices {
   starter?: string; // box label: DOL, S/D, SS, VFD
+  starterType?: StarterType;
   elcb?: { label: string; ma?: number };
   extras: string[]; // UVR, TIMER — set from the load schedule remarks
 }
@@ -26,7 +27,7 @@ export function sldDevices(f: Feeder): SldDevices {
   let starter = isMotor(f) ? starterOf(f) : undefined;
   if (/\bNO\s+STARTER\b/i.test(remarks)) starter = undefined;
   else for (const [re, s] of STARTER_WORDS) if (s && re.test(remarks)) { starter = s; break; }
-  if (starter) out.starter = starterInfo(starter).short;
+  if (starter) { out.starter = starterInfo(starter).short; out.starterType = starter; }
 
   const m = remarks.match(/\b(ELCB|RCCB|RCBO|RCD|ELR)\b(?:\s*[-:@]?\s*(\d+(?:\.\d+)?)\s*mA)?/i);
   if (/\bNO\s+(ELCB|RCCB|RCBO|RCD)\b/i.test(remarks)) return out;

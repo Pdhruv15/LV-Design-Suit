@@ -1,10 +1,11 @@
-import type { Feeder, LoadType, Project } from '../types';
+import type { Feeder, LoadType, Project, StarterType } from '../types';
 import { breakerTypeOf } from '../calc/earthing';
 import { isMotor } from '../calc/motor';
 import { isScheduleCircuit } from '../calc/loadSchedule';
 import { cableTypeDef, cableTypeOf, labelCode } from '../model/cableTypes';
 import { DEFAULT_CABLE_TYPE, incomerDeviceOf } from '../types';
-import { Sym, SYM_SCALE, type SymbolId } from './symbolLibrary';
+import { Sym, SYM_SCALE, SYMBOLS, type SymbolId } from './symbolLibrary';
+import { sldDevices } from './sldDevices';
 
 /** IEC 60617 symbols for the single line diagram, drawn with the diagram's
  * own classes (.ln lines, .sym filled shapes) so they follow the theme and
@@ -23,6 +24,34 @@ export const switchKindOf = (f: Feeder): SwitchKind =>
 export function SwitchSym({ x, y, kind }: { x: number; y: number; kind: SwitchKind }) {
   return <Sym id={kind === 'breaker' ? 'cb' : kind} x={x} y={y + 8} s={SYM_SCALE.device} />;
 }
+
+export type SwitchSymbol = 'cb' | 'acb' | 'nonauto' | 'isolator' | 'rcbo' | 'rccb';
+const SWITCH_SYM: Record<SwitchKind, SwitchSymbol> = { breaker: 'cb', acb: 'acb', isolator: 'isolator', nonauto: 'nonauto' };
+
+/** Symbol in a feeder's switching slot: an RCBO (breaker) or RCCB (switch)
+ * when the earth leakage protection is part of it, else the plain switch.
+ * An ACB keeps its own symbol; an ELR, or an RCCB after a breaker, stays a
+ * separate boxed device. */
+export function feederSwitchOf(f: Feeder): SwitchSymbol {
+  const kind = switchKindOf(f);
+  const elcb = sldDevices(f).elcb?.label;
+  if (!elcb || elcb === 'ELR' || kind === 'acb' || kind === 'nonauto') return SWITCH_SYM[kind];
+  if (kind === 'breaker') return elcb === 'RCCB' ? 'cb' : 'rcbo';
+  return elcb === 'RCBO' ? 'rcbo' : 'rccb';
+}
+
+/** True when the feeder's switching symbol already shows its earth leakage protection. */
+export const rcdInSwitch = (f: Feeder) => ['rcbo', 'rccb'].includes(feederSwitchOf(f));
+
+/** A feeder's switching device in the 16-unit slot from (x, y) to (x, y + 16). */
+export function FeederSwitchSym({ x, y, f }: { x: number; y: number; f: Feeder }) {
+  return <Sym id={feederSwitchOf(f)} x={x} y={y + 8} s={SYM_SCALE.device} />;
+}
+
+const STARTER_SYM: Record<StarterType, SymbolId> = { DOL: 'dol', SD: 'sd', SS: 'ss', VFD: 'vfd' };
+
+/** Library symbol for a motor starter. */
+export const starterSymbolOf = (s: StarterType): SymbolId => STARTER_SYM[s];
 
 const EQUIP_SYM: Partial<Record<LoadType, SymbolId>> = { lighting: 'lighting', sockets: 'socket', capacitor: 'capacitor', pv: 'pv', hvac: 'eq-ac', ev: 'eq-ev', it: 'eq-it' };
 
@@ -71,13 +100,14 @@ export function legendEntries(project: Project): LegendEntry[] {
   if (has('acb')) add('acb', 'Air circuit breaker, withdrawable', (x, y) => <Sym id="acb" x={x} y={y} s={SYM_SCALE.legend} />);
   if (project.boards.some((b) => !b.standby && incomerDeviceOf(b) === 'MCCB-NA')) add('nonauto', 'Non-automatic breaker (incomer isolation)', (x, y) => <Sym id="nonauto" x={x} y={y} s={SYM_SCALE.legend} />);
   if (has('isolator')) add('isol', 'Switch-disconnector', (x, y) => <Sym id="isolator" x={x} y={y} s={SYM_SCALE.legend} />);
-  if (drawn.some((f) => f.rcdMa)) add('rcd', 'Earth leakage protection (RCD)', (x, y) => (
+  const switches = new Set(drawn.map(feederSwitchOf));
+  if (switches.has('rcbo')) add('rcbo', 'RCBO: breaker with earth leakage protection', (x, y) => <Sym id="rcbo" x={x} y={y} s={SYM_SCALE.legend} />);
+  if (switches.has('rccb')) add('rccb', 'RCCB / ELCB: switch with earth leakage protection', (x, y) => <Sym id="rccb" x={x} y={y} s={SYM_SCALE.legend} />);
+  if (drawn.some((f) => sldDevices(f).elcb && !rcdInSwitch(f))) add('rcd', 'Earth leakage protection (RCD)', (x, y) => (
     <g className="iec"><line x1={x} y1={y - 9} x2={x} y2={y + 9} className="ln" /><ellipse cx={x} cy={y} rx="7" ry="3.2" className="sym-ln" /></g>
   ));
   const prot = project.boards.map((b) => b.protection);
-  if (drawn.some((f) => f.kwhMeter === 'CT') || project.boards.some((b) => b.protection?.ctRatio || b.supply?.ctRatio)) add('ct', 'Current transformer', (x, y) => (
-    <g className="iec"><line x1={x} y1={y - 9} x2={x} y2={y + 9} className="ln" /><circle cx={x} cy={y} r="4.5" className="sym-ln" /></g>
-  ));
+  if (drawn.some((f) => f.kwhMeter === 'CT') || project.boards.some((b) => b.protection?.ctRatio || b.supply?.ctRatio)) add('ct', 'Current transformer', (x, y) => <Sym id="ct" x={x} y={y} s={SYM_SCALE.legend} />);
   const relays = [...new Set(prot.flatMap((p) => p?.relays ?? []))];
   if (relays.length) add('relay', `Protection relays: ${relays.join(', ')}`, (x, y) => (
     <g className="iec"><circle cx={x - 8} cy={y} r="4.5" className="sym-ln" /><line x1={x - 3.5} y1={y} x2={x + 6} y2={y} className="ln" style={{ strokeDasharray: '2 1.5' }} /><text x={x + 8} y={y + 3} className="iec-t s">{relays[0]}</text></g>
@@ -91,9 +121,7 @@ export function legendEntries(project: Project): LegendEntry[] {
       <g className="iec"><rect x={x - 10} y={y - 6} width="20" height="12" className="sym" /><text x={x} y={y + 3} textAnchor="middle" className="iec-t s">OC</text></g>
     ));
   }
-  if (project.boards.some((b) => b.pmu)) add('pmu', 'Power meter (PMU) with link to BMS', (x, y) => (
-    <g className="iec"><rect x={x - 13} y={y - 6} width="26" height="12" className="sym" /><text x={x} y={y + 3} textAnchor="middle" className="iec-t s">PMU</text></g>
-  ));
+  if (project.boards.some((b) => b.pmu)) add('pmu', 'Power meter (PMU) with link to BMS', (x, y) => <Sym id="pmu" x={x} y={y} s={SYM_SCALE.legend} />);
   if (prot.some((p) => p?.apfc)) add('pfr', 'Power factor relay (PFR), CT from the incomer', (x, y) => (
     <g className="iec"><rect x={x - 9} y={y - 5.5} width="18" height="11" rx="1" className="sym" /><text x={x} y={y + 3} textAnchor="middle" className="iec-t s">PFR</text></g>
   ));
@@ -109,13 +137,11 @@ export function legendEntries(project: Project): LegendEntry[] {
   if (project.boards.some((b) => b.earthing?.show ?? main(b))) add('pit', 'Earth pit with inspection cover', (x, y) => (
     <g className="iec"><rect x={x - 7} y={y - 11} width="14" height="9" className="sym" /><line x1={x} y1={y - 6} x2={x} y2={y + 6} className="ln" /><path d={`M${x - 7} ${y + 6} h14 M${x - 4.5} ${y + 9} h9 M${x - 2} ${y + 12} h4`} className="ln" /></g>
   ));
-  if (drawn.some((f) => f.kwhMeter)) add('kwh', 'kWh meter', (x, y) => (
-    <g className="iec"><rect x={x - 12} y={y - 6} width="24" height="12" rx="2" className="sym" /><text x={x} y={y + 3} textAnchor="middle" className="iec-t b">kWh</text></g>
-  ));
+  if (drawn.some((f) => f.kwhMeter)) add('kwh', 'kWh meter', (x, y) => <Sym id="kwh" x={x} y={y} s={SYM_SCALE.legend} />);
   if (drawn.some((f) => f.localIsolator)) add('iso', 'Local isolator at the equipment', (x, y) => <Sym id="isolator" x={x} y={y} s={SYM_SCALE.legend} />);
-  if (project.boards.some((b) => b.spd)) add('spd', 'Surge protection device (SPD)', (x, y) => (
-    <g className="iec"><rect x={x - 6} y={y - 9} width="12" height="14" className="sym" /><path d={`M${x + 2} ${y - 7} l-3 5 h3 l-3 5`} className="sym-ln" /><path d={`M${x - 6} ${y + 8} h12 M${x - 4} ${y + 11} h8`} className="ln" /></g>
-  ));
+  if (project.boards.some((b) => b.spd)) add('spd', 'Surge protection device (SPD)', (x, y) => <Sym id="spd" x={x} y={y} s={SYM_SCALE.legend} />);
+  const starters = new Set(loads.map((f) => sldDevices(f).starterType).filter((t): t is StarterType => !!t));
+  for (const t of ['DOL', 'SD', 'SS', 'VFD'] as const) if (starters.has(t)) add(starterSymbolOf(t), SYMBOLS[starterSymbolOf(t)].label, (x, y) => <Sym id={starterSymbolOf(t)} x={x} y={y} s={SYM_SCALE.legend} />);
   if (types.has('motor') || types.has('fire-pump')) add('m', 'Motor (FP = fire pump)', (x, y) => <LoadSym x={x} y={y} type="motor" s={SYM_SCALE.legend} />);
   if (types.has('lighting')) add('lamp', 'Lighting', (x, y) => <LoadSym x={x} y={y} type="lighting" s={SYM_SCALE.legend} />);
   if (types.has('sockets')) add('so', 'Socket outlets', (x, y) => <LoadSym x={x} y={y} type="sockets" s={SYM_SCALE.legend} />);
