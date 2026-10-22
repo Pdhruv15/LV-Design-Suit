@@ -6,6 +6,7 @@ import { newPriceList, priceBom } from '../model/priceList';
 import { boqReview, SCOPE_CHECKS } from '../model/boqScope';
 import { sampleProject } from '../data/sampleProject';
 import { amountInWords, boqBookmarks, buildBoqHtml, buildBoqWorkbook, buildPriceTemplate, readPriceWorkbook } from './boqWorkbook';
+import { EXPORT_NUMBERS } from '../../tests/fixtures/exportNumbers';
 import { EMPTY_BYTES, MALFORMED_OFFICE_BYTES } from '../../tests/fixtures/importExport';
 
 const item: BomItem = { key: 'test:cable', section: 'E', description: 'Measured cable', unit: 'm', qty: 2, where: ['DB-1'] };
@@ -235,6 +236,20 @@ describe('tender-format PDF BOQ', () => {
     buildBoqWorkbook(project(custom), bom, list).getWorksheet('Summary')!.eachRow((row) => labels.push(row.getCell(2).value));
     expect(labels).toEqual(expect.arrayContaining(['Total (excluding VAT)', 'VAT (5 %)', 'Grand total (including VAT)']));
     expect(priceBom([item], list, { vatPct: 150 }).vat).toBe(0);
+  });
+
+  it('uses the PDF quantity precision and units in Excel without changing calculation values', () => {
+    const measured = { ...item, qty: EXPORT_NUMBERS.quantity };
+    const bom = priceBom([measured], { ...list, rates: { [item.key]: { rate: 1, labour: 0 } } });
+    const wb = buildBoqWorkbook(project(), bom);
+    const row = itemRow(wb)[0];
+    expect(row.getCell(3).value).toBe('m');
+    expect(row.getCell(4).value).toBe(EXPORT_NUMBERS.quantity);
+    expect(wb.getWorksheet('BOQ')!.getColumn(4).numFmt).toBe('#,##0.##');
+    expect(buildBoqHtml(project(), bom)).toContain('<td class="n">1,234.57</td>');
+    const template = buildPriceTemplate([measured]);
+    expect(template.getWorksheet('Rates')!.getColumn(4).numFmt).toBe('#,##0.00');
+    expect(template.getWorksheet('Rates')!.getColumn(5).numFmt).toBe('#,##0.00');
   });
 
   it('writes the grand total in words', () => {
