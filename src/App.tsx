@@ -54,7 +54,6 @@ import ComponentEditor from './components/ComponentEditor';
 import { componentPreset, newComponent, syncComponent, type UserComponent } from './model/components';
 const documents = () => import('./components/docs/Documents');
 const CableScheduleView = lazy(() => documents().then((m) => ({ default: m.CableScheduleView })));
-const DbScheduleView = lazy(() => documents().then((m) => ({ default: m.DbScheduleView })));
 const EquipmentScheduleView = lazy(() => documents().then((m) => ({ default: m.EquipmentScheduleView })));
 const ReportView = lazy(() => documents().then((m) => ({ default: m.ReportView })));
 const LoadScheduleView = lazy(() => import('./components/docs/LoadScheduleView'));
@@ -148,7 +147,7 @@ type DiagramMode = 'system' | 'board' | 'earthing' | 'riser';
 /** Pages the panel tree filters to a board and the boards below it. */
 const FOCUS_VIEWS: MainView[] = ['earthing', 'selection', 'cable-schedule'];
 
-const STUDY_VIEWS: MainView[] = ['voltage-drop', 'earthing', 'selection', 'coordination', 'db-schedule', 'cable-schedule', 'report'];
+const STUDY_VIEWS: MainView[] = ['voltage-drop', 'earthing', 'selection', 'coordination', 'cable-schedule', 'report'];
 
 /** A project as the app holds it once opened: with its id and version, earth pit IDs and cable reference
  * numbers already in place — so opening never counts as an unsaved change (these are bookkeeping, not edits). */
@@ -163,7 +162,7 @@ const PALETTE_PAGES: [MainView, string][] = [
   ['space-planning', 'Space plan'], ['substation-area', 'Substation area'], ['enclosure', 'Enclosure sizing'], ['earth-schematic', 'Earth pits'],
   ['busbar', 'Busbar riser'], ['calculators', 'Quick calcs'], ['voltage-drop', 'Voltage drop'], ['engines', 'Load flow'], ['earthing', 'Earthing'],
   ['coordination', 'Protection coordination'], ['selection', 'Breaker & cable selection'], ['sizing', 'Transformer & generator sizing'], ['pfc', 'Power factor'],
-  ['ups', 'UPS & battery'], ['solar', 'Solar PV'], ['drawings', 'Drawings'], ['drawing-register', 'Drawing register'], ['db-schedule', 'DB schedule'],
+  ['ups', 'UPS & battery'], ['solar', 'Solar PV'], ['drawings', 'Drawings'], ['drawing-register', 'Drawing register'],
   ['cable-schedule', 'Cable schedule'], ['cable-tray', 'Cable trays'], ['equipment', 'Equipment schedule'], ['boq', 'Bill of quantities (BOQ)'],
   ['study-reports', 'Study reports'], ['report', 'Calculation report'], ['revisions', 'Revisions'], ['modifications', 'Changes'], ['review', 'Review'],
   ['received-docs', 'Received documents'], ['submissions', 'Submissions'], ['parameters', 'Parameters'], ['titleblock', 'Title block'], ['database', 'Database'],
@@ -267,7 +266,6 @@ export default function App() {
   const [createdPanelIds, setCreatedPanelIds] = useState<string[]>([]);
   // Study pages filtered to a board and the boards below it (panel tree).
   const [focus, setFocus] = useState<string | null>(null);
-  const [dbScheduleAll, setDbScheduleAll] = useState(true);
   const [bomCmd, setBomCmd] = useState<{ cmd: BomCommand; n: number } | undefined>();
   // A ribbon command belongs to the visit it was given in: leaving the BOQ drops it, so it does not run again when the view opens next time.
   useEffect(() => { if (view !== 'boq') setBomCmd(undefined); }, [view]);
@@ -1078,8 +1076,7 @@ export default function App() {
     if (view === 'design') return selectBoard(id);
     if (FOCUS_VIEWS.includes(view)) return setFocus(focus === id ? null : id);
     setActiveBoardId(id);
-    if (view === 'db-schedule') setDbScheduleAll(false);
-    if (view !== 'load-schedule' && view !== 'db-schedule' && view !== 'coordination') setStatus(`${id} selected — double-click it to open it on the SLD`);
+    if (view !== 'load-schedule' && view !== 'coordination') setStatus(`${id} selected — double-click it to open it on the SLD`);
   }
 
   // Recent projects (Home ▸ Recent): the recently opened, else the latest saved.
@@ -1528,7 +1525,6 @@ export default function App() {
             {view === 'load-assessment' && <LoadAssessmentView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'busbar' && <BusbarStudy project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'pfc' && <PfcStudy project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
-            {view === 'db-schedule' && <DbScheduleView project={calcProject} board={dbScheduleAll ? '' : board?.id} onBoard={(id) => { setDbScheduleAll(!id); if (id) setActiveBoardId(id); }} onStatus={setStatus} />}
             {view === 'cable-schedule' && <CableScheduleView project={calcProject} focus={focus} onClearFocus={() => setFocus(null)} onStatus={setStatus} />}
             {view === 'equipment' && <EquipmentScheduleView project={calcProject} onStatus={setStatus} />}
             {view === 'report' && <ReportView project={calcProject} stale={staleKeys.length > 0} onRun={runNow} onStatus={setStatus}

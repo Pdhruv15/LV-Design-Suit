@@ -9,7 +9,6 @@ import { incomerOf, indentTarget, moveBlocked, outdentTarget, siblings } from '.
 export const TREE_HINT: Partial<Record<string, string>> = {
   design: 'Click a board to select it on the SLD',
   'load-schedule': 'Click a DB to open its load schedule',
-  'db-schedule': 'Click a board for its panel schedule',
   coordination: 'Click a board for its breakers’ coordination',
   earthing: 'Click a board to show it and the boards below',
   selection: 'Click a board to show it and the boards below',

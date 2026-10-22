@@ -43,7 +43,7 @@ describe('export centre, one PDF', () => {
   it('merges every available document with a bookmark each', async () => {
     const ctx = { project: sampleProject, run: runCalculations(sampleProject), stale: [] };
     const parts = CATALOGUE.filter((e) => !unavailable(e, ctx)).flatMap((e) => e.build(ctx));
-    expect(parts.length).toBeGreaterThan(10);
+    expect(parts.length).toBeGreaterThanOrEqual(10);
     const pdfs = parts.map((p, i) => print(i, p.html));
     const pages = await Promise.all(pdfs.map(async (b) => (await PDFDocument.load(b)).getPageCount()));
     expect(pages.every((n) => n > 0)).toBe(true);

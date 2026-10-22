@@ -3,7 +3,7 @@ import { sampleProject } from '../data/sampleProject';
 import { applyDrop, canDrop } from './sldEdit';
 import { evaluateEarthing, instantaneousTripA, rcdOf } from '../calc/earthing';
 import { isScheduleCircuit } from '../calc/loadSchedule';
-import { accessoriesText, dbSchedule, equipmentSchedule } from '../docs/schedules';
+import { equipmentSchedule } from '../docs/schedules';
 import { runCalculations, staleStudies } from '../calc/runs';
 import type { Project } from '../types';
 
@@ -58,14 +58,8 @@ describe('SLD accessories: metering, earth leakage, isolator, surge protection',
     expect(staleStudies(run, with_({ kwhMeter: '3-PH', localIsolator: true }))).toEqual([]);
   });
 
-  it('schedules list the accessories and the SPD', () => {
-    expect(accessoriesText({ ...small, rcdMa: 30, kwhMeter: 'CT', localIsolator: true })).toBe('RCD 30 mA · CT kWh meter · local isolator');
-    expect(accessoriesText({ ...small, kvar: 300, capSteps: 6, detunedPct: 7 })).toBe('6 steps · 7% detuned');
-    const p: Project = { ...sampleProject, boards: sampleProject.boards.map((b) => (b.id === 'MDB-1' ? { ...b, spd: 'T1+2' as const } : b)), feeders: sampleProject.feeders.map((x) => (x.id === small.id ? { ...x, rcdMa: 30 } : x)) };
-    const db = dbSchedule(p);
-    expect(db.headers[db.headers.length - 1]).toBe('Accessories');
-    const row = db.rows.find((r) => r[2] === small.id)!;
-    expect(row[row.length - 1]).toBe('RCD 30 mA');
+  it('the equipment schedule lists the SPD', () => {
+    const p: Project = { ...sampleProject, boards: sampleProject.boards.map((b) => (b.id === 'MDB-1' ? { ...b, spd: 'T1+2' as const } : b)) };
     const eq = equipmentSchedule(p).rows.find((r) => r[0] === 'MDB-1')!;
     expect(eq[eq.length - 1]).toBe('SPD T1+2');
   });

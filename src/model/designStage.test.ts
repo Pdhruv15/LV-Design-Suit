@@ -87,7 +87,7 @@ describe('ribbon follows the stages', () => {
     expect(tabForView('load-assessment')).toBe('concept');
     expect(tabForView('voltage-drop')).toBe('detailed');
     expect(tabForView('submissions')).toBe('issue');
-    expect(tabForView('db-schedule')).toBe('reports');
+    expect(tabForView('cable-schedule')).toBe('reports');
   });
 });
 

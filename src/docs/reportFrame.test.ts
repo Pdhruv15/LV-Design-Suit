@@ -205,11 +205,11 @@ describe('report generator (phase 5)', () => {
 import { planAppendices } from './appendices';
 describe('fixed appendix set', () => {
   const scope = scopeOf(sampleProject, { boards: [], downstream: true });
-  it('orders load → cable → fault → equipment → SLD → references, lettered without gaps', () => {
+  it('orders cable → fault → equipment → SLD → references, lettered without gaps (no load tables in these sections)', () => {
     const secs = (['schedules', 'sc', 'sizing'] as const).map((k) => buildSection(k, data, scope));
     const apps = planAppendices({ ...sampleProject, standards: ['Spec 26'] }, secs, ['sc'], []);
-    expect(apps.map((a) => [a.letter, a.kind])).toEqual([['A', 'load'], ['B', 'cable'], ['C', 'fault'], ['D', 'equipment'], ['E', 'sld'], ['F', 'refs']]);
-    expect(apps[1].tables.map((t) => t.table.title)).toEqual(['Cable schedule']);
+    expect(apps.map((a) => [a.letter, a.kind])).toEqual([['A', 'cable'], ['B', 'fault'], ['C', 'equipment'], ['D', 'sld'], ['E', 'refs']]);
+    expect(apps[0].tables.map((t) => t.table.title)).toEqual(['Cable schedule']);
   });
   it('leaves out what does not apply, and puts the SLD pages in their appendix', () => {
     const secs = [buildSection('sc', data, scope)];
