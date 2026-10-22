@@ -418,7 +418,26 @@ export function sizeRoute(project: Project, planIn: TrayPlan, route: TrayRoute):
   };
 }
 
-export const sizeAll = (project: Project, plan: TrayPlan) => plan.routes.map((r) => sizeRoute(project, plan, r));
+/** Sizes all routes after indexing feeder membership once. This avoids every route rescanning every feeder
+ * (and reparsing every path), which is the hot path used by tray grouping during calculation runs. */
+export function sizeAll(project: Project, plan: TrayPlan): TrayResult[] {
+  const routesByName = new Map<string, TrayRoute[]>();
+  const routeById = new Map(plan.routes.map((r) => [r.id, r]));
+  const explicit = new Map<string, Set<string>>();
+  const feeders = new Map(plan.routes.map((r) => [r.id, [] as Feeder[]]));
+  for (const r of plan.routes) {
+    const key = r.name.trim().toUpperCase();
+    routesByName.set(key, [...(routesByName.get(key) ?? []), r]);
+    for (const c of r.cables) if (c.feederId) (explicit.get(c.feederId) ?? explicit.set(c.feederId, new Set()).get(c.feederId)!).add(r.id);
+  }
+  for (const f of project.feeders) {
+    const routes = new Set<TrayRoute>();
+    for (const name of routeNames(f.trayRoute)) for (const r of routesByName.get(name) ?? []) routes.add(r);
+    for (const id of explicit.get(f.id) ?? []) { const r = routeById.get(id); if (r) routes.add(r); }
+    for (const r of routes) feeders.get(r.id)!.push(f);
+  }
+  return plan.routes.map((r) => sizeRoute({ ...project, feeders: feeders.get(r.id)! }, plan, r));
+}
 
 /** Worst grouping factor of each SLD cable over the routes it runs on.
  * Cached per project object (the calculations call it per feeder). */

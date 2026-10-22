@@ -52,6 +52,23 @@ describe('UPS and battery sizing', () => {
     const t = boardTotals(sampleProject, b.id);
     expect(upsLoad(sampleProject, ups({ boardId: b.id })).kw).toBeCloseTo(t.demandKw, 6);
   });
+
+  it('does not select equipment from invalid core sizing inputs', () => {
+    for (const invalid of [
+      ups({ maxLoadingPct: 0 }),
+      ups({ outputPf: 1.1 }),
+      ups({ inverterEff: 0 }),
+      ups({ blockV: 0 }),
+      ups({ autonomyMin: -1 }),
+      ups({ loads: [{ id: 'bad', name: 'Bad load', qty: 1, w: 1000, pf: 0 }] })
+    ]) {
+      const r = sizeUps(sampleProject, invalid);
+      expect(r.upsKva).toBeUndefined();
+      expect(r.blockAh).toBeUndefined();
+      expect(r.inputIssue).toMatch(/Invalid UPS sizing inputs/);
+      expect(r.batteryIssue).toBe(r.inputIssue);
+    }
+  });
 });
 
 describe('Solar PV sizing', () => {

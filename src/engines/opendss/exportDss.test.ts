@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dssName, exportDss, uniqueDssNames } from './exportDss';
+import { dssComment, dssName, exportDss, uniqueDssNames } from './exportDss';
 import type { Project } from '../../types';
 
 // Fixed fixture (independent of the app's sample project, which may change).
@@ -45,6 +45,20 @@ describe('OpenDSS export', () => {
     expect(script).toContain('buses=[sourcebus bb_Main_1]');
     expect(script).toContain('New Line.Load_1 phases=3 bus1=bb_Main_1 bus2=bb_Main_1_2');
     expect(script).toContain('New Line.Load_1_2 phases=3 bus1=bb_Main_1_2 bus2=ld_Load_1_2');
+  });
+
+  it('keeps imported text on its OpenDSS comment line', () => {
+    expect(dssComment('first\r\nClear\u2028Solve')).toBe('first Clear Solve');
+    const project: Project = {
+      ...sampleProject,
+      name: 'Project\nClear',
+      feeders: [{ ...sampleProject.feeders[0], id: 'F\r\nSolve', name: 'Load\u2029Redirect output' }]
+    };
+    const { script } = exportDss(project);
+    expect(script).toContain('! Project: Project Clear');
+    expect(script).toContain('! F Solve — Load Redirect output');
+    expect(script.split('\n').filter((line) => line === 'Clear')).toHaveLength(1);
+    expect(script.split('\n').filter((line) => line === 'Solve')).toHaveLength(1);
   });
 
   it('exports the sample project: transformer, a line per feeder, loads and PV', () => {
