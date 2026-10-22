@@ -83,6 +83,32 @@ export interface UpsSystem {
   chargeEfficiencyPct?: number;
   absorptionHours?: number;
   blockAhOptions?: number[]; // available block sizes (Ah)
+  /** Leading kvar of the rectifier input filter at light / no load (datasheet). Blank: UPS_FILTER_KVAR_PCT of the UPS kVA. */
+  inputFilterKvar?: number;
+  /** Leading kvar the standby generator can absorb, % of its kVA (reactive capability curve). Blank: GEN_LEADING_KVAR_PCT. */
+  genLeadingPct?: number;
+}
+
+/** Leading reactive power at the UPS input. A double-conversion UPS draws near-unity power at load, but its
+ * input filter capacitors stay connected: at light load (and at the moment the generator picks it up) the
+ * input is capacitive. A generator absorbs only a little leading kvar before its AVR loses voltage control
+ * (under-excitation), so the leading kvar of all UPSs on one generator is checked against it. Worst case:
+ * the UPSs alone on the generator, with no lagging load to offset them. Typical figures, used when the
+ * datasheet values are not entered. */
+export const UPS_FILTER_KVAR_PCT = 10;
+export const GEN_LEADING_KVAR_PCT = 10;
+
+export interface UpsLeadingResult {
+  status: 'not checked' | 'pass' | 'fail';
+  /** This UPS's input-filter kvar (leading), and whether it is the typical estimate. */
+  kvar: number;
+  estimate: boolean;
+  /** The board whose standby generator supplies this UPS, its kVA, all UPS leading kvar on it and its limit. */
+  genBoardId?: string;
+  genKva?: number;
+  totalKvar?: number;
+  limitKvar?: number;
+  issue: string;
 }
 
 export const VRLA_BLOCK_AH = [7, 9, 12, 18, 26, 33, 40, 55, 65, 75, 100, 120, 150, 200];
@@ -158,6 +184,7 @@ export interface UpsResult {
   dcBreakerNoFit: boolean;
   runtimeMin: number | undefined; // with the chosen battery
   surge: UpsSurgeResult;
+  leading: UpsLeadingResult;
   /** Core sizing inputs are invalid; no UPS or battery selection is valid. */
   inputIssue?: string;
   batteryIssue?: string;
@@ -187,10 +214,10 @@ function loadingOf(kva: number, kw: number, upsKva?: number, upsKw?: number): Pi
   return { loadingKvaPct, loadingKwPct, loadingPct: byKw ? loadingKwPct : loadingKvaPct, loadingBy: byKw ? 'kW' : 'kVA' };
 }
 
-/** Load of a UPS: its board's demand, or its load list. */
 /** The panel a UPS is linked to no longer exists (it must be reassigned, or the link removed on purpose). */
 export const upsSourceMissing = (project: Project, s: UpsSystem): boolean => !!s.boardId && !project.boards.some((b) => b.id === s.boardId);
 
+/** Load of a UPS: its board's demand, or its load list. */
 export function upsLoad(project: Project, s: UpsSystem): { kva: number; kw: number } {
   if (upsSourceMissing(project, s)) return { kva: 0, kw: 0 }; // never falls back to the manual load list
   if (s.boardId) {
@@ -221,6 +248,41 @@ export function checkUpsSurge(s: UpsSystem, loadKw: number, loadKva: number): Up
   if (kva > x.ratedKva! + 1e-9) failures.push('starting kVA exceeds peak kVA');
   if (x.durationSeconds! > x.ratedSeconds! + 1e-9) failures.push('starting duration exceeds supported overload duration');
   return { status: failures.length ? 'fail' : 'pass', kw, kva, issue: failures.length ? failures.join('; ') : 'Within entered inverter peak power and duration. Battery/BMS transient current, voltage dip and overload curve are separate checks.' };
+}
+
+/** Leading kvar of a UPS's input filter, for the rating it has on the SLD (or the size selected). */
+function filterKvar(project: Project, s: UpsSystem, selectedKva?: number): { kvar: number; estimate: boolean } {
+  if (s.inputFilterKvar !== undefined && Number.isFinite(s.inputFilterKvar) && s.inputFilterKvar >= 0) return { kvar: s.inputFilterKvar, estimate: false };
+  const kva = project.boards.find((b) => b.id === s.boardId)?.upsKva ?? selectedKva ?? 0;
+  return { kvar: (kva * UPS_FILTER_KVAR_PCT) / 100, estimate: true };
+}
+
+/** The first board at or above a UPS board with a standby generator. */
+function generatorBoard(project: Project, boardId?: string) {
+  const seen = new Set<string>();
+  for (let b = project.boards.find((x) => x.id === boardId); b && !seen.has(b.id); b = project.boards.find((x) => x.id === b!.upstreamId)) {
+    seen.add(b.id);
+    if (b.standby?.kva) return b;
+  }
+  return undefined;
+}
+
+/** Leading kvar of the UPSs on this UPS's standby generator against what the generator absorbs. */
+export function checkUpsLeading(project: Project, s: UpsSystem, selectedKva?: number): UpsLeadingResult {
+  const own = filterKvar(project, s, selectedKva);
+  const gen = generatorBoard(project, s.boardId);
+  if (!gen) return { status: 'not checked', ...own, issue: s.boardId ? 'No standby generator above this UPS: on the mains the transformer absorbs the leading kvar.' : 'Link the UPS to its board to check its leading kvar on the standby generator.' };
+  const pct = s.genLeadingPct !== undefined && Number.isFinite(s.genLeadingPct) && s.genLeadingPct > 0 ? s.genLeadingPct : GEN_LEADING_KVAR_PCT;
+  // Other UPSs on the same generator at their SLD rating (or their own datasheet filter kvar).
+  const others = (project.upsSystems ?? []).filter((u) => u.id !== s.id && u.boardId && generatorBoard(project, u.boardId)?.id === gen.id);
+  const totalKvar = own.kvar + others.reduce((a, u) => a + filterKvar(project, u).kvar, 0);
+  const genKva = gen.standby!.kva, limitKvar = (genKva * pct) / 100;
+  const fail = totalKvar > limitKvar + 1e-9;
+  const basis = `${+totalKvar.toFixed(1)} kvar leading from ${others.length ? `${others.length + 1} UPSs` : 'the UPS'} input filter${others.length ? 's' : ''} on the ${genKva} kVA generator at ${gen.id} (${+((totalKvar / genKva) * 100).toFixed(1)} %; it absorbs about ${+limitKvar.toFixed(1)} kvar, ${pct} % of its rating${s.genLeadingPct === undefined ? ', typical — confirm from its reactive capability curve' : ''})`;
+  const issue = fail
+    ? `${basis}: the generator may lose voltage control at light load. Use a UPS that disconnects its input filter on generator, start lagging load first, or a larger generator.`
+    : `${basis}.${own.estimate ? ` Filter kvar estimated as ${UPS_FILTER_KVAR_PCT} % of the UPS kVA — enter the datasheet value.` : ''}`;
+  return { status: fail ? 'fail' : 'pass', ...own, genBoardId: gen.id, genKva, totalKvar, limitKvar, issue };
 }
 
 export function sizeUps(project: Project, s: UpsSystem): UpsResult {
@@ -344,10 +406,12 @@ export function sizeUps(project: Project, s: UpsSystem): UpsResult {
     if (rechargeIssue) notes.push(rechargeIssue);
     notes.push('Recharge is a constant-current bulk estimate plus the entered absorption/taper allowance; confirm charge-current limits and the charger profile with the battery manufacturer.');
   }
+  const leading = checkUpsLeading(project, s, upsKva);
+  if (leading.status !== 'not checked') notes.push(leading.issue);
   if (s.chem === 'vrla' && s.autonomyMin < 5) notes.push('VRLA capacity below 5 minutes is very rate-dependent — check the manufacturer\'s table');
 
   return {
-    surge: checkUpsSurge(s, kw, kva),
+    surge: checkUpsSurge(s, kw, kva), leading,
     sourceIssue, inputIssue,
     loadKva: kva, loadKw: kw, designKva, designKw,
     upsKva, upsKw: upsKva ? upsKva * s.outputPf : undefined,

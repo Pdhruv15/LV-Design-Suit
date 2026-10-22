@@ -18,3 +18,10 @@ The calculations support it (branch `feat/shared-substation`): `existing.others`
 2. **No drawing change**: the SLD keeps showing the recorded MD reading; the other buildings appear in the Transformer & generator study (*Existing installation and shared supply*) and the Existing installation card in Sizing.
 
 Covered without UI changes: the new building on an outgoing way of the existing LV panel, a new transformer on the existing substation's RMU (check: spare T-off way, at most 2 transformers per RMU — the RMU is set in Transformers), and a feed from a neighbouring building's main board (its fault level, entered on the transformer summary form, now sets the fault instead of a placeholder).
+
+## UPS: input filter and generator leading kvar
+
+The calculations support it (v1.78): `inputFilterKvar` (the UPS input filter's leading kvar at light load, from the datasheet) and `genLeadingPct` (the leading kvar the standby generator absorbs, % of its kVA, from its reactive capability curve) on a UPS. Blank, they are 10 % of the UPS kVA and 10 % of the generator kVA. The result already shows in the UPS study notes and the dashboard. Waiting for approval of:
+
+1. **UPS study → UPS inputs**, after *Output power factor*: *Input filter (kvar leading)* with placeholder "10 % of UPS kVA", and *Generator absorbs (% leading)* with placeholder "10". Same inputs as the fields beside them.
+2. **No other change**: the check stays in the notes line and the dashboard to-do list.

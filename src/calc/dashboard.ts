@@ -193,6 +193,7 @@ export function buildDashboard(project: Project, run?: CalcRun, stale: StudyKey[
     if (!u.powerTable) add('warn', 'battery sizing uses a preliminary capacity estimate; confirm manufacturer discharge data');
     if (u.chem === 'li-ion' && r.bmsOk !== true) add(r.bmsOk === false ? 'bad' : 'warn', r.bmsOk === false ? 'BMS continuous current check failed' : 'BMS continuous current is not verified');
     if (r.surge.status !== 'pass') add(r.surge.status === 'fail' ? 'bad' : 'warn', `inverter surge ${r.surge.status}: ${r.surge.issue}`);
+    if (r.leading.status === 'fail') add('warn', `input filters ${+r.leading.totalKvar!.toFixed(1)} kvar leading, above the ${+r.leading.limitKvar!.toFixed(1)} kvar the ${r.leading.genKva} kVA generator absorbs`);
     if (r.rechargeIssue) add('bad', r.rechargeIssue);
     else if (u.chargerCurrentA === undefined) add('warn', 'charger and recharge time are not checked');
   }
