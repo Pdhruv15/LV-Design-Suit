@@ -17,8 +17,12 @@ export function resolveTheme(pref: ThemePref | undefined): Resolved {
 /** Dark is the stylesheet default, so it is written as no attribute at all. */
 function setResolved(t: Resolved) {
   const el = document.documentElement;
+  if ((el.getAttribute('data-theme') === 'light') === (t === 'light')) return;
+  // Switch instantly: hover transitions would otherwise fade every button between palettes.
+  el.classList.add('theme-switching');
   if (t === 'light') el.setAttribute('data-theme', 'light');
   else el.removeAttribute('data-theme');
+  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('theme-switching')));
 }
 
 let unwatch: (() => void) | null = null;
