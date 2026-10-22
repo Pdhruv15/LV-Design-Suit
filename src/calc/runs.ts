@@ -30,7 +30,8 @@ type BoardField = keyof Board;
 
 // Network shape: which board feeds which, and the sources.
 const TOPOLOGY_F: FeederField[] = ['id', 'boardId', 'feedsBoardId'];
-const TOPOLOGY_B: BoardField[] = ['id', 'upstreamId', 'sourceKva', 'sourceImpedancePct', 'sourceXr'];
+// The supply (its fault level) and an existing board's recorded / kept load also set the results.
+const TOPOLOGY_B: BoardField[] = ['id', 'upstreamId', 'sourceKva', 'sourceImpedancePct', 'sourceXr', 'supply', 'existing'];
 const LOAD_F: FeederField[] = ['loadKw', 'demandFactor', 'powerFactor', 'phase', 'cores', 'kvar', 'generation'];
 const CABLE_F: FeederField[] = ['lengthM', 'cableCsaMm2', 'parallel', 'cores'];
 const BREAKER_F: FeederField[] = ['breakerRatingA', 'breakerType', 'breakerImMultiple', 'breakerIcuKa'];
@@ -54,7 +55,8 @@ export function fingerprint(project: Project, key: StudyKey): string {
     pick(project, i.project),
     project.boards.map((b) => pick(b, i.boards)),
     project.feeders.map((f) => pick(f, i.feeders)),
-    key === 'sizing' || key === 'checks' ? project.ties ?? null : null,
+    // Closed couplers join busbars, so they also set the fault levels.
+    key === 'sizing' || key === 'checks' || key === 'fault' || key === 'protection' ? project.ties ?? null : null,
     // Cable trays set the grouping factor of the cables on them.
     key === 'checks' ? [project.trays ?? null, project.feeders.map((f) => f.trayRoute ?? null)] : null
   ]);

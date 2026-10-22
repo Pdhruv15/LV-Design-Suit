@@ -364,6 +364,11 @@ def run_pandapower(project, cables=None, r_factor=None):
             vn_hv_kv=MV_KV, vn_lv_kv=kv, vk_percent=z, vkr_percent=z / math.sqrt(1 + xr * xr),
             pfe_kw=0.0, i0_percent=0.0, vector_group="Dyn", name=f"TX_{b['id']}")
 
+    # Closed bus couplers join the main busbars: the transformers run in parallel.
+    for t in project.get("ties") or []:
+        if t.get("closed") and t.get("a") in bus and t.get("b") in bus:
+            pp.create_switch(net, bus[t["a"]], bus[t["b"]], et="b", closed=True, name=f"TIE_{t['id']}")
+
     single_phase = []
     line_of, end_bus_of = {}, {}
     for f in project["feeders"]:

@@ -152,7 +152,7 @@ export function buildDesignBasis(project: Project, studies: { key: StudyReportKi
   const distribution = [
     `${project.voltageV} V, 3-phase + N, ${project.frequencyHz} Hz, TN-S (the earthing arrangement the calculations assume).`,
     ...arrangement,
-    ...(project.ties ?? []).map((t) => `Bus coupler ${t.id}: ${t.a} ↔ ${t.b}, ${t.ratingA} A, normally open.`)
+    ...(project.ties ?? []).map((t) => `Bus coupler ${t.id}: ${t.a} ↔ ${t.b}, ${t.ratingA} A, ${t.closed ? 'normally closed — transformers in parallel' : 'normally open'}.`)
   ];
   const emergency = [
     ...project.boards.filter((b) => b.standby).map((b) => `${b.id}: standby generator ${b.standby!.kva} kVA through ${b.standby!.changeover ?? 'ATS'}; everything on and below ${b.id} is essential load.`),

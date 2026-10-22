@@ -43,7 +43,8 @@ export function generatorScenario(project: Project): GeneratorScenario {
       ? { ...b, upstreamId: undefined, sourceKva: b.standby!.kva, sourceImpedancePct: GENERATOR_XD_SUBTRANSIENT_PCT, sourceXr: GENERATOR_XR }
       : b));
   const feeders = project.feeders.filter((f) => backed.has(f.boardId) && (!f.feedsBoardId || backed.has(f.feedsBoardId)));
-  const scenario: Project = { ...project, boards, feeders };
+  // On generators the couplers are back to normally open: no transformers to run in parallel.
+  const scenario: Project = { ...project, boards, feeders, ties: project.ties?.map(({ closed: _closed, ...t }) => t) };
 
   const below = (root: string) => {
     const out = new Set([root]);

@@ -7,6 +7,7 @@ import { boqReview, SCOPE_CHECKS } from '../model/boqScope';
 import { sampleProject } from '../data/sampleProject';
 import { amountInWords, boqBookmarks, buildBoqHtml, buildBoqWorkbook, buildPriceTemplate, readPriceWorkbook } from './boqWorkbook';
 import { EXPORT_NUMBERS } from '../../tests/fixtures/exportNumbers';
+import { EMPTY_BYTES, MALFORMED_OFFICE_BYTES } from '../../tests/fixtures/importExport';
 
 const item: BomItem = { key: 'test:cable', section: 'E', description: 'Measured cable', unit: 'm', qty: 2, where: ['DB-1'] };
 const project = (boq?: BoqCustom) => ({ ...sampleProject, boq });
@@ -200,6 +201,22 @@ describe('installation-only price sheet quotes', () => {
     expect(read.rates['test:install']).toMatchObject({ labour: 45 });
     expect(read.rates['test:install'].rate).toBeUndefined();
     expect(read.rates['test:blank']).toBeUndefined();
+  });
+
+  it('rejects empty, malformed and structurally incomplete price workbooks', async () => {
+    await expect(readPriceWorkbook(EMPTY_BYTES.buffer, [item])).rejects.toThrow('workbook is empty');
+    await expect(readPriceWorkbook(MALFORMED_OFFICE_BYTES.buffer, [item])).rejects.toThrow('not a valid .xlsx');
+    await expect(readPriceWorkbook((await buildPriceTemplate([item]).xlsx.writeBuffer()) as ArrayBuffer, [item])).rejects.toThrow('contains no rates');
+    const missing = new ExcelJS.Workbook(); missing.addWorksheet('Rates').addRow(['Description']);
+    await expect(readPriceWorkbook((await missing.xlsx.writeBuffer()) as ArrayBuffer, [item])).rejects.toThrow('needs a Supply rate or Install rate');
+  });
+
+  it('reports the Excel row for malformed or negative rates', async () => {
+    const wb = buildPriceTemplate([item]);
+    wb.getWorksheet('Rates')!.getCell(2, 4).value = 'not a number';
+    await expect(readPriceWorkbook((await wb.xlsx.writeBuffer()) as ArrayBuffer, [item])).rejects.toThrow('row 2 has an invalid supply rate');
+    wb.getWorksheet('Rates')!.getCell(2, 4).value = -1;
+    await expect(readPriceWorkbook((await wb.xlsx.writeBuffer()) as ArrayBuffer, [item])).rejects.toThrow('row 2 has an invalid supply rate');
   });
 });
 

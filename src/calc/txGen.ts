@@ -1,7 +1,7 @@
 import type { Board, Feeder, Project } from '../types';
 import { settingsOf } from '../types';
 import { boardsInSupplyOrder, boardTotals } from './summary';
-import { DEFAULT_TRANSFORMER_XR, faultCurrentKA, transformerImpedance } from './electrical';
+import { DEFAULT_TRANSFORMER_XR, faultCurrentKA, parallelGroup, parallelZ, transformerImpedance, type Impedance } from './electrical';
 import { switchedOnBoard } from './capSwitching';
 import { STANDARD_BREAKER_A, STANDARD_TRANSFORMER_KVA, chooseGenerator, isEssential, standbyBoards, type GeneratorChoice } from './sizing';
 import { GENERATOR_XD_TRANSIENT_PCT, isMotor, MOTOR_START_DIP_LIMIT_PCT, motorStartDipPct, runningKva, startingKva } from './motor';
@@ -78,11 +78,13 @@ export interface TxRow {
   breakdown: { id: string; label: string; kva: number }[];
 }
 
-export function transformerChecks(project: Project, board: Board, kva: number, demandKva: number, pf: number, impedancePct = typicalImpedancePct(kva)): TxChecks {
+/** `parallelWith`: the other transformers on the busbar through closed couplers, which add to the fault. */
+export function transformerChecks(project: Project, board: Board, kva: number, demandKva: number, pf: number, impedancePct = typicalImpedancePct(kva), parallelWith: Impedance[] = []): TxChecks {
   const xr = board.sourceXr ?? DEFAULT_TRANSFORMER_XR;
   const flcA = (kva * 1000) / (SQRT3 * project.voltageV);
   const acbA = nextStd(STANDARD_BREAKER_A, flcA) ?? STANDARD_BREAKER_A[STANDARD_BREAKER_A.length - 1];
-  const faultKa = faultCurrentKA(transformerImpedance(kva, impedancePct, project.voltageV, xr), project.voltageV);
+  const own = transformerImpedance(kva, impedancePct, project.voltageV, xr);
+  const faultKa = faultCurrentKA(parallelWith.length ? parallelZ([own, ...parallelWith]) : own, project.voltageV);
   const ur = impedancePct / Math.sqrt(1 + xr * xr);
   const ux = ur * xr;
   const load = demandKva / kva;
@@ -118,6 +120,7 @@ export function sizeTransformers(project: Project, plan: TxGenPlan = txGenPlanOf
     const installedKva = b.sourceKva;
     const checkKva = recommendedKva ?? installedKva;
     const tie = (project.ties ?? []).find((t) => t.a === b.id || t.b === b.id);
+    const parallelWith = parallelGroup(project, b.id).slice(1).map((o) => transformerImpedance(o.sourceKva!, o.sourceImpedancePct!, project.voltageV, o.sourceXr));
     let outage: TxRow['outage'];
     if (tie) {
       const other = tie.a === b.id ? tie.b : tie.a;
@@ -150,7 +153,7 @@ export function sizeTransformers(project: Project, plan: TxGenPlan = txGenPlanOf
       // The installed source (one rating on the main board) against the design demand. The split is a
       // proposal for new transformers, never a count of installed ones.
       adequate: installedKva ? installedKva >= designKva - 1e-6 : undefined,
-      checks: checkKva ? transformerChecks(project, b, checkKva, demandKva / split, pf, checkKva === installedKva && b.sourceImpedancePct ? b.sourceImpedancePct : typicalImpedancePct(checkKva)) : undefined,
+      checks: checkKva ? transformerChecks(project, b, checkKva, demandKva / split, pf, checkKva === installedKva && b.sourceImpedancePct ? b.sourceImpedancePct : typicalImpedancePct(checkKva), parallelWith) : undefined,
       outage, breakdown: breakdown.sort((x, y) => y.kva - x.kva)
     };
   });

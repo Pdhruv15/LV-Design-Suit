@@ -57,6 +57,7 @@ describe('phase balance (demand, nominal voltage)', () => {
     const data: CalcData = { project: run.project, results: run.results, earthing: run.earthing, selectivity: run.selectivity };
     const s = buildSection('phase', data, scopeOf(run.project, { boards: [], downstream: true }));
     expect(s.tables[0].rows).toHaveLength(sampleProject.boards.length);
-    expect(s.method.join(' ')).toMatch(/not an unbalanced load flow/);
+    expect(s.method.join(' ')).toMatch(/Unbalanced load flow: per-phase backward \/ forward sweep/);
+    expect(s.tables.find((t) => t.title === 'Unbalanced load flow — busbars')!.rows).toHaveLength(sampleProject.boards.length);
   });
 });

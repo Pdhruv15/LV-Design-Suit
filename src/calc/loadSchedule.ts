@@ -182,7 +182,7 @@ export function boardPhasePQ(project: Project, boardId: string, seen = new Set<s
 function boardPhasePQOf(project: Project, boardId: string, seen: Set<string>, covered: boolean): PhasePQ {
   const board = networkOf(project)?.boardById.get(boardId) ?? project.boards.find((b) => b.id === boardId);
   const rec = !covered && board ? recordedPQ(project, board) : undefined;
-  const cov = covered || !!rec;
+  const cov = covered || !!rec?.covers;
   const out: PhasePQ = { R: { p: (rec?.p ?? 0) / 3, q: (rec?.q ?? 0) / 3 }, Y: { p: (rec?.p ?? 0) / 3, q: (rec?.q ?? 0) / 3 }, B: { p: (rec?.p ?? 0) / 3, q: (rec?.q ?? 0) / 3 } };
   const put = (f: Feeder, p: number, q: number) => {
     if (f.cores === 2 && f.phase && f.phase !== 'RYB') { out[f.phase].p += p; out[f.phase].q += q; return; }
@@ -220,7 +220,7 @@ export function boardPhaseKw(project: Project, boardId: string, seen = new Set<s
   // A recorded maximum demand (existing installation): balanced, and it covers the existing load below.
   const board = project.boards.find((b) => b.id === boardId);
   const rec = !covered && board ? recordedPQ(project, board) : undefined;
-  const cov = covered || !!rec;
+  const cov = covered || !!rec?.covers;
   if (rec) { out.R += rec.p / 3; out.Y += rec.p / 3; out.B += rec.p / 3; }
   for (const f of project.feeders.filter((x) => x.boardId === boardId)) {
     if (cov && f.existing && !f.feedsBoardId) continue;

@@ -48,6 +48,15 @@ describe('trip thresholds and required times', () => {
 });
 
 describe('earth fault loop', () => {
+  it('uses a circuit RCD five-times residual-current threshold', () => {
+    const f = feeder({ rcdMa: 30, lengthM: 120 });
+    const r = evaluateEarthing(project([f]), f);
+    // Ia = 5 × IΔn = 5 × 30 mA / 1000 = 0.15 A; max Zs = 0.95 × U0 / Ia.
+    expect(r.tripA).toBeCloseTo(0.15, 12);
+    expect(r.maxZsOhm).toBeCloseTo((0.95 * U0) / 0.15, 9);
+    expect(r.disconnection).toBe('ok');
+  });
+
   it('Zs = transformer + (R1 + R2) of the circuit; If = 0.95 U0 / Zs', () => {
     // 4 mm² with 4 mm² CPC, 50 m: R1+R2 = 2 × 4.61 × 1.2 × 0.05 = 0.5532 Ω, X = 0.0045 Ω
     const f = feeder({});

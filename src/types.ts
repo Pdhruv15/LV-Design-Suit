@@ -273,6 +273,19 @@ export interface ExistingInfo {
   source?: string;
   /** Spare ways available on the board at the survey (for the spare-ways check). */
   spareWays?: number;
+  /** Other buildings supplied from this board (a shared substation, or a neighbour's main board feeding
+   * the new building): the load kept for each counts as existing load. */
+  others?: OtherBuilding[];
+}
+
+/** Another building on a shared supply: its DEWA-approved / allocated load and its recorded demand.
+ * The higher of the two is kept for it. */
+export interface OtherBuilding {
+  name: string;
+  allocatedKva?: number;
+  recordedKva?: number;
+  /** e.g. the DEWA load letter / NOC reference. */
+  ref?: string;
 }
 
 export interface Board {
@@ -439,7 +452,7 @@ export interface Project {
   info?: ProjectInfo; // header data of the authority submission forms
   revisions?: Revision[]; // issued revisions, oldest first (A, B, C…)
   drawing?: DrawingInfo; // SLD drawing title block
-  ties?: BusTie[]; // normally-open bus couplers between main boards
+  ties?: BusTie[]; // bus couplers between main boards (normally open unless closed)
   earthingPlan?: EarthingPlan; // earthing schematic: pits per equipment, links, measured values
   earthPitIds?: Record<string, string[]>; // persistent pit IDs; retired slots stay reserved
   spacePlan?: SpacePlan; // areas → panels → transformers → RMUs (power density planning)
@@ -788,8 +801,6 @@ export interface TrayPlan {
   ods?: CableOd[];
 }
 
-/** Normally-open bus coupler (tie breaker) between two main boards: closed
- * when one of their transformers is out, so the other carries both. */
 /** Earthing schematic settings. The layout itself is worked out from the transformers, RMUs and main boards. */
 /** One earth riser of a building: floor earth bars from level `from` to level `to` (floor keys; absent = lowest / top). */
 export interface EarthRiserDef { id: string; buildingId: string; name: string; from?: string; to?: string }
@@ -822,11 +833,15 @@ export interface EarthingPlan {
   risers?: EarthRiserDef[];
 }
 
+/** Bus coupler (tie breaker) between two main boards. Normally open: closed
+ * when one of their transformers is out, so the other carries both. Closed:
+ * the transformers run in parallel on the joined busbar. */
 export interface BusTie {
   id: string;
   a: string; // board ids
   b: string;
   ratingA: number;
+  closed?: boolean; // normally closed: transformers in parallel (default normally open)
 }
 
 /** Title block of the SLD drawing. */

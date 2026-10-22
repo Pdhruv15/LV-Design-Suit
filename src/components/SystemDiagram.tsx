@@ -151,7 +151,7 @@ export default function SystemDiagram({
   colorBy = 'none',
   scenario,
   chain,
-  onRemoveTie,
+  onEditTie,
   resizable = false,
   fullScreen = false,
   onToggleFullScreen,
@@ -215,7 +215,7 @@ export default function SystemDiagram({
    * Everything else is drawn dimmed; results must be for this network. */
   scenario?: { project: Project; energized: Set<string>; generators: GeneratorRun[]; outage?: OutageScenario['outage'] };
   /** Click on a bus tie. */
-  onRemoveTie?: (id: string) => void;
+  onEditTie?: (id: string) => void;
   /** Breakers in the selected feeder's discrimination chain, by status. */
   chain?: Map<string, Status>;
   /** Drag handle at the bottom edge to change the height (remembered). */
@@ -919,7 +919,7 @@ export default function SystemDiagram({
           );
         })}
 
-        {/* Bus couplers between main boards: normally open, closed when a transformer is out */}
+        {/* Bus couplers between main boards: normally open (closed when a transformer is out) or normally closed (transformers in parallel) */}
         {(project.ties ?? []).map((t) => {
           const a = layout.roots.find((r) => r.board.id === t.a);
           const b = layout.roots.find((r) => r.board.id === t.b);
@@ -930,16 +930,17 @@ export default function SystemDiagram({
           const x2 = right.busX1;
           const mx = (x1 + x2) / 2;
           const run = scenario?.outage?.tie?.id === t.id ? scenario.outage.tie : undefined;
+          const shut = !!run || !!t.closed;
           return (
-            <g key={t.id} className={`tie${run ? ' closed' : ''}`} onClick={click(() => onRemoveTie?.(t.id))}>
-              <title>{`${t.id}: bus coupler ${t.ratingA} A, ${run ? 'closed' : 'normally open'} — click to remove`}</title>
+            <g key={t.id} className={`tie${run ? ' closed' : ''}`} onClick={click(() => onEditTie?.(t.id))}>
+              <title>{`${t.id}: bus coupler ${t.ratingA} A, ${run ? 'closed' : t.closed ? 'normally closed — transformers in parallel' : 'normally open'} — click to change or remove`}</title>
               <line x1={x1} y1={y} x2={mx - 9} y2={y} className="tie-ln" data-dxf-layer="BUSBAR" />
               <line x1={mx + 9} y1={y} x2={x2} y2={y} className="tie-ln" data-dxf-layer="BUSBAR" />
               <rect x={mx - 9} y={y - 9} width="18" height="18" rx="2" className="sym" />
-              {run ? <line x1={mx - 9} y1={y} x2={mx + 9} y2={y} className="ln" /> : <line x1={mx - 6} y1={y + 6} x2={mx + 6} y2={y - 6} className="ln" />}
+              {shut ? <line x1={mx - 9} y1={y} x2={mx + 9} y2={y} className="ln" /> : <line x1={mx - 6} y1={y + 6} x2={mx + 6} y2={y - 6} className="ln" />}
               <text x={mx} y={y - 16} textAnchor="middle" className="b">{t.id} · {t.ratingA} A</text>
               <text x={mx} y={y + 24} textAnchor="middle" className={run ? `res ${run.loadingPct > 100 ? 'bad' : run.loadingPct > 85 ? 'warn' : 'ok'}` : 'm'}>
-                {run ? `CLOSED · ${run.currentA.toFixed(0)} A (${run.loadingPct.toFixed(0)}%)` : 'N/O'}
+                {run ? `CLOSED · ${run.currentA.toFixed(0)} A (${run.loadingPct.toFixed(0)}%)` : t.closed ? 'N/C' : 'N/O'}
               </text>
             </g>
           );

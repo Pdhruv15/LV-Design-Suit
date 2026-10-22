@@ -8,6 +8,7 @@ import type { FeederResult, Status } from '../calc/electrical';
 import { cableSizeText } from '../calc/electrical';
 import type { EarthingResult } from '../calc/earthing';
 import { phaseBalance, PHASE_UNBALANCE_CHECK_PCT } from '../calc/phaseBalance';
+import { unbalancedFlow, VOLTAGE_UNBALANCE_LIMIT_PCT } from '../calc/unbalancedFlow';
 import { breakerTypeOf, cpcOf, disconnectionLabel, loopFigures } from '../calc/earthing';
 import type { SelectivityResult } from '../calc/protection';
 import { isScheduleCircuit } from '../calc/loadSchedule';
@@ -15,6 +16,8 @@ import { boardSummary, boardsInSupplyOrder } from '../calc/summary';
 import { settingsOf } from '../calc/sizing';
 import { planPfc, pfcPlanOf, STRATEGY_LABEL } from '../calc/pfc';
 import { sizeGeneratorByBoards, sizeTransformers, txGenPlanOf, type TxRow } from '../calc/txGen';
+import { parallelOperation } from '../calc/parallelTx';
+import { existingChecks } from '../calc/existing';
 import { MATERIAL_LABEL, sizeRiser } from '../calc/busbar';
 import { motorStartVdLimit, vdRow, type VdRow } from '../calc/voltageDrop';
 import { incomerBasis } from '../calc/electrical';
@@ -192,6 +195,7 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
       method: [
         'Maximum prospective symmetrical 3-phase fault current Ik″, simplified method based on IEC 60909-0 (preliminary — not a full IEC 60909 study): voltage factor c max = 1.05, cable R at 20 °C, upstream MV network infinite, transformer correction factor KT not applied.',
         'Source impedance from the transformer rating and %Z (split by its X/R ratio); cable R at 20 °C and X per km; parallel runs divide the impedance.',
+        ...((p.ties ?? []).some((t) => t.closed) ? ['Main boards joined by a closed bus coupler: the transformers run in parallel and their impedances combine (coupler impedance neglected), so the busbar fault is from all of them together.'] : []),
         'Breaking capacity check: the fault at the breaker terminals (supply busbar) must not exceed the breaker Icu. Fault at the cable end: 3-phase for 3/4-core circuits, line-to-neutral for 2-core.',
         'Motor contribution and generation are neglected.'
       ],
@@ -288,7 +292,10 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
 
   if (key === 'phase') {
     const pb = scope.boards.map((b) => phaseBalance(p, b.id));
-    const statuses = pb.map((x) => x.status);
+    const uf = unbalancedFlow(p);
+    const ub = uf.boards.filter((x) => scope.ids.has(x.boardId));
+    const uc = uf.circuits.filter((x) => scope.ids.has(x.feeder.boardId) && isScheduleCircuit(x.feeder));
+    const statuses = [...pb.map((x) => x.status), ...ub.map((x) => x.status), ...uc.map((x) => x.status)];
     const unassigned = [...new Map(pb.flatMap((x) => x.unassigned).map((f) => [f.id, f])).values()];
     return {
       key, title: info.title, statuses,
@@ -296,7 +303,10 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
         'Demand kW and kvar per phase (each load\'s demand factor and power factor), downstream boards included: single-phase circuits on their labelled phase R / Y / B; 3-phase loads spread evenly.',
         `Phase current I = S ÷ U0 at nominal voltage (U0 = ${n(p.voltageV / Math.sqrt(3), 0)} V). Neutral current = phasor sum of the three phase currents, phases 120° apart, at fundamental frequency — triplen harmonics (e.g. from LED drivers and IT loads) add to the neutral and are not included.`,
         `Current unbalance = largest deviation from the average phase current ÷ the average. Flagged above ${PHASE_UNBALANCE_CHECK_PCT} % (app default, not a standard's limit).`,
-        'Limits of this check: demand-based at nominal voltage — not an unbalanced load flow; no voltage unbalance, no neutral voltage, no phase-specific voltage drop. Single-phase circuits with no phase set are spread evenly, which hides their unbalance; they are listed.'
+        'Phase balance limits: demand-based at nominal voltage. Single-phase circuits with no phase set are spread evenly, which hides their unbalance; they are listed.',
+        `Unbalanced load flow: per-phase backward / forward sweep with the neutral conductor, each board's phase demand at constant power at its own voltage (cable losses not added upstream). Transformer (Dyn, Z0 ≈ Z1) as its impedance in each phase, neutral earthed at the main board, MV network infinite. Incomer phase and neutral conductors at R (${p.vdTempC !== undefined ? `${p.vdTempC} °C` : '20 °C value × 1.2'}) and X per km, neutral the size of the phase, mutual coupling neglected.`,
+        `Drop per phase from the main busbar (limit ${p.vdLimitPct} %, worst phase); a negative drop is a phase raised by the neutral shift. Single-phase circuits without a phase taken on the lowest phase. Voltage unbalance = negative ÷ positive sequence, flagged above ${VOLTAGE_UNBALANCE_LIMIT_PCT} % (IEC 61000-2-2 compatibility level). Neutral current against the incomer's rating. Fundamental only — triplen harmonics not included.`,
+        ...(uf.converged ? [] : [`The load flow did not converge in ${uf.iterations} iterations: the figures are the last iteration's — check for heavily overloaded cables.`])
       ],
       summary: [{ label: 'Boards checked', value: tally(statuses), status: worst(statuses) },
         ...(unassigned.length ? [{ label: 'Single-phase circuits without a phase', value: `${unassigned.length} (${unassigned.slice(0, 8).map((f) => f.id).join(', ')}${unassigned.length > 8 ? ' …' : ''}) — spread evenly, unbalance may be understated`, status: 'warn' as const }] : [])],
@@ -304,6 +314,15 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
         title: 'Phase balance at each board (demand)', headers: ['Board', 'R (A)', 'Y (A)', 'B (A)', 'R / Y / B (kW)', 'Neutral (A)', 'Unbalance', 'No phase set', 'Result'],
         rows: pb.map((x) => [x.boardId, n(x.currentA.R, 1), n(x.currentA.Y, 1), n(x.currentA.B, 1), `${n(x.kw.R, 1)} / ${n(x.kw.Y, 1)} / ${n(x.kw.B, 1)}`, n(x.neutralA, 1),
           { v: `${n(x.unbalancePct, 1)} %`, s: x.unbalancePct > PHASE_UNBALANCE_CHECK_PCT + 1e-9 ? 'warn' : 'ok' }, x.unassigned.length ? { v: x.unassigned.length, s: 'warn' } : 0, S(x.status)])
+      }, {
+        title: 'Unbalanced load flow — busbars', headers: ['Board', 'R / Y / B (V)', 'Drop R / Y / B (%)', 'Neutral (A)', 'Neutral shift (V)', 'Voltage unbalance', 'Result'],
+        rows: ub.map((x) => [x.boardId, `${n(x.voltageV.R, 1)} / ${n(x.voltageV.Y, 1)} / ${n(x.voltageV.B, 1)}`,
+          { v: `${n(x.vdPct.R, 2)} / ${n(x.vdPct.Y, 2)} / ${n(x.vdPct.B, 2)}`, s: x.vdPct[x.worstPhase] > p.vdLimitPct + 1e-9 ? 'bad' : x.vdPct[x.worstPhase] > p.vdLimitPct * 0.85 ? 'warn' : 'ok' },
+          x.neutralIz !== undefined ? { v: `${n(x.neutralA, 1)} (Iz ${n(x.neutralIz, 0)})`, s: 'bad' } : n(x.neutralA, 1), n(x.neutralShiftV, 2),
+          { v: `${n(x.unbalancePct, 2)} %`, s: x.unbalancePct > VOLTAGE_UNBALANCE_LIMIT_PCT + 1e-9 ? 'warn' : 'ok' }, S(x.status)])
+      }, {
+        title: 'Unbalanced load flow — circuits (worst phase at the far end)', headers: ['Circuit', 'Board', 'Phase', 'Lowest end voltage (V)', 'Drop from main busbar (%)', 'Result'],
+        rows: uc.map((x) => [tag(x.feeder), x.feeder.boardId, x.phase === 'RYB' ? (x.feeder.cores === 2 ? 'not set (lowest)' : '3-phase') : x.phase, n(x.endV, 1), n(x.vdPct, 2), S(x.status)])
       }]
     };
   }
@@ -358,6 +377,9 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
     const plan = txGenPlanOf(p);
     const tx = sizeTransformers(p, plan).filter((r) => scope.ids.has(r.board.id));
     const gen = sizeGeneratorByBoards(p, plan);
+    const par = parallelOperation(p).filter((g) => g.boards.some((id) => scope.ids.has(id)));
+    // Extension of an existing installation (and a shared supply): only the boards and RMUs of this scope.
+    const ex = p.boards.some((b) => b.existing) ? existingChecks(p, data.results).filter((c) => c.kind === 'rmu' ? p.boards.some((b) => b.rmu?.trim() === c.id && scope.ids.has(b.id)) : c.kind === 'feeder' ? scope.ids.has(p.feeders.find((f) => f.id === c.id)?.boardId ?? '') : scope.ids.has(c.id.split(':')[0])) : [];
     const txStatus = (r: TxRow): Status => (r.adequate === false ? 'bad' : r.outage && !r.outage.ok ? 'warn' : r.checks && (r.checks.icuOk === false || r.checks.busbarOk === false) ? 'warn' : 'ok');
     // A generator demand above the largest standard set is a failure, never left out.
     const genNeeded = gen.demandKw > 0 || gen.recommendedKva !== undefined;
@@ -365,7 +387,7 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
     const genStatus: Status | undefined = !genNeeded ? undefined : genTooBig || gen.installedOk === false ? 'bad' : 'ok';
     const genSize = genTooBig ? `${n(Math.max(gen.runningDesignKva, gen.startDesignKva), 0)} kVA needed (${gen.governing}) — above the largest standard set` : `${gen.recommendedKva} kVA / ${n(gen.recommendedKw ?? 0, 0)} kW`;
     const genScope = scope.all ? '' : ' (sized for the whole installation — the generator is shared)';
-    const statuses = [...tx.map(txStatus), ...(genStatus ? [genStatus] : [])];
+    const statuses = [...tx.map(txStatus), ...par.map((g) => g.status), ...ex.map((c) => c.status), ...(genStatus ? [genStatus] : [])];
     const pfcTaken = tx.some((r) => r.pfcKvar > 0);
     return {
       key, title: info.title, statuses,
@@ -373,6 +395,8 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
         `Transformer per main board: maximum demand${pfcTaken ? ' (after the planned power factor correction)' : ''} × (1 + ${set.futureGrowthPct} % growth) ÷ ${set.transformerMaxLoadingPct} % design loading, next ${plan.sizeList === 'dewa' ? 'DEWA standard size (500 / 1000 / 1500 kVA)' : 'IEC standard size'}.`,
         'For that size: full-load current and main breaker, LV fault level (typical IEC 60076-5 impedance, infinite MV source), voltage regulation at the design demand.',
         `Bus couplers: with one transformer out, the other carries both boards up to ${plan.emergencyLoadingPct} % of its rating. Duty / standby: two transformers, each for the whole load.`,
+        ...(ex.length ? ['Existing installation: each existing board\'s recorded maximum demand covers the existing load on and below it, and the new load is added on top. Other buildings on a shared supply (not drawn here): the higher of each one\'s allocated and recorded load is kept for it; with a recorded MD, the existing load is the higher of the MD and the drawn existing load plus what is kept. Transformer: existing + new within the design loading; incomers, existing feeders and spare ways checked; a new transformer on an existing RMU needs a spare T-off way (at most 2 transformers per RMU).'] : []),
+        ...(par.length ? ['Transformers in parallel (closed bus coupler), IEC 60076-8: the joined demand is shared in proportion to kVA ÷ uk %; each share within the design loading; the coupler carries what one side supplies beyond its own load. Same vector group required; uk % within 10 % and ratings within 2 : 1 for even sharing; same voltage ratio and tap position assumed. The busbar fault is from all the transformers together; the earth fault loop keeps one transformer (coupler open, the minimum fault).'] : []),
         `Standby generator from the boards on it (share of each), plus circuits marked essential. The set must carry the running kVA and the running kW at ${set.generatorMaxLoadingPct} % loading: rating ≥ max(kVA ÷ ${set.generatorMaxLoadingPct / 100}, kW ÷ (0.8 × ${set.generatorMaxLoadingPct / 100})), with rated kW = 0.8 × rated kVA unless the Generators list gives the set's kW; or larger if the largest motor, started last, would dip the voltage over ${MOTOR_START_DIP_LIMIT_PCT} % (X′d ${GENERATOR_XD_TRANSIENT_PCT} %).`
       ],
       summary: [
@@ -388,6 +412,15 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
             r.checks ? `${n(r.checks.flcA, 0)} A · ${r.checks.acbA} A` : '—',
             r.checks ? `${n(r.checks.faultKa, 1)} · ${r.checks.minIcuKa ?? '—'}` : '—',
             r.checks ? `${n(r.checks.regulationPct, 1)} %` : '—', S(txStatus(r))]) },
+        ...par.flatMap((g) => [{ title: `Transformers in parallel — ${g.boards.join(' + ')}`, headers: ['Transformer', 'Rating · uk', 'Vector group', 'Section load (kVA)', 'Share (kVA)', 'Loading', 'Result'],
+          rows: [
+            ...g.transformers.map((t) => [t.boardId, `${t.kva} kVA · ${t.impedancePct} %`, t.vectorGroup, n(t.sectionKva, 0), n(t.shareKva, 0), `${n(t.loadingPct, 0)} %`, S(t.status)]),
+            ...g.couplers.map((c) => [`Coupler ${c.tie.id}`, `${c.tie.ratingA} A`, `${c.tie.a} ↔ ${c.tie.b}`, '—', c.currentA !== undefined ? `${n(c.currentA, 0)} A` : 'ring — not worked out', c.loadingPct !== undefined ? `${n(c.loadingPct, 0)} %` : '—', S(c.status)]),
+            ['Joined busbar', `${n(g.demandKva, 0)} kVA demand`, '—', '—', '—', `fault ${n(g.faultKA, 1)} kA`, S('ok')],
+            ...g.conditions.map((c) => ['Condition', c.text, '—', '—', '—', '—', S(c.status)])
+          ] }]),
+        ...(ex.length ? [{ title: 'Existing installation and shared supply', headers: ['Check', 'Existing + new', 'Limit', 'Result', 'Status'],
+          rows: ex.map((c) => [c.item, c.value, c.limit, c.result, S(c.status)]) }] : []),
         ...(tx.some((r) => r.outage) ? [{ title: 'Bus coupler — one transformer out', headers: ['Transformer', 'Also carries', 'Load (kVA)', 'Of its rating', 'Result'],
           rows: tx.filter((r) => r.outage).map((r) => [r.board.id, r.outage!.with, n(r.outage!.kva, 0), r.outage!.pctOfRecommended !== undefined ? `${n(r.outage!.pctOfRecommended, 0)} %` : '—', S(r.outage!.ok ? 'ok' : 'warn')]) }] : []),
         ...(genNeeded ? [
