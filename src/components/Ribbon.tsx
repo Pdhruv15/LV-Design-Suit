@@ -121,7 +121,7 @@ const TAB_VIEWS: Record<RibbonTab, MainView[]> = {
   concept: ['building', 'load-assessment', 'sizing', 'substation-area', 'space-planning', 'dashboard'],
   schematic: ['panels', 'design', 'busbar', 'pfc', 'ups', 'solar', 'earth-schematic'],
   detailed: ['design', 'panels', 'load-schedule', 'enclosure', 'selection', 'voltage-drop', 'earthing', 'coordination', 'engines', 'calculators'],
-  reports: ['load-schedule', 'db-schedule', 'cable-schedule', 'cable-tray', 'equipment', 'drawings', 'drawing-register', 'study-reports', 'report', 'export-centre'],
+  reports: ['load-schedule', 'cable-schedule', 'cable-tray', 'equipment', 'drawings', 'drawing-register', 'study-reports', 'report', 'export-centre'],
   issue: ['revisions', 'modifications', 'review', 'received-docs', 'submissions'],
   cost: ['boq'],
   standards: ['database', 'design-references']
@@ -296,7 +296,6 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
     reports: [
       [
         view('load-schedule', 'Load schedule', Table2, 'DEWA load distribution schedule per DB'),
-        view('db-schedule', 'DB schedule', LayoutGrid, 'Panel schedule per board'),
         view('cable-schedule', 'Cable schedule', Cable, 'Every cable in the installation'),
         view('cable-tray', 'Cable trays', Rows3, 'Cable tray schedule: routes A, B, C… with the cables on each and the tray size'),
         view('equipment', 'Equipment', FileSpreadsheet, 'Transformers and boards')

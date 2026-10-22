@@ -27,7 +27,8 @@ describe('impact of a design change', () => {
     expect(i.studies.map((s) => s.id)).toEqual(expect.arrayContaining(['vd', 'checks', 'sizing']));
     expect(i.studies.find((s) => s.id === 'vd')!.reason).toBe('its inputs changed');
     expect(i.documents.some((d) => /E-SLD/.test(d.label) && d.reason.startsWith('shows'))).toBe(true);
-    expect(i.documents.map((d) => d.label)).toEqual(expect.arrayContaining(['Load schedule', 'DB schedule', 'Calculation report and study reports']));
+    expect(i.documents.map((d) => d.label)).toEqual(expect.arrayContaining(['Load schedule', 'Calculation report and study reports']));
+    expect(i.documents.map((d) => d.label)).not.toContain('DB schedule');
     expect(i.demand.find((k) => k.boardId === 'DB-GF1')!.to).toBeGreaterThan(i.demand.find((k) => k.boardId === 'DB-GF1')!.from);
     expect(i.changes[0].fields).toContainEqual({ field: 'Points', from: 'cooker 1', to: 'cooker 2' });
     expect(i.quantities.some((q) => q.to > q.from)).toBe(true);

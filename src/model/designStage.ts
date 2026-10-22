@@ -40,7 +40,7 @@ const VIEW_STAGE: Partial<Record<MainView, DesignStage>> = {
   building: 'concept', 'load-assessment': 'concept', sizing: 'concept', 'substation-area': 'concept', 'space-planning': 'concept',
   busbar: 'schematic', pfc: 'schematic', ups: 'schematic', solar: 'schematic', 'earth-schematic': 'schematic', panels: 'schematic',
   design: 'detailed', 'load-schedule': 'detailed', enclosure: 'detailed', selection: 'detailed', 'voltage-drop': 'detailed', earthing: 'detailed',
-  coordination: 'detailed', engines: 'detailed', drawings: 'detailed', 'cable-schedule': 'detailed', 'cable-tray': 'detailed', 'db-schedule': 'detailed',
+  coordination: 'detailed', engines: 'detailed', drawings: 'detailed', 'cable-schedule': 'detailed', 'cable-tray': 'detailed',
   database: 'detailed'
 };
 const rank = (s: DesignStage) => ALL.indexOf(s);

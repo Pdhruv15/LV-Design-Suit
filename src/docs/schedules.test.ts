@@ -1,23 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { cableSchedule, dbSchedule, equipmentSchedule } from './schedules';
+import { cableSchedule, equipmentSchedule } from './schedules';
 import { buildReportHtml } from './calcReport';
 import { toCsv } from '../util/files';
 import { sampleProject } from '../data/sampleProject';
 
 describe('schedules', () => {
-  it('DB schedule lists every circuit once plus one total row per board', () => {
-    const s = dbSchedule(sampleProject);
-    expect(s.rows).toHaveLength(sampleProject.feeders.length + sampleProject.boards.length);
-    expect(s.totalRows).toHaveLength(sampleProject.boards.length);
-    for (const i of s.totalRows!) expect(s.rows[i][2]).toBe('TOTAL');
-    expect(s.rows.every((r) => r.length === s.headers.length)).toBe(true);
-  });
-
-  it('DB schedule can be limited to one board', () => {
-    const s = dbSchedule(sampleProject, ['MCC-1']);
-    expect(s.rows.map((r) => r[2])).toEqual(['MCC-WP', 'MCC-FP', 'TOTAL']);
-  });
-
   it('cable schedule has one row per cable and the default CPC sizes', () => {
     const s = cableSchedule(sampleProject);
     expect(s.rows).toHaveLength(sampleProject.feeders.length);
@@ -47,9 +34,10 @@ describe('calculation report', () => {
     expect(html).toContain('Tower &lt;A&amp;B&gt;');
     expect(html).not.toContain('Tower <A&B>');
     for (const h of ['Design basis', 'Load assessment', 'Transformer and standby generator sizing', 'Cable and breaker sizing', 'Short circuit study', 'Earth fault loop',
-      'Protection discrimination study', 'Power factor correction', 'DB schedule', 'Cable schedule', 'Assumptions', 'Calculation record']) {
+      'Protection discrimination study', 'Power factor correction', 'Cable schedule', 'Assumptions', 'Calculation record']) {
       expect(html).toContain(h);
     }
+    expect(html).not.toContain('DB schedule');
   });
 });
 

@@ -37,7 +37,7 @@ import type { ReportType } from './reportTypes';
 import { buildCalcRecord, calcRecordHtml } from './calcRecord';
 import { numberSubsections, coverPageHtml, documentControlHtml, numberSections, REPORT_DOC_CSS, reportDoc, tocHtml, type ReportMeta } from './reportFrame';
 import { cableTypeOf, fireRatingIssues } from '../model/cableTypes';
-import { cableSchedule, dbSchedule } from './schedules';
+import { cableSchedule } from './schedules';
 
 /** Submission reports for chosen studies on a chosen part of the network:
  * e.g. only the short circuit study, only for MDB-3 and what it feeds.
@@ -72,7 +72,7 @@ export const STUDIES: StudyInfo[] = [
   { key: 'phase', label: 'Phase balance', title: 'Phase balance', description: 'Demand current on R / Y / B at every board, estimated neutral current and current unbalance; single-phase circuits without a phase flagged', sld: undefined },
   { key: 'busbar', label: 'Busbar risers', title: 'Busbar trunking risers', description: 'Busway rating (copper / aluminium), conductor area, voltage drop per floor, short-circuit withstand, size and weight (tables only)', sld: undefined },
   { key: 'pfc', label: 'Power factor correction', title: 'Power factor correction', description: 'Capacitor banks as planned (central / group / individual): kvar, steps, detuning, breaker and cable, PF before and after', sld: undefined },
-  { key: 'schedules', label: 'DB & cable schedules', title: 'DB and cable schedules', description: 'Panel schedule of each board and the cable schedule, for the boards in scope',
+  { key: 'schedules', label: 'Cable schedule', title: 'Cable schedule', description: 'The cable schedule for the boards in scope',
     sld: { layers: NO_LAYERS, colorBy: 'none', note: 'Boards, circuits, breakers and cables as designed' } }
 ];
 export const studyInfo = (k: StudyReportKind) => STUDIES.find((s) => s.key === k)!;
@@ -448,7 +448,6 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
 
 
   // schedules
-  const db = dbSchedule(p, scope.boards.map((b) => b.id));
   const cs = cableSchedule(p);
   const inScope = new Set([...scope.ids]);
   const incomerTags = new Set(scope.incomers.map((f) => `C-${f.id}`));
@@ -458,7 +457,6 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
     method: ['Schedules of the boards in scope, from the design data and the latest calculation run.'],
     summary: [{ label: 'Boards', value: String(scope.boards.length) }],
     tables: [
-      { title: 'DB schedule', headers: db.headers, rows: db.rows.map((r) => r.map(toCell)) },
       { title: 'Cable schedule', headers: cs.headers, rows: cs.rows.filter((r) => inScope.has(String(r[1])) || incomerTags.has(String(r[0]))).map((r) => r.map(toCell)) }
     ]
   };
