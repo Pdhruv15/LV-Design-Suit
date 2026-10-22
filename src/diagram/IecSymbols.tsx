@@ -4,6 +4,7 @@ import { isMotor } from '../calc/motor';
 import { isScheduleCircuit } from '../calc/loadSchedule';
 import { cableTypeDef, cableTypeOf, labelCode } from '../model/cableTypes';
 import { DEFAULT_CABLE_TYPE, incomerDeviceOf } from '../types';
+import { Sym, SYM_SCALE, type SymbolId } from './symbolLibrary';
 
 /** IEC 60617 symbols for the single line diagram, drawn with the diagram's
  * own classes (.ln lines, .sym filled shapes) so they follow the theme and
@@ -15,88 +16,23 @@ export type SwitchKind = 'breaker' | 'acb' | 'isolator' | 'nonauto';
 export const switchKindOf = (f: Feeder): SwitchKind =>
   f.device === 'ISOL' ? 'isolator' : f.device === 'ACB' || breakerTypeOf(f) === 'ACB' ? 'acb' : 'breaker';
 
-/** Switching device in a vertical line from (x, y) to (x, y + 16):
- * circuit breaker (07-13-05: contact with ×), withdrawable ACB (with the
- * drawout marks), switch-disconnector (07-13-08: contact with bar). */
+/** Switching device in a vertical line from (x, y) to (x, y + 16), drawn
+ * from the symbol library: circuit breaker (07-13-05), withdrawable ACB (with
+ * the drawout marks), non-automatic breaker (isolating bar above the ×),
+ * switch-disconnector (07-13-06 bar on the fixed contact). */
 export function SwitchSym({ x, y, kind }: { x: number; y: number; kind: SwitchKind }) {
-  return (
-    <g className="iec">
-      <line x1={x} y1={y} x2={x} y2={y + 3} className="ln" />
-      {/* Isolating bar on the fixed contact; on a non-automatic breaker it sits just above the
-          breaker ×, so the two read separately rather than as an asterisk. */}
-      {kind === 'isolator' && <line x1={x - 4} y1={y + 3} x2={x + 4} y2={y + 3} className="ln" />}
-      {kind === 'nonauto' && <line x1={x - 4} y1={y - 2} x2={x + 4} y2={y - 2} className="ln" />}
-      {kind !== 'isolator' && <path d={`M${x - 3} ${y} l6 6 M${x + 3} ${y} l-6 6`} className="ln" />}
-      <line x1={x} y1={y + 16} x2={x - 7} y2={y + 5} className="ln" />
-      {kind === 'acb' && (
-        <>
-          <path d={`M${x - 4} ${y - 5} l4 -3 l4 3`} className="ln" />
-          <path d={`M${x - 4} ${y + 20} l4 3 l4 -3`} className="ln" />
-        </>
-      )}
-    </g>
-  );
+  return <Sym id={kind === 'breaker' ? 'cb' : kind} x={x} y={y + 8} s={SYM_SCALE.device} />;
 }
 
-/** Load symbol centred on (x, y), about 30 units across. */
-export function LoadSym({ x, y, type, motor, fireFighting }: { x: number; y: number; type: LoadType; motor?: boolean; fireFighting?: boolean }) {
-  if (motor || type === 'motor' || type === 'fire-pump') {
-    return (
-      <g className="iec">
-        <circle cx={x} cy={y} r="14" className="sym" />
-        <text x={x} y={y + 2} textAnchor="middle" className="iec-t b">M</text>
-        <text x={x} y={y + 11} textAnchor="middle" className="iec-t s">{fireFighting ? 'FP' : '3~'}</text>
-      </g>
-    );
-  }
-  switch (type) {
-    case 'lighting':
-      return (
-        <g className="iec">
-          <line x1={x} y1={y - 18} x2={x} y2={y - 10} className="ln" />
-          <circle cx={x} cy={y} r="10" className="sym" />
-          <path d={`M${x - 7} ${y - 7} l14 14 M${x + 7} ${y - 7} l-14 14`} className="ln" />
-        </g>
-      );
-    case 'sockets':
-      return (
-        <g className="iec">
-          <line x1={x} y1={y - 18} x2={x} y2={y - 2} className="ln" />
-          <path d={`M${x - 11} ${y - 2} a11 11 0 0 0 22 0`} className="sym-open" />
-          <line x1={x - 11} y1={y - 2} x2={x + 11} y2={y - 2} className="ln" />
-        </g>
-      );
-    case 'capacitor':
-      return (
-        <g className="iec">
-          <line x1={x} y1={y - 18} x2={x} y2={y - 3} className="ln" />
-          <line x1={x - 11} y1={y - 3} x2={x + 11} y2={y - 3} className="ln thick" />
-          <line x1={x - 11} y1={y + 3} x2={x + 11} y2={y + 3} className="ln thick" />
-          <line x1={x} y1={y + 3} x2={x} y2={y + 9} className="ln" />
-          <path d={`M${x - 6} ${y + 9} h12 M${x - 4} ${y + 12} h8 M${x - 2} ${y + 15} h4`} className="ln" />
-        </g>
-      );
-    case 'pv':
-      return (
-        <g className="iec">
-          <rect x={x - 13} y={y - 13} width="26" height="26" className="sym" />
-          <line x1={x - 13} y1={y + 13} x2={x + 13} y2={y - 13} className="ln" />
-          <path d={`M${x - 20} ${y - 20} l6 6 m-3 0 h3 v-3 M${x - 13} ${y - 22} l6 6 m-3 0 h3 v-3`} className="ln" />
-          <text x={x - 6} y={y - 3} textAnchor="middle" className="iec-t s">=</text>
-          <text x={x + 6} y={y + 9} textAnchor="middle" className="iec-t s">~</text>
-        </g>
-      );
-    default: {
-      // Equipment: a box with its code (IEC general equipment symbol).
-      const code = type === 'hvac' ? 'AC' : type === 'ev' ? 'EV' : type === 'it' ? 'IT' : 'L';
-      return (
-        <g className="iec">
-          <rect x={x - 14} y={y - 12} width="28" height="24" className="sym" />
-          <text x={x} y={y + 4} textAnchor="middle" className="iec-t b">{code}</text>
-        </g>
-      );
-    }
-  }
+const EQUIP_SYM: Partial<Record<LoadType, SymbolId>> = { lighting: 'lighting', sockets: 'socket', capacitor: 'capacitor', pv: 'pv', hvac: 'eq-ac', ev: 'eq-ev', it: 'eq-it' };
+
+/** Library symbol for a load. */
+export const loadSymbolOf = (type: LoadType, motor?: boolean, fireFighting?: boolean): SymbolId =>
+  motor || type === 'motor' || type === 'fire-pump' ? (fireFighting ? 'motor-fp' : 'motor') : EQUIP_SYM[type] ?? 'eq-l';
+
+/** Load symbol centred on (x, y), 28 units tall. */
+export function LoadSym({ x, y, type, motor, fireFighting, s = SYM_SCALE.load }: { x: number; y: number; type: LoadType; motor?: boolean; fireFighting?: boolean; s?: number }) {
+  return <Sym id={loadSymbolOf(type, motor, fireFighting)} x={x} y={y} s={s} />;
 }
 
 /** Poles as written on SLDs: SP+N, TP, TP+N. */
@@ -131,10 +67,10 @@ export function legendEntries(project: Project): LegendEntry[] {
   if (drawn.some((f) => cableTypeOf(project, f).fireRated)) add('fr', 'Fire-rated cable (FR, MICC)', (x, y) => <line x1={x} y1={y - 10} x2={x} y2={y + 10} className="ln fr" />);
   const others = [...new Set(drawn.map((f) => labelCode(project, f)).filter((c) => c && c !== 'FR' && c !== 'MICC'))];
   if (others.length) add('ctype', `Marked cables: ${others.join(', ')}`, (x, y) => <text x={x} y={y + 3} textAnchor="middle" className="iec-t s">code</text>);
-  if (has('breaker')) add('cb', 'Circuit breaker (MCB / MCCB)', (x, y) => <SwitchSym x={x} y={y - 8} kind="breaker" />);
-  if (has('acb')) add('acb', 'Air circuit breaker, withdrawable', (x, y) => <SwitchSym x={x} y={y - 8} kind="acb" />);
-  if (project.boards.some((b) => !b.standby && incomerDeviceOf(b) === 'MCCB-NA')) add('nonauto', 'Non-automatic breaker (incomer isolation)', (x, y) => <SwitchSym x={x} y={y - 8} kind="nonauto" />);
-  if (has('isolator')) add('isol', 'Switch-disconnector', (x, y) => <SwitchSym x={x} y={y - 8} kind="isolator" />);
+  if (has('breaker')) add('cb', 'Circuit breaker (MCB / MCCB)', (x, y) => <Sym id="cb" x={x} y={y} s={SYM_SCALE.legend} />);
+  if (has('acb')) add('acb', 'Air circuit breaker, withdrawable', (x, y) => <Sym id="acb" x={x} y={y} s={SYM_SCALE.legend} />);
+  if (project.boards.some((b) => !b.standby && incomerDeviceOf(b) === 'MCCB-NA')) add('nonauto', 'Non-automatic breaker (incomer isolation)', (x, y) => <Sym id="nonauto" x={x} y={y} s={SYM_SCALE.legend} />);
+  if (has('isolator')) add('isol', 'Switch-disconnector', (x, y) => <Sym id="isolator" x={x} y={y} s={SYM_SCALE.legend} />);
   if (drawn.some((f) => f.rcdMa)) add('rcd', 'Earth leakage protection (RCD)', (x, y) => (
     <g className="iec"><line x1={x} y1={y - 9} x2={x} y2={y + 9} className="ln" /><ellipse cx={x} cy={y} rx="7" ry="3.2" className="sym-ln" /></g>
   ));
@@ -176,17 +112,17 @@ export function legendEntries(project: Project): LegendEntry[] {
   if (drawn.some((f) => f.kwhMeter)) add('kwh', 'kWh meter', (x, y) => (
     <g className="iec"><rect x={x - 12} y={y - 6} width="24" height="12" rx="2" className="sym" /><text x={x} y={y + 3} textAnchor="middle" className="iec-t b">kWh</text></g>
   ));
-  if (drawn.some((f) => f.localIsolator)) add('iso', 'Local isolator at the equipment', (x, y) => <SwitchSym x={x} y={y - 8} kind="isolator" />);
+  if (drawn.some((f) => f.localIsolator)) add('iso', 'Local isolator at the equipment', (x, y) => <Sym id="isolator" x={x} y={y} s={SYM_SCALE.legend} />);
   if (project.boards.some((b) => b.spd)) add('spd', 'Surge protection device (SPD)', (x, y) => (
     <g className="iec"><rect x={x - 6} y={y - 9} width="12" height="14" className="sym" /><path d={`M${x + 2} ${y - 7} l-3 5 h3 l-3 5`} className="sym-ln" /><path d={`M${x - 6} ${y + 8} h12 M${x - 4} ${y + 11} h8`} className="ln" /></g>
   ));
-  if (types.has('motor') || types.has('fire-pump')) add('m', 'Motor (FP = fire pump)', (x, y) => <LoadSym x={x} y={y} type="motor" />);
-  if (types.has('lighting')) add('lamp', 'Lighting', (x, y) => <LoadSym x={x} y={y + 5} type="lighting" />);
-  if (types.has('sockets')) add('so', 'Socket outlets', (x, y) => <LoadSym x={x} y={y + 7} type="sockets" />);
-  if (types.has('capacitor')) add('cap', 'Capacitor bank', (x, y) => <LoadSym x={x} y={y + 2} type="capacitor" />);
-  if (types.has('pv')) add('pv', 'Solar PV / generation', (x, y) => <LoadSym x={x} y={y + 6} type="pv" />);
+  if (types.has('motor') || types.has('fire-pump')) add('m', 'Motor (FP = fire pump)', (x, y) => <LoadSym x={x} y={y} type="motor" s={SYM_SCALE.legend} />);
+  if (types.has('lighting')) add('lamp', 'Lighting', (x, y) => <LoadSym x={x} y={y} type="lighting" s={SYM_SCALE.legend} />);
+  if (types.has('sockets')) add('so', 'Socket outlets', (x, y) => <LoadSym x={x} y={y} type="sockets" s={SYM_SCALE.legend} />);
+  if (types.has('capacitor')) add('cap', 'Capacitor bank', (x, y) => <LoadSym x={x} y={y} type="capacitor" s={SYM_SCALE.legend} />);
+  if (types.has('pv')) add('pv', 'Solar PV / generation', (x, y) => <LoadSym x={x} y={y} type="pv" s={SYM_SCALE.legend} />);
   const EQUIP: [LoadType, string][] = [['hvac', 'HVAC equipment (AC)'], ['ev', 'EV charger (EV)'], ['it', 'IT / data (IT)'], ['general', 'Other load (L)']];
-  for (const [t, label] of EQUIP) if (types.has(t)) add(`eq-${t}`, label, (x, y) => <LoadSym x={x} y={y} type={t} />);
+  for (const [t, label] of EQUIP) if (types.has(t)) add(`eq-${t}`, label, (x, y) => <LoadSym x={x} y={y} type={t} s={SYM_SCALE.legend} />);
   return out;
 }
 
