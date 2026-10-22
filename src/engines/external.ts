@@ -24,7 +24,20 @@ export function probeEngines(refresh = false): Promise<EngineProbe | { error: st
   return probeCache;
 }
 
-function pythonEngine(id: string, name: string, buildRequest: (p: Project) => { engine: string; project: Project; dss?: string; cables?: [number, number, number, number][]; rFactor?: number }): CalcEngine {
+export interface EngineRequest {
+  engine: 'opendss' | 'pandapower';
+  project: Project;
+  dss?: string;
+  cables: [number, number, number, number][];
+  rFactor: number;
+}
+
+/** What the Python helper is sent to study a project (also used by the engine golden tests). */
+export function engineRequest(engine: EngineRequest['engine'], project: Project): EngineRequest {
+  return { engine, project, ...(engine === 'opendss' ? { dss: exportDss(project).script } : {}), ...engineCableData(project) };
+}
+
+function pythonEngine(id: EngineRequest['engine'], name: string): CalcEngine {
   return {
     id,
     name,
@@ -34,7 +47,7 @@ function pythonEngine(id: string, name: string, buildRequest: (p: Project) => { 
     },
     async run(project): Promise<StudyResults> {
       if (!hasBridge()) throw new Error('External engines are only available in the desktop app.');
-      const res = await window.lvds.engines.run(buildRequest(project));
+      const res = await window.lvds.engines.run(engineRequest(id, project));
       if ('error' in res) throw new Error(res.error);
       return res;
     }
@@ -42,15 +55,7 @@ function pythonEngine(id: string, name: string, buildRequest: (p: Project) => { 
 }
 
 /** OpenDSS via OpenDSSDirect.py: runs the same script as the .dss export. */
-export const openDssEngine = pythonEngine('opendss', 'OpenDSS', (project) => ({
-  engine: 'opendss',
-  project,
-  dss: exportDss(project).script
-}));
+export const openDssEngine = pythonEngine('opendss', 'OpenDSS');
 
 /** pandapower: Newton-Raphson load flow + IEC 60909 short circuit. */
-export const pandapowerEngine = pythonEngine('pandapower', 'pandapower (IEC 60909)', (project) => ({
-  engine: 'pandapower',
-  project,
-  ...engineCableData(project)
-}));
+export const pandapowerEngine = pythonEngine('pandapower', 'pandapower (IEC 60909)');

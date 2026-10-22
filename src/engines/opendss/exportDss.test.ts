@@ -71,6 +71,13 @@ describe('OpenDSS export', () => {
     expect(script).toContain('New Load.LTG bus1=ld_LTG.1 phases=1 kv=0.2396 kW=3');
   });
 
+  it('exports a capacitor bank as a Capacitor at its rated kvar, not as a zero-power load', () => {
+    const cap = { id: 'PFC', boardId: 'MDB-1', name: 'PFC', loadKw: 0, kvar: 150, capSteps: 6, demandFactor: 1, powerFactor: 0, lengthM: 5, cableCsaMm2: 95, cores: 4, loadType: 'capacitor', breakerRatingA: 315, breakerIcuKa: 36 } as const;
+    const { script } = exportDss({ ...sampleProject, feeders: [...sampleProject.feeders, cap] });
+    expect(script).toContain('New Capacitor.PFC bus1=ld_PFC phases=3 kv=0.415 kvar=150');
+    expect(lines(script, 'New Load.PFC')).toHaveLength(0);
+  });
+
   it('warns when the main board has no transformer data', () => {
     const p: Project = { ...sampleProject, boards: [{ id: 'MDB-1', name: 'Main' }] };
     const { script, warnings } = exportDss(p);

@@ -56,14 +56,25 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # The external engines at the versions pinned for the golden results (tests/engines/golden/).
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: engines/python/requirements.txt
+      - name: Install calculation engines (OpenDSS, pandapower)
+        run: python3 -m pip install -r engines/python/requirements.txt
       - name: Type check
         run: npm run typecheck
       - name: Lint
         run: npm run lint
-      # Includes the engineering reference tests (src/calc/referenceCalcs.test.ts, hand-calculated values)
-      # and the Python engine's OpenDSS allow-list test, which needs python3 (preinstalled on the runner).
+      # Includes the engineering reference tests (src/calc/referenceCalcs.test.ts, hand-calculated values),
+      # the Python engine's OpenDSS allow-list test, and the external engines on the reference networks
+      # (tests/engines/), which must run here rather than skip.
       - name: Unit tests
         run: npm test
+        env:
+          LVDS_ENGINES: required
       - name: Build
         run: npm run build
       # Electron downloads its binary on first use (it has no install script), so fetch it here.

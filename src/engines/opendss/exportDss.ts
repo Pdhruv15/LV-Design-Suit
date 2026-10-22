@@ -53,6 +53,7 @@ export function exportDss(project: Project): DssExport {
     `!  - Loads are constant kW/kvar (model=1) at connected kW x demand factor.`,
     `!  - Generation feeders are Generator elements that inject power, whereas the`,
     `!    built-in engine treats them like a load of the same current.`,
+    `!  - Capacitor banks are Capacitor elements at their full rated kvar.`,
     ``,
     `Clear`,
     `Set DefaultBaseFrequency=${project.frequencyHz}`,
@@ -121,8 +122,12 @@ export function exportDss(project: Project): DssExport {
       continue;
     }
 
-    const kw = f.loadKw * f.demandFactor;
     const kv = single ? kvLN : kvLL;
+    if (f.kvar) {
+      out.push(`New Capacitor.${name} bus1=${loadBus(f.id)}${nodes} phases=${phases} kv=${fmt(kv, 4)} kvar=${fmt(f.kvar, 3)}`);
+      continue;
+    }
+    const kw = f.loadKw * f.demandFactor;
     const element = f.generation ? 'Generator' : 'Load';
     out.push(
       `New ${element}.${name} bus1=${loadBus(f.id)}${nodes} phases=${phases} kv=${fmt(kv, 4)} kW=${fmt(kw, 3)} pf=${fmt(f.powerFactor, 3)} model=1`
