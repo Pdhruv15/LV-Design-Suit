@@ -19,7 +19,7 @@ The symbol library (PR #300) has six panel symbols: `p-mdb`, `p-smdb`, `p-db`, `
 | DB | `p-db` |
 | EDB | `p-edb` |
 | MCC, EMCC | `p-mcc` |
-| Board feeding only capacitor ways / `protection.apfc` | `p-apfc` |
+| Board whose every way is a capacitor bank | `p-apfc` |
 | MC, UPS | no panel symbol yet: keep the current drawing |
 
 ## Decision (2026-10-22)
