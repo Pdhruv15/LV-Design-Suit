@@ -36,5 +36,11 @@ export interface CalcEngine {
 /** What the Python helper reports about the installed engines. */
 export interface EngineProbe {
   python: string;
-  engines: Record<string, { available: boolean; version?: string; error?: string }>;
+  engines: Record<string, {
+    available: boolean;
+    version?: string;
+    error?: string;
+    tested?: string; // the version pinned in engines/python/requirements.txt
+    note?: string; // set when the installed version differs from the tested one
+  }>;
 }

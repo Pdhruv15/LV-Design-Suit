@@ -103,7 +103,8 @@
         "from": "engines/python",
         "to": "python",
         "filter": [
-          "*.py"
+          "*.py",
+          "requirements.txt"
         ]
       }
     ],

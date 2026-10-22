@@ -1,0 +1,1682 @@
+{
+  "engine": "opendss",
+  "version": "0.9.4",
+  "networks": {
+    "single-transformer": {
+      "feeders": {
+        "L1": {
+          "ib": 162.3,
+          "vdTotalPct": 0.847383,
+          "breakerFaultKA": 28.8617,
+          "endFaultKA": 13.1724
+        }
+      },
+      "boards": {
+        "MDB": {
+          "voltagePct": 99.6599,
+          "faultKA": 28.8617
+        }
+      },
+      "messages": []
+    },
+    "three-level": {
+      "feeders": {
+        "MDB-SMDB": {
+          "ib": 141.494,
+          "vdTotalPct": 0.20867,
+          "breakerFaultKA": 38.4797,
+          "endFaultKA": 25.9985
+        },
+        "SMDB-DB": {
+          "ib": 59.4132,
+          "vdTotalPct": 0.503786,
+          "breakerFaultKA": 25.9985,
+          "endFaultKA": 12.4197
+        },
+        "MDB-CH": {
+          "ib": 438.206,
+          "vdTotalPct": 2.09418,
+          "breakerFaultKA": 38.4797,
+          "endFaultKA": 14.7183
+        },
+        "SMDB-AHU": {
+          "ib": 83.1166,
+          "vdTotalPct": 1.28901,
+          "breakerFaultKA": 25.9985,
+          "endFaultKA": 5.71296
+        },
+        "DB-LTG": {
+          "ib": 25.1733,
+          "vdTotalPct": 1.19538,
+          "breakerFaultKA": 12.4197,
+          "endFaultKA": 2.81148
+        },
+        "DB-PWR": {
+          "ib": 34.3693,
+          "vdTotalPct": 0.979861,
+          "breakerFaultKA": 12.4197,
+          "endFaultKA": 4.50188
+        }
+      },
+      "boards": {
+        "MDB": {
+          "voltagePct": 98.9703,
+          "faultKA": 38.4797
+        },
+        "SMDB": {
+          "voltagePct": 98.7616,
+          "faultKA": 25.9985
+        },
+        "DB": {
+          "voltagePct": 98.4665,
+          "faultKA": 12.4197
+        }
+      },
+      "messages": []
+    },
+    "pv-generation": {
+      "feeders": {
+        "PV": {
+          "ib": 170.365,
+          "vdTotalPct": -2.39726,
+          "breakerFaultKA": 16.0358,
+          "endFaultKA": 5.70731
+        },
+        "L1": {
+          "ib": 131.045,
+          "vdTotalPct": 1.36472,
+          "breakerFaultKA": 16.0358,
+          "endFaultKA": 7.01843
+        },
+        "L2": {
+          "ib": 106.123,
+          "vdTotalPct": 3.26491,
+          "breakerFaultKA": 16.0358,
+          "endFaultKA": 2.74263
+        }
+      },
+      "boards": {
+        "MDB": {
+          "voltagePct": 99.2691,
+          "faultKA": 16.0358
+        }
+      },
+      "messages": []
+    },
+    "single-phase": {
+      "feeders": {
+        "MDB-DB": {
+          "ib": 64.1998,
+          "vdTotalPct": 0.384023,
+          "breakerFaultKA": 20.2045,
+          "endFaultKA": 8.4063
+        },
+        "DB-3PH": {
+          "ib": 32.5009,
+          "vdTotalPct": 0.950273,
+          "breakerFaultKA": 8.4063,
+          "endFaultKA": 3.34281
+        },
+        "DB-S1": {
+          "ib": 14.0019,
+          "vdTotalPct": 2.18308,
+          "breakerFaultKA": 8.4063,
+          "endFaultKA": 0.768876
+        },
+        "DB-S2": {
+          "ib": 11.6682,
+          "vdTotalPct": 2.18308,
+          "breakerFaultKA": 8.4063,
+          "endFaultKA": 0.649376
+        },
+        "DB-S3": {
+          "ib": 6.60465,
+          "vdTotalPct": 1.49563,
+          "breakerFaultKA": 8.4063,
+          "endFaultKA": 0.671836
+        }
+      },
+      "boards": {
+        "MDB": {
+          "voltagePct": 99.8806,
+          "faultKA": 20.2045
+        },
+        "DB": {
+          "voltagePct": 99.4966,
+          "faultKA": 8.4063
+        }
+      },
+      "messages": []
+    },
+    "two-transformers": {
+      "feeders": {
+        "A-L1": {
+          "ib": 494.989,
+          "vdTotalPct": 1.7689,
+          "breakerFaultKA": 28.8617,
+          "endFaultKA": 15.5389
+        },
+        "B-DB": {
+          "ib": 1011.89,
+          "vdTotalPct": 0.424029,
+          "breakerFaultKA": 44.3981,
+          "endFaultKA": 38.3712
+        },
+        "B-L1": {
+          "ib": 1011.89,
+          "vdTotalPct": 1.41327,
+          "breakerFaultKA": 38.3712,
+          "endFaultKA": 29.1384
+        }
+      },
+      "boards": {
+        "MDB-A": {
+          "voltagePct": 98.9524,
+          "faultKA": 28.8617
+        },
+        "MDB-B": {
+          "voltagePct": 98.6543,
+          "faultKA": 44.3981
+        },
+        "DB-B": {
+          "voltagePct": 98.2303,
+          "faultKA": 38.3712
+        }
+      },
+      "messages": []
+    },
+    "building-31": {
+      "feeders": {
+        "INC-B1": {
+          "ib": 126.801,
+          "vdTotalPct": 0.0366054,
+          "breakerFaultKA": 60.1155,
+          "endFaultKA": 43.9123
+        },
+        "INC-B2": {
+          "ib": 126.9,
+          "vdTotalPct": 0.0488631,
+          "breakerFaultKA": 60.1155,
+          "endFaultKA": 40.0398
+        },
+        "INC-B3": {
+          "ib": 126.999,
+          "vdTotalPct": 0.0611488,
+          "breakerFaultKA": 60.1155,
+          "endFaultKA": 36.7311
+        },
+        "INC-B4": {
+          "ib": 126.863,
+          "vdTotalPct": 0.0733045,
+          "breakerFaultKA": 60.1155,
+          "endFaultKA": 33.8857
+        },
+        "INC-B5": {
+          "ib": 126.963,
+          "vdTotalPct": 0.0856198,
+          "breakerFaultKA": 60.1155,
+          "endFaultKA": 31.4213
+        },
+        "INC-B6": {
+          "ib": 127.062,
+          "vdTotalPct": 0.0979635,
+          "breakerFaultKA": 60.1155,
+          "endFaultKA": 29.2715
+        },
+        "INC-B7": {
+          "ib": 126.937,
+          "vdTotalPct": 0.0244282,
+          "breakerFaultKA": 60.1155,
+          "endFaultKA": 48.4673
+        },
+        "INC-B8": {
+          "ib": 126.801,
+          "vdTotalPct": 0.0366054,
+          "breakerFaultKA": 60.1155,
+          "endFaultKA": 43.9123
+        },
+        "INC-B9": {
+          "ib": 126.9,
+          "vdTotalPct": 0.0488631,
+          "breakerFaultKA": 60.1155,
+          "endFaultKA": 40.0398
+        },
+        "INC-B10": {
+          "ib": 126.999,
+          "vdTotalPct": 0.0611488,
+          "breakerFaultKA": 60.1155,
+          "endFaultKA": 36.7311
+        },
+        "INC-B11": {
+          "ib": 48.5684,
+          "vdTotalPct": 0.295416,
+          "breakerFaultKA": 43.9123,
+          "endFaultKA": 9.84077
+        },
+        "INC-B12": {
+          "ib": 48.6142,
+          "vdTotalPct": 0.351018,
+          "breakerFaultKA": 40.0398,
+          "endFaultKA": 8.46277
+        },
+        "INC-B13": {
+          "ib": 48.6602,
+          "vdTotalPct": 0.406709,
+          "breakerFaultKA": 36.7311,
+          "endFaultKA": 7.42192
+        },
+        "INC-B14": {
+          "ib": 48.472,
+          "vdTotalPct": 0.159434,
+          "breakerFaultKA": 33.8857,
+          "endFaultKA": 18.624
+        },
+        "INC-B15": {
+          "ib": 48.5176,
+          "vdTotalPct": 0.214903,
+          "breakerFaultKA": 31.4213,
+          "endFaultKA": 14.3679
+        },
+        "INC-B16": {
+          "ib": 48.5633,
+          "vdTotalPct": 0.27046,
+          "breakerFaultKA": 29.2715,
+          "endFaultKA": 11.6568
+        },
+        "INC-B17": {
+          "ib": 48.5227,
+          "vdTotalPct": 0.239955,
+          "breakerFaultKA": 48.4673,
+          "endFaultKA": 11.7494
+        },
+        "INC-B18": {
+          "ib": 48.5684,
+          "vdTotalPct": 0.295416,
+          "breakerFaultKA": 43.9123,
+          "endFaultKA": 9.84077
+        },
+        "INC-B19": {
+          "ib": 48.6142,
+          "vdTotalPct": 0.351018,
+          "breakerFaultKA": 40.0398,
+          "endFaultKA": 8.46277
+        },
+        "INC-B20": {
+          "ib": 48.6602,
+          "vdTotalPct": 0.406709,
+          "breakerFaultKA": 36.7311,
+          "endFaultKA": 7.42192
+        },
+        "INC-B21": {
+          "ib": 48.4353,
+          "vdTotalPct": 0.122693,
+          "breakerFaultKA": 43.9123,
+          "endFaultKA": 21.6148
+        },
+        "INC-B22": {
+          "ib": 48.4807,
+          "vdTotalPct": 0.178084,
+          "breakerFaultKA": 40.0398,
+          "endFaultKA": 16.0759
+        },
+        "INC-B23": {
+          "ib": 48.5263,
+          "vdTotalPct": 0.233562,
+          "breakerFaultKA": 36.7311,
+          "endFaultKA": 12.7487
+        },
+        "INC-B24": {
+          "ib": 48.5719,
+          "vdTotalPct": 0.28897,
+          "breakerFaultKA": 33.8857,
+          "endFaultKA": 10.5467
+        },
+        "INC-B25": {
+          "ib": 48.6178,
+          "vdTotalPct": 0.344597,
+          "breakerFaultKA": 31.4213,
+          "endFaultKA": 8.98682
+        },
+        "INC-B26": {
+          "ib": 48.6638,
+          "vdTotalPct": 0.400314,
+          "breakerFaultKA": 29.2715,
+          "endFaultKA": 7.82591
+        },
+        "INC-B27": {
+          "ib": 48.6231,
+          "vdTotalPct": 0.369821,
+          "breakerFaultKA": 48.4673,
+          "endFaultKA": 7.83817
+        },
+        "INC-B28": {
+          "ib": 48.4353,
+          "vdTotalPct": 0.122693,
+          "breakerFaultKA": 43.9123,
+          "endFaultKA": 21.6148
+        },
+        "INC-B29": {
+          "ib": 48.4807,
+          "vdTotalPct": 0.178084,
+          "breakerFaultKA": 40.0398,
+          "endFaultKA": 16.0759
+        },
+        "INC-B30": {
+          "ib": 48.5263,
+          "vdTotalPct": 0.233562,
+          "breakerFaultKA": 36.7311,
+          "endFaultKA": 12.7487
+        },
+        "MDB-C1": {
+          "ib": 5.34576,
+          "vdTotalPct": 0.0730058,
+          "breakerFaultKA": 60.1155,
+          "endFaultKA": 6.77645
+        },
+        "MDB-C2": {
+          "ib": 5.83382,
+          "vdTotalPct": 0.58347,
+          "breakerFaultKA": 60.1155,
+          "endFaultKA": 0.904414
+        },
+        "MDB-C3": {
+          "ib": 9.3225,
+          "vdTotalPct": 1.19126,
+          "breakerFaultKA": 60.1155,
+          "endFaultKA": 0.671602
+        },
+        "MDB-C4": {
+          "ib": 17.8595,
+          "vdTotalPct": 0.543772,
+          "breakerFaultKA": 60.1155,
+          "endFaultKA": 2.66356
+        },
+        "MDB-C5": {
+          "ib": 3.69236,
+          "vdTotalPct": 0.794368,
+          "breakerFaultKA": 60.1155,
+          "endFaultKA": 0.443344
+        },
+        "MDB-C6": {
+          "ib": 6.62996,
+          "vdTotalPct": 1.58739,
+          "breakerFaultKA": 60.1155,
+          "endFaultKA": 0.378947
+        },
+        "B1-C1": {
+          "ib": 5.34974,
+          "vdTotalPct": 0.109638,
+          "breakerFaultKA": 43.9123,
+          "endFaultKA": 6.48907
+        },
+        "B1-C2": {
+          "ib": 5.8382,
+          "vdTotalPct": 0.658186,
+          "breakerFaultKA": 43.9123,
+          "endFaultKA": 0.899514
+        },
+        "B1-C3": {
+          "ib": 9.32958,
+          "vdTotalPct": 1.26645,
+          "breakerFaultKA": 43.9123,
+          "endFaultKA": 0.668905
+        },
+        "B1-C4": {
+          "ib": 17.8729,
+          "vdTotalPct": 0.580579,
+          "breakerFaultKA": 43.9123,
+          "endFaultKA": 2.61989
+        },
+        "B1-C5": {
+          "ib": 3.69514,
+          "vdTotalPct": 0.869244,
+          "breakerFaultKA": 43.9123,
+          "endFaultKA": 0.442171
+        },
+        "B1-C6": {
+          "ib": 6.63503,
+          "vdTotalPct": 1.66288,
+          "breakerFaultKA": 43.9123,
+          "endFaultKA": 0.37809
+        },
+        "B1-CAP": {
+          "ib": 72.4431,
+          "vdTotalPct": 0.0241437,
+          "breakerFaultKA": 43.9123,
+          "endFaultKA": 31.1886
+        },
+        "B2-C1": {
+          "ib": 5.35108,
+          "vdTotalPct": 0.121905,
+          "breakerFaultKA": 40.0398,
+          "endFaultKA": 6.3979
+        },
+        "B2-C2": {
+          "ib": 5.83967,
+          "vdTotalPct": 0.683209,
+          "breakerFaultKA": 40.0398,
+          "endFaultKA": 0.897889
+        },
+        "B2-C3": {
+          "ib": 9.33195,
+          "vdTotalPct": 1.29163,
+          "breakerFaultKA": 40.0398,
+          "endFaultKA": 0.668009
+        },
+        "B2-C4": {
+          "ib": 17.8774,
+          "vdTotalPct": 0.592905,
+          "breakerFaultKA": 40.0398,
+          "endFaultKA": 2.60558
+        },
+        "B2-C5": {
+          "ib": 3.69608,
+          "vdTotalPct": 0.894321,
+          "breakerFaultKA": 40.0398,
+          "endFaultKA": 0.44178
+        },
+        "B2-C6": {
+          "ib": 6.63673,
+          "vdTotalPct": 1.68816,
+          "breakerFaultKA": 40.0398,
+          "endFaultKA": 0.377805
+        },
+        "B2-CAP": {
+          "ib": 72.4388,
+          "vdTotalPct": 0.0364029,
+          "breakerFaultKA": 40.0398,
+          "endFaultKA": 28.9668
+        },
+        "B3-C1": {
+          "ib": 5.35241,
+          "vdTotalPct": 0.134199,
+          "breakerFaultKA": 36.7311,
+          "endFaultKA": 6.30892
+        },
+        "B3-C2": {
+          "ib": 5.84114,
+          "vdTotalPct": 0.708291,
+          "breakerFaultKA": 36.7311,
+          "endFaultKA": 0.896269
+        },
+        "B3-C3": {
+          "ib": 9.33432,
+          "vdTotalPct": 1.31687,
+          "breakerFaultKA": 36.7311,
+          "endFaultKA": 0.667115
+        },
+        "B3-C4": {
+          "ib": 17.8819,
+          "vdTotalPct": 0.605258,
+          "breakerFaultKA": 36.7311,
+          "endFaultKA": 2.5914
+        },
+        "B3-C5": {
+          "ib": 3.69701,
+          "vdTotalPct": 0.919457,
+          "breakerFaultKA": 36.7311,
+          "endFaultKA": 0.441391
+        },
+        "B3-C6": {
+          "ib": 6.63843,
+          "vdTotalPct": 1.71351,
+          "breakerFaultKA": 36.7311,
+          "endFaultKA": 0.37752
+        },
+        "B3-CAP": {
+          "ib": 72.4345,
+          "vdTotalPct": 0.0486902,
+          "breakerFaultKA": 36.7311,
+          "endFaultKA": 27.0388
+        },
+        "B4-C1": {
+          "ib": 5.35374,
+          "vdTotalPct": 0.146364,
+          "breakerFaultKA": 33.8857,
+          "endFaultKA": 6.22207
+        },
+        "B4-C2": {
+          "ib": 5.8426,
+          "vdTotalPct": 0.7331,
+          "breakerFaultKA": 33.8857,
+          "endFaultKA": 0.894653
+        },
+        "B4-C3": {
+          "ib": 9.33668,
+          "vdTotalPct": 1.34183,
+          "breakerFaultKA": 33.8857,
+          "endFaultKA": 0.666223
+        },
+        "B4-C4": {
+          "ib": 17.8863,
+          "vdTotalPct": 0.617481,
+          "breakerFaultKA": 33.8857,
+          "endFaultKA": 2.57735
+        },
+        "B4-C5": {
+          "ib": 3.69794,
+          "vdTotalPct": 0.94432,
+          "breakerFaultKA": 33.8857,
+          "endFaultKA": 0.441002
+        },
+        "B4-C6": {
+          "ib": 6.64012,
+          "vdTotalPct": 1.73858,
+          "breakerFaultKA": 33.8857,
+          "endFaultKA": 0.377236
+        },
+        "B4-CAP": {
+          "ib": 72.4302,
+          "vdTotalPct": 0.0608473,
+          "breakerFaultKA": 33.8857,
+          "endFaultKA": 25.3502
+        },
+        "B5-C1": {
+          "ib": 5.35508,
+          "vdTotalPct": 0.158688,
+          "breakerFaultKA": 31.4213,
+          "endFaultKA": 6.1373
+        },
+        "B5-C2": {
+          "ib": 5.84408,
+          "vdTotalPct": 0.758245,
+          "breakerFaultKA": 31.4213,
+          "endFaultKA": 0.893041
+        },
+        "B5-C3": {
+          "ib": 9.33907,
+          "vdTotalPct": 1.36714,
+          "breakerFaultKA": 31.4213,
+          "endFaultKA": 0.665333
+        },
+        "B5-C4": {
+          "ib": 17.8909,
+          "vdTotalPct": 0.629865,
+          "breakerFaultKA": 31.4213,
+          "endFaultKA": 2.56341
+        },
+        "B5-C5": {
+          "ib": 3.69888,
+          "vdTotalPct": 0.969519,
+          "breakerFaultKA": 31.4213,
+          "endFaultKA": 0.440613
+        },
+        "B5-C6": {
+          "ib": 6.64182,
+          "vdTotalPct": 1.76398,
+          "breakerFaultKA": 31.4213,
+          "endFaultKA": 0.376951
+        },
+        "B5-CAP": {
+          "ib": 72.4259,
+          "vdTotalPct": 0.0731642,
+          "breakerFaultKA": 31.4213,
+          "endFaultKA": 23.8592
+        },
+        "B6-C1": {
+          "ib": 5.35642,
+          "vdTotalPct": 0.171041,
+          "breakerFaultKA": 29.2715,
+          "endFaultKA": 6.05453
+        },
+        "B6-C2": {
+          "ib": 5.84555,
+          "vdTotalPct": 0.78345,
+          "breakerFaultKA": 29.2715,
+          "endFaultKA": 0.891434
+        },
+        "B6-C3": {
+          "ib": 9.34146,
+          "vdTotalPct": 1.3925,
+          "breakerFaultKA": 29.2715,
+          "endFaultKA": 0.664444
+        },
+        "B6-C4": {
+          "ib": 17.8954,
+          "vdTotalPct": 0.642276,
+          "breakerFaultKA": 29.2715,
+          "endFaultKA": 2.5496
+        },
+        "B6-C5": {
+          "ib": 3.69982,
+          "vdTotalPct": 0.994777,
+          "breakerFaultKA": 29.2715,
+          "endFaultKA": 0.440225
+        },
+        "B6-C6": {
+          "ib": 6.64353,
+          "vdTotalPct": 1.78945,
+          "breakerFaultKA": 29.2715,
+          "endFaultKA": 0.376668
+        },
+        "B6-CAP": {
+          "ib": 72.4216,
+          "vdTotalPct": 0.0855094,
+          "breakerFaultKA": 29.2715,
+          "endFaultKA": 22.5332
+        },
+        "B7-C1": {
+          "ib": 5.34842,
+          "vdTotalPct": 0.0974519,
+          "breakerFaultKA": 48.4673,
+          "endFaultKA": 6.58251
+        },
+        "B7-C2": {
+          "ib": 5.83674,
+          "vdTotalPct": 0.633332,
+          "breakerFaultKA": 48.4673,
+          "endFaultKA": 0.901143
+        },
+        "B7-C3": {
+          "ib": 9.32722,
+          "vdTotalPct": 1.24144,
+          "breakerFaultKA": 48.4673,
+          "endFaultKA": 0.669802
+        },
+        "B7-C4": {
+          "ib": 17.8684,
+          "vdTotalPct": 0.568335,
+          "breakerFaultKA": 48.4673,
+          "endFaultKA": 2.63432
+        },
+        "B7-C5": {
+          "ib": 3.69422,
+          "vdTotalPct": 0.844337,
+          "breakerFaultKA": 48.4673,
+          "endFaultKA": 0.442561
+        },
+        "B7-C6": {
+          "ib": 6.63334,
+          "vdTotalPct": 1.63777,
+          "breakerFaultKA": 48.4673,
+          "endFaultKA": 0.378375
+        },
+        "B7-CAP": {
+          "ib": 72.4474,
+          "vdTotalPct": 0.011965,
+          "breakerFaultKA": 48.4673,
+          "endFaultKA": 33.7762
+        },
+        "B8-C1": {
+          "ib": 5.34974,
+          "vdTotalPct": 0.109638,
+          "breakerFaultKA": 43.9123,
+          "endFaultKA": 6.48907
+        },
+        "B8-C2": {
+          "ib": 5.8382,
+          "vdTotalPct": 0.658186,
+          "breakerFaultKA": 43.9123,
+          "endFaultKA": 0.899514
+        },
+        "B8-C3": {
+          "ib": 9.32958,
+          "vdTotalPct": 1.26645,
+          "breakerFaultKA": 43.9123,
+          "endFaultKA": 0.668905
+        },
+        "B8-C4": {
+          "ib": 17.8729,
+          "vdTotalPct": 0.580579,
+          "breakerFaultKA": 43.9123,
+          "endFaultKA": 2.61989
+        },
+        "B8-C5": {
+          "ib": 3.69514,
+          "vdTotalPct": 0.869244,
+          "breakerFaultKA": 43.9123,
+          "endFaultKA": 0.442171
+        },
+        "B8-C6": {
+          "ib": 6.63503,
+          "vdTotalPct": 1.66288,
+          "breakerFaultKA": 43.9123,
+          "endFaultKA": 0.37809
+        },
+        "B8-CAP": {
+          "ib": 72.4431,
+          "vdTotalPct": 0.0241437,
+          "breakerFaultKA": 43.9123,
+          "endFaultKA": 31.1886
+        },
+        "B9-C1": {
+          "ib": 5.35108,
+          "vdTotalPct": 0.121905,
+          "breakerFaultKA": 40.0398,
+          "endFaultKA": 6.3979
+        },
+        "B9-C2": {
+          "ib": 5.83967,
+          "vdTotalPct": 0.683209,
+          "breakerFaultKA": 40.0398,
+          "endFaultKA": 0.897889
+        },
+        "B9-C3": {
+          "ib": 9.33195,
+          "vdTotalPct": 1.29163,
+          "breakerFaultKA": 40.0398,
+          "endFaultKA": 0.668009
+        },
+        "B9-C4": {
+          "ib": 17.8774,
+          "vdTotalPct": 0.592905,
+          "breakerFaultKA": 40.0398,
+          "endFaultKA": 2.60558
+        },
+        "B9-C5": {
+          "ib": 3.69608,
+          "vdTotalPct": 0.894321,
+          "breakerFaultKA": 40.0398,
+          "endFaultKA": 0.44178
+        },
+        "B9-C6": {
+          "ib": 6.63673,
+          "vdTotalPct": 1.68816,
+          "breakerFaultKA": 40.0398,
+          "endFaultKA": 0.377805
+        },
+        "B9-CAP": {
+          "ib": 72.4388,
+          "vdTotalPct": 0.0364029,
+          "breakerFaultKA": 40.0398,
+          "endFaultKA": 28.9668
+        },
+        "B10-C1": {
+          "ib": 5.35241,
+          "vdTotalPct": 0.134199,
+          "breakerFaultKA": 36.7311,
+          "endFaultKA": 6.30892
+        },
+        "B10-C2": {
+          "ib": 5.84114,
+          "vdTotalPct": 0.708291,
+          "breakerFaultKA": 36.7311,
+          "endFaultKA": 0.896269
+        },
+        "B10-C3": {
+          "ib": 9.33432,
+          "vdTotalPct": 1.31687,
+          "breakerFaultKA": 36.7311,
+          "endFaultKA": 0.667115
+        },
+        "B10-C4": {
+          "ib": 17.8819,
+          "vdTotalPct": 0.605258,
+          "breakerFaultKA": 36.7311,
+          "endFaultKA": 2.5914
+        },
+        "B10-C5": {
+          "ib": 3.69701,
+          "vdTotalPct": 0.919457,
+          "breakerFaultKA": 36.7311,
+          "endFaultKA": 0.441391
+        },
+        "B10-C6": {
+          "ib": 6.63843,
+          "vdTotalPct": 1.71351,
+          "breakerFaultKA": 36.7311,
+          "endFaultKA": 0.37752
+        },
+        "B10-CAP": {
+          "ib": 72.4345,
+          "vdTotalPct": 0.0486902,
+          "breakerFaultKA": 36.7311,
+          "endFaultKA": 27.0388
+        },
+        "B11-C1": {
+          "ib": 5.37147,
+          "vdTotalPct": 0.368639,
+          "breakerFaultKA": 9.84077,
+          "endFaultKA": 4.16542
+        },
+        "B11-C2": {
+          "ib": 5.86214,
+          "vdTotalPct": 1.06382,
+          "breakerFaultKA": 9.84077,
+          "endFaultKA": 0.836069
+        },
+        "B11-C3": {
+          "ib": 9.36826,
+          "vdTotalPct": 1.67464,
+          "breakerFaultKA": 9.84077,
+          "endFaultKA": 0.63322
+        },
+        "B11-C4": {
+          "ib": 17.9461,
+          "vdTotalPct": 0.840822,
+          "breakerFaultKA": 9.84077,
+          "endFaultKA": 2.14126
+        },
+        "B11-C5": {
+          "ib": 3.71035,
+          "vdTotalPct": 1.27575,
+          "breakerFaultKA": 9.84077,
+          "endFaultKA": 0.426312
+        },
+        "B11-C6": {
+          "ib": 6.66273,
+          "vdTotalPct": 2.07277,
+          "breakerFaultKA": 9.84077,
+          "endFaultKA": 0.366439
+        },
+        "B12-C1": {
+          "ib": 5.37647,
+          "vdTotalPct": 0.424282,
+          "breakerFaultKA": 8.46277,
+          "endFaultKA": 3.89661
+        },
+        "B12-C2": {
+          "ib": 5.86765,
+          "vdTotalPct": 1.15691,
+          "breakerFaultKA": 8.46277,
+          "endFaultKA": 0.824951
+        },
+        "B12-C3": {
+          "ib": 9.37716,
+          "vdTotalPct": 1.76832,
+          "breakerFaultKA": 8.46277,
+          "endFaultKA": 0.626836
+        },
+        "B12-C4": {
+          "ib": 17.963,
+          "vdTotalPct": 0.896732,
+          "breakerFaultKA": 8.46277,
+          "endFaultKA": 2.06869
+        },
+        "B12-C5": {
+          "ib": 3.71386,
+          "vdTotalPct": 1.36904,
+          "breakerFaultKA": 8.46277,
+          "endFaultKA": 0.423416
+        },
+        "B12-C6": {
+          "ib": 6.66911,
+          "vdTotalPct": 2.16684,
+          "breakerFaultKA": 8.46277,
+          "endFaultKA": 0.364298
+        },
+        "B13-C1": {
+          "ib": 5.3815,
+          "vdTotalPct": 0.480013,
+          "breakerFaultKA": 7.42192,
+          "endFaultKA": 3.66025
+        },
+        "B13-C2": {
+          "ib": 5.87318,
+          "vdTotalPct": 1.25019,
+          "breakerFaultKA": 7.42192,
+          "endFaultKA": 0.814115
+        },
+        "B13-C3": {
+          "ib": 9.3861,
+          "vdTotalPct": 1.8622,
+          "breakerFaultKA": 7.42192,
+          "endFaultKA": 0.620575
+        },
+        "B13-C4": {
+          "ib": 17.9799,
+          "vdTotalPct": 0.952732,
+          "breakerFaultKA": 7.42192,
+          "endFaultKA": 2.00081
+        },
+        "B13-C5": {
+          "ib": 3.71737,
+          "vdTotalPct": 1.46253,
+          "breakerFaultKA": 7.42192,
+          "endFaultKA": 0.420557
+        },
+        "B13-C6": {
+          "ib": 6.67551,
+          "vdTotalPct": 2.2611,
+          "breakerFaultKA": 7.42192,
+          "endFaultKA": 0.362181
+        },
+        "B14-C1": {
+          "ib": 5.36096,
+          "vdTotalPct": 0.232556,
+          "breakerFaultKA": 18.624,
+          "endFaultKA": 5.2801
+        },
+        "B14-C2": {
+          "ib": 5.85056,
+          "vdTotalPct": 0.868027,
+          "breakerFaultKA": 18.624,
+          "endFaultKA": 0.872702
+        },
+        "B14-C3": {
+          "ib": 9.34954,
+          "vdTotalPct": 1.47761,
+          "breakerFaultKA": 18.624,
+          "endFaultKA": 0.65399
+        },
+        "B14-C4": {
+          "ib": 17.9107,
+          "vdTotalPct": 0.704086,
+          "breakerFaultKA": 18.624,
+          "endFaultKA": 2.40131
+        },
+        "B14-C5": {
+          "ib": 3.70299,
+          "vdTotalPct": 1.07954,
+          "breakerFaultKA": 18.624,
+          "endFaultKA": 0.435615
+        },
+        "B14-C6": {
+          "ib": 6.64933,
+          "vdTotalPct": 1.87492,
+          "breakerFaultKA": 18.624,
+          "endFaultKA": 0.373289
+        },
+        "B15-C1": {
+          "ib": 5.36593,
+          "vdTotalPct": 0.288066,
+          "breakerFaultKA": 14.3679,
+          "endFaultKA": 4.85533
+        },
+        "B15-C2": {
+          "ib": 5.85603,
+          "vdTotalPct": 0.960832,
+          "breakerFaultKA": 14.3679,
+          "endFaultKA": 0.860614
+        },
+        "B15-C3": {
+          "ib": 9.35839,
+          "vdTotalPct": 1.571,
+          "breakerFaultKA": 14.3679,
+          "endFaultKA": 0.647191
+        },
+        "B15-C4": {
+          "ib": 17.9274,
+          "vdTotalPct": 0.759862,
+          "breakerFaultKA": 14.3679,
+          "endFaultKA": 2.31054
+        },
+        "B15-C5": {
+          "ib": 3.70647,
+          "vdTotalPct": 1.17254,
+          "breakerFaultKA": 14.3679,
+          "endFaultKA": 0.432594
+        },
+        "B15-C6": {
+          "ib": 6.65566,
+          "vdTotalPct": 1.9687,
+          "breakerFaultKA": 14.3679,
+          "endFaultKA": 0.371069
+        },
+        "B16-C1": {
+          "ib": 5.37092,
+          "vdTotalPct": 0.343664,
+          "breakerFaultKA": 11.6568,
+          "endFaultKA": 4.49357
+        },
+        "B16-C2": {
+          "ib": 5.86153,
+          "vdTotalPct": 1.05383,
+          "breakerFaultKA": 11.6568,
+          "endFaultKA": 0.848844
+        },
+        "B16-C3": {
+          "ib": 9.36727,
+          "vdTotalPct": 1.66459,
+          "breakerFaultKA": 11.6568,
+          "endFaultKA": 0.640527
+        },
+        "B16-C4": {
+          "ib": 17.9443,
+          "vdTotalPct": 0.815727,
+          "breakerFaultKA": 11.6568,
+          "endFaultKA": 2.22628
+        },
+        "B16-C5": {
+          "ib": 3.70997,
+          "vdTotalPct": 1.26574,
+          "breakerFaultKA": 11.6568,
+          "endFaultKA": 0.429613
+        },
+        "B16-C6": {
+          "ib": 6.66202,
+          "vdTotalPct": 2.06267,
+          "breakerFaultKA": 11.6568,
+          "endFaultKA": 0.368875
+        },
+        "B17-C1": {
+          "ib": 5.36649,
+          "vdTotalPct": 0.313137,
+          "breakerFaultKA": 11.7494,
+          "endFaultKA": 4.47382
+        },
+        "B17-C2": {
+          "ib": 5.85665,
+          "vdTotalPct": 0.971028,
+          "breakerFaultKA": 11.7494,
+          "endFaultKA": 0.847481
+        },
+        "B17-C3": {
+          "ib": 9.35939,
+          "vdTotalPct": 1.58127,
+          "breakerFaultKA": 11.7494,
+          "endFaultKA": 0.639731
+        },
+        "B17-C4": {
+          "ib": 17.9293,
+          "vdTotalPct": 0.785053,
+          "breakerFaultKA": 11.7494,
+          "endFaultKA": 2.219
+        },
+        "B17-C5": {
+          "ib": 3.70687,
+          "vdTotalPct": 1.18276,
+          "breakerFaultKA": 11.7494,
+          "endFaultKA": 0.429247
+        },
+        "B17-C6": {
+          "ib": 6.65638,
+          "vdTotalPct": 1.979,
+          "breakerFaultKA": 11.7494,
+          "endFaultKA": 0.368603
+        },
+        "B18-C1": {
+          "ib": 5.37147,
+          "vdTotalPct": 0.368639,
+          "breakerFaultKA": 9.84077,
+          "endFaultKA": 4.16542
+        },
+        "B18-C2": {
+          "ib": 5.86214,
+          "vdTotalPct": 1.06382,
+          "breakerFaultKA": 9.84077,
+          "endFaultKA": 0.836069
+        },
+        "B18-C3": {
+          "ib": 9.36826,
+          "vdTotalPct": 1.67464,
+          "breakerFaultKA": 9.84077,
+          "endFaultKA": 0.63322
+        },
+        "B18-C4": {
+          "ib": 17.9461,
+          "vdTotalPct": 0.840822,
+          "breakerFaultKA": 9.84077,
+          "endFaultKA": 2.14126
+        },
+        "B18-C5": {
+          "ib": 3.71035,
+          "vdTotalPct": 1.27575,
+          "breakerFaultKA": 9.84077,
+          "endFaultKA": 0.426312
+        },
+        "B18-C6": {
+          "ib": 6.66273,
+          "vdTotalPct": 2.07277,
+          "breakerFaultKA": 9.84077,
+          "endFaultKA": 0.366439
+        },
+        "B19-C1": {
+          "ib": 5.37647,
+          "vdTotalPct": 0.424282,
+          "breakerFaultKA": 8.46277,
+          "endFaultKA": 3.89661
+        },
+        "B19-C2": {
+          "ib": 5.86765,
+          "vdTotalPct": 1.15691,
+          "breakerFaultKA": 8.46277,
+          "endFaultKA": 0.824951
+        },
+        "B19-C3": {
+          "ib": 9.37716,
+          "vdTotalPct": 1.76832,
+          "breakerFaultKA": 8.46277,
+          "endFaultKA": 0.626836
+        },
+        "B19-C4": {
+          "ib": 17.963,
+          "vdTotalPct": 0.896732,
+          "breakerFaultKA": 8.46277,
+          "endFaultKA": 2.06869
+        },
+        "B19-C5": {
+          "ib": 3.71386,
+          "vdTotalPct": 1.36904,
+          "breakerFaultKA": 8.46277,
+          "endFaultKA": 0.423416
+        },
+        "B19-C6": {
+          "ib": 6.66911,
+          "vdTotalPct": 2.16684,
+          "breakerFaultKA": 8.46277,
+          "endFaultKA": 0.364298
+        },
+        "B20-C1": {
+          "ib": 5.3815,
+          "vdTotalPct": 0.480013,
+          "breakerFaultKA": 7.42192,
+          "endFaultKA": 3.66025
+        },
+        "B20-C2": {
+          "ib": 5.87318,
+          "vdTotalPct": 1.25019,
+          "breakerFaultKA": 7.42192,
+          "endFaultKA": 0.814115
+        },
+        "B20-C3": {
+          "ib": 9.3861,
+          "vdTotalPct": 1.8622,
+          "breakerFaultKA": 7.42192,
+          "endFaultKA": 0.620575
+        },
+        "B20-C4": {
+          "ib": 17.9799,
+          "vdTotalPct": 0.952732,
+          "breakerFaultKA": 7.42192,
+          "endFaultKA": 2.00081
+        },
+        "B20-C5": {
+          "ib": 3.71737,
+          "vdTotalPct": 1.46253,
+          "breakerFaultKA": 7.42192,
+          "endFaultKA": 0.420557
+        },
+        "B20-C6": {
+          "ib": 6.67551,
+          "vdTotalPct": 2.2611,
+          "breakerFaultKA": 7.42192,
+          "endFaultKA": 0.362181
+        },
+        "B21-C1": {
+          "ib": 5.35695,
+          "vdTotalPct": 0.195789,
+          "breakerFaultKA": 21.6148,
+          "endFaultKA": 5.47206
+        },
+        "B21-C2": {
+          "ib": 5.84614,
+          "vdTotalPct": 0.793009,
+          "breakerFaultKA": 21.6148,
+          "endFaultKA": 0.877344
+        },
+        "B21-C3": {
+          "ib": 9.34241,
+          "vdTotalPct": 1.40212,
+          "breakerFaultKA": 21.6148,
+          "endFaultKA": 0.656581
+        },
+        "B21-C4": {
+          "ib": 17.8972,
+          "vdTotalPct": 0.667143,
+          "breakerFaultKA": 21.6148,
+          "endFaultKA": 2.43843
+        },
+        "B21-C5": {
+          "ib": 3.70019,
+          "vdTotalPct": 1.00436,
+          "breakerFaultKA": 21.6148,
+          "endFaultKA": 0.436758
+        },
+        "B21-C6": {
+          "ib": 6.64422,
+          "vdTotalPct": 1.79912,
+          "breakerFaultKA": 21.6148,
+          "endFaultKA": 0.374126
+        },
+        "B22-C1": {
+          "ib": 5.36191,
+          "vdTotalPct": 0.25122,
+          "breakerFaultKA": 16.0759,
+          "endFaultKA": 5.01791
+        },
+        "B22-C2": {
+          "ib": 5.8516,
+          "vdTotalPct": 0.88564,
+          "breakerFaultKA": 16.0759,
+          "endFaultKA": 0.865139
+        },
+        "B22-C3": {
+          "ib": 9.35123,
+          "vdTotalPct": 1.49534,
+          "breakerFaultKA": 16.0759,
+          "endFaultKA": 0.649734
+        },
+        "B22-C4": {
+          "ib": 17.9139,
+          "vdTotalPct": 0.722839,
+          "breakerFaultKA": 16.0759,
+          "endFaultKA": 2.34505
+        },
+        "B22-C5": {
+          "ib": 3.70366,
+          "vdTotalPct": 1.09719,
+          "breakerFaultKA": 16.0759,
+          "endFaultKA": 0.433723
+        },
+        "B22-C6": {
+          "ib": 6.65054,
+          "vdTotalPct": 1.89272,
+          "breakerFaultKA": 16.0759,
+          "endFaultKA": 0.371898
+        },
+        "B23-C1": {
+          "ib": 5.36688,
+          "vdTotalPct": 0.306739,
+          "breakerFaultKA": 12.7487,
+          "endFaultKA": 4.63301
+        },
+        "B23-C2": {
+          "ib": 5.85708,
+          "vdTotalPct": 0.978462,
+          "breakerFaultKA": 12.7487,
+          "endFaultKA": 0.853258
+        },
+        "B23-C3": {
+          "ib": 9.36008,
+          "vdTotalPct": 1.58875,
+          "breakerFaultKA": 12.7487,
+          "endFaultKA": 0.643022
+        },
+        "B23-C4": {
+          "ib": 17.9306,
+          "vdTotalPct": 0.778625,
+          "breakerFaultKA": 12.7487,
+          "endFaultKA": 2.25843
+        },
+        "B23-C5": {
+          "ib": 3.70714,
+          "vdTotalPct": 1.19021,
+          "breakerFaultKA": 12.7487,
+          "endFaultKA": 0.430728
+        },
+        "B23-C6": {
+          "ib": 6.65688,
+          "vdTotalPct": 1.98651,
+          "breakerFaultKA": 12.7487,
+          "endFaultKA": 0.369695
+        },
+        "B24-C1": {
+          "ib": 5.37186,
+          "vdTotalPct": 0.362188,
+          "breakerFaultKA": 10.5467,
+          "endFaultKA": 4.30272
+        },
+        "B24-C2": {
+          "ib": 5.86257,
+          "vdTotalPct": 1.07114,
+          "breakerFaultKA": 10.5467,
+          "endFaultKA": 0.841688
+        },
+        "B24-C3": {
+          "ib": 9.36895,
+          "vdTotalPct": 1.68202,
+          "breakerFaultKA": 10.5467,
+          "endFaultKA": 0.636443
+        },
+        "B24-C4": {
+          "ib": 17.9474,
+          "vdTotalPct": 0.83434,
+          "breakerFaultKA": 10.5467,
+          "endFaultKA": 2.17788
+        },
+        "B24-C5": {
+          "ib": 3.71063,
+          "vdTotalPct": 1.28309,
+          "breakerFaultKA": 10.5467,
+          "endFaultKA": 0.427772
+        },
+        "B24-C6": {
+          "ib": 6.66322,
+          "vdTotalPct": 2.08017,
+          "breakerFaultKA": 10.5467,
+          "endFaultKA": 0.367517
+        },
+        "B25-C1": {
+          "ib": 5.37687,
+          "vdTotalPct": 0.417856,
+          "breakerFaultKA": 8.98682,
+          "endFaultKA": 4.01622
+        },
+        "B25-C2": {
+          "ib": 5.86808,
+          "vdTotalPct": 1.16429,
+          "breakerFaultKA": 8.98682,
+          "endFaultKA": 0.830417
+        },
+        "B25-C3": {
+          "ib": 9.37786,
+          "vdTotalPct": 1.77576,
+          "breakerFaultKA": 8.98682,
+          "endFaultKA": 0.629992
+        },
+        "B25-C4": {
+          "ib": 17.9643,
+          "vdTotalPct": 0.890276,
+          "breakerFaultKA": 8.98682,
+          "endFaultKA": 2.1028
+        },
+        "B25-C5": {
+          "ib": 3.71413,
+          "vdTotalPct": 1.37645,
+          "breakerFaultKA": 8.98682,
+          "endFaultKA": 0.424856
+        },
+        "B25-C6": {
+          "ib": 6.6696,
+          "vdTotalPct": 2.1743,
+          "breakerFaultKA": 8.98682,
+          "endFaultKA": 0.365364
+        },
+        "B26-C1": {
+          "ib": 5.38189,
+          "vdTotalPct": 0.473614,
+          "breakerFaultKA": 7.82591,
+          "endFaultKA": 3.76537
+        },
+        "B26-C2": {
+          "ib": 5.87362,
+          "vdTotalPct": 1.25764,
+          "breakerFaultKA": 7.82591,
+          "endFaultKA": 0.819434
+        },
+        "B26-C3": {
+          "ib": 9.3868,
+          "vdTotalPct": 1.86969,
+          "breakerFaultKA": 7.82591,
+          "endFaultKA": 0.623667
+        },
+        "B26-C4": {
+          "ib": 17.9812,
+          "vdTotalPct": 0.946302,
+          "breakerFaultKA": 7.82591,
+          "endFaultKA": 2.03265
+        },
+        "B26-C5": {
+          "ib": 3.71765,
+          "vdTotalPct": 1.46999,
+          "breakerFaultKA": 7.82591,
+          "endFaultKA": 0.421977
+        },
+        "B26-C6": {
+          "ib": 6.67601,
+          "vdTotalPct": 2.26863,
+          "breakerFaultKA": 7.82591,
+          "endFaultKA": 0.363235
+        },
+        "B27-C1": {
+          "ib": 5.37744,
+          "vdTotalPct": 0.443098,
+          "breakerFaultKA": 7.83817,
+          "endFaultKA": 3.75202
+        },
+        "B27-C2": {
+          "ib": 5.86872,
+          "vdTotalPct": 1.17481,
+          "breakerFaultKA": 7.83817,
+          "endFaultKA": 0.81819
+        },
+        "B27-C3": {
+          "ib": 9.37888,
+          "vdTotalPct": 1.78634,
+          "breakerFaultKA": 7.83817,
+          "endFaultKA": 0.622925
+        },
+        "B27-C4": {
+          "ib": 17.9662,
+          "vdTotalPct": 0.915639,
+          "breakerFaultKA": 7.83817,
+          "endFaultKA": 2.02684
+        },
+        "B27-C5": {
+          "ib": 3.71453,
+          "vdTotalPct": 1.38699,
+          "breakerFaultKA": 7.83817,
+          "endFaultKA": 0.421627
+        },
+        "B27-C6": {
+          "ib": 6.67034,
+          "vdTotalPct": 2.18493,
+          "breakerFaultKA": 7.83817,
+          "endFaultKA": 0.362973
+        },
+        "B28-C1": {
+          "ib": 5.35695,
+          "vdTotalPct": 0.195789,
+          "breakerFaultKA": 21.6148,
+          "endFaultKA": 5.47206
+        },
+        "B28-C2": {
+          "ib": 5.84614,
+          "vdTotalPct": 0.793009,
+          "breakerFaultKA": 21.6148,
+          "endFaultKA": 0.877344
+        },
+        "B28-C3": {
+          "ib": 9.34241,
+          "vdTotalPct": 1.40212,
+          "breakerFaultKA": 21.6148,
+          "endFaultKA": 0.656581
+        },
+        "B28-C4": {
+          "ib": 17.8972,
+          "vdTotalPct": 0.667143,
+          "breakerFaultKA": 21.6148,
+          "endFaultKA": 2.43843
+        },
+        "B28-C5": {
+          "ib": 3.70019,
+          "vdTotalPct": 1.00436,
+          "breakerFaultKA": 21.6148,
+          "endFaultKA": 0.436758
+        },
+        "B28-C6": {
+          "ib": 6.64422,
+          "vdTotalPct": 1.79912,
+          "breakerFaultKA": 21.6148,
+          "endFaultKA": 0.374126
+        },
+        "B29-C1": {
+          "ib": 5.36191,
+          "vdTotalPct": 0.25122,
+          "breakerFaultKA": 16.0759,
+          "endFaultKA": 5.01791
+        },
+        "B29-C2": {
+          "ib": 5.8516,
+          "vdTotalPct": 0.88564,
+          "breakerFaultKA": 16.0759,
+          "endFaultKA": 0.865139
+        },
+        "B29-C3": {
+          "ib": 9.35123,
+          "vdTotalPct": 1.49534,
+          "breakerFaultKA": 16.0759,
+          "endFaultKA": 0.649734
+        },
+        "B29-C4": {
+          "ib": 17.9139,
+          "vdTotalPct": 0.722839,
+          "breakerFaultKA": 16.0759,
+          "endFaultKA": 2.34505
+        },
+        "B29-C5": {
+          "ib": 3.70366,
+          "vdTotalPct": 1.09719,
+          "breakerFaultKA": 16.0759,
+          "endFaultKA": 0.433723
+        },
+        "B29-C6": {
+          "ib": 6.65054,
+          "vdTotalPct": 1.89272,
+          "breakerFaultKA": 16.0759,
+          "endFaultKA": 0.371898
+        },
+        "B30-C1": {
+          "ib": 5.36688,
+          "vdTotalPct": 0.306739,
+          "breakerFaultKA": 12.7487,
+          "endFaultKA": 4.63301
+        },
+        "B30-C2": {
+          "ib": 5.85708,
+          "vdTotalPct": 0.978462,
+          "breakerFaultKA": 12.7487,
+          "endFaultKA": 0.853258
+        },
+        "B30-C3": {
+          "ib": 9.36008,
+          "vdTotalPct": 1.58875,
+          "breakerFaultKA": 12.7487,
+          "endFaultKA": 0.643022
+        },
+        "B30-C4": {
+          "ib": 17.9306,
+          "vdTotalPct": 0.778625,
+          "breakerFaultKA": 12.7487,
+          "endFaultKA": 2.25843
+        },
+        "B30-C5": {
+          "ib": 3.70714,
+          "vdTotalPct": 1.19021,
+          "breakerFaultKA": 12.7487,
+          "endFaultKA": 0.430728
+        },
+        "B30-C6": {
+          "ib": 6.65688,
+          "vdTotalPct": 1.98651,
+          "breakerFaultKA": 12.7487,
+          "endFaultKA": 0.369695
+        },
+        "MDB-PV": {
+          "ib": 71.9314,
+          "vdTotalPct": -0.779072,
+          "breakerFaultKA": 60.1155,
+          "endFaultKA": 8.60883
+        }
+      },
+      "boards": {
+        "MDB": {
+          "voltagePct": 100.104,
+          "faultKA": 60.1155
+        },
+        "B1": {
+          "voltagePct": 100.068,
+          "faultKA": 43.9123
+        },
+        "B2": {
+          "voltagePct": 100.056,
+          "faultKA": 40.0398
+        },
+        "B3": {
+          "voltagePct": 100.043,
+          "faultKA": 36.7311
+        },
+        "B4": {
+          "voltagePct": 100.031,
+          "faultKA": 33.8857
+        },
+        "B5": {
+          "voltagePct": 100.019,
+          "faultKA": 31.4213
+        },
+        "B6": {
+          "voltagePct": 100.006,
+          "faultKA": 29.2715
+        },
+        "B7": {
+          "voltagePct": 100.08,
+          "faultKA": 48.4673
+        },
+        "B8": {
+          "voltagePct": 100.068,
+          "faultKA": 43.9123
+        },
+        "B9": {
+          "voltagePct": 100.056,
+          "faultKA": 40.0398
+        },
+        "B10": {
+          "voltagePct": 100.043,
+          "faultKA": 36.7311
+        },
+        "B11": {
+          "voltagePct": 99.809,
+          "faultKA": 9.84077
+        },
+        "B12": {
+          "voltagePct": 99.7534,
+          "faultKA": 8.46277
+        },
+        "B13": {
+          "voltagePct": 99.6977,
+          "faultKA": 7.42192
+        },
+        "B14": {
+          "voltagePct": 99.945,
+          "faultKA": 18.624
+        },
+        "B15": {
+          "voltagePct": 99.8895,
+          "faultKA": 14.3679
+        },
+        "B16": {
+          "voltagePct": 99.834,
+          "faultKA": 11.6568
+        },
+        "B17": {
+          "voltagePct": 99.8645,
+          "faultKA": 11.7494
+        },
+        "B18": {
+          "voltagePct": 99.809,
+          "faultKA": 9.84077
+        },
+        "B19": {
+          "voltagePct": 99.7534,
+          "faultKA": 8.46277
+        },
+        "B20": {
+          "voltagePct": 99.6977,
+          "faultKA": 7.42192
+        },
+        "B21": {
+          "voltagePct": 99.9817,
+          "faultKA": 21.6148
+        },
+        "B22": {
+          "voltagePct": 99.9263,
+          "faultKA": 16.0759
+        },
+        "B23": {
+          "voltagePct": 99.8709,
+          "faultKA": 12.7487
+        },
+        "B24": {
+          "voltagePct": 99.8155,
+          "faultKA": 10.5467
+        },
+        "B25": {
+          "voltagePct": 99.7598,
+          "faultKA": 8.98682
+        },
+        "B26": {
+          "voltagePct": 99.7041,
+          "faultKA": 7.82591
+        },
+        "B27": {
+          "voltagePct": 99.7346,
+          "faultKA": 7.83817
+        },
+        "B28": {
+          "voltagePct": 99.9817,
+          "faultKA": 21.6148
+        },
+        "B29": {
+          "voltagePct": 99.9263,
+          "faultKA": 16.0759
+        },
+        "B30": {
+          "voltagePct": 99.8709,
+          "faultKA": 12.7487
+        }
+      },
+      "messages": []
+    }
+  }
+}
