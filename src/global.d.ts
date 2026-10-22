@@ -47,7 +47,7 @@ declare global {
       };
       engines: {
         probe: () => Promise<import('./engines/types').EngineProbe | { error: string }>;
-        run: (request: { engine: string; project: import('./types').Project; dss?: string }) => Promise<import('./engines/types').StudyResults | { error: string }>;
+        run: (request: import('./engines/external').EngineRequest) => Promise<import('./engines/types').StudyResults | { error: string }>;
       };
       /** Opens generated DXF sheets in the installed OpenCADStudio desktop application. */
       openCadStudio?: {

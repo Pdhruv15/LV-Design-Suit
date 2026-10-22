@@ -41,6 +41,8 @@ export default function EngineCompare({ project }: { project: Project }) {
   const probeOk = probe && !('error' in probe) ? probe : null;
   const engine = EXTERNAL_ENGINES.find((e) => e.id === engineId)!;
   const available = !!probeOk?.engines[engineId]?.available;
+  const tested = probeOk?.engines[engineId]?.tested;
+  const installCommand = `pip install ${engineId === 'opendss' ? 'opendssdirect.py' : 'pandapower'}${tested ? `==${tested}` : ''}`;
 
   async function runStudy() {
     setRunning(true);
@@ -96,10 +98,10 @@ export default function EngineCompare({ project }: { project: Project }) {
       {probeOk && !available && (
         <p className="m">
           {engine.name} isn't installed for this Python. Install it with{' '}
-          <code>{engineId === 'opendss' ? 'pip install opendssdirect.py' : 'pip install pandapower'}</code>, or choose a
-          different Python.
+          <code>{installCommand}</code>, or choose a different Python.
         </p>
       )}
+      {probeOk && available && probeOk.engines[engineId].note && <p className="warn">{probeOk.engines[engineId].note}</p>}
       {error && <p className="bad">{error}</p>}
 
       {run && (

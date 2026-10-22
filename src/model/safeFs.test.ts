@@ -168,5 +168,5 @@ describe('LV Database', () => {
       expect(readFileSync(join(outside, 'book.xlsx'), 'utf8')).toBe('not touched');
       expect(leftovers(db)).toEqual([]);
     } finally { DB.setFolder(null); }
-  });
+  }, 30_000); // builds every workbook: ~0.6 s locally, past 5 s on a busy CI runner
 });

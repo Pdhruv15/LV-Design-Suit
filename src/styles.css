@@ -261,6 +261,11 @@ tr.total td{background:var(--p2);font-weight:600}
 .ribbon-group button:hover:not(:disabled){background:var(--panel)}
 .ribbon-group button.on{background:var(--acc);color:var(--on-acc)}
 .ribbon-group button.page-on{background:color-mix(in srgb,var(--acc) 18%,transparent);color:var(--tx);box-shadow:inset 0 -2px 0 var(--acc)}
+/* Light theme: selected tab joins the tool strip and the active tool is a tint, so the ribbon carries no large solid blue blocks. */
+:root[data-theme="light"] .ribbon-tabs button.on{background:var(--p2);color:var(--acc);box-shadow:inset 0 2px 0 var(--acc)}
+:root[data-theme="light"] .ribbon-group button.on{background:color-mix(in srgb,var(--acc) 12%,var(--panel));color:var(--acc);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--acc) 45%,transparent)}
+/* Theme switch: no colour transitions for that one frame (src/theme/theme.ts) */
+.theme-switching,.theme-switching *{transition:none!important}
 .ribbon-selected{display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:2px;padding:0 var(--space-3);margin-left:auto;border-left:1px solid var(--line);font-size:12px;min-width:110px;white-space:nowrap}
 .ribbon-selected b{font-size:13px;color:var(--acc)}
 .ribbon-group button:disabled{opacity:.45;cursor:not-allowed}
@@ -1049,6 +1054,7 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .vd-grid{stroke:var(--line);stroke-width:1}.vd-limit{stroke:var(--bad);stroke-width:1.5;stroke-dasharray:6 4}
 .vd-ax{font-size:10px;fill:var(--mut)}.vd-ax.bad{fill:var(--bad)}
 .vd-bar{fill:var(--acc)}.vd-bar.warn{fill:var(--warn)}.vd-bar.bad{fill:var(--bad)}.vd-base{fill:var(--acc);opacity:.18}
+:root[data-theme="light"] .vd-bar:not(.warn,.bad){fill:color-mix(in srgb,var(--acc) 78%,var(--panel))}/* softer bar on white, still >=3:1 */
 .vd-val{font-size:11px;font-weight:700;fill:var(--tx)}.vd-lbl{font-size:10.5px;fill:var(--tx)}.vd-sub{font-size:9.5px;fill:var(--mut)}
 .vd-layout.closed{grid-template-columns:minmax(0,1fr)}
 .vd-table tbody tr{cursor:pointer}.vd-table tr.vd-focus td{background:color-mix(in srgb,var(--acc) 14%,transparent)}

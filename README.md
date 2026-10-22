@@ -7,7 +7,7 @@ power factor correction, drawings and submission reports. Projects are plain
 JSON files, so they sync cleanly through a Google Drive / OneDrive / Dropbox
 desktop folder.
 
-**Version 1.70** (see `package.json`). The app is in active use and active
+**Version 1.71** (see `package.json`). The app is in active use and active
 development.
 
 > **Engineering status.** The calculations are first-pass design checks, not
@@ -169,13 +169,37 @@ Both run in a small Python helper (`engines/python/lvds_engine.py`) that the
 Electron main process starts on demand. Setup:
 
 ```bash
-pip install opendssdirect.py pandapower
+pip install -r engines/python/requirements.txt
 ```
+
+That installs the tested versions. The comparison screen notes when a different
+version is installed, because the engines are checked against those versions.
 
 The app uses `python` on Windows and `python3` elsewhere; pick a different
 interpreter with **Choose Python…** on the comparison screen. The external
 engines are optional and need a separate Python setup; treat them as a
 cross-check of the built-in engine.
+
+**How the engines are checked:** `tests/engines/` runs both engines on fixed
+reference networks (one transformer, a three-level tree, PV generation,
+single-phase circuits, two transformers, a 31-board building). Every result
+must match the golden files in `tests/engines/golden/`. The simplest network is
+also checked against hand calculation (transformer fault level with c = 1 and
+the IEC 60909 cmax/KT correction), and the two engines must agree on balanced
+load flow. CI installs the pinned versions and fails if the engines are missing.
+After an intended change, regenerate the golden files and review the diff:
+
+```bash
+UPDATE_GOLDEN=1 npx vitest run tests/engines
+```
+
+When a study cannot run, the engines say why in the engineer's terms: missing
+transformer data, a loop of upstream boards, a zero cable length, an engine that
+is not installed (with the install command), or a load flow that does not
+converge, together with the overloaded transformer or cable that is the likely
+cause. OpenDSS never fails to converge, because it treats loads below 95 %
+voltage as constant impedance. When that happens it is flagged instead of shown
+as if the figures were at full power.
 
 **OpenDSS script export:** *Export OpenDSS (.dss)* (ribbon **More** menu) writes the
 network as a self-contained OpenDSS script (load flow + fault study) that
