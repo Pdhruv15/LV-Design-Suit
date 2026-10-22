@@ -197,10 +197,10 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
     const name = key.split('|')[1];
     add('D', 'rmu:11kV', '11 kV ring main unit (RMU): 2 × ring load-break switch + 1 × T-off switch-fuse, SF6 / solid insulated, with earthing switches', 'no', 1, `${name} (${txs.join(', ')})`, { supplyBy: 'others', installBy: 'others' });
   }
-  // Bus couplers between main boards (normally open)
+  // Bus couplers between main boards (normally open, or closed for transformers in parallel)
   for (const t of p.ties ?? []) {
     const dev = t.ratingA > 630 ? 'ACB' : 'MCCB';
-    add('B', `tie:${dev}:${t.ratingA}`, `Bus coupler ${dev} ${t.ratingA} A 4P, normally open, interlocked with the incomers${brandRef(dev, 3, t.ratingA)}`, 'no', 1, `${t.a} – ${t.b}`);
+    add('B', `tie:${dev}:${t.ratingA}${t.closed ? ':nc' : ''}`, `Bus coupler ${dev} ${t.ratingA} A 4P, ${t.closed ? 'normally closed, transformers in parallel' : 'normally open, interlocked with the incomers'}${brandRef(dev, 3, t.ratingA)}`, 'no', 1, `${t.a} – ${t.b}`);
   }
 
   // Spare ways: their breakers (a space has no device); an existing board's spares are already there

@@ -54,7 +54,8 @@ export function fingerprint(project: Project, key: StudyKey): string {
     pick(project, i.project),
     project.boards.map((b) => pick(b, i.boards)),
     project.feeders.map((f) => pick(f, i.feeders)),
-    key === 'sizing' || key === 'checks' ? project.ties ?? null : null,
+    // Closed couplers join busbars, so they also set the fault levels.
+    key === 'sizing' || key === 'checks' || key === 'fault' || key === 'protection' ? project.ties ?? null : null,
     // Cable trays set the grouping factor of the cables on them.
     key === 'checks' ? [project.trays ?? null, project.feeders.map((f) => f.trayRoute ?? null)] : null
   ]);

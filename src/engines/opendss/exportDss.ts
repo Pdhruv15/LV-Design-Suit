@@ -101,6 +101,11 @@ export function exportDss(project: Project): DssExport {
         `kVs=[${MV_KV} ${fmt(kvLL)}] kVAs=[${b.sourceKva} ${b.sourceKva}] XHL=${fmt(xPct, 4)} %loadloss=${fmt(rPct, 4)} %noloadloss=0 %imag=0`
     );
   }
+  // Closed bus couplers join the main busbars: the transformers run in parallel.
+  const roots = new Set(project.boards.filter((b) => !b.upstreamId).map((b) => b.id));
+  for (const t of (project.ties ?? []).filter((t) => t.closed && roots.has(t.a) && roots.has(t.b))) {
+    out.push(`New Line.TIE_${dssName(t.id)} phases=3 bus1=${busbar(boardName(t.a))} bus2=${busbar(boardName(t.b))} switch=yes`);
+  }
   out.push(``);
 
   // --- Line codes for every cable size in use ---
