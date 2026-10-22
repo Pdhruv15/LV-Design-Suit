@@ -1,4 +1,5 @@
-import { BOARD_KINDS, INCOMER_DEVICES, RELAY_TYPES, SPD_TYPES, type Board, type IncomerDevice, type BuildingInfo, type EarthingPlan } from '../types';
+import { BOARD_KINDS, INCOMER_DEVICES, RELAY_TYPES, SPD_TYPES, type Board, type IncomerDevice, type BuildingInfo, type EarthingPlan, type OtherBuilding } from '../types';
+import { othersKva } from '../model/existing';
 import { findFloor, floorList, levelKey } from '../model/levels';
 import { DEFAULT_TRANSFORMER_XR } from '../calc/electrical';
 
@@ -79,6 +80,10 @@ export default function BoardFields({ board, onChange, section, building, groups
               const ex = board.existing;
               const setEx = (patch: Partial<NonNullable<Board['existing']>>) => set('existing', { ...ex, ...patch });
               const n = (v: string) => (v.trim() === '' || Number.isNaN(+v) ? undefined : +v);
+              const others = ex.others ?? [];
+              const setOthers = (list: OtherBuilding[]) => setEx({ others: list.length ? list : undefined });
+              const setOther = (i: number, patch: Partial<OtherBuilding>) => setOthers(others.map((o, j) => (j === i ? { ...o, ...patch } : o)));
+              const kept = othersKva(board);
               return (
                 <div className="earth-kv" title="The recorded maximum demand covers all existing load on and below this board; new load is added on top">
                   <label>Recorded MD (kVA)<input inputMode="decimal" value={ex.recordedKva ?? ''} placeholder="from DEWA / logger" onChange={(e) => setEx({ recordedKva: n(e.target.value) })} /></label>
@@ -88,6 +93,20 @@ export default function BoardFields({ board, onChange, section, building, groups
                   <label>Recorded on<input value={ex.recordedOn ?? ''} placeholder="e.g. 2026-08-12" onChange={(e) => setEx({ recordedOn: e.target.value || undefined })} /></label>
                   <label>Source<input value={ex.source ?? ''} placeholder="DEWA reading / logger 7 days" onChange={(e) => setEx({ source: e.target.value || undefined })} /></label>
                   <label>Spare ways at survey<input inputMode="numeric" value={ex.spareWays ?? ''} placeholder="count" onChange={(e) => setEx({ spareWays: n(e.target.value) })} /></label>
+                  <fieldset className="relays" title="Buildings supplied from this board that are not drawn in the project: the higher of allocated and recorded load is kept for each">
+                    <legend>Other buildings on this supply</legend>
+                    {others.map((o, i) => (
+                      <div key={i} className="earth-kv">
+                        <label>Name<input value={o.name} placeholder="e.g. Block B" aria-label={`Other building ${i + 1} name`} onChange={(e) => setOther(i, { name: e.target.value })} /></label>
+                        <label>Reference<input value={o.ref ?? ''} placeholder="DEWA NOC / load letter" aria-label={`Other building ${i + 1} reference`} onChange={(e) => setOther(i, { ref: e.target.value || undefined })} /></label>
+                        <label>Allocated (kVA)<input inputMode="decimal" value={o.allocatedKva ?? ''} aria-label={`Other building ${i + 1} allocated kVA`} onChange={(e) => setOther(i, { allocatedKva: n(e.target.value) })} /></label>
+                        <label>Recorded (kVA)<input inputMode="decimal" value={o.recordedKva ?? ''} aria-label={`Other building ${i + 1} recorded kVA`} onChange={(e) => setOther(i, { recordedKva: n(e.target.value) })} /></label>
+                        <button type="button" className="icon-btn" title="Remove building" aria-label={`Remove other building ${i + 1}`} onClick={() => setOthers(others.filter((_, j) => j !== i))}>×</button>
+                      </div>
+                    ))}
+                    <button type="button" className="chip" onClick={() => setOthers([...others, { name: '' }])}>+ Add building</button>
+                    {kept > 0 && <span className="m">Kept for them: {+kept.toFixed(1)} kVA (the higher of allocated and recorded, each)</span>}
+                  </fieldset>
                 </div>
               );
             })()}
