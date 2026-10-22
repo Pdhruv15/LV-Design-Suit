@@ -158,6 +158,8 @@ export interface UpsResult {
   dcBreakerNoFit: boolean;
   runtimeMin: number | undefined; // with the chosen battery
   surge: UpsSurgeResult;
+  /** Core sizing inputs are invalid; no UPS or battery selection is valid. */
+  inputIssue?: string;
   batteryIssue?: string;
   /** Set when the linked panel is gone: the figures are not a valid sizing. */
   sourceIssue?: string;
@@ -224,13 +226,28 @@ export function checkUpsSurge(s: UpsSystem, loadKw: number, loadKva: number): Up
 export function sizeUps(project: Project, s: UpsSystem): UpsResult {
   const notes: string[] = [];
   const { kva, kw } = upsLoad(project, s);
+  const positive = (v: number) => Number.isFinite(v) && v > 0;
+  const percentage = (v: number) => positive(v) && v <= 100;
+  const loadsValid = !!s.boardId || s.loads.every((l) => Number.isFinite(l.qty) && l.qty >= 0
+    && (l.va === undefined || Number.isFinite(l.va) && l.va >= 0)
+    && (l.w === undefined || Number.isFinite(l.w) && l.w >= 0)
+    && (l.pf === undefined || positive(l.pf) && l.pf <= 1));
+  const optionsValid = s.blockAhOptions === undefined || s.blockAhOptions.length > 0 && s.blockAhOptions.every(positive);
+  const coreValid = Number.isFinite(s.growthPct) && s.growthPct >= 0 && percentage(s.maxLoadingPct)
+    && positive(s.outputPf) && s.outputPf <= 1 && positive(s.inverterEff) && s.inverterEff <= 1
+    && positive(s.autonomyMin) && positive(s.dcVoltage) && positive(s.blockV)
+    && positive(s.ageing) && positive(s.tempFactor) && positive(s.designMargin)
+    && (s.rateCapacityPct === undefined || percentage(s.rateCapacityPct))
+    && loadsValid && optionsValid && Number.isFinite(kva) && kva >= 0 && Number.isFinite(kw) && kw >= 0;
+  const inputIssue = coreValid ? undefined : 'Invalid UPS sizing inputs: use finite non-negative loads and growth, positive voltages, autonomy and factors, and percentages/efficiencies within their supported ranges.';
+  if (inputIssue) notes.push(inputIssue);
   const g = 1 + s.growthPct / 100;
   const lim = s.maxLoadingPct / 100;
   const designKva = (kva * g) / lim;
   const designKw = (kw * g) / lim;
   // Smallest standard UPS whose kVA and kW (kVA × output PF) both cover the design.
-  const upsKva = upsSourceMissing(project, s) ? undefined : STANDARD_UPS_KVA.find((k) => k >= designKva - 1e-9 && k * s.outputPf >= designKw - 1e-9);
-  if (!upsKva && !upsSourceMissing(project, s)) notes.push(`Above ${STANDARD_UPS_KVA[STANDARD_UPS_KVA.length - 1]} kVA — use UPS modules in parallel`);
+  const upsKva = upsSourceMissing(project, s) || inputIssue ? undefined : STANDARD_UPS_KVA.find((k) => k >= designKva - 1e-9 && k * s.outputPf >= designKw - 1e-9);
+  if (!upsKva && !upsSourceMissing(project, s) && !inputIssue) notes.push(`Above ${STANDARD_UPS_KVA[STANDARD_UPS_KVA.length - 1]} kVA — use UPS modules in parallel`);
   if (upsKva && upsKva * s.outputPf < designKw * 1.0001 && upsKva >= designKva) notes.push('Sized by kW (the UPS output power factor), not kVA');
 
   // Battery sized for the load with growth (not the UPS rating).
@@ -284,6 +301,7 @@ export function sizeUps(project: Project, s: UpsSystem): UpsResult {
   }
   const sourceIssue = upsSourceMissing(project, s) ? `The linked panel ${s.boardId} no longer exists — assign this UPS to a panel (or remove the link and enter its loads) before relying on this study.` : undefined;
   if (sourceIssue) batteryIssue = sourceIssue;
+  else if (inputIssue) batteryIssue = inputIssue;
   if (batteryIssue) { blockAh = undefined; notes.push(batteryIssue); }
   if (!blockAh && !batteryIssue) notes.push('More than 8 strings — use a larger block or a higher DC voltage');
   if (strings > 1) notes.push(`${strings} strings in parallel`);
@@ -330,7 +348,7 @@ export function sizeUps(project: Project, s: UpsSystem): UpsResult {
 
   return {
     surge: checkUpsSurge(s, kw, kva),
-    sourceIssue,
+    sourceIssue, inputIssue,
     loadKva: kva, loadKw: kw, designKva, designKw,
     upsKva, upsKw: upsKva ? upsKva * s.outputPf : undefined,
     ...loadingOf(kva, kw, upsKva, upsKva ? upsKva * s.outputPf : undefined),
