@@ -1,16 +1,19 @@
 import { settingsOf, type Board, type Project } from '../types';
 import type { FeederResult, Status } from './electrical';
 import { boardSummary, boardTotals } from './summary';
-import { isExisting, recordedKva } from '../model/existing';
+import { existingLoad, isExisting, otherKva } from '../model/existing';
+import { txUnits } from '../model/earthingPlan';
 
 /** Checks of an existing installation that is being extended: does what is
  * already there still carry the recorded demand plus the new load?
  *  - transformer: recorded + new demand against kVA × the design loading limit;
  *  - incomer: each existing board's demand current against its rating;
  *  - existing feeders: breaker, cable, voltage drop and fault level as calculated;
- *  - spare ways: new ways on an existing board against the spares found at the survey. */
+ *  - spare ways: new ways on an existing board against the spares found at the survey;
+ *  - shared supply: the load kept for each other building on an existing board;
+ *  - RMU: a new transformer on the RMU of an existing one needs a spare T-off way (an RMU feeds at most 2). */
 
-export type ExistingCheckKind = 'transformer' | 'incomer' | 'feeder' | 'spare';
+export type ExistingCheckKind = 'transformer' | 'incomer' | 'feeder' | 'spare' | 'shared' | 'rmu';
 
 export interface ExistingCheck {
   kind: ExistingCheckKind;
@@ -36,9 +39,19 @@ export function existingChecks(project: Project, results: FeederResult[]): Exist
   const limitPct = settingsOf(project).transformerMaxLoadingPct;
   for (const b of project.boards.filter(isExisting)) {
     const sm = boardSummary(project, b);
-    const rec = recordedKva(project, b);
+    const ex = existingLoad(project, b);
     const added = newDemandKva(project, b);
-    const split = rec !== undefined ? `${r0(rec)} + ${r0(added)} = ${r0(sm.demandKva)} kVA` : `${r0(sm.demandKva)} kVA (no recorded MD)`;
+    const others = b.existing?.others ?? [];
+    const split = ex ? `${r0(ex.covers ? ex.kva : Math.max(0, sm.demandKva - added))} + ${r0(added)} = ${r0(sm.demandKva)} kVA` : `${r0(sm.demandKva)} kVA (no recorded MD)`;
+    for (const o of others) {
+      const kept = otherKva(o);
+      out.push({
+        kind: 'shared', id: `${b.id}:${o.name}`, item: `${b.id} → ${o.name} (other building)${o.ref ? `, ${o.ref}` : ''}`,
+        value: `allocated ${o.allocatedKva !== undefined ? `${r0(o.allocatedKva)} kVA` : '—'} · recorded ${o.recordedKva !== undefined ? `${r0(o.recordedKva)} kVA` : '—'}`,
+        limit: 'the higher is kept', status: kept > 0 ? 'ok' : 'warn',
+        result: kept > 0 ? `${r0(kept)} kVA kept` : 'Enter its allocated or recorded load'
+      });
+    }
     if (!b.upstreamId && b.sourceKva) {
       const cap = (b.sourceKva * limitPct) / 100;
       const spare = cap - sm.demandKva;
@@ -67,6 +80,21 @@ export function existingChecks(project: Project, results: FeederResult[]): Exist
         result: available === undefined ? 'Enter the spares found at survey' : used > available ? `${used - available} more than available` : `${available - used} left`
       });
     }
+  }
+  // A new transformer on the RMU of an existing one: the RMU feeds at most 2 transformers (as Transformers → RMU).
+  const units = txUnits(project);
+  const byRmu = new Map<string, Board[]>();
+  for (const b of project.boards) if (!b.upstreamId && b.sourceKva && b.rmu?.trim()) byRmu.set(b.rmu.trim(), [...(byRmu.get(b.rmu.trim()) ?? []), b]);
+  for (const [rmu, bs] of byRmu) {
+    const old = bs.filter(isExisting), added = bs.filter((b) => !isExisting(b));
+    if (!old.length || !added.length) continue;
+    const n = bs.reduce((s, b) => s + (units.get(b.id) ?? 1), 0);
+    out.push({
+      kind: 'rmu', id: rmu, item: `RMU ${rmu} (existing): new transformer ${added.map((b) => `${b.id} ${b.sourceKva} kVA`).join(', ')}`,
+      value: `${n} transformers with existing ${old.map((b) => `${b.id} ${b.sourceKva} kVA`).join(', ')}`, limit: '2 transformers per RMU',
+      status: n > 2 ? 'bad' : 'warn',
+      result: n > 2 ? `${n - 2} more than the RMU can feed: a new RMU is needed` : 'Confirm the existing RMU has a spare T-off way (else extend it or add an RMU) with DEWA'
+    });
   }
   for (const r of results.filter((x) => x.feeder.existing)) {
     const f = r.feeder;

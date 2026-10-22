@@ -273,6 +273,19 @@ export interface ExistingInfo {
   source?: string;
   /** Spare ways available on the board at the survey (for the spare-ways check). */
   spareWays?: number;
+  /** Other buildings supplied from this board (a shared substation, or a neighbour's main board feeding
+   * the new building): the load kept for each counts as existing load. */
+  others?: OtherBuilding[];
+}
+
+/** Another building on a shared supply: its DEWA-approved / allocated load and its recorded demand.
+ * The higher of the two is kept for it. */
+export interface OtherBuilding {
+  name: string;
+  allocatedKva?: number;
+  recordedKva?: number;
+  /** e.g. the DEWA load letter / NOC reference. */
+  ref?: string;
 }
 
 export interface Board {
