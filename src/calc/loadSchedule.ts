@@ -293,13 +293,19 @@ export function elcbGroups(project: Project, board: Board): ElcbGroup[] {
     .sort(([a], [b]) => a - b)
     .map(([index, cs]) => {
       const phaseKw: PhaseKw = { R: 0, Y: 0, B: 0 };
+      const phaseKvar: PhaseKw = { R: 0, Y: 0, B: 0 };
       for (const f of cs) {
         const kw = f.loadKw * f.demandFactor;
-        if (f.phase === 'RYB') SINGLE_PHASES.forEach((p) => (phaseKw[p] += kw / 3));
-        else phaseKw[f.phase as 'R' | 'Y' | 'B'] += kw;
+        const pf = Math.min(Math.max(f.powerFactor, 0.01), 1);
+        const kvar = kw * Math.tan(Math.acos(pf));
+        if (f.phase === 'RYB') SINGLE_PHASES.forEach((p) => { phaseKw[p] += kw / 3; phaseKvar[p] += kvar / 3; });
+        else {
+          const phase = f.phase as 'R' | 'Y' | 'B';
+          phaseKw[phase] += kw;
+          phaseKvar[phase] += kvar;
+        }
       }
-      const pf = cs.length ? cs.reduce((s, f) => s + f.powerFactor, 0) / cs.length : 0.9;
-      const maxPhaseA = (Math.max(phaseKw.R, phaseKw.Y, phaseKw.B) * 1000) / (u0 * pf);
+      const maxPhaseA = Math.max(...SINGLE_PHASES.map((p) => Math.hypot(phaseKw[p], phaseKvar[p]) * 1000 / u0));
       const ratingA = board.elcbRatingA ?? STANDARD_ELCB_A.find((r) => r >= maxPhaseA) ?? STANDARD_ELCB_A[STANDARD_ELCB_A.length - 1];
       const cats = new Set(cs.map(circuitCategory));
       const category: ElcbGroup['category'] = cats.size === 1 ? [...cats][0] : 'mixed';

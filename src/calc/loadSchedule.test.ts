@@ -144,6 +144,23 @@ describe('ELCB groups', () => {
     expect(g[0].label).toBe('25 A 30 mA 4P'); // power → 30 mA
   });
 
+  it('rates each ELCB phase from aggregate P and Q, not an arithmetic average PF', () => {
+    let p = base();
+    p = withCircuit(p, { s13: 4 });
+    p = withCircuit(p, { s13: 4 });
+    const [high, low] = scheduleCircuits(p, 'DB');
+    p = {
+      ...p,
+      feeders: p.feeders.map((f) => f.id === high.id
+        ? { ...f, phase: 'R', loadKw: 10, powerFactor: 0.8 }
+        : f.id === low.id ? { ...f, phase: 'R', loadKw: 1, powerFactor: 1 } : f)
+    };
+    const [group] = elcbGroups(p, p.boards[1]);
+    const expectedKvar = 10 * Math.tan(Math.acos(0.8));
+    expect(group.maxPhaseA).toBeCloseTo(Math.hypot(11, expectedKvar) * 1000 / U0, 9);
+    expect(group.ratingA).toBe(63);
+  });
+
   it('an all-lighting group gets a 100 mA ELCB; a board override wins', () => {
     let p = base();
     for (let i = 0; i < 3; i++) p = withCircuit(p, { ltg: 5 });
