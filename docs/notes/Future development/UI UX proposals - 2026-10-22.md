@@ -12,7 +12,7 @@ Already done without UI changes: busbar fault level from all paralleled transfor
 
 ## Existing board: other buildings on a shared supply
 
-The calculations support it (branch `feat/shared-substation`): `existing.others` on an existing board lists the other buildings it supplies (not drawn in the project), each with its allocated load, recorded load and a reference; the higher of allocated and recorded is kept for each. Nothing in the app sets it yet. Waiting for approval of:
+Approved and done 2026-10-22 (v1.77): Board properties → Existing installation has *Other buildings on this supply* under *Spare ways at survey* — Name, Reference, Allocated (kVA), Recorded (kVA) and a remove (×) for each, *+ Add building*, and the "Kept for them" line. Each building uses the same two-column fields as the readings above it rather than a four-column table, which would not fit the side panel without new styles. As proposed:
 
 1. **Board properties → Existing installation** (under *Spare ways at survey*): a small table *Other buildings on this supply* — Name · Allocated (kVA) · Recorded (kVA) · Reference (DEWA NOC / load letter), a remove (×) on each row and *+ Add building*. Same inputs and spacing as the fields above it. A line under it: "Kept for them: 950 kVA (the higher of allocated and recorded, each)".
 2. **No drawing change**: the SLD keeps showing the recorded MD reading; the other buildings appear in the Transformer & generator study (*Existing installation and shared supply*) and the Existing installation card in Sizing.
