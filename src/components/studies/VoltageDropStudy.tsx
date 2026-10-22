@@ -307,7 +307,7 @@ function VdProfile({ path, limit, title, isWorst }: { path: VdRow[]; limit: numb
               <rect x={x + 6} y={y(cum)} width={step - 12} height={Math.max(1, y(from) - y(cum))} className={`vd-bar ${r.status}`}><title>{`${r.feeder.id}: +${r.vdPct.toFixed(2)} % → ${cum.toFixed(2)} %`}</title></rect>
               <rect x={x + 6} y={y(from)} width={step - 12} height={Math.max(0, y(0) - y(from))} className="vd-base" />
               <text x={x + step / 2} y={y(cum) - 5} textAnchor="middle" className="vd-val">{cum.toFixed(2)}%</text>
-              <text x={x + step / 2} y={H - B + 16} textAnchor="middle" className="vd-lbl">{r.from.id} → {r.toName.length > 16 ? r.toName.slice(0, 15) + '…' : r.toName}</text>
+              <text x={x + step / 2} y={H - B + 16} textAnchor="middle" className="vd-lbl"><title>{`${r.from.id} → ${r.toName}`}</title>{r.from.id} → {r.toName.length > 16 ? r.toName.slice(0, 15) + '…' : r.toName}</text>
               <text x={x + step / 2} y={H - B + 30} textAnchor="middle" className="vd-sub">{cableSizeText(r.feeder)} · {r.feeder.lengthM} m · +{r.vdPct.toFixed(2)}%</text>
             </g>
           );

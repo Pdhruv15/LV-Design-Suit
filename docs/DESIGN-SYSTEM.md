@@ -55,7 +55,7 @@ Headings: page 18 px semibold (`.stage-head h3`), dialog 16 px, card 13 px semib
 | Button | `button.chip` | Secondary by default. `.chip.primary` once per view and last in a dialog. `.chip.bad-btn` for destructive actions. `.chip.sm` inside tables. |
 | Segmented control | `.seg > button(.on)` | 2–4 mutually exclusive views. One definition (was two). |
 | Tabs | `.tabs > button(.on)` | accent text + 2 px underline |
-| Ribbon | `<Ribbon>` | every group has a caption (`CAPTIONS`, tested); selected tab is a solid fill (light theme: the tab takes the tool-strip colour with a 2 px accent top edge, and the active tool is an accent tint, so there are no large solid-blue blocks on white); the project's current stage is a `.stage-now` badge, never a fill |
+| Ribbon | `<Ribbon>` | every group has a caption (`CAPTIONS`, tested); selected tab is a solid fill (light theme: the tab takes the tool-strip colour with a 2 px accent top edge, and the active tool is an accent tint, so there are no large solid-blue blocks on white); the project's current stage is a `.stage-now` badge, never a fill. Two selected looks, one meaning each: **`.on` = an active tool or mode** (Select, Pan — filled; `aria-pressed`), **`.page-on` = the page you are on** (SLD, Schedule — tab look: accent text + 2 px underline, no fill; `aria-current="page"`) |
 | Icons in chrome | `lucide-react` | no Unicode glyphs (▾ ● ⚠ ✕ ✓ ▶) as icons; state in words beside the icon (`sub: 'unsaved'`) |
 | Input / select | plain `input`, `select` | base style is zero-specificity (`:where`) so grids stay compact; full height inside `.modal`, `.form-kv`, toolbars |
 | Number with unit | `<NumField>` (`ui.tsx`) | commits on Enter/blur; unit shown after the box |
@@ -68,7 +68,7 @@ Headings: page 18 px semibold (`.stage-head h3`), dialog 16 px, card 13 px semib
 | Stale results | `<StaleBanner>` | inputs changed since the last run |
 | Table | plain `table`; `th.num`/`td.num` right-aligned; `tr.sel` selected; `tr.total` | 32 px rows everywhere (also `.gx`, `.schedule`, `.compact`), 11 px semibold headers in written case — never uppercase (units) |
 | Wide schedule | `<div className="table-scroll"><table>` | header row and first column sticky; the box scrolls, not the page |
-| Study summary | `<ResultCards><ResultCard label value status sub onClick>` | worst case first, then limit / counts; status = colour + word; click goes to the worst item |
+| Study summary | `<ResultCards><ResultCard label value status sub onClick>` | worst case first, then limit / counts; status = colour + word; click goes to the worst item; caption (`.dash-label`) in written case, never uppercase |
 | Export | `<ExportBar scope revision blocked lead>` + format buttons | scope, revision, save to, formats; one primary, last; blocked reason in words |
 | Report preview | `<PaperPreview html title>` | paper size and margins from the report's own `@page`; dashed margin guides; never edits the exported HTML |
 
