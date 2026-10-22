@@ -260,7 +260,8 @@ tr.total td{background:var(--p2);font-weight:600}
 .ribbon-group button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--space-1);min-width:56px;min-height:52px;padding:var(--space-1) 6px;border-radius:var(--radius-sm);color:var(--tx);font-size:var(--fs-sm);white-space:nowrap}
 .ribbon-group button:hover:not(:disabled){background:var(--panel)}
 .ribbon-group button.on{background:var(--acc);color:var(--on-acc)}
-.ribbon-group button.page-on{background:color-mix(in srgb,var(--acc) 18%,transparent);color:var(--tx);box-shadow:inset 0 -2px 0 var(--acc)}
+/* Two selected looks, one meaning each: .on = an active tool or mode (filled); .page-on = the page you are on (tab look: accent text and underline, no fill). */
+.ribbon-group button.page-on{background:transparent;color:var(--acc);box-shadow:inset 0 -2px 0 var(--acc)}
 /* Light theme: selected tab joins the tool strip and the active tool is a tint, so the ribbon carries no large solid blue blocks. */
 :root[data-theme="light"] .ribbon-tabs button.on{background:var(--p2);color:var(--acc);box-shadow:inset 0 2px 0 var(--acc)}
 :root[data-theme="light"] .ribbon-group button.on{background:color-mix(in srgb,var(--acc) 12%,var(--panel));color:var(--acc);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--acc) 45%,transparent)}
@@ -904,7 +905,8 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .dash-tile{display:flex;flex-direction:column;align-items:flex-start;gap:var(--space-1);text-align:left;padding:var(--space-3) var(--space-4);border:1px solid var(--line);border-radius:var(--radius-md);background:var(--panel);min-width:0;color:var(--tx)}
 .dash-tile:disabled{cursor:default;opacity:1}
 .dash-tile.link:hover{border-color:var(--acc)}
-.dash-label{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.03em}
+/* Card captions in written case, like table headers (units such as kA must not be uppercased). */
+.dash-label{font-size:11px;color:var(--mut)}
 .dash-value{font-size:21px;font-weight:700;line-height:1.15;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dash-sub{font-size:12px;color:var(--mut);max-width:100%}
 .dash-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-3)}
@@ -1066,7 +1068,8 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .earth-kv{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 8px;width:100%;font-size:12px}.earth-kv label{display:flex;flex-direction:column}
 .settings-name{display:flex;flex-direction:column;gap:4px;margin-bottom:4px}.settings-body{min-height:300px}
 .feeder-tabs{padding:0;margin:6px 0 10px}
-.feeder-tab-body{min-height:330px}
+/* Never shrink below the content in a height-capped dialog (flex column): the dialog scrolls instead of the tab overlapping what follows. */
+.feeder-tab-body{min-height:330px;flex-shrink:0}
 .board-tab-body{min-height:340px}
 .feeder-sum{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:var(--fs-sm);padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--p2)}
 

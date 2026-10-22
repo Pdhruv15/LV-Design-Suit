@@ -81,6 +81,22 @@ export function earthConductorOf(project: Project, b: Board): number {
   return inc ? Math.max(16, cpcOf(inc)) : 50;
 }
 
+/** Screen pixels per drawing unit at which the SLD's text shows at its drawn size (10–11 px). */
+export const READABLE_PX_PER_UNIT = 1;
+
+/**
+ * Where the design canvas opens: the whole drawing when its text is readable fitted;
+ * otherwise the full width if that is readable, else text at its drawn size,
+ * from the top of the drawing and centred on the main board (`cx`).
+ */
+export function openingView(w: number, h: number, boxW: number, boxH: number, cx = w / 2): ViewBox {
+  const full = { x: 0, y: 0, w, h };
+  if (!(boxW > 0 && boxH > 0 && w > 0 && h > 0) || Math.min(boxW / w, boxH / h) >= READABLE_PX_PER_UNIT) return full;
+  const s = Math.max(READABLE_PX_PER_UNIT, boxW / w);
+  const vw = boxW / s, vh = boxH / s;
+  return { x: Math.min(Math.max(cx - vw / 2, 0), Math.max(w - vw, 0)), y: 0, w: vw, h: vh };
+}
+
 /** DEWA wording of poles and device. */
 const dewaPoles = devicePoles;
 const dewaDevice = deviceKind;
@@ -461,8 +477,18 @@ export default function SystemDiagram({
   useEffect(() => {
     const was = fitted.current;
     fitted.current = { w: W, h: H, project: project.id };
-    setVb((v) => (was.project !== project.id || (v.x === 0 && v.y === 0 && v.w === was.w && v.h === was.h) ? { x: 0, y: 0, w: W, h: H } : v));
-  }, [W, H, project.id]);
+    // The design canvas opens readable (below); other diagrams open fitted.
+    setVb((v) => ((!resizable && was.project !== project.id) || (v.x === 0 && v.y === 0 && v.w === was.w && v.h === was.h) ? { x: 0, y: 0, w: W, h: H } : v));
+  }, [W, H, project.id, resizable]);
+  // The design canvas opens with readable text (at least 10 px), once per project, after its height has settled.
+  const opened = useRef<string | undefined>(undefined);
+  useLayoutEffect(() => {
+    const el = svgRef.current;
+    if (!resizable || opened.current === project.id || !el?.clientWidth || !el.clientHeight) return;
+    if (!fullScreen && !height && autoHeight === undefined) return;
+    opened.current = project.id;
+    setVb(openingView(W, H, el.clientWidth, el.clientHeight, layout.roots[0]?.x));
+  }, [resizable, project.id, fullScreen, height, autoHeight, W, H, layout.roots]);
 
   // Centre on a panel or circuit picked in the results below the drawing.
   const lastFocus = useRef<number | undefined>(undefined);
@@ -674,7 +700,7 @@ export default function SystemDiagram({
             {grid === 'lines' ? <Grid3x3 size={15} aria-hidden /> : grid === 'dots' ? <Grip size={15} aria-hidden /> : <Square size={15} aria-hidden />}
           </button>
           <button className="chip" onClick={() => zoom(1.25)} aria-label="Zoom out" title="Zoom out (− with the drawing focused, or the mouse wheel)"><ZoomOut size={15} aria-hidden /></button>
-          <button className="chip sd-zoom" onClick={() => setVb(full)} title="Zoom level, relative to the whole drawing — click to fit (0)" aria-label={`Zoom ${zoomPct} %, click to fit`}>{zoomPct} %</button>
+          <button className="chip sd-zoom" onClick={() => setVb(full)} title="Zoom level, relative to the whole drawing (100 % = all of it) — click to fit (0)" aria-label={`Zoom ${zoomPct} %, click to fit`}>{zoomPct} %</button>
           <button className="chip" onClick={() => zoom(1 / 1.25)} aria-label="Zoom in" title="Zoom in (+ with the drawing focused, or the mouse wheel)"><ZoomIn size={15} aria-hidden /></button>
           <button className="chip" onClick={() => setVb(full)} aria-label="Fit the drawing" title="Fit the whole drawing (0)"><Scan size={15} aria-hidden /></button>
           {onToggleFullScreen && <button className="chip" onClick={onToggleFullScreen} aria-label={fullScreen ? 'Exit full screen' : 'Full screen'} title={fullScreen ? 'Exit full screen (Esc)' : 'Full screen'}>{fullScreen ? <Minimize2 size={15} aria-hidden /> : <Maximize2 size={15} aria-hidden />}</button>}

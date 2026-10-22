@@ -28,7 +28,8 @@ export default function BoardFields({ board, onChange, section, building, groups
     set('earthing', Object.values(e).some((v) => v !== undefined) ? e : undefined);
   };
   const text = (key: 'name' | 'ipRating' | 'location' | 'manufacturer' | 'model', placeholder = '') => (
-    <input value={board[key] ?? ''} placeholder={placeholder} onChange={(e) => set(key, e.target.value || (key === 'name' ? '' : undefined))} />
+    // Full text on hover: long names are cut off in a narrow side panel.
+    <input value={board[key] ?? ''} title={board[key] || undefined} placeholder={placeholder} onChange={(e) => set(key, e.target.value || (key === 'name' ? '' : undefined))} />
   );
   const num = (key: 'ratedCurrentA' | 'sourceKva' | 'sourceImpedancePct' | 'sourceXr', step = 1, placeholder = '') => (
     <input
@@ -61,7 +62,7 @@ export default function BoardFields({ board, onChange, section, building, groups
           <label>Name{text('name')}</label>
           <label>
             Type
-            <select value={board.kind ?? (isMain ? 'MDB' : 'DB')} onChange={(e) => set('kind', e.target.value as Board['kind'])}>
+            <select value={board.kind ?? (isMain ? 'MDB' : 'DB')} title={BOARD_KINDS.find((k) => k.value === (board.kind ?? (isMain ? 'MDB' : 'DB')))?.label} onChange={(e) => set('kind', e.target.value as Board['kind'])}>
               {BOARD_KINDS.map((k) => (
                 <option key={k.value} value={k.value}>{k.label}</option>
               ))}
