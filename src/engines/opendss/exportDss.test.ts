@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dssComment, dssName, exportDss } from './exportDss';
+import { dssComment, dssName, exportDss, uniqueDssNames } from './exportDss';
 import type { Project } from '../../types';
 
 // Fixed fixture (independent of the app's sample project, which may change).
@@ -26,6 +26,25 @@ describe('OpenDSS export', () => {
   it('sanitises names that OpenDSS would misread', () => {
     expect(dssName('DB 1.2/A')).toBe('DB_1_2_A');
     expect(dssName('SMDB-GF')).toBe('SMDB-GF');
+  });
+
+  it('keeps sanitised names unique without case-only collisions', () => {
+    expect([...uniqueDssNames(['DB 1', 'DB.1', 'db_1', 'DB 1']).values()]).toEqual(['DB_1', 'DB_1_2', 'db_1_3']);
+    const project: Project = {
+      ...sampleProject,
+      boards: [
+        { ...sampleProject.boards[0], id: 'Main.1' },
+        { id: 'Main 1', name: 'Sub', upstreamId: 'Main.1' }
+      ],
+      feeders: [
+        { ...sampleProject.feeders[0], id: 'Load.1', boardId: 'Main.1', feedsBoardId: 'Main 1' },
+        { ...sampleProject.feeders[1], id: 'Load 1', boardId: 'Main 1' }
+      ]
+    };
+    const { script } = exportDss(project);
+    expect(script).toContain('buses=[sourcebus bb_Main_1]');
+    expect(script).toContain('New Line.Load_1 phases=3 bus1=bb_Main_1 bus2=bb_Main_1_2');
+    expect(script).toContain('New Line.Load_1_2 phases=3 bus1=bb_Main_1_2 bus2=ld_Load_1_2');
   });
 
   it('keeps imported text on its OpenDSS comment line', () => {
