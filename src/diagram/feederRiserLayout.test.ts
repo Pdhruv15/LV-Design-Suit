@@ -63,7 +63,10 @@ describe('riser schematic with individual feeders', () => {
     expect(L.sources.map((s) => s.kind).sort()).toEqual(['gen', 'tx']);
     expect(L.ats).toHaveLength(1);
     expect(L.height).toBeGreaterThan(L.rows[0].yLine + 3 * U);
-    expect([...L.used].sort()).toEqual(['ats', 'breaker', 'cable', 'db', 'fr', 'gen', 'mcc', 'panel', 'standby', 'tx']);
+    expect([...L.used].sort()).toEqual(['ats', 'breaker', 'cable', 'fr', 'gen', 'p-db', 'p-edb', 'p-mcc', 'panel', 'standby', 'tx']);
+    // End boards as their IEC panel symbol; panels feeding ways keep their enclosure with a busbar.
+    expect(leaf('DB-1A').panel).toBe('p-db');
+    expect(leaf('MCC-1').panel).toBe('p-mcc');
   });
 
   it('riser sheets can use individual feeders', () => {

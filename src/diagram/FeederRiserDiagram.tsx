@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { Project } from '../types';
 import { U } from './riserLayout';
 import { RiserSym } from './RiserDiagram';
+import { PANEL_SYMBOL_IDS, Sym, SYM_SCALE, SYMBOLS } from './symbolLibrary';
 import { COL, feederRiserLayout, type FeederRiserLayout, type LeafSymbol } from './feederRiserLayout';
 
 /** Board symbols of the riser schematic, from the riser's unit U (1.6U × 0.9U). */
@@ -35,6 +36,7 @@ export const FEEDER_RISER_LEGEND: { key: string; label: string; draw: (x: number
   { key: 'gen', label: 'Standby generator', draw: (x, y) => RiserSym.gen(x, y) },
   { key: 'ats', label: 'Changeover (ATS)', draw: (x, y) => RiserSym.ats(x, y) },
   { key: 'panel', label: 'Panel with busbar (MDB, EMDB, SMDB)', draw: (x, y) => <g><rect x={x - 0.8 * U} y={y - 0.45 * U} width={1.6 * U} height={0.9 * U} className="fr-panel" /><line x1={x - 0.65 * U} y1={y + 0.2 * U} x2={x + 0.65 * U} y2={y + 0.2 * U} className="fr-busbar" /></g> },
+  ...PANEL_SYMBOL_IDS.map((id) => ({ key: id, label: SYMBOLS[id].label, draw: (x: number, y: number) => <Sym id={id} x={x} y={y} s={SYM_SCALE.legend} /> })),
   { key: 'db', label: 'Distribution board (DB, EDB)', draw: (x, y) => LeafSym.db(x, y) },
   { key: 'smdb', label: 'Sub-main / main board (SMDB)', draw: (x, y) => LeafSym.smdb(x, y) },
   { key: 'mcc', label: 'Motor control centre (MCC, EMCC)', draw: (x, y) => LeafSym.mcc(x, y) },
@@ -139,7 +141,7 @@ export default function FeederRiserDiagram({ project, buildingId, layout: given 
             <title>{`${n.board.id} — ${n.board.name}`}</title>
             <rect x={n.x - tagW / 2} y={n.tagY} width={tagW} height={1.5 * U} className="fr-tag" />
             {n.lines.map((t, i) => <text key={i} x={n.x - tagW / 2 + 0.25 * U} y={n.tagY + (0.62 + i * 0.65) * U} className="m">{t}</text>)}
-            {LeafSym[n.symbol](n.x, n.y)}
+            {n.panel ? <Sym id={n.panel} x={n.x} y={n.y} s={SYM_SCALE.legend} /> : LeafSym[n.symbol](n.x, n.y)}
           </g>
         ))}
       </svg>

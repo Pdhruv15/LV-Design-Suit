@@ -5,6 +5,8 @@ import { cableTypeOf } from '../model/cableTypes';
 import { runsOf } from '../calc/electrical';
 import { deviceKind, devicePoles } from './deviceText';
 import { sizeRiser, type BusRiser } from '../calc/busbar';
+import { panelSymbolOf } from './panelBox';
+import type { SymbolId } from './symbolLibrary';
 import { U } from './riserLayout';
 
 /** Riser schematic with individual feeders: every panel that feeds other
@@ -35,7 +37,8 @@ export const leafSymbol = (k: BoardKind | undefined): LeafSymbol =>
 
 export interface FRRow { label: string; sub: string; yTop: number; yLine: number }
 export interface FRPanel { board: Board; x1: number; x2: number; y1: number; y2: number; busY: number; incomerX: number; titleTop: boolean; lines: string[] }
-export interface FRLeaf { board: Board; x: number; y: number; tagY: number; symbol: LeafSymbol; lines: string[] }
+/** panel: the board's IEC panel symbol, drawn instead of `symbol` (none for UPS boards). */
+export interface FRLeaf { board: Board; x: number; y: number; tagY: number; symbol: LeafSymbol; panel?: SymbolId; lines: string[] }
 /** A vertical run with a breaker on it: bus → breaker → yTo. */
 /** cableAt: where the cable text goes — along the run when it is long enough (vertical), else beside it (horizontal). */
 export interface FRFeeder { x: number; yBus: number; brk: [number, number]; yTo: number; device: string[]; cable: string; cableAt?: [number, number]; cableVertical?: boolean; fireRated?: boolean; incomer?: boolean }
@@ -149,9 +152,9 @@ export function feederRiserLayout(project: Project, buildingId: string): FeederR
     const r = rowOf(b), top = rows[r].yTop;
     const parent = b.upstreamId ? panels.get(b.upstreamId) : undefined;
     const fromAbove = !onBus.has(b.id) && !!parent && parent.busY < top;
-    const symbol = leafSymbol(b.kind);
-    used.add(symbol);
-    leaves.set(b.id, { board: b, x: xOf(b), y: top + (fromAbove ? 0.9 : 2.95) * U, tagY: top + (fromAbove ? 1.6 : 0.3) * U, symbol,
+    const symbol = leafSymbol(b.kind), panel = panelSymbolOf(project, b);
+    used.add(panel ?? symbol);
+    leaves.set(b.id, { board: b, x: xOf(b), y: top + (fromAbove ? 0.9 : 2.95) * U, tagY: top + (fromAbove ? 1.6 : 0.3) * U, symbol, panel,
       lines: [`REF: ${b.id}`, `TCL: ${kw(boardTotals(project, b.id).connectedKw)}`] });
   }
 

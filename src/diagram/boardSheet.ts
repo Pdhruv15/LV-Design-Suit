@@ -13,6 +13,8 @@ import { boardEarth, type BoardEarth } from '../model/boardEarth';
 import { splitSld } from '../model/sldScope';
 import { deviceKind, devicePoles } from './deviceText';
 import { escapeHtmlAttr } from '../util/escape';
+import { panelSymbolOf } from './panelBox';
+import { symSvg, SYM_SCALE } from './symbolLibrary';
 
 /** One board's single line diagram as a printable drawing (black on white,
  * SVG for the PDF sheet and the DXF): the supply and incomer, the busbar and
@@ -93,7 +95,10 @@ export function boardSheetSvg(project: Project, board: Board, results: FeederRes
     out.push(tx(cx + 22, 30, `TRANSFORMER ${board.sourceKva ?? '—'} kVA`, { bold: true }), tx(cx + 22, 44, `11/${(project.voltageV / 1000).toFixed(3)} kV · Z ${board.sourceImpedancePct ?? '—'} %`));
     out.push(ln(cx, 56, cx, 90));
   } else {
-    out.push(ln(cx, 0, cx, 90));
+    // The board above as its panel symbol (none for a meter cabinet or UPS board: just the line).
+    const up = project.boards.find((b) => b.id === board.upstreamId);
+    const upSym = up && panelSymbolOf(project, up);
+    out.push(upSym ? `${symSvg(upSym, cx, 14, SYM_SCALE.legend)}${ln(cx, 14 + 16 * SYM_SCALE.legend, cx, 90)}` : ln(cx, 0, cx, 90));
     out.push(tx(cx + 14, 14, `FROM ${board.upstreamId}${opts.fromSheet ? ` (SHEET ${opts.fromSheet})` : ''}`, { bold: true }));
     if (incomer) out.push(tx(cx + 14, 30, `${cableText(project, incomer)} · ${incomer.lengthM} m`), tx(cx + 14, 44, `${deviceText(incomer)} at ${board.upstreamId}`));
   }
