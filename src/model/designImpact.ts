@@ -99,7 +99,7 @@ export function impactBetween(before: Snapshot | Project, after: Snapshot | Proj
   }
   const fieldLabels = new Set(changes.filter((c) => c.what === 'feeder' || c.what === 'circuit').flatMap((c) => c.fields.map((f) => f.field)));
   const touches = (set: Set<string>) => [...fieldLabels].some((l) => set.has(l)) || changes.some((c) => (c.what === 'feeder' || c.what === 'circuit') && c.kind !== 'changed');
-  if (touches(LOAD) || touches(BREAKER) || changes.some((c) => c.what === 'board')) { documents.push({ label: 'Load schedule', reason: 'loads or devices changed', view: 'load-schedule' }, { label: 'DB schedule', reason: 'devices or panels changed', view: 'db-schedule' }); }
+  if (touches(LOAD) || touches(BREAKER) || changes.some((c) => c.what === 'board')) { documents.push({ label: 'Load schedule', reason: 'loads or devices changed', view: 'load-schedule' }); }
   if (touches(CABLE)) documents.push({ label: 'Cable schedule', reason: 'cable data changed', view: 'cable-schedule' });
   if (fieldLabels.has('Tray route') || fieldLabels.has('Length (m)') || fieldLabels.has('Cable (mm²)')) documents.push({ label: 'Cable tray schedule', reason: 'cables on a route changed', view: 'cable-tray' });
   if (changes.some((c) => c.what === 'ups')) documents.push({ label: 'UPS and solar report', reason: 'UPS data changed', view: 'ups' });

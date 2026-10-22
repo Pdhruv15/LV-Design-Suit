@@ -25,3 +25,7 @@ The calculations support it (v1.78): `inputFilterKvar` (the UPS input filter's l
 
 1. **UPS study → UPS inputs**, after *Output power factor*: *Input filter (kvar leading)* with placeholder "10 % of UPS kVA", and *Generator absorbs (% leading)* with placeholder "10". Same inputs as the fields beside them.
 2. **No other change**: the check stays in the notes line and the dashboard to-do list.
+
+## Documents: remove the flat DB schedule
+
+Approved and done 2026-10-22 (v1.79): the flat DB schedule (every board's circuits in one table) is not used for construction or submission; the DEWA DB schedule forms on *Load schedule* are. Removed: the *Documents → DB schedule* page and ribbon button, its Export centre item (PDF / CSV), its table in the calculation and study reports (the section is now *Cable schedule*), and its entry in the documents to update after a design change. Load schedule, Cable schedule and Equipment are unchanged; RCD, kWh meter and isolator accessories stay in the BOQ and the MD forms.

@@ -149,7 +149,7 @@ export function applyBrief(p: Project, b: ProjectBrief): Project {
 /** Which parts of the scope a screen (and the findings that lead to it) belong to; a screen not listed always counts. */
 const VIEW_SCOPE: Partial<Record<MainView, ScopeId[]>> = {
   ups: ['ups'], solar: ['solar'], pfc: ['pfc'], earthing: ['earthing', 'studies'], 'earth-schematic': ['earthing'], 'cable-tray': ['containment'], boq: ['boq'],
-  'load-schedule': ['loads'], 'db-schedule': ['loads'], drawings: ['sld', 'earthing'], busbar: ['sld'],
+  'load-schedule': ['loads'], drawings: ['sld', 'earthing'], busbar: ['sld'],
   selection: ['studies', 'sld'], coordination: ['studies', 'sld'], sizing: ['studies', 'sld'], 'voltage-drop': ['studies', 'sld'], report: ['studies'], engines: ['studies']
 };
 

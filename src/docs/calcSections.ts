@@ -123,7 +123,7 @@ export function structureSection(s: Section, data: CalcData, scope: Scope): Sect
       break;
     }
     case 'schedules':
-      s.tables.forEach((t) => { t.appendix = t.title === 'Cable schedule' ? 'cable' : 'load'; });
+      s.tables.forEach((t) => { t.appendix = 'cable'; });
       break;
   }
   return s;
