@@ -265,26 +265,30 @@ export function buildPriceTemplate(items: BomItem[], list?: PriceList): ExcelJS.
 /** Reads supplier and/or installation quotes. A blank quote stays missing;
  * a numeric zero is an explicit quote and must survive a round trip. */
 export async function readPriceWorkbook(bytes: ArrayBuffer, items: BomItem[]): Promise<{ rates: PriceList['rates']; read: number; unmatched: number }> {
+  if (!bytes.byteLength) throw new Error('The price workbook is empty.');
   const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(bytes);
+  try { await wb.xlsx.load(bytes); }
+  catch { throw new Error('The price workbook is not a valid .xlsx file.'); }
   const ws = wb.worksheets[0];
   const byDesc = new Map(items.map((x) => [x.description.toLowerCase(), x.key]));
   const rates: PriceList['rates'] = {};
   let read = 0, unmatched = 0;
-  if (!ws) return { rates, read, unmatched };
+  if (!ws) throw new Error('The price workbook has no worksheets.');
   const heads = (ws.getRow(1).values as unknown[]).map((v) => String(v ?? '').toLowerCase());
   const col = (re: RegExp) => heads.findIndex((h) => re.test(h));
   const cKey = col(/^key/), cDesc = col(/desc/), cRate = col(/supply|^rate|price/), cLab = col(/install|labou?r/);
-  if ((cRate < 0 && cLab < 0) || (cKey < 0 && cDesc < 0)) return { rates, read, unmatched };
-  const num = (v: unknown) => {
+  if (cRate < 0 && cLab < 0) throw new Error('The price workbook needs a Supply rate or Install rate column.');
+  if (cKey < 0 && cDesc < 0) throw new Error('The price workbook needs a Key or Description column.');
+  const num = (v: unknown, row: number, label: string) => {
     if (v === null || v === undefined || (typeof v === 'string' && !v.trim())) return undefined;
     const n = typeof v === 'number' ? v : typeof v === 'object' && v && 'result' in v ? Number((v as { result: unknown }).result) : Number(String(v).replace(/,/g, ''));
-    return Number.isFinite(n) ? n : undefined;
+    if (!Number.isFinite(n) || n < 0) throw new Error(`The price workbook row ${row} has an invalid ${label}. Enter a number of 0 or more, or leave it blank.`);
+    return n;
   };
   ws.eachRow((row, i) => {
     if (i === 1) return;
-    const rate = cRate >= 0 ? num(row.getCell(cRate).value) : undefined;
-    const labour = cLab >= 0 ? num(row.getCell(cLab).value) : undefined;
+    const rate = cRate >= 0 ? num(row.getCell(cRate).value, i, 'supply rate') : undefined;
+    const labour = cLab >= 0 ? num(row.getCell(cLab).value, i, 'install rate') : undefined;
     if (rate === undefined && labour === undefined) return;
     const desc = cDesc >= 0 ? String(row.getCell(cDesc).value ?? '').trim() : '';
     const key = (cKey >= 0 ? String(row.getCell(cKey).value ?? '').trim() : '') || byDesc.get(desc.toLowerCase());
@@ -292,6 +296,7 @@ export async function readPriceWorkbook(bytes: ArrayBuffer, items: BomItem[]): P
     rates[key] = { ...(rate !== undefined ? { rate } : {}), ...(labour !== undefined ? { labour } : {}), ...(desc ? { description: desc } : {}) };
     read++;
   });
+  if (!read && !unmatched) throw new Error('The price workbook contains no rates to import.');
   return { rates, read, unmatched };
 }
 

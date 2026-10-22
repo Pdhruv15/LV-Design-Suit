@@ -30,8 +30,10 @@ export function catalogueWorkbook(c: EnclosureCatalogue = emptyCatalogue()): Exc
 
 /** Reads a catalogue from a workbook made from the template. */
 export async function readCatalogueWorkbook(bytes: ArrayBuffer): Promise<EnclosureCatalogue> {
+  if (!bytes.byteLength) throw new Error('The catalogue workbook is empty.');
   const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(bytes);
+  try { await wb.xlsx.load(bytes); }
+  catch { throw new Error('The catalogue workbook is not a valid .xlsx file.'); }
   const sheet = (n: string) => { const ws = wb.getWorksheet(n); if (!ws) throw new Error(`Sheet "${n}" missing — use the template`); return ws; };
   const val = (v: ExcelJS.CellValue) => (v && typeof v === 'object' && 'result' in v ? (v as { result: unknown }).result : v);
   const num = (v: ExcelJS.CellValue) => { const x = val(v); return x === null || x === undefined || x === '' ? undefined : Number(x); };
@@ -62,6 +64,8 @@ export async function readCatalogueWorkbook(bytes: ArrayBuffer): Promise<Enclosu
     configs.push({ id: `c-${ref.replace(/[^a-z0-9]+/gi, '')}`, ref, ...(c(2) ? { rows: c(2) } : {}), ...(c(3) ? { modulesPerRow: c(3) } : {}), grossModules: gross, dims, usable });
   });
   const family = info.get('Family') === 'fabricated' ? 'fabricated' : 'modular';
+  if (!rules.length) throw new Error('The catalogue workbook contains no allowance cases.');
+  if (!configs.length) throw new Error('The catalogue workbook contains no enclosure sizes.');
   return { id: `cat-${Date.now().toString(36)}`, supplier: info.get('Supplier') || 'Imported supplier', range: info.get('Range') || 'Range', family, source: info.get('Source document') ?? '', revision: info.get('Revision') || '1',
     notes: (info.get('Notes') ?? '').split('\n').map((s) => s.trim()).filter(Boolean), rules, overlaps: [], configs };
 }

@@ -4,6 +4,7 @@ import { BUILTIN_CATALOGUES, sizeEnclosure } from '../calc/enclosure';
 import { BRAND_DEVICES } from '../data/brandDevices';
 import { allCatalogues, duplicateCatalogue, exportLibrary, importLibrary, loadDevices, matchDevice, neededDevices, TYPICAL_DEVICES, isTypical, isBrand, saveDevices, saveUserCatalogues, scheduleModules, userCatalogues, validateCatalogue, type DeviceDim } from './enclosureLibrary';
 import { catalogueWorkbook, readCatalogueWorkbook } from './enclosureWorkbook';
+import { EMPTY_BYTES, MALFORMED_OFFICE_BYTES } from '../../tests/fixtures/importExport';
 
 // localStorage for node
 const store = new Map<string, string>();
@@ -52,6 +53,12 @@ describe('enclosure library', () => {
     const input = { equipmentModules: 64, spareModules: 8, elcbCount: 10 };
     expect(sizeEnclosure(back, input).candidates.map((c) => [c.config.ref, c.usable, c.result])).toEqual(sizeEnclosure(MOD, input).candidates.map((c) => [c.config.ref, c.usable, c.result]));
     expect(validateCatalogue(back).filter((x) => x.level === 'bad')).toEqual([]);
+  });
+
+  it('rejects empty, malformed and empty-template catalogue workbooks', async () => {
+    await expect(readCatalogueWorkbook(EMPTY_BYTES.buffer)).rejects.toThrow('workbook is empty');
+    await expect(readCatalogueWorkbook(MALFORMED_OFFICE_BYTES.buffer)).rejects.toThrow('not a valid .xlsx');
+    await expect(readCatalogueWorkbook((await catalogueWorkbook().xlsx.writeBuffer()) as ArrayBuffer)).rejects.toThrow('contains no enclosure sizes');
   });
 
   it('from schedule: devices listed, widths only from records, unmapped devices reported', () => {

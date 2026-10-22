@@ -106,6 +106,7 @@ export interface FinishOptions { title: string; /** Foot label; false when the d
 
 /** Document information, page numbers, bookmarks; saved compactly. */
 export async function finishPdf(doc: PDFDocument, o: FinishOptions): Promise<Uint8Array> {
+  if (!doc.getPageCount()) throw new Error('Cannot export a PDF with no pages.');
   if (o.frame) await stampFrame(doc, o.frame);
   else if (o.stamp !== false) await stampPages(doc, o.stamp ?? o.title, false, o.stampY);
   if (o.bookmarks?.length) addBookmarks(doc, o.bookmarks);

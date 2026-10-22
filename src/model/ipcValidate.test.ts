@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
 import { exportDss } from '../engines/opendss/exportDss';
+import { EMPTY_BYTES } from '../../tests/fixtures/importExport';
 
 type Fn = (...a: unknown[]) => any; // eslint-disable-line @typescript-eslint/no-explicit-any
 type V = Record<'defaultFileName' | 'fileFilter' | 'saveTextArgs' | 'saveBinaryArgs' | 'pdfArgs' | 'projectSaveArgs' | 'recoveryArgs' | 'workbookRows' | 'libraryData' | 'engineRequest', Fn> & { ALLOWED_PERMISSIONS: Set<string> };
@@ -25,11 +26,12 @@ describe('IPC payload checks (electron/ipcValidate.cjs)', () => {
     const b = check.saveBinaryArgs({ defaultName: 'a.xlsx', bytes: new Uint8Array([1, 2, 3]).subarray(1), filterName: 'Excel', extensions: ['xlsx'] });
     expect([...b.bytes]).toEqual([2, 3]);
     expect(() => check.saveBinaryArgs({ defaultName: 'a', bytes: 'text', extensions: ['xlsx'] })).toThrow('without bytes');
+    expect(() => check.saveBinaryArgs({ defaultName: 'a.xlsx', bytes: EMPTY_BYTES, extensions: ['xlsx'] })).toThrow('empty binary export');
   });
 
   it('PDF options: HTML text, a known sheet size, defaults as before', () => {
     expect(check.pdfArgs({ html: '<p/>' })).toEqual({ defaultName: 'report.pdf', html: '<p/>', pageSize: 'A4', landscape: true, cssPages: false });
-    expect(check.pdfArgs({ html: '', pageSize: 'A1', landscape: false, cssPages: true })).toMatchObject({ pageSize: 'A1', landscape: false, cssPages: true });
+    expect(() => check.pdfArgs({ html: '  ', pageSize: 'A1', landscape: false, cssPages: true })).toThrow('without HTML');
     expect(() => check.pdfArgs({ html: '<p/>', pageSize: { width: 1e9 } })).toThrow('sheet size');
     expect(() => check.pdfArgs({ html: 1 })).toThrow('without HTML');
   });

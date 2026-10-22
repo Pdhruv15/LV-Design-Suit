@@ -28,6 +28,7 @@ function saveTextArgs(a) {
 
 function saveBinaryArgs(a) {
   if (!isObj(a) || !(ArrayBuffer.isView(a.bytes) || a.bytes instanceof ArrayBuffer)) fail('binary export without bytes');
+  if (a.bytes.byteLength === 0) fail('empty binary export');
   if (a.bytes.byteLength > LIMITS.binaryExportBytes) fail(`export larger than ${Math.round(LIMITS.binaryExportBytes / 1048576)} MB`);
   return { defaultName: defaultFileName(a.defaultName), bytes: Buffer.from(ArrayBuffer.isView(a.bytes) ? a.bytes.buffer.slice(a.bytes.byteOffset, a.bytes.byteOffset + a.bytes.byteLength) : a.bytes), filter: fileFilter(a.filterName, a.extensions) };
 }
@@ -37,6 +38,7 @@ const PAGE_SIZES = ['A4', 'A3', 'A2', 'A1'];
 /** HTML → PDF options: HTML text, a known sheet size, true/false flags. */
 function pdfArgs(a) {
   if (!isObj(a) || typeof a.html !== 'string') fail('PDF without HTML content');
+  if (!a.html.trim()) fail('PDF without HTML content');
   assertTextWithin(a.html, LIMITS.pdfHtmlBytes, 'The report');
   const pageSize = a.pageSize === undefined ? 'A4' : a.pageSize;
   if (!PAGE_SIZES.includes(pageSize)) fail(`PDF sheet size ${String(pageSize)}`);
