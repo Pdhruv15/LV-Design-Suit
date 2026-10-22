@@ -20,6 +20,11 @@ export function dssName(s: string): string {
   return s.replace(/[^A-Za-z0-9_-]/g, '_');
 }
 
+/** Keeps imported/user text on one OpenDSS comment line. */
+export function dssComment(s: string): string {
+  return s.replace(/[\r\n\u2028\u2029]+/g, ' ');
+}
+
 const fmt = (n: number, digits = 6) => Number(n.toFixed(digits)).toString();
 const busbar = (boardId: string) => `bb_${dssName(boardId)}`;
 const loadBus = (feederId: string) => `ld_${dssName(feederId)}`;
@@ -39,7 +44,7 @@ export function exportDss(project: Project): DssExport {
 
   out.push(
     `! LV Design Studio — OpenDSS export`,
-    `! Project: ${project.name}`,
+    `! Project: ${dssComment(project.name)}`,
     `! Exported: ${new Date().toISOString()}`,
     `!`,
     `! Modelling assumptions (same as the built-in engine):`,
@@ -66,7 +71,7 @@ export function exportDss(project: Project): DssExport {
   for (const b of project.boards.filter((b) => !b.upstreamId)) {
     if (!b.sourceKva || !b.sourceImpedancePct) {
       warnings.push(`Main board ${b.id} has no transformer data (kVA / %Z) and was left unconnected.`);
-      out.push(`! WARNING: ${b.id} has no transformer data — not connected to a source.`);
+      out.push(`! WARNING: ${dssComment(b.id)} has no transformer data — not connected to a source.`);
       continue;
     }
     const xr = b.sourceXr ?? DEFAULT_TRANSFORMER_XR;
@@ -111,7 +116,7 @@ export function exportDss(project: Project): DssExport {
     const toBus = f.feedsBoardId ? busbar(f.feedsBoardId) : loadBus(f.id);
     const name = dssName(f.id);
 
-    out.push(`! ${f.id} — ${f.name}`);
+    out.push(`! ${dssComment(f.id)} — ${dssComment(f.name)}`);
     out.push(
       `New Line.${name} phases=${phases} bus1=${busbar(f.boardId)}${nodes} bus2=${toBus}${nodes} ` +
         `linecode=${lineCodeName(f.cableCsaMm2, single, runsOf(f))} length=${fmt(f.lengthM, 3)} units=m`
