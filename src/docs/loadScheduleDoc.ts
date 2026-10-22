@@ -7,6 +7,7 @@ import { dbSpares, spareLabel, spareRef } from '../model/spareWays';
 import { polesOf } from '../calc/bom';
 import { cableTypeOf } from '../model/cableTypes';
 import { cableBuildText, feederBuild } from '../model/cableRefs';
+import { withNetwork } from '../calc/network';
 
 const esc = (v: unknown) =>
   String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -50,6 +51,10 @@ export type ScheduleEntry<R> =
 const remarksText = (f: Feeder) => [f.remarks, loadItemsText(f)].filter(Boolean).join('; ');
 
 export function loadScheduleRows(project: Project, boardId: string) {
+  return withNetwork(project, () => loadScheduleRowsOf(project, boardId));
+}
+
+function loadScheduleRowsOf(project: Project, boardId: string) {
   const board = project.boards.find((b) => b.id === boardId)!;
   const circuits = scheduleCircuits(project, boardId);
   const incomer = project.feeders.find((f) => f.feedsBoardId === boardId && f.boardId === board.upstreamId);

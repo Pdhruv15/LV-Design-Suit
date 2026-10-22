@@ -85,13 +85,25 @@ export function buildDbSheet(project: Project, boardId: string): DbSheet {
   // to whole ELCB sections, like the printed form's blocks of rows.
   const byId = new Map(circuitRows.map((r) => [r.f.id, r]));
   const spares = dbSpares(board);
+  const circuitsByWay = new Map<number, typeof circuitRows>();
+  for (const row of circuitRows) {
+    const way = row.f.way!;
+    const list = circuitsByWay.get(way);
+    if (list) list.push(row); else circuitsByWay.set(way, [row]);
+  }
+  const sparesByWay = new Map<number, SpareWay[]>();
+  for (const spare of spares) {
+    const way = spare.way!;
+    const list = sparesByWay.get(way);
+    if (list) list.push(spare); else sparesByWay.set(way, [spare]);
+  }
   const lastWay = Math.max(circuitRows.reduce((m, r) => Math.max(m, r.f.way!), 0), ...spares.map((s) => s.way!));
   const waysPerElcb = Math.max(1, (board.elcbGroupSize || 6) / 3);
   const ways = Math.max(waysPerElcb, Math.ceil((lastWay + 1) / waysPerElcb) * waysPerElcb);
   const rows: SheetRow[] = [{ type: 'watts' }];
   for (let way = 1; way <= ways; way++) {
-    const onWay = circuitRows.filter((r) => r.f.way === way);
-    const sparesOn = spares.filter((s) => s.way === way);
+    const onWay = circuitsByWay.get(way) ?? [];
+    const sparesOn = sparesByWay.get(way) ?? [];
     const ryb = onWay.find((r) => r.f.phase === 'RYB');
     if (ryb) {
       rows.push({ type: 'circuit', feeder: ryb.f });
@@ -166,9 +178,16 @@ export function buildDbSheet(project: Project, boardId: string): DbSheet {
 
   // One ELCB cell per section (all rows of its ways), labelled when it has circuits.
   if (board.elcbGroupSize) {
+    const ysByGroup = new Map<number, number[]>();
+    rows.forEach((row, y) => {
+      const way = row.type === 'circuit' ? row.feeder.way! : row.type === 'slot' ? row.way : row.type === 'spare' ? row.spare.way! : 0;
+      if (!way) return;
+      const group = Math.floor((way - 1) / waysPerElcb) + 1;
+      const list = ysByGroup.get(group);
+      if (list) list.push(y); else ysByGroup.set(group, [y]);
+    });
     for (let g = 0; g * waysPerElcb < ways; g++) {
-      const wayOf = (row: SheetRow) => (row.type === 'circuit' ? row.feeder.way! : row.type === 'slot' ? row.way : row.type === 'spare' ? row.spare.way! : 0);
-      const ys = rows.map((row, y) => ({ w: wayOf(row), y })).filter(({ w }) => w > g * waysPerElcb && w <= (g + 1) * waysPerElcb).map(({ y }) => y);
+      const ys = ysByGroup.get(g + 1) ?? [];
       if (!ys.length) continue;
       const e = elcbs.find((x) => x.index === g + 1);
       data[ys[0]][at('elcb')] = e ? `ELCB-${e.index} ${e.label}` : '';
