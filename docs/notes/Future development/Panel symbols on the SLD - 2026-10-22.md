@@ -1,6 +1,6 @@
 # Panel symbols on the SLD - proposal (2026-10-22)
 
-The symbol library (PR #300) has six panel symbols: `p-mdb`, `p-smdb`, `p-db`, `p-edb`, `p-mcc`, `p-apfc`. Each is one 28 × 32 box with a filled header strip and the panel code. They show a downstream board as a single box, without its busbar or outgoing ways. They are **not drawn yet**. This note says where they could go. It needs your decision before anything is built.
+The symbol library (PR #300) has six panel symbols: `p-mdb`, `p-smdb`, `p-db`, `p-edb`, `p-mcc`, `p-apfc`. Each is one 28 × 32 box with a filled header strip and the panel code. They show a downstream board as a single box, without its busbar or outgoing ways. This note says where they could go. See the decision at the end.
 
 ## Where a panel box helps
 
@@ -14,7 +14,7 @@ The symbol library (PR #300) has six panel symbols: `p-mdb`, `p-smdb`, `p-db`, `
 
 | Role / `Board.kind` | Symbol |
 |---|---|
-| MDB, LV-MDB, EMDB | `p-mdb` (EMDB: `p-edb`?) |
+| MDB, LV-MDB, EMDB | `p-mdb` |
 | SMDB, ESMDB | `p-smdb` |
 | DB | `p-db` |
 | EDB | `p-edb` |
@@ -22,10 +22,10 @@ The symbol library (PR #300) has six panel symbols: `p-mdb`, `p-smdb`, `p-db`, `
 | Board feeding only capacitor ways / `protection.apfc` | `p-apfc` |
 | MC, UPS | no panel symbol yet: keep the current drawing |
 
-## Questions for you
+## Decision (2026-10-22)
 
-- Is option 1 (collapse a board into one box) wanted? Should it be set per board, or for all boards below a chosen level?
-- Should an emergency MDB (EMDB) use `p-edb` or `p-mdb`?
-- Should options 2 and 3 be done at the same time, or later?
+Approved with the recommendation, and built:
 
-Nothing is drawn until you approve.
+- Option 1, set per board: `Board.sldBox` ("Show as one box" under **On the SLD** in the board fields, sub-boards only). Main boards, meter cabinets and UPS boards are never boxed.
+- An EMDB uses `p-mdb`, because it is a main board. Its board ID still shows that it is the emergency board.
+- Options 2 (riser) and 3 (the "fed from" stub on board sheets) are **still open**. They wait for a separate go-ahead.

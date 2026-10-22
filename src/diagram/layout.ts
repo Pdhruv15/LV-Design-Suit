@@ -2,6 +2,7 @@ import type { Board, Feeder, Project, SpareWay } from '../types';
 import { isDbBoard, spareWaysOf } from '../model/spareWays';
 import { isScheduleCircuit } from '../calc/loadSchedule';
 import { isInterlocked } from '../model/changeover';
+import { boxedBoardIds } from './panelBox';
 
 /** Horizontal slot per load, vertical distance between board levels. */
 export const LEAF_W = 132;
@@ -34,6 +35,7 @@ export interface FeederNode {
   x: number;
   busY: number; // bus of the board it's connected to
   childBoardId?: string; // set for incomers to a sub-board
+  panelBoardId?: string; // feeds a sub-board drawn as one panel box, in a load's slot
 }
 
 /** A spare breaker or a space on a panel's busbar (DB spares stay on the load schedule, like its circuits). */
@@ -78,6 +80,8 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
   const scheduled = (boardId: string) => sched.get(boardId) ?? [];
   const children = (boardId: string) => kids.get(boardId) ?? [];
   const subBoard = (f: Feeder) => (f.feedsBoardId ? byId.get(f.feedsBoardId) : undefined);
+  // Boards drawn as one box: a load's slot, and nothing below them is laid out.
+  const boxed = boxedBoardIds(project);
   const busSpares = (boardId: string) => { const b = byId.get(boardId); return b && !isDbBoard(b) ? spareWaysOf(b) : []; };
 
   const unitsCache = new Map<string, number>();
@@ -87,7 +91,7 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
     path.add(boardId);
     const n = children(boardId).reduce((sum, f) => {
       const child = subBoard(f);
-      return sum + (child ? units(child.id, path) : 1);
+      return sum + (child && !boxed.has(child.id) ? units(child.id, path) : 1);
     }, busSpares(boardId).length);
     path.delete(boardId);
     const b = byId.get(boardId);
@@ -100,6 +104,11 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
   const feeders: FeederNode[] = [];
   const spares: SpareNode[] = [];
   const placed = new Set<string>();
+  const hide = (boardId: string) => {
+    if (placed.has(boardId)) return;
+    placed.add(boardId);
+    for (const f of children(boardId)) if (f.feedsBoardId) hide(f.feedsBoardId);
+  };
 
   const place = (board: Board, left: number, depth: number): BoardNode => {
     placed.add(board.id);
@@ -109,7 +118,13 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
     const xs: number[] = [];
     for (const f of children(board.id)) {
       const child = subBoard(f);
-      if (child && !placed.has(child.id)) {
+      if (child && boxed.has(child.id) && !placed.has(child.id)) {
+        hide(child.id);
+        const x = cursor + LEAF_W / 2;
+        feeders.push({ feeder: f, x, busY, panelBoardId: child.id });
+        xs.push(x);
+        cursor += LEAF_W;
+      } else if (child && !placed.has(child.id)) {
         const w = units(child.id, new Set());
         const node = place(child, cursor, depth + 1);
         feeders.push({ feeder: f, x: node.x, busY, childBoardId: child.id });

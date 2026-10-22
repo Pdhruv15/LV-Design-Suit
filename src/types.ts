@@ -338,6 +338,8 @@ export interface Board {
   spd?: SpdType;
   /** Power meter (PMU) on the incomer, connected to the BMS (on each incomer of a changeover). */
   pmu?: boolean;
+  /** On the SLD, drawn as one panel box at the end of its feeder, without its busbar and ways (they stay on its own panel sheet). */
+  sldBox?: boolean;
   /** Already installed (an extension / retrofit): drawn dashed and tagged EXISTING, left out of the BOQ.
    * Its recorded maximum demand covers all existing load at and below it; new load is added on top. */
   existing?: ExistingInfo;

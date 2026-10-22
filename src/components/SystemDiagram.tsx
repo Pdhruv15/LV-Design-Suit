@@ -10,6 +10,7 @@ import { cableRefOf } from '../model/cableRefs';
 import { dbSpares, spareBreaker } from '../model/spareWays';
 import { FeederSwitchSym, LEGEND_ROW, LEGEND_SYM_X, LEGEND_TEXT_X, legendEntries, legendWidth, LoadSym, polesText, rcdInSwitch, starterSymbolOf, SwitchSym, switchKindOf } from '../diagram/IecSymbols';
 import { Sym, SYM_SCALE } from '../diagram/symbolLibrary';
+import { panelSymbolOf } from '../diagram/panelBox';
 import { izText, type FeederResult, type Status } from '../calc/electrical';
 import { boardSummary, loadTypeOf } from '../calc/summary';
 import { failReasons, quickFixes } from '../calc/quickFix';
@@ -1118,9 +1119,18 @@ export default function SystemDiagram({
                   {dewa ? <text x={n.x + 10} y={y + 79} className="acc-t" style={{ fontSize: 9 }} data-dxf-max-width={cadDeviceWidth}>{f.breakerRatingA}A {dewaPoles(f)} ISOLATOR (W/P)</text> : <text x={n.x - 9} y={y + 74} textAnchor="end" className="acc-t">ISO</text>}
                 </g>
               )}
-              {!n.childBoardId && (
+              {!n.childBoardId && (() => {
+                // A sub-board drawn as one box: the panel symbol in the load's slot, with the board's name and demand.
+                const panel = n.panelBoardId ? project.boards.find((b) => b.id === n.panelBoardId) : undefined;
+                const sym = panel && panelSymbolOf(project, panel);
+                return (
                 <>
-                  {iec ? (
+                  {panel && sym ? (
+                    <>
+                      <line x1={n.x} y1={y + 76} x2={n.x} y2={y + 80} className="ln" />
+                      <Sym id={sym} x={n.x} y={y + 94} s={SYM_SCALE.load} />
+                    </>
+                  ) : iec ? (
                     <>
                       <line x1={n.x} y1={y + 76} x2={n.x} y2={y + 84} className="ln" />
                       <LoadSym x={n.x} y={y + 94} type={loadTypeOf(f)} motor={isMotor(f)} fireFighting={loadTypeOf(f) === 'fire-pump'} />
@@ -1133,10 +1143,10 @@ export default function SystemDiagram({
                       </g>
                     </>
                   )}
-                  <text className="b lod-name" x={n.x} y={y + 132} textAnchor="middle" data-fit-width={cadSlot - 6}>{trunc(f.id, 16)}</text>
-                  <text className="m" x={n.x} y={y + 146} textAnchor="middle">{trunc(f.name, 19)}</text>
+                  <text className="b lod-name" x={n.x} y={y + 132} textAnchor="middle" data-fit-width={cadSlot - 6}>{trunc(panel?.id ?? f.id, 16)}</text>
+                  <text className="m" x={n.x} y={y + 146} textAnchor="middle">{trunc(panel ? panel.name : f.name, 19)}</text>
                   <text x={n.x} y={y + 160} textAnchor="middle" data-fit-width={cadSlot - 6}>
-                    {f.componentId && project.components?.some((c) => c.id === f.componentId) ? trunc(componentLabel(project, project.components!.find((c) => c.id === f.componentId)!, f), 30) : f.kvar ? `${f.capSteps && f.capSteps > 1 ? `${f.capSteps} × ${+(f.kvar / f.capSteps).toFixed(1)}` : f.kvar} kvar${f.detunedPct ? ` · ${f.detunedPct}% det.` : ''}` : `${dewa && !f.generation ? `TCL : ${f.loadKw.toFixed(2)}` : (f.loadKw * f.demandFactor).toFixed(0)} kW${f.generation ? ' gen' : ''}${isMotor(f) ? ` · ${starterInfo(starterOf(f)).short}` : ''}`}
+                    {panel ? `${(summaries.get(panel.id)?.demandKw ?? 0).toFixed(0)} kW` : f.componentId && project.components?.some((c) => c.id === f.componentId) ? trunc(componentLabel(project, project.components!.find((c) => c.id === f.componentId)!, f), 30) : f.kvar ? `${f.capSteps && f.capSteps > 1 ? `${f.capSteps} × ${+(f.kvar / f.capSteps).toFixed(1)}` : f.kvar} kvar${f.detunedPct ? ` · ${f.detunedPct}% det.` : ''}` : `${dewa && !f.generation ? `TCL : ${f.loadKw.toFixed(2)}` : (f.loadKw * f.demandFactor).toFixed(0)} kW${f.generation ? ' gen' : ''}${isMotor(f) ? ` · ${starterInfo(starterOf(f)).short}` : ''}`}
                     {!layers?.current && ` · ${r ? r.ib.toFixed(0) : '–'} A`}
                   </text>
                   {feederTags(f.id).map((t, i) => (
@@ -1144,7 +1154,8 @@ export default function SystemDiagram({
                   ))}
                   <circle cx={n.x + 22} cy={y + 78} r="4" style={{ fill: `var(--${status})` }} />
                 </>
-              )}
+                );
+              })()}
               {n.childBoardId &&
                 feederTags(f.id).map((t, i) => (
                   <text key={t.text} x={n.x + 7} y={y + 72 + tagY + i * 13} className={`res ${t.cls}`}>{t.text}</text>

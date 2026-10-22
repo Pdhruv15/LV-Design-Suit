@@ -6,6 +6,7 @@ import { cableTypeDef, cableTypeOf, labelCode } from '../model/cableTypes';
 import { DEFAULT_CABLE_TYPE, incomerDeviceOf } from '../types';
 import { Sym, SYM_SCALE, SYMBOLS, type SymbolId } from './symbolLibrary';
 import { sldDevices } from './sldDevices';
+import { boxedBoardIds, hiddenBoardIds, panelSymbolOf } from './panelBox';
 
 /** IEC 60617 symbols for the single line diagram, drawn with the diagram's
  * own classes (.ln lines, .sym filled shapes) so they follow the theme and
@@ -73,23 +74,25 @@ export interface LegendEntry { key: string; label: string; draw: (x: number, y: 
 
 /** The symbols the drawing uses, for its legend. */
 export function legendEntries(project: Project): LegendEntry[] {
-  const drawn = project.feeders.filter((f) => !isScheduleCircuit(f));
+  const hidden = hiddenBoardIds(project);
+  const drawn = project.feeders.filter((f) => !isScheduleCircuit(f) && !hidden.has(f.boardId));
+  const shown = project.boards.filter((b) => !hidden.has(b.id));
   const loads = drawn.filter((f) => !f.feedsBoardId);
   const types = new Set<string>(loads.map((f) => (isMotor(f) ? 'motor' : f.loadType ?? (f.generation ? 'pv' : 'general'))));
   const has = (k: SwitchKind) => drawn.some((f) => switchKindOf(f) === k);
   const out: LegendEntry[] = [];
   const add = (key: string, label: string, draw: LegendEntry['draw']) => out.push({ key, label, draw });
-  if (project.boards.some((b) => b.sourceKva)) add('tx', 'Transformer', (x, y) => (
+  if (shown.some((b) => b.sourceKva)) add('tx', 'Transformer', (x, y) => (
     <g className="iec"><circle cx={x} cy={y - 5} r="7" className="tr" /><circle cx={x} cy={y + 4} r="7" className="tr" /></g>
   ));
-  if (project.boards.some((b) => b.standby)) add('gen', 'Standby generator', (x, y) => (
+  if (shown.some((b) => b.standby)) add('gen', 'Standby generator', (x, y) => (
     <g className="iec"><circle cx={x} cy={y} r="9" className="sym" /><text x={x} y={y + 4} textAnchor="middle" className="iec-t b">G</text></g>
   ));
-  if (project.boards.some((b) => b.standby && b.standby.changeover !== 'ACB')) add('ats', 'Automatic transfer switch (ATS), 4P switched neutral', (x, y) => (
+  if (shown.some((b) => b.standby && b.standby.changeover !== 'ACB')) add('ats', 'Automatic transfer switch (ATS), 4P switched neutral', (x, y) => (
     <g className="iec"><rect x={x - 11} y={y - 7} width="22" height="14" rx="2" className="sym" /><text x={x} y={y + 3} textAnchor="middle" className="iec-t s">ATS</text></g>
   ));
   add('bus', 'Busbar', (x, y) => <line x1={x - 12} y1={y} x2={x + 12} y2={y} className="bus" />);
-  if (project.boards.some((b) => b.existing) || project.feeders.some((f) => f.existing)) add('existing', 'EXISTING: already installed, not in the BOQ', (x, y) => (
+  if (shown.some((b) => b.existing) || project.feeders.some((f) => f.existing)) add('existing', 'EXISTING: already installed, not in the BOQ', (x, y) => (
     <line x1={x - 12} y1={y} x2={x + 12} y2={y} className="ln" style={{ strokeDasharray: '5 3' }} />
   ));
   if (drawn.length) add('cable', `Cable ${cableTypeDef(DEFAULT_CABLE_TYPE).label.replace(/ \(.*\)$/, '')} unless marked`, (x, y) => <line x1={x} y1={y - 10} x2={x} y2={y + 10} className="ln" />);
@@ -98,7 +101,7 @@ export function legendEntries(project: Project): LegendEntry[] {
   if (others.length) add('ctype', `Marked cables: ${others.join(', ')}`, (x, y) => <text x={x} y={y + 3} textAnchor="middle" className="iec-t s">code</text>);
   if (has('breaker')) add('cb', 'Circuit breaker (MCB / MCCB)', (x, y) => <Sym id="cb" x={x} y={y} s={SYM_SCALE.legend} />);
   if (has('acb')) add('acb', 'Air circuit breaker, withdrawable', (x, y) => <Sym id="acb" x={x} y={y} s={SYM_SCALE.legend} />);
-  if (project.boards.some((b) => !b.standby && incomerDeviceOf(b) === 'MCCB-NA')) add('nonauto', 'Non-automatic breaker (incomer isolation)', (x, y) => <Sym id="nonauto" x={x} y={y} s={SYM_SCALE.legend} />);
+  if (shown.some((b) => !b.standby && incomerDeviceOf(b) === 'MCCB-NA')) add('nonauto', 'Non-automatic breaker (incomer isolation)', (x, y) => <Sym id="nonauto" x={x} y={y} s={SYM_SCALE.legend} />);
   if (has('isolator')) add('isol', 'Switch-disconnector', (x, y) => <Sym id="isolator" x={x} y={y} s={SYM_SCALE.legend} />);
   const switches = new Set(drawn.map(feederSwitchOf));
   if (switches.has('rcbo')) add('rcbo', 'RCBO: breaker with earth leakage protection', (x, y) => <Sym id="rcbo" x={x} y={y} s={SYM_SCALE.legend} />);
@@ -106,13 +109,13 @@ export function legendEntries(project: Project): LegendEntry[] {
   if (drawn.some((f) => sldDevices(f).elcb && !rcdInSwitch(f))) add('rcd', 'Earth leakage protection (RCD)', (x, y) => (
     <g className="iec"><line x1={x} y1={y - 9} x2={x} y2={y + 9} className="ln" /><ellipse cx={x} cy={y} rx="7" ry="3.2" className="sym-ln" /></g>
   ));
-  const prot = project.boards.map((b) => b.protection);
-  if (drawn.some((f) => f.kwhMeter === 'CT') || project.boards.some((b) => b.protection?.ctRatio || b.supply?.ctRatio)) add('ct', 'Current transformer', (x, y) => <Sym id="ct" x={x} y={y} s={SYM_SCALE.legend} />);
+  const prot = shown.map((b) => b.protection);
+  if (drawn.some((f) => f.kwhMeter === 'CT') || shown.some((b) => b.protection?.ctRatio || b.supply?.ctRatio)) add('ct', 'Current transformer', (x, y) => <Sym id="ct" x={x} y={y} s={SYM_SCALE.legend} />);
   const relays = [...new Set(prot.flatMap((p) => p?.relays ?? []))];
   if (relays.length) add('relay', `Protection relays: ${relays.join(', ')}`, (x, y) => (
     <g className="iec"><circle cx={x - 8} cy={y} r="4.5" className="sym-ln" /><line x1={x - 3.5} y1={y} x2={x + 6} y2={y} className="ln" style={{ strokeDasharray: '2 1.5' }} /><text x={x + 8} y={y + 3} className="iec-t s">{relays[0]}</text></g>
   ));
-  const changeover = project.boards.filter((b) => b.standby?.changeover === 'ACB');
+  const changeover = shown.filter((b) => b.standby?.changeover === 'ACB');
   if (changeover.length) {
     add('emi', 'Electro-mechanical interlock (mains / generator)', (x, y) => (
       <g className="iec"><path d={`M${x - 14} ${y + 5} L${x - 8} ${y - 3} H${x + 8} L${x + 14} ${y + 5}`} className="ln" /><path d={`M${x - 4} ${y - 3} l4 4 l4 -4 z`} className="sym-open" /></g>
@@ -121,12 +124,12 @@ export function legendEntries(project: Project): LegendEntry[] {
       <g className="iec"><rect x={x - 10} y={y - 6} width="20" height="12" className="sym" /><text x={x} y={y + 3} textAnchor="middle" className="iec-t s">OC</text></g>
     ));
   }
-  if (project.boards.some((b) => b.pmu)) add('pmu', 'Power meter (PMU) with link to BMS', (x, y) => <Sym id="pmu" x={x} y={y} s={SYM_SCALE.legend} />);
+  if (shown.some((b) => b.pmu)) add('pmu', 'Power meter (PMU) with link to BMS', (x, y) => <Sym id="pmu" x={x} y={y} s={SYM_SCALE.legend} />);
   if (prot.some((p) => p?.apfc)) add('pfr', 'Power factor relay (PFR), CT from the incomer', (x, y) => (
     <g className="iec"><rect x={x - 9} y={y - 5.5} width="18" height="11" rx="1" className="sym" /><text x={x} y={y + 3} textAnchor="middle" className="iec-t s">PFR</text></g>
   ));
   const main = (b: { upstreamId?: string }) => !b.upstreamId;
-  if (project.boards.some((b) => b.instruments ?? main(b))) {
+  if (shown.some((b) => b.instruments ?? main(b))) {
     add('am', 'Ammeter (A) / voltmeter (V), selector switch (SS)', (x, y) => (
       <g className="iec"><rect x={x - 17} y={y - 7} width="14" height="14" className="sym" /><text x={x - 10} y={y + 4} textAnchor="middle" className="iec-t b">A</text><rect x={x + 3} y={y - 7} width="14" height="14" className="sym" /><text x={x + 10} y={y + 4} textAnchor="middle" className="iec-t b">V</text></g>
     ));
@@ -134,12 +137,12 @@ export function legendEntries(project: Project): LegendEntry[] {
       <g className="iec">{['R', 'Y', 'B'].map((p, i) => <g key={p}><circle cx={x - 13 + i * 13} cy={y} r="5.5" className="sym" /><text x={x - 13 + i * 13} y={y + 3} textAnchor="middle" className="iec-t s">{p}</text></g>)}</g>
     ));
   }
-  if (project.boards.some((b) => b.earthing?.show ?? main(b))) add('pit', 'Earth pit with inspection cover', (x, y) => (
+  if (shown.some((b) => b.earthing?.show ?? main(b))) add('pit', 'Earth pit with inspection cover', (x, y) => (
     <g className="iec"><rect x={x - 7} y={y - 11} width="14" height="9" className="sym" /><line x1={x} y1={y - 6} x2={x} y2={y + 6} className="ln" /><path d={`M${x - 7} ${y + 6} h14 M${x - 4.5} ${y + 9} h9 M${x - 2} ${y + 12} h4`} className="ln" /></g>
   ));
   if (drawn.some((f) => f.kwhMeter)) add('kwh', 'kWh meter', (x, y) => <Sym id="kwh" x={x} y={y} s={SYM_SCALE.legend} />);
   if (drawn.some((f) => f.localIsolator)) add('iso', 'Local isolator at the equipment', (x, y) => <Sym id="isolator" x={x} y={y} s={SYM_SCALE.legend} />);
-  if (project.boards.some((b) => b.spd)) add('spd', 'Surge protection device (SPD)', (x, y) => <Sym id="spd" x={x} y={y} s={SYM_SCALE.legend} />);
+  if (shown.some((b) => b.spd)) add('spd', 'Surge protection device (SPD)', (x, y) => <Sym id="spd" x={x} y={y} s={SYM_SCALE.legend} />);
   const starters = new Set(loads.map((f) => sldDevices(f).starterType).filter((t): t is StarterType => !!t));
   for (const t of ['DOL', 'SD', 'SS', 'VFD'] as const) if (starters.has(t)) add(starterSymbolOf(t), SYMBOLS[starterSymbolOf(t)].label, (x, y) => <Sym id={starterSymbolOf(t)} x={x} y={y} s={SYM_SCALE.legend} />);
   if (types.has('motor') || types.has('fire-pump')) add('m', 'Motor (FP = fire pump)', (x, y) => <LoadSym x={x} y={y} type="motor" s={SYM_SCALE.legend} />);
@@ -147,6 +150,9 @@ export function legendEntries(project: Project): LegendEntry[] {
   if (types.has('sockets')) add('so', 'Socket outlets', (x, y) => <LoadSym x={x} y={y} type="sockets" s={SYM_SCALE.legend} />);
   if (types.has('capacitor')) add('cap', 'Capacitor bank', (x, y) => <LoadSym x={x} y={y} type="capacitor" s={SYM_SCALE.legend} />);
   if (types.has('pv')) add('pv', 'Solar PV / generation', (x, y) => <LoadSym x={x} y={y} type="pv" s={SYM_SCALE.legend} />);
+  const boxed = boxedBoardIds(project);
+  const panels = new Set(project.boards.filter((b) => boxed.has(b.id)).map((b) => panelSymbolOf(project, b)!));
+  for (const id of panels) add(id, `${SYMBOLS[id].label}, drawn as one box`, (x, y) => <Sym id={id} x={x} y={y} s={SYM_SCALE.legend} />);
   const EQUIP: [LoadType, string][] = [['hvac', 'HVAC equipment (AC)'], ['ev', 'EV charger (EV)'], ['it', 'IT / data (IT)'], ['general', 'Other load (L)']];
   for (const [t, label] of EQUIP) if (types.has(t)) add(`eq-${t}`, label, (x, y) => <LoadSym x={x} y={y} type={t} s={SYM_SCALE.legend} />);
   return out;
