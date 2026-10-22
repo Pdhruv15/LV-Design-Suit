@@ -32,6 +32,7 @@ import { evaluateEarthingAll } from '../calc/earthing';
 import { earthingLayout } from '../model/earthingPlan';
 import { INCOMER_DEVICES, incomerDeviceOf, type Board, type Feeder } from '../types';
 import { getDragItem, setDragItem } from '../diagram/dragItem';
+import { recordedKva, recordedText } from '../model/existing';
 import { CO_GEN_REACH, ChangeoverIncomers } from '../diagram/ChangeoverSym';
 import { atsLines, atsOf, changeoverBreakers, isInterlocked } from '../model/changeover';
 
@@ -278,6 +279,12 @@ export default function SystemDiagram({
   const pitIds = (key: string) => m2s(earthPits.get(key));
   // A framed panel's name box: as wide as the room left of the incomer allows (never across it),
   // with the location wrapped onto a second line when it doesn't fit.
+  /** An existing board's rows in the DEWA name box: the tag, its recorded demand, then how it was recorded. */
+  const existingRows = (b: Board, max: number): string[] => {
+    const kva = recordedKva(project, b), e = b.existing!;
+    const how = [e.source, e.recordedOn].filter(Boolean).join(', ');
+    return ['EXISTING', ...(kva !== undefined ? [`MD = ${Math.round(kva)} kVA${e.marginPct ? ` (+${e.marginPct} %)` : ''}`] : []), ...(how ? wrapText(how, max, 2) : [])];
+  };
   const nameBox = (b: Board, n: { x: number; busX1: number; busY: number }) => {
     const x1 = n.busX1 - 7;
     const w = Math.max(96, Math.min(139, n.x - x1 - 14));
@@ -290,7 +297,9 @@ export default function SystemDiagram({
       `TCL = ${sm.tclKw.toFixed(2)} kW`,
       `MDL = ${sm.mdlKw.toFixed(2)} kW`,
       ...loc.map((t, i) => (i ? `      ${t}` : t)),
-      ...(isc !== undefined ? [`Isc = ${isc.toFixed(1)} kA`] : [])
+      ...(isc !== undefined ? [`Isc = ${isc.toFixed(1)} kA`] : []),
+      // Existing board: its tag and recorded maximum demand.
+      ...(b.existing ? existingRows(b, max) : [])
     ];
     return { w, rows, sm, top: frameTopOf(b, n.busY, rows.length) };
   };
@@ -806,16 +815,17 @@ export default function SystemDiagram({
             <text className="m" x={r.x - 8} y={r.headY - 72} textAnchor="end">{project.voltageV} V</text>
           </g>
         ) : (
-          <g key={`tx-${r.board.id}`} className="tx" data-lv-id={`board:${r.board.id}`} onDoubleClick={edit(onEditBoard, r.board.id)}>
+          <g key={`tx-${r.board.id}`} className={`tx${r.board.existing ? ' existing' : ''}`} data-lv-id={`board:${r.board.id}`} onDoubleClick={edit(onEditBoard, r.board.id)}>
             <title>Double-click to edit the transformer</title>
             <line x1={r.x} y1="50" x2={r.x} y2="70" className="ln mv" />
             <circle cx={r.x} cy="84" r="14" className="tr" />
             <circle cx={r.x} cy="100" r="14" className="tr" />
-            <text className="b" x={r.x + 24} y="86">{txTag(project, r.board.id) ?? 'Transformer'}</text>
+            <text className="b" x={r.x + 24} y="86">{`${txTag(project, r.board.id) ?? 'Transformer'}${r.board.existing ? ' — EXISTING' : ''}`}</text>
             <text className="m" x={r.x + 24} y="100">
               {r.board.sourceKva ? `${r.board.sourceKva} kVA · ${r.board.sourceImpedancePct ?? '—'}% Z` : 'no source data'}
             </text>
             {r.board.sourceKva && <text className="m" x={r.x + 24} y="113">{r.board.vectorGroup ?? 'Dyn11'} · 11 / {(project.voltageV / 1000).toFixed(3)} kV</text>}
+            {r.board.existing && recordedText(project, r.board) && <text className="m" x={r.x + 24} y="127">{recordedText(project, r.board)}</text>}
             <line x1={r.x} y1="114" x2={r.x} y2={r.headY - 58} className="ln" />
             <text className="m" x={r.x - 8} y={r.headY - (dewa ? 96 : protectionOf(r.board) ? 84 : 72)} textAnchor="end">{project.voltageV} V</text>
             {scenario?.outage?.failedId === r.board.id && (
@@ -980,7 +990,7 @@ export default function SystemDiagram({
           return (
             <g
               key={f.id}
-              className={`fd ${sel ? 'sel' : ''}${dropCls(`fd:${f.id}`)}${off(f.boardId) ? ' off' : ''}`}
+              className={`fd ${sel ? 'sel' : ''}${dropCls(`fd:${f.id}`)}${off(f.boardId) ? ' off' : ''}${f.existing ? ' existing' : ''}`}
               onMouseEnter={showCard('feeder', f.id)}
               onMouseLeave={leaveCard}
               {...dnd({ type: 'feeder', feederId: f.id }, `fd:${f.id}`)}
@@ -1155,7 +1165,7 @@ export default function SystemDiagram({
           return (
             <g
               key={b.id}
-              className={`bd ${sel ? 'sel' : ''}${dropCls(`bus:${b.id}`)}${off(b.id) ? ' off' : ''}`}
+              className={`bd ${sel ? 'sel' : ''}${dropCls(`bus:${b.id}`)}${off(b.id) ? ' off' : ''}${b.existing ? ' existing' : ''}`}
               onMouseEnter={showCard('board', b.id)}
               onMouseLeave={leaveCard}
               {...dnd({ type: 'bus', boardId: b.id }, `bus:${b.id}`)}
@@ -1321,7 +1331,7 @@ export default function SystemDiagram({
                 <>
                   <rect x={n.x - 62} y={n.busY - 58} width="124" height="36" rx="6" className="box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
                   <text className="b lod-name" x={n.x - 54} y={n.busY - 42}>{trunc(b.id, 14)}</text>
-                  <text className="m" x={n.x - 54} y={n.busY - 28}>{b.kind ?? (b.upstreamId ? 'DB' : 'MDB')}</text>
+                  <text className="m" x={n.x - 54} y={n.busY - 28}>{`${b.kind ?? (b.upstreamId ? 'DB' : 'MDB')}${b.existing ? ' · EXISTING' : ''}`}</text>
                   <circle cx={n.x + 52} cy={n.busY - 46} r="4" style={{ fill: `var(--${status})` }} />
                 </>
               )}
@@ -1414,6 +1424,8 @@ export default function SystemDiagram({
                   const pct = upsLoadingPct(project, b);
                   return [{ text: `UPS ${b.upsKva ?? '—'} kVA${pct !== undefined ? ` · ${pct.toFixed(0)}%` : ''}`, cls: pct === undefined ? 'm' : pct > 100 ? 'bad' : pct > 80 ? 'warn' : 'ok' }];
                 })() : []),
+                // Existing board (plain style; DEWA has it in the name box, a transformer beside its symbol): its recorded demand.
+                ...(!dewa && b.existing && recordedText(project, b) && !(!b.upstreamId && b.sourceKva) ? [{ text: recordedText(project, b)!, cls: 'm' }] : []),
                 ...boardTags(b.id),
                 ...(s.loadingPct !== undefined ? [{ text: `${s.loadingPct.toFixed(0)}% loaded`, cls: layers?.loading ? s.loadingStatus ?? 'm' : 'm' }] : [])
               ].map((t, i) => (

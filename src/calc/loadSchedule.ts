@@ -1,4 +1,5 @@
 import { memoized, networkOf } from './network';
+import { recordedPQ } from '../model/existing';
 import { switchedOnBoard } from './capSwitching';
 import { DEFAULT_POINT_WATTS, LIGHTING_POINTS, POINT_TYPES, pointTemplateOf, settingsOf, type Board, type CircuitLoadItem, type Feeder, type LoadType, type Phase, type PointType, type Project } from '../types';
 
@@ -171,14 +172,18 @@ export function dominantLoadType(f: Feeder, board: Board | undefined): LoadType 
  * on their phase, three-phase and older unlabelled single-phase feeders spread evenly. Generation
  * and standby units are treated exactly as boardPhaseKw treats them (counted like loads). */
 export type PhasePQ = Record<'R' | 'Y' | 'B', { p: number; q: number }>;
-export function boardPhasePQ(project: Project, boardId: string, seen = new Set<string>()): PhasePQ {
+export function boardPhasePQ(project: Project, boardId: string, seen = new Set<string>(), covered = false): PhasePQ {
   if (seen.has(boardId)) return { R: { p: 0, q: 0 }, Y: { p: 0, q: 0 }, B: { p: 0, q: 0 } };
   seen.add(boardId);
-  return memoized(project, `phasePQ:${boardId}`, () => boardPhasePQOf(project, boardId, seen));
+  return memoized(project, `phasePQ:${boardId}${covered ? ':covered' : ''}`, () => boardPhasePQOf(project, boardId, seen, covered));
 }
 
-function boardPhasePQOf(project: Project, boardId: string, seen: Set<string>): PhasePQ {
-  const out: PhasePQ = { R: { p: 0, q: 0 }, Y: { p: 0, q: 0 }, B: { p: 0, q: 0 } };
+/** `covered`: a recorded maximum demand above (or on) this board already includes its existing load. */
+function boardPhasePQOf(project: Project, boardId: string, seen: Set<string>, covered: boolean): PhasePQ {
+  const board = networkOf(project)?.boardById.get(boardId) ?? project.boards.find((b) => b.id === boardId);
+  const rec = !covered && board ? recordedPQ(project, board) : undefined;
+  const cov = covered || !!rec;
+  const out: PhasePQ = { R: { p: (rec?.p ?? 0) / 3, q: (rec?.q ?? 0) / 3 }, Y: { p: (rec?.p ?? 0) / 3, q: (rec?.q ?? 0) / 3 }, B: { p: (rec?.p ?? 0) / 3, q: (rec?.q ?? 0) / 3 } };
   const put = (f: Feeder, p: number, q: number) => {
     if (f.cores === 2 && f.phase && f.phase !== 'RYB') { out[f.phase].p += p; out[f.phase].q += q; return; }
     for (const ph of ['R', 'Y', 'B'] as const) { out[ph].p += p / 3; out[ph].q += q / 3; }
@@ -186,10 +191,11 @@ function boardPhasePQOf(project: Project, boardId: string, seen: Set<string>): P
   const caps: Feeder[] = [];
   for (const f of networkOf(project)?.feedersByBoard.get(boardId) ?? project.feeders.filter((x) => x.boardId === boardId)) {
     if (f.feedsBoardId) {
-      const sub = boardPhasePQ(project, f.feedsBoardId, seen);
+      const sub = boardPhasePQ(project, f.feedsBoardId, seen, cov);
       for (const ph of ['R', 'Y', 'B'] as const) { out[ph].p += sub[ph].p; out[ph].q += sub[ph].q; }
       continue;
     }
+    if (cov && f.existing) continue;
     if (f.kvar) { caps.push(f); continue; }
     const kw = f.loadKw * f.demandFactor;
     const pf = Math.min(Math.max(f.powerFactor, 0.01), 1);
@@ -207,13 +213,19 @@ function boardPhasePQOf(project: Project, boardId: string, seen: Set<string>): P
 /** Demand kW on each phase of a board, including everything downstream.
  * Single-phase circuits load their own phase; 3-phase circuits, and older
  * single-phase feeders with no phase set, are spread evenly. */
-export function boardPhaseKw(project: Project, boardId: string, seen = new Set<string>()): PhaseKw {
+export function boardPhaseKw(project: Project, boardId: string, seen = new Set<string>(), covered = false): PhaseKw {
   const out: PhaseKw = { R: 0, Y: 0, B: 0 };
   if (seen.has(boardId)) return out;
   seen.add(boardId);
+  // A recorded maximum demand (existing installation): balanced, and it covers the existing load below.
+  const board = project.boards.find((b) => b.id === boardId);
+  const rec = !covered && board ? recordedPQ(project, board) : undefined;
+  const cov = covered || !!rec;
+  if (rec) { out.R += rec.p / 3; out.Y += rec.p / 3; out.B += rec.p / 3; }
   for (const f of project.feeders.filter((x) => x.boardId === boardId)) {
+    if (cov && f.existing && !f.feedsBoardId) continue;
     if (f.feedsBoardId) {
-      const sub = boardPhaseKw(project, f.feedsBoardId, seen);
+      const sub = boardPhaseKw(project, f.feedsBoardId, seen, cov);
       out.R += sub.R;
       out.Y += sub.Y;
       out.B += sub.B;

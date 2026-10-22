@@ -98,8 +98,9 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
     m.set(key, it);
   };
 
-  // Panels, incomers and board-mounted equipment
+  // Panels, incomers and board-mounted equipment (an existing board and its transformer are already installed)
   for (const b of p.boards) {
+    if (b.existing) continue;
     const k = kindOf(b);
     const rating = b.ratedCurrentA ?? (!b.upstreamId ? b.supply?.ratingA : undefined) ?? p.feeders.find((f) => f.feedsBoardId === b.id)?.breakerRatingA;
     const bus = b.busbarMaterial === 'aluminium' ? 'Al' : 'Cu';
@@ -187,7 +188,7 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
 
   // RMUs feeding the transformers (one line per RMU; normally DEWA supply)
   const rmus = new Map<string, string[]>();
-  for (const b of mainBoards(p).filter((x) => x.sourceKva)) {
+  for (const b of mainBoards(p).filter((x) => x.sourceKva && !x.existing)) {
     const name = b.rmu?.trim() || `RMU (${txTag(p, b.id)})`;
     const key = `${b.substation?.trim() || ''}|${name}`;
     rmus.set(key, [...(rmus.get(key) ?? []), txTag(p, b.id) ?? b.id]);
@@ -202,8 +203,9 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
     add('B', `tie:${dev}:${t.ratingA}`, `Bus coupler ${dev} ${t.ratingA} A 4P, normally open, interlocked with the incomers${brandRef(dev, 3, t.ratingA)}`, 'no', 1, `${t.a} – ${t.b}`);
   }
 
-  // Spare ways: their breakers (a space has no device)
+  // Spare ways: their breakers (a space has no device); an existing board's spares are already there
   for (const b of p.boards) {
+    if (b.existing) continue;
     for (const s of spareWaysOf(b)) {
       if (s.kind !== 'spare') continue;
       const bi = breakerItem(spareBreaker(b, s));
@@ -211,8 +213,9 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
     }
   }
 
-  // Outgoing ways: breakers, earth leakage, meters, isolators, equipment
+  // Outgoing ways: breakers, earth leakage, meters, isolators, equipment (existing ways are already installed)
   for (const f of p.feeders) {
+    if (f.existing) continue;
     const bi = breakerItem(f);
     add('B', bi.key, bi.description, 'no', 1, f.boardId);
     const poles = polesOf(f);
@@ -248,6 +251,7 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
   if (p.boq?.includeSchedulePoints) {
     const electricalPoints = new Set<PointType>(['ltg', 'shaver', 's13', 's15', 's13t', 'spur', 'isol']);
     for (const b of p.boards) for (const f of scheduleCircuits(p, b.id)) {
+      if (f.existing) continue;
       // Mixed items are listed as themselves (e.g. L1 and L2 separately); their type's count is covered by them.
       const items = normalizeLoadItems(f.loadItems);
       for (const it of items) {

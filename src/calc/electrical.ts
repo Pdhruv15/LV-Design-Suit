@@ -1,4 +1,5 @@
 import { memoized, networkOf, withNetwork } from './network';
+import { recordedPQ } from '../model/existing';
 import { ambientCorrectionFactor, cables, getCable } from './cableTable';
 import { trayGrouping } from './cableTray';
 import { feederRatingBasis, type RatingBasis } from './installation';
@@ -52,12 +53,16 @@ export const groupFactor = (runs: number) => PARALLEL_GROUP_FACTOR[Math.min(runs
  * fed through an incomer feeder on this board. A board already on the path
  * (a supply loop, or a board feeding itself) is not counted again — the loop
  * is invalid data, reported by checkReferences ("is fed in a loop"). */
-export function boardDemandKw(project: Project, boardId: string, path = new Set<string>()): number {
+export function boardDemandKw(project: Project, boardId: string, path = new Set<string>(), covered = false): number {
   if (path.has(boardId)) return 0;
   path.add(boardId);
+  // A recorded maximum demand (existing installation) covers the existing load at and below its board.
+  const board = project.boards.find((b) => b.id === boardId);
+  const rec = !covered && board ? recordedPQ(project, board) : undefined;
+  const cov = covered || !!rec;
   const kw = project.feeders
     .filter((f) => f.boardId === boardId)
-    .reduce((sum, f) => sum + (f.feedsBoardId ? boardDemandKw(project, f.feedsBoardId, path) : f.loadKw * f.demandFactor), 0);
+    .reduce((sum, f) => sum + (f.feedsBoardId ? boardDemandKw(project, f.feedsBoardId, path, cov) : cov && f.existing ? 0 : f.loadKw * f.demandFactor), rec?.p ?? 0);
   path.delete(boardId);
   return kw;
 }

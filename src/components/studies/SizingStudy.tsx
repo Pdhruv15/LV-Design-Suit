@@ -10,6 +10,7 @@ import { buildSection, buildStudyReportHtml, buildStudyWorkbook, scopeOf, setupO
 import { workbookBytes } from '../../docs/formWorkbook';
 import { safeFileName, saveBinary, savePdf } from '../../util/files';
 import { NumberSetting, Page } from '../ui';
+import { ExistingChecksCard } from './ExistingChecks';
 
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const f1 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 1 });
@@ -85,6 +86,7 @@ export function TransformerGeneratorStudy({ project, onChange, onStatus }: { pro
         <button className="chip" disabled={busy} onClick={() => exportSheet('xlsx')}>Excel</button>
       </>}
     >
+      <ExistingChecksCard project={project} />
       <section className="card txg-card">
         <div className="txg-head">
           <h4>Transformers</h4>
