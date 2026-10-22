@@ -2,7 +2,7 @@ import { ask } from '../ConfirmDialog';
 import { useMemo, useState } from 'react';
 import { statusOfText } from '../../calc/statusText';
 import type { Project } from '../../types';
-import { cableSchedule, dbSchedule, equipmentSchedule, type Schedule } from '../../docs/schedules';
+import { cableSchedule, equipmentSchedule, type Schedule } from '../../docs/schedules';
 import { buildReportHtml, calcReportData } from '../../docs/calcReport';
 import { issueCounts, validateReport } from '../../docs/reportValidation';
 import { scheduleHtml } from '../../docs/sheetPdf';
@@ -44,30 +44,6 @@ function ExportCsvButton({ name, schedule, onStatus, project }: { name: string; 
         Export PDF
       </button>}
     </>
-  );
-}
-
-export function DbScheduleView({ project, onStatus, board, onBoard }: { project: Project; onStatus: Status; /** Picked in the panel tree ('' = all). */ board?: string; onBoard?: (id: string) => void }) {
-  const [own, setOwn] = useState('');
-  const boardId = board ?? own;
-  const setBoardId = onBoard ?? setOwn;
-  const schedule = useMemo(() => dbSchedule(project, boardId ? [boardId] : undefined), [project, boardId]);
-  return (
-    <Page
-      title="DB schedule"
-      intro="Panel schedule per board: circuits, loads, protective devices, cables and a total for each board."
-      actions={
-        <>
-          <select className="chip" value={boardId} onChange={(e) => setBoardId(e.target.value)} aria-label="Board">
-            <option value="">All boards</option>
-            {project.boards.map((b) => <option key={b.id} value={b.id}>{b.id}</option>)}
-          </select>
-          <ExportCsvButton project={project} name={`${project.name} DB schedule${boardId ? ` ${boardId}` : ''}`} schedule={schedule} onStatus={onStatus} />
-        </>
-      }
-    >
-      <ScheduleTable schedule={schedule} />
-    </Page>
   );
 }
 
@@ -125,7 +101,7 @@ export function ReportView({ project, onStatus, stale = false, docNo, onDocNo }:
   return (
     <Page
       title="Calculation report"
-      intro="Results summary and design basis, then load assessment, transformer and generator sizing, cable and breaker sizing, load flow and voltage drop, short circuit, earth fault loop, discrimination, power factor correction, DB and cable schedules, and assumptions — the same sections and figures as the study reports, A4 landscape, black and white. Prepared / checked / approved come from Parameters; blank ones are left for signing."
+      intro="Results summary and design basis, then load assessment, transformer and generator sizing, cable and breaker sizing, load flow and voltage drop, short circuit, earth fault loop, discrimination, power factor correction, the cable schedule, and assumptions — the same sections and figures as the study reports, A4 landscape, black and white. Prepared / checked / approved come from Parameters; blank ones are left for signing."
     >
       <ExportBar scope="Whole installation · every section of the calculation report" revision={revisionStamp(project)}
         blocked={stale ? 'Run the calculations first (F5): the report would show out-of-date results.' : undefined}

@@ -27,7 +27,7 @@ import { buildTrayReportHtml } from '../../docs/trayReport';
 import { buildLoadScheduleHtml } from '../../docs/loadScheduleDoc';
 import { scheduleHtml, workbookHtml } from '../../docs/sheetPdf';
 import { buildFormWorkbook } from '../../docs/formWorkbook';
-import { cableSchedule, dbSchedule, equipmentSchedule } from '../../docs/schedules';
+import { cableSchedule, equipmentSchedule } from '../../docs/schedules';
 import { buildDmFormHtml } from '../../docs/dmForm';
 import { registerHtml, registerRows } from '../../docs/drawingRegister';
 import { boqBookmarks, buildBoqHtml } from '../../docs/boqWorkbook';
@@ -130,9 +130,6 @@ export const CATALOGUE: CatalogueEntry[] = [
     missing: (c) => (c.project.feeders.some(isScheduleCircuit) ? undefined : 'No board has schedule circuits'),
     build: (c) => c.project.boards.filter((b) => c.project.feeders.some((f) => f.boardId === b.id && isScheduleCircuit(f)))
       .map((b) => ({ title: `Load schedule — ${b.id}`, file: safeFileName(`${b.id}-load-schedule`), html: buildLoadScheduleHtml(c.project, b.id), page: A4(true, { cssPages: true }) })) },
-  { key: 'db-schedule', category: 'Electrical schedules', title: 'DB schedule', needsRun: true,
-    description: 'Panel schedule of every board.',
-    build: (c) => one('DB schedule', name(c, 'DB schedule'), scheduleHtml(calc(c), dbSchedule(calc(c)), 'DB schedule'), A4(true, { cssPages: true })) },
   { key: 'cable-schedule', category: 'Electrical schedules', title: 'Cable schedule', needsRun: true,
     description: 'Every cable in the installation.',
     build: (c) => one('Cable schedule', name(c, 'cable schedule'), scheduleHtml(calc(c), cableSchedule(calc(c)), 'Cable schedule'), A4(true, { cssPages: true })) },
