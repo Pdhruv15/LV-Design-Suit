@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Symbol Library Mockup</title>
+<style>
+:root{--ink:#000;--mute:#555;--rule:#bbb;--bg:#fff}
+body{margin:0;padding:16px;background:var(--bg);color:var(--ink);font:13px/1.4 Arial,Helvetica,sans-serif}
+h1{font-size:18px;margin:0 0 4px}h2{font-size:14px;margin:20px 0 8px;border-bottom:1px solid var(--ink)}
+p{margin:4px 0;color:var(--mute)}label{font-size:12px;cursor:pointer}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.c{border:1px solid var(--rule);padding:8px;text-align:center}
+.c svg{width:96px;height:96px;display:block;margin:0 auto 4px}
+.n{font-weight:bold}.r{font-size:11px;color:var(--mute)}
+.t{display:inline-block;font-size:10px;border:1px solid var(--ink);padding:0 4px;margin-top:3px}
+.t.new{background:#000;color:#fff}
+svg *{stroke:#000;stroke-width:1.5;fill:none;vector-effect:non-scaling-stroke}
+svg text{stroke:none;fill:#000;font:bold 9px Arial;text-anchor:middle}
+svg text.l{font:8px Arial;text-anchor:start}
+svg .f{fill:#000}svg .d{stroke-dasharray:3 2}svg .k{stroke-width:4}
+svg .g{stroke:#bbb;stroke-width:.75;stroke-dasharray:2 2}
+body.noguide svg .g{display:none}
+</style></head><body>
+<h1>LV Design Studio — proposed symbol library (IEC 60617)</h1>
+<p>Black-and-white, drawn from scratch on a 2.5 mm grid (no artwork copied from other libraries). IEC 60617 numbers to be re-checked against the IEC database at implementation.</p>
+<p><b>One size for every symbol:</b> each main symbol fits the same 28 × 32 box (dashed guide), with the line entering at the top and leaving at the bottom on the same axis. In-line accessories (CT, toroid, drawout marks) are a fixed 12 units wide. Labels always start at the same point on the right, in the same text size.</p>
+<p><label><input type="checkbox" id="gd" checked> Show size guide</label> &nbsp; <b>Redraw</b> = exists today · <b>New</b> = not in the library yet</p>
+<div id="app"></div>
+<script>
+// Axis x=30; main body inside x16–44, y24–56; leads 0–24 and 56–80; labels at x=48.
+const G='<rect class="g" x="16" y="24" width="28" height="32"/>';
+const B='M30 0V25M30 55V80M30 55L19 28';  // switch: incoming, outgoing, blade
+const X='M26 21L34 29M34 21L26 29';       // breaker function
+const BAR='M25 25H35';                     // disconnector function
+const IN='M30 0V24', OUT='M30 56V80';
+const L=(t,y=44)=>`<text class="l" x="48" y="${y}">${t}</text>`;
+const BOX=t=>`<path d="${IN}"/><rect x="16" y="24" width="28" height="32"/><text x="30" y="44">${t}</text>`;
+const PANEL=t=>`<path d="${IN}"/><rect x="16" y="24" width="28" height="32"/><rect class="f" x="16" y="24" width="28" height="5"/><text x="30" y="46">${t}</text>`;
+const INSTR=t=>`<path d="${IN}"/><circle cx="30" cy="40" r="14"/><text x="30" y="43">${t}</text>`;
+const SIG=t=>`<path class="d" d="M44 40H62"/>${L(t,36)}`;   // dashed signal / comms link
+const E=y=>`M20 ${y}H40M24 ${y+4}H36M28 ${y+8}H32`;
+const groups=[
+['Switching & protective devices',[
+['Circuit breaker (MCB/MCCB)','07-13-05','Redraw',`<path d="${B} ${X}"/>`],
+['ACB, withdrawable','07-13-05 + drawout','Redraw',`<path d="${B} ${X} M24 14L30 8L36 14M24 66L30 72L36 66"/>${L('ACB')}`],
+['Disconnector / isolator','07-13-06','Redraw',`<path d="${B} ${BAR}"/>`],
+['Switch-disconnector','07-13-08','New',`<path d="${B} ${BAR}"/><circle cx="30" cy="29" r="2.5"/>`],
+['Contactor','07-13-02','New',`<path d="${B}"/><path d="M26 25A4 4 0 0 1 34 25"/>${L('KM')}`],
+['Fuse','07-21-01','New',`<path d="M30 0V80"/><rect x="24" y="24" width="12" height="32"/>`],
+['Fuse switch-disconnector','07-21-07','New',`<path d="${B} ${BAR}"/><rect x="20.5" y="34" width="7" height="14" transform="rotate(-22 24 41)"/>`],
+['RCBO (breaker + RCD)','07-13-05 + 07-20','New',`<path d="${B} ${X}"/><ellipse cx="30" cy="66" rx="6" ry="3"/><path class="d" d="M36 66H44V40H25"/>${L('IΔn',70)}`],
+['Breaker with shunt trip','07-13-05 + 07-15','New',`<path d="${B} ${X}"/><path class="d" d="M25 40H48"/><rect x="48" y="34" width="12" height="12"/>${L('ST',56)}`],
+['Changeover / ATS','07-02-05','New',`<path d="M18 0V25M42 0V25M30 55V80M30 55L19 28"/>${L('ATS')}`],
+['RCCB / ELCB','07-13-08 + 07-20','New',`<path d="${B} ${BAR}"/><ellipse cx="30" cy="66" rx="6" ry="3"/><path class="d" d="M36 66H44V40H25"/>${L('IΔn',70)}`],
+]],
+['Motor starters & relays',[
+['DOL starter','box (KM + OL)','New',`${BOX('DOL')}<path d="${OUT}"/>`],
+['Star-delta starter','box','New',`${BOX('Y-Δ')}<path d="${OUT}"/>`],
+['Soft starter','06-14 (box)','New',`<path d="${IN} ${OUT}"/><rect x="16" y="24" width="28" height="32"/><path d="M20 50H26L36 30H40"/>${L('SS')}`],
+['VFD (frequency converter)','06-14-xx','New',`<path d="${IN} ${OUT}"/><rect x="16" y="24" width="28" height="32"/><path d="M16 56L44 24"/><text x="23" y="36">f1</text><text x="37" y="51">f2</text>${L('VFD')}`],
+['Thermal overload relay','07-15-21','New',`<path d="${IN} ${OUT}"/><rect x="16" y="24" width="28" height="32"/><path d="M30 24V32H24V48H30V56"/>${L('OL')}`],
+['Undervoltage relay','07-15 + U&lt;','New',`${BOX('U&lt;')}${SIG('UVR')}`],
+['Phase failure relay','07-15 (box)','New',`${BOX('PFR')}${SIG('trip')}`],
+]],
+['Panels & boards (shown as one box, no downstream detail)',[
+['LV main panel (MDB)','11-15 (box)','New',PANEL('MDB')],
+['Sub-main board','11-15 (box)','New',PANEL('SMDB')],
+['Distribution board','11-15 (box)','New',PANEL('DB')],
+['Emergency DB','11-15 (box)','New',PANEL('EDB')],
+['Motor control centre','11-15 (box)','New',PANEL('MCC')],
+['Capacitor panel (APFC)','11-15 + 04-02-01','New',PANEL('APFC')],
+]],
+['Sources & conversion',[
+['Transformer, 2-winding','06-09-01','Redraw',`<path d="${IN} ${OUT}"/><circle cx="30" cy="33" r="9"/><circle cx="30" cy="47" r="9"/>${L('Dyn11')}`],
+['Generator, 3-phase','06-04-01','New',`${INSTR('G')}<text class="l" x="25" y="52">3~</text>`],
+['Authority supply / incomer','—','New',`<path d="M30 40V80M16 40H44"/><path d="M18 36L30 24L42 36Z"/>${L('DEWA',30)}`],
+['PV array + inverter','04-26 / 06-14-04','Redraw',`<path d="${OUT}"/><rect x="16" y="24" width="28" height="32"/><path d="M16 56L44 24"/><text x="23" y="37">=</text><text x="37" y="51">~</text><path d="M4 8L11 15M8 15H11V12M12 4L19 11M16 11H19V8"/>`],
+]],
+['Metering, monitoring & interfaces',[
+['Current transformer','06-09-11','Redraw',`<path d="M30 0V80"/><circle cx="30" cy="40" r="6"/><path d="M36 40H44"/>${L('CT')}`],
+['Voltage transformer','06-09-01 (small)','New',`<path d="${IN}"/><circle cx="30" cy="33" r="9"/><circle cx="30" cy="47" r="9"/>${L('VT')}`],
+['Voltmeter','08-02-01','New',`${INSTR('V')}`],
+['Ammeter','08-02-01','New',`${INSTR('A')}`],
+['kWh meter','08-04-03','Redraw',`${BOX('kWh')}`],
+['Power monitoring unit','08-04 (box)','New',`${BOX('PMU')}${SIG('RS485')}`],
+['BMS interface','box + signal','New',`${BOX('BMS')}${SIG('BMS')}`],
+['Fire alarm interface module','box + signal','New',`${BOX('FAIM')}${SIG('FA')}`],
+['Earth leakage relay + CBCT','07-20 + 06-09-11','New',`<path d="M30 0V80"/><ellipse cx="30" cy="16" rx="6" ry="3"/><path class="d" d="M36 16H48V24"/><rect x="38" y="24" width="20" height="20"/><text x="48" y="37">ELR</text>`],
+['Indication lamps R-Y-B','08-10-01 (small)','New',`<path d="M30 0V80M30 40H44"/><circle cx="50" cy="40" r="6"/><path d="M46 36L54 44M54 36L46 44"/>${L('RYB',56)}`],
+['Surge protective device','07-22-03','New',`<path d="${IN} M30 56V64"/><rect x="22" y="24" width="16" height="32"/><path d="M30 28V52M27 48L30 52L33 48"/><path d="${E(64)}"/>${L('SPD')}`],
+['Earth','02-15-01','New',`<path d="M30 0V40"/><path d="${E(40)}"/>`],
+['Protective earth (PE)','02-15-03','New',`<path d="M30 0V26"/><circle cx="30" cy="40" r="14"/><path d="M22 36H38M25 40H35M28 44H32"/>`],
+]],
+['Distribution & loads',[
+['Busbar with ways','03-01-xx','Redraw',`<path class="k" d="M4 24H56"/><path d="M14 24V80M30 24V80M46 24V80"/><text x="30" y="16">400 V</text>`],
+['Motor, 3-phase','06-04-01','Redraw',`${INSTR('M')}<text class="l" x="25" y="52">3~</text>`],
+['Lighting point','08-10-01','Redraw',`<path d="M30 0V26"/><circle cx="30" cy="40" r="14"/><path d="M20 30L40 50M40 30L20 50"/>`],
+['Socket outlet','11-13-01','Redraw',`<path d="M30 0V32M16 32H44M16 32A14 14 0 0 0 44 32"/>`],
+['Capacitor bank','04-02-01','Redraw',`<path d="M30 0V36M30 44V52"/><path class="k" d="M16 36H44M16 44H44"/><path d="${E(52)}"/>`],
+['Equipment (AC/EV/IT)','02-01-01','Redraw',`${BOX('EV')}`],
+['Existing equipment','line style','New',`<path class="d" d="${IN}"/><rect class="d" x="16" y="24" width="28" height="32"/><text x="30" y="44">EX</text>`],
+]],
+];
+document.getElementById('app').innerHTML=groups.map(([g,items])=>`<h2>${g}</h2><div class="grid">${items.map(([n,r,t,s])=>
+`<div class="c"><svg viewBox="0 0 80 80">${G}${s}</svg><div class="n">${n}</div><div class="r">IEC 60617 ${r}</div><span class="t ${t==='New'?'new':''}">${t}</span></div>`).join('')}</div>`).join('')+
+`<h2>Drawing rules applied to every symbol</h2><p>Grid module 2.5 mm · Main symbol box 28 × 32 units, accessories 12 units · Line 0.25 mm, busbar 0.7 mm · Dashed line = signal / comms / existing · Text 2.5 mm upright, labels right of the axis · Same symbol on screen, SVG/DXF and PDF · Legend lists only symbols on the drawing.</p>`;
+document.getElementById('gd').onchange=e=>document.body.classList.toggle('noguide',!e.target.checked);
+</script></body></html>
