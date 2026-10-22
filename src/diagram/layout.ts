@@ -2,12 +2,15 @@ import type { Board, Feeder, Project, SpareWay } from '../types';
 import { isDbBoard, spareWaysOf } from '../model/spareWays';
 import { isScheduleCircuit } from '../calc/loadSchedule';
 import { isInterlocked } from '../model/changeover';
+import { boxedBoardIds } from './panelBox';
 
 /** Horizontal slot per load, vertical distance between board levels. */
 export const LEAF_W = 132;
 export const LEVEL_H = 270;
 export const ROOT_BUS_Y = 210;
 const MARGIN_X = 36;
+/** A load symbol's centre below its board's busbar (where an end board's panel box goes). */
+export const BOX_DY = 94;
 
 export interface BoardNode {
   board: Board;
@@ -17,6 +20,8 @@ export interface BoardNode {
   circuits: Feeder[];
   /** No outgoing feeders drawn: the SLD ends at this board (no busbar). */
   terminal: boolean;
+  /** End board drawn as one panel box in a load's slot on its parent's level (depth stays its own); x / busY are the box centre. */
+  boxed?: boolean;
   depth: number;
   x: number; // centre of the board box / incomer drop
   busY: number;
@@ -34,6 +39,7 @@ export interface FeederNode {
   x: number;
   busY: number; // bus of the board it's connected to
   childBoardId?: string; // set for incomers to a sub-board
+  panelBoardId?: string; // feeds a sub-board drawn as one panel box, in a load's slot
 }
 
 /** A spare breaker or a space on a panel's busbar (DB spares stay on the load schedule, like its circuits). */
@@ -78,6 +84,8 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
   const scheduled = (boardId: string) => sched.get(boardId) ?? [];
   const children = (boardId: string) => kids.get(boardId) ?? [];
   const subBoard = (f: Feeder) => (f.feedsBoardId ? byId.get(f.feedsBoardId) : undefined);
+  // End boards drawn as one box take a load's slot on their parent's level.
+  const boxed = boxedBoardIds(project);
   const busSpares = (boardId: string) => { const b = byId.get(boardId); return b && !isDbBoard(b) ? spareWaysOf(b) : []; };
 
   const unitsCache = new Map<string, number>();
@@ -87,7 +95,7 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
     path.add(boardId);
     const n = children(boardId).reduce((sum, f) => {
       const child = subBoard(f);
-      return sum + (child ? units(child.id, path) : 1);
+      return sum + (child && !boxed.has(child.id) ? units(child.id, path) : 1);
     }, busSpares(boardId).length);
     path.delete(boardId);
     const b = byId.get(boardId);
@@ -109,7 +117,14 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
     const xs: number[] = [];
     for (const f of children(board.id)) {
       const child = subBoard(f);
-      if (child && !placed.has(child.id)) {
+      if (child && boxed.has(child.id) && !placed.has(child.id)) {
+        placed.add(child.id);
+        const x = cursor + LEAF_W / 2;
+        feeders.push({ feeder: f, x, busY, panelBoardId: child.id });
+        boards.push({ board: child, circuits: scheduled(child.id), terminal: true, boxed: true, depth: depth + 1, x, busY: busY + BOX_DY, headY: busY + BOX_DY, busX1: x, busX2: x });
+        xs.push(x);
+        cursor += LEAF_W;
+      } else if (child && !placed.has(child.id)) {
         const w = units(child.id, new Set());
         const node = place(child, cursor, depth + 1);
         feeders.push({ feeder: f, x: node.x, busY, childBoardId: child.id });
@@ -164,7 +179,8 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
     left += units(b.id, new Set()) * LEAF_W;
   }
 
-  const maxDepth = boards.reduce((m, b) => Math.max(m, b.depth), 0);
+  const maxDepth = boards.reduce((m, b) => (b.boxed ? m : Math.max(m, b.depth)), 0);
+  const level = (b: BoardNode) => (b.boxed ? b.depth - 1 : b.depth);
   // A level with a changeover board is taller by CHANGEOVER_H; the levels below move down with it.
   const shift: number[] = [];
   for (let d = 0, sum = 0; d <= maxDepth; d++) {
@@ -174,8 +190,8 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
   if (shift[maxDepth]) {
     const depthOf = new Map(boards.map((b) => [b.board.id, b.depth]));
     for (const b of boards) {
-      b.busY += shift[b.depth];
-      b.headY = b.busY - (isInterlocked(b.board) ? CHANGEOVER_H : 0);
+      b.busY += shift[level(b)];
+      b.headY = b.busY - (!b.boxed && isInterlocked(b.board) ? CHANGEOVER_H : 0);
     }
     for (const f of feeders) f.busY += shift[depthOf.get(f.feeder.boardId) ?? 0];
     for (const w of spares) w.busY += shift[depthOf.get(w.boardId) ?? 0];
