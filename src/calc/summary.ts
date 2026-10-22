@@ -42,7 +42,7 @@ function boardTotalsOf(project: Project, boardId: string, seen: Set<string>, cov
   const own = networkOf(project)?.feedersByBoard.get(boardId) ?? project.feeders.filter((f) => f.boardId === boardId);
   const board = networkOf(project)?.boardById.get(boardId) ?? project.boards.find((b) => b.id === boardId);
   const rec = !covered && board ? recordedPQ(project, board) : undefined;
-  const cov = covered || !!rec;
+  const cov = covered || !!rec?.covers;
   const recorded: PowerTotals = rec ? { connectedKw: rec.p, demandKw: rec.p, demandKvar: rec.q, generationKw: 0 } : ZERO;
   const caps = own.filter((f) => f.kvar && !f.feedsBoardId && !(cov && f.existing));
   const base = own.filter((f) => !caps.includes(f) && !(cov && f.existing && !f.feedsBoardId)).reduce((acc, f) => {

@@ -30,7 +30,8 @@ type BoardField = keyof Board;
 
 // Network shape: which board feeds which, and the sources.
 const TOPOLOGY_F: FeederField[] = ['id', 'boardId', 'feedsBoardId'];
-const TOPOLOGY_B: BoardField[] = ['id', 'upstreamId', 'sourceKva', 'sourceImpedancePct', 'sourceXr'];
+// The supply (its fault level) and an existing board's recorded / kept load also set the results.
+const TOPOLOGY_B: BoardField[] = ['id', 'upstreamId', 'sourceKva', 'sourceImpedancePct', 'sourceXr', 'supply', 'existing'];
 const LOAD_F: FeederField[] = ['loadKw', 'demandFactor', 'powerFactor', 'phase', 'cores', 'kvar', 'generation'];
 const CABLE_F: FeederField[] = ['lengthM', 'cableCsaMm2', 'parallel', 'cores'];
 const BREAKER_F: FeederField[] = ['breakerRatingA', 'breakerType', 'breakerImMultiple', 'breakerIcuKa'];

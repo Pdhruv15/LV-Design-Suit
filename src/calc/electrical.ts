@@ -59,7 +59,7 @@ export function boardDemandKw(project: Project, boardId: string, path = new Set<
   // A recorded maximum demand (existing installation) covers the existing load at and below its board.
   const board = project.boards.find((b) => b.id === boardId);
   const rec = !covered && board ? recordedPQ(project, board) : undefined;
-  const cov = covered || !!rec;
+  const cov = covered || !!rec?.covers;
   const kw = project.feeders
     .filter((f) => f.boardId === boardId)
     .reduce((sum, f) => sum + (f.feedsBoardId ? boardDemandKw(project, f.feedsBoardId, path, cov) : cov && f.existing ? 0 : f.loadKw * f.demandFactor), rec?.p ?? 0);
@@ -256,6 +256,14 @@ export function transformerImpedance(sourceKva: number, impedancePct: number, vo
   return { r, x: r * xr };
 }
 
+/** Source impedance of a supply with a stated fault level (an authority supply, or a neighbouring
+ * building's main board): |Z| = c · U ÷ (√3 · Ik″), split with the default transformer X/R. */
+export function supplyImpedance(faultKa: number, voltageV: number, xr = DEFAULT_TRANSFORMER_XR): Impedance {
+  const z = (C_MAX * voltageV) / (SQRT3 * faultKa * 1000);
+  const r = z / Math.sqrt(1 + xr * xr);
+  return { r, x: r * xr };
+}
+
 /** Cable phase impedance for the maximum short-circuit current: R at 20 °C
  * (IEC 60909-0 uses the conductor at 20 °C for maximum currents — a cold
  * cable gives the highest fault). Minimum faults (earthing) use the
@@ -308,7 +316,8 @@ function impedanceToBoardOf(project: Project, board: Board, seen: Set<string>): 
   const fallback = { r: 0, x: 0.01 };
 
   if (!board.upstreamId) {
-    if (!board.sourceKva || !board.sourceImpedancePct) return fallback;
+    // No transformer: a supply with a stated fault level (authority, or a neighbouring building's main board).
+    if (!board.sourceKva || !board.sourceImpedancePct) return board.supply?.faultKa ? supplyImpedance(board.supply.faultKa, project.voltageV) : fallback;
     // A closed coupler joins the busbars: every transformer on them feeds a fault (couplers taken as 0 Ω).
     const group = parallelGroup(project, board.id);
     const zs = group.map((b) => transformerImpedance(b.sourceKva!, b.sourceImpedancePct!, project.voltageV, b.sourceXr));
