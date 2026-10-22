@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
 import {
   addFeedersToRoute, deleteRoute, emptyTrayPlan, ensureRoutes, groupingFactor, lookupOd, nextRouteName, panelCables, pickTray, removeFeederFromRoute,
-  renameRoute, routeNames, sizeRoute, trayGrouping, trayPlanOf, trayQuantities, unroutedFeeders, DEFAULT_CABLE_ODS
+  renameRoute, routeNames, sizeAll, sizeRoute, trayGrouping, trayPlanOf, trayQuantities, unroutedFeeders, DEFAULT_CABLE_ODS
 } from './cableTray';
 import { evaluateFeeder } from './electrical';
 import { runCalculations, staleStudies } from './runs';
@@ -93,6 +93,17 @@ describe('cable tray sizing', () => {
     expect(p.feeders.find((x) => x.id === f.id)!.trayRoute).toBe('RISER');
     expect(unroutedFeeders(p).some((x) => x.id === f.id)).toBe(false);
     expect(unroutedFeeders(sampleProject).length).toBe(sampleProject.feeders.filter((x) => !x.phase).length);
+  });
+
+  it('the all-route index preserves individual route sizing and explicit overrides', () => {
+    const feeders = sampleProject.feeders.slice(0, 3).map((f, i) => ({ ...f, trayRoute: i === 0 ? 'A-B' : i === 1 ? 'B' : undefined }));
+    const routes: TrayRoute[] = [
+      { id: 'a', name: 'A', cables: [{ id: 'override', feederId: feeders[2].id, qty: 2 }] },
+      { id: 'b', name: 'B', cables: [{ id: 'deleted', feederId: 'gone', qty: 1 }] }
+    ];
+    const project = { ...sampleProject, feeders };
+    const trayPlan = { ...plan(), routes };
+    expect(sizeAll(project, trayPlan)).toEqual(routes.map((r) => sizeRoute(project, trayPlan, r)));
   });
 
   it('grouping factors: IEC 60364-5-52 B.52.20 on trays, B.52.17 bunched', () => {
