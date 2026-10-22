@@ -39,6 +39,11 @@ describe('trip thresholds', () => {
 });
 
 describe('selectivity', () => {
+  it('returns no pairs when an incomer supplies an empty board', () => {
+    // Number of selectivity pairs = Σ outgoing breakers below each incomer = 0 for an empty SUB board.
+    expect(evaluateSelectivity(project([]))).toEqual([]);
+  });
+
   it('total when the upstream magnetic threshold exceeds the downstream fault level', () => {
     // Long incomer → low fault at SUB; 250 A MCCB no-trip edge = 2 kA
     const r = evaluateSelectivity(project([feeder({ id: 'D1', breakerRatingA: 63 })], 600))[0];
