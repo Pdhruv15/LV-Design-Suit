@@ -4,6 +4,7 @@ import { newBuilding } from './building';
 import { addServices, applyRiserLengths, defaultServices, floorLoads, floorsOf, generateBuildingDbs, plannedDbs, roomDensities, unitLoads } from './buildingDesign';
 import { scheduleCircuits } from './loadSchedule';
 import type { Project } from '../types';
+import { EXPORT_NUMBERS } from '../../tests/fixtures/exportNumbers';
 
 const b = { ...newBuilding('T1', 'Tower'), riser: { horizontalM: 20, perDbM: 10 } };
 b.levels = [
@@ -83,6 +84,15 @@ describe('building summary sheet', async () => {
     expect(Object.values(s.meters).reduce((a, n) => a + n, 0)).toBe(6);
     expect(buildingSummaryHtml(r, ['T1'])).toContain('building load summary');
     expect(buildingSummaryWorkbook(r, ['T1']).worksheets.length).toBe(1);
+  });
+  it('keeps the existing PDF precision and unit labels in the Excel number formats', () => {
+    const r = generateBuildingDbs(p, 'T1', 'MDB-1').project;
+    const ws = buildingSummaryWorkbook(r, ['T1']).worksheets[0];
+    expect(ws.getRow(5).values).toEqual(expect.arrayContaining(['Gross area (m²)', 'Connected (kW)', 'Demand (kW)', 'W/m²']));
+    const first = ws.getRow(6);
+    expect([first.getCell(3).numFmt, first.getCell(4).numFmt, first.getCell(5).numFmt, first.getCell(6).numFmt]).toEqual(['#,##0', '#,##0.00', '#,##0.00', '#,##0.0']);
+    expect(Number(EXPORT_NUMBERS.connectedKw.toFixed(2))).toBe(12.35);
+    expect(Number(EXPORT_NUMBERS.wattsPerM2.toFixed(1))).toBe(7.7);
   });
 });
 

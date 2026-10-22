@@ -22,6 +22,7 @@ const head = (row: ExcelJS.Row) => {
   row.eachCell((c) => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1D4F8F' } }; c.border = box; c.alignment = { vertical: 'middle', wrapText: true }; });
 };
 const MONEY = '#,##0.00';
+const QUANTITY = '#,##0.##';
 
 const templateLabel = (project: Project) => project.boq?.projectType === 'fit-out' ? 'Fit-out' : project.boq?.projectType === 'new-installation' ? 'New installation' : undefined;
 const decisionLabels = { included: 'Included', 'by-others': 'By others', 'not-applicable': 'Not applicable', 'not-reviewed': 'Not reviewed' };
@@ -178,6 +179,7 @@ export function buildBoqWorkbook(project: Project, bom: PricedBom, list?: PriceL
     st.getCell(7).border = box;
     r++;
   }
+  ws.getColumn(4).numFmt = QUANTITY;
   for (const c of [5, 6, 7]) ws.getColumn(c).numFmt = MONEY;
 
   // Existing projects retain their two-sheet export until a scope template is
@@ -239,6 +241,7 @@ export function buildBoqWorkbook(project: Project, bom: PricedBom, list?: PriceL
     cr++;
     line(`Total excluding VAT (Rev ${prev.id} → Rev ${state.rev})`, prev.total, bom.total);
     if (prev.vat || bom.vat) line('Grand total including VAT', prev.grandTotal, bom.grandTotal);
+    for (const c of [5, 6]) cw.getColumn(c).numFmt = QUANTITY;
     for (const c of [7, 8, 9]) cw.getColumn(c).numFmt = MONEY;
     cw.getColumn(2).alignment = { wrapText: true, vertical: 'top' };
   }
@@ -258,6 +261,8 @@ export function buildPriceTemplate(items: BomItem[], list?: PriceList): ExcelJS.
     const e = list?.rates[x.key];
     ws.addRow([x.key, x.description, x.unit, e?.rate ?? null, e?.labour ?? null]);
   }
+  ws.getColumn(4).numFmt = MONEY;
+  ws.getColumn(5).numFmt = MONEY;
   ws.getColumn(1).font = { color: { argb: 'FF808080' } };
   return wb;
 }

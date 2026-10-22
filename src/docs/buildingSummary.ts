@@ -14,6 +14,7 @@ import { isRasterDataUrl } from '../util/escape';
 const f0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const f1 = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const f2 = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const INTEGER = '#,##0', ONE_DECIMAL = '#,##0.0', TWO_DECIMALS = '#,##0.00';
 
 export interface BuildingSheet {
   name: string; use: string; description: string; floors: number; gfaM2: number; buaM2: number; heightM: number;
@@ -83,18 +84,27 @@ export function buildingSummaryWorkbook(project: Project, ids: string[]): ExcelJ
     const ws = wb.addWorksheet(s.name.slice(0, 31));
     ws.addRow([`${s.name} — building load summary`]).font = { bold: true, size: 13 };
     ws.addRow([project.name, revisionStamp(project)]);
-    ws.addRow(['Use', s.use, 'Floors', `${s.description} (${s.floors})`, 'GFA (m²)', Math.round(s.gfaM2), 'BUA (m²)', Math.round(s.buaM2)]);
+    const summary = ws.addRow(['Use', s.use, 'Floors', `${s.description} (${s.floors})`, 'GFA (m²)', Math.round(s.gfaM2), 'BUA (m²)', Math.round(s.buaM2)]);
+    summary.getCell(6).numFmt = INTEGER; summary.getCell(8).numFmt = INTEGER;
     ws.addRow([]);
     ws.addRow(['Floor', 'Level', 'Gross area (m²)', 'Connected (kW)', 'Demand (kW)', 'W/m²', 'DBs']).font = { bold: true };
-    for (const r of s.rows) ws.addRow([r.tag, r.level, r.grossM2 || null, +r.connectedKw.toFixed(2), +r.demandKw.toFixed(2), r.wPerM2 ? +r.wPerM2.toFixed(1) : null, r.dbs]);
-    ws.addRow(['Total', '', '', +s.tclKw.toFixed(2), +s.rows.reduce((a, r) => a + r.demandKw, 0).toFixed(2)]).font = { bold: true };
+    for (const r of s.rows) {
+      const row = ws.addRow([r.tag, r.level, r.grossM2 || null, +r.connectedKw.toFixed(2), +r.demandKw.toFixed(2), r.wPerM2 ? +r.wPerM2.toFixed(1) : null, r.dbs]);
+      row.getCell(3).numFmt = INTEGER; row.getCell(4).numFmt = TWO_DECIMALS; row.getCell(5).numFmt = TWO_DECIMALS; row.getCell(6).numFmt = ONE_DECIMAL;
+    }
+    const total = ws.addRow(['Total', '', '', +s.tclKw.toFixed(2), +s.rows.reduce((a, r) => a + r.demandKw, 0).toFixed(2)]);
+    total.font = { bold: true }; total.getCell(4).numFmt = TWO_DECIMALS; total.getCell(5).numFmt = TWO_DECIMALS;
     if (s.units.length) {
       ws.addRow([]);
       ws.addRow(['Unit type', 'Units', 'Connected (kW)', 'Per unit (kW)', 'Meters']).font = { bold: true };
-      for (const u of s.units) ws.addRow([u.type, u.count, +u.connectedKw.toFixed(2), +(u.connectedKw / u.count).toFixed(2), u.meters]);
+      for (const u of s.units) {
+        const row = ws.addRow([u.type, u.count, +u.connectedKw.toFixed(2), +(u.connectedKw / u.count).toFixed(2), u.meters]);
+        row.getCell(2).numFmt = INTEGER; row.getCell(3).numFmt = TWO_DECIMALS; row.getCell(4).numFmt = TWO_DECIMALS;
+      }
     }
     ws.addRow([]);
-    ws.addRow(['TCL (kW)', +s.tclKw.toFixed(2), 'DF', +s.df.toFixed(2), 'MDL (kW)', +s.mdlKw.toFixed(2)]).font = { bold: true };
+    const totals = ws.addRow(['TCL (kW)', +s.tclKw.toFixed(2), 'DF', +s.df.toFixed(2), 'MDL (kW)', +s.mdlKw.toFixed(2)]);
+    totals.font = { bold: true }; totals.getCell(2).numFmt = TWO_DECIMALS; totals.getCell(4).numFmt = TWO_DECIMALS; totals.getCell(6).numFmt = TWO_DECIMALS;
     ws.columns = [10, 26, 16, 16, 14, 10, 40, 12].map((width) => ({ width }));
   }
   if (!wb.worksheets.length) wb.addWorksheet('Empty');
