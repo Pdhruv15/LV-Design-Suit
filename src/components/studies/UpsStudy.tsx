@@ -2,7 +2,7 @@ import { X } from 'lucide-react';
 import { ask } from '../ConfirmDialog';
 import { useState } from 'react';
 import type { Project } from '../../types';
-import { LI_MODULE_AH, sizeUps, UPS_DEFAULTS, VRLA_BLOCK_AH, DC_VOLTAGES, type BatteryChem, type UpsLoad, type UpsSystem } from '../../calc/ups';
+import { LI_MODULE_AH, sizeUps, UPS_DEFAULTS, VRLA_BLOCK_AH, DC_VOLTAGES, UPS_FILTER_KVAR_PCT, GEN_LEADING_KVAR_PCT, type BatteryChem, type UpsLoad, type UpsSystem } from '../../calc/ups';
 import { STANDARD_UPS_KVA } from '../../calc/sizing';
 import { boardsInSupplyOrder } from '../../calc/summary';
 import { buildUpsReportHtml } from '../../docs/upsSolarReport';
@@ -132,6 +132,8 @@ function UpsCard({ project, s, upsBoardIds, onPatch, onRemove, onApply }: {
         <NumField label="Growth" unit="%" value={s.growthPct} width={55} min={0} onSet={(v) => onPatch({ growthPct: v ?? 0 })} />
         <NumField label="Max loading" unit="%" value={s.maxLoadingPct} width={55} min={10} max={100} onSet={(v) => onPatch({ maxLoadingPct: v ?? 80 })} />
         <NumField label="UPS output PF" value={s.outputPf} width={55} min={0.5} max={1} onSet={(v) => onPatch({ outputPf: v ?? 0.9 })} />
+        <NumField label="Input filter" unit="kvar leading" value={s.inputFilterKvar} optional placeholder={`${UPS_FILTER_KVAR_PCT} % of UPS kVA`} width={55} min={0} title="Leading kvar of the UPS input filter at light load, from the datasheet. Blank = the typical figure" onSet={(v) => onPatch({ inputFilterKvar: v })} />
+        <NumField label="Generator absorbs" unit="% leading" value={s.genLeadingPct} optional placeholder={String(GEN_LEADING_KVAR_PCT)} width={55} min={0} max={100} title="Leading kvar the standby generator absorbs, % of its kVA, from its reactive capability curve. Blank = the typical figure" onSet={(v) => onPatch({ genLeadingPct: v })} />
         <NumField label="Inverter efficiency" unit="%" value={+(s.inverterEff * 100).toFixed(1)} width={55} min={50} max={100} onSet={(v) => onPatch({ inverterEff: (v ?? 94) / 100 })} />
         <NumField label="Backup time" unit="min" value={s.autonomyMin} width={55} min={1} onSet={(v) => onPatch({ autonomyMin: v ?? 15 })} />
         <label className="nf"><span>Battery</span>
