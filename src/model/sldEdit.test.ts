@@ -178,3 +178,19 @@ describe('generator, UPS, capacitor bank and database equipment', () => {
     expect(applyDrop(sampleProject, { kind: 'library', name: 'Gone' }, bus('MCC-1'), lib).project).toBe(sampleProject);
   });
 });
+
+describe('changeover and PMU from the library', () => {
+  const emdb = sampleProject.boards[1].id;
+  it('adds a generator with interlocked incomers, instruments and PMU', () => {
+    const r = applyDrop(sampleProject, { kind: 'generator', changeover: 'ACB' }, { type: 'bus', boardId: emdb });
+    const b = r.project.boards.find((x) => x.id === emdb)!;
+    expect(b.standby?.changeover).toBe('ACB');
+    expect(b).toMatchObject({ instruments: true, pmu: true });
+  });
+  it('puts a PMU on a board from its busbar only', () => {
+    const pmu: PaletteItem = { kind: 'accessory', accessory: 'pmu' };
+    expect(canDrop(sampleProject, pmu, { type: 'bus', boardId: emdb })).toBe(true);
+    expect(canDrop(sampleProject, pmu, { type: 'feeder', feederId: sampleProject.feeders[0].id })).toBe(false);
+    expect(applyDrop(sampleProject, pmu, { type: 'bus', boardId: emdb }).project.boards.find((x) => x.id === emdb)!.pmu).toBe(true);
+  });
+});

@@ -38,7 +38,7 @@ export type ProtectionDevice = 'ACB' | 'MCCB' | 'MCB' | 'ISOL';
 export type PaletteItem =
   | { kind: 'board'; board: BoardKind }
   | { kind: 'transformer' }
-  | { kind: 'generator' }
+  | { kind: 'generator'; changeover?: 'ACB' }
   | { kind: 'capacitor' }
   | { kind: 'library'; name: string }
   | { kind: 'starter'; starter: StarterType }
@@ -50,7 +50,9 @@ export type PaletteItem =
   | { kind: 'cable' };
 
 /** Devices added to a feeder or a busbar without changing its breaker. */
-export type Accessory = 'meter' | 'ct-meter' | 'rcd' | 'isolator' | 'spd' | 'cable-fr' | 'cable-lszh';
+export type Accessory = 'meter' | 'ct-meter' | 'rcd' | 'isolator' | 'spd' | 'pmu' | 'cable-fr' | 'cable-lszh';
+/** Accessories dropped on a busbar (the board's incomer); the others go on a feeder. */
+const BUS_ACCESSORIES: Accessory[] = ['spd', 'pmu'];
 
 /** Where something is dropped. On a busbar, `before` is the feeder the new
  * way goes in front of (from where it was dropped); none = at the end. */
@@ -72,7 +74,8 @@ export const PALETTE: { group: string; entries: PaletteEntry[] }[] = [
       { item: { kind: 'transformer' }, label: 'Transformer', title: 'Drop on the empty canvas for a new supply with its MDB, or on a main board to give it a transformer' },
       { item: { kind: 'board', board: 'MC' }, label: 'Meter cabinet', title: 'Authority supply (e.g. DEWA meter cabinet) — drop on the empty canvas' },
       { item: { kind: 'tie' }, label: 'Bus coupler / tie', title: 'Drop on a main board: a normally-open tie to the other transformer-fed main board, for the “transformer failed” scenario' },
-      { item: { kind: 'generator' }, label: 'Generator + ATS', title: 'Drop on a board (e.g. an EMDB): a standby generator through an ATS, sized for that board; everything below it becomes essential load' }
+      { item: { kind: 'generator' }, label: 'Generator + ATS', title: 'Drop on a board (e.g. an EMDB): a standby generator through an ATS (4P, switched neutral), sized for that board; everything below it becomes essential load' },
+      { item: { kind: 'generator', changeover: 'ACB' }, label: 'Generator + interlocked ACBs', title: 'Drop on a board (e.g. an EMDB): mains and generator incomers, each with its own breaker, ammeters, R-Y-B lamps, PMU to BMS and voltmeter, electro-mechanically interlocked; the generator is sized for that board' }
     ]
   },
   {
@@ -108,7 +111,8 @@ export const PALETTE: { group: string; entries: PaletteEntry[] }[] = [
       { item: { kind: 'accessory', accessory: 'ct-meter' } as PaletteItem, label: 'CT metering', title: 'Drop on a feeder: CT-operated kWh meter with current transformers (large feeders)' },
       { item: { kind: 'accessory', accessory: 'rcd' } as PaletteItem, label: 'Earth leakage (RCD)', title: 'Drop on a feeder: earth leakage protection (30 mA up to 32 A, else 300 mA) — used in the earth fault check' },
       { item: { kind: 'accessory', accessory: 'isolator' } as PaletteItem, label: 'Local isolator', title: 'Drop on a feeder: isolator at the equipment (AC unit, pump…)' },
-      { item: { kind: 'accessory', accessory: 'spd' } as PaletteItem, label: 'Surge protection (SPD)', title: 'Drop on a busbar: surge protection device — Type 1+2 on a main board, Type 2 on the others' }
+      { item: { kind: 'accessory', accessory: 'spd' } as PaletteItem, label: 'Surge protection (SPD)', title: 'Drop on a busbar: surge protection device — Type 1+2 on a main board, Type 2 on the others' },
+      { item: { kind: 'accessory', accessory: 'pmu' } as PaletteItem, label: 'Power meter (PMU) to BMS', title: 'Drop on a busbar: power meter on the incomer, linked to the BMS (one per incomer on a mains / generator changeover)' }
     ]
   },
   {
@@ -161,7 +165,7 @@ export function libraryLoadType(l: LibraryLoad): LoadType {
 }
 
 export const itemKey = (i: PaletteItem) =>
-  i.kind === 'board' ? `board:${i.board}` : i.kind === 'load' ? `load:${i.preset}` : i.kind === 'device' ? `device:${i.device}` : i.kind === 'library' ? `library:${i.name}` : i.kind === 'starter' ? `starter:${i.starter}` : i.kind === 'accessory' ? `acc:${i.accessory}` : i.kind === 'preset' ? `preset:${i.preset.id}` : i.kind;
+  i.kind === 'board' ? `board:${i.board}` : i.kind === 'load' ? `load:${i.preset}` : i.kind === 'device' ? `device:${i.device}` : i.kind === 'library' ? `library:${i.name}` : i.kind === 'starter' ? `starter:${i.starter}` : i.kind === 'accessory' ? `acc:${i.accessory}` : i.kind === 'preset' ? `preset:${i.preset.id}` : i.kind === 'generator' && i.changeover ? `generator:${i.changeover}` : i.kind;
 
 /** Typical rating (A) of a new board by type; its incomer breaker and cable
  * are sized for it until real loads are added. */
@@ -192,7 +196,7 @@ export function canDrop(project: Project, item: PaletteItem, target: DropTarget)
     case 'tie':
       return target.type === 'bus' && !!tiePartner(project, target.boardId);
     case 'accessory':
-      return item.accessory === 'spd' ? target.type === 'bus' : target.type === 'feeder';
+      return BUS_ACCESSORIES.includes(item.accessory) ? target.type === 'bus' : target.type === 'feeder';
     case 'preset':
       return target.type === 'bus' && canDropPreset(project, item.preset, target.boardId);
     case 'starter': {
@@ -291,6 +295,14 @@ export function applyDrop(project: Project, item: PaletteItem, target: DropTarge
       const c = generatorChoiceForBoard(project, b.id);
       return { project, select: { type: 'board', id: b.id }, message: `No standard generator fits ${b.id}: it needs ${Math.round(c.requiredKva)} kVA (${c.governing} at ${settingsOf(project).generatorMaxLoadingPct} % loading), above the largest set — split the essential load or use sets in parallel` };
     }
+    if (item.changeover === 'ACB') {
+      // Two incomers, each with its own instruments and PMU, as on DEWA submission drawings.
+      return {
+        project: { ...project, boards: project.boards.map((x) => (x.id === b.id ? { ...x, standby: { kva, changeover: 'ACB' as const }, instruments: true, pmu: true } : x)) },
+        select: { type: 'board', id: b.id },
+        message: `Added a ${kva} kVA standby generator to ${b.id} with mains and generator incomers, electro-mechanically interlocked; its loads now count as essential in Transformer & generator sizing`
+      };
+    }
     return {
       project: { ...project, boards: project.boards.map((x) => (x.id === b.id ? { ...x, standby: { kva } } : x)) },
       select: { type: 'board', id: b.id },
@@ -380,6 +392,15 @@ export function applyDrop(project: Project, item: PaletteItem, target: DropTarge
   }
 
   if (item.kind === 'preset' && target.type === 'bus') return applyPreset(project, item.preset, target.boardId);
+
+  if (item.kind === 'accessory' && item.accessory === 'pmu' && target.type === 'bus') {
+    const b = project.boards.find((x) => x.id === target.boardId)!;
+    return {
+      project: { ...project, boards: project.boards.map((x) => (x.id === b.id ? { ...x, pmu: true } : x)) },
+      select: { type: 'board', id: b.id },
+      message: `${b.id}: power meter (PMU) to BMS on the incomer${b.standby?.changeover === 'ACB' ? 's' : ''}`
+    };
+  }
 
   if (item.kind === 'accessory' && target.type === 'bus') {
     const b = project.boards.find((x) => x.id === target.boardId)!;
@@ -491,7 +512,7 @@ export function dropHint(item: PaletteItem): string {
     case 'tie':
       return 'Drop the bus coupler on a main board that has another transformer-fed main board to tie to';
     case 'accessory':
-      return item.accessory === 'spd' ? 'Drop the surge protection on a busbar' : 'Drop it on a feeder (the cable below a breaker)';
+      return item.accessory === 'spd' ? 'Drop the surge protection on a busbar' : item.accessory === 'pmu' ? 'Drop the power meter on a busbar' : 'Drop it on a feeder (the cable below a breaker)';
     case 'preset':
       return item.preset.boardKind === 'MDB' ? 'Drop an MDB preset on a meter cabinet busbar' : `Drop “${item.preset.name}” on a busbar`;
   }

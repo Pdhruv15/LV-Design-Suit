@@ -298,3 +298,24 @@ describe('BOQ: RMU, bus couplers, manufacturer references, emergency lines, eart
     expect([...new Set(missing)].sort()).toEqual(['panel', 'wire-conductor']);
   });
 });
+
+describe('emergency changeover in the BOQ', () => {
+  const p = sampleProject;
+  const withBoard = (patch: Partial<(typeof p.boards)[number]>) => ({ ...p, boards: p.boards.map((b, i) => (i === 0 ? { ...b, ...patch } : b)) });
+  const line = (q: typeof p, prefix: string) => buildBom(q).find((x) => x.key.startsWith(prefix));
+
+  it('counts instruments, PMU and SPD per incomer on an interlocked changeover', () => {
+    const q = withBoard({ standby: { kva: 500, changeover: 'ACB' }, instruments: true, pmu: true, spd: 'T1+2' });
+    expect(line(q, 'ammeter-ss')!.qty).toBe(2);
+    expect(line(q, 'lamps-ryb')!.qty).toBe(2);
+    expect(line(q, 'pmu')!.qty).toBe(2);
+    expect(line(q, 'spd:')!.qty).toBe(2);
+    expect(line(q, 'acb-il:')!.description).toMatch(/electro-mechanical interlock/);
+  });
+
+  it('describes the ATS with its rating, switched neutral, transition and category', () => {
+    const q = withBoard({ standby: { kva: 500 }, pmu: true });
+    expect(line(q, 'ats:')!.description).toMatch(/4P, switched neutral, open transition, AC-33B/);
+    expect(line(q, 'pmu')!.qty).toBe(1);
+  });
+});

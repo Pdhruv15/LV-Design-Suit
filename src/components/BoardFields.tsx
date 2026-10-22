@@ -94,18 +94,39 @@ export default function BoardFields({ board, onChange, section, building, groups
       {show('incomer') && (
         <>
           {head('incomer')}
-          <label>Standby generator (kVA, via ATS)
+          <label>Standby generator (kVA)
             <input inputMode="decimal" value={board.standby?.kva ?? ''} placeholder="none"
               title="Leave blank for no generator. Everything on and below this board then counts as essential load."
               onChange={(e) => set('standby', e.target.value === '' || Number.isNaN(+e.target.value) ? undefined : { kva: +e.target.value })} />
           </label>
           {board.standby && (
             <label>Changeover
-              <select value={board.standby.changeover ?? 'ATS'} onChange={(e) => set('standby', { ...board.standby!, changeover: e.target.value === 'ACB' ? 'ACB' : undefined })}>
-                <option value="ATS">ATS</option>
-                <option value="ACB">Mains + generator ACBs, interlocked</option>
+              <select value={board.standby.changeover ?? 'ATS'} onChange={(e) => set('standby', { ...board.standby!, changeover: e.target.value === 'ACB' ? 'ACB' : undefined })}
+                title="Interlocked: mains and generator incomers into the busbar, each with its own breaker and instruments, electro-mechanically interlocked">
+                <option value="ATS">ATS (4P, switched neutral)</option>
+                <option value="ACB">Mains + generator breakers, electro-mechanically interlocked</option>
               </select>
             </label>
+          )}
+          {board.standby && board.standby.changeover !== 'ACB' && (
+            <>
+              <label>ATS rating (A)
+                <input inputMode="decimal" value={board.standby.atsRatingA ?? ''} placeholder={board.ratedCurrentA ? `${board.ratedCurrentA} (board)` : 'board rating'}
+                  onChange={(e) => set('standby', { ...board.standby!, atsRatingA: e.target.value === '' || Number.isNaN(+e.target.value) ? undefined : +e.target.value })} />
+              </label>
+              <label>ATS transfer
+                <select value={board.standby.transition ?? 'open'} onChange={(e) => set('standby', { ...board.standby!, transition: e.target.value === 'closed' ? 'closed' : undefined })}>
+                  <option value="open">Open transition (break before make)</option>
+                  <option value="closed">Closed transition (make before break)</option>
+                </select>
+              </label>
+              <label>ATS category (IEC 60947-6-1)
+                <select value={board.standby.category ?? 'AC-33B'} onChange={(e) => set('standby', { ...board.standby!, category: e.target.value === 'AC-31B' ? 'AC-31B' : undefined })}>
+                  <option value="AC-33B">AC-33B — mixed loads with motors</option>
+                  <option value="AC-31B">AC-31B — resistive loads only</option>
+                </select>
+              </label>
+            </>
           )}
           <label>Incomer device (SLD)
             <select value={board.incomerDevice ?? ''} onChange={(e) => set('incomerDevice', e.target.value ? (e.target.value as IncomerDevice) : undefined)}
@@ -151,6 +172,10 @@ export default function BoardFields({ board, onChange, section, building, groups
             <label className="row">
               <input type="checkbox" checked={board.instruments ?? isMain} onChange={(e) => set('instruments', e.target.checked === isMain ? undefined : e.target.checked)} />
               Ammeter + voltmeter with selector switches, R-Y-B lamps
+            </label>
+            <label className="row" title="Power meter on the incomer, linked to the BMS — one per incomer on a mains / generator changeover; counted in the BOQ">
+              <input type="checkbox" checked={!!board.pmu} onChange={(e) => set('pmu', e.target.checked || undefined)} />
+              Power meter (PMU) to BMS
             </label>
             <label className="row">
               <input type="checkbox" checked={board.earthing?.show ?? isMain} onChange={(e) => setEarth({ show: e.target.checked === isMain ? undefined : e.target.checked })} />

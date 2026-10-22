@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LEAF_W, LEVEL_H, ROOT_BUS_Y, layoutSystem } from './layout';
+import { CHANGEOVER_H, LEAF_W, LEVEL_H, ROOT_BUS_Y, layoutSystem } from './layout';
 import { sampleProject } from '../data/sampleProject';
 import type { Feeder, Project } from '../types';
 
@@ -88,5 +88,33 @@ describe('system layout', () => {
     };
     const l = layoutSystem(p);
     expect(l.boards).toHaveLength(2);
+  });
+});
+
+describe('mains / generator changeover layout', () => {
+  const p: Project = {
+    ...base,
+    boards: [{ id: 'MDB', name: 'M' }, { id: 'EMDB', name: 'E', upstreamId: 'MDB', standby: { kva: 200, changeover: 'ACB' } }, { id: 'EDB', name: 'D', upstreamId: 'EMDB' }],
+    feeders: [feeder('INC', 'MDB', 'EMDB'), feeder('A', 'EMDB'), feeder('INC2', 'EMDB', 'EDB'), feeder('L', 'EDB'), feeder('C', 'MDB')]
+  };
+  const l = layoutSystem(p);
+  const at = (id: string) => l.boards.find((b) => b.board.id === id)!;
+
+  it('raises the board box above the two incomers and moves the levels below down with it', () => {
+    const e = at('EMDB');
+    expect(e.busY).toBe(ROOT_BUS_Y + LEVEL_H + CHANGEOVER_H);
+    expect(e.headY).toBe(e.busY - CHANGEOVER_H);
+    expect(at('EDB').busY).toBe(ROOT_BUS_Y + 2 * LEVEL_H + CHANGEOVER_H);
+    expect(at('MDB').headY).toBe(at('MDB').busY);
+    expect(l.feeders.find((f) => f.feeder.id === 'L')!.busY).toBe(at('EDB').busY);
+  });
+
+  it('drops the generator incomer in beyond the last way, on the busbar, with room before the next board', () => {
+    const e = at('EMDB');
+    const ways = l.feeders.filter((f) => f.feeder.boardId === 'EMDB').map((f) => f.x);
+    expect(e.genX!).toBeGreaterThan(Math.max(...ways));
+    expect(e.busX2).toBeGreaterThanOrEqual(e.genX!);
+    const next = l.feeders.find((f) => f.feeder.id === 'C')!;
+    expect(next.x - e.genX!).toBeGreaterThan(135);
   });
 });

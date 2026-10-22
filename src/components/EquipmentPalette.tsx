@@ -10,10 +10,10 @@ import { getDragItem, setDragItem } from '../diagram/dragItem';
 
 const ICON: Record<string, LucideIcon> = {
   'starter:DOL': Zap, 'starter:SD': Star, 'starter:SS': Gauge, 'starter:VFD': Activity,
-  tie: Link2, transformer: Waves, 'board:MC': Gauge, cable: Cable, generator: Power, capacitor: BatteryCharging, 'board:UPS': BatteryFull,
+  tie: Link2, transformer: Waves, 'board:MC': Gauge, cable: Cable, generator: Power, 'generator:ACB': Power, capacitor: BatteryCharging, 'board:UPS': BatteryFull,
   'load:motor': Cog, 'load:ahu': Fan, 'load:chiller': Snowflake, 'load:fire-pump': Flame, 'load:ev': Car,
   'load:pv': Sun, 'load:lighting': Lightbulb, 'load:it': Cpu, 'load:general': Zap,
-  'acc:meter': Gauge, 'acc:ct-meter': CircleDot, 'acc:rcd': ShieldAlert, 'acc:isolator': ToggleLeft, 'acc:spd': ZapOff, 'acc:cable-fr': Flame, 'acc:cable-lszh': Cable
+  'acc:meter': Gauge, 'acc:ct-meter': CircleDot, 'acc:rcd': ShieldAlert, 'acc:isolator': ToggleLeft, 'acc:spd': ZapOff, 'acc:pmu': Activity, 'acc:cable-fr': Flame, 'acc:cable-lszh': Cable
 };
 /** A preset's icon from what it feeds: plug for sockets, heater, snowflake for AC / chillers, fan for AHU / FCU, panel for boards. */
 function presetIcon(p: FeederPreset): LucideIcon {

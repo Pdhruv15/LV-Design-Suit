@@ -72,7 +72,8 @@ function typicalRate(kind: string, a: string[]): number | undefined {
     case 'kwh': return a[0] === 'CT' ? 1200 : a[0] === '3-PH' ? 650 : 250;
     case 'iso': return 150 + 2 * (n(0) || 0);
     case 'ats': return 2500 + 15 * (n(0) || 0);
-    case 'acb-il': return 2 * breakerRateAed(n(0) || 1600) + 3000;
+    case 'acb-il': return breakerRateAed(n(0) || 1600) + breakerRateAed(n(1) || n(0) || 1600) + 3000;
+    case 'pmu': return 1400;
     case 'gen': return 400 * (n(0) || 0);
     case 'ups': return 1200 * (n(0) || 0);
     case 'cap': return 120 * (n(0) || 0);

@@ -117,8 +117,11 @@ export function legendEntries(project: Project): LegendEntry[] {
   if (project.boards.some((b) => b.sourceKva)) add('tx', 'Transformer', (x, y) => (
     <g className="iec"><circle cx={x} cy={y - 5} r="7" className="tr" /><circle cx={x} cy={y + 4} r="7" className="tr" /></g>
   ));
-  if (project.boards.some((b) => b.standby)) add('gen', 'Standby generator with ATS', (x, y) => (
+  if (project.boards.some((b) => b.standby)) add('gen', 'Standby generator', (x, y) => (
     <g className="iec"><circle cx={x} cy={y} r="9" className="sym" /><text x={x} y={y + 4} textAnchor="middle" className="iec-t b">G</text></g>
+  ));
+  if (project.boards.some((b) => b.standby && b.standby.changeover !== 'ACB')) add('ats', 'Automatic transfer switch (ATS), 4P switched neutral', (x, y) => (
+    <g className="iec"><rect x={x - 11} y={y - 7} width="22" height="14" rx="2" className="sym" /><text x={x} y={y + 3} textAnchor="middle" className="iec-t s">ATS</text></g>
   ));
   add('bus', 'Busbar', (x, y) => <line x1={x - 12} y1={y} x2={x + 12} y2={y} className="bus" />);
   if (drawn.length) add('cable', `Cable ${cableTypeDef(DEFAULT_CABLE_TYPE).label.replace(/ \(.*\)$/, '')} unless marked`, (x, y) => <line x1={x} y1={y - 10} x2={x} y2={y + 10} className="ln" />);
@@ -140,16 +143,27 @@ export function legendEntries(project: Project): LegendEntry[] {
   if (relays.length) add('relay', `Protection relays: ${relays.join(', ')}`, (x, y) => (
     <g className="iec"><circle cx={x - 8} cy={y} r="4.5" className="sym-ln" /><line x1={x - 3.5} y1={y} x2={x + 6} y2={y} className="ln" style={{ strokeDasharray: '2 1.5' }} /><text x={x + 8} y={y + 3} className="iec-t s">{relays[0]}</text></g>
   ));
-  if (project.boards.some((b) => b.standby?.changeover === 'ACB')) add('il', 'Mechanical / electrical interlock (IL)', (x, y) => <line x1={x - 12} y1={y} x2={x + 12} y2={y} className="ln interlock" />);
+  const changeover = project.boards.filter((b) => b.standby?.changeover === 'ACB');
+  if (changeover.length) {
+    add('emi', 'Electro-mechanical interlock (mains / generator)', (x, y) => (
+      <g className="iec"><path d={`M${x - 14} ${y + 5} L${x - 8} ${y - 3} H${x + 8} L${x + 14} ${y + 5}`} className="ln" /><path d={`M${x - 4} ${y - 3} l4 4 l4 -4 z`} className="sym-open" /></g>
+    ));
+    add('trip', 'Breaker trip functions: OC overcurrent, SC short circuit, EF earth fault', (x, y) => (
+      <g className="iec"><rect x={x - 10} y={y - 6} width="20" height="12" className="sym" /><text x={x} y={y + 3} textAnchor="middle" className="iec-t s">OC</text></g>
+    ));
+  }
+  if (project.boards.some((b) => b.pmu)) add('pmu', 'Power meter (PMU) with link to BMS', (x, y) => (
+    <g className="iec"><rect x={x - 13} y={y - 6} width="26" height="12" className="sym" /><text x={x} y={y + 3} textAnchor="middle" className="iec-t s">PMU</text></g>
+  ));
   if (prot.some((p) => p?.apfc)) add('pfr', 'Power factor relay (PFR), CT from the incomer', (x, y) => (
     <g className="iec"><rect x={x - 9} y={y - 5.5} width="18" height="11" rx="1" className="sym" /><text x={x} y={y + 3} textAnchor="middle" className="iec-t s">PFR</text></g>
   ));
   const main = (b: { upstreamId?: string }) => !b.upstreamId;
   if (project.boards.some((b) => b.instruments ?? main(b))) {
-    add('am', 'Ammeter (A) / voltmeter (V), selector S/S', (x, y) => (
+    add('am', 'Ammeter (A) / voltmeter (V), selector switch (SS)', (x, y) => (
       <g className="iec"><rect x={x - 17} y={y - 7} width="14" height="14" className="sym" /><text x={x - 10} y={y + 4} textAnchor="middle" className="iec-t b">A</text><rect x={x + 3} y={y - 7} width="14" height="14" className="sym" /><text x={x + 10} y={y + 4} textAnchor="middle" className="iec-t b">V</text></g>
     ));
-    add('lamps', 'Indicating lamps R, Y, B', (x, y) => (
+    add('lamps', 'Phase indicating lamps R, Y, B', (x, y) => (
       <g className="iec">{['R', 'Y', 'B'].map((p, i) => <g key={p}><circle cx={x - 13 + i * 13} cy={y} r="5.5" className="sym" /><text x={x - 13 + i * 13} y={y + 3} textAnchor="middle" className="iec-t s">{p}</text></g>)}</g>
     ));
   }

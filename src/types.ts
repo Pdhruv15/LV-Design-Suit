@@ -277,7 +277,17 @@ export interface Board {
   model?: string;
   /** Standby generator feeding this board through an ATS: everything on
    * and below the board is then essential load for generator sizing. */
-  standby?: { kva: number; changeover?: 'ATS' | 'ACB' }; // ACB: mains and generator ACBs, interlocked
+  standby?: {
+    kva: number;
+    /** ACB: mains and generator incomers, each with its own breaker, electro-mechanically interlocked. */
+    changeover?: 'ATS' | 'ACB';
+    /** ATS rating (A); default the board's rating. The ATS is always 4P, switched neutral. */
+    atsRatingA?: number;
+    /** ATS transfer: open (break before make, the default) or closed (make before break). */
+    transition?: 'open' | 'closed';
+    /** IEC 60947-6-1 utilisation category; default AC-33B (mixed loads with motors). */
+    category?: 'AC-31B' | 'AC-33B';
+  };
   /** Incomer protection and metering drawn on the SLD: CT ratio, long-time
    * setting and protection relays (earth leakage, earth fault, under / over voltage). */
   /** Incomer switching device drawn above the board name box: auto breaker, non-auto breaker (isolating; the default), isolator or ACB. */
@@ -291,8 +301,10 @@ export interface Board {
   rmu?: string;
   /** UPS rating for a UPS output board (kind 'UPS'). */
   upsKva?: number;
-  /** Surge protection device on the busbar. */
+  /** Surge protection device on the busbar (on each incomer of a mains / generator changeover). */
   spd?: SpdType;
+  /** Power meter (PMU) on the incomer, connected to the BMS (on each incomer of a changeover). */
+  pmu?: boolean;
   /** Incoming supply of a board fed by the authority (meter cabinet / MDB
    * with no upstream board): the INCOMER row of the connected load form. */
   supply?: {

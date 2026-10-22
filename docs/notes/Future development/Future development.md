@@ -17,7 +17,7 @@ Ideas and features agreed for later. One note per idea; link it here.
 - ~~Earthing on the riser diagram (LV pits at the base, main earth conductor up the floors)~~ — done: earthing riser with a floor earth bar on every level, any number of floors over sheets or typical floors grouped (v1.47), floor earthing sheets, several risers per building (v1.48)
 - ~~Panel SLD "EARTH PITS (2 NO.)" detail: keep or replace~~ — kept, now follows the earthing plan (v1.34)
 - Combining with an existing DEWA system (existing transformers / spare capacity)
-- Emergency ATS arrangement details
+- ~~Emergency ATS arrangement details~~ — done (v1.73): ATS rating and type, or mains + generator incomers with electro-mechanical interlock and instruments per incomer; see [[Emergency rules]]
 - Earthing I²t check — incomer CPC check shown per board (v1.34); pit / electrode conductors still need the HV earth-fault level from DEWA
 - UPS leading kvar
 - Unbalanced load flow
