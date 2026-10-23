@@ -1,0 +1,221 @@
+<!doctype html><html><head><meta charset="utf-8"><title>MOCKUP — DB-GF1 load schedule (revised)</title><style>
+    @page { size: A4 landscape; margin: 10mm; }
+    body { font: 9px/1.3 Arial, "Segoe UI", sans-serif; color: #111; margin: 0; }
+    .hdr { display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; gap: 8px; margin-bottom: 6px; }
+    .hdr p { margin: 2px 0; font-size: 10px; } .hdr h1 { margin: 0; font-size: 14px; text-align: center; text-decoration: underline; }
+    .hdr .c { text-align: center; } .hdr .r { text-align: right; }
+    table { border-collapse: collapse; width: 100%; } th, td { border: 1px solid #333; padding: 1px 3px; text-align: center; }
+    thead { display: table-header-group; } tr { break-inside: avoid; }
+    th { font-weight: 600; font-size: 8px; } th.rot { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; height: 58px; }
+    td.l { text-align: left; } td.v { font-size: 8px; } .shade { background: #e4e4e4; }
+    tr.total td { font-weight: 700; } .foot { margin-top: 6px; font-size: 9px; } .bad, .warn { color: #000; font-weight: 700; }
+    .new { font-size: 7px; vertical-align: super; } tr.ways td { font-size: 9px; padding: 3px 4px; }
+    table.ft { width: 100%; margin: 4px 0; } table.ft th { width: 92px; text-align: left; font-size: 8px; background: #e4e4e4; } table.ft td { text-align: left; }
+    .hdr .key { font-style: italic; font-size: 8px; border: 1px solid #333; padding: 1px 4px; display: inline-block; }
+  </style></head><body>
+  <div class="hdr">
+    <div><p>PROJECT: <b>Demonstration Project — Not for Construction</b> <span class="new">◆</span></p><p>PLOT No.: <b>DEMO-001</b> &nbsp; MAKANI No.: <b>________</b> <span class="new">◆</span></p>
+      <p>OWNER: <b>Demo Owner</b> <span class="new">◆</span></p></div>
+    <div class="c"><h1>LOAD DISTRIBUTION SCHEDULE</h1><p>3-PHASE 4-WIRE, 415 V, 50 Hz, TN-S <span class="new">◆</span></p><p class="key">MOCKUP — ◆ = new or changed against today's schedule; blank lines are new fields</p></div>
+    <div class="r"><p>DB No.: <b>DB-GF1</b> — Villa ground floor DB</p><p>FED FROM: <b>SMDB-GF</b> (feeder INC-DBGF1) <span class="new">◆</span></p>
+      <p>LOCATION: <b>Villa GF – store room</b></p><p>MOUNTING / IP: <b>________ / IP42</b> <span class="new">◆</span></p></div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th rowspan="2">RATING OF INCOMER</th><th rowspan="2">RATG. OF ELCB</th><th rowspan="2">SL. No.</th><th rowspan="2">CIR No.</th>
+        <th rowspan="2">MCB RTG. IN AMPS</th><th rowspan="2">CCT WIRE SIZE mm²</th><th rowspan="2">ECC WIRE SIZE mm²</th><th rowspan="2">ROOM / AREA</th>
+        <th colspan="15">CONNECTED LOADS / POINTS</th>
+        <th colspan="3" class="shade">LOAD PER CIRCUIT - WATT</th><th rowspan="2">REMARKS</th>
+      </tr>
+      <tr>
+        <th class="rot">LTG</th><th class="rot">EX.FAN</th><th class="rot">SH.S/O</th><th class="rot">13A S.S/O</th><th class="rot">13A T.S/O</th><th class="rot">W/H</th><th class="rot">FCU</th><th class="rot">SPUR O/L</th><th class="rot">ISOL</th><th class="rot">COOKER</th><th class="rot">S A/C</th><th class="rot">WAT.PUMP</th><th class="rot">OTH</th><th class="rot">C.FAN</th><th class="rot">15A S/O</th>
+        <th class="shade">R</th><th class="shade">Y</th><th class="shade">B</th>
+      </tr>
+      <tr><td colspan="8" class="l"><b>WATT / UNIT</b></td><td>100</td><td>40</td><td>20</td><td>250</td><td></td><td>3000</td><td></td><td></td><td></td><td>6000</td><td>2500</td><td>750</td><td></td><td>80</td><td>1000</td><td class="shade" colspan="3"></td><td></td></tr>
+    </thead>
+    <tbody><tr>
+      <td class="v" rowspan="21">100 A ISOLATOR TP+N</td>
+      <td class="v" rowspan="5">ELCB-1<br>25 A 100 mA 4P</td>
+      <td>1</td><td><b>R1</b></td><td>10</td><td>2.5</td><td>2.5</td>
+      <td class="l">Living lighting</td>
+      <td>12</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+      <td>1200</td><td></td><td></td>
+      <td class="l"></td>
+    </tr><tr>
+      
+      
+      <td>2</td><td><b>Y1</b></td><td>6</td><td>2.5</td><td>2.5</td>
+      <td class="l">Majlis lighting</td>
+      <td>10</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+      <td></td><td>1000</td><td></td>
+      <td class="l"></td>
+    </tr><tr>
+      
+      
+      <td>3</td><td><b>B1</b></td><td>6</td><td>2.5</td><td>2.5</td>
+      <td class="l">External lighting</td>
+      <td>10</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+      <td></td><td></td><td>1000</td>
+      <td class="l"></td>
+    </tr><tr>
+      
+      
+      <td>4</td><td><b>Y2</b></td><td>6</td><td>2.5</td><td>2.5</td>
+      <td class="l">Kitchen lighting</td>
+      <td>8</td><td>1</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+      <td></td><td>840</td><td></td>
+      <td class="l"></td>
+    </tr><tr>
+      
+      
+      <td>5</td><td><b>B2</b></td><td>6</td><td>2.5</td><td>2.5</td>
+      <td class="l">Dining lighting</td>
+      <td>6</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+      <td></td><td></td><td>600</td>
+      <td class="l"></td>
+    </tr><tr>
+      
+      <td class="v" rowspan="6">ELCB-2<br>40 A 30 mA 4P</td>
+      <td>6</td><td><b>R3</b></td><td>40</td><td>6</td><td>6</td>
+      <td class="l">Cooker</td>
+      <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>1</td><td></td><td></td><td></td><td></td><td></td>
+      <td>6000</td><td></td><td></td>
+      <td class="l"></td>
+    </tr><tr>
+      
+      
+      <td>7</td><td><b>Y3</b></td><td>20</td><td>4</td><td>4</td>
+      <td class="l">Guest bath water heater</td>
+      <td></td><td></td><td></td><td></td><td></td><td>1</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+      <td></td><td>3000</td><td></td>
+      <td class="l"></td>
+    </tr><tr>
+      
+      
+      <td>8</td><td><b>B3</b></td><td>20</td><td>4</td><td>4</td>
+      <td class="l">Kitchen water heater</td>
+      <td></td><td></td><td></td><td></td><td></td><td>1</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+      <td></td><td></td><td>3000</td>
+      <td class="l"></td>
+    </tr><tr>
+      
+      
+      <td>9</td><td><b>R4</b></td><td>16</td><td>4</td><td>4</td>
+      <td class="l">Guest bedroom split A/C</td>
+      <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>1</td><td></td><td></td><td></td><td></td>
+      <td>2500</td><td></td><td></td>
+      <td class="l"></td>
+    </tr><tr>
+      
+      
+      <td>10</td><td><b>Y4</b></td><td>16</td><td>4</td><td>4</td>
+      <td class="l">Living split A/C</td>
+      <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>1</td><td></td><td></td><td></td><td></td>
+      <td></td><td>2500</td><td></td>
+      <td class="l"></td>
+    </tr><tr>
+      
+      
+      <td>11</td><td><b>B4</b></td><td>16</td><td>4</td><td>4</td>
+      <td class="l">Majlis split A/C</td>
+      <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>1</td><td></td><td></td><td></td><td></td>
+      <td></td><td></td><td>2500</td>
+      <td class="l"></td>
+    </tr><tr>
+      
+      <td class="v" rowspan="6">ELCB-3<br>25 A 30 mA 4P</td>
+      <td>12</td><td><b>R5</b></td><td>10</td><td>4</td><td>4</td>
+      <td class="l">Guest bedroom</td>
+      <td>4</td><td></td><td></td><td>4</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>1</td><td></td>
+      <td>1480</td><td></td><td></td>
+      <td class="l"></td>
+    </tr><tr>
+      
+      
+      <td>13</td><td><b>Y5</b></td><td>16</td><td>4</td><td>4</td>
+      <td class="l">Living sockets</td>
+      <td></td><td></td><td></td><td>8</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+      <td></td><td>2000</td><td></td>
+      <td class="l"></td>
+    </tr><tr>
+      
+      
+      <td>14</td><td><b>B5</b></td><td>16</td><td>4</td><td>4</td>
+      <td class="l">Dining split A/C</td>
+      <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>1</td><td></td><td></td><td></td><td></td>
+      <td></td><td></td><td>2500</td>
+      <td class="l"></td>
+    </tr><tr>
+      
+      
+      <td>15</td><td><b>R6</b></td><td>6</td><td>4</td><td>4</td>
+      <td class="l">Maid room</td>
+      <td>3</td><td>1</td><td></td><td>3</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+      <td>1090</td><td></td><td></td>
+      <td class="l"></td>
+    </tr><tr>
+      
+      
+      <td>16</td><td><b>Y6</b></td><td>16</td><td>4</td><td>4</td>
+      <td class="l">Laundry</td>
+      <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>2</td>
+      <td></td><td>2000</td><td></td>
+      <td class="l"></td>
+    </tr><tr>
+      
+      
+      <td>17</td><td><b>B6</b></td><td>10</td><td>4</td><td>4</td>
+      <td class="l">Majlis sockets</td>
+      <td></td><td></td><td></td><td>6</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+      <td></td><td></td><td>1500</td>
+      <td class="l"></td>
+    </tr><tr>
+      
+      <td class="v" rowspan="4">ELCB-4<br>25 A 30 mA 4P</td>
+      <td>18</td><td><b>R7</b></td><td>6</td><td>4</td><td>4</td>
+      <td class="l">Water pump</td>
+      <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>1</td><td></td><td></td><td></td>
+      <td>750</td><td></td><td></td>
+      <td class="l"></td>
+    </tr><tr>
+      
+      
+      <td>19</td><td><b>Y7</b></td><td>6</td><td>4</td><td>4</td>
+      <td class="l">Dining sockets</td>
+      <td></td><td></td><td></td><td>4</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+      <td></td><td>1000</td><td></td>
+      <td class="l"></td>
+    </tr><tr>
+      
+      
+      <td>20</td><td><b>B7</b></td><td>10</td><td>4</td><td>4</td>
+      <td class="l">Kitchen sockets</td>
+      <td></td><td></td><td></td><td>5</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+      <td></td><td></td><td>1250</td>
+      <td class="l"></td>
+    </tr><tr>
+      
+      
+      <td>21</td><td><b>Y8</b></td><td>6</td><td>4</td><td>4</td>
+      <td class="l">Guest bathroom</td>
+      <td>2</td><td>1</td><td>1</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+      <td></td><td>260</td><td></td>
+      <td class="l"></td>
+    </tr>
+      <tr class="total"><td colspan="23" style="text-align:right">1. TOTAL CONNECTED LOAD PER PHASE (W) — the circuits above</td><td class="shade">13020</td><td class="shade">12600</td><td class="shade">12350</td><td class="l">37970 W = 37.97 kW (TCL)</td></tr>
+      <tr class="total"><td colspan="23" style="text-align:right">2. DEMAND FACTOR (MD ÷ TCL) <span class="new">◆</span></td><td class="shade">1.00</td><td class="shade">1.00</td><td class="shade">1.00</td><td class="l">DF 1.00</td></tr>
+      <tr class="total"><td colspan="23" style="text-align:right">3. MAXIMUM DEMAND PER PHASE (W) — after demand factors</td><td class="shade">13020</td><td class="shade">12600</td><td class="shade">12350</td><td class="l">37.97 kW · 42.19 kVA at PF 0.90 <span class="new">◆</span></td></tr>
+      <tr class="total"><td colspan="23" style="text-align:right">4. DEMAND CURRENT PER PHASE (A) at 240 V <span class="new">◆</span></td><td class="shade">60.4</td><td class="shade">58.4</td><td class="shade">57.3</td><td class="l">Ib max 60.4 A · unbalance 5.3 % (≤ 10 % check)</td></tr>
+      <tr class="ways"><td colspan="27" class="l"><b>WAYS <span class="new">◆</span></b> &nbsp; 8 ways × R/Y/B = 24 positions · circuits 21 · spare breakers 0 · spaces 0 · free 3 &nbsp;→&nbsp; <b>spare capacity 13 %</b></td></tr>
+    </tbody>
+  </table>
+  <div class="foot">
+    <table class="ft"><tbody>
+      <tr><th>INCOMER <span class="new">◆</span></th><td>100 A ISOLATOR TP+N at the DB; fed by 100 A TPN MCCB at SMDB-GF, Icu 25 kA (Isc at the DB 10.7 kA)</td><th>INCOMING CABLE</th><td>4C 35mm² Cu XLPE/SWA/PVC + 1C 16mm² Cu/PVC G/Y AS ECC, 30 m</td></tr>
+      <tr><th>VOLTAGE DROP <span class="new">◆</span></th><td>Incoming feeder 0.45 % (0.92 % from the source); worst final circuit R3 2.79 % against the 4 % limit</td><th>EARTHING <span class="new">◆</span></th><td>Via incomer CPC to SMDB-GF, then to MDB-1 MET → pits E4, E5 (not tested); CPC 16 mm² Cu · I²t needs 7.1 mm² — OK</td></tr>
+    </tbody></table>
+    <p>C.FAN = Ceiling Fan, EX.FAN = Exhaust Fan, SH. S/O = Shaver Socket-outlet, W/H = Water Heater, H/D = Hand Dryer, 'W' = Window type &amp; 'S' = Split type.
+      Circuit references: R/Y/B = phase, number = way; RYB = 3-phase circuit.</p>
+  </div>
+  </body></html>
