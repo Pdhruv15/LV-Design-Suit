@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Equipment palette size-scaling sample</title>
+<style>
+  :root {
+    --bg:#0d1829; --panel:#13213a; --hover:#213556; --line:#2b4064;
+    --field:#1a2b48; --field-line:#3b5680; --text:#e6edf7;
+    --muted:#8ea2c2; --accent:#7fb2ff; --green:#7bd88f; --amber:#f5c56b;
+  }
+  * { box-sizing:border-box }
+  body {
+    margin:0; padding:20px; background:var(--bg); color:var(--text);
+    font:13px/1.4 -apple-system,"Segoe UI",Inter,Roboto,sans-serif;
+  }
+  h1 { margin:0 0 4px; font-size:18px }
+  .lead { margin:0 0 14px; color:var(--muted); max-width:760px }
+  .scale-control {
+    display:flex; align-items:center; gap:4px; margin-bottom:10px;
+  }
+  .scale-control > span { margin-right:4px; color:var(--muted) }
+  .scale-control button {
+    border:1px solid var(--line); border-radius:5px; padding:4px 9px;
+    background:var(--field); color:var(--muted); cursor:pointer;
+  }
+  .scale-control button[aria-pressed="true"] {
+    border-color:var(--accent); color:var(--text); background:var(--hover);
+  }
+  .readout { margin-left:6px; color:var(--accent); font-variant-numeric:tabular-nums }
+  .palette {
+    width:300px; min-height:560px; padding:8px; border:1px solid var(--line);
+    border-radius:10px; background:var(--panel);
+    --icon:20px; --quick:38px; --cat-h:43px; --tile-h:52px;
+    --label:10px; --sub:8.5px; --gap:2px; --cat-cols:6; --item-cols:4;
+  }
+  .palette[data-size="compact"] {
+    --icon:18px; --quick:34px; --cat-h:38px; --tile-h:46px;
+    --label:9px; --sub:8px; --gap:0px; --cat-cols:6; --item-cols:4;
+  }
+  .palette[data-size="large"] {
+    --icon:24px; --quick:44px; --cat-h:56px; --tile-h:66px;
+    --label:11px; --sub:9.5px; --gap:4px; --cat-cols:4; --item-cols:3;
+  }
+  .tabs {
+    display:flex; gap:14px; margin:-2px -2px 8px; padding:0 5px;
+    border-bottom:1px solid var(--line); font-weight:600;
+  }
+  .tabs span { padding:5px 2px 7px; color:var(--muted) }
+  .tabs .on { border-bottom:2px solid var(--accent); color:var(--text) }
+  .search {
+    display:flex; align-items:center; gap:6px; margin-bottom:6px; padding:5px 7px;
+    border:1px solid var(--field-line); border-radius:6px; background:var(--field);
+    color:var(--muted);
+  }
+  .search svg { width:14px; height:14px }
+  .quick {
+    display:flex; align-items:center; gap:var(--gap); margin-bottom:5px;
+    border-bottom:1px solid var(--line); padding-bottom:4px;
+  }
+  .quick-label {
+    width:25px; color:var(--muted); font-size:8px; line-height:1.05;
+    text-transform:uppercase; letter-spacing:.04em;
+  }
+  .quick button {
+    width:var(--quick); height:var(--quick); padding:0; border:0; border-radius:4px;
+    background:none; color:var(--muted); cursor:pointer;
+  }
+  .quick button:hover, .quick button:focus-visible { background:var(--hover); color:var(--text) }
+  .section {
+    display:flex; align-items:center; justify-content:space-between;
+    margin:5px 1px 3px; color:var(--muted); font-size:10px;
+    font-weight:700; letter-spacing:.07em; text-transform:uppercase;
+  }
+  .categories {
+    display:grid; grid-template-columns:repeat(var(--cat-cols),1fr); gap:var(--gap);
+    padding-bottom:4px; border-bottom:1px solid var(--line);
+  }
+  .category, .item {
+    border:0; border-radius:4px; background:none; color:var(--muted);
+    cursor:pointer; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; min-width:0;
+  }
+  .category { min-height:var(--cat-h); padding:2px 0; gap:1px }
+  .category:hover, .category:focus-visible, .item:hover, .item:focus-visible {
+    background:var(--hover); color:var(--text); outline:none;
+  }
+  .category[aria-pressed="true"] {
+    color:var(--accent); background:color-mix(in srgb,var(--accent) 14%,var(--panel));
+    box-shadow:inset 0 -2px 0 var(--accent);
+  }
+  .category span, .item .name {
+    max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    font-size:var(--label); line-height:1.1;
+  }
+  .items {
+    display:grid; grid-template-columns:repeat(var(--item-cols),1fr); gap:var(--gap);
+  }
+  .item { min-height:var(--tile-h); padding:3px 1px; position:relative; gap:2px }
+  .item[aria-pressed="true"] {
+    color:var(--accent); background:color-mix(in srgb,var(--accent) 15%,var(--panel));
+    box-shadow:inset 0 0 0 1px var(--accent);
+  }
+  .item .sub { color:var(--muted); font-size:var(--sub); line-height:1.05 }
+  .targets { position:absolute; left:3px; top:3px; display:flex; gap:2px }
+  .targets i { width:6px; height:6px; border-radius:50% }
+  .targets .b { background:var(--accent) }
+  .targets .f { background:var(--green) }
+  .targets .c { background:var(--amber) }
+  svg {
+    width:var(--icon); height:var(--icon); fill:none; stroke:currentColor;
+    stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; flex:none;
+  }
+  .armed {
+    display:none; align-items:center; gap:5px; margin-top:7px; padding:5px 7px;
+    border:1px dashed var(--accent); border-radius:5px; color:var(--accent);
+    font-size:10px;
+  }
+  .armed.show { display:flex }
+  .armed .qty { margin-left:auto; border:1px solid var(--accent); border-radius:9px; padding:0 5px }
+  .legend { display:flex; gap:8px; margin-top:7px; color:var(--muted); font-size:9px }
+  .legend i { width:6px; height:6px; border-radius:50%; display:inline-block; margin-right:2px }
+</style>
+</head>
+<body>
+<h1>Equipment palette: scalable density sample</h1>
+<p class="lead">Mock-up only. Scale changes icon size, type size, hit area, tile height, spacing and column count together. Balanced is the recommended default.</p>
+
+<div class="scale-control" aria-label="Palette size">
+  <span>Palette size</span>
+  <button type="button" data-size="compact" aria-pressed="false">Compact</button>
+  <button type="button" data-size="balanced" aria-pressed="true">Balanced</button>
+  <button type="button" data-size="large" aria-pressed="false">Large</button>
+  <span class="readout" id="readout">100%</span>
+</div>
+
+<aside class="palette" id="palette" data-size="balanced" aria-label="Equipment library">
+  <div class="tabs"><span>Panels 7</span><span class="on">Equipment</span></div>
+  <div class="search">
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    Search… (AHU, RCD, SMDB)
+  </div>
+
+  <div class="quick">
+    <span class="quick-label">Quick access</span>
+    <button type="button" title="SMDB favourite" aria-label="SMDB favourite"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 10h16M9 10v10M15 10v10"/></svg></button>
+    <button type="button" title="AHU favourite" aria-label="AHU favourite"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4v16M4 12h16"/></svg></button>
+    <button type="button" title="MCCB recent" aria-label="MCCB recent"><svg viewBox="0 0 24 24"><path d="M12 3v5M12 16v5M12 8l5 5"/><circle cx="12" cy="8" r="1.2"/></svg></button>
+    <button type="button" title="RCD recent" aria-label="RCD recent"><svg viewBox="0 0 24 24"><path d="M12 3v5M12 16v5M12 8l5 5"/><rect x="5" y="9" width="7" height="6" rx="1"/></svg></button>
+  </div>
+
+  <div class="section"><span>Categories</span><span>11</span></div>
+  <div class="categories" id="categories"></div>
+  <div class="section"><span>Loads</span><span>10</span></div>
+  <div class="items" id="items"></div>
+  <div class="armed" id="armed">Click a busbar to place <b id="armedName"></b><span class="qty">− &nbsp;×1&nbsp; +</span></div>
+  <div class="legend">
+    <span><i style="background:var(--accent)"></i>busbar</span>
+    <span><i style="background:var(--green)"></i>feeder</span>
+    <span><i style="background:var(--amber)"></i>canvas</span>
+  </div>
+</aside>
+
+<script>
+const icons = {
+  supply:'<circle cx="12" cy="8.5" r="5"/><circle cx="12" cy="15.5" r="5"/>',
+  board:'<rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 10h16M9 10v10M15 10v10"/>',
+  protection:'<path d="M12 3v5M12 16v5M12 8l5 5"/><circle cx="12" cy="8" r="1.2"/>',
+  meter:'<circle cx="12" cy="12" r="7"/><path d="M9 14l1.5-4 1.5 2 1.5-2 1.5 4"/>',
+  cable:'<path d="M4 16c4-8 6 8 10 0 1.5-3 3-3 6 0"/>',
+  starter:'<circle cx="12" cy="12" r="8"/><path d="M8.5 15V9l3.5 4 3.5-4v6"/>',
+  load:'<path d="M12 3v5M7 8h10l-5 13z"/>',
+  preset:'<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 10h8M8 14h5"/>',
+  star:'<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
+  component:'<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/>',
+  library:'<ellipse cx="12" cy="6" rx="7" ry="2.5"/><path d="M5 6v12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6"/>',
+  motor:'<circle cx="12" cy="12" r="8"/><path d="M8.5 15V9l3.5 4 3.5-4v6"/>',
+  ahu:'<circle cx="12" cy="12" r="8"/><path d="M12 4v16M4 12h16"/>',
+  chiller:'<path d="M12 3v18M5 7.5l14 9M5 16.5l14-9"/>',
+  pump:'<circle cx="12" cy="13" r="7"/><path d="M12 6V3M9 13l3-3 3 3-3 3z"/>',
+  ev:'<rect x="5" y="4" width="12" height="16" rx="2"/><path d="M11 8l-2 4h3l-2 4M17 9h2v5"/>',
+  light:'<circle cx="12" cy="12" r="6"/><path d="M8 8l8 8M16 8l-8 8"/>'
+};
+const svg = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true">${icons[name]}</svg>`;
+const categories = [
+  ['supply','Supply'],['board','Boards'],['protection','Protection'],['meter','Metering'],
+  ['cable','Cable'],['starter','Starters'],['load','Loads'],['preset','Presets'],
+  ['star','My presets'],['component','Components'],['library','My equipment']
+];
+const equipment = [
+  ['motor','Motor','15 kW'],['ahu','AHU','11 kW'],['chiller','Chiller','150 kW'],
+  ['pump','Fire pump','45 kW'],['ev','EV charger','22 kW'],['light','Lighting','10 kW'],
+  ['load','General','10 kW'],['motor','Pump','7.5 kW']
+];
+const categoriesEl = document.getElementById('categories');
+const itemsEl = document.getElementById('items');
+categoriesEl.innerHTML = categories.map(([icon,name]) =>
+  `<button type="button" class="category" aria-pressed="${name === 'Loads'}" title="${name}">${svg(icon)}<span>${name}</span></button>`
+).join('');
+itemsEl.innerHTML = equipment.map(([icon,name,size]) =>
+  `<button type="button" class="item" aria-pressed="false"><span class="targets"><i class="b"></i></span>${svg(icon)}<span class="name">${name}</span><span class="sub">${size}</span></button>`
+).join('');
+
+document.querySelector('.scale-control').addEventListener('click', (event) => {
+  const button = event.target.closest('[data-size]');
+  if (!button) return;
+  document.getElementById('palette').dataset.size = button.dataset.size;
+  document.querySelectorAll('[data-size]').forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
+  document.getElementById('readout').textContent = { compact:'85%', balanced:'100%', large:'115%' }[button.dataset.size];
+});
+itemsEl.addEventListener('click', (event) => {
+  const button = event.target.closest('.item');
+  if (!button) return;
+  itemsEl.querySelectorAll('.item').forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
+  document.getElementById('armedName').textContent = button.querySelector('.name').textContent;
+  document.getElementById('armed').classList.add('show');
+});
+</script>
+</body>
+</html>

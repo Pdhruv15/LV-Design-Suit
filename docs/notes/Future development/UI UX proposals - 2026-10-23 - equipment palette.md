@@ -6,6 +6,8 @@ Recommended compact mock-up: `docs/mockups/equipment-palette-icon-grid-compact-v
 
 Original roomier mock-up: `docs/mockups/equipment-palette-icon-grid-proposal.png`
 
+Interactive size-scaling sample: `docs/mockups/equipment-palette-size-scaling-mockup.html`
+
 ## Recommendation
 
 Replace the long category accordion with a two-level, icon-first palette:
@@ -18,6 +20,8 @@ Replace the long category accordion with a two-level, icon-first palette:
 6. Keep current colours, typography, tabs, search, favourites, recent history, preset tools, and underlying equipment data unchanged.
 
 The compact version reduces outer padding, grid gaps, icon size, and tile height. It retains a 4–6 px separation between tiles rather than removing spacing completely, so adjacent click targets remain visually distinct.
+
+The scaling sample demonstrates Compact (85%), Balanced (100%, recommended), and Large (115%) modes. Each mode scales icon size, label size, tile height, hit area, spacing, and column count together rather than applying browser zoom.
 
 ## Why this is easier to use
 
