@@ -88,6 +88,10 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
   const boxed = boxedBoardIds(project);
   const busSpares = (boardId: string) => { const b = byId.get(boardId); return b && !isDbBoard(b) ? spareWaysOf(b) : []; };
 
+  // Ammeter / voltmeter and lamps sit inside the panel left of its incomer: a panel with a single way
+  // has no room there, so it keeps a slot free on its left (as a changeover does for its mains instruments).
+  const instrumentSlot = (b: Board) => (b.instruments ?? !b.upstreamId) && !isInterlocked(b) && children(b.id).length + busSpares(b.id).length === 1;
+
   const unitsCache = new Map<string, number>();
   const units = (boardId: string, path: Set<string>): number => {
     if (unitsCache.has(boardId)) return unitsCache.get(boardId)!;
@@ -99,7 +103,7 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
     }, busSpares(boardId).length);
     path.delete(boardId);
     const b = byId.get(boardId);
-    const u = Math.max(1, n) + (b && isInterlocked(b) ? CHANGEOVER_LEFT + CHANGEOVER_RIGHT : 0);
+    const u = Math.max(1, n) + (b && isInterlocked(b) ? CHANGEOVER_LEFT + CHANGEOVER_RIGHT : 0) + (b && instrumentSlot(b) ? 1 : 0);
     unitsCache.set(boardId, u);
     return u;
   };
@@ -112,8 +116,8 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
   const place = (board: Board, left: number, depth: number): BoardNode => {
     placed.add(board.id);
     const busY = rootY + depth * levelH;
-    const co = isInterlocked(board);
-    let cursor = left + (co ? CHANGEOVER_LEFT * LEAF_W : 0);
+    const co = isInterlocked(board), inst = instrumentSlot(board);
+    let cursor = left + (co ? CHANGEOVER_LEFT * LEAF_W : 0) + (inst ? LEAF_W : 0);
     const xs: number[] = [];
     for (const f of children(board.id)) {
       const child = subBoard(f);
@@ -157,7 +161,7 @@ export function layoutSystem(project: Project, extraY = 0): SystemLayout {
       headY: busY,
       genX,
       // A changeover's busbar runs under its mains instruments too, as on DEWA drawings.
-      busX1: co ? left + 12 : Math.min(x - half, xs.length ? Math.min(...xs) - half : x - half),
+      busX1: co || inst ? left + 12 : Math.min(x - half, xs.length ? Math.min(...xs) - half : x - half),
       busX2: Math.max(x + half, xs.length ? Math.max(...xs) + half : x + half, genX !== undefined ? genX + 14 : -Infinity)
     };
     boards.push(node);

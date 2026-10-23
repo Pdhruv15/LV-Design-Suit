@@ -118,3 +118,28 @@ describe('mains / generator changeover layout', () => {
     expect(next.x - e.genX!).toBeGreaterThan(135);
   });
 });
+
+describe('room for the panel instruments', () => {
+  const two = (instruments?: boolean, ways = 1): Project => ({
+    ...base,
+    boards: [{ id: 'A', name: 'A', ...(instruments === undefined ? {} : { instruments }) }, { id: 'B', name: 'B' }],
+    feeders: [...Array.from({ length: ways }, (_, i) => feeder(`A${i}`, 'A')), feeder('B1', 'B'), feeder('B2', 'B')]
+  });
+
+  it('keeps a slot free left of the incomer on a main board with a single way, inside its own busbar', () => {
+    const l = layoutSystem(two());
+    const a = l.boards.find((b) => b.board.id === 'A')!, b = l.boards.find((x) => x.board.id === 'B')!;
+    expect(a.x - 66 - a.busX1).toBeGreaterThanOrEqual(50); // the meters and lamps fit left of the board box
+    expect(a.busX2).toBeLessThan(b.busX1); // and stay clear of the next panel
+    expect(l.feeders.find((f) => f.feeder.id === 'A0')!.x - a.busX1).toBeGreaterThan(LEAF_W);
+  });
+
+  it('adds no slot with instruments off, or with two ways (room already there)', () => {
+    const off = layoutSystem(two(false)), wide = layoutSystem(two(undefined, 2)), one = layoutSystem(two());
+    const bx = (l: typeof one) => l.boards.find((b) => b.board.id === 'B')!.x;
+    expect(bx(off)).toBe(bx(one) - LEAF_W);
+    const a = wide.boards.find((b) => b.board.id === 'A')!;
+    expect(a.x - 66 - a.busX1).toBeGreaterThanOrEqual(50);
+    expect(bx(wide)).toBe(bx(one)); // two ways take the same two slots
+  });
+});
