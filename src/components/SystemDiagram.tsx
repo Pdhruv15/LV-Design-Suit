@@ -9,7 +9,7 @@ import { cableTypeOf, CABLE_TYPE_DEFS, labelCode, needsFireRated } from '../mode
 import { cableRefOf } from '../model/cableRefs';
 import { dbSpares, spareBreaker } from '../model/spareWays';
 import { FeederSwitchSym, LEGEND_ROW, LEGEND_SYM_X, LEGEND_TEXT_X, legendEntries, legendWidth, LoadSym, polesText, rcdInSwitch, starterSymbolOf, SwitchSym, switchKindOf } from '../diagram/IecSymbols';
-import { Sym, SYM_SCALE } from '../diagram/symbolLibrary';
+import { Sym, SYM_SCALE, type SymbolId } from '../diagram/symbolLibrary';
 import { panelSymbolOf } from '../diagram/panelBox';
 import { izText, type FeederResult, type Status } from '../calc/electrical';
 import { boardSummary, loadTypeOf } from '../calc/summary';
@@ -819,16 +819,15 @@ export default function SystemDiagram({
         ) : (
           <g key={`tx-${r.board.id}`} className={`tx${r.board.existing ? ' existing' : ''}`} data-lv-id={`board:${r.board.id}`} onDoubleClick={edit(onEditBoard, r.board.id)}>
             <title>Double-click to edit the transformer</title>
-            <line x1={r.x} y1="50" x2={r.x} y2="70" className="ln mv" />
-            <circle cx={r.x} cy="84" r="14" className="tr" />
-            <circle cx={r.x} cy="100" r="14" className="tr" />
+            <line x1={r.x} y1="50" x2={r.x} y2="78" className="ln mv" />
+            <Sym id="tx" x={r.x} y={92} s={SYM_SCALE.load} />
             <text className="b" x={r.x + 24} y="86">{`${txTag(project, r.board.id) ?? 'Transformer'}${r.board.existing ? ' — EXISTING' : ''}`}</text>
             <text className="m" x={r.x + 24} y="100">
               {r.board.sourceKva ? `${r.board.sourceKva} kVA · ${r.board.sourceImpedancePct ?? '—'}% Z` : 'no source data'}
             </text>
             {r.board.sourceKva && <text className="m" x={r.x + 24} y="113">{r.board.vectorGroup ?? 'Dyn11'} · 11 / {(project.voltageV / 1000).toFixed(3)} kV</text>}
             {r.board.existing && recordedText(project, r.board) && <text className="m" x={r.x + 24} y="127">{recordedText(project, r.board)}</text>}
-            <line x1={r.x} y1="114" x2={r.x} y2={r.headY - 58} className="ln" />
+            <line x1={r.x} y1="106" x2={r.x} y2={r.headY - 58} className="ln" />
             <text className="m" x={r.x - 8} y={r.headY - (dewa ? 96 : protectionOf(r.board) ? 84 : 72)} textAnchor="end">{project.voltageV} V</text>
             {scenario?.outage?.failedId === r.board.id && (
               <g className="failed-tx">
@@ -1073,24 +1072,28 @@ export default function SystemDiagram({
                 // as its library symbol at the foot of the column.
                 const elcb = dev.elcb && !(iec && rcdInSwitch(f)) ? dev.elcb : undefined;
                 const starter = dev.starterType && !n.childBoardId ? dev.starterType : undefined;
+                // IEC: library symbols at the foot of the column, 18 apart: the undervoltage relay, then the starter.
+                const foot: SymbolId[] = iec ? [...(dev.extras.includes('UVR') ? ['uvr' as const] : []), ...(starter ? [starterSymbolOf(starter)] : [])] : [];
                 const items: { key: string; label: string }[] = [];
                 if (elcb) items.push({ key: 'elcb', label: elcb.label });
                 if (starter && !iec) items.push({ key: 'starter', label: dev.starter! });
-                for (const e of dev.extras) items.push({ key: e, label: e });
+                for (const e of dev.extras) if (!(iec && e === 'UVR')) items.push({ key: e, label: e });
                 const sy = y + 28.5 + items.length * 12;
                 return (
                   <>
                     {items.map((it, i) => box(i, it.label, it.key))}
-                    {starter && iec && (
-                      <g className="acc" data-dxf-layer="DEVICE">
-                        <line x1={n.x - 8 - shiftX} y1={sy} x2={n.x} y2={sy} className="ln" />
-                        <Sym id={starterSymbolOf(starter)} x={n.x - 15 - shiftX} y={sy} s={SYM_SCALE.device} />
+                    {foot.map((id, i) => (
+                      <g key={id} className="acc" data-dxf-layer="DEVICE">
+                        <line x1={n.x - 8 - shiftX} y1={sy + i * 18} x2={n.x} y2={sy + i * 18} className="ln" />
+                        <Sym id={id} x={n.x - 15 - shiftX} y={sy + i * 18} s={SYM_SCALE.device} />
                       </g>
-                    )}
+                    ))}
                     {elcb && (
                       <g className="acc">
                         <title>{`Earth leakage protection${elcb.ma ? ` ${elcb.ma} mA` : ''}`}</title>
-                        <ellipse cx={n.x - 8 - shiftX - elcb.label.length * 5.2 - 6 - 5} cy={y + 26.5} rx="4.5" ry="2.2" className="sym-ln" />
+                        {/* IEC: the library RCD (its toroid) on the cable below the breaker; the box names the device. */}
+                        {iec ? <Sym id="rcd" x={n.x} y={y + 42} s={SYM_SCALE.device} />
+                          : <ellipse cx={n.x - 8 - shiftX - elcb.label.length * 5.2 - 6 - 5} cy={y + 26.5} rx="4.5" ry="2.2" className="sym-ln" />}
                         {elcb.ma ? <text x={n.x - 8 - shiftX} y={y + 19} textAnchor="end" className="acc-t" style={{ fontSize: 7 }}>{elcb.ma}mA</text> : null}
                       </g>
                     )}
@@ -1244,18 +1247,19 @@ export default function SystemDiagram({
                 return (
                   <g className="standby">
                     <title>{`Standby generator ${b.standby.kva} kVA through an ${atsLines(ats).join(', ')} — everything on ${b.id} is essential load`}</title>
-                    <rect x={n.x - 11} y={n.busY - 88} width="22" height="15" rx="2" className="sym" />
-                    <text x={n.x} y={n.busY - 77} textAnchor="middle" className="b" style={{ fontSize: 8 }}>ATS</text>
-                    {/* N (mains) on the incoming line, E (generator) on the generator side; the ATS rating and type
-                        above the generator, right of the line (the panel's name box is on the left). */}
-                    <text x={n.x + 5} y={n.busY - 92} className="acc-t">N</text>
-                    <text x={n.x + 14} y={n.busY - 84} className="acc-t">E</text>
+                    {/* Changeover switch (library ats): mains (N) to the left contact, generator (E) to the right one,
+                        the common contact down to the board. The incoming line is masked behind it. */}
+                    <rect x={n.x - 8} y={n.busY - 93} width="16" height="21" className="bg-fill" />
+                    <path d={`M${n.x} ${n.busY - 93} V${n.busY - 91} H${n.x - 6} V${n.busY - 88}`} className="ln" />
+                    <Sym id="ats" x={n.x} y={n.busY - 80} s={SYM_SCALE.device} />
+                    {/* The ATS rating and type above the generator, right of the line (the panel's name box is on the left). */}
+                    <text x={n.x - 9} y={n.busY - 90} textAnchor="end" className="acc-t">N</text>
+                    <text x={n.x + 14} y={n.busY - 94} className="acc-t">E</text>
                     {atsLines(ats).map((t, i) => (
                       <text key={t} x={n.x + 14} y={n.busY - 136 + i * 11} className={i ? 'dev-k' : 'dev'}>{t}</text>
                     ))}
-                    <line x1={n.x + 11} y1={gy} x2={gx - 11} y2={gy} className="ln" />
-                    <circle cx={gx} cy={gy} r="11" className="sym" />
-                    <text x={gx} y={gy + 4} textAnchor="middle" className="b" style={{ fontSize: 11 }}>G</text>
+                    <path d={`M${gx - 12.25} ${gy} H${n.x + 12} V${n.busY - 91} H${n.x + 6} V${n.busY - 88}`} className="ln" />
+                    <Sym id="gen" x={gx} y={gy} s={SYM_SCALE.load} />
                     <text x={gx + 15} y={gy + 3} className="m">{b.standby.kva} kVA</text>
                     {g && (
                       <>
@@ -1286,9 +1290,8 @@ export default function SystemDiagram({
                     <text x={n.x - 16} y={cy + 3} textAnchor="end" className="acc-t">{txt}</text>
                     {cap && (
                       <>
-                        <path d={`M${n.x + 4.5} ${cy} H${cap.x - 22} V${real.busY + 22}`} className="ln interlock" />
-                        <rect x={cap.x - 31} y={real.busY + 22} width="18" height="11" rx="1" className="sym" />
-                        <text x={cap.x - 22} y={real.busY + 30} textAnchor="middle" className="acc-t b">PFR</text>
+                        <path d={`M${n.x + 4.5} ${cy} H${cap.x - 22} V${real.busY + 19.5}`} className="ln interlock" />
+                        <Sym id="pfrelay" x={cap.x - 22} y={real.busY + 27.5} s={SYM_SCALE.device} />
                       </>
                     )}
                   </g>
@@ -1393,10 +1396,9 @@ export default function SystemDiagram({
                 const room = n.x - 66 - n.busX1;
                 const x0 = room >= 50 ? n.busX1 + 2 : n.busX1 - 52;
                 const y0 = n.busY - 52;
-                const meter = (x: number, t: string) => (
+                const meter = (x: number, t: 'A' | 'V') => (
                   <g key={t}>
-                    <rect x={x} y={y0} width="16" height="14" className="sym" />
-                    <text x={x + 8} y={y0 + 11} textAnchor="middle" className="acc-t b">{t}</text>
+                    <Sym id={t === 'A' ? 'ammeter' : 'voltmeter'} x={x + 8} y={y0 + 7} s={SYM_SCALE.device} />
                     <rect x={x - 1} y={y0 + 16} width="18" height="10" className="sym" />
                     <text x={x + 8} y={y0 + 24} textAnchor="middle" className="acc-t" style={{ fontSize: 7 }}>S/S</text>
                   </g>
@@ -1408,8 +1410,9 @@ export default function SystemDiagram({
                     {meter(x0 + 24, 'V')}
                     {['R', 'Y', 'B'].map((ph, i) => (
                       <g key={ph}>
-                        <circle cx={x0 + 7 + i * 15} cy={y0 + 38} r="5.5" className="sym" />
-                        <text x={x0 + 7 + i * 15} y={y0 + 41} textAnchor="middle" className="acc-t" style={{ fontSize: 7 }}>{ph}</text>
+                        {/* Library lamp: its lamp on the old spot, tapped off a short phase line on its left. */}
+                        <Sym id="lamp" x={x0 - 3 + i * 15} y={y0 + 38} s={SYM_SCALE.device} />
+                        <text x={x0 + 7 + i * 15} y={y0 + 33} textAnchor="middle" className="acc-t" style={{ fontSize: 7 }}>{ph}</text>
                       </g>
                     ))}
                   </g>

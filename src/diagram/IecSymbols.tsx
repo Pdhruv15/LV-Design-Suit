@@ -82,15 +82,9 @@ export function legendEntries(project: Project): LegendEntry[] {
   const has = (k: SwitchKind) => drawn.some((f) => switchKindOf(f) === k);
   const out: LegendEntry[] = [];
   const add = (key: string, label: string, draw: LegendEntry['draw']) => out.push({ key, label, draw });
-  if (shown.some((b) => b.sourceKva)) add('tx', 'Transformer', (x, y) => (
-    <g className="iec"><circle cx={x} cy={y - 5} r="7" className="tr" /><circle cx={x} cy={y + 4} r="7" className="tr" /></g>
-  ));
-  if (shown.some((b) => b.standby)) add('gen', 'Standby generator', (x, y) => (
-    <g className="iec"><circle cx={x} cy={y} r="9" className="sym" /><text x={x} y={y + 4} textAnchor="middle" className="iec-t b">G</text></g>
-  ));
-  if (shown.some((b) => b.standby && b.standby.changeover !== 'ACB')) add('ats', 'Automatic transfer switch (ATS), 4P switched neutral', (x, y) => (
-    <g className="iec"><rect x={x - 11} y={y - 7} width="22" height="14" rx="2" className="sym" /><text x={x} y={y + 3} textAnchor="middle" className="iec-t s">ATS</text></g>
-  ));
+  if (shown.some((b) => b.sourceKva)) add('tx', 'Transformer', (x, y) => <Sym id="tx" x={x} y={y} s={SYM_SCALE.legend} />);
+  if (shown.some((b) => b.standby)) add('gen', 'Standby generator', (x, y) => <Sym id="gen" x={x} y={y} s={SYM_SCALE.legend} />);
+  if (shown.some((b) => b.standby && b.standby.changeover !== 'ACB')) add('ats', 'Automatic transfer switch (ATS), 4P switched neutral', (x, y) => <Sym id="ats" x={x} y={y} s={SYM_SCALE.legend} />);
   add('bus', 'Busbar', (x, y) => <line x1={x - 12} y1={y} x2={x + 12} y2={y} className="bus" />);
   if (shown.some((b) => b.existing) || project.feeders.some((f) => f.existing)) add('existing', 'EXISTING: already installed, not in the BOQ', (x, y) => (
     <line x1={x - 12} y1={y} x2={x + 12} y2={y} className="ln" style={{ strokeDasharray: '5 3' }} />
@@ -106,9 +100,8 @@ export function legendEntries(project: Project): LegendEntry[] {
   const switches = new Set(drawn.map(feederSwitchOf));
   if (switches.has('rcbo')) add('rcbo', 'RCBO: breaker with earth leakage protection', (x, y) => <Sym id="rcbo" x={x} y={y} s={SYM_SCALE.legend} />);
   if (switches.has('rccb')) add('rccb', 'RCCB / ELCB: switch with earth leakage protection', (x, y) => <Sym id="rccb" x={x} y={y} s={SYM_SCALE.legend} />);
-  if (drawn.some((f) => sldDevices(f).elcb && !rcdInSwitch(f))) add('rcd', 'Earth leakage protection (RCD)', (x, y) => (
-    <g className="iec"><line x1={x} y1={y - 9} x2={x} y2={y + 9} className="ln" /><ellipse cx={x} cy={y} rx="7" ry="3.2" className="sym-ln" /></g>
-  ));
+  if (drawn.some((f) => sldDevices(f).elcb && !rcdInSwitch(f))) add('rcd', 'Earth leakage protection (RCD / ELR toroid), device named beside it', (x, y) => <Sym id="rcd" x={x} y={y} s={SYM_SCALE.legend} />);
+  if (loads.some((f) => sldDevices(f).extras.includes('UVR'))) add('uvr', 'Undervoltage relay (UVR)', (x, y) => <Sym id="uvr" x={x} y={y} s={SYM_SCALE.legend} />);
   const prot = shown.map((b) => b.protection);
   if (drawn.some((f) => f.kwhMeter === 'CT') || shown.some((b) => b.protection?.ctRatio || b.supply?.ctRatio)) add('ct', 'Current transformer', (x, y) => <Sym id="ct" x={x} y={y} s={SYM_SCALE.legend} />);
   const relays = [...new Set(prot.flatMap((p) => p?.relays ?? []))];
@@ -125,17 +118,11 @@ export function legendEntries(project: Project): LegendEntry[] {
     ));
   }
   if (shown.some((b) => b.pmu)) add('pmu', 'Power meter (PMU) with link to BMS', (x, y) => <Sym id="pmu" x={x} y={y} s={SYM_SCALE.legend} />);
-  if (prot.some((p) => p?.apfc)) add('pfr', 'Power factor relay (PFR), CT from the incomer', (x, y) => (
-    <g className="iec"><rect x={x - 9} y={y - 5.5} width="18" height="11" rx="1" className="sym" /><text x={x} y={y + 3} textAnchor="middle" className="iec-t s">PFR</text></g>
-  ));
+  if (prot.some((p) => p?.apfc)) add('pfr', 'Power factor relay (PFR), CT from the incomer', (x, y) => <Sym id="pfrelay" x={x} y={y} s={SYM_SCALE.legend} />);
   const main = (b: { upstreamId?: string }) => !b.upstreamId;
   if (shown.some((b) => b.instruments ?? main(b))) {
-    add('am', 'Ammeter (A) / voltmeter (V), selector switch (SS)', (x, y) => (
-      <g className="iec"><rect x={x - 17} y={y - 7} width="14" height="14" className="sym" /><text x={x - 10} y={y + 4} textAnchor="middle" className="iec-t b">A</text><rect x={x + 3} y={y - 7} width="14" height="14" className="sym" /><text x={x + 10} y={y + 4} textAnchor="middle" className="iec-t b">V</text></g>
-    ));
-    add('lamps', 'Phase indicating lamps R, Y, B', (x, y) => (
-      <g className="iec">{['R', 'Y', 'B'].map((p, i) => <g key={p}><circle cx={x - 13 + i * 13} cy={y} r="5.5" className="sym" /><text x={x - 13 + i * 13} y={y + 3} textAnchor="middle" className="iec-t s">{p}</text></g>)}</g>
-    ));
+    add('am', 'Ammeter (A) / voltmeter (V), selector switch (SS)', (x, y) => <g><Sym id="ammeter" x={x - 10} y={y} s={SYM_SCALE.legend} /><Sym id="voltmeter" x={x + 10} y={y} s={SYM_SCALE.legend} /></g>);
+    add('lamps', 'Phase indicating lamps R, Y, B', (x, y) => <Sym id="lamp" x={x - 6} y={y} s={SYM_SCALE.legend} />);
   }
   if (shown.some((b) => b.earthing?.show ?? main(b))) add('pit', 'Earth pit with inspection cover', (x, y) => (
     <g className="iec"><rect x={x - 7} y={y - 11} width="14" height="9" className="sym" /><line x1={x} y1={y - 6} x2={x} y2={y + 6} className="ln" /><path d={`M${x - 7} ${y + 6} h14 M${x - 4.5} ${y + 9} h9 M${x - 2} ${y + 12} h4`} className="ln" /></g>
