@@ -33,7 +33,7 @@ const BUS_FROM_TOP = 2.8 * U; // busbar position in the enclosure: outgoing brea
 
 export type LeafSymbol = 'db' | 'smdb' | 'mcc' | 'ups';
 export const leafSymbol = (k: BoardKind | undefined): LeafSymbol =>
-  k === 'MCC' || k === 'EMCC' ? 'mcc' : k === 'UPS' ? 'ups' : k === 'DB' || k === 'EDB' || !k ? 'db' : 'smdb';
+  k === 'MCC' || k === 'EMCC' || k === 'FP' ? 'mcc' : k === 'UPS' ? 'ups' : k === 'DB' || k === 'EDB' || !k ? 'db' : 'smdb';
 
 export interface FRRow { label: string; sub: string; yTop: number; yLine: number }
 export interface FRPanel { board: Board; x1: number; x2: number; y1: number; y2: number; busY: number; incomerX: number; titleTop: boolean; lines: string[] }

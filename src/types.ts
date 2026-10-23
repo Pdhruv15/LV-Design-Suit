@@ -27,10 +27,11 @@ export const BREAKER_TYPES: { value: BreakerType; label: string }[] = [
   { value: 'ACB', label: 'ACB (adjustable Im)' }
 ];
 
-export type BoardKind = 'MC' | 'MDB' | 'LV-MDB' | 'SMDB' | 'DB' | 'EDB' | 'MCC' | 'EMCC' | 'EMDB' | 'UPS';
+export type BoardKind = 'MC' | 'LV-ACB' | 'MDB' | 'LV-MDB' | 'SMDB' | 'DB' | 'EDB' | 'MCC' | 'EMCC' | 'EMDB' | 'LV-EMDB' | 'FP' | 'UPS';
 
 export const BOARD_KINDS: { value: BoardKind; label: string }[] = [
   { value: 'MC', label: 'Meter cabinet (authority supply)' },
+  { value: 'LV-ACB', label: 'LV ACB at the substation (main board remote)' },
   { value: 'MDB', label: 'Main distribution board' },
   { value: 'LV-MDB', label: 'LV main distribution board' },
   { value: 'SMDB', label: 'Sub-main distribution board' },
@@ -39,6 +40,8 @@ export const BOARD_KINDS: { value: BoardKind; label: string }[] = [
   { value: 'MCC', label: 'Motor control centre (package panel)' },
   { value: 'EMCC', label: 'Emergency motor control centre (package panel)' },
   { value: 'EMDB', label: 'Emergency main distribution board' },
+  { value: 'LV-EMDB', label: 'LV emergency main distribution board' },
+  { value: 'FP', label: 'Fire pump panel' },
   { value: 'UPS', label: 'UPS output board' }
 ];
 

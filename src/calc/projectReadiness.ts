@@ -43,7 +43,7 @@ export function projectReadiness(p: Project, d: Dashboard, run?: CalcRun, stale:
 /** One check of a design stage's checklist (Overview → stage bar). */
 export interface StageCheck { label: string; done: boolean; go: MainView | 'settings' }
 export interface StageCard { stage: DesignStage; label: string; does: string; state: 'done' | 'current' | 'next'; checks: StageCheck[]; gate?: StageGate }
-const MAIN_KINDS = new Set(['MDB', 'LV-MDB', 'SMDB', 'EMDB', 'MCC']);
+const MAIN_KINDS = new Set(['LV-ACB', 'MDB', 'LV-MDB', 'SMDB', 'LV-EMDB', 'EMDB', 'MCC']);
 
 /** The checklist of every stage the project goes through: what each stage needs before its package is issued.
  * Derived from the inputs, never stored; a stage is done when its gate has been passed. */

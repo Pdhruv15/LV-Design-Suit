@@ -4,7 +4,7 @@ import { STANDARD_ICU_KA } from '../calc/sizing';
 import { subtree } from '../calc/pfc';
 import { cpcOf } from '../calc/earthing';
 import type { PhaseKw } from '../calc/loadSchedule';
-import { connectedPhaseKw, deviceOf } from './mdSheet';
+import { connectedPhaseKw, deviceOf, panelDf } from './mdSheet';
 
 /** "Bus bar riser — details of connected load / max. demand" (DEWA): the
  * riser's incomer (feeding breaker, the busway), then one row per tap-off
@@ -58,7 +58,7 @@ export function buildRiserForm(project: Project, riserId: string): RiserForm | n
         const phases = connectedPhaseKw(project, b.id);
         const meters = Z();
         for (const x of project.feeders) if (subtree(project, b.id).has(x.boardId) && x.kwhMeter) meters[x.kwhMeter]++;
-        const df = b.mdDemandFactor ?? dfDefault;
+        const df = panelDf(project, b);
         rows.push({
           name: b.id, sptp: 'TP', acb: inc && deviceOf(inc) === 'ACB' ? inc.breakerRatingA : undefined, mccb: inc && deviceOf(inc) !== 'ACB' ? inc.breakerRatingA : fl.tapOffA,
           faultKa: inc?.breakerIcuKa, cores: inc ? `${inc.cores}C` : undefined, type: inc?.cableType ?? (inc ? 'XLPE/SWA/PVC' : undefined), size: inc ? String(inc.cableCsaMm2) : undefined, ecc: inc ? cpcOf(inc) : undefined,

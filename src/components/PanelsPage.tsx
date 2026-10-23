@@ -256,7 +256,7 @@ function PanelList({ project, onChange, onStatus, onBuilding }: { project: Proje
 }
 
 
-const EMERGENCY_ROLES = new Set(['EMDB', 'ESMDB', 'EDB']);
+const EMERGENCY_ROLES = new Set(['LV-EMDB', 'EMDB', 'ESMDB', 'EDB']);
 
 /** Naming: the prefix table and a schedule of every panel name, grouped by role. Edit names directly,
  * or set the order (No.) and renumber a role — incremental (EDB-01…) or by level (EDB-L2-01).

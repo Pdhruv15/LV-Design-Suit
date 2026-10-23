@@ -38,6 +38,9 @@ export const CABLE_TYPES_ALL = CABLE_TYPE_DEFS.map((d) => d.value);
 export const cableTypeDef = (value: string | undefined): CableTypeDef =>
   CABLE_TYPE_DEFS.find((d) => d.value === value) ?? { value: value ?? DEFAULT_CABLE_TYPE, label: value ?? DEFAULT_CABLE_TYPE, code: value ?? 'XLPE/SWA' };
 
+/** Emergency and fire pump panels: everything on them, and their incoming feeders, is life safety. */
+const FIRE_ROLES = ['LV-EMDB', 'EMDB', 'ESMDB', 'EDB', 'EMCC', 'FP'];
+
 /** Life safety circuits: fire pumps, feeders from an emergency board (EMDB)
  * and loads on the standby generator. Civil Defence expects fire-rated
  * cable for them. */
@@ -45,9 +48,9 @@ export function needsFireRated(project: Project, f: Feeder): boolean {
   if (loadTypeOf(f) === 'fire-pump') return true;
   if (f.essential) return true;
   const board = project.boards.find((b) => b.id === f.boardId);
-  if (board && ['EMDB', 'ESMDB', 'EDB', 'EMCC'].includes(roleOf(project, board))) return true;
+  if (board && FIRE_ROLES.includes(roleOf(project, board))) return true;
   const fed = f.feedsBoardId ? project.boards.find((b) => b.id === f.feedsBoardId) : undefined;
-  return !!fed && ['EMDB', 'ESMDB', 'EDB', 'EMCC'].includes(roleOf(project, fed));
+  return !!fed && FIRE_ROLES.includes(roleOf(project, fed));
 }
 
 /** The cable type a feeder uses: its own, else fire-rated for life safety

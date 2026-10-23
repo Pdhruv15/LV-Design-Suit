@@ -4,7 +4,7 @@ import { roleOf } from './emergency';
 import { spareBreaker, spareWaysOf } from './spareWays';
 
 /** Boards sized with the Form-4 worksheet: main and sub-main boards (normal and emergency). */
-export const FORM4_ROLES = ['MDB', 'SMDB', 'EMDB', 'ESMDB'];
+export const FORM4_ROLES = ['LV-ACB', 'MDB', 'SMDB', 'LV-EMDB', 'EMDB', 'ESMDB'];
 export const isForm4Board = (p: Project, b: Board) => FORM4_ROLES.includes(roleOf(p, b));
 
 /** One breaker of the board and the worksheet column it was counted in. */
