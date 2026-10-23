@@ -1,5 +1,9 @@
 import { incomerDeviceOf, type Board, type Project } from '../types';
-import { SwitchSym, switchKindOf, type SwitchKind } from '../diagram/IecSymbols';
+import { loadSymbolOf, SwitchSym, switchKindOf, type SwitchKind } from '../diagram/IecSymbols';
+import { panelSymbolOf } from '../diagram/panelBox';
+import { Sym, SYM_SCALE } from '../diagram/symbolLibrary';
+import { isMotor } from '../calc/motor';
+import { loadTypeOf } from '../calc/summary';
 import type { FeederResult } from '../calc/electrical';
 import { circuitRef } from '../calc/loadSchedule';
 import { runsOf } from '../calc/electrical';
@@ -136,7 +140,18 @@ export default function SingleLineDiagram({
           <g key={f.id} tabIndex={0} style={{ cursor: 'pointer' }} onClick={() => onSelect(f.id)} onKeyDown={(e) => e.key === 'Enter' && onSelect(f.id)}>
             <line x1={x} y1="118" x2={x} y2="152" className="ln" />
             <SwitchSym x={x} y={152} kind={switchKindOf(f)} />
-            <line x1={x} y1="168" x2={x} y2="236" className="ln" />
+            {/* The circuit's symbol just above its card: the board's panel symbol for a way feeding a board, else its load. */}
+            {(() => {
+              const fed = f.feedsBoardId ? project?.boards.find((b) => b.id === f.feedsBoardId) : undefined;
+              const id = fed ? (project ? panelSymbolOf(project, fed) : undefined) : loadSymbolOf(loadTypeOf(f), isMotor(f), loadTypeOf(f) === 'fire-pump');
+              return id ? (
+                <>
+                  <line x1={x} y1="168" x2={x} y2="218" className="ln" />
+                  <Sym id={id} x={x} y={226} s={SYM_SCALE.device} />
+                  <line x1={x} y1="234" x2={x} y2="236" className="ln" />
+                </>
+              ) : <line x1={x} y1="168" x2={x} y2="236" className="ln" />;
+            })()}
             {/* Protective device: rating, poles and kind, then breaking capacity and any RCD */}
             <text className="b" x={x + 11} y="160">{f.breakerRatingA} A {devicePoles(f)} {deviceKind(f)}</text>
             <text className="m" x={x + 11} y="173">{f.breakerIcuKa ? `${f.breakerIcuKa} kA` : ''}{f.rcdMa ? `${f.breakerIcuKa ? ' · ' : ''}${f.rcdMa} mA RCD` : ''}</text>

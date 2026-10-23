@@ -668,12 +668,12 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 .pv-check td.ok{color:var(--ok);font-weight:700}.pv-check td.bad{color:var(--bad);font-weight:700}
 .sysdiag .insert-guide line{stroke:var(--acc);stroke-width:2.5;stroke-dasharray:6 4}
 .sysdiag .insert-guide circle{fill:var(--acc)}
-.sysdiag .iec .sym-open{fill:none;stroke:var(--tx);stroke-width:1.5}
-.sysdiag .iec .sym-fill{fill:var(--tx);stroke:none}
-.sysdiag .iec .thick{stroke-width:2.5}
-.sysdiag .iec-t{font-size:9px;fill:var(--tx)}
-.sysdiag .iec-t.b{font-size:11px;font-weight:700}
-.sysdiag .iec-t.s{font-size:7.5px}
+.sysdiag .iec .sym-open,.iec .sym-open{fill:none;stroke:var(--tx);stroke-width:1.5}
+.sysdiag .iec .sym-fill,.iec .sym-fill{fill:var(--tx);stroke:none}
+.sysdiag .iec .thick,.iec .thick{stroke-width:2.5}
+.sysdiag .iec-t,.iec-t{font-size:9px;fill:var(--tx)}
+.sysdiag .iec-t.b,.iec-t.b{font-size:11px;font-weight:700}
+.sysdiag .iec-t.s,.iec-t.s{font-size:7.5px}
 .sysdiag .legend-box{fill:var(--panel);stroke:var(--mut);stroke-width:1}
 .sysdiag .legend-t{font-size:10.5px;fill:var(--tx)}
 .sysdiag-tools .chip.on{border-color:var(--acc);color:var(--acc)}
