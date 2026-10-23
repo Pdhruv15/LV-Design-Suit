@@ -3,6 +3,7 @@ import { loadSymbolOf, SwitchSym, switchKindOf, type SwitchKind } from '../diagr
 import { panelSymbolOf } from '../diagram/panelBox';
 import { Sym, SYM_SCALE } from '../diagram/symbolLibrary';
 import { isMotor } from '../calc/motor';
+import { panelSummary } from '../docs/mdSheet';
 import { loadTypeOf } from '../calc/summary';
 import type { FeederResult } from '../calc/electrical';
 import { circuitRef } from '../calc/loadSchedule';
@@ -17,6 +18,9 @@ const SPACING = 172; // horizontal slot per feeder
 const MARGIN = 80;
 const CARD_W = SPACING - 20;
 const NAME_CHARS = 24; // per line on a card (12 px text)
+/** Each way ends in its symbol (load scale, 28 tall, centred on SYM_Y), then its card. */
+const SYM_Y = 252;
+const CARD_Y = 272;
 
 /** Words onto at most `lines` lines of `max` characters; text that doesn't fit ends in an ellipsis. */
 export function wrapText(text: string, max: number, lines = 2): string[] {
@@ -71,7 +75,8 @@ export default function SingleLineDiagram({
   const n = drawn.length + (finals.length ? 1 : 0);
   const locLines = summary ? wrapText(`LOC : ${summary.loc || '—'}`, 34, 2) : [];
   const sumH = 18 + (locLines.length + 3) * 12;
-  const H = 372;
+  // Taller by a line where a way feeds a board: its card adds the board's TCL and MDL.
+  const H = 406 + (drawn.some((r) => r.feeder.feedsBoardId) ? 13 : 0);
   const width = Math.max(n, 4) * SPACING + 2 * MARGIN;
   // Never below 85 % scale: a board with many ways scrolls sideways rather than shrinking past reading.
   const minWidth = Math.round(width * 0.85);
@@ -106,15 +111,16 @@ export default function SingleLineDiagram({
         </>
       ) : (
         <>
-          <line x1={cx} y1="10" x2={cx} y2={dev ? 94 : 118} className="ln" />
+          <line x1={cx} y1="10" x2={cx} y2={dev ? 70 : 118} className="ln" />
           <text className="b" x={cx + 22} y="40">
             Incomer
           </text>
           <text className="m" x={cx + 22} y="54">
             {incomerLabel ? `${incomerLabel} · from ${board.upstreamId}` : `from ${board.upstreamId}`}
           </text>
-          {dev && <SwitchSym x={cx} y={94} kind={incKind} />}
-          {dev && <line x1={cx} y1="110" x2={cx} y2="118" className="ln" />}
+          {/* Incomer breaker clear of the busbar, with a run of line below it as on the outgoing ways. */}
+          {dev && <SwitchSym x={cx} y={70} kind={incKind} />}
+          {dev && <line x1={cx} y1="86" x2={cx} y2="118" className="ln" />}
         </>
       )}
       {summary && (
@@ -136,21 +142,21 @@ export default function SingleLineDiagram({
         const f = r.feeder;
         const col = `var(--${r.status})`;
         const sel = selected === f.id;
+        const fed = f.feedsBoardId ? project?.boards.find((b) => b.id === f.feedsBoardId) : undefined;
         return (
           <g key={f.id} tabIndex={0} style={{ cursor: 'pointer' }} onClick={() => onSelect(f.id)} onKeyDown={(e) => e.key === 'Enter' && onSelect(f.id)}>
             <line x1={x} y1="118" x2={x} y2="152" className="ln" />
             <SwitchSym x={x} y={152} kind={switchKindOf(f)} />
-            {/* The circuit's symbol just above its card: the board's panel symbol for a way feeding a board, else its load. */}
+            {/* The way ends in its symbol, below the cable text: the board's panel symbol for a way feeding a board, else its load. */}
             {(() => {
-              const fed = f.feedsBoardId ? project?.boards.find((b) => b.id === f.feedsBoardId) : undefined;
               const id = fed ? (project ? panelSymbolOf(project, fed) : undefined) : loadSymbolOf(loadTypeOf(f), isMotor(f), loadTypeOf(f) === 'fire-pump');
               return id ? (
                 <>
-                  <line x1={x} y1="168" x2={x} y2="218" className="ln" />
-                  <Sym id={id} x={x} y={226} s={SYM_SCALE.device} />
-                  <line x1={x} y1="234" x2={x} y2="236" className="ln" />
+                  <line x1={x} y1="168" x2={x} y2={SYM_Y - 14} className="ln" />
+                  <Sym id={id} x={x} y={SYM_Y} s={SYM_SCALE.load} />
+                  <line x1={x} y1={SYM_Y + 14} x2={x} y2={CARD_Y} className="ln" />
                 </>
-              ) : <line x1={x} y1="168" x2={x} y2="236" className="ln" />;
+              ) : <line x1={x} y1="168" x2={x} y2={CARD_Y} className="ln" />;
             })()}
             {/* Protective device: rating, poles and kind, then breaking capacity and any RCD */}
             <text className="b" x={x + 11} y="160">{f.breakerRatingA} A {devicePoles(f)} {deviceKind(f)}</text>
@@ -170,14 +176,16 @@ export default function SingleLineDiagram({
               ));
             })()}
             {(() => {
-              const name = wrapText(f.room || f.name || '—', NAME_CHARS, 2);
-              const top = 236, cardH = 68 + (name.length - 1) * 13, bottom = top + cardH;
+              // A board: its name, TCL and MDL (the way's reference is in the tooltip). A load: as before.
+              const sm = fed && project ? panelSummary(project, fed) : undefined;
+              const name = wrapText((fed ? fed.name : f.room || f.name) || '—', NAME_CHARS, 2);
+              const top = CARD_Y, cardH = 68 + (name.length - 1) * 13 + (sm ? 13 : 0), bottom = top + cardH;
               return (
                 <>
                   <rect x={x - CARD_W / 2} y={top} width={CARD_W} height={cardH} rx="6" className="box" style={sel ? { stroke: 'var(--acc)', strokeWidth: 2 } : undefined} />
                   <title>{`${circuitRef(f) ?? f.id} — ${f.room || f.name || ''}`}</title>
                   <circle cx={x + CARD_W / 2 - 10} cy={top + 12} r="4" fill={col} />
-                  <text className="b" x={x - CARD_W / 2 + 8} y={top + 19}>{circuitRef(f) ?? f.id}</text>
+                  <text className="b" x={x - CARD_W / 2 + 8} y={top + 19}>{fed ? fed.id : circuitRef(f) ?? f.id}</text>
                   {onPhase && (() => {
                     const tag = phaseTag(f);
                     const single = tag !== 'RYB';
@@ -192,9 +200,16 @@ export default function SingleLineDiagram({
                     );
                   })()}
                   {name.map((l, k) => <text key={k} className="m" x={x - CARD_W / 2 + 8} y={top + 35 + k * 13}>{l}</text>)}
-                  <text x={x - CARD_W / 2 + 8} y={bottom - 12}>
-                    {r.ib.toFixed(0)} A{f.feedsBoardId ? ` · → ${f.feedsBoardId}` : ` · ${(f.loadKw * f.demandFactor).toFixed(0)} kW${f.generation ? ' gen' : ''}`}
-                  </text>
+                  {sm ? (
+                    <>
+                      <text x={x - CARD_W / 2 + 8} y={bottom - 25}>TCL {sm.tclKw.toFixed(2)} kW</text>
+                      <text x={x - CARD_W / 2 + 8} y={bottom - 12}>MDL {sm.mdlKw.toFixed(2)} kW · {r.ib.toFixed(0)} A</text>
+                    </>
+                  ) : (
+                    <text x={x - CARD_W / 2 + 8} y={bottom - 12}>
+                      {r.ib.toFixed(0)} A{f.feedsBoardId ? ` · → ${f.feedsBoardId}` : ` · ${(f.loadKw * f.demandFactor).toFixed(0)} kW${f.generation ? ' gen' : ''}`}
+                    </text>
+                  )}
                   <rect x={x - CARD_W / 2} y={bottom + 8} width={CARD_W} height="6" rx="3" fill="var(--line)" />
                   <rect x={x - CARD_W / 2} y={bottom + 8} width={Math.min(CARD_W, (CARD_W / 100) * r.loadingPct)} height="6" rx="3" fill={col} />
                   <text className="m" x={x - CARD_W / 2} y={bottom + 32}>
@@ -211,15 +226,15 @@ export default function SingleLineDiagram({
         return (
           <g className="sld-finals">
             <title>{`${finals.length} final circuits — ${finals.map((r) => circuitRef(r.feeder) ?? r.feeder.id).join(', ')}`}</title>
-            <line x1={x} y1="118" x2={x} y2="236" className="ln" strokeDasharray="6 4" />
+            <line x1={x} y1="118" x2={x} y2={CARD_Y} className="ln" strokeDasharray="6 4" />
             <text className="b" x={x + 8} y="160">{finals.length} ways</text>
             <text className="m" x={x + 8} y="173">MCB / RCBO</text>
-            <rect x={left} y="236" width={CARD_W} height="84" rx="6" className="box" strokeDasharray="6 4" />
-            <text className="b" x={left + 8} y="255">FINAL CIRCUITS</text>
-            <text className="m" x={left + 8} y="271">Lighting &amp; power</text>
-            <text className="m" x={left + 8} y="285">{finals.length} circuits · {finalKw.toFixed(1)} kW</text>
-            <text x={left + 8} y="303">Refer DB load schedule</text>
-            <text className="m" x={left + 8} y="315">{board.id}</text>
+            <rect x={left} y={CARD_Y} width={CARD_W} height="84" rx="6" className="box" strokeDasharray="6 4" />
+            <text className="b" x={left + 8} y={CARD_Y + 19}>FINAL CIRCUITS</text>
+            <text className="m" x={left + 8} y={CARD_Y + 35}>Lighting &amp; power</text>
+            <text className="m" x={left + 8} y={CARD_Y + 49}>{finals.length} circuits · {finalKw.toFixed(1)} kW</text>
+            <text x={left + 8} y={CARD_Y + 67}>Refer DB load schedule</text>
+            <text className="m" x={left + 8} y={CARD_Y + 79}>{board.id}</text>
           </g>
         );
       })()}

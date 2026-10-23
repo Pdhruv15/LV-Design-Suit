@@ -1152,8 +1152,8 @@ export default function SystemDiagram({
                   <text className="b lod-name" x={n.x} y={y + 132} textAnchor="middle" data-fit-width={cadSlot - 6}>{trunc(panel?.id ?? f.id, 16)}</text>
                   <text className="m" x={n.x} y={y + 146} textAnchor="middle">{trunc(panel ? panel.name : f.name, 19)}</text>
                   <text x={n.x} y={y + 160} textAnchor="middle" data-fit-width={cadSlot - 6}>
-                    {panel ? `${(summaries.get(panel.id)?.demandKw ?? 0).toFixed(0)} kW` : f.componentId && project.components?.some((c) => c.id === f.componentId) ? trunc(componentLabel(project, project.components!.find((c) => c.id === f.componentId)!, f), 30) : f.kvar ? `${f.capSteps && f.capSteps > 1 ? `${f.capSteps} × ${+(f.kvar / f.capSteps).toFixed(1)}` : f.kvar} kvar${f.detunedPct ? ` · ${f.detunedPct}% det.` : ''}` : `${dewa && !f.generation ? `TCL : ${f.loadKw.toFixed(2)}` : (f.loadKw * f.demandFactor).toFixed(0)} kW${f.generation ? ' gen' : ''}${isMotor(f) ? ` · ${starterInfo(starterOf(f)).short}` : ''}`}
-                    {!layers?.current && ` · ${r ? r.ib.toFixed(0) : '–'} A`}
+                    {panel ? (() => { const p = panelSummary(project, panel); return `TCL ${p.tclKw.toFixed(1)} · MDL ${p.mdlKw.toFixed(1)} kW`; })() : f.componentId && project.components?.some((c) => c.id === f.componentId) ? trunc(componentLabel(project, project.components!.find((c) => c.id === f.componentId)!, f), 30) : f.kvar ? `${f.capSteps && f.capSteps > 1 ? `${f.capSteps} × ${+(f.kvar / f.capSteps).toFixed(1)}` : f.kvar} kvar${f.detunedPct ? ` · ${f.detunedPct}% det.` : ''}` : `${dewa && !f.generation ? `TCL : ${f.loadKw.toFixed(2)}` : (f.loadKw * f.demandFactor).toFixed(0)} kW${f.generation ? ' gen' : ''}${isMotor(f) ? ` · ${starterInfo(starterOf(f)).short}` : ''}`}
+                    {!layers?.current && !panel && ` · ${r ? r.ib.toFixed(0) : '–'} A`}
                   </text>
                   {feederTags(f.id).map((t, i) => (
                     <text key={t.text} x={n.x} y={y + 177 + i * 13} textAnchor="middle" className={`res ${t.cls}`}>{t.text}</text>
