@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Equipment palette: icon tiles</title>
+<style>
+  :root{--bg:#0d1829;--panel:#13213a;--p2:#1a2b48;--p3:#213556;--line:#2b4064;--field-line:#3b5680;--tx:#e6edf7;--mut:#8ea2c2;--acc:#7fb2ff;--acc2:#2f6fd6;--ok:#7bd88f;--warn:#f5c56b;--fs:13px}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--tx);font:var(--fs)/1.4 -apple-system,"Segoe UI",Inter,Roboto,sans-serif;padding:20px}
+  h1{font-size:18px;margin:0 0 4px}
+  .lead{color:var(--mut);margin:0 0 18px;max-width:900px}
+  .row{display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap}
+  .col{display:flex;flex-direction:column;gap:8px}
+  .col>h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--mut);margin:0}
+  .col>h2 b{color:var(--tx)}
+  .pane{width:300px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;min-height:560px}
+  .pane.wide{width:300px}
+  .tabs{display:flex;gap:14px;border-bottom:1px solid var(--line);margin:-4px -4px 8px;padding:0 6px}
+  .tabs span{padding:6px 2px 8px;color:var(--mut);font-weight:600}
+  .tabs span.on{color:var(--tx);border-bottom:2px solid var(--acc)}
+  .search{display:flex;align-items:center;gap:6px;background:var(--p2);border:1px solid var(--field-line);border-radius:6px;padding:4px 8px;color:var(--mut);margin:0 0 6px}
+  .search svg{width:14px;height:14px;stroke:var(--mut);fill:none;stroke-width:2}
+  .tip{color:var(--mut);font-size:11px;margin:4px 0 8px}
+  /* ----- current (reference) ----- */
+  .acc{display:flex;align-items:center;gap:6px;padding:7px 2px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:11px;color:var(--mut)}
+  .acc .n{margin-left:auto;font-weight:400}
+  .acc .chev{display:inline-block;width:6px;height:6px;border-right:1.5px solid var(--mut);border-bottom:1.5px solid var(--mut);transform:rotate(-45deg);margin-right:4px}
+  .qty{display:flex;align-items:center;gap:6px;color:var(--mut);margin:2px 0 6px}
+  .qty i{display:inline-block;width:34px;border:1px solid var(--field-line);border-radius:5px;padding:2px;text-align:center;font-style:normal;color:var(--tx)}
+  /* ----- proposed ----- */
+  .quick{display:flex;gap:3px;margin:0 0 6px;overflow:hidden}
+  .quick .lab{font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em;writing-mode:vertical-rl;transform:rotate(180deg);text-align:center;margin-right:2px}
+  .mini{width:28px;height:28px;border:0;border-radius:4px;background:none;display:grid;place-items:center;position:relative;flex:none;cursor:grab}
+  .mini svg,.tile svg,.cat svg,.rail-btn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .mini .st{position:absolute;top:-4px;right:-3px;font-size:9px;color:var(--warn)}
+  .cats{display:grid;grid-template-columns:repeat(6,1fr);gap:0;margin-bottom:4px;border-bottom:1px solid var(--line);padding-bottom:3px}
+  .cat{border:0;border-radius:4px;background:none;padding:3px 0 2px;text-align:center;cursor:pointer;color:var(--mut);position:relative;transition:.1s}
+  .cat small{display:block;font-size:8.5px;line-height:1.1;margin-top:2px;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cat .n{position:absolute;top:2px;right:4px;font-size:9px;color:var(--mut)}
+  .cat:hover{color:var(--tx);background:var(--p3)}
+  .cat.on{color:var(--acc);background:color-mix(in srgb,var(--acc) 14%,var(--panel));box-shadow:inset 0 -2px 0 var(--acc)}
+  .cat.on .n{color:var(--acc)}
+  .grid-head{display:flex;align-items:center;gap:6px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:4px 0 4px}
+  .grid-head .tools{margin-left:auto;display:flex;gap:4px}
+  .grid-head .tools b{width:18px;height:18px;border:1px solid var(--line);border-radius:4px;display:grid;place-items:center;font-weight:400;font-size:12px;color:var(--mut)}
+  .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:0}
+  .tile{border:0;border-radius:4px;background:none;padding:4px 1px 3px;text-align:center;cursor:grab;position:relative;min-height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;user-select:none}
+  .tile .nm{font-size:10px;line-height:1.1}
+  .tile .sub{font-size:8.5px;color:var(--mut);line-height:1.1}
+  .tile:hover{background:var(--p3);color:var(--tx)}
+  .tile.armed{box-shadow:inset 0 0 0 1px var(--acc);background:color-mix(in srgb,var(--acc) 16%,var(--panel));color:var(--acc)}
+  .tile.card{grid-column:span 4;flex-direction:row;justify-content:flex-start;text-align:left;padding:3px 4px;gap:6px;border-top:1px solid var(--line);border-radius:0;min-height:0}
+  .tile.card .nm{display:block}
+  .tile .dot{position:absolute;left:5px;top:5px;display:flex;gap:2px}
+  .tile .dot i{width:7px;height:7px;border-radius:50%;display:block}
+  .dot .b{background:#7fb2ff}.dot .f{background:#7bd88f}.dot .c{background:#f5c56b}
+  .tile .star{position:absolute;right:4px;top:2px;font-size:11px;color:var(--mut);opacity:0}
+  .tile:hover .star{opacity:1}
+  .tile .star.on{color:var(--warn);opacity:1}
+  .tile .q{position:absolute;right:3px;bottom:3px;display:none;align-items:center;gap:2px;font-size:10px;background:var(--panel);border:1px solid var(--acc);border-radius:10px;padding:0 4px;color:var(--acc)}
+  .tile.armed .q{display:inline-flex}
+  .tile .q b{cursor:pointer;padding:0 2px;font-weight:600}
+  .legend{display:flex;gap:10px;font-size:10px;color:var(--mut);margin-top:10px;align-items:center}
+  .legend i{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:3px}
+  .armbar{margin-top:8px;border:1px dashed var(--acc);border-radius:6px;padding:6px 8px;font-size:11px;color:var(--acc);display:none;align-items:center;gap:6px}
+  .armbar.show{display:flex}
+  .armbar kbd{border:1px solid var(--line);border-radius:3px;padding:0 4px;font:inherit;color:var(--mut)}
+  /* hover card */
+  .hover{position:absolute;z-index:5;left:308px;top:280px;width:220px;background:var(--p3);border:1px solid var(--field-line);border-radius:8px;padding:8px 10px;font-size:11px;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+  .hover b{display:block;font-size:12px;margin-bottom:2px}
+  .hover .where{display:flex;gap:4px;margin-top:6px}
+  .hover .where span{border:1px solid var(--line);border-radius:10px;padding:0 6px;font-size:10px;color:var(--mut)}
+  .hover .where span.yes{color:var(--ok);border-color:var(--ok)}
+  .hover:before{content:"";position:absolute;left:-6px;top:14px;border:6px solid transparent;border-right-color:var(--field-line);border-left:0}
+  /* compact rail */
+  .railwrap{display:flex;gap:0;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;min-height:560px}
+  .rail{width:46px;background:var(--p2);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:3px}
+  .rail-btn{width:36px;height:36px;border-radius:7px;display:grid;place-items:center;color:var(--mut);cursor:pointer;position:relative}
+  .rail-btn:hover{color:var(--tx);background:var(--p3)}
+  .rail-btn.on{color:var(--acc);background:color-mix(in srgb,var(--acc) 14%,var(--p2))}
+  .rail-btn.on:after{content:"";position:absolute;left:-5px;top:9px;width:3px;height:18px;background:var(--acc);border-radius:2px}
+  .rail .sep{width:24px;border-top:1px solid var(--line);margin:4px 0}
+  .flyout{width:200px;padding:10px}
+  .flyout h4{margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut)}
+  .flyout .tiles{grid-template-columns:repeat(3,1fr)}
+  .notes{max-width:980px;margin-top:26px;border-top:1px solid var(--line);padding-top:14px}
+  .notes h3{font-size:14px;margin:0 0 6px}
+  .notes ol{margin:0;padding-left:20px}
+  .notes li{margin:4px 0}
+  .notes li b{color:var(--acc);font-weight:600}
+  .pill{display:inline-block;border:1px solid var(--line);border-radius:10px;padding:0 7px;font-size:11px;color:var(--mut);margin-left:6px}
+  .pill.new{color:var(--ok);border-color:var(--ok)}
+  .pill.same{color:var(--mut)}
+</style>
+</head>
+<body>
+<h1>Equipment palette: from accordion lists to icon tiles</h1>
+<p class="lead">Mockup only; no app code changed. Left is today's palette. Middle is the proposal: category tiles on top, one open category at a time as a 3-column icon grid, favourites and recently used pinned as a strip, click-to-place as an alternative to drag. Right is the same palette when the side panel is collapsed to a rail. Click the category tiles and item tiles in the middle pane to try it.</p>
+
+<div class="row">
+  <!-- ================= CURRENT ================= -->
+  <div class="col">
+    <h2>Now <span class="pill same">reference</span></h2>
+    <div class="pane">
+      <div class="tabs"><span>Panels 7</span><span class="on">Equipment</span></div>
+      <div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Search… (AHU, RCD, SMDB)</div>
+      <div class="qty">Drop <i>1</i> at a time</div>
+      <p class="tip">Drag onto a busbar — the dashed line shows where it goes — a feeder, or the empty canvas.</p>
+      <div class="acc"><span class="chev"></span>Recently used<span class="n">3</span></div>
+      <div class="acc"><span class="chev"></span>Feeder presets<span class="n">12</span></div>
+      <div class="acc"><span class="chev"></span>My presets<span class="n">0</span></div>
+      <div class="acc"><span class="chev"></span>My components<span class="n">0</span></div>
+      <div class="acc"><span class="chev"></span>Supply<span class="n">5</span></div>
+      <div class="acc"><span class="chev"></span>Distribution boards<span class="n">9</span></div>
+      <div class="acc"><span class="chev"></span>Package panels<span class="n">3</span></div>
+      <div class="acc"><span class="chev"></span>Protection<span class="n">4</span></div>
+      <div class="acc"><span class="chev"></span>Metering &amp; accessories<span class="n">6</span></div>
+      <div class="acc"><span class="chev"></span>Cable types<span class="n">2</span></div>
+      <div class="acc"><span class="chev"></span>Motor starters<span class="n">4</span></div>
+      <div class="acc"><span class="chev"></span>Cable<span class="n">1</span></div>
+      <div class="acc"><span class="chev"></span>Loads<span class="n">10</span></div>
+    </div>
+  </div>
+
+  <!-- ================= PROPOSED ================= -->
+  <div class="col" style="position:relative">
+    <h2>Proposed <b>icon tiles</b> <span class="pill new">no boxes, no padding: ribbon style</span></h2>
+    <div class="pane" id="prop">
+      <div class="tabs"><span>Panels 7</span><span class="on">Equipment</span></div>
+      <div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Search… (AHU, RCD, SMDB)</div>
+
+      <div class="quick" title="Favourites and recently used, always visible">
+        <span class="lab">★ · recent</span>
+        <div class="mini" title="SMDB (favourite)"><span class="st">★</span><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 10h16M9 10v10M15 10v10"/></svg></div>
+        <div class="mini" title="AHU (favourite)"><span class="st">★</span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4v16M4 12h16"/></svg></div>
+        <div class="mini" title="MCCB"><svg viewBox="0 0 24 24"><path d="M12 3v5M12 16v5M12 8l5 5"/><circle cx="12" cy="8" r="1.2"/></svg></div>
+        <div class="mini" title="RCD"><svg viewBox="0 0 24 24"><path d="M12 3v5M12 16v5M12 8l5 5"/><rect x="5" y="9" width="7" height="6" rx="1"/></svg></div>
+        <div class="mini" title="Transformer"><svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="5"/><circle cx="12" cy="15.5" r="5"/></svg></div>
+        <div class="mini" title="Fire pump"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="7"/><path d="M12 6V3M9 13l3-3 3 3-3 3z"/></svg></div>
+      </div>
+
+      <div class="cats" id="cats"></div>
+
+      <div class="grid-head"><span id="gname">Loads</span><span class="n" id="gcount"></span>
+        <span class="tools" id="gtools"></span></div>
+      <div class="tiles" id="tiles"></div>
+
+      <div class="armbar" id="armbar"><span>Click a busbar to place <b id="armname"></b></span><kbd style="margin-left:auto">Esc</kbd></div>
+
+      <div class="legend"><span><i class="b" style="background:#7fb2ff"></i>busbar</span><span><i style="background:#7bd88f"></i>feeder</span><span><i style="background:#f5c56b"></i>empty canvas</span><span style="margin-left:auto">dots = where it drops</span></div>
+    </div>
+
+    <div class="hover" id="hover">
+      <b>Fire pump · 45 kW</b>
+      Breaker, cable and the fire pump are added and sized. Fire-rated cable is marked FR.
+      <div class="where"><span class="yes">Busbar</span><span>Feeder</span><span>Canvas</span></div>
+      <div style="margin-top:6px;color:var(--mut)">Drag, or click then click the busbar. Shift-click: add 3.</div>
+    </div>
+  </div>
+
+  <!-- ================= RAIL ================= -->
+  <div class="col">
+    <h2>Proposed <b>collapsed rail</b> <span class="pill new">optional, when the side panel is hidden</span></h2>
+    <div class="railwrap" style="width:250px">
+      <div class="rail">
+        <div class="rail-btn" title="Search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></div>
+        <div class="rail-btn" title="Favourites"><svg viewBox="0 0 24 24"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg></div>
+        <div class="sep"></div>
+        <div class="rail-btn" title="Supply"><svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="5"/><circle cx="12" cy="15.5" r="5"/></svg></div>
+        <div class="rail-btn on" title="Boards"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 10h16M9 10v10M15 10v10"/></svg></div>
+        <div class="rail-btn" title="Protection"><svg viewBox="0 0 24 24"><path d="M12 3v5M12 16v5M12 8l5 5"/><circle cx="12" cy="8" r="1.2"/></svg></div>
+        <div class="rail-btn" title="Metering & accessories"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 3v2M12 19v2M9 14l1.5-4 1.5 2 1.5-2 1.5 4"/></svg></div>
+        <div class="rail-btn" title="Cable"><svg viewBox="0 0 24 24"><path d="M4 16c4-8 6 8 10 0 1.5-3 3-3 6 0"/></svg></div>
+        <div class="rail-btn" title="Motors & starters"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M8.5 15V9l3.5 4 3.5-4v6"/></svg></div>
+        <div class="rail-btn" title="Loads"><svg viewBox="0 0 24 24"><path d="M12 3v5M7 8h10l-5 13z"/></svg></div>
+        <div class="rail-btn" title="Presets"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 10h8M8 14h5"/></svg></div>
+        <div class="sep"></div>
+        <div class="rail-btn" title="My equipment"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="2.5"/><path d="M5 6v12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5"/></svg></div>
+      </div>
+      <div class="flyout">
+        <h4>Distribution boards</h4>
+        <div class="tiles">
+          <div class="tile"><span class="dot"><i class="c"></i></span><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 10h16M9 10v10M15 10v10"/></svg><span class="nm">MDB</span></div>
+          <div class="tile"><span class="dot"><i class="b"></i></span><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 10h16M9 10v10M15 10v10"/></svg><span class="nm">LV-MDB</span></div>
+          <div class="tile"><span class="dot"><i class="b"></i></span><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 10h16M12 10v10"/></svg><span class="nm">SMDB</span></div>
+          <div class="tile"><span class="dot"><i class="b"></i></span><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1.5"/><path d="M5 11h14"/></svg><span class="nm">DB</span></div>
+          <div class="tile"><span class="dot"><i class="b"></i></span><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1.5"/><path d="M5 11h14M9 14h6"/></svg><span class="nm">EDB</span></div>
+          <div class="tile"><span class="dot"><i class="b"></i></span><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 10h16M9 10v10M15 10v10M8 7h8"/></svg><span class="nm">EMDB</span></div>
+          <div class="tile"><span class="dot"><i class="b"></i></span><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 10h16M8 14v3M12 14v3M16 14v3"/></svg><span class="nm">UPS</span></div>
+          <div class="tile"><span class="dot"><i class="b"></i></span><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 10h16M8 14h8M8 17h8"/></svg><span class="nm">MCC</span></div>
+        </div>
+        <p class="tip" style="margin-top:10px">Hover a rail icon: its tiles fly out. The canvas keeps the full width.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="notes">
+  <h3>What changes, and what stays</h3>
+  <ol>
+    <li><b>Category tiles instead of 13 accordion rows.</b> A 4 × 3 grid of icon tiles with a short label and count. One category is open at a time, so the list below never grows past one screen and nothing has to be scrolled past. The icons are the same SLD symbols the item becomes when dropped.</li>
+    <li><b>Items as icon tiles, 3 per row.</b> Each tile is the symbol plus a short name, with its size as a second line where it helps (45 kW, 22 kW). Feeder presets that carry a breaker + cable + load keep their two-line card, shown full width.</li>
+    <li><b>Favourites and recently used as one pinned strip</b> under the search, always visible, instead of two more collapsible groups.</li>
+    <li><b>Click to place.</b> Click a tile to arm it (highlighted, with a × qty badge you can step up or down), then click the busbar, feeder or canvas. Esc disarms. Drag still works exactly as now. This replaces the separate "Drop 1 at a time" field; shift-click adds 3 as a shortcut.</li>
+    <li><b>Where-it-drops dots.</b> Blue = busbar, green = feeder, amber = empty canvas, shown on every tile, with the same words in the hover card. This replaces the 3-line instruction paragraph, which moves into the hover card of each tile.</li>
+    <li><b>Hover card</b> with the full description that today is only a browser tooltip: name, size, what gets added, where it drops, and the click / shift-click hints.</li>
+    <li><b>Collapsed rail (optional).</b> When the side panel is hidden, a 46 px icon rail stays on the left with a flyout per category, like CAD tool palettes, so the canvas keeps its width.</li>
+    <li><b>Unchanged:</b> colours, fonts, panel width, search box, the tab strip, ★ on hover, edit / copy / delete actions on presets and components, the + / import / export tools for My presets and My components, and all drop behaviour on the SLD.</li>
+  </ol>
+</div>
+
+<script>
+const sym = {
+  tx:'<circle cx="12" cy="8.5" r="5"/><circle cx="12" cy="15.5" r="5"/>',
+  mc:'<rect x="4" y="5" width="16" height="14" rx="1.5"/><circle cx="12" cy="12" r="3.5"/><path d="M10.5 13.5 12 10l1.5 3.5"/>',
+  tie:'<path d="M3 12h6M15 12h6M9 12l5-4"/><circle cx="9" cy="12" r="1.2"/><circle cx="15" cy="12" r="1.2"/>',
+  gen:'<circle cx="12" cy="12" r="8"/><path d="M14.5 9.5A3.5 3.5 0 1 0 15 13h-3"/>',
+  genacb:'<circle cx="9" cy="12" r="5"/><path d="M17 7v10M17 12l3-3"/><circle cx="17" cy="7" r="1"/>',
+  board:'<rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 10h16M9 10v10M15 10v10"/>',
+  board2:'<rect x="5" y="5" width="14" height="14" rx="1.5"/><path d="M5 11h14"/>',
+  mcc:'<rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 10h16M8 14h8M8 17h8"/>',
+  acb:'<path d="M12 3v5M12 16v5M12 8l5 5"/><circle cx="12" cy="8" r="1.2"/><path d="M9 16h6"/>',
+  mccb:'<path d="M12 3v5M12 16v5M12 8l5 5"/><circle cx="12" cy="8" r="1.2"/>',
+  mcb:'<path d="M12 3v5M12 16v5M12 8l4 4"/><circle cx="12" cy="8" r="1"/>',
+  isol:'<path d="M12 3v5M12 16v5M12 8l5 5M9 8h6"/>',
+  meter:'<circle cx="12" cy="12" r="7"/><path d="M12 3v2M12 19v2M9 14l1.5-4 1.5 2 1.5-2 1.5 4"/>',
+  ct:'<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2"/>',
+  rcd:'<path d="M12 3v5M12 16v5M12 8l5 5"/><rect x="5" y="9" width="7" height="6" rx="1"/>',
+  liso:'<path d="M12 3v6M12 15v6M9 9h6M9 15h6M12 9l4 5"/>',
+  spd:'<path d="M12 3v4M12 17v4M9 7h6l-2 5h4l-6 5"/>',
+  pmu:'<rect x="4" y="5" width="16" height="12" rx="1.5"/><path d="M7 13l3-4 2 3 2-5 3 6"/>',
+  cable:'<path d="M4 16c4-8 6 8 10 0 1.5-3 3-3 6 0"/>',
+  fr:'<path d="M4 16c4-8 6 8 10 0 1.5-3 3-3 6 0" stroke-dasharray="3 2"/>',
+  dol:'<circle cx="12" cy="12" r="8"/><path d="M8.5 15V9l3.5 4 3.5-4v6"/>',
+  sd:'<path d="M12 4l7 12H5z"/><path d="M12 13v4M8.5 19h7"/>',
+  ss:'<circle cx="12" cy="12" r="8"/><path d="M8 14c2 2 6 2 8 0-2-2-6-2-8-4 2-2 6-2 8 0"/>',
+  vfd:'<rect x="4" y="5" width="16" height="14" rx="1.5"/><path d="M6 15c3-6 6 6 9 0 1-2 2-2 3 0"/>',
+  motor:'<circle cx="12" cy="12" r="8"/><path d="M8.5 15V9l3.5 4 3.5-4v6"/>',
+  ahu:'<circle cx="12" cy="12" r="8"/><path d="M12 4v16M4 12h16"/>',
+  chiller:'<path d="M12 3v18M5 7.5l14 9M5 16.5l14-9"/>',
+  fire:'<circle cx="12" cy="13" r="7"/><path d="M12 6V3M9 13l3-3 3 3-3 3z"/>',
+  ev:'<rect x="5" y="4" width="12" height="16" rx="2"/><path d="M11 8l-2 4h3l-2 4M17 9h2v5"/>',
+  pv:'<rect x="4" y="6" width="16" height="10" rx="1"/><path d="M4 11h16M9 6v10M15 6v10"/>',
+  light:'<circle cx="12" cy="12" r="6"/><path d="M8 8l8 8M16 8l-8 8"/>',
+  it:'<rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M8 20h8M12 16v4"/>',
+  gen2:'<path d="M12 3v5M7 8h10l-5 13z"/>',
+  cap:'<path d="M12 3v7M12 14v7M6 10h12M6 14h12"/>',
+  star:'<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
+  preset:'<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 10h8M8 14h5"/>',
+  db:'<ellipse cx="12" cy="6" rx="7" ry="2.5"/><path d="M5 6v12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5"/>',
+  comp:'<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>'
+};
+const svg = (k) => `<svg viewBox="0 0 24 24">${sym[k]}</svg>`;
+// drop targets: b busbar, f feeder, c canvas
+const cats = [
+  { id:'supply', name:'Supply', ic:'tx', items:[
+    ['tx','Transformer','','c'],['mc','Meter cabinet','DEWA','c'],['tie','Bus coupler','tie','b'],['gen','Generator','+ ATS','b'],['genacb','Generator','interlocked ACBs','b']]},
+  { id:'boards', name:'Boards', ic:'board', items:[
+    ['board','MDB','','c'],['board','LV-MDB','','b'],['board','SMDB','','b'],['board2','DB','','b'],['board2','EDB','','b'],['board','EMDB','','b'],['board','UPS','','b'],['mcc','MCC','panel','b'],['mcc','EMCC','panel','b']]},
+  { id:'prot', name:'Protection', ic:'mccb', items:[
+    ['acb','ACB','','f'],['mccb','MCCB','','f'],['mcb','MCB','','f'],['isol','Isolator','','f']]},
+  { id:'meter', name:'Metering', ic:'meter', items:[
+    ['meter','kWh meter','','f'],['ct','CT metering','','f'],['rcd','RCD','earth leakage','f'],['liso','Local isolator','','f'],['spd','SPD','surge','b'],['pmu','PMU','to BMS','b']]},
+  { id:'cable', name:'Cable', ic:'cable', items:[
+    ['cable','Cable','size · length','f'],['fr','Fire-rated','FR, BS 8491','f'],['cable','LSZH','XLPE/SWA','f']]},
+  { id:'start', name:'Starters', ic:'dol', items:[
+    ['dol','DOL','6 × In','f'],['sd','Star-delta','2 × In','f'],['ss','Soft starter','3 × In','f'],['vfd','VFD','1.2 × In','f']]},
+  { id:'loads', name:'Loads', ic:'gen2', items:[
+    ['motor','Motor / pump','15 kW','b'],['ahu','AHU','11 kW','b'],['chiller','Chiller','150 kW','b'],['fire','Fire pump','45 kW','b',1],['ev','EV charger','22 kW','b'],['pv','Solar PV','50 kW','b'],['light','Lighting','10 kW','b'],['it','IT / data','10 kW','b'],['gen2','General load','10 kW','b'],['cap','Capacitor bank','to PF target','b']]},
+  { id:'presets', name:'Presets', ic:'preset', tools:'+', items:[
+    ['preset','AHU 11 kW','MCCB 32 A · 4C 6 mm² · 40 m','b','card'],['preset','Chiller 150 kW','ACB 400 A · 2×4C 120 mm² · 60 m','b','card'],['preset','Lighting DB','MCB 63 A · 4C 16 mm² · 30 m','b','card'],['preset','Fire pump 45 kW','MCCB 125 A · FR 4C 35 mm² · 80 m','b','card']]},
+  { id:'mine', name:'My presets', ic:'star', tools:'+ ⇪ ⇩', items:[]},
+  { id:'comp', name:'My components', ic:'comp', tools:'+', items:[]},
+  { id:'lib', name:'My equipment', ic:'db', items:[
+    ['db','Kitchen hood fan','3.5 kW','b'],['db','Lift 1','18 kW','b'],['db','Pool pump','7.5 kW','b']]}
+];
+let open = 'loads', armed = null, qty = 1;
+const $ = (id) => document.getElementById(id);
+function render() {
+  $('cats').innerHTML = cats.map((c) => `<div class="cat${c.id === open ? ' on' : ''}" data-id="${c.id}">${svg(c.ic)}<span class="n">${c.items.length}</span><small>${c.name}</small></div>`).join('');
+  const c = cats.find((x) => x.id === open);
+  $('gname').textContent = c.name;
+  $('gcount').textContent = '';
+  $('gtools').innerHTML = (c.tools || '').split(' ').filter(Boolean).map((t) => `<b title="${t === '+' ? 'New' : t === '⇪' ? 'Export' : 'Import'}">${t}</b>`).join('');
+  $('tiles').innerHTML = c.items.length ? c.items.map((it, i) => {
+    const [ic, nm, sub, where, extra] = it;
+    const key = `${c.id}-${i}`;
+    const card = extra === 'card';
+    return `<div class="tile${card ? ' card' : ''}${armed === key ? ' armed' : ''}" data-key="${key}" data-name="${nm}">
+      <span class="dot">${[...where].map((w) => `<i class="${w}"></i>`).join('')}</span>
+      <span class="star${extra === 1 ? ' on' : ''}">★</span>
+      ${svg(ic)}<span>${card ? `<span class="nm">${nm}</span><span class="sub">${sub}</span>` : `<span class="nm">${nm}</span>${sub ? `<span class="sub">${sub}</span>` : ''}`}</span>
+      <span class="q"><b data-q="-1">−</b>× ${qty}<b data-q="1">+</b></span></div>`;
+  }).join('') : `<p class="tip" style="grid-column:span 4">${c.id === 'mine' ? 'Select a feeder and “Save as preset”, click + or import a file.' : 'Click + to make your own equipment with inputs, formulas and an SLD label.'}</p>`;
+  const ab = $('armbar');
+  if (armed) { ab.classList.add('show'); $('armname').textContent = `${document.querySelector(`[data-key="${armed}"]`)?.dataset.name ?? ''}${qty > 1 ? ` × ${qty}` : ''}`; } else ab.classList.remove('show');
+}
+$('prop').addEventListener('click', (e) => {
+  const q = e.target.closest('[data-q]');
+  if (q) { qty = Math.max(1, Math.min(50, qty + +q.dataset.q)); render(); return; }
+  const cat = e.target.closest('.cat');
+  if (cat) { open = cat.dataset.id; render(); return; }
+  const tile = e.target.closest('.tile');
+  if (tile) { armed = armed === tile.dataset.key ? null : tile.dataset.key; if (!armed) qty = 1; if (e.shiftKey) qty = 3; render(); }
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { armed = null; qty = 1; render(); } });
+render();
+</script>
+</body>
+</html>

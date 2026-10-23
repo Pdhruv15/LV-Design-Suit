@@ -206,6 +206,26 @@ export function canDrop(project: Project, item: PaletteItem, target: DropTarget)
   }
 }
 
+/** Where an item can go at all, whatever the project: for the palette's
+ * drop-target marks. canDrop still decides each actual target. */
+export function dropsOn(item: PaletteItem): DropTarget['type'][] {
+  switch (item.kind) {
+    case 'board':
+      if (item.board === 'MC') return ['canvas'];
+      return item.board === 'MDB' || item.board === 'LV-MDB' || item.board === 'LV-ACB' ? ['bus', 'canvas'] : ['bus'];
+    case 'transformer':
+      return ['bus', 'canvas'];
+    case 'device':
+    case 'cable':
+    case 'starter':
+      return ['feeder'];
+    case 'accessory':
+      return BUS_ACCESSORIES.includes(item.accessory) ? ['bus'] : ['feeder'];
+    default:
+      return ['bus'];
+  }
+}
+
 export interface DropResult {
   project: Project;
   select?: { type: 'board' | 'feeder'; id: string };

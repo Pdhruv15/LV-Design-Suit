@@ -1,7 +1,7 @@
 import { Grid3x3, Grip, Maximize2, Minimize2, Scan, Square, ZoomIn, ZoomOut } from 'lucide-react';
 import { withNetwork } from '../calc/network';
 import { txTag } from '../model/transformers';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import { STATUS_TEXT } from '../calc/statusText';
 import { componentLabel } from '../model/components';
 import type { DrawingInfo, Project } from '../types';
@@ -33,7 +33,7 @@ import { boardRatio, COLOR_BY, earthRatio, feederRatio, heatColor, type ColorBy 
 import { evaluateEarthingAll } from '../calc/earthing';
 import { earthingLayout } from '../model/earthingPlan';
 import { INCOMER_DEVICES, incomerDeviceOf, type Board, type Feeder } from '../types';
-import { getDragItem, setDragItem } from '../diagram/dragItem';
+import { getArmedItem, getDragItem, setArmedItem, setDragItem, subscribeArmedItem } from '../diagram/dragItem';
 import { recordedKva, recordedText } from '../model/existing';
 import { CO_GEN_REACH, ChangeoverIncomers } from '../diagram/ChangeoverSym';
 import { atsLines, atsOf, changeoverBreakers, isInterlocked } from '../model/changeover';
@@ -593,6 +593,10 @@ export default function SystemDiagram({
       return;
     }
     const d = drag.current;
+    if (!d && armed && onDropItem) {
+      armHover(armed, e.clientX, e.clientY);
+      return;
+    }
     const el = svgRef.current;
     if (!d || !el) return;
     const dx = e.clientX - d.px;
@@ -671,6 +675,35 @@ export default function SystemDiagram({
       : {};
   const dropCls = (key: string) => (hover === key ? ' drop-ok' : '');
 
+  // Click to place: a palette item armed by a click goes where the drawing
+  // is clicked next, with the same highlight and insert line as a drag.
+  const armed = useSyncExternalStore(subscribeArmedItem, getArmedItem, getArmedItem);
+  useEffect(() => subscribeArmedItem(() => { if (!getArmedItem()) { setHover(null); setInsertAt(null); } }), []);
+  const armedAt = (item: PaletteItem, x: number, y: number) => {
+    const t = targetAt(x, y) ?? { key: 'canvas', target: { type: 'canvas' } as DropTarget };
+    if (!canDrop(project, item, t.target)) return null;
+    const ins = t.target.type === 'bus' && addsWay(item) ? busInsert(t.target.boardId, x) : undefined;
+    return { key: t.key, ins: ins ?? null, target: ins?.before && t.target.type === 'bus' ? { ...t.target, before: ins.before } : t.target };
+  };
+  function armHover(item: PaletteItem, x: number, y: number) {
+    const a = armedAt(item, x, y);
+    const key = a?.key ?? null;
+    if (key !== hover) setHover(key);
+    const ins = a?.ins ?? null;
+    if (ins?.boardId !== insertAt?.boardId || ins?.before !== insertAt?.before) setInsertAt(ins);
+  }
+  function placeArmed(e: React.MouseEvent) {
+    const item = getArmedItem();
+    if (!item || !onDropItem || drag.current?.moved) return;
+    e.stopPropagation(); // placing, not selecting what's under the pointer
+    const a = armedAt(item, e.clientX, e.clientY);
+    if (!a) return;
+    setHover(null);
+    setInsertAt(null);
+    if (!e.shiftKey) setArmedItem(null); // shift-click places another
+    onDropItem(item, a.target);
+  }
+
   const click = (fn: () => void) => () => {
     if (!drag.current?.moved && tool !== 'pan') fn();
   };
@@ -680,7 +713,7 @@ export default function SystemDiagram({
   return (
     <div
       ref={rootRef}
-      className={`sysdiag ${tool === 'pan' ? 'pan' : ''}${dropCls('canvas')}${stale ? ' stale' : ''}${lodLevel}`}
+      className={`sysdiag ${tool === 'pan' ? 'pan' : ''}${armed && onDropItem ? ' armed' : ''}${dropCls('canvas')}${stale ? ' stale' : ''}${lodLevel}`}
       tabIndex={0}
       aria-label="Single line diagram. Plus and minus zoom, 0 fits, arrow keys pan."
       onKeyDown={(e) => {
@@ -740,7 +773,8 @@ export default function SystemDiagram({
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        onPointerLeave={onPointerUp}
+        onPointerLeave={(e) => { onPointerUp(e); if (armed) { setHover(null); setInsertAt(null); } }}
+        onClickCapture={placeArmed}
         {...dnd({ type: 'canvas' }, 'canvas')}
         onDragLeave={(e) => { if (!svgRef.current?.contains(e.relatedTarget as Node)) { setHover(null); setInsertAt(null); } }}
       >

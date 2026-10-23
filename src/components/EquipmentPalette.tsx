@@ -1,12 +1,13 @@
 import { ask } from './ConfirmDialog';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   Activity, CircleDot, Link2, ShieldAlert, ToggleLeft, ZapOff, BatteryCharging, BatteryFull, Star, Cable, Car, Cog, Cpu, Database, Fan, Flame, Gauge, Lightbulb, PanelLeftClose, PanelLeftOpen, Power, ShieldCheck, Snowflake, Sun, Waves, Zap,
-  ChevronDown, ChevronRight, Pencil, Copy, Download, Upload, Plus, Plug, Heater, PanelTop, Info, X, type LucideIcon
+  Bookmark, Box, Layers, Pencil, Copy, Download, Upload, Plus, Plug, Heater, PanelTop, Info, X, type LucideIcon
 } from 'lucide-react';
-import { dropHint, itemKey, PALETTE, type PaletteEntry, type PaletteItem } from '../model/sldEdit';
+import { dropHint, dropsOn, itemKey, PALETTE, type DropTarget, type PaletteEntry, type PaletteItem } from '../model/sldEdit';
 import { BUILT_IN_PRESETS, presetCard, presetParts, type FeederPreset } from '../model/presets';
-import { getDragItem, setDragItem } from '../diagram/dragItem';
+import { getArmedItem, getDragItem, setArmedItem, setDragItem, subscribeArmedItem } from '../diagram/dragItem';
+import { hasSymbol, PaletteSymbol } from './paletteSymbols';
 
 const ICON: Record<string, LucideIcon> = {
   'starter:DOL': Zap, 'starter:SD': Star, 'starter:SS': Gauge, 'starter:VFD': Activity,
@@ -28,7 +29,7 @@ const iconOf = (i: PaletteItem): LucideIcon => (i.kind === 'preset' ? presetIcon
 
 const presetEntry = (p: FeederPreset): PaletteEntry => ({ item: { kind: 'preset', preset: p }, label: p.name, title: `${presetParts(p)} — drop on a busbar; breaker and cable are sized` });
 
-/** This viewer's palette preferences (collapsed groups, favourites, recent). */
+/** This viewer's palette preferences (open category, favourites, recent). */
 function useStored<T>(key: string, initial: T): [T, (v: T) => void] {
   const [v, setV] = useState<T>(() => {
     try { const s = localStorage.getItem(key); return s ? (JSON.parse(s) as T) : initial; } catch { return initial; }
@@ -36,11 +37,30 @@ function useStored<T>(key: string, initial: T): [T, (v: T) => void] {
   return [v, (next: T) => { setV(next); try { localStorage.setItem(key, JSON.stringify(next)); } catch { /* preference only */ } }];
 }
 
-/** Equipment library for building the SLD: drag an item onto a busbar, a
- * feeder or the empty canvas. Where it's dropped decides how it connects,
- * and along a busbar, where the new way goes. Search, favourites ★,
- * recently used, collapsible groups; drop several at once (× qty); the
- * user's own presets can be edited, duplicated, exported and imported. */
+/** Palette categories: one open at a time, each one or more PALETTE groups. */
+const CATS: { id: string; label: string; groups: string[]; sym?: string; icon?: LucideIcon }[] = [
+  { id: 'supply', label: 'Supply', groups: ['Supply'], sym: 'transformer' },
+  { id: 'boards', label: 'Boards', groups: ['Distribution boards', 'Package panels'], sym: 'board:MDB' },
+  { id: 'protection', label: 'Protection', groups: ['Protection'], sym: 'device:MCCB' },
+  { id: 'metering', label: 'Metering', groups: ['Metering & accessories'], sym: 'acc:meter' },
+  { id: 'cable', label: 'Cable', groups: ['Cable', 'Cable types'], sym: 'cable' },
+  { id: 'starters', label: 'Starters', groups: ['Motor starters'], sym: 'load:motor' },
+  { id: 'loads', label: 'Loads', groups: ['Loads'], sym: 'load:general' },
+  { id: 'presets', label: 'Presets', groups: ['Feeder presets'], icon: Layers },
+  { id: 'mine', label: 'My presets', groups: ['My presets'], icon: Bookmark },
+  { id: 'components', label: 'Components', groups: ['My components'], icon: Box },
+  { id: 'equipment', label: 'My equipment', groups: ['My equipment'], icon: Database }
+];
+const WHERE: Record<DropTarget['type'], string> = { bus: 'Busbar', feeder: 'Feeder', canvas: 'Canvas' };
+const STRIP = 8;
+
+/** Equipment library for building the SLD, laid out like a CAD ribbon:
+ * category tiles, then the open category's items as icon tiles. Drag an
+ * item onto a busbar, a feeder or the empty canvas, or click it and then
+ * click the drawing. Where it goes decides how it connects, and along a
+ * busbar, where the new way goes. Search, favourites ★ and recently used
+ * (pinned strip), × qty on the armed item; the user's own presets can be
+ * edited, duplicated, exported and imported. */
 export default function EquipmentPalette({ docked, onHint, library = [], presets = [], components = [], onEditComponent, onDeleteComponent, qty = 1, onQty, onDeletePreset, onEditPreset, onExportPresets, onImportPresets }: {
   /** Inside the side panel's Equipment tab: no own frame, hide button or resize handle. */
   docked?: boolean;
@@ -69,11 +89,12 @@ export default function EquipmentPalette({ docked, onHint, library = [], presets
     try { localStorage.setItem('palette', open ? 'closed' : 'open'); } catch { /* preference only */ }
   };
   const [query, setQuery] = useState('');
-  const [collapsed, setCollapsed] = useStored<string[]>('palette.collapsed', []);
+  const [cat, setCat] = useStored('palette.cat', 'loads');
   const [favs, setFavs] = useStored<string[]>('palette.favs', []);
   const [recent, setRecent] = useStored<string[]>('palette.recent', []);
   const fileRef = useRef<HTMLInputElement>(null);
   const [details, setDetails] = useState<string | null>(null);
+  const [tip, setTip] = useState<{ entry: PaletteEntry; x: number; y: number } | null>(null);
   const [width, setWidth] = useStored('palette.width', 210);
   const startResize = (e: React.PointerEvent) => {
     const x0 = e.clientX, w0 = width;
@@ -83,6 +104,21 @@ export default function EquipmentPalette({ docked, onHint, library = [], presets
     window.addEventListener('pointerup', up);
   };
 
+  // Armed item: the next click on the drawing places it. Esc, a second
+  // click on the tile, or placing it disarms; the quantity goes back to 1.
+  const armed = useSyncExternalStore(subscribeArmedItem, getArmedItem, getArmedItem);
+  const armedKey = armed ? itemKey(armed) : null;
+  const qtyRef = useRef(onQty);
+  qtyRef.current = onQty;
+  useEffect(() => () => setArmedItem(null), []);
+  useEffect(() => subscribeArmedItem(() => { if (!getArmedItem()) qtyRef.current?.(1); }), []);
+  useEffect(() => {
+    if (!armed) return;
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') setArmedItem(null); };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [armed]);
+
   const groups = useMemo(() => [
     { group: 'Feeder presets', entries: BUILT_IN_PRESETS.map(presetEntry) },
     { group: 'My presets', entries: presets.map(presetEntry) },
@@ -90,16 +126,148 @@ export default function EquipmentPalette({ docked, onHint, library = [], presets
     ...PALETTE,
     ...(library.length ? [{ group: 'My equipment', entries: library }] : [])
   ], [presets, library, components]);
+  const cats = CATS.filter((c) => c.groups.some((g) => groups.some((x) => x.group === g)));
+  const openCat = cats.find((c) => c.id === cat) ?? cats[0];
+  const entriesOf = (c: (typeof CATS)[number]) => groups.filter((g) => c.groups.includes(g.group)).flatMap((g) => g.entries);
   const byKey = useMemo(() => new Map(groups.flatMap((g) => g.entries.map((e) => [itemKey(e.item), e] as const))), [groups]);
   const pick = (keys: string[]) => keys.map((k) => byKey.get(k)).filter((e): e is PaletteEntry => !!e);
+  const strip = pick([...favs, ...recent.filter((k) => !favs.includes(k))]).slice(0, STRIP);
   const q = query.trim().toLowerCase();
-  const shown = q
-    ? [{ group: `Results for “${query.trim()}”`, entries: groups.flatMap((g) => g.entries).filter((e) => `${e.label} ${e.title}${e.item.kind === 'preset' ? ` ${(c => `${c.title} ${c.value ?? ''} ${c.parts.join(' ')}`)(presetCard(e.item.preset))}` : ''}`.replace(/\u00a0/g, ' ').toLowerCase().includes(q)).filter((e, i, a) => a.findIndex((x) => itemKey(x.item) === itemKey(e.item)) === i) }]
-    : [
-        ...(favs.length ? [{ group: '★ Favourites', entries: pick(favs) }] : []),
-        ...(recent.length ? [{ group: 'Recently used', entries: pick(recent) }] : []),
-        ...groups
-      ];
+  const results = q
+    ? groups.flatMap((g) => g.entries).filter((e) => `${e.label} ${e.title}${e.item.kind === 'preset' ? ` ${(c => `${c.title} ${c.value ?? ''} ${c.parts.join(' ')}`)(presetCard(e.item.preset))}` : ''}`.replace(/\u00a0/g, ' ').toLowerCase().includes(q)).filter((e, i, a) => a.findIndex((x) => itemKey(x.item) === itemKey(e.item)) === i)
+    : null;
+  const shown = results ?? entriesOf(openCat);
+  const isMine = !q && openCat.id === 'mine';
+  const isComp = !q && openCat.id === 'components';
+
+  const where = (item: PaletteItem) => dropsOn(item).map((t) => WHERE[t].toLowerCase()).join(' or ');
+  const arm = (e: React.MouseEvent | React.KeyboardEvent, { item, label }: PaletteEntry) => {
+    const key = itemKey(item);
+    if (armedKey === key) { setArmedItem(null); onHint(''); return; }
+    setArmedItem(item);
+    onQty?.(e.shiftKey ? 3 : 1);
+    setRecent([key, ...recent.filter((k) => k !== key)].slice(0, 6));
+    onHint(`${label}: click a ${where(item)} on the drawing to place it — Esc cancels`);
+  };
+  const showTip = (entry: PaletteEntry) => (e: React.MouseEvent) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const right = r.right + 236 < window.innerWidth;
+    setTip({ entry, x: right ? r.right + 6 : r.left - 236, y: r.top });
+  };
+  /** Drag, click-to-arm, keyboard and hover behaviour shared by tiles and cards. */
+  const handlers = (entry: PaletteEntry) => {
+    const { item } = entry;
+    const key = itemKey(item);
+    return {
+      draggable: true,
+      role: 'button',
+      tabIndex: 0,
+      'aria-pressed': armedKey === key,
+      'aria-label': `${entry.label} — ${entry.title}`,
+      onDragStart: (e: React.DragEvent) => {
+        setTip(null);
+        if (armedKey && armedKey !== key) setArmedItem(null);
+        setDragItem(item);
+        e.dataTransfer.setData('text/plain', key);
+        e.dataTransfer.effectAllowed = 'copy';
+        setRecent([key, ...recent.filter((k) => k !== key)].slice(0, 6));
+      },
+      onDragEnd: () => {
+        // The diagram clears the item when it takes the drop; still
+        // set means it was dropped somewhere it can't go.
+        const missed = getDragItem() !== null;
+        setDragItem(null);
+        if (armedKey === key) setArmedItem(null);
+        if (missed) onHint(dropHint(item));
+      },
+      onClick: (e: React.MouseEvent) => arm(e, entry),
+      onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); arm(e, entry); } },
+      onMouseEnter: showTip(entry),
+      onMouseLeave: () => setTip(null)
+    };
+  };
+  const favBtn = (key: string) => {
+    const fav = favs.includes(key);
+    return (
+      <button className={`icon-btn fav${fav ? ' on' : ''}`} title={fav ? 'Remove from favourites' : 'Add to favourites'} onClick={(e) => { e.stopPropagation(); setFavs(fav ? favs.filter((k) => k !== key) : [...favs, key]); }}>
+        <Star size={12} fill={fav ? 'currentColor' : 'none'} />
+      </button>
+    );
+  };
+  const qtyStep = onQty && (
+    <span className="palette-q" onClick={(e) => e.stopPropagation()}>
+      <button className="icon-btn" aria-label="One fewer" disabled={qty <= 1} onClick={() => onQty(Math.max(1, qty - 1))}>−</button>
+      × {qty}
+      <button className="icon-btn" aria-label="One more" disabled={qty >= 50} onClick={() => onQty(Math.min(50, qty + 1))}>+</button>
+    </span>
+  );
+  const dots = (item: PaletteItem) => (
+    <span className="palette-dots" aria-hidden>{dropsOn(item).map((t) => <i key={t} className={t} />)}</span>
+  );
+  const symbol = (item: PaletteItem, size?: number) => {
+    const key = itemKey(item);
+    if (hasSymbol(key)) return <PaletteSymbol k={key} size={size} />;
+    const Icon = iconOf(item);
+    return <Icon size={size ?? 20} strokeWidth={1.6} className="palette-ic" aria-hidden />;
+  };
+
+  const tile = (entry: PaletteEntry) => {
+    const { item, label } = entry;
+    const key = itemKey(item);
+    const on = armedKey === key;
+    return (
+      <div key={key} className={`palette-tile${on ? ' armed' : ''}${favs.includes(key) ? ' is-fav' : ''}`} {...handlers(entry)}>
+        {dots(item)}
+        {favBtn(key)}
+        {symbol(item)}
+        <span className="palette-tname">{label}</span>
+        {on && qtyStep}
+      </div>
+    );
+  };
+  const card = (entry: PaletteEntry) => {
+    const { item, label } = entry;
+    if (item.kind !== 'preset') return tile(entry);
+    const key = itemKey(item);
+    const on = armedKey === key;
+    const fav = favs.includes(key);
+    const mine = presets.some((p) => p.id === item.preset.id);
+    const c = presetCard(item.preset);
+    return (
+      <div key={key} className={`palette-item has-card${fav ? ' is-fav' : ''}${on ? ' armed' : ''}`} {...handlers(entry)}>
+        {symbol(item, 18)}
+        <span className="palette-card">
+          <span className="palette-l1"><span className="palette-name">{c.title}</span>{c.value && <span className="palette-val">{c.value}</span>}</span>
+          {c.parts.length > 0 && <span className="palette-l2">{c.parts.join(' · ')}</span>}
+          {on && qtyStep}
+          {details === key && (
+            <span className="palette-details" onClick={(e) => e.stopPropagation()}>
+              {c.details.map(([k, v]) => <span key={k}><span className="m">{k}</span> {v}</span>)}
+            </span>
+          )}
+        </span>
+        <span className="palette-acts">
+          <button className={`icon-btn${details === key ? ' on' : ''}`} title="Details: PF, phase, cable length and other defaults" aria-expanded={details === key} onClick={(e) => { e.stopPropagation(); setDetails(details === key ? null : key); }}><Info size={12} /></button>
+          {item.preset.id.startsWith('cmp-') && onEditComponent && (
+            <>
+              <button className="icon-btn" title="Edit this component (updates every copy)" onClick={(e) => { e.stopPropagation(); onEditComponent(item.preset.id.slice(4)); }}><Pencil size={12} /></button>
+              {onDeleteComponent && <button className="icon-btn" title="Delete the component" onClick={async (e) => { e.stopPropagation(); if (await ask(`Delete the component “${label}”? Copies on the SLD stay as ordinary loads.`)) onDeleteComponent(item.preset.id.slice(4)); }} aria-label={`Delete the component ${label}`}><X size={12} aria-hidden /></button>}
+            </>
+          )}
+          {!item.preset.id.startsWith('cmp-') && onEditPreset && (
+            mine
+              ? <button className="icon-btn" title="Edit this preset" onClick={(e) => { e.stopPropagation(); onEditPreset(item.preset, 'edit'); }}><Pencil size={12} /></button>
+              : <button className="icon-btn" title="Copy to My presets and edit" onClick={(e) => { e.stopPropagation(); onEditPreset(item.preset, 'copy'); }}><Copy size={12} /></button>
+          )}
+          {mine && onEditPreset && <button className="icon-btn" title="Duplicate" onClick={(e) => { e.stopPropagation(); onEditPreset(item.preset, 'copy'); }}><Copy size={12} /></button>}
+          {mine && onDeletePreset && (
+            <button className="icon-btn" title={`Delete the preset “${label}”`} onClick={async (e) => { e.stopPropagation(); if (await ask(`Delete the preset “${label}”?`)) onDeletePreset(item.preset.id); }} aria-label={`Delete the preset ${label}`}><X size={12} aria-hidden /></button>
+          )}
+          {favBtn(key)}
+        </span>
+      </div>
+    );
+  };
 
   if (!open && !docked) {
     return (
@@ -119,119 +287,62 @@ export default function EquipmentPalette({ docked, onHint, library = [], presets
       </>}
       <input className="palette-search" type="search" aria-label="Search the equipment library" placeholder="Search… (AHU, RCD, SMDB)" value={query} onChange={(e) => setQuery(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Escape' && query) { e.stopPropagation(); setQuery(''); } }} />
-      {onQty && (
-        <label className="palette-qty" title="Loads and presets dropped on a busbar are added this many times">
-          Drop <input inputMode="numeric" value={qty} onChange={(e) => onQty(Math.max(1, Math.min(50, Math.round(+e.target.value) || 1)))} /> at a time
-          {qty > 1 && <button className="icon-btn" title="Back to 1" onClick={() => onQty(1)}>1</button>}
-        </label>
+      {strip.length > 0 && (
+        <div className="palette-strip" aria-label="Favourites and recently used">
+          {strip.map((entry) => {
+            const key = itemKey(entry.item);
+            return (
+              <div key={key} className={`palette-mini${armedKey === key ? ' armed' : ''}`} {...handlers(entry)}>
+                {favs.includes(key) && <span className="palette-mini-fav" aria-hidden>★</span>}
+                {symbol(entry.item, 18)}
+              </div>
+            );
+          })}
+        </div>
       )}
-      <p className="m palette-tip">Drag onto a busbar — the dashed line shows where it goes — a feeder, or the empty canvas.</p>
-      {shown.map(({ group, entries }) => {
-        const isMine = group === 'My presets';
-        const isComp = group === 'My components';
-        if (!entries.length && !isMine && !isComp) return q ? <p key={group} className="m">Nothing matches.</p> : null;
-        const closed = !q && collapsed.includes(group);
-        return (
-          <div key={group} className="palette-group">
-            {q ? <h5>{group}</h5> : (
-              <h5 className="toggle">
-                <button type="button" aria-expanded={!closed} onClick={() => setCollapsed(closed ? collapsed.filter((g) => g !== group) : [...collapsed, group])}>
-                  {closed ? <ChevronRight size={12} aria-hidden /> : <ChevronDown size={12} aria-hidden />} {group}
-                  <span className="m palette-count">{entries.length}</span>
-                </button>
-              </h5>
-            )}
-            {isComp && !closed && onEditComponent && (
-              <div className="palette-tools">
-                <button className="icon-btn" title="New component" onClick={() => onEditComponent(null)}><Plus size={13} /></button>
-              </div>
-            )}
-            {isMine && !closed && (
-              <div className="palette-tools">
-                {onEditPreset && <button className="icon-btn" title="New preset" onClick={() => onEditPreset(null, 'edit')}><Plus size={13} /></button>}
-                {onExportPresets && presets.length > 0 && <button className="icon-btn" title="Export my presets to a file (share with the team)" onClick={onExportPresets}><Download size={13} /></button>}
-                {onImportPresets && <button className="icon-btn" title="Import presets from a file" onClick={() => fileRef.current?.click()}><Upload size={13} /></button>}
-                <input ref={fileRef} type="file" accept=".json,application/json" hidden onChange={async (e) => {
-                  const f = e.target.files?.[0];
-                  if (f && onImportPresets) onImportPresets(await f.text());
-                  e.target.value = '';
-                }} />
-              </div>
-            )}
-            {!closed && (
-              <div className="palette-items">
-                {isComp && !entries.length && <p className="m palette-tip">Click + to make your own equipment with inputs, formulas and an SLD label.</p>}
-                {isMine && !entries.length && <p className="m palette-tip">Select a feeder and “Save as preset”, click + or import a file.</p>}
-                {entries.map(({ item, label, title }) => {
-                  const Icon = iconOf(item);
-                  const key = itemKey(item);
-                  const fav = favs.includes(key);
-                  const mine = item.kind === 'preset' && presets.some((p) => p.id === item.preset.id);
-                  const card = item.kind === 'preset' ? presetCard(item.preset) : undefined;
-                  return (
-                    <div
-                      key={key}
-                      className={`palette-item${card ? ' has-card' : ''}${fav ? ' is-fav' : ''}`}
-                      draggable
-                      title={title}
-                      onDragStart={(e) => {
-                        setDragItem(item);
-                        e.dataTransfer.setData('text/plain', key);
-                        e.dataTransfer.effectAllowed = 'copy';
-                        setRecent([key, ...recent.filter((k) => k !== key)].slice(0, 6));
-                      }}
-                      onDragEnd={() => {
-                        // The diagram clears the item when it takes the drop; still
-                        // set means it was dropped somewhere it can't go.
-                        const missed = getDragItem() !== null;
-                        setDragItem(null);
-                        if (missed) onHint(dropHint(item));
-                      }}
-                      onClick={() => onHint(title)}
-                      tabIndex={0}
-                      onKeyDown={(e) => { if (e.key === 'Enter') onHint(title); }}
-                    >
-                      <Icon size={18} strokeWidth={1.7} className="palette-ic" aria-hidden />
-                      {card ? (
-                        <span className="palette-card">
-                          <span className="palette-l1"><span className="palette-name">{card.title}</span>{card.value && <span className="palette-val">{card.value}</span>}</span>
-                          {card.parts.length > 0 && <span className="palette-l2">{card.parts.join(' · ')}</span>}
-                          {details === key && (
-                            <span className="palette-details" onClick={(e) => e.stopPropagation()}>
-                              {card.details.map(([k, v]) => <span key={k}><span className="m">{k}</span> {v}</span>)}
-                            </span>
-                          )}
-                        </span>
-                      ) : <span className="palette-name">{label}</span>}
-                      <span className="palette-acts">
-                        {card && <button className={`icon-btn${details === key ? ' on' : ''}`} title="Details: PF, phase, cable length and other defaults" aria-expanded={details === key} onClick={(e) => { e.stopPropagation(); setDetails(details === key ? null : key); }}><Info size={12} /></button>}
-                        {item.kind === 'preset' && item.preset.id.startsWith('cmp-') && onEditComponent && (
-                          <>
-                            <button className="icon-btn" title="Edit this component (updates every copy)" onClick={(e) => { e.stopPropagation(); onEditComponent(item.preset.id.slice(4)); }}><Pencil size={12} /></button>
-                            {onDeleteComponent && <button className="icon-btn" title="Delete the component" onClick={async (e) => { e.stopPropagation(); if (await ask(`Delete the component “${label}”? Copies on the SLD stay as ordinary loads.`)) onDeleteComponent(item.preset.id.slice(4)); }} aria-label={`Delete the component ${label}`}><X size={12} aria-hidden /></button>}
-                          </>
-                        )}
-                        {item.kind === 'preset' && !item.preset.id.startsWith('cmp-') && onEditPreset && (
-                          mine
-                            ? <button className="icon-btn" title="Edit this preset" onClick={(e) => { e.stopPropagation(); onEditPreset(item.preset, 'edit'); }}><Pencil size={12} /></button>
-                            : <button className="icon-btn" title="Copy to My presets and edit" onClick={(e) => { e.stopPropagation(); onEditPreset(item.preset, 'copy'); }}><Copy size={12} /></button>
-                        )}
-                        {mine && onEditPreset && <button className="icon-btn" title="Duplicate" onClick={(e) => { e.stopPropagation(); onEditPreset(item.preset, 'copy'); }}><Copy size={12} /></button>}
-                        {mine && onDeletePreset && item.kind === 'preset' && (
-                          <button className="icon-btn" title={`Delete the preset “${label}”`} onClick={async (e) => { e.stopPropagation(); if (await ask(`Delete the preset “${label}”?`)) onDeletePreset(item.preset.id); }} aria-label={`Delete the preset ${label}`}><X size={12} aria-hidden /></button>
-                        )}
-                        <button className={`icon-btn fav${fav ? ' on' : ''}`} title={fav ? 'Remove from favourites' : 'Add to favourites'} onClick={(e) => { e.stopPropagation(); setFavs(fav ? favs.filter((k) => k !== key) : [...favs, key]); }}>
-                          <Star size={12} fill={fav ? 'currentColor' : 'none'} />
-                        </button>
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        );
-      })}
+      {!q && (
+        <div className="palette-cats" role="tablist" aria-label="Equipment categories">
+          {cats.map((c) => {
+            const Icon = c.icon;
+            return (
+              <button key={c.id} type="button" role="tab" aria-selected={c.id === openCat.id} className={`palette-cat${c.id === openCat.id ? ' on' : ''}`} title={`${c.label} (${entriesOf(c).length})`} onClick={() => setCat(c.id)}>
+                {c.sym ? <PaletteSymbol k={c.sym} size={18} /> : Icon && <Icon size={18} strokeWidth={1.6} className="palette-ic" aria-hidden />}
+                <span>{c.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <div className="palette-ghead">
+        <span>{q ? `Results for “${query.trim()}”` : openCat.label}</span>
+        <span className="m palette-count">{shown.length}</span>
+        {isComp && onEditComponent && <button className="icon-btn" title="New component" onClick={() => onEditComponent(null)}><Plus size={13} /></button>}
+        {isMine && <>
+          {onEditPreset && <button className="icon-btn" title="New preset" onClick={() => onEditPreset(null, 'edit')}><Plus size={13} /></button>}
+          {onExportPresets && presets.length > 0 && <button className="icon-btn" title="Export my presets to a file (share with the team)" onClick={onExportPresets}><Download size={13} /></button>}
+          {onImportPresets && <button className="icon-btn" title="Import presets from a file" onClick={() => fileRef.current?.click()}><Upload size={13} /></button>}
+          <input ref={fileRef} type="file" accept=".json,application/json" hidden onChange={async (e) => {
+            const f = e.target.files?.[0];
+            if (f && onImportPresets) onImportPresets(await f.text());
+            e.target.value = '';
+          }} />
+        </>}
+      </div>
+      {isComp && !shown.length && <p className="m palette-tip">Click + to make your own equipment with inputs, formulas and an SLD label.</p>}
+      {isMine && !shown.length && <p className="m palette-tip">Select a feeder and “Save as preset”, click + or import a file.</p>}
+      {q && !shown.length && <p className="m palette-tip">Nothing matches.</p>}
+      <div className="palette-tiles">
+        {shown.map((e) => (e.item.kind === 'preset' ? card(e) : tile(e)))}
+      </div>
+      <p className="m palette-legend"><span><i className="bus" />busbar</span><span><i className="feeder" />feeder</span><span><i className="canvas" />canvas</span><span className="sp">drag, or click then click</span></p>
+      {tip && (
+        <div className="palette-tipcard" role="tooltip" style={{ left: tip.x, top: tip.y }}>
+          <b>{tip.entry.label}</b>
+          <span>{tip.entry.title}</span>
+          <span className="palette-where">{(['bus', 'feeder', 'canvas'] as const).map((t) => <span key={t} className={dropsOn(tip.entry.item).includes(t) ? 'yes' : ''}>{WHERE[t]}</span>)}</span>
+          <span className="m">Drag it there, or click it then click the drawing. Shift-click: × 3.</span>
+        </div>
+      )}
     </aside>
   );
 }
