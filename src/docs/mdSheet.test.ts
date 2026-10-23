@@ -75,18 +75,21 @@ describe('connected load & maximum demand sheet', () => {
     const { project, rejected } = applyMdEdits(sampleProject, s, [
       { y, x: col(s, 'ISOL'), value: '100' },
       { y, x: col(s, 'type'), value: 'XLPE/SWA/PVC' },
-      { y, x: col(s, '3-PH'), value: '1' },
       { y, x: col(s, 'remarks'), value: 'Via 100A TP isolator' },
       { y, x: col(s, 'size'), value: '37' },
       { y, x: col(s, 'R'), value: '99' }
     ]);
     expect(rejected).toEqual(['I6: "37" is not a cable size from the cable table']);
     const f = project.feeders.find((x) => x.id === 'INC-DBGF1')!;
-    expect([f.device, f.breakerRatingA, f.cableType, f.kwhMeter, f.remarks, f.cableCsaMm2]).toEqual(['ISOL', 100, 'XLPE/SWA/PVC', '3-PH', 'Via 100A TP isolator', 35]);
+    expect([f.device, f.breakerRatingA, f.cableType, f.remarks, f.cableCsaMm2]).toEqual(['ISOL', 100, 'XLPE/SWA/PVC', 'Via 100A TP isolator', 35]);
     const again = buildMdSheet(project, 'SMDB-GF');
     expect(again.data[y][col(again, 'ISOL')]).toBe(100);
     expect(again.data[y][col(again, 'MCCB')]).toBe('');
-    expect(again.totals[col(again, '3-PH')]).toBe('1');
+    // A meter proposed on the MDB form (it has the kWh columns).
+    const mdb = buildMdSheet(project, 'MDB-1');
+    const ym = rowOf(mdb, 'DB-EV');
+    const metered = buildMdSheet(applyMdEdits(project, mdb, [{ y: ym, x: col(mdb, '3-PH'), value: '1' }]).project, 'MDB-1');
+    expect(metered.totals[col(metered, '3-PH')]).toBe('1');
   });
 
   it("edits an authority-fed incomer's supply on the board", () => {
@@ -102,13 +105,13 @@ describe('connected load & maximum demand sheet', () => {
   });
 
   it('equipment names can be typed; clearing a meter removes it', () => {
-    const s = buildMdSheet(sampleProject, 'MCC-1');
-    const y = rowOf(s, 'MCC-WP');
+    const s = buildMdSheet(sampleProject, 'MDB-1');
+    const y = rowOf(s, 'DB-EV');
     const withMeter = applyMdEdits(sampleProject, s, [{ y, x: col(s, 'name'), value: 'AHU-01' }, { y, x: col(s, 'CT'), value: '1' }]).project;
-    const f = withMeter.feeders.find((x) => x.id === 'MCC-WP')!;
+    const f = withMeter.feeders.find((x) => x.id === 'DB-EV')!;
     expect([f.name, f.kwhMeter]).toEqual(['AHU-01', 'CT']);
-    const cleared = applyMdEdits(withMeter, buildMdSheet(withMeter, 'MCC-1'), [{ y, x: col(s, 'CT'), value: '' }]).project;
-    expect('kwhMeter' in cleared.feeders.find((x) => x.id === 'MCC-WP')!).toBe(false);
+    const cleared = applyMdEdits(withMeter, buildMdSheet(withMeter, 'MDB-1'), [{ y, x: col(s, 'CT'), value: '' }]).project;
+    expect('kwhMeter' in cleared.feeders.find((x) => x.id === 'DB-EV')!).toBe(false);
   });
 
   it("an equipment feeder's TCL sets its load and re-sizes its breaker and cable; a panel's stays calculated", () => {

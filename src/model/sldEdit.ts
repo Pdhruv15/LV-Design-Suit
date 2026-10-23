@@ -80,7 +80,7 @@ export const PALETTE: { group: string; entries: PaletteEntry[] }[] = [
   },
   {
     group: 'Distribution boards',
-    entries: (['MDB', 'LV-MDB', 'SMDB', 'DB', 'EDB', 'EMDB', 'UPS'] as BoardKind[]).map((k) => ({
+    entries: (['MDB', 'LV-MDB', 'LV-ACB', 'SMDB', 'DB', 'EDB', 'EMDB', 'LV-EMDB', 'UPS'] as BoardKind[]).map((k) => ({
       item: { kind: 'board', board: k } as PaletteItem,
       label: k,
       title: k === 'MDB'
@@ -90,7 +90,7 @@ export const PALETTE: { group: string; entries: PaletteEntry[] }[] = [
   },
   {
     group: 'Package panels',
-    entries: (['MCC', 'EMCC'] as BoardKind[]).map((k) => ({
+    entries: (['MCC', 'EMCC', 'FP'] as BoardKind[]).map((k) => ({
       item: { kind: 'board', board: k } as PaletteItem,
       label: `${k} panel`,
       title: `${BOARD_KINDS.find((b) => b.value === k)!.label} — drop on a busbar; its breaker and incomer cable are added`
@@ -169,7 +169,7 @@ export const itemKey = (i: PaletteItem) =>
 
 /** Typical rating (A) of a new board by type; its incomer breaker and cable
  * are sized for it until real loads are added. */
-const BOARD_RATING: Record<BoardKind, number> = { MC: 400, MDB: 1600, 'LV-MDB': 1600, SMDB: 250, DB: 63, EDB: 63, MCC: 400, EMCC: 400, EMDB: 250, UPS: 32 };
+const BOARD_RATING: Record<BoardKind, number> = { MC: 400, 'LV-ACB': 1600, MDB: 1600, 'LV-MDB': 1600, SMDB: 250, DB: 63, EDB: 63, MCC: 400, EMCC: 400, EMDB: 250, 'LV-EMDB': 800, FP: 250, UPS: 32 };
 
 const isRoot = (p: Project, boardId: string) => !p.boards.find((b) => b.id === boardId)?.upstreamId;
 
@@ -177,11 +177,11 @@ const isRoot = (p: Project, boardId: string) => !p.boards.find((b) => b.id === b
 export function canDrop(project: Project, item: PaletteItem, target: DropTarget): boolean {
   switch (item.kind) {
     case 'board':
-      if (target.type === 'canvas') return item.board === 'MDB' || item.board === 'LV-MDB' || item.board === 'MC';
+      if (target.type === 'canvas') return item.board === 'MDB' || item.board === 'LV-MDB' || item.board === 'LV-ACB' || item.board === 'MC';
       if (target.type !== 'bus') return false;
       if (item.board === 'MC') return false;
       // An MDB goes under a meter cabinet; other boards go on any board.
-      if (item.board === 'MDB' || item.board === 'LV-MDB') return project.boards.find((b) => b.id === target.boardId)?.kind === 'MC';
+      if (item.board === 'MDB' || item.board === 'LV-MDB' || item.board === 'LV-ACB') return project.boards.find((b) => b.id === target.boardId)?.kind === 'MC';
       return true;
     case 'transformer':
       return target.type === 'canvas' || (target.type === 'bus' && isRoot(project, target.boardId));
@@ -262,7 +262,7 @@ export function applyDrop(project: Project, item: PaletteItem, target: DropTarge
     const parent = target.type === 'bus' ? target.boardId : undefined;
     const board = newBoard(project, item.board, parent);
     if (!parent) {
-      const withSupply = item.board === 'MDB' || item.board === 'LV-MDB' ? { ...board, supply: { fedFrom: 'DEWA' } } : board;
+      const withSupply = item.board === 'MDB' || item.board === 'LV-MDB' || item.board === 'LV-ACB' ? { ...board, supply: { fedFrom: 'DEWA' } } : board;
       return { project: { ...project, boards: [...project.boards, withSupply] }, select: { type: 'board', id: board.id }, message: `Added ${board.id} (new supply) — set its data in the properties panel` };
     }
     const incomer = boardIncomer(project, parent, board);

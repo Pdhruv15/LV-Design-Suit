@@ -12,11 +12,11 @@ import { sequence } from './hierarchyBuilder';
  * Emergency sub-panels are ordinary SMDB / DB boards below an EMDB; their
  * role (ESMDB / EDB) — and so their name prefix — comes from being below it. */
 
-export type PanelRole = 'MDB' | 'LV-MDB' | 'SMDB' | 'DB' | 'EMDB' | 'ESMDB' | 'EDB' | 'MCC' | 'EMCC';
+export type PanelRole = 'LV-ACB' | 'MDB' | 'LV-MDB' | 'SMDB' | 'DB' | 'LV-EMDB' | 'EMDB' | 'ESMDB' | 'EDB' | 'MCC' | 'EMCC' | 'FP';
 export const PANEL_ROLES: { role: PanelRole; label: string }[] = [
-  { role: 'MDB', label: 'Main distribution board' }, { role: 'LV-MDB', label: 'LV main distribution board' },
+  { role: 'LV-ACB', label: 'LV ACB at the substation' }, { role: 'MDB', label: 'Main distribution board' }, { role: 'LV-MDB', label: 'LV main distribution board' },
   { role: 'SMDB', label: 'Sub-main distribution board' }, { role: 'DB', label: 'Distribution board' },
-  { role: 'EMDB', label: 'Emergency main board (ATS)' }, { role: 'ESMDB', label: 'Emergency sub-main board' }, { role: 'EDB', label: 'Emergency distribution board' },
+  { role: 'LV-EMDB', label: 'LV emergency main board' }, { role: 'EMDB', label: 'Emergency main board (ATS)' }, { role: 'ESMDB', label: 'Emergency sub-main board' }, { role: 'EDB', label: 'Emergency distribution board' },
   { role: 'MCC', label: 'Motor control centre (package panel)' }, { role: 'EMCC', label: 'Emergency motor control centre (package panel)' }
 ];
 
@@ -32,7 +32,7 @@ export function roleOf(project: Project, b: Board): string {
   const seen = new Set<string>();
   for (let up = b.upstreamId ? byId.get(b.upstreamId) : undefined; up && !seen.has(up.id); up = up.upstreamId ? byId.get(up.upstreamId) : undefined) {
     seen.add(up.id);
-    if (up.kind === 'EMDB') return kind === 'SMDB' ? 'ESMDB' : kind === 'MCC' ? 'EMCC' : 'EDB';
+    if (up.kind === 'EMDB' || up.kind === 'LV-EMDB') return kind === 'SMDB' ? 'ESMDB' : kind === 'MCC' ? 'EMCC' : 'EDB';
   }
   return kind;
 }

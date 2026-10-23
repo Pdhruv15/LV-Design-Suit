@@ -80,7 +80,7 @@ const uniqueId = (p: Project, base: string, sep = '-') => { const t = taken(p); 
 const checkNewId = (p: Project, id: string) => { if (!id.trim()) throw new Error('The id is empty.'); if (taken(p).has(id)) throw new Error(`${id} already exists in the project.`); };
 
 /** Board ratings for a new panel, as the diagram palette gives them (src/model/sldEdit.ts). */
-const BOARD_RATING: Record<BoardKind, number> = { MC: 400, MDB: 1600, 'LV-MDB': 1600, SMDB: 250, DB: 63, EDB: 63, MCC: 400, EMCC: 400, EMDB: 250, UPS: 32 };
+const BOARD_RATING: Record<BoardKind, number> = { MC: 400, 'LV-ACB': 1600, MDB: 1600, 'LV-MDB': 1600, SMDB: 250, DB: 63, EDB: 63, MCC: 400, EMCC: 400, EMDB: 250, 'LV-EMDB': 800, FP: 250, UPS: 32 };
 
 // ---- Proposals -------------------------------------------------------------------
 

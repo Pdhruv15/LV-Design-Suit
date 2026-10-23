@@ -6,6 +6,7 @@ import { addTransformerRow, buildTxSummary, nextSubstationName, rowCtText } from
 import { deleteBoard } from '../../model/edit';
 import { revisionStamp } from '../../model/revisions';
 import TxRowEditDialog from './TxRowEditDialog';
+import { MD_TITLE_METERING } from '../../docs/mdSheet';
 
 const kw = (v: number) => v.toFixed(2);
 const num = (v: string) => (v.trim() === '' || Number.isNaN(+v) ? undefined : +v);
@@ -37,7 +38,7 @@ export default function TxSummaryView({ project, onChange, onSettings }: { proje
     <div className="md-form txs">
       <div className="md-head">
         <div><span>PROJECT:</span> <b>{h.project}</b></div>
-        <div className="md-title">DETAILS OF CONNECTED LOAD, MAX DEMAND &amp; kWh METERING</div>
+        <div className="md-title">{MD_TITLE_METERING}</div>
         <div><span>AREA:</span> {blank(h.area)} <span className="md-rev">{revisionStamp(project)}</span></div>
         <div><span>PLANNED COMPLETION DATE:</span> {blank(h.completion)}</div>
         <div><span>OWNER:</span> {blank(h.owner)}</div>

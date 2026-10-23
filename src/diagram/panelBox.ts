@@ -6,7 +6,7 @@ import { isInterlocked } from '../model/changeover';
 import type { SymbolId } from './symbolLibrary';
 
 const PANEL_SYM: Record<string, SymbolId> = {
-  MDB: 'p-mdb', 'LV-MDB': 'p-mdb', EMDB: 'p-mdb', SMDB: 'p-smdb', ESMDB: 'p-smdb', DB: 'p-db', EDB: 'p-edb', MCC: 'p-mcc', EMCC: 'p-mcc'
+  MDB: 'p-mdb', 'LV-MDB': 'p-mdb', 'LV-ACB': 'p-mdb', EMDB: 'p-mdb', 'LV-EMDB': 'p-mdb', SMDB: 'p-smdb', ESMDB: 'p-smdb', DB: 'p-db', EDB: 'p-edb', MCC: 'p-mcc', EMCC: 'p-mcc'
 };
 
 const waysOf = (project: Project, b: Board) => project.feeders.filter((f) => f.boardId === b.id && !isScheduleCircuit(f));

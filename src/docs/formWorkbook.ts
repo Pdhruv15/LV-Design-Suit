@@ -4,7 +4,7 @@ import { boardLocation } from '../model/levels';
 import { scheduleCircuits } from '../calc/loadSchedule';
 import type { Project } from '../types';
 import { buildDbSheet } from './dbSheet';
-import { buildMdSheet, hasMdSheet } from './mdSheet';
+import { buildMdSheet, hasMdSheet, MD_TITLE_METERING } from './mdSheet';
 import { revisionStamp } from '../model/revisions';
 import { acbText, buildTxSummary, rowCtText } from './txSummary';
 import { buildRiserForm, type RiserFormRow } from './riserForm';
@@ -88,9 +88,9 @@ export function addMdSheet(wb: ExcelJS.Workbook, project: Project, boardId: stri
     pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 } },
     views: [{ showGridLines: false }]
   });
-  const n = s.keys.length; // 20 columns
-  const widths = [26, 6, 6, 7, 6, 7, 9, 13, 7, 9, 9, 8, 8, 8, 11, 12, 6, 6, 7, 20];
-  widths.forEach((w, i) => (ws.getColumn(i + 1).width = w));
+  const n = s.keys.length; // 20 columns, 17 without the kWh meters
+  const WIDTH: Record<string, number> = { name: 26, sptp: 6, ACB: 6, MCCB: 7, ISOL: 6, fault: 7, cores: 9, type: 13, size: 7, ecc: 9, length: 9, R: 8, Y: 8, B: 8, tcl: 11, mdl: 12, '1-PH': 6, '3-PH': 6, CT: 7, remarks: 20 };
+  s.keys.forEach((k, i) => (ws.getColumn(i + 1).width = WIDTH[k]));
   const at = (k: string) => s.keys.indexOf(k as never) + 1;
 
   // Header block
@@ -123,7 +123,7 @@ export function addMdSheet(wb: ExcelJS.Workbook, project: Project, boardId: stri
   group('ACB', 'ISOL', 'RATING (AMPS)');
   group('cores', 'size', 'CABLE SIZE, TYPE & No.OF CORES');
   group('R', 'B', 'CONNECTED LOAD kW');
-  group('1-PH', 'CT', 'PROPOSED TYPE & No OF kWh METER');
+  if (f.metering) group('1-PH', 'CT', 'PROPOSED TYPE & No OF kWh METER');
   box(ws, h1, 1, h2, n);
   ws.getRow(h1).height = 30;
   ws.getRow(h2).height = 44;
@@ -142,7 +142,7 @@ export function addMdSheet(wb: ExcelJS.Workbook, project: Project, boardId: stri
   // Totals
   put(ws, r, 1, f.connectedTo.join('\n'), { border: true }); merge(ws, r, 1, r, at('fault'));
   put(ws, r, at('cores'), 'TOTAL CONNECTED LOAD PER PHASE', { border: true }); merge(ws, r, at('cores'), r, at('length'));
-  for (const k of ['R', 'Y', 'B', 'tcl', 'mdl', '1-PH', '3-PH', 'CT']) put(ws, r, at(k), s.totals[at(k) - 1], { bold: true, border: true });
+  for (const k of ['R', 'Y', 'B', 'tcl', 'mdl', ...(f.metering ? ['1-PH', '3-PH', 'CT'] : [])]) put(ws, r, at(k), s.totals[at(k) - 1], { bold: true, border: true });
   put(ws, r, at('remarks'), 'TOTAL', { bold: true, border: true, align: 'right' });
   box(ws, r, 1, r, n);
   ws.getRow(r).height = 30;
@@ -156,10 +156,12 @@ export function addMdSheet(wb: ExcelJS.Workbook, project: Project, boardId: stri
   put(ws, r, 1, `CONSULTANT/ CONTRACTOR: ${f.contractor}`, { align: 'left' }); merge(ws, r, 1, r, 7);
   put(ws, r, 8, `TEL: ${f.tel}`, { align: 'left' }); merge(ws, r, 8, r, 14);
   put(ws, r, 15, `FAX : ${f.fax}`, { align: 'left' }); merge(ws, r, 15, r, n);
-  r++;
-  put(ws, r, 1, 'Type of Meter (Rating of incomer) :  (1) Up to 60A (1 Phase)     (2) Up to 125A (3 Phase)     (3) LV CT / HV CT', { align: 'left' });
-  merge(ws, r, 1, r, n);
-  ws.getRow(r).height = 22;
+  if (f.metering) {
+    r++;
+    put(ws, r, 1, 'Type of Meter (Rating of incomer) :  (1) Up to 60A (1 Phase)     (2) Up to 125A (3 Phase)     (3) LV CT / HV CT', { align: 'left' });
+    merge(ws, r, 1, r, n);
+    ws.getRow(r).height = 22;
+  }
   frame(ws, 1, 1, r, n);
   ws.pageSetup.printArea = `A1:${ws.getColumn(n).letter}${r}`;
   stamp(ws, project);
@@ -181,7 +183,7 @@ export function addTxSheet(wb: ExcelJS.Workbook, project: Project, name = 'TCL S
   const u = (v: string) => ({ align: 'left' as const, bold: true, v });
   const head = (r: number, c1: number, c2: number, x: { v: string; align: 'left'; bold: boolean }) => { put(ws, r, c1, x.v, { align: x.align, bold: x.bold }); merge(ws, r, c1, r, c2); };
   head(1, 1, 5, u(`PROJECT :  ${h.project}`));
-  put(ws, 1, 6, 'DETAILS OF CONNECTED LOAD, MAX DEMAND & kWh METERING', { bold: true, size: 11, border: true }); merge(ws, 1, 6, 1, 13);
+  put(ws, 1, 6, MD_TITLE_METERING, { bold: true, size: 11, border: true }); merge(ws, 1, 6, 1, 13);
   head(1, 16, n, u(`AREA :  ${h.area}`));
   head(2, 1, 5, u(`PLANNED COMPLETION DATE :  ${h.completion}`));
   head(2, 6, 13, u(`OWNER :  ${h.owner}`));

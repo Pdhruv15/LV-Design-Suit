@@ -218,7 +218,7 @@ export function sizeGeneratorByBoards(project: Project, plan: TxGenPlan = txGenP
   for (const b of order) {
     if (plan.genBoards[b.id] !== undefined) picked.set(b.id, { pct: plan.genBoards[b.id] });
     else if (standby.has(b.id)) picked.set(b.id, { pct: 100, auto: 'standby' });
-    else if (b.kind === 'EMDB') picked.set(b.id, { pct: 100, auto: 'emdb' });
+    else if (b.kind === 'EMDB' || b.kind === 'LV-EMDB') picked.set(b.id, { pct: 100, auto: 'emdb' });
   }
   const inTree = new Map<string, string>(); // board → the picked board above it
   for (const [id, v] of picked) if (v.pct > 0) for (const x of subtree(project, id)) if (x !== id && !inTree.has(x)) inTree.set(x, id);

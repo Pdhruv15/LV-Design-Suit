@@ -50,7 +50,7 @@ export default function BoardForm({
         <label>Board name<input value={boardName} required onChange={(e) => setBoardName(e.target.value)} placeholder="e.g. Second floor SMDB" /></label>
         <label>Board type
           <select value={kind} onChange={(e) => setKind(e.target.value as BoardKind)}>
-            {BOARD_KINDS.filter((k) => k.value !== 'MDB' && k.value !== 'LV-MDB' && k.value !== 'MC').map((k) => (
+            {BOARD_KINDS.filter((k) => k.value !== 'MDB' && k.value !== 'LV-MDB' && k.value !== 'LV-ACB' && k.value !== 'MC').map((k) => (
               <option key={k.value} value={k.value}>{k.label}</option>
             ))}
           </select>

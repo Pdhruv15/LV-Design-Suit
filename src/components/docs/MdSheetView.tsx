@@ -115,8 +115,8 @@ export default function MdSheetView({ project, boardId, onChange, onStatus, onSe
           <button className="chip" onClick={onSettings}>Edit form details…</button>
         </div>
         <p className="m">
-          Type of meter (rating of incomer): (1) up to 60 A, 1-phase · (2) up to 125 A, 3-phase · (3) LV CT / HV CT.
-          Type 1 in a meter column to propose that meter. An equipment feeder's load is typed in its TCL column (its breaker and cable are re-sized); a panel's load comes from the boards and load schedules below — edit them there.
+          {f.metering && <>Type of meter (rating of incomer): (1) up to 60 A, 1-phase · (2) up to 125 A, 3-phase · (3) LV CT / HV CT.
+          Type 1 in a meter column to propose that meter. </>}An equipment feeder's load is typed in its TCL column (its breaker and cable are re-sized); a panel's load comes from the boards and load schedules below — edit them there.
         </p>
       </div>
     </div>

@@ -5,7 +5,7 @@ import { boardsInSupplyOrder } from '../calc/summary';
 import { subtree } from '../calc/pfc';
 import type { PhaseKw } from '../calc/loadSchedule';
 import type { Board, Feeder, MeterType, Project } from '../types';
-import { connectedPhaseKw, suggestedMeter } from './mdSheet';
+import { connectedPhaseKw, panelDf, suggestedMeter } from './mdSheet';
 
 /** "Details of connected load, max demand & kWh metering — summary of the
  * TCL at transformer level": one row per transformer (main board), grouped
@@ -68,7 +68,6 @@ export function breakerSetting(project: Project, b: Board, ratingA?: number): nu
 
 export function buildTxSummary(project: Project): TxSummary {
   const mains = boardsInSupplyOrder(project).filter((b) => !b.upstreamId);
-  const dfDefault = project.info?.mdDemandFactor ?? 0.8;
   const rows: TxSummaryRow[] = mains.map((b) => {
     const tree = subtree(project, b.id);
     const feeders = project.feeders.filter((f) => tree.has(f.boardId));
@@ -80,7 +79,7 @@ export function buildTxSummary(project: Project): TxSummary {
     const manual = !project.feeders.some((f) => f.boardId === b.id);
     const phases = manual ? { ...ZERO, ...b.summaryLoad } : connectedPhaseKw(project, b.id);
     const tclKw = phases.R + phases.Y + phases.B;
-    const df = b.mdDemandFactor ?? dfDefault;
+    const df = panelDf(project, b);
     const meters: Record<MeterType, number> = { '1-PH': 0, '3-PH': 0, CT: 0 };
     const cts: Record<string, number> = {};
     // The transformer's own meter, then every metered feeder below it.

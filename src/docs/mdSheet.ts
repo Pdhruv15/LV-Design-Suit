@@ -8,6 +8,7 @@ import { isScheduleCircuit, type PhaseKw } from '../calc/loadSchedule';
 import { applyRecommendation, breakerRatings, recommend } from '../calc/sizing';
 import { CABLE_TYPES, DEFAULT_CABLE_TYPE, type Board, type Feeder, type MeterType, type Project, type SpareWay, type SwitchDevice } from '../types';
 import { isDbBoard, spareLabel, spareWaysOf, updateSpareWay, type SparePatch } from '../model/spareWays';
+import { roleOf } from '../model/emergency';
 import { cellName, parseCount, parsePositive, STYLE, type SheetEdit, type SheetModel } from './sheet';
 
 /** "Details of connected load, maximum demand & kWh metering" — the
@@ -38,6 +39,8 @@ export interface MdSheet extends SheetModel {
   /** Header and footer fields of the form. */
   form: {
     title: string;
+    /** The form has the proposed kWh meter columns and legend. */
+    metering: boolean;
     project: string;
     area: string;
     completion: string;
@@ -103,6 +106,8 @@ const ownLoad = (row: MdRow | undefined): row is { type: 'feeder'; feeder: Feede
  * maximum demand ÷ connected load (not the project's). */
 export function panelDf(project: Project, board: Board): number {
   if (board.mdDemandFactor !== undefined) return board.mdDemandFactor;
+  // The project's demand factor for the MD forms, as on the TCL summary and riser forms.
+  if (project.info?.mdDemandFactor !== undefined) return project.info.mdDemandFactor;
   const t = boardTotals(project, board.id);
   return t.connectedKw > 0 ? Math.round(Math.min(1, t.demandKw / t.connectedKw) * 100) / 100 : 1;
 }
@@ -114,16 +119,30 @@ export function panelSummary(project: Project, board: Board): { tclKw: number; d
   return { tclKw, df, mdlKw: tclKw * df };
 }
 
+/** Authority form titles, by panel type (the DEWA submission table). */
+export const MD_TITLE_METERING = 'DETAILS OF CONNECTED LOAD, MAX. DEMAND & kWh METERING';
+export const MD_TITLE = 'DETAILS OF CONNECTED LOAD / MAX. DEMAND';
+const METERING_ROLES = new Set(['MC', 'LV-ACB', 'MDB', 'LV-MDB', 'EMDB', 'LV-EMDB']);
+
+/** The form a panel gets: with kWh metering for the substation-side and main
+ * boards (LV ACB, LV MDB, EMDB, LV EMDB, any board fed from the authority);
+ * connected load / maximum demand only for SMDB, ESMDB, MCC, EMCC and the rest. */
+export function mdFormOf(project: Project, board: Board): { title: string; metering: boolean } {
+  const metering = !board.upstreamId || METERING_ROLES.has(roleOf(project, board));
+  return { title: metering ? MD_TITLE_METERING : MD_TITLE, metering };
+}
+
 export function buildMdSheet(project: Project, boardId: string): MdSheet {
   const board = project.boards.find((b) => b.id === boardId)!;
   const upstream = board.upstreamId ? project.boards.find((b) => b.id === board.upstreamId) : undefined;
   const incomer = project.feeders.find((f) => f.feedsBoardId === boardId && f.boardId === board.upstreamId);
   const outgoing = project.feeders.filter((f) => f.boardId === boardId && !isScheduleCircuit(f));
   const df = panelDf(project, board);
+  const { title, metering } = mdFormOf(project, board);
   const sizes = cables().map((c) => String(c.csaMm2));
   const ratings = breakerRatings().map(String);
 
-  const keys: MdColKey[] = ['name', 'sptp', 'ACB', 'MCCB', 'ISOL', 'fault', 'cores', 'type', 'size', 'ecc', 'length', 'R', 'Y', 'B', 'tcl', 'mdl', '1-PH', '3-PH', 'CT', 'remarks'];
+  const keys: MdColKey[] = ['name', 'sptp', 'ACB', 'MCCB', 'ISOL', 'fault', 'cores', 'type', 'size', 'ecc', 'length', 'R', 'Y', 'B', 'tcl', 'mdl', ...(metering ? ['1-PH', '3-PH', 'CT'] as const : []), 'remarks'];
   const at = (k: MdColKey) => keys.indexOf(k);
   const titles: Record<MdColKey, string> = {
     name: 'CIRCUIT/FEEDER SMDB/ DB NO.', sptp: 'SP/ TP', ACB: 'ACB', MCCB: 'MCCB', ISOL: 'ISOL', fault: 'FAULT DUTY kA',
@@ -177,7 +196,7 @@ export function buildMdSheet(project: Project, boardId: string): MdSheet {
       if (row.feeder) {
         cableCells(line, row.feeder);
         const m = row.feeder.kwhMeter;
-        if (m) { line[at(m)] = 1; meters[m]++; }
+        if (m && metering) { line[at(m)] = 1; meters[m]++; }
         return line;
       }
       const s = board.supply ?? {};
@@ -189,7 +208,7 @@ export function buildMdSheet(project: Project, boardId: string): MdSheet {
       merges[cellName(at('cores'), y)] = [3, 1];
       line[at('ecc')] = s.ecc ?? '';
       const m = s.meter ?? (rating ? suggestedMeter(rating, true) : undefined);
-      if (m) { line[at(m)] = 1; meters[m]++; }
+      if (m && metering) { line[at(m)] = 1; meters[m]++; }
       return line;
     }
     const f = row.feeder;
@@ -202,7 +221,7 @@ export function buildMdSheet(project: Project, boardId: string): MdSheet {
     line[at('B')] = kw(p.B);
     line[at('tcl')] = kw(sum(p));
     line[at('mdl')] = kw(sum(p) * df);
-    if (f.kwhMeter) { line[at(f.kwhMeter)] = 1; meters[f.kwhMeter]++; }
+    if (f.kwhMeter && metering) { line[at(f.kwhMeter)] = 1; meters[f.kwhMeter]++; }
     line[at('remarks')] = f.remarks ?? '';
     return line;
   });
@@ -214,7 +233,7 @@ export function buildMdSheet(project: Project, boardId: string): MdSheet {
   totals[at('B')] = kw(total.B);
   totals[at('tcl')] = kw(sum(total));
   totals[at('mdl')] = kw(sum(total) * df);
-  (['1-PH', '3-PH', 'CT'] as MeterType[]).forEach((m) => (totals[at(m)] = meters[m] ? String(meters[m]) : ''));
+  if (metering) (['1-PH', '3-PH', 'CT'] as MeterType[]).forEach((m) => (totals[at(m)] = meters[m] ? String(meters[m]) : ''));
 
   const editable = (y: number, x: number): boolean => {
     const row = rows[y];
@@ -251,7 +270,7 @@ export function buildMdSheet(project: Project, boardId: string): MdSheet {
     { title: '', colspan: 2 },
     { title: 'CONNECTED LOAD kW', colspan: 3 },
     { title: '', colspan: 2 },
-    { title: 'PROPOSED TYPE & No OF kWh METER', colspan: 3 },
+    ...(metering ? [{ title: 'PROPOSED TYPE & No OF kWh METER', colspan: 3 }] : []),
     { title: '', colspan: 1 }
   ];
 
@@ -276,7 +295,8 @@ export function buildMdSheet(project: Project, boardId: string): MdSheet {
     })),
     shape: JSON.stringify([keys, rows.map((r) => (r.type === 'feeder' ? r.feeder.id : r.type === 'way' ? `way:${r.way.id}:${r.way.kind}` : r.type)), merges]),
     form: {
-      title: 'DETAILS OF CONNECTED LOAD, MAXIMUM DEMAND & kWh METERING',
+      title,
+      metering,
       project: project.name,
       area: info.area ?? '',
       completion: info.plannedCompletion ?? '',

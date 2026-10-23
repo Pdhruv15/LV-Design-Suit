@@ -28,7 +28,8 @@ describe('submission workbook (Excel)', () => {
     const ws = wb.worksheets[0];
     const t = text(ws);
     const s = buildMdSheet(sampleProject, 'SMDB-GF');
-    expect(t).toContain('DETAILS OF CONNECTED LOAD, MAXIMUM DEMAND & kWh METERING');
+    expect(t).toContain('DETAILS OF CONNECTED LOAD / MAX. DEMAND'); // an SMDB: no kWh metering
+    expect(t.some((v) => v.includes('kWh METER') || v.startsWith('Type of Meter'))).toBe(false);
     expect(t).toContain('DB-GF1 (VILLA GROUND FLOOR DB)');
     expect(t).toContain('OUT GOING');
     expect(t).toContain(s.totals[s.keys.indexOf('tcl')]);
