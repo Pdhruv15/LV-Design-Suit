@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { PDFDocument, PDFName, PDFDict, PDFHexString, PDFString } from 'pdf-lib';
-import { pdfAuthor, renderPdf } from './files';
+import { pdfAuthor, pdfPageSetup, renderPdf } from './files';
 import { buildReportHtml } from '../docs/calcReport';
 import { anonymizeProject } from '../model/anonymize';
 import { sampleProject } from '../data/sampleProject';
@@ -64,5 +64,25 @@ describe('PDF privacy', () => {
   it('keeps the author on an ordinary report', async () => {
     const bytes = await renderPdf(buildReportHtml(sampleProject), { pageSize: 'A4' });
     expect((await PDFDocument.load(bytes!)).getAuthor()).toBe(PROFILE);
+  });
+});
+
+describe('PDF page setup', () => {
+  const html = '<html><head><style>@page { size: A4 portrait; }</style></head><body></body></html>';
+
+  it('makes an explicit landscape export override the document fallback', () => {
+    const out = pdfPageSetup(html, { pageSize: 'A4', landscape: true });
+    expect(out.page).toMatchObject({ pageSize: 'A4', landscape: true });
+    expect(out.html).toContain('<style data-pdf-page>@page { size: A4 landscape; }</style></head>');
+  });
+
+  it('uses the document orientation when the caller omits it', () => {
+    const out = pdfPageSetup(html, { pageSize: 'A4' });
+    expect(out.page.landscape).toBe(false);
+    expect(out.html).toContain('@page { size: A4 portrait; }');
+  });
+
+  it('does not override mixed CSS-sized pages', () => {
+    expect(pdfPageSetup(html, { cssPages: true }).html).toBe(html);
   });
 });

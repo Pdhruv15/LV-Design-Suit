@@ -52,7 +52,7 @@ h3 { font-size: ${P.h3}; color: ${P.ink}; break-after: avoid; }
 .sub { color: ${P.ink2}; margin: 0 0 12px; }
 .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2mm; margin: 8px 0; }
 .kpi { border: ${P.thin} solid ${P.rule}; padding: 1.6mm 2.4mm; } .kpi b { display: block; font-size: 11pt; } .kpi span { color: ${P.ink2}; font-size: ${P.small}; }
-table { border-collapse: collapse; width: 100%; margin: 4px 0 8px; font-size: ${P.table}; }
+table { border-collapse: collapse; width: 100%; margin: 4px 0 8px; font-size: ${P.table}; box-shadow: inset 0 0 0 ${P.thin} ${P.rule}; }
 th, td { border: ${P.thin} solid ${P.rule}; padding: 1.1mm 1.6mm; text-align: left; vertical-align: top; }
 th { background: ${P.fill}; font-weight: 700; } thead { display: table-header-group; } tr { break-inside: avoid; }
 tr.total td { background: ${P.fill}; font-weight: 700; }
