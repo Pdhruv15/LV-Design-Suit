@@ -111,6 +111,8 @@ export const SYMBOLS = {
 
 export type SymbolId = keyof typeof SYMBOLS;
 export const SYMBOL_IDS = Object.keys(SYMBOLS) as SymbolId[];
+/** Panels and boards drawn as one box. */
+export const PANEL_SYMBOL_IDS = SYMBOL_IDS.filter((id) => id.startsWith('p-'));
 
 /** Scale per drawing role: switching devices fill the 16-unit breaker slot,
  * loads the 28-unit load slot; the legend draws every symbol at one size. */
@@ -141,6 +143,32 @@ export function placePath(d: string, map: (u: number, v: number) => [number, num
     } else throw new Error(`Symbol path value without a command: ${d}`);
   }
   return out.join(' ');
+}
+
+const SVG_PAINT: Record<SymCls, string> = {
+  ln: 'fill="none" stroke="#000" stroke-width="1.2"', sym: 'fill="none" stroke="#000" stroke-width="1.2"', open: 'fill="none" stroke="#000" stroke-width="1.2"',
+  fill: 'fill="#000" stroke="#000" stroke-width="1.2"', thick: 'fill="none" stroke="#000" stroke-width="3"', dash: 'fill="none" stroke="#000" stroke-width="1.2" stroke-dasharray="2 1.5"'
+};
+const xmlText = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/** A library symbol as a black-on-white SVG string (printed sheets and DXF),
+ * body centre at (x, y); side labels are left off. */
+export function symSvg(id: SymbolId, x: number, y: number, s = 1): string {
+  const X = (u: number) => n(x + (u - SYM_CX) * s);
+  const Y = (v: number) => n(y + (v - SYM_CY) * s);
+  const map = (u: number, v: number): [number, number] => [X(u), Y(v)];
+  return (SYMBOLS[id].prims as SymPrim[]).map((q) => {
+    const paint = q.k === 't' ? '' : SVG_PAINT[q.c ?? (q.k === 'p' ? 'ln' : 'sym')];
+    switch (q.k) {
+      case 'p': return `<path d="${placePath(q.d, map, s)}" ${paint}/>`;
+      case 'c': return `<circle cx="${X(q.cx)}" cy="${Y(q.cy)}" r="${n(q.r * s)}" ${paint}/>`;
+      case 'e': return `<ellipse cx="${X(q.cx)}" cy="${Y(q.cy)}" rx="${n(q.rx * s)}" ry="${n(q.ry * s)}" ${paint}/>`;
+      case 'r': return `<rect x="${X(q.x)}" y="${Y(q.y)}" width="${n(q.w * s)}" height="${n(q.h * s)}" ${paint}/>`;
+      case 't':
+        if (q.side) return '';
+        return `<text x="${X(q.x)}" y="${n(Y(q.y) + (q.b ? 4 : 3))}" fill="#000" font-family="Arial, Helvetica, sans-serif" font-size="${q.b ? 11 : 7.5}"${q.b ? ' font-weight="bold"' : ''} text-anchor="middle">${xmlText(q.s)}</text>`;
+    }
+  }).join('');
 }
 
 const CLASS: Record<SymCls, string> = { ln: 'ln', sym: 'sym', open: 'sym-open', fill: 'sym-fill', thick: 'ln thick', dash: 'ln' };

@@ -29,4 +29,8 @@ Built as option 1, then changed on review. There is **no per-board switch**: the
 - An end board is a sub-board with no ways of its own on the SLD. Its final circuits stay on its load schedule. An APFC panel also counts, because its capacitor steps are inside it. It is drawn as its panel symbol in a load's slot under its feeder, with its ID, name and demand. Double-click the box to open its load schedule.
 - A feeder panel (one feeding ways or other boards, such as SMDB-FF with its loads) keeps its busbar. Main boards, mains/generator changeovers, meter cabinets and UPS boards are never boxed.
 - An EMDB uses `p-mdb`, because it is a main board.
-- Options 2 (riser) and 3 (the "fed from" stub on board sheets) are **still open**. They wait for a separate go-ahead.
+- Options 2 and 3 approved 2026-10-23 and built:
+  - **Riser diagram:** every board box is now its panel symbol.
+  - **Feeder riser schematic:** each end board is its panel symbol. Panels that feed ways keep their enclosure with a busbar.
+  - Both risers draw the symbol at the legend scale, about the old box's height, so row spacing is unchanged. UPS boards and meter cabinets keep their old boxes. Each legend lists the panel symbols in use.
+  - **Board sheets:** the "FROM" stub at the top draws the board above as its panel symbol, black on white.

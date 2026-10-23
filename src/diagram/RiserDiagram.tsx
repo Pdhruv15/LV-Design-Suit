@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { Project } from '../types';
 import { riserLayout, U, ROW_H, type RiserLayout } from './riserLayout';
+import { PANEL_SYMBOL_IDS, Sym, SYM_SCALE, SYMBOLS } from './symbolLibrary';
 
 /** IEC 60617 symbols for the riser diagram, all from one unit U so they
  * scale together (none bigger or smaller than the others). */
@@ -30,6 +31,7 @@ export const RISER_LEGEND: { key: string; label: string; draw: (x: number, y: nu
   { key: 'tx', label: 'Transformer', draw: (x, y) => RiserSym.tx(x, y) },
   { key: 'gen', label: 'Standby generator', draw: (x, y) => RiserSym.gen(x, y) },
   { key: 'ats', label: 'Changeover (ATS)', draw: (x, y) => RiserSym.ats(x, y) },
+  ...PANEL_SYMBOL_IDS.map((id) => ({ key: id, label: SYMBOLS[id].label, draw: (x: number, y: number) => <Sym id={id} x={x} y={y} s={SYM_SCALE.legend} /> })),
   { key: 'db', label: 'Distribution board / panel', draw: (x, y) => RiserSym.db(x, y) },
   { key: 'bus', label: 'Busbar trunking riser', draw: (x, y) => <g className="riser-bus"><line x1={x - 0.7 * U} y1={y - 0.18 * U} x2={x + 0.7 * U} y2={y - 0.18 * U} /><line x1={x - 0.7 * U} y1={y + 0.18 * U} x2={x + 0.7 * U} y2={y + 0.18 * U} /></g> },
   { key: 'tap', label: 'Tap-off unit', draw: (x, y) => RiserSym.tap(x, y) },
@@ -98,7 +100,7 @@ export default function RiserDiagram({ project, buildingId, layout: given }: { p
         {L.nodes.map((n) => (
           <g key={n.board.id}>
             <title>{`${n.board.id} — ${n.board.name}`}</title>
-            {RiserSym.db(n.x, n.y)}
+            {n.panel ? <Sym id={n.panel} x={n.x} y={n.y} s={SYM_SCALE.legend} /> : RiserSym.db(n.x, n.y)}
             <text x={n.x + 1.0 * U} y={n.y - 2} className="b">{n.title}{n.count ? ` ×${n.count}` : ''}</text>
             <text x={n.x + 1.0 * U} y={n.y + 0.6 * U} className="m">{n.sub}</text>
           </g>

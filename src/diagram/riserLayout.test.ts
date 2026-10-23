@@ -38,7 +38,11 @@ describe('riser diagram', () => {
     expect(L.buses).toHaveLength(1);
     expect(L.buses[0].taps).toHaveLength(5);
     expect(L.sources.map((s) => s.kind).sort()).toEqual(['gen', 'tx']);
-    expect([...L.used].sort()).toEqual(['ats', 'bus', 'cable', 'db', 'gen', 'standby', 'tap', 'tx']);
+    expect([...L.used].sort()).toEqual(['ats', 'bus', 'cable', 'gen', 'p-db', 'p-mdb', 'p-smdb', 'standby', 'tap', 'tx']);
+    // Each panel as its IEC panel symbol, by role.
+    expect(node('MDB').panel).toBe('p-mdb');
+    expect(node('SMDB-R').panel).toBe('p-smdb');
+    expect(node('DB-3F').panel).toBe('p-db');
     expect(U).toBe(20);
   });
   it('riser sheets number in their own sequence', () => {

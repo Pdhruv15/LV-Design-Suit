@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { placePath, Sym, SYM_BOX, SYMBOL_IDS, SYMBOLS, type SymPrim } from './symbolLibrary';
+import { placePath, Sym, SYM_BOX, SYMBOL_IDS, SYMBOLS, symSvg, type SymPrim } from './symbolLibrary';
+import RiserDiagram, { RiserLegendSvg } from './RiserDiagram';
+import { sampleProject } from '../data/sampleProject';
+import FeederRiserDiagram, { FeederRiserLegendSvg } from './FeederRiserDiagram';
 import { pathPoints } from './svgPath';
 import { FeederSwitchSym, feederSwitchOf, legendEntries, loadSymbolOf, rcdInSwitch, starterSymbolOf, SwitchSym } from './IecSymbols';
 import { sldDevices } from './sldDevices';
@@ -126,5 +129,46 @@ describe('changeover incomer symbols', () => {
   it('hangs the library SPD below the voltmeter row', () => {
     const svg = draw(false, 'T2');
     expect(svg).toContain('<rect x="44" y="217" width="8" height="16"'); // body centred on busY − 75, 52 left of the mains line
+  });
+});
+
+describe('symbols as printable SVG strings', () => {
+  it('draws black on white, in the same place as the React symbol', () => {
+    const svg = symSvg('p-smdb', 100, 50, 0.6);
+    const colours = new Set([...svg.matchAll(/(?:stroke|fill)="([^"]+)"/g)].map((m) => m[1]));
+    expect([...colours].every((c) => c === '#000' || c === 'none')).toBe(true);
+    expect(svg).toContain('<rect x="91.6" y="40.4" width="16.8" height="19.2"');
+    expect(renderToStaticMarkup(<svg><Sym id="p-smdb" x={100} y={50} s={0.6} /></svg>)).toContain('x="91.6" y="40.4" width="16.8" height="19.2"');
+    expect(symSvg('pmu', 0, 0)).not.toContain('RS485'); // side labels left off
+    expect(symSvg('kwh', 0, 0)).toContain('>kWh</text>');
+  });
+});
+
+describe('riser panel symbols', () => {
+  const at = { building: 'A', level: 'g' };
+  const inc = (id: string, to: string) => ({ ...sampleProject.feeders[0], id, boardId: 'MDB', feedsBoardId: to, name: to });
+  const project = {
+    ...sampleProject, busRisers: [],
+    building: { rooms: [], buildings: [{ id: 'A', name: 'A', levels: [{ id: 'g', name: 'GF', kind: 'ground', heightM: 4 }] }] },
+    boards: [{ id: 'MDB', name: 'M', kind: 'MDB', sourceKva: 1000, level: at }, { id: 'DB1', name: 'D', kind: 'DB', upstreamId: 'MDB', level: at }, { id: 'UPS1', name: 'U', kind: 'UPS', upstreamId: 'MDB', level: at }],
+    feeders: [inc('I1', 'DB1'), inc('I2', 'UPS1')]
+  } as unknown as Project;
+
+  it('draws each board as its panel symbol, a UPS board as the plain box', () => {
+    const html = renderToStaticMarkup(<RiserDiagram project={project} buildingId="A" />);
+    expect(html).toContain('>MDB</text>');
+    expect(html).toContain('>DB</text>');
+    expect(html).toContain('<polygon'); // the UPS board keeps the plain DB box
+    const fr = renderToStaticMarkup(<FeederRiserDiagram project={project} buildingId="A" />);
+    expect(fr).toContain('>DB</text>'); // end board as its panel symbol
+    expect(fr).toContain('>UPS</text>'); // UPS keeps its own box
+  });
+
+  it('lists the panel symbols in the riser legends', () => {
+    const legend = renderToStaticMarkup(<RiserLegendSvg used={new Set(['p-db', 'p-mdb'])} />);
+    expect(legend).toContain('Distribution board (DB)');
+    expect(legend).toContain('LV main panel (MDB)');
+    expect(legend).not.toContain('Sub-main board');
+    expect(renderToStaticMarkup(<FeederRiserLegendSvg used={new Set(['p-mcc'])} />)).toContain('Motor control centre (MCC)');
   });
 });
