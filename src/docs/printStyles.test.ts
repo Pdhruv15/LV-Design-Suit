@@ -25,6 +25,12 @@ describe('shared print styles', () => {
     expect(statusSpan('FAIL')).toBe('<span class="st">FAIL</span>');
     expect(PRINT_BASE_CSS).toMatch(/\.bad > \.st \{ border:/);
   });
+
+  it('draws full-width table edges inside the printable area', () => {
+    expect(PRINT_BASE_CSS).toMatch(/table \{[^}]*box-shadow: inset/);
+    expect(printDoc(sampleProject, { title: 'T', headRight: 'H', footer: 'F', body: '<table class="b"></table>' }))
+      .toMatch(/table\.b \{[^}]*box-shadow: inset/);
+  });
 });
 
 describe('every PDF document is black and white', () => {

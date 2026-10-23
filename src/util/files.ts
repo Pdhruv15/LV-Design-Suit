@@ -59,6 +59,18 @@ export type PdfPage = { pageSize?: 'A4' | 'A3' | 'A2' | 'A1'; landscape?: boolea
   /** An anonymized sample: the PDF information names no author (not the profile's name). Normal reports leave this off. */
   anonymous?: boolean };
 
+/** Keep Chromium's paper setting and the document's layout in the same orientation. CSS-sized
+ * documents may contain mixed paper sizes, so their own @page rules remain authoritative. */
+export function pdfPageSetup(html: string, page: PdfPage = {}): { html: string; page: PdfPage } {
+  if (page.cssPages) return { html, page };
+  const cssPage = /@page(?:\s+[\w-]+)?\s*\{[^}]*\bsize\s*:\s*(A[1-4])(?:\s+(landscape|portrait))?/i.exec(html);
+  const pageSize = page.pageSize ?? cssPage?.[1]?.toUpperCase() as PdfPage['pageSize'] ?? 'A4';
+  const landscape = page.landscape ?? cssPage?.[2]?.toLowerCase() === 'landscape';
+  const rule = `<style data-pdf-page>@page { size: ${pageSize} ${landscape ? 'landscape' : 'portrait'}; }</style>`;
+  const styled = /<\/head>/i.test(html) ? html.replace(/<\/head>/i, `${rule}</head>`) : `${rule}${html}`;
+  return { html: styled, page: { ...page, pageSize, landscape } };
+}
+
 /** The PDF Author: the name in your profile (Preferences), unless the document is an anonymized sample. */
 export function pdfAuthor(page: Pick<PdfPage, 'anonymous'> = {}): string | undefined {
   if (page.anonymous) return undefined;
@@ -71,6 +83,7 @@ export function pdfAuthor(page: Pick<PdfPage, 'anonymous'> = {}): string | undef
 export async function renderPdf(html: string, page: PdfPage = {}, fallbackTitle = ''): Promise<Uint8Array | undefined> {
   const toBytes = hasBridge() ? window.lvds.files.pdfBytes : undefined;
   if (!toBytes) return undefined;
+  ({ html, page } = pdfPageSetup(html, page));
   const { PDFDocument } = await import('pdf-lib');
   const { destinationPages, finishPdf, htmlTitle, paginatePdf } = await import('../docs/pdfTools');
   const { pageSize, landscape, cssPages, frame, paginate, selfNumbered } = page;
@@ -107,7 +120,7 @@ function printInFrame(html: string): string {
 /** Renders a self-contained HTML document to PDF. In the desktop app this
  * uses Electron's printToPDF; in a browser it opens the print dialog. */
 export async function savePdf(defaultName: string, html: string, page?: PdfPage): Promise<string | null> {
-  if (!hasBridge()) return printInFrame(html);
+  if (!hasBridge()) return printInFrame(pdfPageSetup(html, page).html);
   const bytes = await renderPdf(html, page, defaultName.replace(/[.]pdf$/i, ''));
   if (bytes) return saveBinary(defaultName, bytes, 'PDF', 'pdf', 'application/pdf');
   const saved = await window.lvds.files.savePdf({ defaultName, html, ...page });

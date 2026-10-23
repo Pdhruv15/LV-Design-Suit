@@ -46,7 +46,7 @@ ol.notes { margin: 0; padding-left: 5mm; } ol.notes li { margin: 0 0 1.5mm; }
 .legend td { padding: 0.6mm 3mm 0.6mm 0; vertical-align: top; }
 .box { border: 0.4pt solid ${PRINT.rule}; padding: 2mm 3mm; margin: 4mm 0; break-inside: avoid; }
 .contents { border-collapse: collapse; width: 100%; } .contents td { padding: 1mm 0; border-bottom: 0.3pt dotted #999; } .contents td.n { width: 15mm; }
-table.b { width: 100%; border-collapse: collapse; }
+table.b { width: 100%; border-collapse: collapse; box-shadow: inset 0 0 0 ${PRINT.thin} ${PRINT.rule}; }
 table.b th, table.b td { border-left: 0.4pt solid ${PRINT.rule}; border-right: 0.4pt solid ${PRINT.rule}; padding: 1.1mm 1.5mm; vertical-align: top; text-align: left; }
 table.b thead { display: table-header-group; } table.b thead th { border: 0.4pt solid ${PRINT.rule}; background: ${PRINT.fill}; font-size: 7.6pt; text-align: center; vertical-align: middle; }
 table.b tr { break-inside: avoid; } table.b tbody tr + tr td { border-top: 0.2pt dotted #aaa; } table.b tbody:last-child tr:last-child td { border-bottom: 0.4pt solid ${PRINT.rule}; }
