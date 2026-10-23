@@ -2,7 +2,9 @@
 
 Status: proposal only; wait for approval before implementation.
 
-Mock-up: `docs/mockups/equipment-palette-icon-grid-proposal.png`
+Recommended compact mock-up: `docs/mockups/equipment-palette-icon-grid-compact-v2.png`
+
+Original roomier mock-up: `docs/mockups/equipment-palette-icon-grid-proposal.png`
 
 ## Recommendation
 
@@ -14,6 +16,8 @@ Replace the long category accordion with a two-level, icon-first palette:
 4. Make click-to-place the primary action: selecting a tile arms it, the next valid canvas click places it, and Escape cancels. Keep drag-and-drop for precise positioning.
 5. Put quantity controls on the armed tile rather than keeping a separate global “Drop N at a time” field.
 6. Keep current colours, typography, tabs, search, favourites, recent history, preset tools, and underlying equipment data unchanged.
+
+The compact version reduces outer padding, grid gaps, icon size, and tile height. It retains a 4–6 px separation between tiles rather than removing spacing completely, so adjacent click targets remain visually distinct.
 
 ## Why this is easier to use
 
