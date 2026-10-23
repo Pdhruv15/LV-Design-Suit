@@ -77,6 +77,7 @@ describe('panel symbols for boards drawn as one box', () => {
     host.innerHTML = html;
     const texts = [...host.querySelector('[data-lv-id="feeder:INC-DBGF1"]')!.querySelectorAll('text')].map((t) => t.textContent);
     expect(texts).toEqual(expect.arrayContaining(['DB', 'DB-GF1'])); // DB-GF1 has final circuits only
+    expect(texts.some((t) => /^TCL [\d.]+ · MDL [\d.]+ kW$/.test(t ?? ''))).toBe(true); // its TCL and MDL under the symbol
     const smdb = [...host.querySelector('[data-lv-id="feeder:INC-GF"]')!.querySelectorAll('text')].map((t) => t.textContent);
     expect(smdb).not.toContain('SMDB'); // SMDB-GF feeds ways: drawn with its busbar
     expect(legendEntries(project).map((e) => e.key)).toContain('p-db');
