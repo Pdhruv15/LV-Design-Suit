@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "shot": "LS-UI-001",
+  "viewport": {
+    "width": 1600,
+    "height": 1000
+  },
+  "callouts": [
+    {
+      "number": 1,
+      "target": "main-ribbon",
+      "label": "Schedule commands",
+      "rect": {
+        "x": 0,
+        "y": 49,
+        "width": 1600,
+        "height": 131.390625
+      },
+      "point": {
+        "x": 0.5,
+        "y": 0.1146953125
+      }
+    },
+    {
+      "number": 2,
+      "target": "panel-tree",
+      "label": "Panel tree",
+      "rect": {
+        "x": 0,
+        "y": 180.390625,
+        "width": 230,
+        "height": 787.609375
+      },
+      "point": {
+        "x": 0.071875,
+        "y": 0.5741953125
+      }
+    },
+    {
+      "number": 3,
+      "target": "load-schedule-page",
+      "label": "Current form and exports",
+      "rect": {
+        "x": 230,
+        "y": 180.390625,
+        "width": 1370,
+        "height": 114.5
+      },
+      "point": {
+        "x": 0.571875,
+        "y": 0.237640625
+      }
+    },
+    {
+      "number": 4,
+      "target": "load-schedule-groups",
+      "label": "Form groups",
+      "rect": {
+        "x": 246,
+        "y": 343.0859375,
+        "width": 398.8046875,
+        "height": 30.1953125
+      },
+      "point": {
+        "x": 0.27837646484375,
+        "y": 0.35818359375
+      }
+    },
+    {
+      "number": 5,
+      "target": "load-schedule-panels",
+      "label": "Panel and form selector",
+      "rect": {
+        "x": 246,
+        "y": 391.28125,
+        "width": 1338,
+        "height": 32
+      },
+      "point": {
+        "x": 0.571875,
+        "y": 0.40728125
+      }
+    },
+    {
+      "number": 6,
+      "target": "load-schedule-grid",
+      "label": "Editable schedule grid",
+      "rect": {
+        "x": 246,
+        "y": 556.4765625,
+        "width": 1338,
+        "height": 620
+      },
+      "point": {
+        "x": 0.571875,
+        "y": 0.8664765625
+      }
+    }
+  ]
+}

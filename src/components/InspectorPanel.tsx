@@ -21,7 +21,7 @@ export default function InspectorPanel({ label, children }: { label: string; chi
 
   if (hidden) {
     return (
-      <aside className="side closed" aria-label={label}>
+      <aside className="side closed" aria-label={label} data-doc-id="sld-inspector">
         <button className="icon-btn" onClick={() => hide(false)} title={`Show the ${label.toLowerCase()}`}><PanelRightOpen size={16} /></button>
       </aside>
     );
@@ -38,7 +38,7 @@ export default function InspectorPanel({ label, children }: { label: string; chi
   };
 
   return (
-    <aside className="side" aria-label={label} style={{ '--side-w': `${width}px` } as React.CSSProperties}>
+    <aside className="side" aria-label={label} style={{ '--side-w': `${width}px` } as React.CSSProperties} data-doc-id="sld-inspector">
       <div className="side-resize" onPointerDown={startResize} onDoubleClick={() => { setWidth(INSPECTOR_W); store('inspector.width', INSPECTOR_W); }} title="Drag to resize — double-click for the default width" />
       <div className="side-head">
         <b>{label}</b>

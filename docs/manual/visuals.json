@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "viewport": { "width": 1600, "height": 1000 },
+  "shots": [
+    {
+      "id": "LS-UI-001",
+      "module": "M01",
+      "view": "load-schedule",
+      "board": "DB-GF1",
+      "image": "docs/manual/assets/M01/load-schedule.png",
+      "metadata": "docs/manual/assets/M01/load-schedule.json",
+      "readyTarget": "load-schedule-page",
+      "callouts": [
+        { "number": 1, "target": "main-ribbon", "label": "Schedule commands" },
+        { "number": 2, "target": "panel-tree", "label": "Panel tree" },
+        { "number": 3, "target": "load-schedule-page", "label": "Current form and exports" },
+        { "number": 4, "target": "load-schedule-groups", "label": "Form groups" },
+        { "number": 5, "target": "load-schedule-panels", "label": "Panel and form selector" },
+        { "number": 6, "target": "load-schedule-grid", "label": "Editable schedule grid" }
+      ]
+    },
+    {
+      "id": "SLD-UI-001",
+      "module": "M02",
+      "view": "design",
+      "board": "MDB-1",
+      "image": "docs/manual/assets/M02/sld.png",
+      "metadata": "docs/manual/assets/M02/sld.json",
+      "readyTarget": "sld-canvas",
+      "callouts": [
+        { "number": 1, "target": "main-ribbon", "label": "SLD and selection commands" },
+        { "number": 2, "target": "panel-tree", "label": "Panel tree" },
+        { "number": 3, "target": "sld-view-tabs", "label": "Diagram views" },
+        { "number": 4, "target": "sld-display-tools", "label": "Drawing display tools" },
+        { "number": 5, "target": "sld-canvas", "label": "Interactive SLD canvas" },
+        { "number": 6, "target": "sld-inspector", "label": "Board properties and circuit results" },
+        { "number": 7, "target": "sld-results", "label": "System, bus, and feeder results" },
+        { "number": 8, "target": "sld-command-bar", "label": "Add, display, and export controls" }
+      ]
+    }
+  ]
+}

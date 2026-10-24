@@ -1,0 +1,58 @@
+id: M02
+title: Single Line Diagram (SLD)
+slug: sld
+section_prefix: SLD
+order: 20
+version: "0.1"
+app_version: "1.80"
+status: draft
+last_reviewed: "2026-10-24"
+audience:
+  - electrical designers
+  - electrical engineers
+  - reviewers
+routes:
+  - design
+prerequisites:
+  - Project electrical settings are confirmed.
+  - The main supply arrangement is known.
+  - Panel IDs and intended hierarchy are available.
+outputs:
+  - Working system diagram
+  - Board circuit diagrams
+  - SLD drawing sheets
+  - Riser and earthing sheets
+  - PDF, SVG, and DXF exports
+visual_pdf: output/pdf/LV-Design-Studio-SLD-Visual-User-Manual.pdf
+sections:
+  - id: SLD-010
+    title: Purpose and data flow
+  - id: SLD-020
+    title: Before starting
+  - id: SLD-030
+    title: Interface overview
+  - id: SLD-040
+    title: Navigate the drawing
+  - id: SLD-050
+    title: Build the panel hierarchy
+  - id: SLD-060
+    title: Add feeders and equipment
+  - id: SLD-070
+    title: Edit and reconnect items
+  - id: SLD-080
+    title: Board properties
+  - id: SLD-090
+    title: Run and review calculations
+  - id: SLD-100
+    title: Operating and display controls
+  - id: SLD-110
+    title: Create drawing sheets
+  - id: SLD-120
+    title: Export drawings
+  - id: SLD-130
+    title: Validation and review
+  - id: SLD-140
+    title: Troubleshooting
+  - id: SLD-150
+    title: Completion checklist
+

@@ -1,0 +1,54 @@
+schema_version: 1
+
+# When one of these routes or files changes, the pull request must update the
+# mapped module or record why the user workflow is unaffected.
+mappings:
+  - module: M01
+    title: Load Schedule
+    routes:
+      - load-schedule
+    entry_points:
+      - Detailed design > Schedule
+      - Reports > Load schedule
+      - Panel tree > Load schedule
+    source_files:
+      - src/components/docs/LoadScheduleView.tsx
+      - src/components/docs/CircuitEditDialog.tsx
+      - src/components/docs/MdSheetView.tsx
+      - src/components/docs/TxSummaryView.tsx
+      - src/components/docs/RiserFormView.tsx
+      - src/components/grid/ClassicGrid.tsx
+      - src/components/grid/useExcelGrid.ts
+      - src/calc/loadSchedule.ts
+      - src/model/schedule.ts
+      - src/model/scheduleGroups.ts
+      - src/model/spareWays.ts
+      - src/docs/dbSheet.ts
+      - src/docs/mdSheet.ts
+      - src/docs/loadScheduleDoc.ts
+      - src/docs/formWorkbook.ts
+
+  - module: M02
+    title: Single Line Diagram (SLD)
+    routes:
+      - design
+    entry_points:
+      - Schematic > SLD
+      - Detailed design > SLD
+      - Command palette > Design (SLD)
+    source_files:
+      - src/components/SystemDiagram.tsx
+      - src/components/SingleLineDiagram.tsx
+      - src/components/PanelTree.tsx
+      - src/components/BoardPanel.tsx
+      - src/components/BoardFields.tsx
+      - src/components/BoardForm.tsx
+      - src/components/FeederForm.tsx
+      - src/components/SldExportDialog.tsx
+      - src/components/sld/SheetWorkspace.tsx
+      - src/model/drawingSet.ts
+      - src/model/sldEdit.ts
+      - src/diagram/annotations.ts
+      - src/docs/sldSheet.ts
+      - src/docs/sheetDxf.ts
+

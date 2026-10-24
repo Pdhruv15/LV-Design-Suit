@@ -355,7 +355,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   };
 
   return (
-    <div className={`ribbon${collapsed ? ' collapsed' : ''}`} ref={rootRef}>
+    <div className={`ribbon${collapsed ? ' collapsed' : ''}`} ref={rootRef} data-doc-id="main-ribbon">
       <div className="ribbon-tabs" role="tablist" aria-label="Ribbon">
         {TABS.map(({ id, label, icon: I }, ti) => (
           <button key={id} id={`ribbon-tab-${id}`} role="tab" aria-selected={tab === id} aria-controls="ribbon-tools" tabIndex={tab === id ? 0 : -1} className={tab === id ? 'on' : ''}

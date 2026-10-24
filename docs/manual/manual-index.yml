@@ -1,0 +1,34 @@
+schema_version: 1
+
+manual:
+  id: LVDS-UM
+  title: LV Design Studio User Manual
+  app_version: "1.80"
+  language: en
+  status: draft
+
+publication:
+  complete_pdf: output/pdf/LV-Design-Studio-Complete-User-Manual.pdf
+  html: output/manual/index.html
+  include_statuses:
+    - approved
+
+modules:
+  - id: M01
+    order: 10
+    slug: load-schedule
+    title: Load Schedule
+    status: draft
+    source: modules/M01-load-schedule/content.md
+    metadata: modules/M01-load-schedule/module.yml
+    visual_pdf: output/pdf/LV-Design-Studio-Load-Schedule-Visual-User-Manual.pdf
+
+  - id: M02
+    order: 20
+    slug: sld
+    title: Single Line Diagram (SLD)
+    status: draft
+    source: modules/M02-sld/content.md
+    metadata: modules/M02-sld/module.yml
+    visual_pdf: output/pdf/LV-Design-Studio-SLD-Visual-User-Manual.pdf
+
