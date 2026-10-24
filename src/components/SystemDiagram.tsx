@@ -898,17 +898,18 @@ export default function SystemDiagram({
           // relative to its own board lets adjacent transformer / LV-panel sections each show
           // their earth pits without suppressing the other section.
           const nb = nameBox(b, { ...r, busY: r.headY }), y1 = nb.top;
-          const oy = dewa && !r.terminal ? y1 - 82 : dewa ? r.busY - 154 : 60;
-          const ox = dewa ? (r.terminal ? r.x - 62 : r.busX1 - 2) : r.x - 185;
-          const detailW = dewa ? (r.terminal ? 124 : nb.w) : 116;
+          const framed = dewa && !r.terminal;
+          const oy = framed ? y1 - 82 : r.busY - 154;
+          const ox = framed ? r.busX1 - 2 : r.x - 62;
+          const detailW = framed ? nb.w : 124;
           const pitPitch = pits > 1 ? Math.min(60, Math.max(24, (detailW - 28) / (pits - 1))) : 0;
           const pitStart = pits > 1 ? ox + 14 : ox + Math.min(35, detailW / 2);
           const pitXs = Array.from({ length: pits }, (_, n) => pitStart + n * pitPitch);
           const linkY = oy + 16;
           const testX = ox + detailW - 8;
           // MET: inside the main board frame, or inside the terminal panel box.
-          const metX1 = r.terminal ? r.x + 6 : r.busX1 - 7 + nb.w + 13;
-          const metY = r.terminal ? r.busY - 40 : y1 + 20;
+          const metX1 = framed ? r.busX1 - 7 + nb.w + 13 : r.x + 6;
+          const metY = framed ? y1 + 20 : r.busY - 40;
           const metMid = metX1 + 25;
           const gnd = (x: number, y: number) => (
             <>
@@ -947,7 +948,7 @@ export default function SystemDiagram({
               {pitXs.map((x) => <line key={`pit-link-${x}`} x1={x} y1={oy + 22} x2={x} y2={linkY} className="ln" />)}
               {pitXs.length > 0 && <line x1={pitXs[0]} y1={linkY} x2={testX - 5} y2={linkY} className="ln earth-pit-link" />}
               <rect x={testX - 5} y={linkY - 4} width="10" height="8" className="sym test-link" />
-              <text x={testX + 8} y={linkY + 3} className="acc-t" style={{ fontSize: 7 }}>TL</text>
+              <text x={testX + 9} y={linkY + 13} className="acc-t test-link-label" style={{ fontSize: 7 }}>TL</text>
               <path d={`M${testX + 5} ${linkY} H${metMid} V${metY}`} className="ln earth-to-met" />
               {pitXs.map(rod)}
               {pitXs.length > 1 && (

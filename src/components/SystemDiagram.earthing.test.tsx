@@ -32,12 +32,27 @@ describe('SLD main earth-pit arrangement', () => {
     const summary = [...host.querySelectorAll<SVGRectElement>('.panel-frame .sum-box')]
       .sort((a, b) => Number(a.getAttribute('y')) - Number(b.getAttribute('y')))[0];
     const firstPit = earth.querySelector<SVGRectElement>('.earth-electrode rect')!;
+    const testLink = earth.querySelector<SVGRectElement>('.test-link')!;
+    const testLinkLabel = earth.querySelector<SVGTextElement>('.test-link-label')!;
     const route = earth.querySelector<SVGPathElement>('.earth-to-met')!;
 
     expect(earth.querySelectorAll('.earth-electrode')).toHaveLength(2);
     expect(earth.querySelectorAll('.test-link')).toHaveLength(1);
     expect(Number(firstPit.getAttribute('y')) + Number(firstPit.getAttribute('height'))).toBeLessThan(Number(summary.getAttribute('y')));
+    expect(Number(testLinkLabel.getAttribute('y'))).toBeGreaterThan(Number(testLink.getAttribute('y')) + Number(testLink.getAttribute('height')));
     expect(route.getAttribute('d')).toMatch(/^M[\d.]+ [\d.]+ H[\d.]+ V[\d.]+$/);
+  });
+
+  it('anchors the standard-style earth detail and MET to the main panel', () => {
+    const project: Project = { ...sampleProject, drawing: { ...sampleProject.drawing, sldStyle: 'standard' } };
+    const host = draw(project);
+    const board = host.querySelector<SVGGElement>('g.bd[data-lv-id="board:MDB-1"]')!;
+    const panel = board.querySelector<SVGRectElement>('rect.box')!;
+    const met = host.querySelector<SVGLineElement>('.earth-pit[data-board-id="MDB-1"] .met-bar')!;
+    const panelX = Number(panel.getAttribute('x'));
+
+    expect(Number(met.getAttribute('x1'))).toBeGreaterThan(panelX);
+    expect(Number(met.getAttribute('x2'))).toBeLessThanOrEqual(panelX + Number(panel.getAttribute('width')));
   });
 
   it('draws the planned LV earth pit for each of two adjacent transformer-fed panels', () => {
