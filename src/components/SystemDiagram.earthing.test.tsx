@@ -26,7 +26,7 @@ const root = (id: string): Board => ({
 });
 
 describe('SLD main earth-pit arrangement', () => {
-  it('places the pits below the panel summary and uses one test-link route with one bend to the MET', () => {
+  it('places the pits above the panel summary and uses one test-link route with one bend to the MET', () => {
     const host = draw(sampleProject);
     const earth = host.querySelector<SVGGElement>('.earth-pit[data-board-id="MDB-1"]')!;
     const summary = [...host.querySelectorAll<SVGRectElement>('.panel-frame .sum-box')]
@@ -36,7 +36,7 @@ describe('SLD main earth-pit arrangement', () => {
 
     expect(earth.querySelectorAll('.earth-electrode')).toHaveLength(2);
     expect(earth.querySelectorAll('.test-link')).toHaveLength(1);
-    expect(Number(firstPit.getAttribute('y'))).toBeGreaterThan(Number(summary.getAttribute('y')) + Number(summary.getAttribute('height')));
+    expect(Number(firstPit.getAttribute('y')) + Number(firstPit.getAttribute('height'))).toBeLessThan(Number(summary.getAttribute('y')));
     expect(route.getAttribute('d')).toMatch(/^M[\d.]+ [\d.]+ H[\d.]+ V[\d.]+$/);
   });
 

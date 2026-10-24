@@ -892,13 +892,13 @@ export default function SystemDiagram({
           const el = b.earthing?.electrodeM ?? project.earthingPlan?.electrodeM ?? 3;
           const sp = b.earthing?.spacingM ?? 6;
           const ids = lvIds?.length === pits ? ` · ${lvIds.join(', ')}` : '';
-          // Put the LV earth detail downstream of the panel header. A terminal panel has no
-          // DEWA frame, so its detail goes below the panel box instead. Keeping the geometry
+          // Keep the LV earth detail above the panel header, clear of the instruments and
+          // incomer annotations inside the panel. A terminal panel has no DEWA frame, so its
+          // detail sits in the space between the source and panel box. Keeping the geometry
           // relative to its own board lets adjacent transformer / LV-panel sections each show
-          // their earth pits without suppressing or overlapping the other section.
+          // their earth pits without suppressing the other section.
           const nb = nameBox(b, { ...r, busY: r.headY }), y1 = nb.top;
-          const nameBottom = y1 + 5 + 18 + nb.rows.length * 11;
-          const oy = dewa && !r.terminal ? nameBottom + 8 : dewa ? r.busY + 26 : 60;
+          const oy = dewa && !r.terminal ? y1 - 82 : dewa ? r.busY - 154 : 60;
           const ox = dewa ? (r.terminal ? r.x - 62 : r.busX1 - 2) : r.x - 185;
           const detailW = dewa ? (r.terminal ? 124 : nb.w) : 116;
           const pitPitch = pits > 1 ? Math.min(60, Math.max(24, (detailW - 28) / (pits - 1))) : 0;
