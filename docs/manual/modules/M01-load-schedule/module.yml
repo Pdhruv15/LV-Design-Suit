@@ -1,0 +1,61 @@
+id: M01
+title: Load Schedule
+slug: load-schedule
+section_prefix: LS
+order: 10
+version: "0.1"
+app_version: "1.80"
+status: draft
+last_reviewed: "2026-10-24"
+audience:
+  - electrical designers
+  - electrical engineers
+  - reviewers
+routes:
+  - load-schedule
+prerequisites:
+  - Project electrical settings are confirmed.
+  - Panels and their supply relationships exist.
+  - Load-schedule point columns and default watts per point are reviewed.
+outputs:
+  - DB load distribution schedule
+  - Connected load and maximum demand form
+  - Transformer TCL summary
+  - Busbar riser form when applicable
+  - Excel submission workbook
+  - PDF and CSV exports
+visual_pdf: output/pdf/LV-Design-Studio-Load-Schedule-Visual-User-Manual.pdf
+sections:
+  - id: LS-010
+    title: Purpose and data flow
+  - id: LS-020
+    title: Before starting
+  - id: LS-030
+    title: Open the correct panel and form
+  - id: LS-040
+    title: Interface overview
+  - id: LS-050
+    title: Watts per unit
+  - id: LS-060
+    title: Add final circuits
+  - id: LS-070
+    title: Edit circuits and mixed load items
+  - id: LS-080
+    title: Protection, wiring, and length
+  - id: LS-090
+    title: Spares and spaces
+  - id: LS-100
+    title: Balance phases
+  - id: LS-110
+    title: Connected load and maximum demand
+  - id: LS-120
+    title: TCL and riser summaries
+  - id: LS-130
+    title: Validation and review
+  - id: LS-140
+    title: Exports
+  - id: LS-150
+    title: Troubleshooting
+  - id: LS-160
+    title: Completion checklist
+
