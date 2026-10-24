@@ -20,6 +20,9 @@ LV Design Studio is an offline desktop app for LV electrical design and calculat
 ## Command-only workflow
 
 - Never launch the app, click through the UI, take screenshots, or run browser automation.
+- Documentation exception: `npm run manual:capture` may launch the built app in a hidden,
+  offline Electron window using only the committed demonstration project. It may capture the
+  declared manual views, but must not click controls, use network access, or read user projects.
 - Verify with `npm run typecheck && npm run lint && npm test`.
 - Run `npm run test:pdf` only after changing PDF output, and `npm run bench` only for performance work.
 - Read narrowly with `rg`/`grep` and line ranges. Do not inspect or dump `node_modules`, `dist`, `release`, lockfiles, or build output.

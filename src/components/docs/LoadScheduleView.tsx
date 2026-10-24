@@ -149,6 +149,7 @@ export default function LoadScheduleView({
 
   return (
     <Page
+      docId="load-schedule-page"
       title={form === 'riser' ? 'Bus bar riser — connected load / max. demand' : form === 'tx' ? 'Summary of the TCL at transformer level' : form === 'md' ? 'Connected load, maximum demand & kWh metering' : 'Load distribution schedule'}
       intro={form === 'riser' ? 'For high-rise buildings: the busbar riser from the MDB and each floor’s tap-off to its SMDB / DB, with connected load per phase, TCL, D.F, MD and kWh meters.' : form === 'tx' ? 'Authority summary of every transformer: main breaker and setting, fault duty, connected load per phase, TCL, demand factor, MDL and the kWh meters it feeds. Loads and meters come from the MD forms and load schedules below each transformer.' : form === 'md'
         ? 'Authority form for a meter cabinet, MDB, SMDB or MCC: its incomer and every outgoing feeder. Connected load per phase, TCL and MDL come from everything below each feeder, down to the DB load schedules. Type ratings, cable type, meters and remarks in the white cells.'
@@ -189,7 +190,7 @@ export default function LoadScheduleView({
           </p>
         );
       })()}
-      <div className="seg form-tabs" role="tablist" aria-label="Schedules">
+      <div className="seg form-tabs" role="tablist" aria-label="Schedules" data-doc-id="load-schedule-groups">
         <button role="tab" aria-selected={form === 'tx'} className={form === 'tx' ? 'on' : ''} title="Summary of the TCL at transformer level — every transformer of the project" onClick={() => setTxForm('tx')}>TCL summary</button>
         {SCHEDULE_GROUPS.flatMap(({ key, label }) => {
           const tab = groups[key].length ? [<button key={key} role="tab" aria-selected={!txForm && group === key} className={!txForm && group === key ? 'on' : ''} onClick={() => openGroup(key)}>{label} <span className="m">({groups[key].length})</span></button>] : [];
@@ -198,7 +199,7 @@ export default function LoadScheduleView({
         })}
       </div>
       {!txForm && (
-        <div className="ls-panels">
+        <div className="ls-panels" data-doc-id="load-schedule-panels">
           {groups[group].map((b) => (
             <button key={b.id} className={`chip${b.id === board.id ? ' on' : ''}`} title={incomplete(b) ? `${b.id}: schedule not filled yet` : b.name} onClick={() => b.id !== board.id && onBoard(b.id)}>
               {b.id}{incomplete(b) && <span className="warn"> !</span>}
@@ -265,7 +266,7 @@ export default function LoadScheduleView({
           </div>
 
           {(
-            <div className="ls-wrap" ref={grid}>
+            <div className="ls-wrap" ref={grid} data-doc-id="load-schedule-grid">
               <table className="ls">
                 <thead>
                   <tr>

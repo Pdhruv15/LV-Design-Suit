@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "shot": "SLD-UI-001",
+  "viewport": {
+    "width": 1600,
+    "height": 1000
+  },
+  "callouts": [
+    {
+      "number": 1,
+      "target": "main-ribbon",
+      "label": "SLD and selection commands",
+      "rect": {
+        "x": 0,
+        "y": 49,
+        "width": 1600,
+        "height": 131.390625
+      },
+      "point": {
+        "x": 0.5,
+        "y": 0.1146953125
+      }
+    },
+    {
+      "number": 2,
+      "target": "panel-tree",
+      "label": "Panel tree",
+      "rect": {
+        "x": 0,
+        "y": 180.390625,
+        "width": 230,
+        "height": 787.609375
+      },
+      "point": {
+        "x": 0.071875,
+        "y": 0.5741953125
+      }
+    },
+    {
+      "number": 3,
+      "target": "sld-view-tabs",
+      "label": "Diagram views",
+      "rect": {
+        "x": 246,
+        "y": 193.2890625,
+        "width": 360.828125,
+        "height": 30.1953125
+      },
+      "point": {
+        "x": 0.2665087890625,
+        "y": 0.20838671875
+      }
+    },
+    {
+      "number": 4,
+      "target": "sld-display-tools",
+      "label": "Drawing display tools",
+      "rect": {
+        "x": 679.171875,
+        "y": 282.1875,
+        "width": 605.828125,
+        "height": 40
+      },
+      "point": {
+        "x": 0.6138037109375,
+        "y": 0.3021875
+      }
+    },
+    {
+      "number": 5,
+      "target": "sld-canvas",
+      "label": "Interactive SLD canvas",
+      "rect": {
+        "x": 246,
+        "y": 273.1875,
+        "width": 1048,
+        "height": 625
+      },
+      "point": {
+        "x": 0.48125,
+        "y": 0.5856875
+      }
+    },
+    {
+      "number": 6,
+      "target": "sld-inspector",
+      "label": "Board properties and circuit results",
+      "rect": {
+        "x": 1310,
+        "y": 180.390625,
+        "width": 290,
+        "height": 787.609375
+      },
+      "point": {
+        "x": 0.909375,
+        "y": 0.5741953125
+      }
+    },
+    {
+      "number": 7,
+      "target": "sld-results",
+      "label": "System, bus, and feeder results",
+      "rect": {
+        "x": 230,
+        "y": 925.8046875,
+        "width": 1080,
+        "height": 42.1953125
+      },
+      "point": {
+        "x": 0.48125,
+        "y": 0.94690234375
+      }
+    },
+    {
+      "number": 8,
+      "target": "sld-command-bar",
+      "label": "Add, display, and export controls",
+      "rect": {
+        "x": 642.1171875,
+        "y": 192.390625,
+        "width": 651.8828125,
+        "height": 32
+      },
+      "point": {
+        "x": 0.60503662109375,
+        "y": 0.208390625
+      }
+    }
+  ]
+}

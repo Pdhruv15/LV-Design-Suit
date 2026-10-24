@@ -33,8 +33,33 @@ function scalar(lines, key) {
 
 const indexFile = path.join(manualRoot, 'manual-index.yml');
 const mapFile = path.join(manualRoot, 'component-map.yml');
+const visualsFile = path.join(manualRoot, 'visuals.json');
 exists(indexFile, 'Manual index');
 exists(mapFile, 'Component map');
+exists(visualsFile, 'Visual manifest');
+
+const visuals = JSON.parse(read(visualsFile));
+if (visuals.schemaVersion !== 1 || !Array.isArray(visuals.shots) || !visuals.shots.length) fail('visuals.json has no supported shots');
+const shotIds = visuals.shots.map((shot) => shot.id);
+if (new Set(shotIds).size !== shotIds.length) fail('visuals.json has duplicate shot IDs');
+for (const shot of visuals.shots) {
+  if (!shot.module || !shot.image || !shot.metadata || !shot.readyTarget) fail(`${shot.id ?? 'visual'} is incomplete`);
+  exists(path.join(root, shot.image), `${shot.id} image`);
+  const metadataFile = path.join(root, shot.metadata);
+  exists(metadataFile, `${shot.id} metadata`);
+  const numbers = shot.callouts?.map((callout) => callout.number) ?? [];
+  if (!numbers.length || new Set(numbers).size !== numbers.length) fail(`${shot.id} has missing or duplicate callout numbers`);
+  const metadata = JSON.parse(read(metadataFile));
+  if (metadata.shot !== shot.id) fail(`${shot.id} metadata belongs to ${metadata.shot ?? 'an unknown shot'}`);
+  const captured = new Map(metadata.callouts?.map((callout) => [callout.number, callout]) ?? []);
+  for (const callout of shot.callouts) {
+    const actual = captured.get(callout.number);
+    if (!actual || actual.target !== callout.target) fail(`${shot.id} callout ${callout.number} needs a fresh capture`);
+    if (![actual.point?.x, actual.point?.y].every((value) => Number.isFinite(value) && value >= 0 && value <= 1)) {
+      fail(`${shot.id} callout ${callout.number} is outside the captured image`);
+    }
+  }
+}
 
 const modules = records(read(indexFile), 'id');
 if (!modules.length) fail('manual-index.yml has no modules');
@@ -88,6 +113,7 @@ const mappings = records(read(mapFile), 'module');
 const mappedIds = mappings.map((mapping) => mapping.module);
 for (const id of ids) if (!mappedIds.includes(id)) fail(`${id} has no component mapping`);
 for (const id of mappedIds) if (!ids.includes(id)) fail(`component-map.yml references unknown module ${id}`);
+for (const shot of visuals.shots) if (!ids.includes(shot.module)) fail(`${shot.id} references unknown module ${shot.module}`);
 
 for (const mapping of mappings) {
   let inFiles = false;

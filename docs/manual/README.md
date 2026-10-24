@@ -10,6 +10,8 @@ independently.
 - `component-map.yml` maps app routes and source files to affected modules.
 - `modules/<stable-id>-<slug>/module.yml` records module metadata and stable sections.
 - `modules/<stable-id>-<slug>/content.md` contains the user-facing instructions.
+- `visuals.json` declares each deterministic app capture and its numbered reference points.
+- `assets/<module-id>/` contains generated screenshots and callout coordinates.
 
 ## Stable numbering
 
@@ -31,4 +33,16 @@ change.
 
 If a changed component has no user-visible effect, the pull request should record
 the reason that no manual update is required.
+
+## Refreshing app images and PDFs
+
+Run `npm run manual:setup` once on a documentation workstation, then run
+`npm run manual:update`. It builds the app, opens only the committed
+demonstration project in a hidden offline window, captures the declared views,
+updates callout coordinates, rebuilds both visual PDFs, and checks the manual
+structure. Review the changed images and PDFs before a stable release.
+
+The `data-doc-id` attributes used by `visuals.json` are invisible anchors. Keep an
+anchor with the control it describes when refactoring. Add a new shot or callout
+to the manifest instead of editing an image by hand.
 

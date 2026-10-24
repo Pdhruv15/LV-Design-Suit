@@ -149,7 +149,7 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
 
   if (hidden) {
     return (
-      <aside className="tree closed">
+      <aside className="tree closed" data-doc-id="panel-tree">
         <button className="icon-btn" onClick={() => setHidden(false)} title="Show the panel tree"><PanelLeftOpen size={16} /></button>
       </aside>
     );
@@ -231,7 +231,7 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
   );
   if (equipment && tab === 'equipment') {
     return (
-      <aside className="tree" ref={ref} style={{ width }} aria-label="Equipment library">
+      <aside className="tree" ref={ref} style={{ width }} aria-label="Equipment library" data-doc-id="panel-tree">
         {tabs}
         <div className="tree-equip">{equipment}</div>
         <div className="tree-resize" onPointerDown={startResize} onDoubleClick={() => setWidth(230)} title="Drag to resize" />
@@ -240,7 +240,7 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
   }
 
   return (
-    <aside className="tree" ref={ref} style={{ width }} aria-label="Panel tree">
+    <aside className="tree" ref={ref} style={{ width }} aria-label="Panel tree" data-doc-id="panel-tree">
       {tabs}
       <div className="tree-head">
         {!tabs && <><b>Panels</b><span className="m">{project.boards.length}</span></>}
