@@ -1,0 +1,13 @@
+{
+  "schema": "lvds.exchange",
+  "version": 1,
+  "kind": "rooms",
+  "project": { "name": "Villa" },
+  "source": { "app": "ifc", "file": "Villa-ARC.ifc", "revision": "B", "tool": "sample" },
+  "exportedAt": "2026-10-26T09:00:00Z",
+  "items": [
+    { "sourceId": "2O2Fr$t4X7Zf8NOew3FLOH", "building": "Villa", "level": "Ground", "name": "Kitchen", "number": "G.03", "type": "kitchen", "netAreaM2": 30 },
+    { "sourceId": "1hqIFTRjfV6AWq_bMtnZwI", "building": "Villa", "level": "Ground", "name": "Majlis", "netAreaM2": 42.5 },
+    { "sourceId": "3cUkl32yn9qRSPvBJVyWYp", "building": "Villa", "level": "Ground", "name": "Guest WC", "type": "bathroom", "netAreaM2": 4.2 }
+  ]
+}

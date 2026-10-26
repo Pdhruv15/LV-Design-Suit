@@ -1,0 +1,505 @@
+{
+  "$id": "https://lv-design-studio/contracts/exchange-package.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": "string",
+          "const": "lvds.exchange"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "project": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "additionalProperties": false
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "app": {
+              "type": "string",
+              "enum": [
+                "cad",
+                "ifc",
+                "dialux",
+                "elv",
+                "lvds"
+              ],
+              "description": "Program that wrote the package"
+            },
+            "file": {
+              "description": "Drawing, model or project file it was read from; needed to recognise rooms no longer in it",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 260
+            },
+            "revision": {
+              "description": "Revision of that file",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            },
+            "tool": {
+              "description": "Name and version of the exporter",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            }
+          },
+          "required": [
+            "app"
+          ],
+          "additionalProperties": false
+        },
+        "exportedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        },
+        "sha256": {
+          "description": "SHA-256 of the package without this field, keys sorted (canonicalJson)",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "kind": {
+          "type": "string",
+          "const": "rooms"
+        },
+        "items": {
+          "minItems": 1,
+          "maxItems": 20000,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "sourceId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80,
+                "description": "Stable ID in the source: IFC GlobalId, CAD outline handle, or LV room ID"
+              },
+              "building": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120,
+                "description": "Building name or ID in the project"
+              },
+              "level": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120,
+                "description": "Level name or ID in that building"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "number": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              },
+              "type": {
+                "description": "Room type ID or name",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "netAreaM2": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 1000000
+              },
+              "count": {
+                "description": "Identical rooms on the level",
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              }
+            },
+            "required": [
+              "sourceId",
+              "building",
+              "level",
+              "name",
+              "netAreaM2"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "schema",
+        "version",
+        "source",
+        "exportedAt",
+        "kind",
+        "items"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": "string",
+          "const": "lvds.exchange"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "project": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "additionalProperties": false
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "app": {
+              "type": "string",
+              "enum": [
+                "cad",
+                "ifc",
+                "dialux",
+                "elv",
+                "lvds"
+              ],
+              "description": "Program that wrote the package"
+            },
+            "file": {
+              "description": "Drawing, model or project file it was read from; needed to recognise rooms no longer in it",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 260
+            },
+            "revision": {
+              "description": "Revision of that file",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            },
+            "tool": {
+              "description": "Name and version of the exporter",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            }
+          },
+          "required": [
+            "app"
+          ],
+          "additionalProperties": false
+        },
+        "exportedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        },
+        "sha256": {
+          "description": "SHA-256 of the package without this field, keys sorted (canonicalJson)",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "kind": {
+          "type": "string",
+          "const": "fixtures"
+        },
+        "items": {
+          "minItems": 1,
+          "maxItems": 50000,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "room": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80,
+                "description": "Project room ID, or the sourceId of a room imported from CAD / IFC"
+              },
+              "code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60,
+                "description": "Luminaire type code"
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "quantity": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 100000
+              },
+              "inputW": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 100000,
+                "description": "Input power of one luminaire, W"
+              },
+              "voltageV": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 1000
+              },
+              "pf": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 1,
+                "description": "Power factor"
+              },
+              "use": {
+                "type": "string",
+                "enum": [
+                  "normal",
+                  "emergency"
+                ]
+              }
+            },
+            "required": [
+              "room",
+              "code",
+              "quantity",
+              "inputW",
+              "use"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "schema",
+        "version",
+        "source",
+        "exportedAt",
+        "kind",
+        "items"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": "string",
+          "const": "lvds.exchange"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "project": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "additionalProperties": false
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "app": {
+              "type": "string",
+              "enum": [
+                "cad",
+                "ifc",
+                "dialux",
+                "elv",
+                "lvds"
+              ],
+              "description": "Program that wrote the package"
+            },
+            "file": {
+              "description": "Drawing, model or project file it was read from; needed to recognise rooms no longer in it",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 260
+            },
+            "revision": {
+              "description": "Revision of that file",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            },
+            "tool": {
+              "description": "Name and version of the exporter",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            }
+          },
+          "required": [
+            "app"
+          ],
+          "additionalProperties": false
+        },
+        "exportedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        },
+        "sha256": {
+          "description": "SHA-256 of the package without this field, keys sorted (canonicalJson)",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "kind": {
+          "type": "string",
+          "const": "loads"
+        },
+        "items": {
+          "minItems": 1,
+          "maxItems": 10000,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80,
+                "description": "Stable ID of the supply in the source, e.g. FA-PANEL-01"
+              },
+              "system": {
+                "type": "string",
+                "enum": [
+                  "fire-alarm",
+                  "cctv",
+                  "access-control",
+                  "ict",
+                  "public-address",
+                  "bms",
+                  "other"
+                ]
+              },
+              "equipment": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "What the LV circuit feeds: panel, PSU, PoE switch, UPS, rack, amplifier"
+              },
+              "equipmentType": {
+                "type": "string",
+                "enum": [
+                  "panel",
+                  "psu",
+                  "poe-switch",
+                  "ups",
+                  "rack",
+                  "amplifier",
+                  "other"
+                ]
+              },
+              "rooms": {
+                "description": "Rooms served: project room IDs or imported room sourceIds",
+                "maxItems": 5000,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                }
+              },
+              "kW": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 10000,
+                "description": "Upstream AC input, kW"
+              },
+              "pf": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 1,
+                "description": "Power factor"
+              },
+              "demandBasis": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "How the kW was worked out: duty, diversity, charging allowance"
+              },
+              "supply": {
+                "type": "string",
+                "enum": [
+                  "normal",
+                  "essential"
+                ]
+              },
+              "backup": {
+                "description": "Batteries / UPS autonomy, redundancy",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "catalogueRevision": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              }
+            },
+            "required": [
+              "id",
+              "system",
+              "equipment",
+              "equipmentType",
+              "kW",
+              "demandBasis",
+              "supply"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "schema",
+        "version",
+        "source",
+        "exportedAt",
+        "kind",
+        "items"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

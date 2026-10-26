@@ -1,0 +1,156 @@
+{
+  "$id": "https://lv-design-studio/contracts/fixtures.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "lvds.exchange"
+    },
+    "version": {
+      "type": "number",
+      "const": 1
+    },
+    "project": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "additionalProperties": false
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "app": {
+          "type": "string",
+          "enum": [
+            "cad",
+            "ifc",
+            "dialux",
+            "elv",
+            "lvds"
+          ],
+          "description": "Program that wrote the package"
+        },
+        "file": {
+          "description": "Drawing, model or project file it was read from; needed to recognise rooms no longer in it",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 260
+        },
+        "revision": {
+          "description": "Revision of that file",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "tool": {
+          "description": "Name and version of the exporter",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        }
+      },
+      "required": [
+        "app"
+      ],
+      "additionalProperties": false
+    },
+    "exportedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+    },
+    "sha256": {
+      "description": "SHA-256 of the package without this field, keys sorted (canonicalJson)",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "kind": {
+      "type": "string",
+      "const": "fixtures"
+    },
+    "items": {
+      "minItems": 1,
+      "maxItems": 50000,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "room": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "description": "Project room ID, or the sourceId of a room imported from CAD / IFC"
+          },
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60,
+            "description": "Luminaire type code"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "quantity": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 100000
+          },
+          "inputW": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 100000,
+            "description": "Input power of one luminaire, W"
+          },
+          "voltageV": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1000
+          },
+          "pf": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "description": "Power factor"
+          },
+          "use": {
+            "type": "string",
+            "enum": [
+              "normal",
+              "emergency"
+            ]
+          }
+        },
+        "required": [
+          "room",
+          "code",
+          "quantity",
+          "inputW",
+          "use"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "version",
+    "source",
+    "exportedAt",
+    "kind",
+    "items"
+  ],
+  "additionalProperties": false
+}
