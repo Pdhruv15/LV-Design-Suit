@@ -412,6 +412,8 @@ export interface Project {
   notes?: string;
   /** Proposed, reviewed and applied design modifications (Reports → Changes). */
   modifications?: import('./model/designChanges').ModificationRecord[];
+  /** Packages from other programs (rooms, luminaires, ELV loads): decisions log and accepted packages (src/exchange). */
+  exchange?: import('./exchange/inbox').ExchangeState;
   /** Design review comments (Reports → Review). */
   reviewComments?: import('./model/reviewComments').ReviewComment[];
   /** Saved setup of the design review report (sections, names, recorded reviewer decision). */

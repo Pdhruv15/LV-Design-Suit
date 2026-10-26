@@ -16,6 +16,7 @@ import { autoSize, drawable, setOf, sheetRev, type DrawingSheet } from '../model
 import { numberBom } from '../model/boqRevisions';
 import { priceBom } from '../model/priceList';
 import { safeFileName } from '../util/files';
+import { roomsExport } from '../exchange/inbox';
 import type { Project } from '../types';
 import { openProject } from './project';
 import type { Tool, ToolContext } from './tools';
@@ -236,6 +237,18 @@ export const EXPORT_TOOLS: Tool[] = [
       const pages = buildSheetDxfPages(p, d.svg, size, info);
       const base = safeFileName(info.no || 'earthing');
       return pages.map((pg) => ({ name: `${base}${pg.count > 1 ? `-${pg.index}` : ''}.dxf`, data: pg.data, about: `DXF, ${size}${pg.continuation ? ', continuation sheet' : ''}${pg.warnings.length ? ` — ${pg.warnings.join('; ')}` : ''}` }));
+    })
+  },
+  {
+    name: 'export_rooms_package',
+    title: 'Export rooms as an exchange package',
+    description: 'The rooms of Building information (building, level, name, type, area) as an exchange package (JSON, contract lvds.exchange version 1) for another program, e.g. ELV design. Each room\'s ID is its source ID, so loads that come back name the rooms. Preview first; exporting needs approvedBy.',
+    input: { project, approvedBy, exportAnyway, mode },
+    usesProject: true, writes: true,
+    run: (a, ctx) => runExport(a, ctx, 'export_rooms_package', (p) => {
+      const name = `${safeFileName(p.name || 'project')}-rooms.json`;
+      const pkg = roomsExport(p, new Date().toISOString(), (t) => crypto.createHash('sha256').update(t).digest('hex'), p.name);
+      return [{ name, data: JSON.stringify(pkg, null, 2), about: `rooms package, ${pkg.items.length} room${pkg.items.length === 1 ? '' : 's'}` }];
     })
   }
 ];
