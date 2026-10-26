@@ -17,7 +17,7 @@ const project = z.string().describe('Project file name in the projects folder, a
 const file = z.string().describe('Exchange package file (JSON): a path, or a file name in the projects folder');
 
 /** Reads a package file: on MCP and the local API, only from inside the projects folder. */
-function readFile(ref: string, ctx: ToolContext) {
+export function readFile(ref: string, ctx: ToolContext) {
   const name = ref.trim();
   if (!name) throw new Error('Give the exchange package file.');
   const candidates = path.isAbsolute(name) ? [name] : [path.resolve(ctx.folder, name), ...(ctx.anywhere ? [path.resolve(name)] : [])];
