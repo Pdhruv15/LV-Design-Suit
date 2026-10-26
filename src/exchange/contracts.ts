@@ -60,6 +60,7 @@ export const loadItem = z.object({
   equipment: text(200).describe('What the LV circuit feeds: panel, PSU, PoE switch, UPS, rack, amplifier'),
   equipmentType: z.enum(ELV_EQUIPMENT),
   rooms: z.array(text(80)).max(5000).optional().describe('Rooms served: project room IDs or imported room sourceIds'),
+  serves: z.enum(['floor', 'building']).optional().describe('A floor supply (fed from the floor DB) or a building supply (fed from the main board); absent: worked out from the rooms'),
   kW: positive(1e4).describe('Upstream AC input, kW'),
   pf: pf.optional(),
   demandBasis: text(200).describe('How the kW was worked out: duty, diversity, charging allowance'),

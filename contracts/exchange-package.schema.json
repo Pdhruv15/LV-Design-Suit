@@ -441,6 +441,14 @@
                   "maxLength": 80
                 }
               },
+              "serves": {
+                "description": "A floor supply (fed from the floor DB) or a building supply (fed from the main board); absent: worked out from the rooms",
+                "type": "string",
+                "enum": [
+                  "floor",
+                  "building"
+                ]
+              },
               "kW": {
                 "type": "number",
                 "exclusiveMinimum": 0,

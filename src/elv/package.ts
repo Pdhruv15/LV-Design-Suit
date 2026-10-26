@@ -10,7 +10,7 @@ export function elvLoadsPackage(project: Project, estimate: ElvEstimate, exporte
   if (!estimate.supplies.length) throw new Error('The ELV estimate has no supplies: the project has no rooms with ELV devices.');
   const items: LoadItem[] = estimate.supplies.map((s) => ({
     id: s.id, system: s.system, equipment: s.equipment.slice(0, 200), equipmentType: s.equipmentType,
-    ...(s.rooms.length ? { rooms: s.rooms } : {}),
+    ...(s.rooms.length ? { rooms: s.rooms } : {}), serves: s.levelId ? 'floor' : 'building',
     kW: Math.max(s.kW, 0.001), pf: s.pf, demandBasis: s.demandBasis.slice(0, 200), supply: s.supply,
     ...(s.backup ? { backup: s.backup.slice(0, 200) } : {}), catalogueRevision: ELV_CATALOGUE_REVISION
   }));
