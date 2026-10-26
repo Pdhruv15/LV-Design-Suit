@@ -177,6 +177,13 @@ export function dbChecks(p: Project, tolerance = 0.3): DbCheck[] {
   });
 }
 
+/** A new room ID: one above the highest R-number in use, so an ID is never given to a second room (a deleted room's
+ * ID stays unused; links to it from other data must not move to a new room). */
+export function nextRoomId(rooms: { id: string }[]): string {
+  const top = rooms.reduce((m, r) => Math.max(m, /^R(\d+)$/.test(r.id) ? Number(r.id.slice(1)) : 0), 0);
+  return `R${top + 1}`;
+}
+
 /** Rooms pasted from an architect's area schedule (Excel / CSV): columns
  * Level, Room, Type, Area (m²), Count, DB — a header row is skipped. Unknown
  * levels are added to the building; unknown types are matched by name, or
@@ -191,7 +198,6 @@ export function roomsFromTable(info: BuildingInfo, buildingId: string, text: str
   const newLevels: string[] = [];
   const rooms: BuildingRoom[] = [];
   const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
-  let n = info.rooms.length;
   for (const r of rows) {
     const [levelName, name, typeName, area, count, db] = r;
     const areaM2 = Number(String(area ?? '').replace(/[^0-9.]/g, ''));
@@ -212,7 +218,7 @@ export function roomsFromTable(info: BuildingInfo, buildingId: string, text: str
       types.push(type);
       newTypes.push(typeName);
     }
-    rooms.push({ id: `R${++n}`, buildingId: b.id, levelId: level.id, name, type: type?.id ?? 'store', areaM2, count: Number(count) > 1 ? Math.round(Number(count)) : undefined, boardId: db || undefined });
+    rooms.push({ id: nextRoomId([...info.rooms, ...rooms]), buildingId: b.id, levelId: level.id, name, type: type?.id ?? 'store', areaM2, count: Number(count) > 1 ? Math.round(Number(count)) : undefined, boardId: db || undefined });
   }
   return {
     info: { ...info, buildings: info.buildings.map((x) => (x.id === b.id ? { ...x, levels } : x)), rooms: [...info.rooms, ...rooms], roomTypes: newTypes.length || info.roomTypes ? types : undefined },

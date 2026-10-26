@@ -1,6 +1,7 @@
 const crypto = require('node:crypto');
 const http = require('node:http');
 const net = require('node:net');
+const path = require('node:path');
 const { spawn } = require('node:child_process');
 
 const START_TIMEOUT_MS = 30000;
@@ -203,6 +204,7 @@ class OpenCadRestSession {
     this.token = '';
     this.version = '';
     this.stderr = '';
+    this.opened = []; // drawings opened through open(), for naming the active one
     /** Per OpenCADStudio document id: tag → hash of what LV Design Studio last sent there. */
     this.sent = new Map();
   }
@@ -411,7 +413,7 @@ class OpenCadRestSession {
           }
         }
         const outline = closedOutline(e);
-        if (outline) { plan.outlines.push({ layer, ...outline }); count(layer, e.type === 'Hatch' ? 'hatches' : 'outlines'); }
+        if (outline) { plan.outlines.push({ layer, ...(typeof e.handle === 'string' ? { handle: e.handle } : {}), ...outline }); count(layer, e.type === 'Hatch' ? 'hatches' : 'outlines'); }
         else if (/^(Line|Arc|Polyline.*)$/.test(e.type)) {
           count(layer, 'curves');
           const linked = tag && (tag.startsWith('route:') || tag.startsWith('tray:'));
@@ -428,7 +430,8 @@ class OpenCadRestSession {
       offset = page.next_offset;
     }
     const units = await this.ask('/sysvars?names=insunits').then((r) => (r.result && r.result.values ? r.result.values.insunits : undefined), () => undefined);
-    return { units: typeof units === 'number' ? units : undefined, ...plan, layers: [...layers.values()].sort((a, b) => a.name.localeCompare(b.name)) };
+    const file = await this.ask('/state').then((state) => this.documentFile(state), () => undefined);
+    return { units: typeof units === 'number' ? units : undefined, ...(file ? { file } : {}), ...plan, layers: [...layers.values()].sort((a, b) => a.name.localeCompare(b.name)) };
   }
 
   /** Tray runs (curves tagged "tray:<route name>") and cable routes ("route:<feeder id>") of the active drawing as
@@ -524,8 +527,19 @@ class OpenCadRestSession {
     return out;
   }
 
+  /** File name of the active drawing: from the document list when it carries a path or name, else the one drawing this
+   * session opened when it is the only document open; undefined when unsure (rooms then match by name only). */
+  documentFile(state) {
+    const docs = (state && Array.isArray(state.documents)) ? state.documents : [];
+    const active = docs.find((d) => d && d.id === state.document_id);
+    const named = active && [active.path, active.file_path, active.filename, active.name].find((v) => typeof v === 'string' && v.trim());
+    if (named) return path.basename(named.trim());
+    return docs.length === 1 && this.opened.length === 1 ? path.basename(this.opened[0]) : undefined;
+  }
+
   async open(executable, drawings) {
     if (!Array.isArray(drawings) || drawings.length === 0) throw new Error('No drawing was supplied to OpenCADStudio.');
+    this.opened = [...new Set([...this.opened, ...drawings])];
     let first = 0;
     if (!this.connected) {
       await this.start(executable, drawings[0]);
