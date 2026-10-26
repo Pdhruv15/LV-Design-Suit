@@ -112,4 +112,62 @@ describe('room areas from the CAD floor plan', () => {
     expect(next.cadLayers).toEqual(map);
     expect(next.cadRoomTypes).toEqual([{ name: 'Kitchen', type: 'kitchen' }, { name: 'Store', type: 'store' }]);
   });
+  describe('room identity across drawing revisions', () => {
+    const level = { buildings: [{ id: 'V', name: 'Villa', levels: [{ id: 'GF', name: 'Ground', kind: 'ground' as const, heightM: 4 }] }] };
+    const project = (rooms: NonNullable<Project['building']>['rooms']): Project =>
+      ({ name: 'T', voltageV: 415, frequencyHz: 50, ambientC: 45, vdLimitPct: 4, updatedAt: '', boards: [], feeders: [], building: { ...level, rooms } });
+    const revision = (name: string, x2: number, file = 'GF plan.dwg', handle = '2A'): CadPlan => ({
+      units: 4, file, places: [], symbols: [], tags: [],
+      outlines: [{ layer: 'A-AREA', handle, points: box(0, 0, x2, 5000) }],
+      texts: [{ layer: 'A-AREA-IDEN', x: 1000, y: 1000, text: name }]
+    });
+    const read = (pl: CadPlan) => roomsFromPlan(pl, map).rooms;
+    const linked = { app: 'cad' as const, file: 'GF plan.dwg', sourceId: '2A' };
+
+    it('records the outline each room came from, also on rooms the plan leaves unchanged', () => {
+      expect(read(revision('Store', 4000))).toEqual([{ name: 'Store', areaM2: 20, layer: 'A-AREA', named: true, handle: '2A', file: 'GF plan.dwg' }]);
+      const old = project([{ id: 'R1', buildingId: 'V', levelId: 'GF', name: 'Store', type: 'store', areaM2: 20 }]); // saved before room sources
+      const { proposals } = proposeRooms(old, read(revision('Store', 4000)), 'V', 'GF');
+      expect(proposals.map((x) => [x.status, x.existingId])).toEqual([['same', 'R1']]);
+      const next = applyRooms(old, [], 'V', 'GF', map, proposals);
+      expect(next.building!.rooms).toEqual([{ id: 'R1', buildingId: 'V', levelId: 'GF', name: 'Store', type: 'store', areaM2: 20, source: linked }]);
+    });
+
+    it('keeps the room ID when the architect renames the room', () => {
+      const p = project([{ id: 'R7', buildingId: 'V', levelId: 'GF', name: 'Store', type: 'store', areaM2: 20, boardId: 'DB1', source: linked }]);
+      const { proposals, notOnPlan } = proposeRooms(p, read(revision('Pantry', 4000)), 'V', 'GF');
+      expect(proposals.map((x) => [x.name, x.status, x.existingId, x.type])).toEqual([['Pantry', 'changed', 'R7', 'store']]);
+      expect(notOnPlan).toEqual([]);
+      expect(applyRooms(p, proposals, 'V', 'GF', map).building!.rooms).toEqual([
+        { id: 'R7', buildingId: 'V', levelId: 'GF', name: 'Pantry', type: 'store', areaM2: 20, boardId: 'DB1', source: linked }
+      ]);
+    });
+
+    it('falls back to the name when the outline was redrawn, and takes the new handle', () => {
+      const p = project([{ id: 'R1', buildingId: 'V', levelId: 'GF', name: 'Store', type: 'store', areaM2: 20, source: linked }]);
+      const { proposals } = proposeRooms(p, read(revision('Store', 5000, 'GF plan.dwg', '9F')), 'V', 'GF');
+      expect(proposals.map((x) => [x.status, x.existingId, x.areaM2])).toEqual([['changed', 'R1', 25]]);
+      expect(applyRooms(p, proposals, 'V', 'GF', map).building!.rooms[0].source).toEqual({ ...linked, sourceId: '9F' });
+    });
+
+    it('does not trust a handle that comes back with another name and another area, or from another drawing', () => {
+      const p = project([{ id: 'R1', buildingId: 'V', levelId: 'GF', name: 'Store', type: 'store', areaM2: 20, source: linked }]);
+      // Re-exported drawing: handle 2A is now a different, larger room.
+      expect(proposeRooms(p, read(revision('Office', 8000)), 'V', 'GF').proposals.map((x) => [x.status, x.existingId])).toEqual([['new', undefined]]);
+      // Same handle in another drawing file.
+      expect(proposeRooms(p, read(revision('Pantry', 4000, 'FF plan.dwg')), 'V', 'GF').proposals.map((x) => x.status)).toEqual(['new']);
+    });
+
+    it('drops handles it cannot rely on: seen twice, or with no drawing file name', () => {
+      const twice = { ...revision('Store', 4000), outlines: [{ layer: 'A-AREA', handle: '2A', points: box(0, 0, 4000, 5000) }, { layer: 'A-AREA', handle: '2A', points: box(5000, 0, 9000, 5000) }] };
+      expect(read(twice).map((r) => r.handle)).toEqual([undefined, undefined]);
+      expect(read({ ...revision('Store', 4000), file: undefined })[0].handle).toBeUndefined();
+    });
+
+    it('never gives a deleted room’s ID to a new room', () => {
+      const p = project([{ id: 'R1', buildingId: 'V', levelId: 'GF', name: 'Hall', type: 'living', areaM2: 30 }, { id: 'R3', buildingId: 'V', levelId: 'GF', name: 'Bath', type: 'bathroom', areaM2: 5 }]);
+      const { proposals } = proposeRooms(p, read(revision('Store', 4000)), 'V', 'GF');
+      expect(applyRooms(p, proposals, 'V', 'GF', map).building!.rooms.map((r) => r.id)).toEqual(['R1', 'R3', 'R4']);
+    });
+  });
 });

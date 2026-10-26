@@ -1,7 +1,7 @@
-import { buildingInfoOf, roomTypesOf } from '../calc/building';
+import { buildingInfoOf, nextRoomId, roomTypesOf } from '../calc/building';
 import { metresPerUnit } from './cadLengths';
 import { inside, type CadLayerStats, type CadPlan } from './cadPlaces';
-import type { BuildingRoom, CadLayerMap, CadLayerRole, Project, RoomType } from '../types';
+import type { BuildingRoom, CadLayerMap, CadLayerRole, Project, RoomSource, RoomType } from '../types';
 
 type Pt = [number, number];
 
@@ -63,8 +63,9 @@ export function outlineArea(points: Pt[], bulges?: number[]): number {
 }
 const centroid = (pts: Pt[]): Pt => [pts.reduce((s, p) => s + p[0], 0) / pts.length, pts.reduce((s, p) => s + p[1], 0) / pts.length];
 
-/** A room read from the plan: name (and number) from the room name text or room tag inside it, area in m². */
-export interface CadRoom { name: string; number?: string; areaM2: number; layer: string; named: boolean }
+/** A room read from the plan: name (and number) from the room name text or room tag inside it, area in m²; the
+ * outline's handle and the drawing's file name, when known, identify it in the next revision of the drawing. */
+export interface CadRoom { name: string; number?: string; areaM2: number; layer: string; named: boolean; handle?: string; file?: string }
 
 /** Rooms on a plan: closed outlines (polylines or hatches) on room layers. An outline that has other room outlines
  * inside it is a zone (a flat, a wing), not a room; outlines drawn twice (a polyline and its hatch) count once. */
@@ -92,7 +93,14 @@ export function roomsFromPlan(plan: CadPlan, map: CadLayerMap[], settings?: Proj
     const pick = (nameLayers.size ? onNameLayers : texts).sort((a, b) => Math.hypot(a.x - o.c[0], a.y - o.c[1]) - Math.hypot(b.x - o.c[0], b.y - o.c[1]))[0];
     const name = tag?.name ?? (pick ? tidy(pick.text) : undefined);
     if (!name) unnamed += 1;
-    rooms.push({ name: name ?? `Room ${unnamed}`, ...(tag?.number ? { number: tag.number } : {}), areaM2: Math.round(o.area * unit.factor * unit.factor * 100) / 100, layer: o.layer, named: !!name });
+    rooms.push({ name: name ?? `Room ${unnamed}`, ...(tag?.number ? { number: tag.number } : {}), areaM2: Math.round(o.area * unit.factor * unit.factor * 100) / 100, layer: o.layer, named: !!name, ...(o.handle ? { handle: o.handle } : {}) });
+  }
+  // A handle seen twice cannot identify a room; neither can a handle without the drawing it belongs to.
+  const seen = new Map<string, number>();
+  for (const r of rooms) if (r.handle) seen.set(r.handle, (seen.get(r.handle) ?? 0) + 1);
+  for (const r of rooms) {
+    if (r.handle && (seen.get(r.handle)! > 1 || !plan.file)) delete r.handle;
+    else if (r.handle) r.file = plan.file;
   }
   rooms.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
   return { rooms, zones, units: unit.source };
@@ -124,41 +132,61 @@ export interface RoomProposal {
   number?: string;
   areaM2: number;
   type?: string;
-  existingId?: string; // the room on that level with the same name
+  existingId?: string; // the room on that level from the same outline, else with the same name
   currentAreaM2?: number;
   status: 'new' | 'changed' | 'same';
+  source?: RoomSource; // the outline it was read from, recorded on the room when applied
 }
 
-/** Rooms of a plan beside the project's rooms on the chosen level: same name → area update, else a new room. */
+const sameName = (x: BuildingRoom, r: CadRoom) => x.name.toLowerCase() === r.name.toLowerCase();
+const fromOutline = (x: BuildingRoom, r: CadRoom) =>
+  !!r.handle && !!r.file && x.source?.app === 'cad' && x.source.sourceId === r.handle && x.source.file?.toLowerCase() === r.file.toLowerCase();
+
+/** Rooms of a plan beside the project's rooms on the chosen level. A room keeps its ID when its outline (handle, same
+ * drawing) is found again, so a renamed room is updated, not added; else the same name → area update; else a new room.
+ * A handle match is trusted for a rename or a resize, not both at once: a re-exported drawing can reuse handles. */
 export function proposeRooms(project: Project, rooms: CadRoom[], buildingId: string, levelId: string): { proposals: RoomProposal[]; notOnPlan: BuildingRoom[] } {
   const info = buildingInfoOf(project);
   const types = roomTypesOf(info);
   const onLevel = info.rooms.filter((r) => r.buildingId === buildingId && r.levelId === levelId);
   const used = new Set<string>();
+  const matched = rooms.map((r) => {
+    const x = onLevel.find((o) => !used.has(o.id) && fromOutline(o, r));
+    if (!x || !(sameName(x, r) || Math.abs(x.areaM2 - r.areaM2) <= 0.02 * x.areaM2)) return undefined;
+    used.add(x.id);
+    return x;
+  });
   const proposals = rooms.map((r, i): RoomProposal => {
-    const existing = onLevel.find((x) => !used.has(x.id) && x.name.toLowerCase() === r.name.toLowerCase());
-    if (existing) used.add(existing.id);
+    let existing = matched[i];
+    if (!existing) {
+      existing = onLevel.find((x) => !used.has(x.id) && sameName(x, r));
+      if (existing) used.add(existing.id);
+    }
     const type = existing?.type ?? guessRoomType(r.name, types, project.cadRoomTypes);
-    const status = !existing ? 'new' : Math.abs(existing.areaM2 - r.areaM2) < 0.05 ? 'same' : 'changed';
-    return { key: `${i}:${r.name}`, name: r.name, ...(r.number ? { number: r.number } : {}), areaM2: r.areaM2, type, existingId: existing?.id, currentAreaM2: existing?.areaM2, status };
+    const status = !existing ? 'new' : Math.abs(existing.areaM2 - r.areaM2) < 0.05 && sameName(existing, r) ? 'same' : 'changed';
+    return {
+      key: `${i}:${r.name}`, name: r.name, ...(r.number ? { number: r.number } : {}), areaM2: r.areaM2, type, existingId: existing?.id, currentAreaM2: existing?.areaM2, status,
+      ...(r.handle && r.file ? { source: { app: 'cad' as const, file: r.file, sourceId: r.handle } } : {})
+    };
   });
   return { proposals, notOnPlan: onLevel.filter((r) => !used.has(r.id)) };
 }
 
-/** Writes the accepted rooms to Building information (areas of matching rooms, new rooms added), and remembers the
- * layer map and the room types chosen per name. */
-export function applyRooms(project: Project, accepted: RoomProposal[], buildingId: string, levelId: string, layers: CadLayerMap[]): Project {
+/** Writes the accepted rooms to Building information (areas of matching rooms, names of rooms found by their outline,
+ * new rooms added) with the outline each came from, and remembers the layer map and the room types chosen per name.
+ * `unchanged` rows (status "same") only have their outline recorded, so the next revision can find them. */
+export function applyRooms(project: Project, accepted: RoomProposal[], buildingId: string, levelId: string, layers: CadLayerMap[], unchanged: RoomProposal[] = []): Project {
   const info = buildingInfoOf(project);
   const types = roomTypesOf(info);
   let rooms = [...info.rooms];
-  let n = rooms.length + 1;
+  for (const u of unchanged) if (u.existingId && u.source) rooms = rooms.map((r) => (r.id === u.existingId ? { ...r, source: u.source } : r));
   for (const a of accepted) {
     const type = a.type ?? types[0]?.id ?? 'office';
+    const source = a.source ? { source: a.source } : {};
     if (a.existingId) {
-      rooms = rooms.map((r) => (r.id === a.existingId ? { ...r, areaM2: a.areaM2, type } : r));
+      rooms = rooms.map((r) => (r.id === a.existingId ? { ...r, name: r.name.toLowerCase() === a.name.toLowerCase() ? r.name : a.name, areaM2: a.areaM2, type, ...source } : r));
     } else {
-      while (rooms.some((r) => r.id === `R${n}`)) n += 1;
-      rooms.push({ id: `R${n}`, buildingId, levelId, name: a.name, type, areaM2: a.areaM2 });
+      rooms.push({ id: nextRoomId(rooms), buildingId, levelId, name: a.name, type, areaM2: a.areaM2, ...source });
     }
   }
   const chosen = accepted.filter((a) => a.type).map((a) => ({ name: a.name, type: a.type! }));

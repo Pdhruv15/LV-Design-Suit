@@ -587,8 +587,16 @@ export interface UnitType {
   meter?: MeterType; // kWh meter on the unit's incomer (default by size)
 }
 
+/** Where a room came from, so a later revision of the same drawing (or model) updates the room instead of adding one. */
+export interface RoomSource {
+  app: 'cad' | 'ifc';
+  file?: string; // drawing / model file name
+  sourceId?: string; // CAD entity handle of the room outline, or IFC GlobalId
+  revision?: string;
+}
+
 export interface BuildingRoom {
-  id: string;
+  id: string; // permanent: never reused for another room
   buildingId: string;
   levelId: string;
   name: string;
@@ -596,6 +604,7 @@ export interface BuildingRoom {
   areaM2: number;
   count?: number; // identical rooms on the level (e.g. 8 × 2BR apartments)
   boardId?: string; // the DB that serves it
+  source?: RoomSource; // absent: entered by hand or from a table
 }
 
 export interface BuildingInfo {

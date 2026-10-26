@@ -3,7 +3,7 @@ import { ask } from '../ConfirmDialog';
 import { useMemo, useState } from 'react';
 import type { BuildingInfo, BuildingLevel, BuildingRoom, LevelKind, Project, ProjectBuilding, RoomType } from '../../types';
 import {
-  buildingInfoOf, dbChecks, DEFAULT_ROOM_TYPES, LEVEL_KINDS, loadRoomTypeLibrary, newBuilding, roomLoad, roomsFromTable, roomTypesOf, saveRoomTypeLibrary, summarizeBuilding
+  buildingInfoOf, dbChecks, DEFAULT_ROOM_TYPES, LEVEL_KINDS, loadRoomTypeLibrary, newBuilding, nextRoomId, roomLoad, roomsFromTable, roomTypesOf, saveRoomTypeLibrary, summarizeBuilding
 } from '../../calc/building';
 import { Page, Modal } from '../ui';
 import { applyRiserLengths, benchOf, floorLoads, lpdOf, rulesOf, unitLoads } from '../../calc/buildingDesign';
@@ -91,9 +91,7 @@ export default function BuildingView({ project, onChange, onStatus }: { project:
     if (!b) return;
     const levelId = levelFilter || b.levels.find((l) => l.kind === 'typical')?.id || b.levels[0]?.id;
     if (!levelId) return;
-    let n = info.rooms.length + 1;
-    while (info.rooms.some((r) => r.id === `R${n}`)) n++;
-    set({ ...info, rooms: [...info.rooms, { id: `R${n}`, buildingId: b.id, levelId, name: 'Room', type: types[0]?.id ?? 'office', areaM2: 50 }] });
+    set({ ...info, rooms: [...info.rooms, { id: nextRoomId(info.rooms), buildingId: b.id, levelId, name: 'Room', type: types[0]?.id ?? 'office', areaM2: 50 }] });
   };
   function importRooms() {
     if (!b || !paste) return;
