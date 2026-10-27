@@ -1,5 +1,6 @@
 import { CURRENT_SCHEMA, newProjectId } from './model/projectMigrate';
 import type { AppliedReference } from './model/designReference';
+import type { DesignRule } from './model/designRules';
 export type FeederStatus = 'ok' | 'warn' | 'bad';
 
 export type LoadType = 'general' | 'lighting' | 'sockets' | 'hvac' | 'motor' | 'fire-pump' | 'ev' | 'it' | 'pv' | 'capacitor';
@@ -488,6 +489,8 @@ export interface Project {
   studySettings?: StudySettings;
   /** The design reference applied (Standards → Design references): which one, its version and the values written. */
   designReference?: AppliedReference;
+  /** Design rule rows (min wire, ELCB …) by circuit type and load; rows from the applied reference carry `from`. */
+  designRules?: DesignRule[];
   /** Project standards and specifications listed in the design report (Codes and standards). Never assumed when empty. */
   standards?: string[];
   /** People, dates and your own values used as {Name} in title blocks, notes and labels. */
