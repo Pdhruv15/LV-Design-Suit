@@ -22,9 +22,24 @@ describe('built-in design references', () => {
   it('DEWA holds the values new projects have used, so applying it to a default project changes nothing', () => {
     expect(referenceChanges(base, ref('builtin-dewa'))).toEqual([]);
   });
-  it('ADDC and EtihadWE start from the DEWA values, each flagged in its note', () => {
-    expect(ref('builtin-addc').values.vdLimitPct?.value).toBe(4);
-    expect(ref('builtin-etihadwe').values.ambientC?.note).toMatch(/check/i);
+  it('ADDC and EtihadWE carry the basic values of their 2020 regulations, with clauses', () => {
+    const addc = ref('builtin-addc'), ewe = ref('builtin-etihadwe');
+    expect([addc.values.voltageV?.value, addc.values.vdLimitPct?.value, addc.values.ambientC?.value, addc.values.pfTarget?.value]).toEqual([400, 4, 50, 0.9]);
+    expect([ewe.values.voltageV?.value, ewe.values.vdLimitPct?.value, ewe.values.ambientC?.value, ewe.values.pfTarget?.value]).toEqual([415, 4.8, 48, 0.92]);
+    for (const r of [addc, ewe]) {
+      expect([r.values.elcbLightingMa?.value, r.values.elcbPowerMa?.value]).toEqual([100, 30]);
+      expect(r.version).toBe(2);
+      expect(r.values.vdLimitPct?.clause).toBeTruthy();
+      expect(r.values.mdDemandFactor?.note).toMatch(/not set by/);
+      expect(r.rules?.find((x) => x.when.loadType === 'hvac')?.value).toBe(100);
+    }
+    expect(addc.values.minWirePowerMm2?.note).toMatch(/not set by the regulations/i);
+    expect(ewe.values.minWirePowerMm2).toMatchObject({ value: 4, clause: '10.2' });
+  });
+  it('applying ADDC puts air-conditioning circuits on 100 mA and sockets on 30 mA', () => {
+    const p = applyReference(base, ref('builtin-addc'), undefined, BUILT_IN_REFERENCES);
+    expect(p.designRules?.map((r) => [r.when.loadType, r.value, r.from])).toEqual([['hvac', 100, 'ADDC (Abu Dhabi) v2'], ['sockets', 30, 'ADDC (Abu Dhabi) v2']]);
+    expect(p.voltageV).toBe(400);
   });
 });
 
