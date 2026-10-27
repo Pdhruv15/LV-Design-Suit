@@ -25,9 +25,10 @@ const exported = () => (fs.existsSync(exportsDir()) ? fs.readdirSync(exportsDir(
 beforeAll(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'lvds-export-'));
   process.env.LVDS_APP_DATA = path.join(root, 'app');
+  process.env.LVDS_ELECTRON = path.join(root, 'no-electron'); // no renderer lookup: requiring electron downloads its binary on CI
   vi.stubGlobal('DOMParser', DOMParser); // as the lvds entry does (src/headless/main.ts)
 });
-afterAll(() => { delete process.env.LVDS_APP_DATA; vi.unstubAllGlobals(); fs.rmSync(root, { recursive: true, force: true }); });
+afterAll(() => { delete process.env.LVDS_APP_DATA; delete process.env.LVDS_ELECTRON; vi.unstubAllGlobals(); fs.rmSync(root, { recursive: true, force: true }); });
 beforeEach(() => {
   folder = fs.mkdtempSync(path.join(root, 'projects-'));
   fs.writeFileSync(file('Villa'), JSON.stringify(villa, null, 2));
@@ -36,6 +37,27 @@ beforeEach(() => {
 });
 
 describe('exports', () => {
+  it('fills your own Excel template, one sheet per DB, and reads templates only inside the projects folder', async () => {
+    const t = new ExcelJS.Workbook();
+    const ws = t.addWorksheet('DB');
+    ws.getCell('A1').value = '{{board.id}}';
+    ws.getCell('A2').value = '{{row.ref}}';
+    ws.getCell('B2').value = '{{row.mcb}}';
+    fs.writeFileSync(path.join(folder, 'Company schedule.xlsx'), new Uint8Array(await t.xlsx.writeBuffer()));
+    const pre = await run('export_schedule_template', { project: 'Villa', template: 'Company schedule.xlsx' });
+    expect(pre.files[0].file).toMatch(/Company-schedule\.xlsx$/);
+    expect(exported()).toEqual([]);
+    const done = await run('export_schedule_template', { project: 'Villa', template: 'Company schedule.xlsx', mode: 'export', approvedBy: 'A. Engineer' });
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(fs.readFileSync(done.files[0]) as unknown as ArrayBuffer);
+    expect(wb.worksheets.length).toBeGreaterThan(0);
+    expect(wb.worksheets[0].getCell('A1').value).toBe(wb.worksheets[0].name);
+    expect(typeof wb.worksheets[0].getCell('B2').value).toBe('number');
+    const outside = path.join(root, 'outside.xlsx');
+    fs.writeFileSync(outside, new Uint8Array(await t.xlsx.writeBuffer()));
+    await expect(run('export_schedule_template', { project: 'Villa', template: outside })).rejects.toThrow(/inside the projects folder/);
+    await expect(run('export_schedule_template', { project: 'Villa', template: 'x.docx' })).rejects.toThrow(/\.xlsx/);
+  });
   it('lists what can be exported and why not', async () => {
     const l = await run('list_exports', { project: 'Villa' });
     expect(l.reports.find((r: { report: string }) => r.report === 'calc-report').unavailable).toBeUndefined();

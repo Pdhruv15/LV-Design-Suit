@@ -8,6 +8,7 @@ import { runCalculations } from '../calc/runs';
 import { CATALOGUE, unavailable, type ExportContext } from '../components/docs/exportCatalogue';
 import { buildBoqWorkbook } from '../docs/boqWorkbook';
 import { buildFormWorkbook, workbookBytes } from '../docs/formWorkbook';
+import { fillLoadScheduleTemplate } from '../docs/xlsxTemplate';
 import { buildSheetDxfPages } from '../docs/sheetDxf';
 import type { SheetInfo } from '../docs/sldSheet';
 import { earthingDrawing } from '../diagram/earthingDrawing';
@@ -107,6 +108,21 @@ async function runExport(args: Record<string, unknown>, ctx: ToolContext, tool: 
   return { mode: 'done', written: true, export: entry.id, approvedBy: by, ...(entry.exportedAnyway ? { exportedAnyway: problems } : {}), files: written };
 }
 
+/** The template's full path: a path, or a name in the projects folder; MCP and the local API only read inside that folder. */
+function templateFile(ref: string, ctx: ToolContext): string {
+  const name = ref.trim();
+  if (!name) throw new Error('Give the template: the path of your .xlsx, or its file name in the projects folder.');
+  if (!/\.xlsx$/i.test(name)) throw new Error('The template must be an .xlsx file (Excel workbook).');
+  const candidates = path.isAbsolute(name) ? [name] : [path.resolve(ctx.folder, name), ...(ctx.anywhere ? [path.resolve(name)] : [])];
+  const full = candidates.find((c) => fs.existsSync(c) && fs.statSync(c).isFile());
+  if (!full) throw new Error(`No template "${name}" found.`);
+  if (!ctx.anywhere) {
+    const rel = path.relative(path.resolve(ctx.folder), path.resolve(full));
+    if (rel.startsWith('..') || path.isAbsolute(rel)) throw new Error(`Only templates inside the projects folder (${ctx.folder}) can be read here.`);
+  }
+  return full;
+}
+
 const exportContext = (p: Project): ExportContext => ({ project: p, run: runCalculations(p), stale: [] });
 
 /** The renderer for PDFs and drawing sheets, or an error saying how to get one. */
@@ -152,7 +168,7 @@ export const EXPORT_TOOLS: Tool[] = [
       const r = findRenderer();
       return {
         reports: CATALOGUE.map((e) => ({ report: e.key, title: e.title, group: e.category, ...(unavailable(e, c) ? { unavailable: unavailable(e, c) } : {}) })),
-        workbooks: [{ tool: 'export_forms_xlsx', title: 'DEWA connected load, MD, TCL and DB schedule forms (.xlsx)' }, { tool: 'export_boq_xlsx', title: 'Bill of quantities (.xlsx)' }],
+        workbooks: [{ tool: 'export_forms_xlsx', title: 'DEWA connected load, MD, TCL and DB schedule forms (.xlsx)' }, { tool: 'export_boq_xlsx', title: 'Bill of quantities (.xlsx)' }, { tool: 'export_schedule_template', title: 'DB load schedules in your own Excel template (.xlsx)' }],
         drawings: [
           { tool: 'export_dxf', drawing: 'earthing', title: 'Earthing schematic (.dxf)', ...(earthingLayout(p).items.length ? {} : { unavailable: 'No equipment to earth' }) },
           { tool: 'export_dxf', drawing: 'sld', title: `SLD, panel and riser sheets of Reports → Drawings (.dxf, ${setOf(p).sheets.filter(drawable).length} sheet(s))`, ...(!setOf(p).sheets.length ? { unavailable: 'No drawing sheets yet: create them in the app (Reports → Drawings)' } : 'missing' in r ? { unavailable: `Needs Electron: ${r.missing}` } : {}) }
@@ -201,6 +217,26 @@ export const EXPORT_TOOLS: Tool[] = [
       if (unknown?.length) throw new Error(`No panel ${unknown.join(', ')}.`);
       const wb = buildFormWorkbook(p, { boardIds: panels, forms: a.forms as ('tx' | 'riser' | 'md' | 'db')[] | undefined });
       return [{ name: `${safeFileName(`${p.name} - DEWA load forms`)}.xlsx`, data: await workbookBytes(wb), about: `Excel workbook, ${wb.worksheets.length} sheet(s): ${wb.worksheets.map((w) => w.name).slice(0, 8).join(', ')}${wb.worksheets.length > 8 ? ' …' : ''}` }];
+    })
+  },
+  {
+    name: 'export_schedule_template',
+    title: 'Export DB load schedules in your own Excel template',
+    description: 'Fills your own .xlsx load schedule template: placeholders such as {{board.id}}, {{board.incomer}}, {{total.all}}, and a row with {{row.sl}}, {{row.ref}}, {{row.mcb}}, {{row.wire}}, {{row.room}}, {{row.points.ltg}}, {{row.R}} … that is repeated for every circuit and spare. One sheet per DB. Unknown placeholders are reported. Preview first; exporting needs approvedBy.',
+    input: {
+      project, template: z.string().describe('The template .xlsx: a path, or a file name in the projects folder'),
+      panels: z.array(z.string()).optional().describe('Only these DBs (default every DB with schedule circuits)'),
+      approvedBy, exportAnyway, mode
+    },
+    usesProject: true, writes: true,
+    run: (a, ctx) => runExport(a, ctx, 'export_schedule_template', async (p) => {
+      const panels = a.panels as string[] | undefined;
+      const unknown = panels?.filter((id) => !p.boards.some((b) => b.id === id));
+      if (unknown?.length) throw new Error(`No panel ${unknown.join(', ')}.`);
+      const tpl = templateFile(String(a.template ?? ''), ctx);
+      const { workbook, boards, warnings } = await fillLoadScheduleTemplate(p, fs.readFileSync(tpl), { boardIds: panels });
+      const stem = path.basename(tpl).replace(/\.xlsx$/i, '');
+      return [{ name: `${safeFileName(`${p.name} - ${stem}`)}.xlsx`, data: await workbookBytes(workbook), about: `Excel workbook from your template, ${boards.length} DB(s): ${boards.slice(0, 8).join(', ')}${boards.length > 8 ? ' …' : ''}${warnings.length ? ` — ${warnings.join(' ')}` : ''}` }];
     })
   },
   {

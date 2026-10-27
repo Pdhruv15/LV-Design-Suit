@@ -48,7 +48,7 @@ export type ScheduleEntry<R> =
   | { type: 'spare'; spare: SpareWay; way: number; ph: number; sl: number; group?: ElcbGroup };
 
 /** Remarks as printed: the user's remarks, then the mixed load items (e.g. "6×L1 10 W + 4×L2 20 W"). */
-const remarksText = (f: Feeder) => [f.remarks, loadItemsText(f)].filter(Boolean).join('; ');
+export const remarksText = (f: Feeder) => [f.remarks, loadItemsText(f)].filter(Boolean).join('; ');
 
 export function loadScheduleRows(project: Project, boardId: string) {
   return withNetwork(project, () => loadScheduleRowsOf(project, boardId));
