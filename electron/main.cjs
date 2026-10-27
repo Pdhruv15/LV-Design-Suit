@@ -11,6 +11,7 @@ const { runJsonProcess } = require('./engineRunner.cjs');
 const safeFs = require('./safeFs.cjs');
 const { htmlToPdf, pdfSession, SHEETS } = require('./pdfRender.cjs');
 const openCadStudio = require('./openCadStudio.cjs');
+const cadFile = require('./cadFile.cjs');
 const { OpenCadRestSession } = require('./openCadRest.cjs');
 
 // `lvds` (the command line) exports drawings and PDFs through this app with --lvds-headless-export:
@@ -305,6 +306,14 @@ handle('files:saveBinary', async (evt, args) => {
   if (result.canceled || !result.filePath) return null;
   fs.writeFileSync(result.filePath, bytes);
   return result.filePath;
+});
+
+// ---- IPC: a floor plan (DWG / DXF) read by the built-in reader, for the Floor plan window ----
+handle('cad:openPlan', async (evt) => {
+  const result = await dialog.showOpenDialog(ownerOf(evt), { title: 'Open a floor plan', defaultPath: ensureProjectsFolder(), filters: [{ name: 'CAD drawing', extensions: ['dwg', 'dxf'] }], properties: ['openFile'] });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  const file = result.filePaths[0];
+  return { file: path.basename(file), drawing: await cadFile.readDrawingFile(file) };
 });
 
 // ---- IPC: hand generated DXF sheets to the installed OpenCADStudio app (live, token-protected local link) ----

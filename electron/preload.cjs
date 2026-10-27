@@ -42,6 +42,9 @@ contextBridge.exposeInMainWorld('lvds', {
     probe: () => ipcRenderer.invoke('engines:probe'),
     run: (request) => ipcRenderer.invoke('engines:run', request)
   },
+  cadFile: {
+    openPlan: () => ipcRenderer.invoke('cad:openPlan')
+  },
   openCadStudio: {
     status: () => ipcRenderer.invoke('opencad:status'),
     openDxf: (files) => ipcRenderer.invoke('opencad:openDxf', { files }),

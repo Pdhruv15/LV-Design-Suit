@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Builds the built-in DWG / DXF reader (engines/cad-reader, acadrust) to WebAssembly into src/engines/cad/generated.
+# Builds the built-in DWG / DXF reader (engines/cad-reader, acadrust) to WebAssembly into electron/cad (packaged with the
+# desktop app, and inlined into the CLI).
 # Needs Rust with the wasm32-unknown-unknown target and wasm-bindgen-cli at the version pinned in Cargo.toml:
 #   rustup target add wasm32-unknown-unknown && cargo install wasm-bindgen-cli --version 0.2.129 --locked
 set -euo pipefail
@@ -9,5 +10,5 @@ export PATH="$HOME/.cargo/bin:$PATH"
 # the most specific prefix comes last, because the last match wins.
 export RUSTFLAGS="--remap-path-prefix=$HOME=/build --remap-path-prefix=$HOME/.rustup=/rustup --remap-path-prefix=$HOME/.cargo/registry/src=/cargo --remap-path-prefix=$PWD=/lvds"
 cargo build --release --target wasm32-unknown-unknown --manifest-path engines/cad-reader/Cargo.toml
-wasm-bindgen --target web --out-dir src/engines/cad/generated \
+wasm-bindgen --target web --out-dir electron/cad \
   engines/cad-reader/target/wasm32-unknown-unknown/release/lvds_cad_reader.wasm

@@ -104,7 +104,7 @@ const CadLoadsDialog = lazy(() => import('./components/CadLoadsDialog'));
 const CadLengthsDialog = lazy(() => import('./components/CadLengthsDialog'));
 const CadPlacesDialog = lazy(() => import('./components/CadPlacesDialog'));
 const CadTraysDialog = lazy(() => import('./components/CadTraysDialog'));
-const CadRoomsDialog = lazy(() => import('./components/CadRoomsDialog'));
+const FloorPlanView = lazy(() => import('./components/FloorPlanView'));
 import PasteBoardDialog from './components/PasteBoardDialog';
 const EnclosureSizing = lazy(() => import('./components/EnclosureSizing'));
 import EarthingView from './components/EarthingView';
@@ -928,7 +928,7 @@ export default function App() {
     cmd('Cable lengths from CAD floor plan…', () => setShowCadLengths(true), undefined, 'OpenCADStudio DWG DXF route measure length');
     cmd('Board locations from CAD floor plan…', () => setShowCadPlaces(true), undefined, 'OpenCADStudio DWG DXF room level position');
     cmd('Tray routes from CAD floor plan…', () => setShowCadTrays(true), undefined, 'OpenCADStudio DWG DXF cable tray route length');
-    cmd('Rooms and areas from CAD floor plan…', () => setShowCadRooms(true), undefined, 'OpenCADStudio DWG DXF architect layers room area m2 building');
+    cmd('Rooms and areas from CAD floor plan…', () => setShowCadRooms(true), undefined, 'Floor plan DWG DXF architect layers room area m2 building measure');
     cmd('Copy LV scripts for OpenCADStudio…', async () => {
       const copy = window.lvds?.openCadStudio?.copyScripts;
       if (!copy) { setStatus('The OpenCADStudio scripts come with the LV Design Studio desktop app'); return; }
@@ -1708,7 +1708,7 @@ export default function App() {
         /></Suspense>
       )}
       {showCadRooms && (
-        <Suspense fallback={null}><CadRoomsDialog
+        <Suspense fallback={null}><FloorPlanView
           project={project}
           onApply={(next, message) => { void autoCheckpoint(project, 'Before Rooms and areas from CAD', undefined, setStatus); setProject(next, { step: true }); setStatus(message); setShowCadRooms(false); }}
           onClose={() => setShowCadRooms(false)}
