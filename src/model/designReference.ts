@@ -1,5 +1,6 @@
 import { pushLibrary } from '../database/librarySync';
 import { STUDY_DEFAULTS, type Project, type StudySettings } from '../types';
+import { normaliseRules, ruleIssues, ruleKey, type DesignRule } from './designRules';
 
 /** Design references: named sets of design values (voltage drop limit,
  * ambient, ELCB sensitivity …) from an authority, a standard or your own
@@ -8,7 +9,9 @@ import { STUDY_DEFAULTS, type Project, type StudySettings } from '../types';
  * one to customise it. Your references are kept in LV Database/Library.json,
  * so they sync through Google Drive to every computer. A project applies one:
  * the values go into its settings and the project records which reference
- * (and version) it used. */
+ * (and version) it used. A reference may extend another ("Company DEWA"
+ * extends "DEWA") and store only what differs; it inherits the rest, and
+ * later edits of the base, when applied. */
 
 export type RefKind = 'authority' | 'standard' | 'company';
 export type RefStatus = 'verified' | 'to-verify';
@@ -53,6 +56,10 @@ export interface DesignReference {
   notes?: string;
   values: Partial<Record<RefKey, RefValue>>;
   entries: RefEntry[];
+  /** Design rule rows (min wire, ELCB …) by circuit type and load. */
+  rules?: DesignRule[];
+  /** Id of the reference this one builds on: its values and rules apply unless set here. */
+  extends?: string;
   builtIn?: boolean;
   basedOn?: string; // id of the reference it was duplicated from
   version: number; // raised on every save
@@ -158,6 +165,8 @@ export function normaliseReference(r: DesignReference): DesignReference {
     status: r.status === 'verified' ? 'verified' : 'to-verify',
     values,
     entries: Array.isArray(r.entries) ? r.entries.filter((e) => e && typeof e.topic === 'string').map((e, i) => ({ ...e, id: e.id || `e-${i}`, value: String(e.value ?? '') })) : [],
+    rules: normaliseRules(r.rules),
+    extends: typeof r.extends === 'string' && r.extends ? r.extends : undefined,
     builtIn: undefined,
     version: Number.isFinite(r.version) && r.version > 0 ? r.version : 1,
     updatedAt: r.updatedAt || new Date().toISOString().slice(0, 10)
@@ -201,6 +210,7 @@ export function saveReference(list: DesignReference[], r: DesignReference): Desi
 export function referenceIssues(r: DesignReference, others: DesignReference[] = []): string[] {
   const issues: string[] = [];
   if (!r.name.trim()) issues.push('Give the reference a name.');
+  if (r.extends && extendsChain(r, [...BUILT_IN_REFERENCES, ...others]).cycle) issues.push('The reference it builds on leads back to itself.');
   else if (others.some((o) => o.id !== r.id && o.name.trim().toLowerCase() === r.name.trim().toLowerCase())) issues.push(`Another reference is already called "${r.name.trim()}".`);
   for (const f of REF_FIELDS) {
     const v = r.values[f.key];
@@ -209,7 +219,51 @@ export function referenceIssues(r: DesignReference, others: DesignReference[] = 
     if (!Number.isFinite(v.value) || (range.min !== undefined && v.value < range.min) || (range.max !== undefined && v.value > range.max))
       issues.push(`${f.label}: ${v.value} is outside ${range.min ?? '…'}–${range.max ?? '…'}${f.unit ? ` ${f.unit}` : ''}.`);
   }
+  issues.push(...ruleIssues(r.rules));
   return issues;
+}
+
+// ---- Layering ------------------------------------------------------------------
+
+/** The reference and the ones it builds on, nearest first. */
+function extendsChain(r: DesignReference, list: DesignReference[]): { chain: DesignReference[]; cycle: boolean; missing?: string } {
+  const chain = [r];
+  const seen = new Set([r.id]);
+  for (let id = r.extends; id; id = chain[chain.length - 1].extends) {
+    if (seen.has(id)) return { chain, cycle: true };
+    const base = list.find((x) => x.id === id);
+    if (!base) return { chain, cycle: false, missing: id };
+    seen.add(id);
+    chain.push(base);
+  }
+  return { chain, cycle: false };
+}
+
+export interface ResolvedReference extends DesignReference {
+  rules: DesignRule[];
+  /** Which reference in the chain set each value. */
+  sources: Partial<Record<RefKey, string>>;
+  /** Id of a base reference that is no longer in the library. */
+  missingBase?: string;
+}
+
+/** Values and rules after layering the reference over the ones it builds on.
+ * Rows with the same rule and condition replace the base's; each row records
+ * the reference it came from. */
+export function resolveReference(r: DesignReference, list: DesignReference[] = loadReferences()): ResolvedReference {
+  const { chain, missing } = extendsChain(r, list);
+  const values: Partial<Record<RefKey, RefValue>> = {};
+  const sources: Partial<Record<RefKey, string>> = {};
+  const rules = new Map<string, DesignRule>();
+  for (const ref of [...chain].reverse()) {
+    for (const [k, v] of Object.entries(ref.values) as [RefKey, RefValue][]) if (v) { values[k] = v; sources[k] = ref.name; }
+    for (const rule of ref.rules ?? []) {
+      const key = ruleKey(rule);
+      rules.delete(key); // keep the nearest row last, so it also wins ties
+      rules.set(key, { ...rule, from: `${ref.name} v${ref.version}` });
+    }
+  }
+  return { ...r, values, rules: [...rules.values()], sources, ...(missing && { missingBase: missing }) };
 }
 
 // ---- Export / import -------------------------------------------------------------
@@ -253,7 +307,8 @@ export function projectValue(p: Project, key: RefKey): number | undefined {
 export interface RefChange { key: RefKey; label: string; unit: string; from?: number; to: number }
 
 /** What applying the reference would change (blank reference values change nothing). */
-export function referenceChanges(p: Project, r: DesignReference): RefChange[] {
+export function referenceChanges(p: Project, ref: DesignReference, list: DesignReference[] = loadReferences()): RefChange[] {
+  const r = resolveReference(ref, list);
   const out: RefChange[] = [];
   for (const f of REF_FIELDS) {
     const v = r.values[f.key];
@@ -264,9 +319,17 @@ export function referenceChanges(p: Project, r: DesignReference): RefChange[] {
   return out;
 }
 
-/** Writes the reference's values into the project and records the reference used. */
-export function applyReference(p: Project, r: DesignReference, at = new Date().toISOString()): Project {
+/** Writes the reference's values and rule rows (with those of the
+ * references it builds on) into the project and records the reference used.
+ * Rows from an earlier reference are replaced; the project's own rows stay
+ * and win a tie with a reference row. */
+export function applyReference(p: Project, ref: DesignReference, at = new Date().toISOString(), list: DesignReference[] = loadReferences()): Project {
+  const r = resolveReference(ref, list);
   const next: Project = { ...p, studySettings: { ...p.studySettings }, info: { ...p.info } };
+  const own = (p.designRules ?? []).filter((x) => !x.from);
+  const rules = [...r.rules, ...own];
+  if (rules.length) next.designRules = rules;
+  else delete next.designRules;
   const values: Partial<Record<RefKey, number>> = {};
   for (const f of REF_FIELDS) {
     const v = r.values[f.key];

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { boardPhaseKw, circuitCategory, circuitRef, circuitWatts, elcbGroups, imbalancePct, missingWatts, nextFreeSlot, scheduleCircuits } from './loadSchedule';
+import { boardPhaseKw, circuitCategory, circuitRef, circuitWatts, elcbGroups, imbalancePct, minWireMm2, missingWatts, nextFreeSlot, scheduleCircuits } from './loadSchedule';
 import { designCurrentA, evaluateFeeder } from './electrical';
 import { addCircuit, balancePhases, deleteCircuit, updateCircuit } from '../model/schedule';
 import type { Feeder, Project } from '../types';
@@ -187,5 +187,40 @@ describe('ELCB groups', () => {
     const p = sixCircuits();
     expect(elcbGroups(p, { ...p.boards[1], elcbGroupSize: 3 }).map((g) => g.ways)).toEqual([[1], [2]]);
     expect(elcbGroups(p, { ...p.boards[1], elcbGroupSize: 0 })).toEqual([]);
+  });
+});
+
+describe('design rules on the schedule', () => {
+  const rule = (kind: 'minWireMm2' | 'elcbMa', value: number, when = {}, id = `${kind}-${value}`) => ({ id, kind, value, when });
+
+  it('without rules, min wire and ELCB follow the project settings as before', () => {
+    let p = base();
+    p = withCircuit(p, { ltg: 2 });
+    p = withCircuit(p, { s13: 2 });
+    const [ltg, pwr] = scheduleCircuits(p, 'DB');
+    expect([minWireMm2(p, ltg), minWireMm2(p, pwr)]).toEqual([2.5, 4]);
+  });
+
+  it('the most specific matching row wins, and a load threshold only applies from that load', () => {
+    const p: Project = { ...base(), designRules: [rule('minWireMm2', 4, { category: 'power' }), rule('minWireMm2', 6, { category: 'power', loadType: 'hvac', minKw: 2 })] };
+    const f = (loadType: Feeder['loadType'], loadKw: number, points: Feeder['points'] = { sac: 1 }) => ({ ...p.feeders[0], boardId: 'DB', points, loadType, loadKw });
+    expect(minWireMm2(p, f('hvac', 2.5))).toBe(6);
+    expect(minWireMm2(p, f('hvac', 1.5))).toBe(4);
+    expect(minWireMm2(p, f('sockets', 3))).toBe(4);
+    expect(minWireMm2(p, f('lighting', 0.2, { ltg: 2 }))).toBe(2.5); // no lighting row: the setting applies
+  });
+
+  it('circuits are sized up to the rule minimum', () => {
+    let p: Project = { ...base(), designRules: [rule('minWireMm2', 6, { category: 'power' })] };
+    p = withCircuit(p, { s13: 1 });
+    expect(scheduleCircuits(p, 'DB')[0].cableCsaMm2).toBe(6);
+  });
+
+  it('with ELCB rules, a group takes the most sensitive value any of its circuits needs', () => {
+    let p: Project = { ...base(), designRules: [rule('elcbMa', 300, { category: 'lighting' }), rule('elcbMa', 30, { loadType: 'sockets' })] };
+    for (let i = 0; i < 3; i++) p = withCircuit(p, { ltg: 5 });
+    expect(elcbGroups(p, p.boards[1])[0].sensitivityMa).toBe(300);
+    p = withCircuit(p, { s13: 2 }); // way 2: same ELCB section as the lighting
+    expect(elcbGroups(p, p.boards[1]).map((g) => [g.category, g.sensitivityMa])).toEqual([['mixed', 30]]);
   });
 });

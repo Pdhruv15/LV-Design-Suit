@@ -3,7 +3,7 @@ import { sampleProject } from '../data/sampleProject';
 import { buildDesignBasis } from '../docs/designBasis';
 import {
   BUILT_IN_REFERENCES, REFERENCES_KEY, applyReference, appliedStatus, changedSinceApplied, duplicateReference, exportReferences, importReferences,
-  loadReferences, loadUserReferences, newReference, projectValue, referenceChanges, referenceIssues, referenceSourceOf, saveReference, saveUserReferences
+  loadReferences, loadUserReferences, newReference, projectValue, referenceChanges, referenceIssues, referenceSourceOf, resolveReference, saveReference, saveUserReferences
 } from './designReference';
 import type { Project } from '../types';
 
@@ -106,5 +106,49 @@ describe('your references', () => {
     const edited = saveReference(mine, { ...mine[0], values: { vdLimitPct: { value: 3 } } });
     expect(appliedStatus(p, edited)).toMatchObject({ newer: true, missing: false });
     expect(appliedStatus(p, [])).toMatchObject({ missing: true });
+  });
+});
+
+describe('layered references and rule rows', () => {
+  const dewa = ref('builtin-dewa');
+  const company = { ...newReference('Company DEWA'), id: 'co', extends: dewa.id, values: { vdLimitPct: { value: 3 } },
+    rules: [{ id: 'r1', kind: 'minWireMm2' as const, when: { category: 'power' as const }, value: 6 }] };
+  const list = [...BUILT_IN_REFERENCES, company];
+
+  it('a reference inherits the values it does not set, and records where each came from', () => {
+    const r = resolveReference(company, list);
+    expect(r.values.vdLimitPct?.value).toBe(3);
+    expect(r.values.ambientC?.value).toBe(45);
+    expect(r.sources).toMatchObject({ vdLimitPct: 'Company DEWA', ambientC: 'DEWA (Dubai)' });
+    expect(r.rules).toEqual([{ ...company.rules[0], from: 'Company DEWA v1' }]);
+  });
+  it('a nearer row with the same condition replaces the base row', () => {
+    const base2 = { ...company, id: 'base2', extends: undefined, name: 'Base', rules: [{ ...company.rules[0], id: 'b', value: 4 }] };
+    const child = { ...company, id: 'child', extends: 'base2', name: 'Child' };
+    expect(resolveReference(child, [base2, child]).rules.map((x) => x.value)).toEqual([6]);
+  });
+  it('flags a missing base and a loop', () => {
+    expect(resolveReference({ ...company, extends: 'gone' }, list).missingBase).toBe('gone');
+    const a = { ...company, id: 'a', name: 'A', extends: 'b' };
+    const b = { ...company, id: 'b', name: 'B', extends: 'a' };
+    expect(referenceIssues(a, [b])).toContain('The reference it builds on leads back to itself.');
+    expect(resolveReference(a, [a, b]).values.vdLimitPct?.value).toBe(3); // still resolves
+  });
+  it('applying writes inherited values and the rows, and keeps the project\'s own rows', () => {
+    const own = { id: 'mine', kind: 'elcbMa' as const, when: {}, value: 30 };
+    const old = { id: 'old', kind: 'minWireMm2' as const, when: {}, value: 10, from: 'Earlier v1' };
+    const p = applyReference({ ...base, designRules: [old, own] }, company, '2026-10-27T00:00:00Z', list);
+    expect(p.vdLimitPct).toBe(3);
+    expect(p.ambientC).toBe(45);
+    expect(p.designRules?.map((x) => x.id)).toEqual(['r1', 'mine']);
+    expect(referenceChanges(p, company, list)).toEqual([]);
+  });
+  it('a reference without rows leaves a project without rows', () => {
+    expect(applyReference(base, dewa, undefined, list).designRules).toBeUndefined();
+  });
+  it('rows survive export and import, and bad rows are reported', () => {
+    const { added } = importReferences(exportReferences([company]), []);
+    expect(added[0]).toMatchObject({ extends: dewa.id, rules: [{ kind: 'minWireMm2', value: 6, when: { category: 'power' } }] });
+    expect(referenceIssues({ ...company, rules: [{ ...company.rules[0], value: 0 }] })[0]).toMatch(/outside/);
   });
 });

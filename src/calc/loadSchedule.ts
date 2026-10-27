@@ -1,6 +1,7 @@
 import { memoized, networkOf } from './network';
 import { recordedPQ } from '../model/existing';
 import { switchedOnBoard } from './capSwitching';
+import { hasRules, resolveRule, type RuleContext } from '../model/designRules';
 import { DEFAULT_POINT_WATTS, LIGHTING_POINTS, POINT_TYPES, pointTemplateOf, settingsOf, type Board, type CircuitLoadItem, type Feeder, type LoadType, type Phase, type PointType, type Project } from '../types';
 
 export const SINGLE_PHASES: ('R' | 'Y' | 'B')[] = ['R', 'Y', 'B'];
@@ -129,8 +130,13 @@ export function circuitCategory(f: Feeder): CircuitCategory {
   return used.length > 0 && used.every((t) => LIGHTING_POINTS.includes(t)) ? 'lighting' : 'power';
 }
 
-/** Minimum circuit wire for the circuit's type (project settings). */
+const ruleContext = (f: Feeder): RuleContext => ({ category: circuitCategory(f), loadType: f.loadType, kw: f.loadKw });
+
+/** Minimum circuit wire: the project's matching design rule, else the
+ * project setting for the circuit's type (lighting / power). */
 export function minWireMm2(project: Project, f: Feeder): number {
+  const rule = resolveRule(project.designRules, 'minWireMm2', ruleContext(f));
+  if (rule) return rule.value;
   const s = settingsOf(project);
   return circuitCategory(f) === 'lighting' ? s.minWireLightingMm2 : s.minWirePowerMm2;
 }
@@ -322,7 +328,11 @@ export function elcbGroups(project: Project, board: Board): ElcbGroup[] {
       const cats = new Set(cs.map(circuitCategory));
       const category: ElcbGroup['category'] = cats.size === 1 ? [...cats][0] : 'mixed';
       const s = settingsOf(project);
-      const sensitivityMa = board.elcbSensitivityMa ?? (category === 'lighting' ? s.elcbLightingMa : s.elcbPowerMa);
+      const bySetting = (c: CircuitCategory) => (c === 'lighting' ? s.elcbLightingMa : s.elcbPowerMa);
+      // With ELCB rules, the most sensitive value any circuit in the group needs.
+      const sensitivityMa = board.elcbSensitivityMa ?? (hasRules(project.designRules, 'elcbMa')
+        ? Math.min(...cs.map((f) => resolveRule(project.designRules, 'elcbMa', ruleContext(f))?.value ?? bySetting(circuitCategory(f))))
+        : bySetting(category === 'lighting' ? 'lighting' : 'power'));
       const first = (index - 1) * waysPerGroup + 1;
       return {
         index,
