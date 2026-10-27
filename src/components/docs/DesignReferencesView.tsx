@@ -4,8 +4,9 @@ import { useMemo, useRef, useState } from 'react';
 import type { Project } from '../../types';
 import {
   REF_FIELDS, REF_KINDS, REF_STATUSES, appliedStatus, changedSinceApplied, duplicateReference, exportReferences, importReferences, loadReferences,
-  newReference, projectValue, referenceChanges, referenceIssues, saveReference, saveUserReferences, type DesignReference, type RefEntry, type RefKey
+  newReference, projectValue, referenceChanges, referenceIssues, resolveReference, saveReference, saveUserReferences, type DesignReference, type RefEntry, type RefKey
 } from '../../model/designReference';
+import { RuleRows, newRule } from './RuleRows';
 import { Page } from '../ui';
 import { saveText } from '../../util/files';
 
@@ -35,7 +36,18 @@ export default function DesignReferencesView({ project, onApply, onStatus }: {
   const issues = useMemo(() => (dirty ? referenceIssues(ref, refs) : []), [dirty, ref, refs]);
   const applied = appliedStatus(project, refs);
   const drift = changedSinceApplied(project);
-  const changes = useMemo(() => referenceChanges(project, saved), [project, saved]);
+  const changes = useMemo(() => referenceChanges(project, saved, refs), [project, saved, refs]);
+  const resolved = useMemo(() => resolveReference(ref, refs), [ref, refs]);
+  const savedRules = useMemo(() => resolveReference(saved, refs).rules.length, [saved, refs]);
+  const own = new Set((ref.rules ?? []).map((r) => r.id));
+  const inherited = resolved.rules.filter((r) => !own.has(r.id));
+  // A reference can build on any other except itself and those built on it.
+  const buildsOnThis = (r: DesignReference): boolean => {
+    const seen = new Set<string>();
+    for (let id = r.extends; id && !seen.has(id); id = refs.find((x) => x.id === id)?.extends) { if (id === ref.id) return true; seen.add(id); }
+    return false;
+  };
+  const bases = refs.filter((r) => r.id !== ref.id && !buildsOnThis(r));
 
   const persist = (list: DesignReference[]) => { setRefs(list); saveUserReferences(list); };
   const select = async (id: string) => {
@@ -166,6 +178,7 @@ export default function DesignReferencesView({ project, onApply, onStatus }: {
                   </tbody></table>
                 ) : <p className="m">The project already has every value of this reference. Applying records it as the project's design reference.</p>}
                 {saved.status !== 'verified' && <p className="warn">This reference is marked “to verify”: check its values against the current regulations before submission.</p>}
+                {savedRules > 0 && <p className="m">It also sets {savedRules} rule row{savedRules > 1 ? 's' : ''} (see Rule rows below); the project's own rows are kept.</p>}
                 <p className="m">Blank values in the reference leave the project's own setting as it is. Run the studies again after applying.</p>
                 <div className="row">
                   <button className="chip" onClick={() => setPreview(false)}>Cancel</button>
@@ -179,6 +192,12 @@ export default function DesignReferencesView({ project, onApply, onStatus }: {
               <label>Type
                 <select value={ref.kind} disabled={readOnly} onChange={(e) => edit({ kind: e.target.value as DesignReference['kind'] })}>
                   {REF_KINDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                </select>
+              </label>
+              <label>Builds on
+                <select value={ref.extends ?? ''} disabled={readOnly} onChange={(e) => edit({ extends: e.target.value || undefined })} title="Values and rules left blank here come from this reference, including its later updates">
+                  <option value="">Nothing (stand-alone)</option>
+                  {bases.map((r) => <option key={r.id} value={r.id}>{r.name}{r.builtIn ? ' — built-in' : ''}</option>)}
                 </select>
               </label>
               <label>Region<input value={ref.region ?? ''} disabled={readOnly} placeholder="e.g. Dubai, Abu Dhabi" onChange={(e) => edit({ region: e.target.value || undefined })} /></label>
@@ -195,27 +214,37 @@ export default function DesignReferencesView({ project, onApply, onStatus }: {
 
           <section className="card u-mb-3">
             <h4 className="u-flush u-mb-2">Design values</h4>
-            <p className="m">Applied to the project's settings. Leave a value blank if this reference does not set it.</p>
+            <p className="m">Applied to the project's settings. Leave a value blank if this reference does not set it{ref.extends ? ': it then comes from the reference this one builds on' : ''}.</p>
             <div className="ref-scroll">
-              <table className="compact"><thead><tr><th>Setting</th><th className="num">Value</th><th>Clause</th><th>Note</th><th className="num">This project</th></tr></thead><tbody>
+              <table className="compact"><thead><tr><th>Setting</th><th className="num">Value</th><th>Clause</th><th>Note</th><th>From</th><th className="num">This project</th></tr></thead><tbody>
                 {REF_FIELDS.map((f) => {
                   const v = ref.values[f.key];
+                  const inh = !v ? resolved.values[f.key] : undefined;
                   const cur = projectValue(project, f.key);
                   return (
                     <tr key={f.key}>
                       <td>{f.label}{f.unit && <span className="m"> ({f.unit})</span>}</td>
                       <td className="num">
-                        <input type="number" style={{ width: 80 }} step={'step' in f ? f.step : 1} value={v?.value ?? ''} disabled={readOnly}
+                        <input type="number" style={{ width: 80 }} step={'step' in f ? f.step : 1} value={v?.value ?? ''} placeholder={inh ? String(inh.value) : undefined} disabled={readOnly}
                           onChange={(e) => setValue(f.key, { value: e.target.value === '' ? null : +e.target.value })} />
                       </td>
                       <td><input value={v?.clause ?? ''} disabled={readOnly || !v} style={{ width: 150 }} onChange={(e) => setValue(f.key, { clause: e.target.value })} /></td>
                       <td><input value={v?.note ?? ''} disabled={readOnly || !v} style={{ width: '100%', minWidth: 160 }} title={v?.note} onChange={(e) => setValue(f.key, { note: e.target.value })} /></td>
-                      <td className={`num${v && cur !== v.value ? ' warn' : ''}`}>{show(cur, f.unit)}</td>
+                      <td className="m">{v ? (ref.extends ? 'Here' : '') : inh ? resolved.sources[f.key] : ''}</td>
+                      <td className={`num${(v ?? inh) && cur !== (v ?? inh)!.value ? ' warn' : ''}`}>{show(cur, f.unit)}</td>
                     </tr>
                   );
                 })}
               </tbody></table>
             </div>
+          </section>
+
+          <section className="card u-mb-3">
+            <h4 className="u-flush u-mb-2">Rule rows</h4>
+            <p className="m">Values for particular circuits, applied to the project with the reference: the most specific row wins, e.g. 6 mm² for HVAC circuits from 2 kW. {inherited.length ? 'Rows from the reference this one builds on are shown greyed; a row here for the same circuits replaces one of them.' : ''}</p>
+            <RuleRows rows={ref.rules ?? []} fixed={inherited} readOnly={readOnly} onChange={(rules) => edit({ rules })}
+              empty={readOnly ? 'No rule rows: the design values above apply to every circuit.' : 'No rule rows yet: the design values above apply to every circuit.'} />
+            {!readOnly && <button className="chip" style={{ marginTop: 8 }} onClick={() => edit({ rules: [...(ref.rules ?? []), newRule()] })}>+ Rule</button>}
           </section>
 
           <section className="card">

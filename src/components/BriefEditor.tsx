@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { withTemplate, type DefaultRow } from '../model/setupPreview';
 import { briefFromTemplate, SYSTEM_LABEL, type SetupTemplate } from '../model/setupTemplate';
 import { Modal } from './ui';
+import { resolveReference, startChoices, type DesignReference } from '../model/designReference';
+import { STUDY_DEFAULTS } from '../types';
 import {
   deliverableCatalog, newBrief, PARTY_LABEL, resetToRole, ROLE_LABEL, SCOPE_ITEMS, withRole, withScope,
   type Deliverable, type Party, type ProjectBrief, type ProjectRole, type ScopeId
@@ -101,9 +103,63 @@ function RoleCards({ role, onPick }: { role?: ProjectRole; onPick: (r: ProjectRo
 
 const STEPS = ['Name and role', 'Parties', 'Scope', 'Deliverables', 'Review'];
 
+/** Country → authority → rule set, with the values the project starts with. */
+function AuthorityPicker({ choices, country, authId, setId, ruleSet, refs, onCountry, onAuthority, onSet }: {
+  choices: ReturnType<typeof startChoices>; country: string; authId: string; setId: string; ruleSet?: DesignReference; refs?: DesignReference[];
+  onCountry: (c: string) => void; onAuthority: (id: string) => void; onSet: (id: string) => void;
+}) {
+  const auths = choices.find((c) => c.country === country)?.authorities ?? [];
+  const sets = auths.find((a) => a.authority.id === authId)?.sets ?? [];
+  const r = ruleSet && resolveReference(ruleSet, refs);
+  const v = (k: keyof NonNullable<typeof r>['values']) => r?.values[k]?.value;
+  const pair = (a?: number, b?: number, unit = '') => (a === undefined && b === undefined ? undefined : `${a ?? '—'} / ${b ?? '—'}${unit}`);
+  const tags = r ? [
+    v('voltageV') !== undefined && `${v('voltageV')} V${v('frequencyHz') ? ` · ${v('frequencyHz')} Hz` : ''}`,
+    v('ambientC') !== undefined && `Ambient ${v('ambientC')} °C`,
+    v('vdLimitPct') !== undefined && `VD ${v('vdLimitPct')} %`,
+    pair(v('minWireLightingMm2') ?? STUDY_DEFAULTS.minWireLightingMm2, v('minWirePowerMm2') ?? STUDY_DEFAULTS.minWirePowerMm2, ' mm²')?.replace(/^/, 'Min wire '),
+    pair(v('elcbLightingMa') ?? STUDY_DEFAULTS.elcbLightingMa, v('elcbPowerMa') ?? STUDY_DEFAULTS.elcbPowerMa, ' mA')?.replace(/^/, 'ELCB '),
+    r.rules.length > 0 && `${r.rules.length} rule row${r.rules.length > 1 ? 's' : ''}`
+  ].filter(Boolean) as string[] : [];
+  return (
+    <div className="start-rules">
+      <h4>Authority and design rules</h4>
+      <div className="grid3">
+        <label>Country
+          <select value={country} onChange={(e) => onCountry(e.target.value)}>
+            {choices.map((c) => <option key={c.country} value={c.country}>{c.country}</option>)}
+            <option value="">None (app defaults)</option>
+          </select>
+        </label>
+        <label>Authority
+          <select value={authId} disabled={!auths.length} onChange={(e) => onAuthority(e.target.value)}>
+            {auths.map((a) => <option key={a.authority.id} value={a.authority.id}>{a.label}{a.authority.region ? ` — ${a.authority.region}` : ''}</option>)}
+            {!auths.length && <option value="">—</option>}
+          </select>
+        </label>
+        <label>Rule set
+          <select value={setId} disabled={!sets.length} onChange={(e) => onSet(e.target.value)}>
+            {sets.map((s) => <option key={s.id} value={s.id}>{s.name} — {s.builtIn ? `built-in v${s.version}` : `yours, v${s.version}`}</option>)}
+            {!sets.length && <option value="">—</option>}
+          </select>
+        </label>
+      </div>
+      {r ? (
+        <>
+          <div className="row" style={{ gap: 6 }}>
+            {tags.map((t) => <span key={t} className="tag">{t}</span>)}
+            {r.status !== 'verified' && <span className="tag warn">To verify</span>}
+          </div>
+          <p className="m">The project starts with these values; change any of them later in Project settings. The approving authority on the Parties step is filled in as {auths.find((a) => a.authority.id === authId)?.label}.</p>
+        </>
+      ) : <p className="m">No rule set: the project starts with the app defaults, as Quick create does.</p>}
+    </div>
+  );
+}
+
 /** New project: name and role, parties, scope, deliverables, then create. Quick create makes the project from
  * the name alone, as before (no brief). */
-export function NewProjectWizard({ initialName, company, taken, templates = [], defaults = [], storage, onChooseFolder, onQuick, onCreate, onCancel }: {
+export function NewProjectWizard({ initialName, company, taken, templates = [], defaults = [], storage, onChooseFolder, references, onQuick, onCreate, onCancel }: {
   initialName: string; company?: string; taken?: string[];
   /** What the project will start with, and where each value comes from. */
   defaults?: DefaultRow[];
@@ -111,17 +167,40 @@ export function NewProjectWizard({ initialName, company, taken, templates = [], 
   storage?: string; onChooseFolder?: () => void;
   /** Saved setup templates to start from. */
   templates?: SetupTemplate[];
-  onQuick: (name: string) => void; onCreate: (name: string, brief: ProjectBrief, template?: SetupTemplate) => void; onCancel: () => void;
+  /** Design references to choose the authority and rule set from (default: built-in and yours). */
+  references?: DesignReference[];
+  onQuick: (name: string) => void; onCreate: (name: string, brief: ProjectBrief, template?: SetupTemplate, reference?: DesignReference) => void; onCancel: () => void;
 }) {
   const [tpl, setTpl] = useState<SetupTemplate | undefined>();
   const [step, setStep] = useState(0);
   const [name, setName] = useState(initialName);
   const [brief, setBrief] = useState<ProjectBrief | null>(null);
   const duplicate = taken?.some((t) => t.trim().toLowerCase() === name.trim().toLowerCase());
-  const pick = (r: ProjectRole) => setBrief((cur) => (cur ? withRole(cur, r, company) : newBrief(r, { company })));
+  const [refs] = useState(() => references ?? undefined);
+  const [choices] = useState(() => startChoices(refs));
+  const [country, setCountry] = useState(() => choices[0]?.country ?? '');
+  const inCountry = choices.find((c) => c.country === country)?.authorities ?? [];
+  const [authId, setAuthId] = useState(() => inCountry[0]?.authority.id ?? '');
+  const auth = inCountry.find((a) => a.authority.id === authId);
+  const [setId, setSetId] = useState(() => auth?.authority.id ?? '');
+  const ruleSet = auth?.sets.find((r) => r.id === setId) ?? auth?.authority;
+  const authName = auth?.label;
+  /** The approving authority on the Parties step follows the choice here. */
+  const withAuthority = (b: ProjectBrief, a: string | undefined): ProjectBrief => (a ? { ...b, authority: a, parties: b.parties.map((x) => (x.role === 'authority' ? { ...x, name: a } : x)) } : b);
+  const chooseAuthority = (id: string, list = inCountry) => {
+    const a = list.find((x) => x.authority.id === id);
+    setAuthId(id); setSetId(a?.authority.id ?? '');
+    setBrief((cur) => (cur ? withAuthority(cur, a?.label) : cur));
+  };
+  const chooseCountry = (c: string) => {
+    setCountry(c);
+    const list = choices.find((x) => x.country === c)?.authorities ?? [];
+    chooseAuthority(list[0]?.authority.id ?? '', list);
+  };
+  const pick = (r: ProjectRole) => setBrief((cur) => (cur ? withRole(cur, r, company) : newBrief(r, { company, ...(authName && { authority: authName }) })));
   const canNext = step === 0 ? !!name.trim() && !!brief : true;
   return (
-    <Modal onClose={onCancel} style={{ maxWidth: 680 }} onSubmit={(e) => { e.preventDefault(); if (step < STEPS.length - 1) { if (canNext) setStep(step + 1); } else if (brief && name.trim()) onCreate(name.trim(), brief, tpl); }}>
+    <Modal onClose={onCancel} style={{ maxWidth: 680 }} onSubmit={(e) => { e.preventDefault(); if (step < STEPS.length - 1) { if (canNext) setStep(step + 1); } else if (brief && name.trim()) onCreate(name.trim(), brief, tpl, ruleSet); }}>
       <h3>New project <span className="m">— step {step + 1} of {STEPS.length}: {STEPS[step]}</span></h3>
       <div className="tabs feeder-tabs" role="tablist">
         {STEPS.map((s, i) => <button key={s} type="button" role="tab" aria-selected={step === i} className={step === i ? 'on' : ''} disabled={i > 0 && !brief} onClick={() => (i === 0 || brief) && setStep(i)}>{i + 1}. {s}</button>)}
@@ -139,6 +218,8 @@ export function NewProjectWizard({ initialName, company, taken, templates = [], 
               </label>
             )}
             {tpl && <p className="m">The template supplies your side of the job, authority, scope, suggested deliverables{Object.values(tpl.system).some((v) => v !== undefined) ? ` and system defaults (${Object.entries(tpl.system).filter(([, v]) => v !== undefined).map(([k, v]) => `${SYSTEM_LABEL[k as keyof typeof SYSTEM_LABEL]} ${v}`).join(', ')})` : ''}. It does not copy party names, dates, drawings, equipment or revisions.</p>}
+            <AuthorityPicker choices={choices} country={country} authId={authId} setId={setId} ruleSet={ruleSet} refs={refs}
+              onCountry={chooseCountry} onAuthority={(id) => chooseAuthority(id)} onSet={setSetId} />
             <p className="m" style={{ marginTop: 10 }}>Which side of the job are you on?</p>
             <RoleCards role={brief?.role} onPick={pick} />
           </>
@@ -150,6 +231,7 @@ export function NewProjectWizard({ initialName, company, taken, templates = [], 
           <div className="brief-review">
             <p><b>{name.trim() || 'Untitled project'}</b> — {ROLE_LABEL[brief.role].title}</p>
             <p className="m">Authority: {brief.authority || '—'}</p>
+            <p className="m">Design rules: {ruleSet ? `${ruleSet.name} v${ruleSet.version}${ruleSet.status === 'verified' ? '' : ', to verify'}` : 'none — the app defaults'}</p>
             <p>{brief.parties.filter((p) => p.role !== 'authority' && p.name.trim()).map((p) => `${PARTY_LABEL[p.role]}: ${p.name}`).join(' · ') || <span className="m">No parties entered yet — you can add them in Project settings.</span>}</p>
             <p><b>Scope:</b> {brief.scope.map((s) => SCOPE_ITEMS.find((x) => x.id === s)?.label).join(', ') || 'nothing selected'}</p>
             <p><b>Deliverables ({brief.deliverables.length}):</b> {brief.deliverables.map((d) => d.title).join(' · ') || '—'}</p>

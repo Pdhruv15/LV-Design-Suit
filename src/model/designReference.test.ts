@@ -3,7 +3,7 @@ import { sampleProject } from '../data/sampleProject';
 import { buildDesignBasis } from '../docs/designBasis';
 import {
   BUILT_IN_REFERENCES, REFERENCES_KEY, applyReference, appliedStatus, changedSinceApplied, duplicateReference, exportReferences, importReferences,
-  loadReferences, loadUserReferences, newReference, projectValue, referenceChanges, referenceIssues, referenceSourceOf, resolveReference, saveReference, saveUserReferences
+  loadReferences, loadUserReferences, newReference, originOf, projectValue, referenceChanges, referenceIssues, referenceSourceOf, resolveReference, saveReference, saveUserReferences, settingSource, startChoices
 } from './designReference';
 import type { Project } from '../types';
 
@@ -150,5 +150,30 @@ describe('layered references and rule rows', () => {
     const { added } = importReferences(exportReferences([company]), []);
     expect(added[0]).toMatchObject({ extends: dewa.id, rules: [{ kind: 'minWireMm2', value: 6, when: { category: 'power' } }] });
     expect(referenceIssues({ ...company, rules: [{ ...company.rules[0], value: 0 }] })[0]).toMatch(/outside/);
+  });
+});
+
+describe('choosing at project start', () => {
+  const company = { ...duplicateReference(ref('builtin-dewa'), 'Company DEWA'), id: 'co-dewa' };
+  const layered = { ...newReference('Site rules'), id: 'site', extends: 'co-dewa' };
+  const list = [...BUILT_IN_REFERENCES, company, layered];
+
+  it('groups authorities by country, each with its own rule set first, then yours that come from it', () => {
+    const c = startChoices(list);
+    expect(c.map((x) => x.country)).toEqual(['United Arab Emirates']);
+    expect(c[0].authorities.map((a) => a.label)).toEqual(['DEWA', 'ADDC', 'EtihadWE']);
+    expect(c[0].authorities[0].sets.map((s) => s.id)).toEqual(['builtin-dewa', 'co-dewa', 'site']);
+    expect(originOf(layered, list).id).toBe('builtin-dewa');
+  });
+  it('an authority of your own is offered under its region', () => {
+    const mine = { ...newReference('Sharjah (SEWA)'), id: 'sewa', kind: 'authority' as const, region: 'Sharjah' };
+    expect(startChoices([...list, mine]).find((c) => c.country === 'Sharjah')?.authorities[0].label).toBe('Sharjah');
+  });
+  it('says where a project setting comes from, or that the project changed it', () => {
+    const p = applyReference(base, ref('builtin-bs7671'), undefined, list);
+    expect(settingSource(p, 'vdLimitPct', list)).toEqual({ text: 'From BS 7671 v1 · Appendix 4, 6.4', override: false });
+    expect(settingSource({ ...p, vdLimitPct: 3 }, 'vdLimitPct', list)).toEqual({ text: 'Project value · BS 7671 v1 has 5 %', override: true });
+    expect(settingSource(p, 'pfTarget', list)).toBeUndefined(); // BS 7671 does not set it
+    expect(settingSource(base, 'vdLimitPct', list)).toBeUndefined();
   });
 });

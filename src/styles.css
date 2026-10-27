@@ -953,6 +953,14 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .ref-grid{display:grid;grid-template-columns:260px minmax(0,1fr);gap:12px;align-items:start}
 .ref-list h4{margin:8px 0 4px}.ref-list h4:first-child{margin-top:0}.ref-list table{min-width:0}
 .ref-scroll{overflow-x:auto}.ref-scroll table{min-width:0}
+.ref-source{display:block;font-size:11px;margin-top:2px}
+.settings-rules{margin-top:12px}.settings-rules h4{margin:0 0 6px}
+.start-rules{border:1px solid var(--line);border-radius:var(--radius-md);padding:var(--space-3);margin-top:var(--space-3);background:var(--p2);display:grid;gap:var(--space-2)}
+.start-rules h4{margin:0}.start-rules p{margin:0}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-3) var(--space-4)}
+@media (max-width:640px){.grid3{grid-template-columns:1fr}}
+.start-rules .tag{font-size:var(--fs-xs);padding:1px 7px;border:1px solid var(--line-strong);border-radius:999px;color:var(--mut)}
+.start-rules .tag.warn{border-color:var(--warn);color:var(--warn)}
 @media (max-width:900px){.ref-grid{grid-template-columns:1fr}}
 .param-table td{padding:4px 8px;white-space:normal}
 .param-chip{font:12px ui-monospace,monospace;padding:1px 6px;border:1px solid var(--line);border-radius:5px;background:var(--p2);color:var(--acc)}
