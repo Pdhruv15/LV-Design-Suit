@@ -8,7 +8,7 @@ const actions = (over: Partial<RibbonActions> = {}): RibbonActions => ({
   onAddFeeder: noop, onAddBoard: noop, onBoardProperties: noop, onEditSelected: noop, onDeleteSelected: noop, onExportDss: noop, onSettings: noop,
   onUndo: noop, onRedo: noop, canUndo: false, canRedo: false, onRun: noop, staleCount: 0,
   onNew: noop, onSave: noop, onSaveAs: noop, onAnonymizedSample: noop, onProfile: noop, onChooseFolder: noop, folderLabel: 'Folder: Projects',
-  dirty: false, recent: [{ file: 'a.lvds', name: 'Villa', when: 'today' }], onOpenRecent: noop, dbIssues: 0,
+  dirty: false, recent: [{ file: 'a.lvds', name: 'Villa', when: 'today' }], onOpenRecent: noop, dbIssues: 0, inboxCount: 0,
   onBom: noop, hasPriceList: false, stage: 'detailed', nextStage: 'ifc', ifcIssued: false, onAdvanceStage: noop, route: 'from-ifc', onRoute: noop, onConceptReport: noop,
   ...over
 });
@@ -32,6 +32,13 @@ describe('Ribbon', () => {
   it('shows unsaved changes and database issues in words', () => {
     expect(render('home', { dirty: true })).toContain('unsaved');
     expect(render('standards', { dbIssues: 2 })).toContain('2 to check');
+  });
+
+  it('has ELV systems and the inbox on the Schematic tab, with what is waiting in words', () => {
+    const html = render('schematic', { inboxCount: 1 });
+    expect(html).toContain('ELV systems');
+    expect(html).toContain('1 to review');
+    expect(render('schematic')).not.toContain('to review');
   });
 
   it('marks the current design stage with a badge, separate from the selected tab', () => {

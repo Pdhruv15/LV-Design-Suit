@@ -6,7 +6,7 @@ import { addDoc, baselineDoc, DISCIPLINE_LABEL, docIssues, DocError, docsOf, isS
 
 /** Register of documents received from others. It records number, revision and where the file is; it does not read the
  * file or turn it into design data, and marking a baseline records provenance, not approval. */
-export default function ReceivedDocsView({ project, onChange, onStatus }: { project: Project; onChange: (p: Project) => void; onStatus: (m: string) => void }) {
+export default function ReceivedDocsView({ project, onChange, onStatus, onInbox }: { project: Project; onChange: (p: Project) => void; onStatus: (m: string) => void; onInbox?: () => void }) {
   const docs = docsOf(project);
   const base = baselineDoc(project);
   const [showOld, setShowOld] = useState(false);
@@ -24,6 +24,7 @@ export default function ReceivedDocsView({ project, onChange, onStatus }: { proj
     <Page title="Received documents" intro="Documents received from others — drawings, specifications, datasheets, authority comments — with their number and revision. This records what you were given and where it is kept; the app does not read these files or treat them as the electrical design. Choosing a baseline records where your work started from, not that it is approved.">
       <div className="tool-panel">
       {docIssues(project).map((m, i) => <p key={i} className="warn">⚠ {m}</p>)}
+      {onInbox && <p className="m">Rooms, luminaires and ELV loads from other programs are reviewed in the <button className="link" onClick={onInbox}>Inbox</button> before they change the project.</p>}
       {base && <p><b>Baseline:</b> {base.title} · {base.number} rev {base.revision}</p>}
       <div className="card">
         <h4>Register a document</h4>
