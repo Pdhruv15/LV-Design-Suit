@@ -7,7 +7,7 @@ power factor correction, drawings and submission reports. Projects are plain
 JSON files, so they sync cleanly through a Google Drive / OneDrive / Dropbox
 desktop folder.
 
-**Version 1.83** (see `package.json`). The app is in active use and active
+**Version 1.84** (see `package.json`). The app is in active use and active
 development.
 
 > **Engineering status.** The calculations are first-pass design checks, not
@@ -277,6 +277,14 @@ show a preview unless called with `mode` apply / propose (`--apply` /
 - Nothing is written while the project has unsaved changes open in the app, or
   over a file that changed in the meantime.
 
+**Floor plans (DWG / DXF).** `cad_plan` reads a floor plan with the built-in
+reader (acadrust, DWG R13–2018 and DXF; no CAD program needed): its units, each
+layer with what it holds and its role, and the rooms it gives. `rooms_from_cad`
+takes those rooms into Building information on one level (areas measured,
+names from room tags or texts, room types guessed), as *Rooms and areas from CAD
+floor plan* does; the Load assessment area schedule is built from those rooms.
+`--roles` overrides a layer's role. Preview first, then `--apply`.
+
 **Exports.** `list_exports` shows what a project can export. `export_report`
 makes any document of the app's Export centre as HTML (open it in a browser and
 print to PDF), or with `format pdf` as the PDF the app makes. `export_forms_xlsx`
@@ -302,6 +310,7 @@ node dist-cli/lvds.mjs size "My project" --propose  # add it to Reports → Chan
 node dist-cli/lvds.mjs add-panel "My project" --kind SMDB --id SMDB-L3 --fedFrom MDB-1 --lengthM 45 --apply
 node dist-cli/lvds.mjs add-building "My project" --name "Tower A" --apply
 node dist-cli/lvds.mjs add-level "My project" --building "Tower A" --name "L1–L10" --kind typical --count 10 --apply
+node dist-cli/lvds.mjs rooms-from-cad "My project" --drawing "GF plan.dwg" --building "Tower A" --level Ground --apply
 node dist-cli/lvds.mjs undo "My project" --apply
 node dist-cli/lvds.mjs forms-xlsx "My project" --export --approvedBy "A. Engineer"
 node dist-cli/lvds.mjs schedule-xlsx "My project" --template "Company schedule.xlsx" --export --approvedBy "A. Engineer"  # your own Excel template, see docs/excel-load-schedule-template.md
