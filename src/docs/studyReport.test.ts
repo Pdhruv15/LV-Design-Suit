@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
 import { runCalculations } from '../calc/runs';
 import { boardSummary } from '../calc/summary';
-import { buildSection, buildStudyReportHtml, buildStudyWorkbook, drawingProject, scopeOf, scopeText, STUDIES, type CalcData } from './studyReport';
+import { buildSection, buildStudyReportHtml, drawingProject, scopeOf, scopeText, STUDIES, type CalcData } from './studyReport';
+import { buildStudyWorkbook } from './studyWorkbook';
 
 const run = runCalculations(sampleProject);
 const data: CalcData = { project: run.project, results: run.results, earthing: run.earthing, selectivity: run.selectivity };

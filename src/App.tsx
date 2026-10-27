@@ -99,7 +99,6 @@ import { isScheduleCircuit } from './calc/loadSchedule';
 import { CABLE_TYPE_DEFS, cableTypeDef } from './model/cableTypes';
 import { safeFileName, savePdf, saveText } from './util/files';
 import AnonymizedSampleDialog from './components/AnonymizedSampleDialog';
-import { buildConceptReportHtml } from './docs/conceptReport';
 const SldExportDialog = lazy(() => import('./components/SldExportDialog'));
 const CadLoadsDialog = lazy(() => import('./components/CadLoadsDialog'));
 const CadLengthsDialog = lazy(() => import('./components/CadLengthsDialog'));
@@ -1187,7 +1186,7 @@ export default function App() {
           onAdvanceStage: issueStage,
           route: tenderRoute(project),
           onRoute: (r) => setProject(setTenderRoute(project, r), { step: true }),
-          onConceptReport: async () => { const m = await savePdf(`${safeFileName(project.name)} - concept design report.pdf`, buildConceptReportHtml(project, { preparedBy: prefs.profile.name }), { pageSize: 'A4', landscape: false }); if (m) setStatus(m); }
+          onConceptReport: async () => { const m = await savePdf(`${safeFileName(project.name)} - concept design report.pdf`, (await import('./docs/conceptReport')).buildConceptReportHtml(project, { preparedBy: prefs.profile.name }), { pageSize: 'A4', landscape: false }); if (m) setStatus(m); }
         }}
       />}
 
