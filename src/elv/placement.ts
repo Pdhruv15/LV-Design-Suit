@@ -16,6 +16,8 @@ export interface PlannedCircuit {
   load: LoadItem;
   boardId?: string; // undefined: no board found (give one with boards)
   why: string;
+  noFloorBoard?: boolean; // a floor supply sent to the main board: its floor has no board
+  noEssentialBoard?: boolean; // an essential load on a normal board: the building has no essential side
 }
 export interface KwChange { feederId: string; link: string; fromKw: number; toKw: number }
 export interface ElvPlacementPlan {
@@ -25,6 +27,7 @@ export interface ElvPlacementPlan {
   same: string[]; // feeder IDs already up to date
   removed: { feederId: string; link: string; name: string }[]; // loads no longer in the accepted package
   placeholders: { feederId: string; name: string }[]; // "ELV / BMS / security" placeholder circuits to delete
+  notices: string[]; // where the rules had to fall back: floors with no board, essential loads with no essential board
 }
 
 const MAIN_KINDS: BoardKind[] = ['MDB', 'LV-MDB', 'SMDB'];
@@ -62,7 +65,7 @@ function locate(project: Project, load: LoadItem): { buildingId?: string; levelI
   return { buildingId, ...(buildingId && levels.length === 1 && load.serves !== 'building' ? { levelId: levels[0], ...(floor ? { floor: Number(floor[1]) } : {}) } : {}) };
 }
 
-function chooseBoard(project: Project, load: LoadItem): { boardId?: string; why: string } {
+function chooseBoard(project: Project, load: LoadItem): Omit<PlannedCircuit, 'link' | 'load'> {
   const { buildingId, levelId, floor } = locate(project, load);
   const info = buildingInfoOf(project);
   if (!buildingId) return { why: info.buildings.length > 1 ? 'its rooms are in more than one building, or it names no rooms' : 'no building in Building information' };
@@ -75,19 +78,22 @@ function chooseBoard(project: Project, load: LoadItem): { boardId?: string; why:
   const serves = (b: Board) => info.rooms.filter((r) => rooms.has(r.id) && r.boardId === b.id).length;
   const isDb = (b: Board) => b.kind === 'DB' || b.kind === 'EDB' || !b.kind;
   // Floor supply: the board on its floor that serves most of its rooms (DBs before main boards).
+  const onLevel = !levelId ? [] : inBuilding.filter((b) => b.level?.level === levelId && (floor === undefined || !b.level.index || b.level.index === floor));
   if (levelId) {
-    const onLevel = inBuilding.filter((b) => b.level?.level === levelId && (floor === undefined || !b.level.index || b.level.index === floor));
     const pool = essential && hasEssential ? onLevel.filter(ess) : onLevel;
     if (pool.length) {
       const b = [...pool].sort((x, y) => serves(y) - serves(x) || Number(!isDb(x)) - Number(!isDb(y)))[0];
-      return { boardId: b.id, why: `${serves(b) ? `serves ${serves(b)} of its rooms` : 'a board on its floor'}${essential && ess(b) ? ', essential side' : ''}` };
+      return { boardId: b.id, why: `${serves(b) ? `serves ${serves(b)} of its rooms` : 'a board on its floor'}${essential && ess(b) ? ', essential side' : ''}`, ...(essential && !hasEssential ? { noEssentialBoard: true } : {}) };
     }
   }
   // Building supply, or no suitable board on the floor: the building's main board (essential side for essential loads).
   const pool = essential && hasEssential ? inBuilding.filter(ess) : inBuilding;
   const main = pool.find((b) => b.kind && MAIN_KINDS.includes(b.kind)) ?? pool.find((b) => b.kind && ESSENTIAL_KINDS.includes(b.kind)) ?? pool.find((b) => !b.upstreamId) ?? pool[0];
   if (!main) return { why: 'no board in its building' };
-  return { boardId: main.id, why: `${levelId ? 'no board on its floor; ' : ''}the building's main board${essential && ess(main) ? ', essential side' : ''}` };
+  return {
+    boardId: main.id, why: `${levelId ? 'no board on its floor; ' : ''}the building's main board${essential && ess(main) ? ', essential side' : ''}`,
+    ...(levelId && !onLevel.length ? { noFloorBoard: true } : {}), ...(essential && !hasEssential ? { noEssentialBoard: true } : {})
+  };
 }
 
 /** What placing the accepted ELV loads would do. `boards` names a board for a load (by load ID), instead of the rule. */
@@ -95,7 +101,7 @@ export function planElvPlacement(project: Project, boards: Record<string, string
   for (const [id, b] of Object.entries(boards)) if (!project.boards.some((x) => x.id === b)) throw new Error(`No board "${b}" (given for load ${id}).`);
   const loads = acceptedElvLoads(project);
   const linked = new Map(project.feeders.filter((f) => f.elvLoad).map((f) => [f.elvLoad!, f]));
-  const plan: ElvPlacementPlan = { add: [], unplaced: [], kwChanges: [], same: [], removed: [], placeholders: [] };
+  const plan: ElvPlacementPlan = { add: [], unplaced: [], kwChanges: [], same: [], removed: [], placeholders: [], notices: [] };
   for (const { link, load } of loads) {
     const f = linked.get(link);
     if (f) {
@@ -110,7 +116,20 @@ export function planElvPlacement(project: Project, boards: Record<string, string
   const current = new Set(loads.map((l) => l.link));
   for (const [link, f] of linked) if (!current.has(link)) plan.removed.push({ feederId: f.id, link, name: f.name });
   if (loads.length) plan.placeholders = project.feeders.filter((f) => !f.elvLoad && PLACEHOLDER.test(f.name)).map((f) => ({ feederId: f.id, name: f.name }));
+  plan.notices = placementNotices(plan.add);
   return plan;
+}
+
+const listed = (ids: string[]) => (ids.length > 6 ? `${ids.slice(0, 6).join(', ')} and ${ids.length - 6} more` : ids.join(', '));
+
+/** Where the rules had to fall back, said once for all the loads it applies to. */
+function placementNotices(add: PlannedCircuit[]): string[] {
+  const noFloor = add.filter((c) => c.noFloorBoard), noEss = add.filter((c) => c.noEssentialBoard);
+  const n = noFloor.length, m = noEss.length;
+  return [
+    ...(n ? [`${n} floor suppl${n === 1 ? 'y goes' : 'ies go'} to the building's main board because ${n === 1 ? 'its floor has' : 'their floors have'} no board (${listed(noFloor.map((c) => c.load.id))}). Set the DB that serves the rooms, or choose the board.`] : []),
+    ...(m ? [`${m} essential load${m === 1 ? ' goes' : 's go'} on a normal board: the building has no essential (generator) board (${listed(noEss.map((c) => c.load.id))}). ${m === 1 ? 'Its circuit is' : 'Their circuits are'} marked essential; add an essential board, or choose the board.`] : [])
+  ];
 }
 
 /** The phase with the least load on a board, for a single-phase circuit. */

@@ -75,6 +75,7 @@ export const ELV_TOOLS: Tool[] = [
       return edit(a, ctx, 'elv_place_loads', a.mode === 'apply', (p) => {
         const { project: next, plan, added, proposal: mod } = placeElvLoads(p, (a.boards as Record<string, string> | undefined) ?? {}, AUTHOR, by || undefined);
         const warnings = [
+          ...plan.notices,
           ...plan.unplaced.map((u) => `${u.load.id} not placed: ${u.why}. Give its board with boards.`),
           ...plan.removed.map((r) => `${r.feederId} (${r.name}) feeds a load no longer in the accepted package: delete it in the app if it is not needed.`),
           ...plan.placeholders.map((r) => `${r.feederId} is the "${r.name}" placeholder: delete it now that the ELV loads are placed.`)

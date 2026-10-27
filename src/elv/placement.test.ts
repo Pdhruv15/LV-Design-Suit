@@ -83,6 +83,15 @@ describe('ELV placement', () => {
     expect(project.feeders.find((f) => f.elvLoad?.endsWith('#FA-T'))).toMatchObject({ boardId: 'MDB', essential: true });
   });
 
+  it('says when a floor has no board, or an essential load has no essential board; nothing when the rules fit', () => {
+    expect(planElvPlacement(accepted()).notices).toEqual([]);
+    const noEss = planElvPlacement(accepted({ ...tower(), boards: tower().boards.filter((b) => b.id !== 'EMDB') }));
+    expect(noEss.notices).toEqual(['5 essential loads go on a normal board: the building has no essential (generator) board (ACS-T-GF, ACS-T-L1-F1, ACS-T-L1-F2, FA-T, PA-T). Their circuits are marked essential; add an essential board, or choose the board.']);
+    const noB1 = planElvPlacement(accepted({ ...tower(), boards: tower().boards.filter((b) => b.id !== 'DB-B1') }));
+    expect(noB1.add.find((c) => c.load.id === 'CCTV-T-B1')!.boardId).toBe('MDB');
+    expect(noB1.notices).toEqual(["1 floor supply goes to the building's main board because its floor has no board (CCTV-T-B1). Set the DB that serves the rooms, or choose the board."]);
+  });
+
   it('adds sized circuits linked to their loads, single-phase for small loads', () => {
     const p = accepted();
     const { project, added } = addElvCircuits(p, planElvPlacement(p));

@@ -33,6 +33,24 @@ beforeEach(() => {
 });
 
 describe('exchange tools', () => {
+  it('a package for a building the project does not have: add the building and level, then it reviews', async () => {
+    fs.writeFileSync(path.join(folder, 'Villa.json'), JSON.stringify({ ...villa, building: undefined }, null, 2));
+    const before = await run('exchange_review', { project: 'Villa', file: 'rooms.json' });
+    expect(before.problems).toHaveLength(3);
+    expect(before.hint).toMatch(/add_building and add_level/);
+    const preview = await run('add_building', { project: 'Villa', name: 'Villa' });
+    expect(preview).toMatchObject({ mode: 'preview', written: false, summary: 'Add building B1 "Villa", no levels yet' });
+    expect(project().building).toBeUndefined();
+    await run('add_building', { project: 'Villa', name: 'Villa', mode: 'apply' });
+    const level = await run('add_level', { project: 'Villa', building: 'villa', name: 'Ground', kind: 'ground', mode: 'apply' });
+    expect(level).toMatchObject({ written: true, summary: 'Add level B1-L1 "Ground" (ground, 4.5 m) to Villa, at the bottom' });
+    const after = await run('exchange_review', { project: 'Villa', file: 'rooms.json' });
+    expect(after.counts).toMatchObject({ added: 3 });
+    expect(after).not.toHaveProperty('problems');
+    expect(after).not.toHaveProperty('hint');
+    expect(readLog(folder).map((e) => e.tool)).toEqual(['add_building', 'add_level']);
+  });
+
   it('checks a package, and reports the wrong rows of a bad one', async () => {
     expect(await run('exchange_check', { file: 'rooms.json' })).toMatchObject({ ok: true, kind: 'rooms', items: 3, source: { app: 'ifc', file: 'Villa-ARC.ifc' } });
     const bad = JSON.parse(fs.readFileSync(sample, 'utf-8'));

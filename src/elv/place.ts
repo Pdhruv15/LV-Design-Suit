@@ -28,6 +28,7 @@ export function placeElvLoads(project: Project, boards: Record<string, string>, 
     proposal = t.record.id;
   }
   const warnings = [
+    ...plan.notices,
     ...plan.unplaced.map((u) => `${u.load.id} not placed: ${u.why}. Choose its board.`),
     ...plan.removed.map((r) => `${r.feederId} (${r.name}) feeds a load no longer in the accepted package: delete it if it is not needed.`),
     ...plan.placeholders.map((r) => `${r.feederId} is the "${r.name}" placeholder: delete it now that the ELV loads are placed.`)

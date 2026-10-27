@@ -7,7 +7,7 @@ power factor correction, drawings and submission reports. Projects are plain
 JSON files, so they sync cleanly through a Google Drive / OneDrive / Dropbox
 desktop folder.
 
-**Version 1.81** (see `package.json`). The app is in active use and active
+**Version 1.82** (see `package.json`). The app is in active use and active
 development.
 
 > **Engineering status.** The calculations are first-pass design checks, not
@@ -267,7 +267,9 @@ show a preview unless called with `mode` apply / propose (`--apply` /
   change the values themselves.
 - **Structure changes** (`add_panel`, `add_circuit`, `move_panel`,
   `rename_panels`, `copy_panel`) change the file after the preview. New panels
-  and circuits are sized by the app's selection.
+  and circuits are sized by the app's selection. `add_building` and `add_level`
+  add to Building information, so a rooms package can be accepted into a
+  project that does not have its building yet.
 - Every change keeps the previous version in `.lvds-agent/` in the projects
   folder and is logged (`list_changes`); `undo_change` puts it back.
 - `delete_panel` and `delete_circuit` use the app's own delete. To apply, they
@@ -298,6 +300,8 @@ made as HTML and the earthing schematic is the only DXF.
 node dist-cli/lvds.mjs size "My project"            # preview the sizing proposal
 node dist-cli/lvds.mjs size "My project" --propose  # add it to Reports → Changes
 node dist-cli/lvds.mjs add-panel "My project" --kind SMDB --id SMDB-L3 --fedFrom MDB-1 --lengthM 45 --apply
+node dist-cli/lvds.mjs add-building "My project" --name "Tower A" --apply
+node dist-cli/lvds.mjs add-level "My project" --building "Tower A" --name "L1–L10" --kind typical --count 10 --apply
 node dist-cli/lvds.mjs undo "My project" --apply
 node dist-cli/lvds.mjs forms-xlsx "My project" --export --approvedBy "A. Engineer"
 node dist-cli/lvds.mjs dxf "My project" --drawing sld --export --approvedBy "A. Engineer"
