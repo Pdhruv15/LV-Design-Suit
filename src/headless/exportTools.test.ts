@@ -25,9 +25,10 @@ const exported = () => (fs.existsSync(exportsDir()) ? fs.readdirSync(exportsDir(
 beforeAll(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'lvds-export-'));
   process.env.LVDS_APP_DATA = path.join(root, 'app');
+  process.env.LVDS_ELECTRON = path.join(root, 'no-electron'); // no renderer lookup: requiring electron downloads its binary on CI
   vi.stubGlobal('DOMParser', DOMParser); // as the lvds entry does (src/headless/main.ts)
 });
-afterAll(() => { delete process.env.LVDS_APP_DATA; vi.unstubAllGlobals(); fs.rmSync(root, { recursive: true, force: true }); });
+afterAll(() => { delete process.env.LVDS_APP_DATA; delete process.env.LVDS_ELECTRON; vi.unstubAllGlobals(); fs.rmSync(root, { recursive: true, force: true }); });
 beforeEach(() => {
   folder = fs.mkdtempSync(path.join(root, 'projects-'));
   fs.writeFileSync(file('Villa'), JSON.stringify(villa, null, 2));
