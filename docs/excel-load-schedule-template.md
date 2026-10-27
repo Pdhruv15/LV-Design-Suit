@@ -2,6 +2,10 @@
 
 Lay out the load schedule in Excel the way your company or authority wants: headings, borders, column widths and print setup (images such as logos are not copied yet). Put placeholders where the app should write values. The app fills one copy of the sheet for every DB that has schedule circuits.
 
+In the app: **Reports → Load schedule → My Excel template…**. Choose the .xlsx, pick this DB or all DBs, check the preview and any warnings, then Export. The template is remembered on this computer.
+
+From the command line:
+
 ```bash
 lvds schedule-xlsx "My project" --template "Company schedule.xlsx"
 lvds schedule-xlsx "My project" --template "Company schedule.xlsx" --export --approvedBy "A. Engineer"

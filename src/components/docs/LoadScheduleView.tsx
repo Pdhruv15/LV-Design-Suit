@@ -26,6 +26,7 @@ import RiserFormView from './RiserFormView';
 import { SCHEDULE_GROUPS, scheduleGroupOf, scheduleGroups, type ScheduleGroup } from '../../model/scheduleGroups';
 import { scheduleCircuits } from '../../calc/loadSchedule';
 import CircuitEditDialog from './CircuitEditDialog';
+import TemplateExportDialog from './TemplateExportDialog';
 import { addSpareWay, deleteSpareWay, spareLabel, spareRef, updateSpareWay } from '../../model/spareWays';
 
 const num = (v: string) => (v === '' ? 0 : Math.max(0, Math.round(+v) || 0));
@@ -87,6 +88,7 @@ export default function LoadScheduleView({
   const incomplete = (b: Board) => (scheduleGroupOf(project, b) === 'db' || ['DB', 'EDB'].includes(b.kind ?? 'DB') ? !scheduleCircuits(project, b.id).length : !project.feeders.some((f) => f.boardId === b.id));
   const form: 'db' | 'md' | 'tx' | 'riser' = txForm ? txForm : pick?.board === board.id ? pick.form : data.rows.length || !mdAvailable ? 'db' : 'md';
   const [exporting, setExporting] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
   // Circuit open in the double-click edit dialog, and the field to focus.
   const [editing, setEditing] = useState<{ id: string; focus?: string } | null>(null);
   const editRow = editing && data.rows.find((r) => r.f.id === editing.id);
@@ -172,6 +174,7 @@ export default function LoadScheduleView({
             {exporting ? 'Exporting…' : 'Submission pack (Excel)'}
           </button>
           {form === 'db' && <>
+          <button className="chip" title="Fill your own Excel load schedule format: placeholders such as {{board.id}} and a row of {{row.…}} repeated for every circuit" onClick={() => setTemplateOpen(true)}>My Excel template…</button>
           <button className="chip" onClick={async () => { const c = loadScheduleCsv(project, board.id); const m = await saveCsv(`${project.name} ${board.id} load schedule`, c.headers, c.rows); if (m) onStatus(m); }}>Export CSV</button>
           <button className="chip primary" onClick={async () => { const m = await savePdf(`${safeFileName(board.id)}-load-schedule.pdf`, buildLoadScheduleHtml(project, board.id), { pageSize: 'A4', landscape: true }); if (m) onStatus(m); }}>Export PDF</button>
           </>}
@@ -414,6 +417,7 @@ export default function LoadScheduleView({
               </table>
             </div>
           )}
+          {templateOpen && <TemplateExportDialog project={project} boardId={board.id} onStatus={onStatus} onClose={() => setTemplateOpen(false)} />}
           {editRow && (
             <CircuitEditDialog project={project} board={board} feeder={editRow.f} circuitRef={editRow.ref} columns={columns} library={db.loads} focus={editing!.focus}
               onSave={(pt) => { patch(editRow.f.id, pt); setEditing(null); }}
