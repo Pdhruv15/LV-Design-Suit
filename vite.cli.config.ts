@@ -17,7 +17,7 @@ export default defineConfig({
     ssr: 'src/headless/main.ts',
     rollupOptions: {
       external: [...builtinModules, ...builtinModules.map((m) => `node:${m}`)],
-      output: { entryFileNames: 'lvds.mjs', banner: '#!/usr/bin/env node', inlineDynamicImports: true }
+      output: { entryFileNames: 'lvds.mjs', banner: '#!/usr/bin/env node', codeSplitting: false }
     }
   },
   // Bundle the dependencies into the one file, so it runs without node_modules.

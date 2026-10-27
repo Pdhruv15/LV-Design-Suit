@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { builtUpAreaOf, dbChecks, newBuilding, roomLoad, roomsFromTable, spaceAreasFromRooms, summarizeBuilding } from './building';
+import { builtUpAreaOf, dbChecks, newBuilding, nextRoomId, roomLoad, roomsFromTable, spaceAreasFromRooms, summarizeBuilding } from './building';
 import { riserFromBuilding } from './busbar';
 import { emptyPlan } from './spacePlan';
 import type { BuildingInfo, Project } from '../types';
@@ -89,5 +89,14 @@ describe('level order', () => {
     expect(nb.levels[0].name).toBe('Basement 1');
     const s = summarizeBuilding(r.info, nb);
     expect(s.levels[0].elevationM).toBeLessThan(0);
+  });
+
+  it('gives new rooms IDs above every ID in use, so a deleted room’s ID is not reused', () => {
+    expect(nextRoomId([])).toBe('R1');
+    expect(nextRoomId([{ id: 'R1' }, { id: 'R5' }, { id: 'X9' }])).toBe('R6');
+    const b = newBuilding('T', 'Tower');
+    const info = { buildings: [b], rooms: [{ id: 'R1', buildingId: 'T', levelId: b.levels[0].id, name: 'A', type: 'office', areaM2: 10 }, { id: 'R3', buildingId: 'T', levelId: b.levels[0].id, name: 'B', type: 'office', areaM2: 10 }] };
+    const r = roomsFromTable(info, 'T', `${b.levels[0].name}\tC\tOffice\t20\n${b.levels[0].name}\tD\tOffice\t20`);
+    expect(r.info.rooms.map((x) => x.id)).toEqual(['R1', 'R3', 'R4', 'R5']);
   });
 });

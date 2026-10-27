@@ -16,6 +16,10 @@ import { autoSize, drawable, setOf, sheetRev, type DrawingSheet } from '../model
 import { numberBom } from '../model/boqRevisions';
 import { priceBom } from '../model/priceList';
 import { safeFileName } from '../util/files';
+import { roomsExport } from '../exchange/inbox';
+import { estimateElv } from '../elv/estimate';
+import { elvLoadsPackage } from '../elv/package';
+import { elvInput, elvSettingsFor } from './elvTools';
 import type { Project } from '../types';
 import { openProject } from './project';
 import type { Tool, ToolContext } from './tools';
@@ -236,6 +240,30 @@ export const EXPORT_TOOLS: Tool[] = [
       const pages = buildSheetDxfPages(p, d.svg, size, info);
       const base = safeFileName(info.no || 'earthing');
       return pages.map((pg) => ({ name: `${base}${pg.count > 1 ? `-${pg.index}` : ''}.dxf`, data: pg.data, about: `DXF, ${size}${pg.continuation ? ', continuation sheet' : ''}${pg.warnings.length ? ` — ${pg.warnings.join('; ')}` : ''}` }));
+    })
+  },
+  {
+    name: 'export_rooms_package',
+    title: 'Export rooms as an exchange package',
+    description: 'The rooms of Building information (building, level, name, type, area) as an exchange package (JSON, contract lvds.exchange version 1) for another program, e.g. ELV design. Each room\'s ID is its source ID, so loads that come back name the rooms. Preview first; exporting needs approvedBy.',
+    input: { project, approvedBy, exportAnyway, mode },
+    usesProject: true, writes: true,
+    run: (a, ctx) => runExport(a, ctx, 'export_rooms_package', (p) => {
+      const name = `${safeFileName(p.name || 'project')}-rooms.json`;
+      const pkg = roomsExport(p, new Date().toISOString(), (t) => crypto.createHash('sha256').update(t).digest('hex'), p.name);
+      return [{ name, data: JSON.stringify(pkg, null, 2), about: `rooms package, ${pkg.items.length} room${pkg.items.length === 1 ? '' : 's'}` }];
+    })
+  },
+  {
+    name: 'export_elv_loads_package',
+    title: 'Export ELV loads as an exchange package',
+    description: 'The supplies of the ELV estimate (elv_estimate) as an ELV loads package (JSON, contract lvds.exchange version 1): one load per fire alarm panel, PoE switch group, door controller group, floor rack and amplifier set, with its kW and the rooms it serves. LV takes it in with exchange_review / exchange_apply. Preview first; exporting needs approvedBy.',
+    input: { project, ...elvInput, approvedBy, exportAnyway, mode },
+    usesProject: true, writes: true,
+    run: (a, ctx) => runExport(a, ctx, 'export_elv_loads_package', (p) => {
+      const pkg = elvLoadsPackage(p, estimateElv(p, elvSettingsFor(p, a, ctx)), new Date().toISOString(), (t) => crypto.createHash('sha256').update(t).digest('hex'));
+      const kW = Math.round(pkg.items.reduce((t, x) => t + x.kW, 0) * 100) / 100;
+      return [{ name: `${safeFileName(p.name || 'project')}-elv-loads.json`, data: JSON.stringify(pkg, null, 2), about: `ELV loads package, ${pkg.items.length} supplies, ${kW} kW (estimate, typical values to verify)` }];
     })
   }
 ];

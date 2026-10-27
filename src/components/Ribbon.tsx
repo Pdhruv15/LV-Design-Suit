@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   BatteryCharging, Building2, Cable, ClipboardCheck, MessageSquareWarning, Inbox, CircuitBoard, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText, GitPullRequestArrow, Send, Stamp,
   Gauge, Hand, LayoutGrid, ListTree, MousePointer2, Pencil, Receipt, Scale, Settings2, ShieldCheck, Sun,
-  ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig } from 'lucide-react';
+  ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig, Cctv } from 'lucide-react';
 import type { BoardKind, Feeder } from '../types';
 import type { MainView } from '../views';
 import { STAGE_INFO, type DesignStage, type TenderRoute } from '../model/designStage';
@@ -69,6 +69,8 @@ export interface RibbonActions {
   currentFile?: string;
   onOpenRecent: (file: string) => void;
   dbIssues: number;
+  /** Packages from other programs waiting in the inbox. */
+  inboxCount: number;
   /** BOM / Cost tab: a command for the bill of quantities page. */
   onBom: (cmd: BomCommand) => void;
   hasPriceList: boolean;
@@ -87,7 +89,7 @@ export interface RibbonActions {
 export const CAPTIONS: Record<RibbonTab, string[]> = {
   home: ['Project', 'Diagram & history', 'Setup'],
   concept: ['Load', 'Supply', 'Stage'],
-  schematic: ['History', 'Distribution', 'Main systems', 'Stage'],
+  schematic: ['History', 'Distribution', 'Main systems', 'ELV', 'Stage'],
   detailed: ['Run', 'Canvas', 'Boards', 'Equipment', 'Selection', 'Calculate', 'Stage'],
   reports: ['Schedules', 'Drawings and reports'],
   issue: ['Tender', 'Track', 'Send', 'IFC'],
@@ -119,7 +121,7 @@ export const tabForStage = (s: DesignStage): RibbonTab => TABS.find((t) => t.sta
 const TAB_VIEWS: Record<RibbonTab, MainView[]> = {
   home: ['projects', 'dashboard', 'help', 'parameters', 'titleblock', 'building'],
   concept: ['building', 'load-assessment', 'sizing', 'substation-area', 'space-planning', 'dashboard'],
-  schematic: ['panels', 'design', 'busbar', 'pfc', 'ups', 'solar', 'earth-schematic'],
+  schematic: ['panels', 'design', 'busbar', 'pfc', 'ups', 'solar', 'earth-schematic', 'elv', 'inbox'],
   detailed: ['design', 'panels', 'load-schedule', 'enclosure', 'selection', 'voltage-drop', 'earthing', 'coordination', 'engines', 'calculators'],
   reports: ['load-schedule', 'cable-schedule', 'cable-tray', 'equipment', 'drawings', 'drawing-register', 'study-reports', 'report', 'export-centre'],
   issue: ['revisions', 'modifications', 'review', 'received-docs', 'submissions'],
@@ -255,6 +257,10 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         view('ups', 'UPS & battery', BatteryFull, 'UPS rating and battery sizing for the backup time'),
         view('solar', 'Solar PV', Sun, 'Solar PV array, string design, inverters and yield'),
         view('earth-schematic', 'Earth pits', Network, 'Earthing schematic: earth pits of the RMUs, transformers and main boards, and how they are linked')
+      ],
+      [
+        view('elv', 'ELV systems', Cctv, 'ELV estimate from the rooms of Building: fire alarm, CCTV, access control, ICT and public address — devices, supplies and the kW each LV circuit feeds'),
+        { ...view('inbox', 'Inbox', Inbox, a.inboxCount ? `Packages from other programs to review — ${a.inboxCount} waiting` : 'Packages from other programs (CAD, IFC, ELV): review and accept before they change the project'), sub: a.inboxCount ? `${a.inboxCount} to review` : undefined, stale: a.inboxCount > 0 }
       ],
       [gate('schematic')]
     ],

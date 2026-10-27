@@ -243,6 +243,8 @@ export interface Feeder {
   lengthToCheck?: boolean;
   /** Made as a placeholder (e.g. by Build hierarchy): cable and breaker not sized yet. */
   sizingPending?: boolean;
+  /** The accepted ELV load this circuit feeds (program:file#load ID, src/elv/placement.ts). */
+  elvLoad?: string;
   feedsBoardId?: string; // if set, this feeder is the incomer to a downstream board —
   // its loadKw/demandFactor are ignored and its current is derived from that
   // board's total demand instead
@@ -412,6 +414,10 @@ export interface Project {
   notes?: string;
   /** Proposed, reviewed and applied design modifications (Reports → Changes). */
   modifications?: import('./model/designChanges').ModificationRecord[];
+  /** Packages from other programs (rooms, luminaires, ELV loads): decisions log and accepted packages (src/exchange). */
+  exchange?: import('./exchange/inbox').ExchangeState;
+  /** ELV estimate: changes to the default rules and device data (src/elv). */
+  elv?: import('./elv/estimate').ElvSettings;
   /** Design review comments (Reports → Review). */
   reviewComments?: import('./model/reviewComments').ReviewComment[];
   /** Saved setup of the design review report (sections, names, recorded reviewer decision). */
@@ -587,8 +593,16 @@ export interface UnitType {
   meter?: MeterType; // kWh meter on the unit's incomer (default by size)
 }
 
+/** Where a room came from, so a later revision of the same drawing (or model) updates the room instead of adding one. */
+export interface RoomSource {
+  app: 'cad' | 'ifc';
+  file?: string; // drawing / model file name
+  sourceId?: string; // CAD entity handle of the room outline, or IFC GlobalId
+  revision?: string;
+}
+
 export interface BuildingRoom {
-  id: string;
+  id: string; // permanent: never reused for another room
   buildingId: string;
   levelId: string;
   name: string;
@@ -596,6 +610,7 @@ export interface BuildingRoom {
   areaM2: number;
   count?: number; // identical rooms on the level (e.g. 8 × 2BR apartments)
   boardId?: string; // the DB that serves it
+  source?: RoomSource; // absent: entered by hand or from a table
 }
 
 export interface BuildingInfo {

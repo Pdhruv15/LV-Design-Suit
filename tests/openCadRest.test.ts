@@ -177,9 +177,10 @@ describe('OpenCADStudio live REST session', () => {
         if (route === '/ready') return { version: 'x' };
         if (route.startsWith('/entities?detail=full')) return { entities };
         if (route.startsWith('/sysvars')) return { result: { values: { insunits: 6 } } };
+        if (route === '/state') return { document_id: 1, documents: [{ id: 1 }] };
         return {};
       }
-    }) as unknown as { open: (e: string, d: string[]) => Promise<unknown>; readPlan: (o?: { curveLayers?: string[] }) => Promise<unknown> };
+    }) as unknown as { open: (e: string, d: string[]) => Promise<unknown>; readPlan: (o?: { curveLayers?: string[] }) => Promise<unknown>; documentFile: (s: unknown) => string | undefined };
     await session.open('/x', ['/tmp/plan.dwg']);
     // Curves come back only for the layers asked for.
     expect(((await session.readPlan({ curveLayers: ['e-cable'] })) as { curves: unknown[] }).curves).toEqual([
@@ -187,9 +188,10 @@ describe('OpenCADStudio live REST session', () => {
     ]);
     expect(await session.readPlan()).toEqual({
       units: 6,
+      file: 'plan.dwg', // the one drawing opened, the only document open
       places: [{ boardId: 'MDB-1', x: 20, y: 30 }],
       symbols: [{ name: 'DB-GF1', x: 22000, y: 1500 }],
-      outlines: [{ layer: 'A-ROOM', points: [[0, 0], [10, 0], [10, 10]] }],
+      outlines: [{ layer: 'A-ROOM', handle: '4', points: [[0, 0], [10, 0], [10, 10]] }],
       texts: [{ layer: 'A-ROOM-NAME', x: 5, y: 5, text: 'STORE' }],
       tags: [],
       curves: [], // none asked for, none linked by hand
@@ -202,6 +204,9 @@ describe('OpenCADStudio live REST session', () => {
         { name: 'E-LIGHT', outlines: 0, curves: 0, texts: 0, blocks: 1, hatches: 0 }
       ]
     });
+    // The drawing's name: from the document list when it has one; unknown when other documents are open too.
+    expect(session.documentFile({ document_id: 3, documents: [{ id: 2 }, { id: 3, path: '/plans/GF plan.dwg' }] })).toBe('GF plan.dwg');
+    expect(session.documentFile({ document_id: 3, documents: [{ id: 2 }, { id: 3 }] })).toBeUndefined();
   });
 
   it('marks the selection as a board symbol, and unlinks it', async () => {

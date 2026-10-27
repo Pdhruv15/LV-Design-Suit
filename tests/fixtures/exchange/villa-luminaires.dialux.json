@@ -1,0 +1,11 @@
+{
+  "schema": "lvds.exchange",
+  "version": 1,
+  "kind": "fixtures",
+  "source": { "app": "dialux", "file": "Villa GF.evo", "revision": "1" },
+  "exportedAt": "2026-10-26T10:00:00Z",
+  "items": [
+    { "room": "2O2Fr$t4X7Zf8NOew3FLOH", "code": "DL-12", "description": "LED downlight 12 W", "quantity": 8, "inputW": 12, "voltageV": 230, "pf": 0.9, "use": "normal" },
+    { "room": "2O2Fr$t4X7Zf8NOew3FLOH", "code": "EM-3", "quantity": 1, "inputW": 3, "use": "emergency" }
+  ]
+}

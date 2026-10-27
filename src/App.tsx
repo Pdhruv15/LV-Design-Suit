@@ -99,7 +99,6 @@ import { isScheduleCircuit } from './calc/loadSchedule';
 import { CABLE_TYPE_DEFS, cableTypeDef } from './model/cableTypes';
 import { safeFileName, savePdf, saveText } from './util/files';
 import AnonymizedSampleDialog from './components/AnonymizedSampleDialog';
-import { buildConceptReportHtml } from './docs/conceptReport';
 const SldExportDialog = lazy(() => import('./components/SldExportDialog'));
 const CadLoadsDialog = lazy(() => import('./components/CadLoadsDialog'));
 const CadLengthsDialog = lazy(() => import('./components/CadLengthsDialog'));
@@ -127,6 +126,10 @@ const ReviewView = lazy(() => import('./components/docs/ReviewView'));
 import { applyTemplateSystem, loadTemplates, saveTemplates, templateFrom, type SetupTemplate } from './model/setupTemplate';
 import CheckpointsPanel from './components/docs/CheckpointsPanel';
 const ReceivedDocsView = lazy(() => import('./components/docs/ReceivedDocsView'));
+const ElvView = lazy(() => import('./components/elv/ElvView'));
+const InboxView = lazy(() => import('./components/elv/InboxView'));
+const PlaceElvDialog = lazy(() => import('./components/elv/PlaceElvDialog'));
+import type { InboxItem } from './components/elv/InboxView';
 const SubmissionsView = lazy(() => import('./components/docs/SubmissionsView'));
 const ExportCentre = lazy(() => import('./components/docs/ExportCentre'));
 import { applyBrief, type ProjectBrief } from './model/brief';
@@ -165,6 +168,7 @@ const PALETTE_PAGES: [MainView, string][] = [
   ['ups', 'UPS & battery'], ['solar', 'Solar PV'], ['drawings', 'Drawings'], ['drawing-register', 'Drawing register'],
   ['cable-schedule', 'Cable schedule'], ['cable-tray', 'Cable trays'], ['equipment', 'Equipment schedule'], ['boq', 'Bill of quantities (BOQ)'],
   ['study-reports', 'Study reports'], ['report', 'Calculation report'], ['revisions', 'Revisions'], ['modifications', 'Changes'], ['review', 'Review'],
+  ['elv', 'ELV systems'], ['inbox', 'Inbox'],
   ['received-docs', 'Received documents'], ['submissions', 'Submissions'], ['parameters', 'Parameters'], ['titleblock', 'Title block'], ['database', 'Database'],
   ['design-references', 'Design references'], ['help', 'Help']
 ];
@@ -260,6 +264,11 @@ export default function App() {
   const [showCadPlaces, setShowCadPlaces] = useState(false);
   const [showCadTrays, setShowCadTrays] = useState(false);
   const [showCadRooms, setShowCadRooms] = useState(false);
+  // Packages from other programs waiting for review, per project (not saved: nothing changes until accepted).
+  const [inbox, setInbox] = useState<{ key: string; item: InboxItem }[]>([]);
+  const [showPlaceElv, setShowPlaceElv] = useState(false);
+  const inboxKey = project.id ?? project.name;
+  const inboxHere = inbox.filter((x) => x.key === inboxKey).map((x) => x.item);
   // Copy / paste of a board with everything below it.
   const [copiedBoard, setCopiedBoard] = useState<string | null>(null);
   const [pasteTarget, setPasteTarget] = useState<string | null>(null);
@@ -1181,13 +1190,14 @@ export default function App() {
           currentFile,
           onOpenRecent: openProject,
           dbIssues: db.issues.length,
+          inboxCount: inboxHere.length,
           stage: stageOf(project),
           nextStage: nextStage(project),
           ifcIssued: ifcIssued(project),
           onAdvanceStage: issueStage,
           route: tenderRoute(project),
           onRoute: (r) => setProject(setTenderRoute(project, r), { step: true }),
-          onConceptReport: async () => { const m = await savePdf(`${safeFileName(project.name)} - concept design report.pdf`, buildConceptReportHtml(project, { preparedBy: prefs.profile.name }), { pageSize: 'A4', landscape: false }); if (m) setStatus(m); }
+          onConceptReport: async () => { const m = await savePdf(`${safeFileName(project.name)} - concept design report.pdf`, (await import('./docs/conceptReport')).buildConceptReportHtml(project, { preparedBy: prefs.profile.name }), { pageSize: 'A4', landscape: false }); if (m) setStatus(m); }
         }}
       />}
 
@@ -1554,7 +1564,12 @@ export default function App() {
             {view === 'cable-tray' && (
               <TrayScheduleView project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />
             )}
-            {view === 'received-docs' && <ReceivedDocsView project={project} onChange={(p) => setProject(p)} onStatus={setStatus} />}
+            {view === 'elv' && <ElvView project={project} onChange={(p) => setProject(p)} onStatus={setStatus} onPlace={() => setShowPlaceElv(true)}
+              onSend={(pkg, hash) => { setInbox((l) => [...l.filter((x) => !(x.key === inboxKey && x.item.pkg.kind === pkg.kind && x.item.pkg.source.file === pkg.source.file)), { key: inboxKey, item: { pkg, hash } }]); setView('inbox'); setStatus('ELV loads sent to the inbox: review and accept them.'); }} />}
+            {view === 'inbox' && <InboxView project={project} pending={inboxHere} me={prefs.profile.name ?? ''} onStatus={setStatus} onPlace={() => setShowPlaceElv(true)}
+              onOpen={(item) => setInbox((l) => [...l, { key: inboxKey, item }])}
+              onDecided={(next, item, m) => { setProject(next, { step: true }); setInbox((l) => l.filter((x) => x.item.hash !== item.hash)); setStatus(m); }} />}
+            {view === 'received-docs' && <ReceivedDocsView project={project} onChange={(p) => setProject(p)} onStatus={setStatus} onInbox={() => setView('inbox')} />}
             {view === 'export-centre' && <ExportCentre project={project} run={run} stale={staleKeys} onStatus={setStatus} />}
             {view === 'submissions' && <SubmissionsView project={project} draft={subDraft} me={prefs.profile.name ? initialsOf(prefs.profile.name) : ''} onChange={(p) => { setProject(p, { step: true }); setSubDraft(undefined); }} onStatus={setStatus} />}
             {view === 'review' && <ReviewView project={project} me={prefs.profile.name} run={run} stale={staleKeys} onChange={(p) => setProject(p)} onStatus={setStatus} onGo={(v) => setView(v)} />}
@@ -1670,6 +1685,14 @@ export default function App() {
             setEditPreset(null);
           }}
         />
+      )}
+      {showPlaceElv && (
+        <Suspense fallback={null}><PlaceElvDialog
+          project={project}
+          me={prefs.profile.name ?? ''}
+          onApply={(next, message) => { void autoCheckpoint(project, 'Before placing ELV loads', undefined, setStatus); setProject(next, { step: true }); setStatus(message); setShowPlaceElv(false); }}
+          onClose={() => setShowPlaceElv(false)}
+        /></Suspense>
       )}
       {showCadRooms && (
         <Suspense fallback={null}><CadRoomsDialog
