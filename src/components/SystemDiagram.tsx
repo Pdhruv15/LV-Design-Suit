@@ -880,25 +880,37 @@ export default function SystemDiagram({
         ))}
 
         {/* Main earthing: the transformer's neutral and body earths (separate pits, never joined) and
-            the LV earth pits, each wired through its own test link to the main board's MET and linked in the soil. IEC 60364-5-54 / BS 7430. */}
-        {layout.roots.map((r, i) => {
+            the linked LV earth pits wired through a test link to the main board's MET. IEC 60364-5-54 / BS 7430. */}
+        {layout.roots.map((r) => {
           const b = r.board;
           if (!hasEarthPits(b)) return null;
-          const prev = layout.roots[i - 1];
-          if (prev && prev.x > r.x - 280) return null; // no room beside a neighbouring main board
           const tx = !!b.sourceKva && !b.upstreamId; // own transformer (an authority supply has none to draw)
-          const ox = r.x - 185, oy = 60;
           const mm = earthConductorOf(project, b);
           // Pit count and electrode from the earthing plan unless this board sets its own.
           const lvIds = earthPits.get(`lv:${b.id}`);
           const pits = b.earthing?.pits ?? (lvIds?.length || 2);
+          if (pits <= 0) return null;
           const el = b.earthing?.electrodeM ?? project.earthingPlan?.electrodeM ?? 3;
           const sp = b.earthing?.spacingM ?? 6;
           const ids = lvIds?.length === pits ? ` · ${lvIds.join(', ')}` : '';
-          // MET: a bar inside the main board's frame, right of its name box.
+          // Keep the LV earth detail above the panel header, clear of the instruments and
+          // incomer annotations inside the panel. A terminal panel has no DEWA frame, so its
+          // detail sits in the space between the source and panel box. Keeping the geometry
+          // relative to its own board lets adjacent transformer / LV-panel sections each show
+          // their earth pits without suppressing the other section.
           const nb = nameBox(b, { ...r, busY: r.headY }), y1 = nb.top;
-          const runX = ox + 116;
-          const metX1 = Math.max(runX - 25, r.busX1 - 7 + nb.w + 13), metY = y1 + 20;
+          const framed = dewa && !r.terminal;
+          const oy = framed ? y1 - 82 : r.busY - 154;
+          const ox = framed ? r.busX1 - 2 : r.x - 62;
+          const detailW = framed ? nb.w : 124;
+          const pitPitch = pits > 1 ? Math.min(60, Math.max(24, (detailW - 28) / (pits - 1))) : 0;
+          const pitStart = pits > 1 ? ox + 14 : ox + Math.min(35, detailW / 2);
+          const pitXs = Array.from({ length: pits }, (_, n) => pitStart + n * pitPitch);
+          const linkY = oy + 16;
+          const testX = ox + detailW - 8;
+          // MET: inside the main board frame, or inside the terminal panel box.
+          const metX1 = framed ? r.busX1 - 7 + nb.w + 13 : r.x + 6;
+          const metY = framed ? y1 + 20 : r.busY - 40;
           const metMid = metX1 + 25;
           const gnd = (x: number, y: number) => (
             <>
@@ -908,16 +920,16 @@ export default function SystemDiagram({
             </>
           );
           const rod = (x: number) => (
-            <g key={x}>
-              <rect x={x - 7} y={oy + 12} width="14" height="10" className="sym" />
-              <line x1={x} y1={oy + 17} x2={x} y2={oy + 40} className="ln" />
-              {gnd(x, oy + 40)}
+            <g key={x} className="earth-electrode">
+              <rect x={x - 7} y={oy + 22} width="14" height="10" className="sym" />
+              <line x1={x} y1={oy + 27} x2={x} y2={oy + 46} className="ln" />
+              {gnd(x, oy + 46)}
             </g>
           );
           const nIds = pitIds(`txn:${b.id}`), bIds = pitIds(`txb:${b.id}`);
           return (
-            <g key={`earth-${b.id}`} className="acc earth-pit">
-              <title>{`${b.id} main earthing: ${pits} earth pits${ids}, ${el} m electrodes, min. ${sp} m apart, 1C ${mm} mm² Cu/PVC from the MET to each pit through its own test link, pits linked in the soil${tx ? '; transformer neutral to its own pit; tank / body earth bar to the RMU earth bar (RMU body-earth pits); neutral and body not interconnected' : ''}`}</title>
+            <g key={`earth-${b.id}`} className="acc earth-pit" data-board-id={b.id}>
+              <title>{`${b.id} main earthing: ${pits} earth pits${ids}, ${el} m electrodes, min. ${sp} m apart, 1C ${mm} mm² Cu/PVC from the MET through the test link to the linked pits${tx ? '; transformer neutral to its own pit; tank / body earth bar to the RMU earth bar (RMU body-earth pits); neutral and body not interconnected' : ''}`}</title>
               {tx && (
                 <g className="tx-earth">
                   {/* Neutral (star point) to its own pit, on the left */}
@@ -932,22 +944,23 @@ export default function SystemDiagram({
                   <text x={r.x + 44} y={146} textAnchor="middle" className="acc-t" style={{ fontSize: 7 }}>{`BODY EARTH${bIds ? ` · ${bIds}` : ''}`}</text>
                 </g>
               )}
-              <text x={ox} y={oy - 6} className="acc-t b">{`LV EARTH PITS (${pits} NO.)${ids}`}</text>
-              {/* A separate conductor from the MET to each pit, each through its own test link; the pits linked in the soil */}
-              <path d={`M${ox + 15} ${oy + 12} V${oy + 2} H${runX + 8} V${y1 - 10} H${metMid + 8} V${metY}`} className="ln" />
-              <path d={`M${ox + 85} ${oy + 12} V${oy + 8} H${runX} V${y1 - 4} H${metMid} V${metY}`} className="ln" />
-              <rect x={runX - 5} y={y1 - 24} width="10" height="7" className="sym" />
-              <rect x={runX + 3} y={y1 - 36} width="10" height="7" className="sym" />
-              <text x={runX + 16} y={y1 - 30} className="acc-t" style={{ fontSize: 7 }}>TL</text>
-              {rod(ox + 15)}
-              {rod(ox + 85)}
-              <line x1={ox + 15} y1={oy + 31} x2={ox + 85} y2={oy + 31} className="ln" strokeDasharray="1.5 3" />
-              <line x1={ox + 15} y1={oy + 52} x2={ox + 85} y2={oy + 52} className="ln" />
-              <path d={`M${ox + 15} ${oy + 52} l5 -2.5 v5 z M${ox + 85} ${oy + 52} l-5 -2.5 v5 z`} className="dot" />
-              <text x={ox + 50} y={oy + 50} textAnchor="middle" className="acc-t" style={{ fontSize: 7 }}>{sp.toFixed(1)} m (MIN)</text>
-              <text x={ox} y={oy + 63} className="acc-t" style={{ fontSize: 7.5 }}>1C {mm}mm² CU/PVC</text>
-              <text x={ox} y={oy + 72} className="acc-t" style={{ fontSize: 7.5 }}>MIN. {el} m ELECTRODE WITH</text>
-              <text x={ox} y={oy + 81} className="acc-t" style={{ fontSize: 7.5 }}>INSPECTION PIT AND COVER</text>
+              <text x={ox} y={oy + 8} className="acc-t b" data-fit-width={detailW} data-dxf-max-width={detailW}>{`LV EARTH PITS (${pits} NO.)${ids}`}</text>
+              {/* Pits join at one test link. From the link to the MET there is one conductor and one 90° bend. */}
+              {pitXs.map((x) => <line key={`pit-link-${x}`} x1={x} y1={oy + 22} x2={x} y2={linkY} className="ln" />)}
+              {pitXs.length > 0 && <line x1={pitXs[0]} y1={linkY} x2={testX - 5} y2={linkY} className="ln earth-pit-link" />}
+              <rect x={testX - 5} y={linkY - 4} width="10" height="8" className="sym test-link" />
+              <text x={testX + 9} y={linkY + 13} className="acc-t test-link-label" style={{ fontSize: 7 }}>TL</text>
+              <path d={`M${testX + 5} ${linkY} H${metMid} V${metY}`} className="ln earth-to-met" />
+              {pitXs.map(rod)}
+              {pitXs.length > 1 && (
+                <>
+                  <line x1={pitXs[0]} y1={oy + 56} x2={pitXs[pitXs.length - 1]} y2={oy + 56} className="ln" />
+                  <path d={`M${pitXs[0]} ${oy + 56} l5 -2.5 v5 z M${pitXs[pitXs.length - 1]} ${oy + 56} l-5 -2.5 v5 z`} className="dot" />
+                  <text x={(pitXs[0] + pitXs[pitXs.length - 1]) / 2} y={oy + 54} textAnchor="middle" className="acc-t" style={{ fontSize: 7 }}>{sp.toFixed(1)} m (MIN)</text>
+                </>
+              )}
+              <text x={ox} y={oy + 65} className="acc-t" style={{ fontSize: 7.5 }} data-fit-width={detailW} data-dxf-max-width={detailW}>1C {mm}mm² CU/PVC</text>
+              <text x={ox} y={oy + 74} className="acc-t" style={{ fontSize: 7.5 }} data-fit-width={detailW} data-dxf-max-width={detailW}>MIN. {el} m ELECTRODE WITH INSPECTION PIT AND COVER</text>
               {/* Main earthing terminal in the main board */}
               <line x1={metX1} y1={metY} x2={metX1 + 50} y2={metY} className="ln met-bar" />
               <text x={metX1 + 54} y={metY + 3} className="acc-t b">MET</text>
