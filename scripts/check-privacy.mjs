@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Privacy check for CI (policy: docs/privacy.md; exceptions: security/privacy-allowlist.json).
 //
-// Scans every tracked file (text and binary bytes) for:
+// Scans every tracked file (text and binary bytes; PDFs with their text streams decoded and image data skipped) for:
 //   - personal absolute paths: /Users/<name>/, /home/<name>/, C:\Users\<name>\ (placeholder names allowed),
 //   - e-mail addresses other than no-reply and example domains,
 // and, with --commits <range> (pull requests), the author and committer of each commit in the range for
@@ -13,6 +13,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { inflateSync } from 'node:zlib';
 
 /** Folder names that are placeholders, not a person's account. */
 export const PLACEHOLDERS = new Set(['x', 'me', 'you', 'user', 'username', 'name', '<user>', '<you>', '<name>', 'runner', 'someone', 'demo', 'example', 'shared', 'public', 'default', 'admin', 'test', 'jdoe', 'janedoe', 'johndoe', '...', '…', '$user', '%username%', '${user}', 'yourname', 'your-name']);
@@ -46,6 +47,45 @@ export function scanText(text) {
   return out;
 }
 
+/** ASCII85 (PDF /ASCII85Decode) to bytes. */
+function ascii85(s) {
+  const t = s.replace(/\s+/g, '').replace(/^<~/, '').replace(/~>$/, '');
+  const out = [];
+  for (let i = 0; i < t.length; ) {
+    if (t[i] === 'z') { out.push(0, 0, 0, 0); i++; continue; }
+    const g = t.slice(i, i + 5);
+    i += 5;
+    let n = 0;
+    for (let k = 0; k < 5; k++) n = n * 85 + ((g.charCodeAt(k) || 117) - 33);
+    if (n > 0xffffffff || n < 0) throw new Error('bad ASCII85');
+    out.push(...[n >>> 24, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].slice(0, g.length - 1));
+  }
+  return Buffer.from(out);
+}
+
+/**
+ * A PDF's text for scanning: dictionaries and metadata as they are, text streams decoded, image data dropped.
+ * Raw encoded stream bytes (ASCII85, Flate, image pixels) are not scanned: they hold address-like runs by chance.
+ * Line numbers in a PDF finding count lines of this decoded text.
+ */
+export function pdfText(buf) {
+  return buf.toString('latin1').replace(/\bobj\b((?:(?!\bendobj\b)[\s\S])*?)\bstream\r?\n([\s\S]*?)\bendstream/g, (_, head, body) => {
+    if (/\/Subtype\s*\/Image\b/.test(head)) return `obj${head}stream\nendstream`;
+    const f = /\/Filter\s*(\[[^\]]*\]|\/\w+)/.exec(head);
+    let data = Buffer.from(body, 'latin1');
+    try {
+      for (const name of f ? f[1].match(/\/\w+/g) ?? [] : []) {
+        if (name === '/ASCII85Decode' || name === '/A85') data = ascii85(data.toString('latin1'));
+        else if (name === '/FlateDecode' || name === '/Fl') data = inflateSync(data);
+        else return `obj${head}stream\nendstream`; // e.g. a JPEG: no text to scan
+      }
+    } catch {
+      return `obj${head}stream\nendstream`;
+    }
+    return `obj${head}stream\n${data.toString('latin1')}\nendstream`;
+  });
+}
+
 export function loadAllowlist(file) {
   const list = JSON.parse(readFileSync(file, 'utf-8')).exceptions ?? [];
   for (const e of list) if (!e.file || !e.match || !e.reason) throw new Error(`privacy allowlist entry needs file, match and reason: ${JSON.stringify(e)}`);
@@ -60,7 +100,10 @@ export function scanRepo(root, allow) {
   const findings = [];
   for (const f of files) {
     let text;
-    try { text = readFileSync(`${root}/${f}`).toString('latin1'); } catch { continue; } // deleted in the working tree
+    try {
+      const buf = readFileSync(`${root}/${f}`);
+      text = /\.pdf$/i.test(f) ? pdfText(buf) : buf.toString('latin1');
+    } catch { continue; } // deleted in the working tree
     for (const x of scanText(text)) {
       const a = allow.findIndex((e) => e.file === f && x.match.includes(e.match));
       if (a >= 0) { used.add(a); continue; }
