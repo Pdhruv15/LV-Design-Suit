@@ -9,8 +9,9 @@ import { boardsInSupplyOrder } from '../../calc/summary';
 import { buildAnnotations } from '../../diagram/annotations';
 import { printableSvg } from '../../diagram/exportSvg';
 import {
-  buildSection, buildStudyReportHtml, missingBoards, scopeMode, buildStudyWorkbook, defaultTitle, drawingProject, scopeOf, scopeText, setupOf, sldStudies, STUDIES, studyInfo, type CalcData, type Section
+  buildSection, buildStudyReportHtml, missingBoards, scopeMode, defaultTitle, drawingProject, scopeOf, scopeText, setupOf, sldStudies, STUDIES, studyInfo, type CalcData, type Section
 } from '../../docs/studyReport';
+import { buildStudyWorkbook } from '../../docs/studyWorkbook';
 import { workbookBytes } from '../../docs/formWorkbook';
 import { buildStudyDocx, docxBytes } from '../../docs/studyWord';
 import { mergePdfs } from '../../docs/mergePdf';

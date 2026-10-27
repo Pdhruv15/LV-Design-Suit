@@ -1,0 +1,11 @@
+{
+  "schema": "lvds.exchange",
+  "version": 1,
+  "kind": "loads",
+  "source": { "app": "elv", "file": "Villa ELV.json", "revision": "A" },
+  "exportedAt": "2026-10-26T11:00:00Z",
+  "items": [
+    { "id": "FA-PANEL-01", "system": "fire-alarm", "equipment": "Fire alarm control panel", "equipmentType": "panel", "kW": 0.3, "pf": 0.9, "demandBasis": "Quiescent + alarm load, 24 V batteries charging", "supply": "essential", "backup": "24 h standby + 30 min alarm" },
+    { "id": "CCTV-SW-01", "system": "cctv", "equipment": "PoE switch, 8 cameras", "equipmentType": "poe-switch", "rooms": ["2O2Fr$t4X7Zf8NOew3FLOH"], "kW": 0.18, "demandBasis": "8 × 15.4 W PoE / 0.85 efficiency, 1.25 spare", "supply": "normal" }
+  ]
+}

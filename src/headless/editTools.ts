@@ -32,7 +32,7 @@ export const AUTHOR = 'AI assistant (lvds)';
 const project = z.string().describe('Project file name in the projects folder, as given by list_projects');
 const preview = (other: 'apply' | 'propose') => z.enum(['preview', other]).default('preview').describe(`preview = show what would change, nothing is written; ${other} = ${other === 'apply' ? 'change the project file (a backup is kept; undo_change puts it back)' : 'add the proposal to Reports → Changes for the engineer to accept and apply in the app'}`);
 
-interface Planned {
+export interface Planned {
   next: Project;
   summary: string;
   details?: unknown;
@@ -48,7 +48,7 @@ function checksOf(p: Project) {
 }
 
 /** Runs a planned change: a preview, or the change written with a backup. */
-function edit(args: Record<string, unknown>, ctx: ToolContext, tool: string, write: boolean, plan: (p: Project) => Planned) {
+export function edit(args: Record<string, unknown>, ctx: ToolContext, tool: string, write: boolean, plan: (p: Project) => Planned) {
   const { project: p, file, text } = openProject({ ref: String(args.project ?? ''), folder: ctx.folder, anywhere: ctx.anywhere });
   const out = plan(p);
   const before = checksOf(p), after = checksOf(out.designAfter ?? out.next);
@@ -84,10 +84,10 @@ const BOARD_RATING: Record<BoardKind, number> = { MC: 400, 'LV-ACB': 1600, MDB: 
 
 // ---- Proposals -------------------------------------------------------------------
 
-interface ValueChange { target: ModTarget; id?: string; field: string; value: unknown }
+export interface ValueChange { target: ModTarget; id?: string; field: string; value: unknown }
 
 /** A proposal (status proposed) with these changes, checked by the app's own rules. */
-function proposal(p: Project, title: string, reason: string, changes: ValueChange[]) {
+export function proposal(p: Project, title: string, reason: string, changes: ValueChange[]) {
   if (!changes.length) throw new Error('Nothing to propose: no value would change.');
   let rec = newModification(p, { title, reason, author: AUTHOR });
   for (const c of changes) rec = addOp(p, rec, c.target, c.target === 'project' ? undefined : c.id, c.field, c.value);

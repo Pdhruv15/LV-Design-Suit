@@ -53,7 +53,7 @@ export default function CadRoomsDialog({ project, onApply, onClose }: {
 
   function apply() {
     if (!floor) return;
-    const next = applyRooms(project, accepted, floor.ref.building, floor.ref.level, roles);
+    const next = applyRooms(project, accepted, floor.ref.building, floor.ref.level, roles, rows.filter((r) => r.status === 'same'));
     onApply(next, accepted.length ? `Rooms from CAD: ${accepted.length} room${accepted.length === 1 ? '' : 's'} on ${floorLabel(project.building, floor)} updated` : 'Rooms from CAD: layer mapping saved, no rooms changed');
   }
 
