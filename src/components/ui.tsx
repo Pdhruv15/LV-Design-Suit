@@ -72,10 +72,10 @@ export function StaleBanner({ stale, onRun, what }: { stale: string[]; onRun: ()
 }
 
 /** Page scaffold for a study or document: title, intro, action buttons. */
-export function Page({ title, intro, actions, children }: { title: string; intro?: ReactNode; actions?: ReactNode; children: ReactNode }) {
+export function Page({ title, intro, actions, children, docId }: { title: string; intro?: ReactNode; actions?: ReactNode; children: ReactNode; docId?: string }) {
   return (
     <>
-      <section className="stage">
+      <section className="stage" data-doc-id={docId}>
         <div className="stage-head">
           <h3>{title}</h3>
           {actions && <div>{actions}</div>}

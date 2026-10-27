@@ -713,6 +713,7 @@ export default function SystemDiagram({
   return (
     <div
       ref={rootRef}
+      data-doc-id="sld-canvas"
       className={`sysdiag ${tool === 'pan' ? 'pan' : ''}${armed && onDropItem ? ' armed' : ''}${dropCls('canvas')}${stale ? ' stale' : ''}${lodLevel}`}
       tabIndex={0}
       aria-label="Single line diagram. Plus and minus zoom, 0 fits, arrow keys pan."
@@ -729,7 +730,7 @@ export default function SystemDiagram({
       }}
       style={{ ...(resizable && !fullScreen && (height ?? autoHeight) ? { height: height ?? autoHeight } : {}), ...(lodLevel === ' lod-far' ? { '--lod-fs': `${Math.min(22, 10 / pxPerUnit).toFixed(1)}px` } : {}) } as CSSProperties}
     >
-      <div className="sysdiag-tools" role="toolbar" aria-label="Diagram tools">
+      <div className="sysdiag-tools" role="toolbar" aria-label="Diagram tools" data-doc-id="sld-display-tools">
         {(onDrawing || lod) && (
           <div className="sd-group" role="group" aria-label="Drawing">
             <span className="sd-cap">Drawing</span>

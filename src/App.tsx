@@ -146,6 +146,16 @@ import { NameDialog, UnsavedDialog } from './components/FileDialogs';
 import type { BoardKind, ProjectStatus } from './types';
 type DiagramMode = 'system' | 'board' | 'earthing' | 'riser';
 
+/** Fixed, read-only start position used only by the offline manual capture command. */
+const MANUAL_CAPTURE = (() => {
+  if (typeof window === 'undefined') return undefined;
+  const p = new URLSearchParams(window.location.search);
+  if (p.get('manualCapture') !== '1') return undefined;
+  const requested = p.get('manualView');
+  const view: MainView = requested === 'load-schedule' ? 'load-schedule' : 'design';
+  return { view, boardId: p.get('manualBoard') ?? '' };
+})();
+
 /** Pages that show network study results (they follow the last run). */
 /** Pages the panel tree filters to a board and the boards below it. */
 const FOCUS_VIEWS: MainView[] = ['earthing', 'selection', 'cable-schedule'];
@@ -233,15 +243,16 @@ export default function App() {
   useEffect(() => {
     if (adoptNext.current) { adoptNext.current = false; setSaved(project); }
   }, [project]);
-  const [activeBoardId, setActiveBoardId] = useState<string>(project.boards[0]?.id ?? '');
+  const [activeBoardId, setActiveBoardId] = useState<string>(() =>
+    project.boards.some((b) => b.id === MANUAL_CAPTURE?.boardId) ? MANUAL_CAPTURE!.boardId : project.boards[0]?.id ?? '');
   const [selected, setSelected] = useState<string | null>(null);
   const [status, setStatus] = useState<string>('');
   // After a BOQ, variation or report PDF: offer to record it as a submission.
   const [subOffer, setSubOffer] = useState<SubmissionOffer | null>(null);
   const [subDraft, setSubDraft] = useState<Submission | undefined>();
   useEffect(() => onSubmissionOffer(setSubOffer), []);
-  const [view, setViewState] = useState<MainView>('projects'); // the app starts on the projects list
-  const [ribbonTab, setRibbonTab] = useState<RibbonTab>('home');
+  const [view, setViewState] = useState<MainView>(() => MANUAL_CAPTURE?.view ?? 'projects'); // the app starts on the projects list
+  const [ribbonTab, setRibbonTab] = useState<RibbonTab>(() => tabForView(MANUAL_CAPTURE?.view ?? 'projects', 'home'));
   const [tool, setTool] = useState<DiagramTool>('select');
   const [feederPreset, setFeederPreset] = useState<Partial<Feeder>>({});
   const [boardTab, setBoardTab] = useState<BoardTab>('general');
@@ -1105,7 +1116,7 @@ export default function App() {
   const showTree = !['projects', 'dashboard', 'help', 'parameters', 'titleblock', 'database', 'design-references', 'calculators'].includes(view);
 
   return (
-    <div className={`app-root${home ? ' home' : ''}`}>
+    <div className={`app-root${home ? ' home' : ''}`} data-doc-id="app-shell">
       <div className="top">
         <div className="brand">
           LV Design Studio <span className="app-ver">v{__APP_VERSION__}</span>
@@ -1240,11 +1251,11 @@ export default function App() {
 
         {view === 'design' && board ? (
           <>
-            <main className="mid">
+            <main className="mid" data-doc-id="sld-workspace">
               {!!project.revisions?.length && <BaselineBar project={project} onCompare={() => setView('revisions')} onImpact={() => setView('modifications')} />}
               <section className="stage">
                 <div className="stage-head">
-                  <div className="seg" role="tablist" aria-label="Diagram">
+                  <div className="seg" role="tablist" aria-label="Diagram" data-doc-id="sld-view-tabs">
                     <button role="tab" aria-selected={diagramMode === 'system'} className={diagramMode === 'system' ? 'on' : ''} onClick={() => setDiagramMode('system')} title={`Every board on one diagram (${MOD}1)`}>
                       System diagram
                     </button>
@@ -1258,7 +1269,7 @@ export default function App() {
                       Riser
                     </button>
                   </div>
-                  <div className="sld-bar">
+                  <div className="sld-bar" data-doc-id="sld-command-bar">
                     <MenuButton label="+ Add" title="Add a feeder, a board, or paste a copied board">
                       {(close) => (
                         <>
@@ -1293,7 +1304,7 @@ export default function App() {
                         onSupply={setSupply}
                         hasGenerator={hasGenerator}
                         outages={tiedRoots}
-                        calc={{ stale: staleKeys.length, staleWhat: stale.join(', '), fails: allResults.filter((r) => r.status === 'bad').length, at: run?.at, onRun: runNow }}
+                        calc={{ stale: staleKeys.length, staleWhat: stale.join(', '), fails: allResults.filter((r) => r.status === 'bad').length, at: MANUAL_CAPTURE ? undefined : run?.at, onRun: runNow }}
                       />
                     )}
                     <span className="sp" />
@@ -1395,7 +1406,7 @@ export default function App() {
                     diagram={{ incomerLabel: boardIncomerLabel(project, board), summary: project.drawing?.sldStyle === 'standard' ? undefined : { loc: boardLocation(project, board), ...panelSummary(project, board) } }} />
                 )}
               </section>
-              <section className={`res-drawer${resTab ? ' open' : ''}`}>
+              <section className={`res-drawer${resTab ? ' open' : ''}`} data-doc-id="sld-results">
                 <div className="rd-tabs" role="tablist" aria-label="Results">
                   {([['summary', 'System summary'], ['buses', 'Bus voltages & loading'], ['feeders', `Feeders on ${board.id}`]] as const).map(([k, label]) => (
                     <button key={k} role="tab" aria-selected={resTab === k} className={resTab === k ? 'on' : ''}
@@ -1469,7 +1480,7 @@ export default function App() {
             </InspectorPanel>
           </>
         ) : (
-          <main className="mid wide">
+          <main className="mid wide" data-doc-id={view === 'load-schedule' ? 'load-schedule-workspace' : undefined}>
             <Suspense fallback={<p className="m">Loading…</p>}>
             {view === 'load-schedule' && board && (
               <LoadScheduleView project={project} onOpenRiser={() => setView('busbar')} boardId={board.id} db={db} onBoard={(id) => setActiveBoardId(id)} onChange={setProject} onStatus={setStatus} onSettings={() => setShowSettings(true)} />
@@ -1619,7 +1630,7 @@ export default function App() {
         <span className="sp" />
         <span className={`calc-state ${staleKeys.length ? 'warn' : 'ok'}`} title={staleKeys.length ? `Out of date: ${stale.join(', ')}` : undefined}>
           {staleKeys.length ? <TriangleAlert size={13} aria-hidden /> : <CircleCheck size={13} aria-hidden />}
-          {staleKeys.length ? `${staleKeys.length} stud${staleKeys.length === 1 ? 'y' : 'ies'} out of date` : `Calculations up to date${run ? ` (${new Date(run.at).toLocaleTimeString()})` : ''}`}
+          {staleKeys.length ? `${staleKeys.length} stud${staleKeys.length === 1 ? 'y' : 'ies'} out of date` : `Calculations up to date${run && !MANUAL_CAPTURE ? ` (${new Date(run.at).toLocaleTimeString()})` : ''}`}
         </span>
         <button className={`chip run-chip${staleKeys.length ? ' stale' : ''}`} onClick={runNow} title="Run the network studies (F5)">
           <Play size={12} aria-hidden /> Run (F5)

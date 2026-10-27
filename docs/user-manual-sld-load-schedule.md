@@ -1,5 +1,18 @@
 # LV Design Studio user manual: SLD and load schedule
 
+For easier onboarding, use the visual PDF manuals first:
+
+- [Load Schedule visual user manual](../output/pdf/LV-Design-Studio-Load-Schedule-Visual-User-Manual.pdf)
+- [SLD visual user manual](../output/pdf/LV-Design-Studio-SLD-Visual-User-Manual.pdf)
+
+The PDFs use numbered interface callouts and step-by-step illustrations. This page remains the detailed text reference.
+
+The maintained modular sources are:
+
+- [M01 - Load Schedule](manual/modules/M01-load-schedule/content.md)
+- [M02 - Single Line Diagram](manual/modules/M02-sld/content.md)
+- [Manual structure and update rules](manual/README.md)
+
 This manual explains how to build, check, and export a single line diagram (SLD) and its associated load schedules in LV Design Studio. The instructions describe the controls available in the app as of 23 October 2026.
 
 ## 1. How the two work areas relate
