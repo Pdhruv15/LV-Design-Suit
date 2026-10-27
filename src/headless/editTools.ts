@@ -84,10 +84,10 @@ const BOARD_RATING: Record<BoardKind, number> = { MC: 400, 'LV-ACB': 1600, MDB: 
 
 // ---- Proposals -------------------------------------------------------------------
 
-interface ValueChange { target: ModTarget; id?: string; field: string; value: unknown }
+export interface ValueChange { target: ModTarget; id?: string; field: string; value: unknown }
 
 /** A proposal (status proposed) with these changes, checked by the app's own rules. */
-function proposal(p: Project, title: string, reason: string, changes: ValueChange[]) {
+export function proposal(p: Project, title: string, reason: string, changes: ValueChange[]) {
   if (!changes.length) throw new Error('Nothing to propose: no value would change.');
   let rec = newModification(p, { title, reason, author: AUTHOR });
   for (const c of changes) rec = addOp(p, rec, c.target, c.target === 'project' ? undefined : c.id, c.field, c.value);

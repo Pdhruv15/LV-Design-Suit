@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import { ELV_SYSTEMS } from '../elv/defaults';
 import { elvSettings, estimateElv, type ElvSettings } from '../elv/estimate';
+import { addElvCircuits, planElvPlacement } from '../elv/placement';
+import { withRecord } from '../model/designChanges';
+import { edit, proposal, type ValueChange } from './editTools';
 import type { Project } from '../types';
 import { readFile } from './exchangeTools';
 import { openProject } from './project';
@@ -54,6 +57,49 @@ export const ELV_TOOLS: Tool[] = [
         assumptions: e.assumptions,
         note: 'Typical values to verify; an estimate for loads, not a device layout. Export the loads with export_elv_loads_package and accept them in LV with exchange_review / exchange_apply.'
       };
+    }
+  },
+  {
+    name: 'elv_place_loads',
+    title: 'Place accepted ELV loads on LV boards',
+    description: 'Each ELV load accepted in the review inbox (exchange_apply) becomes a circuit: a floor supply on the DB of its floor (the one serving most of its rooms), a building supply on the main board, an essential load on the essential (generator) side where there is one. Circuits are sized with the app\'s own recommendation and linked to their load. For loads already placed, a changed kW is proposed as a modification record (Reports → Changes) for the engineer to accept; circuits of removed loads and the "ELV / BMS / security" placeholder are listed, not deleted. Preview first; applying needs approvedBy.',
+    input: {
+      project,
+      boards: z.record(z.string(), z.string()).optional().describe('Board for a load, by load ID, instead of the rule, e.g. {"FA-T": "EMDB-GF"}'),
+      approvedBy: z.string().trim().min(2).optional().describe('Name of the engineer who approved the placement (required to apply)'),
+      mode: z.enum(['preview', 'apply']).default('preview').describe('preview = show what would change, nothing is written; apply = add the circuits and the kW proposal (a backup is kept; undo_change puts it back)')
+    },
+    usesProject: true, writes: true,
+    run: (a, ctx) => {
+      const by = typeof a.approvedBy === 'string' ? a.approvedBy.trim() : '';
+      if (a.mode === 'apply' && by.length < 2) throw new Error('Applying needs approvedBy: the name of the engineer who approved the placement.');
+      return edit(a, ctx, 'elv_place_loads', a.mode === 'apply', (p) => {
+        const plan = planElvPlacement(p, (a.boards as Record<string, string> | undefined) ?? {});
+        if (!plan.add.length && !plan.kwChanges.length && !plan.unplaced.length && !plan.removed.length && !plan.same.length) throw new Error('No ELV loads have been accepted in this project: review and accept an ELV loads package first (exchange_review, exchange_apply).');
+        const { project: placed, added } = addElvCircuits(p, plan);
+        let next = placed, mod: string | undefined;
+        if (plan.kwChanges.length) {
+          const changes: ValueChange[] = plan.kwChanges.map((c) => ({ target: 'feeder', id: c.feederId, field: 'loadKw', value: c.toKw }));
+          const rec = proposal(next, 'ELV load changes', `The accepted ELV loads package changes the load of ${plan.kwChanges.length} ELV circuit${plan.kwChanges.length === 1 ? '' : 's'}${by ? ` (placement approved by ${by})` : ''}.`, changes);
+          next = withRecord(next, rec);
+          mod = rec.id;
+        }
+        const warnings = [
+          ...plan.unplaced.map((u) => `${u.load.id} not placed: ${u.why}. Give its board with boards.`),
+          ...plan.removed.map((r) => `${r.feederId} (${r.name}) feeds a load no longer in the accepted package: delete it in the app if it is not needed.`),
+          ...plan.placeholders.map((r) => `${r.feederId} is the "${r.name}" placeholder: delete it now that the ELV loads are placed.`)
+        ];
+        return {
+          next,
+          summary: `${added.length} ELV circuit${added.length === 1 ? '' : 's'} added${mod ? `; ${mod} proposes ${plan.kwChanges.length} kW change${plan.kwChanges.length === 1 ? '' : 's'}` : ''}${plan.same.length ? `; ${plan.same.length} already up to date` : ''}${by ? ` (approved by ${by})` : ''}`,
+          details: {
+            added: plan.add.map((c, i) => ({ circuit: added[i], board: c.boardId, load: c.load.id, kW: c.load.kW, supply: c.load.supply, why: c.why })),
+            ...(plan.kwChanges.length ? { kwChanges: plan.kwChanges.map((c) => ({ circuit: c.feederId, from: c.fromKw, to: c.toKw })) } : {}),
+            ...(plan.unplaced.length ? { unplaced: plan.unplaced.map((u) => ({ load: u.load.id, why: u.why })) } : {})
+          },
+          ...(warnings.length ? { warnings } : {})
+        };
+      });
     }
   }
 ];
