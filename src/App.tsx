@@ -61,7 +61,7 @@ import { refreshBoard } from './model/schedule';
 const DatabaseView = lazy(() => import('./components/docs/DatabaseView'));
 const DesignReferencesView = lazy(() => import('./components/docs/DesignReferencesView'));
 import { pullLibrary } from './database/librarySync';
-import { applyReference } from './model/designReference';
+import { applyReference, type DesignReference } from './model/designReference';
 import { applyDatabase, applyParameters, databaseSeeds, EMPTY_DATABASE, parseDatabase, syncLibrary, type Database, type RawDatabase } from './database/database';
 
 // window.lvds is only present when running inside Electron. Fall back to
@@ -808,11 +808,13 @@ export default function App() {
     guard('starting a new project', () => setWizard(true));
   }
 
-  function createProject(name: string, brief?: ProjectBrief, template?: SetupTemplate) {
+  function createProject(name: string, brief?: ProjectBrief, template?: SetupTemplate, reference?: DesignReference) {
     setWizard(false);
-    // Your Parameters.xlsx defaults, then your profile's defaults and details, then a setup template, then the brief.
+    // Your Parameters.xlsx defaults, then your profile's defaults and details, then a setup template,
+    // then the authority's rule set chosen in the wizard, then the brief.
     const base0 = applyDefaults(applyParameters(newProject(name), db), prefs);
-    const base = template ? applyTemplateSystem(base0, template) : base0;
+    const base1 = template ? applyTemplateSystem(base0, template) : base0;
+    const base = reference ? applyReference(base1, reference) : base1;
     loadIntoApp(brief ? applyBrief(base, brief) : base, undefined, 'New project — not saved yet');
   }
 

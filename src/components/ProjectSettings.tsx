@@ -2,6 +2,9 @@ import { useState } from 'react';
 import { builtUpAreaOf } from '../calc/building';
 import { POINT_TEMPLATES, pointTemplateOf, STUDY_DEFAULTS, type Project, type ProjectInfo, type StudySettings } from '../types';
 import { Modal } from './ui';
+import { loadReferences, settingSource, type RefKey } from '../model/designReference';
+import { RuleRows, newRule } from './docs/RuleRows';
+import { ruleIssues } from '../model/designRules';
 
 type SettingsTab = 'system' | 'targets' | 'forms' | 'schedule';
 const SETTINGS_TABS: [SettingsTab, string][] = [['system', 'System & limits'], ['targets', 'Sizing targets'], ['forms', 'Submission forms'], ['schedule', 'Load schedule']];
@@ -20,11 +23,25 @@ export default function ProjectSettings({ project, onSave, onClose }: { project:
   const setInfo = <K extends keyof ProjectInfo>(k: K, v: ProjectInfo[K]) =>
     setP((prev) => ({ ...prev, info: { ...prev.info, [k]: v === '' ? undefined : v } }));
   const info = p.info ?? {};
+  const [refs] = useState(loadReferences);
+  /** "From ADDC (Abu Dhabi) v2 · 5.4.8", or "Project value · … has 4 mm²", under a field the design reference sets. */
+  const source = (k: RefKey) => {
+    const s = settingSource(p, k, refs);
+    return s && <span className={`m ref-source${s.override ? ' warn' : ''}`}>{s.text}</span>;
+  };
+  const ownRules = (p.designRules ?? []).filter((r) => !r.from);
+  const rulesIssues = ruleIssues(ownRules);
+  const refRules = (p.designRules ?? []).filter((r) => r.from);
+  const setOwnRules = (rows: typeof ownRules) => setP((prev) => {
+    const rules = [...(prev.designRules ?? []).filter((r) => r.from), ...rows];
+    return { ...prev, designRules: rules.length ? rules : undefined };
+  });
   const num = (v: string, fallback: number) => (v === '' || Number.isNaN(+v) ? fallback : +v);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!p.name.trim()) return;
+    if (rulesIssues.length) { setTab('schedule'); return; }
     onSave(p);
   }
 
@@ -103,22 +120,38 @@ export default function ProjectSettings({ project, onSave, onClose }: { project:
           <select value={study.minWireLightingMm2} onChange={(e) => setStudy('minWireLightingMm2', +e.target.value)}>
             {WIRES.map((w) => <option key={w} value={w}>{w}</option>)}
           </select>
+          {source('minWireLightingMm2')}
         </label>
         <label>Lighting circuits — ELCB (mA)
           <select value={study.elcbLightingMa} onChange={(e) => setStudy('elcbLightingMa', +e.target.value)}>
             {ELCB_MA.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
+          {source('elcbLightingMa')}
         </label>
         <label>Power circuits — min wire (mm²)
           <select value={study.minWirePowerMm2} onChange={(e) => setStudy('minWirePowerMm2', +e.target.value)}>
             {WIRES.map((w) => <option key={w} value={w}>{w}</option>)}
           </select>
+          {source('minWirePowerMm2')}
         </label>
         <label>Power circuits — ELCB (mA)
           <select value={study.elcbPowerMa} onChange={(e) => setStudy('elcbPowerMa', +e.target.value)}>
             {ELCB_MA.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
+          {source('elcbPowerMa')}
         </label>
+        </div>
+      )}
+      {tab === 'schedule' && (
+        <div className="settings-rules">
+          <h4>Design rules for this project <span className="m">— particular circuits; the most specific row wins, a project row wins a tie</span></h4>
+          <RuleRows rows={ownRules} fixed={refRules} onChange={setOwnRules}
+            empty="No rules: the four values above apply to every lighting and power circuit." />
+          {rulesIssues.length > 0 && <ul className="warn">{rulesIssues.map((i) => <li key={i}>{i}</li>)}</ul>}
+          <div className="row" style={{ marginTop: 6 }}>
+            <button type="button" className="chip" onClick={() => setOwnRules([...ownRules, newRule()])}>+ Add rule</button>
+            {refRules.length > 0 && <span className="m">Greyed rows come from the design reference and are replaced when another one is applied. Your rows stay.</span>}
+          </div>
         </div>
       )}
       </div>

@@ -364,3 +364,55 @@ export function appliedStatus(p: Project, list: DesignReference[]): { ref?: Desi
   const ref = list.find((r) => r.id === a.id);
   return { ref, newer: !!ref && ref.version > a.version, missing: !ref };
 }
+
+// ---- Choosing at project start ------------------------------------------------------
+
+/** Countries of the built-in references; your own take the country of the one they come from. */
+const BUILT_IN_COUNTRY: Record<string, string> = {
+  'builtin-dewa': 'United Arab Emirates', 'builtin-addc': 'United Arab Emirates', 'builtin-etihadwe': 'United Arab Emirates',
+  'builtin-bs7671': 'United Kingdom', 'builtin-iec': 'International'
+};
+
+/** The authority's short name: "DEWA (Dubai)" → "DEWA". */
+export const authorityLabel = (r: Pick<DesignReference, 'name'>) => r.name.replace(/\s*\(.*\)\s*$/, '').trim() || r.name;
+
+/** The reference a copy or a layered reference comes from in the end (itself when it has none). */
+export function originOf(r: DesignReference, list: DesignReference[]): DesignReference {
+  let cur = r;
+  const seen = new Set([r.id]);
+  for (let id = cur.extends ?? cur.basedOn; id && !seen.has(id); id = cur.extends ?? cur.basedOn) {
+    const next = list.find((x) => x.id === id);
+    if (!next) break;
+    seen.add(id);
+    cur = next;
+  }
+  return cur;
+}
+
+export interface AuthorityChoice { authority: DesignReference; label: string; sets: DesignReference[] }
+export interface CountryChoice { country: string; authorities: AuthorityChoice[] }
+
+/** Country → authority → rule sets (the authority's own, then yours that come from it), for a new project. */
+export function startChoices(list: DesignReference[] = loadReferences()): CountryChoice[] {
+  const out: CountryChoice[] = [];
+  for (const a of list.filter((r) => r.kind === 'authority' && originOf(r, list).id === r.id)) {
+    const country = BUILT_IN_COUNTRY[a.id] ?? a.region ?? 'Other';
+    let c = out.find((x) => x.country === country);
+    if (!c) out.push(c = { country, authorities: [] });
+    c.authorities.push({ authority: a, label: authorityLabel(a), sets: [a, ...list.filter((r) => r.id !== a.id && originOf(r, list).id === a.id)] });
+  }
+  return out;
+}
+
+/** Where a project setting comes from, for the line under the field. */
+export function settingSource(p: Project, key: RefKey, list: DesignReference[] = loadReferences()): { text: string; override: boolean } | undefined {
+  const a = p.designReference;
+  const v = a?.values[key];
+  if (!a || v === undefined) return undefined;
+  const tag = `${a.name} v${a.version}`;
+  const f = REF_FIELDS.find((x) => x.key === key)!;
+  if (projectValue(p, key) !== v) return { text: `Project value · ${tag} has ${v}${f.unit ? ` ${f.unit}` : ''}`, override: true };
+  const ref = list.find((r) => r.id === a.id);
+  const clause = ref ? resolveReference(ref, list).values[key]?.clause : undefined;
+  return { text: `From ${tag}${clause ? ` · ${clause}` : ''}`, override: false };
+}

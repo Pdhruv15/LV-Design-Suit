@@ -13,7 +13,7 @@ export interface GuideStep { n: number; phase: 'Setup' | 'Design' | 'Check' | 'D
 export const PHASE_LABEL: Record<GuideStep['phase'], string> = { Setup: '1 Concept', Design: '2 Schematic', Check: '3 Detailed design', Deliver: '4 Tender and IFC' };
 
 export const WORKFLOW: GuideStep[] = [
-  { n: 1, phase: 'Setup', title: 'New project and building', where: 'Project → New; 1 Concept → Building', what: 'A new project starts at the Concept stage. Owner, plot, voltage; buildings, levels, rooms, GFA.', go: 'building' },
+  { n: 1, phase: 'Setup', title: 'New project and building', where: 'Project → New; 1 Concept → Building', what: 'A new project starts at the Concept stage. Choose the country, authority and rule set (DEWA, ADDC, EtihadWE or your own) in the first step; then owner, plot, voltage; buildings, levels, rooms, GFA.', go: 'building' },
   { n: 2, phase: 'Setup', title: 'Load assessment and supply', where: '1 Concept → Load assessment, Tx & Gen sizing, Substation area', what: 'Total load from area and building type → transformers, generator, room sizes → Issue concept.', go: 'load-assessment' },
   { n: 3, phase: 'Design', title: 'Main boards and risers', where: '2 Schematic → Build hierarchy, SLD, Busbar riser', what: 'MDB / SMDB with their ratings, risers, main cables from rough lengths.', go: 'panels' },
   { n: 4, phase: 'Design', title: 'Main systems', where: '2 Schematic → Power factor, UPS, Solar PV, Earth pits', what: 'Capacitor banks, back-up and earthing concept → Issue schematic.', go: 'pfc' },
