@@ -1,9 +1,8 @@
 import { z } from 'zod';
 import { ELV_SYSTEMS } from '../elv/defaults';
 import { elvSettings, estimateElv, type ElvSettings } from '../elv/estimate';
-import { addElvCircuits, planElvPlacement } from '../elv/placement';
-import { withRecord } from '../model/designChanges';
-import { edit, proposal, type ValueChange } from './editTools';
+import { placeElvLoads } from '../elv/place';
+import { AUTHOR, edit } from './editTools';
 import type { Project } from '../types';
 import { readFile } from './exchangeTools';
 import { openProject } from './project';
@@ -74,16 +73,7 @@ export const ELV_TOOLS: Tool[] = [
       const by = typeof a.approvedBy === 'string' ? a.approvedBy.trim() : '';
       if (a.mode === 'apply' && by.length < 2) throw new Error('Applying needs approvedBy: the name of the engineer who approved the placement.');
       return edit(a, ctx, 'elv_place_loads', a.mode === 'apply', (p) => {
-        const plan = planElvPlacement(p, (a.boards as Record<string, string> | undefined) ?? {});
-        if (!plan.add.length && !plan.kwChanges.length && !plan.unplaced.length && !plan.removed.length && !plan.same.length) throw new Error('No ELV loads have been accepted in this project: review and accept an ELV loads package first (exchange_review, exchange_apply).');
-        const { project: placed, added } = addElvCircuits(p, plan);
-        let next = placed, mod: string | undefined;
-        if (plan.kwChanges.length) {
-          const changes: ValueChange[] = plan.kwChanges.map((c) => ({ target: 'feeder', id: c.feederId, field: 'loadKw', value: c.toKw }));
-          const rec = proposal(next, 'ELV load changes', `The accepted ELV loads package changes the load of ${plan.kwChanges.length} ELV circuit${plan.kwChanges.length === 1 ? '' : 's'}${by ? ` (placement approved by ${by})` : ''}.`, changes);
-          next = withRecord(next, rec);
-          mod = rec.id;
-        }
+        const { project: next, plan, added, proposal: mod } = placeElvLoads(p, (a.boards as Record<string, string> | undefined) ?? {}, AUTHOR, by || undefined);
         const warnings = [
           ...plan.unplaced.map((u) => `${u.load.id} not placed: ${u.why}. Give its board with boards.`),
           ...plan.removed.map((r) => `${r.feederId} (${r.name}) feeds a load no longer in the accepted package: delete it in the app if it is not needed.`),
