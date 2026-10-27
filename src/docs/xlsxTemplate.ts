@@ -266,3 +266,18 @@ export async function fillLoadScheduleTemplate(project: Project, template: Array
   if (unknown.size) warnings.push(`Unknown placeholders left as they are: ${[...unknown].map((k) => `{{${k}}}`).join(', ')}.`);
   return { workbook: wb, boards, warnings };
 }
+
+/** The top of the template sheet as text, down to the repeated row (at most 8 rows and 8 columns), for a preview. */
+export async function templatePreview(template: ArrayBuffer | Uint8Array): Promise<{ rows: string[][]; repeatRow?: number }> {
+  const wb = new ExcelJS.Workbook();
+  try { await wb.xlsx.load(template as ArrayBuffer); } catch { throw new Error('The template is not a readable .xlsx file.'); }
+  const ws = wb.worksheets.find((w) => findRowTemplate(w) !== undefined) ?? wb.worksheets[0];
+  if (!ws) throw new Error('The template has no sheets.');
+  const at = findRowTemplate(ws);
+  const last = Math.min(at ?? ws.rowCount, 8);
+  const first = Math.max(1, last - 7);
+  const cols = Math.min(Math.max(ws.columnCount, 1), 8);
+  const rows: string[][] = [];
+  for (let r = first; r <= last; r++) rows.push(Array.from({ length: cols }, (_, c) => cellText(ws.getCell(r, c + 1)) ?? (ws.getCell(r, c + 1).value == null ? '' : String(ws.getCell(r, c + 1).value))));
+  return { rows, ...(at !== undefined && { repeatRow: at - first }) };
+}

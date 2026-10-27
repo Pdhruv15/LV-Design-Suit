@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { fillLoadScheduleTemplate, shiftFormula, templateBoards, templateData } from './xlsxTemplate';
+import { fillLoadScheduleTemplate, shiftFormula, templateBoards, templateData, templatePreview } from './xlsxTemplate';
 import { loadScheduleRows } from './loadScheduleDoc';
 
 const AT = new Date('2026-10-27T10:00:00Z');
@@ -114,5 +114,14 @@ describe('shiftFormula', () => {
     expect(shiftFormula('SUM(A2:A5)+Sheet1!B10', 5, 2)).toBe('SUM(A2:A7)+Sheet1!B12');
     expect(shiftFormula('LOG10(H9)', 5, 1)).toBe('LOG10(H10)');
     expect(shiftFormula('A9', 5, 0)).toBe('A9');
+  });
+});
+
+describe('templatePreview', () => {
+  it('shows the top of the sheet down to the repeated row', async () => {
+    const p = await templatePreview(await template());
+    expect(p.rows[p.repeatRow!].slice(0, 2)).toEqual(['{{row.sl}}', '{{row.ref}}']);
+    expect(p.rows[0][0]).toMatch(/LOAD SCHEDULE/);
+    await expect(templatePreview(new TextEncoder().encode('x'))).rejects.toThrow(/not a readable/);
   });
 });
