@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { Project } from '../types';
 import { anonymizeProject, anonymizedFileName } from '../model/anonymize';
-import { buildReportHtml } from '../docs/calcReport';
 import { savePdf, saveText } from '../util/files';
 import { Modal } from './ui';
 
@@ -19,7 +18,8 @@ export default function AnonymizedSampleDialog({ project, onClose, onStatus }: {
     finally { setBusy(false); }
   };
   const json = () => run(() => saveText(anonymizedFileName('json'), JSON.stringify(r.project, null, 2), 'LV Design Studio project', 'json'));
-  const pdf = () => run(() => savePdf(anonymizedFileName('pdf', 'calculation-report'), buildReportHtml(r.project),
+  // The report code loads when the PDF is asked for, not at start-up.
+  const pdf = () => run(async () => savePdf(anonymizedFileName('pdf', 'calculation-report'), (await import('../docs/calcReport')).buildReportHtml(r.project),
     { pageSize: 'A4', landscape: true, cssPages: true, selfNumbered: true, anonymous: true }));
 
   return (
