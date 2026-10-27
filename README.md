@@ -304,6 +304,7 @@ node dist-cli/lvds.mjs add-building "My project" --name "Tower A" --apply
 node dist-cli/lvds.mjs add-level "My project" --building "Tower A" --name "L1–L10" --kind typical --count 10 --apply
 node dist-cli/lvds.mjs undo "My project" --apply
 node dist-cli/lvds.mjs forms-xlsx "My project" --export --approvedBy "A. Engineer"
+node dist-cli/lvds.mjs schedule-xlsx "My project" --template "Company schedule.xlsx" --export --approvedBy "A. Engineer"  # your own Excel template, see docs/excel-load-schedule-template.md
 node dist-cli/lvds.mjs dxf "My project" --drawing sld --export --approvedBy "A. Engineer"
 node dist-cli/lvds.mjs report "My project" --report calc-report --format pdf --export --approvedBy "A. Engineer"
 ```

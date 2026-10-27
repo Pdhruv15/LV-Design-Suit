@@ -17,7 +17,7 @@ const ALIASES: Record<string, string> = {
   rename: 'rename_panels', copy: 'copy_panel', changes: 'list_changes', undo: 'undo_change',
   'delete-panel': 'delete_panel', 'delete-circuit': 'delete_circuit', 'add-building': 'add_building', 'add-level': 'add_level',
   'exchange-check': 'exchange_check', 'exchange-review': 'exchange_review', 'exchange-apply': 'exchange_apply', 'rooms-package': 'export_rooms_package', elv: 'elv_estimate', 'elv-package': 'export_elv_loads_package', 'elv-place': 'elv_place_loads',
-  exports: 'list_exports', report: 'export_report', 'forms-xlsx': 'export_forms_xlsx', 'boq-xlsx': 'export_boq_xlsx', dxf: 'export_dxf'
+  exports: 'list_exports', report: 'export_report', 'forms-xlsx': 'export_forms_xlsx', 'boq-xlsx': 'export_boq_xlsx', 'schedule-xlsx': 'export_schedule_template', dxf: 'export_dxf'
 };
 
 /** Flags that never take a value. */
