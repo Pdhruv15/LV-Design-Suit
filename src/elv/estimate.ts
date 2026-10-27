@@ -87,7 +87,7 @@ export function elvBasis(settings?: ElvSettings): { systems: ElvSystem[]; rules:
 
 const many = (x: Density, areaM2: number) => Math.max(x.min, x.m2 > 0 ? Math.ceil(areaM2 / x.m2 - 1e-9) : 0);
 const kw = (w: number) => Math.round(w) / 1000;
-const plural = (n: number, s: string) => `${n} ${s}${n === 1 ? '' : 's'}`;
+const plural = (n: number, s: string) => `${n} ${s}${n === 1 ? '' : /(s|sh|ch|x|z)$/.test(s) ? 'es' : 's'}`;
 
 function roomDevices(r: BuildingRoom, rule: RoomRule): DeviceCounts {
   const a = r.areaM2 > 0 ? r.areaM2 : 0;

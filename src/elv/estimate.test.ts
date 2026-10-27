@@ -71,6 +71,12 @@ describe('ELV estimate', () => {
     expect(e.assumptions.length).toBeGreaterThan(5);
   });
 
+  it('names the equipment with plural units in plain English', () => {
+    const e = estimateElv(tower());
+    expect(e.supplies.find((s) => s.id === 'ICT-T-L1-F1')!.equipment).toBe('Floor rack and access switches, Typical (floor 1) (2 switches, 50 data ports, 2 access points)');
+    expect(e.supplies.find((s) => s.id === 'CCTV-T-B1')!.equipment).toBe('CCTV PoE switches, Basement (1 switch, 8 cameras)');
+  });
+
   it('takes the project’s changes to rules and device data, and the systems chosen', () => {
     const p = { ...tower(), elv: elvSettings.parse({ systems: ['ict', 'cctv'], rules: { office: { dataPort: { m2: 10, min: 2 } } }, catalogue: { cctv: { cameraW: 6 } } }) };
     const e = estimateElv(p);
