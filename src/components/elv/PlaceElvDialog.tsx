@@ -55,6 +55,7 @@ export default function PlaceElvDialog({ project, me, onApply, onClose }: {
               ))}
             </tbody></table>
           )}
+          {preview.plan.notices.map((n) => <p key={n} className="warn">⚠ {n}</p>)}
           {preview.plan.kwChanges.map((c) => <p key={c.feederId} className="warn">⚠ {c.feederId}: {c.fromKw.toFixed(2)} → {c.toKw.toFixed(2)} kW goes to Changes as a proposal. The circuit is not changed here.</p>)}
           {preview.plan.removed.map((r) => <p key={r.feederId} className="warn">⚠ {r.feederId} ({r.name}) is no longer in the package. It is kept; delete it by hand if it is not needed.</p>)}
           {preview.plan.placeholders.map((r) => <p key={r.feederId} className="warn">⚠ Placeholder “{r.name}” ({r.feederId}) can now be deleted.</p>)}

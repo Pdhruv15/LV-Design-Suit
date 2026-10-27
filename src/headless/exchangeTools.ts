@@ -45,6 +45,7 @@ const summary = (r: Review, limit: number) => ({
   changes: r.changes.filter((c) => c.kind !== 'same').slice(0, limit),
   ...(r.changes.filter((c) => c.kind !== 'same').length > limit ? { more: r.changes.filter((c) => c.kind !== 'same').length - limit } : {}),
   ...(r.problems.length ? { problems: r.problems } : {}),
+  ...(r.problems.some((x) => x.field === 'building' || x.field === 'level') ? { hint: 'Add the missing buildings and levels with add_building and add_level, then review the package again.' } : {}),
   ...(r.seenBefore ? { seenBefore: `${r.seenBefore.id}: ${r.seenBefore.decision} by ${r.seenBefore.by} on ${r.seenBefore.at.slice(0, 10)}` } : {})
 });
 
