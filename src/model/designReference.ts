@@ -87,7 +87,9 @@ const APP_VALUES: Partial<Record<RefKey, RefValue>> = {
   minWireLightingMm2: { value: app.minWireLightingMm2 }, minWirePowerMm2: { value: app.minWirePowerMm2 },
   elcbLightingMa: { value: app.elcbLightingMa }, elcbPowerMa: { value: app.elcbPowerMa }, mdDemandFactor: { value: 0.8 }
 };
-const copiedFromDewa = (who: string) => Object.fromEntries(Object.entries(APP_VALUES).map(([k, v]) => [k, { ...v, note: `Copied from the DEWA values — check against the ${who} regulations` }])) as Partial<Record<RefKey, RefValue>>;
+/** The app's (DEWA) values for fields a regulation does not set, each flagged in its note. */
+const fromDewa = (keys: RefKey[], who: string) => Object.fromEntries(keys.map((k) => [k, { ...APP_VALUES[k]!, note: `App value (as DEWA) — not set by the ${who} regulations` }])) as Partial<Record<RefKey, RefValue>>;
+const UAE = '2026-10-27';
 
 export const BUILT_IN_REFERENCES: DesignReference[] = [
   {
@@ -132,16 +134,60 @@ export const BUILT_IN_REFERENCES: DesignReference[] = [
     ]
   },
   {
-    id: 'builtin-addc', name: 'ADDC (Abu Dhabi)', kind: 'authority', region: 'Abu Dhabi', status: 'to-verify', builtIn: true, version: 1, updatedAt: D,
-    source: 'Abu Dhabi Electricity Wiring Regulations',
-    notes: 'Starting values only, copied from DEWA. Check every value against the current Abu Dhabi regulations before use.',
-    values: copiedFromDewa('Abu Dhabi'), entries: []
+    id: 'builtin-addc', name: 'ADDC (Abu Dhabi)', kind: 'authority', region: 'Abu Dhabi', status: 'to-verify', builtIn: true, version: 2, updatedAt: UAE,
+    edition: 'DoE Electricity Wiring Regulations (2020), DoE/PD/R01/001, effective 01/04/2020',
+    source: 'Department of Energy, Abu Dhabi — The Electricity Wiring Regulations (2020)',
+    notes: 'Basic values from the 2020 Wiring Regulations. The regulations size final circuits by connected load (7.6.1) and set no minimum wire: the minimum wire sizes and the sizing targets are the app\'s values. Check against the current regulations and ADDC / AADC requirements.',
+    values: {
+      ...fromDewa(['futureGrowthPct', 'transformerMaxLoadingPct', 'generatorMaxLoadingPct', 'mdDemandFactor'], 'Abu Dhabi'),
+      voltageV: { value: 400, clause: '4.1.2', note: '230 V single-phase, 400 V three-phase' },
+      frequencyHz: { value: 50, clause: '4.1.4' },
+      ambientC: { value: 50, clause: '3.7.1(f)', note: 'Outdoor (shaded) 50 °C; indoor not air conditioned 40 °C; air conditioned 30 °C; ground 35 °C at 1 m' },
+      vdLimitPct: { value: 4, clause: '7.5.10', note: 'Connection point to the remote end of any final circuit' },
+      pfTarget: { value: 0.9, clause: '4.1.7', note: 'Kept between 0.9 lagging and unity at the connection point' },
+      elcbLightingMa: { value: 100, clause: '5.4.8', note: 'Domestic: no greater than 100 mA for fixed equipment (lighting, air conditioning)' },
+      elcbPowerMa: { value: 30, clause: '5.4.8', note: 'Domestic: no greater than 30 mA where appliances may be used by persons, and all bathroom circuits' },
+      minWireLightingMm2: { value: APP_VALUES.minWireLightingMm2!.value, note: 'Not set by the regulations (7.6.1: size by connected load); app value' },
+      minWirePowerMm2: { value: APP_VALUES.minWirePowerMm2!.value, note: 'Not set by the regulations (7.6.1: size by connected load); app value' }
+    },
+    rules: [
+      { id: 'addc-elcb-hvac', kind: 'elcbMa', when: { loadType: 'hvac' }, value: 100, clause: '5.4.8', note: 'Air conditioning is fixed equipment' },
+      { id: 'addc-elcb-sockets', kind: 'elcbMa', when: { loadType: 'sockets' }, value: 30, clause: '5.4.8' }
+    ],
+    entries: [
+      { id: 'addc-gnd', topic: 'Maximum ground temperature at 1 m depth', value: '35', unit: '°C', clause: '3.7.1(a)' },
+      { id: 'addc-indoor', topic: 'Ambient — indoor, not air conditioned', value: '40', unit: '°C', clause: '3.7.1(f)' },
+      { id: 'addc-bath', topic: 'RCD for all bathroom circuits', value: '30', unit: 'mA', clause: '5.4.8' }
+    ]
   },
   {
-    id: 'builtin-etihadwe', name: 'EtihadWE (Northern Emirates)', kind: 'authority', region: 'Northern Emirates', status: 'to-verify', builtIn: true, version: 1, updatedAt: D,
-    source: 'Etihad Water & Electricity regulations',
-    notes: 'Starting values only, copied from DEWA. Check every value against the current EtihadWE regulations before use.',
-    values: copiedFromDewa('EtihadWE'), entries: []
+    id: 'builtin-etihadwe', name: 'EtihadWE (Northern Emirates)', kind: 'authority', region: 'Northern Emirates', status: 'to-verify', builtIn: true, version: 2, updatedAt: UAE,
+    edition: 'Wiring Regulation, 06.07.2020',
+    source: 'Etihad Water & Electricity (formerly FEWA) — Wiring Regulation (2020)',
+    notes: 'Basic values from the 2020 Wiring Regulation. Sizing targets (growth, loading, demand factor) are the app\'s values. Check against the current regulation and EtihadWE circulars.',
+    values: {
+      ...fromDewa(['futureGrowthPct', 'transformerMaxLoadingPct', 'generatorMaxLoadingPct', 'mdDemandFactor'], 'EtihadWE'),
+      voltageV: { value: 415, clause: '5.1', note: '240/415 V ±10 % (IEC 60038)' },
+      frequencyHz: { value: 50, clause: '5.1' },
+      ambientC: { value: 48, clause: '5.2', note: 'Max. ambient air 48 °C; max. outdoor (shade) 50 °C' },
+      vdLimitPct: { value: 4.8, clause: '9.2', note: 'Stated as 20 V from the customer connection point to the remote end of any final circuit: 4.8 % of 415 V (8.3 % of 240 V)' },
+      pfTarget: { value: 0.92, clause: '5.3', note: '0.92 lagging or higher at the connection point' },
+      elcbLightingMa: { value: 100, clause: '11.2.2', note: 'Domestic: 100 mA for fixed equipment (lighting, air conditioning)' },
+      elcbPowerMa: { value: 30, clause: '11.2.2', note: 'Domestic: 30 mA where appliances may be used by persons, and all bathroom circuits' },
+      minWireLightingMm2: { value: 2.5, clause: '10.1', note: '10 A MCB up to 1200 W, 16 A for 1200–2000 W, 2.5 mm² up to 2000 W; above 2000 W as per load' },
+      minWirePowerMm2: { value: 4, clause: '10.2', note: 'Radial socket circuit: up to four 13 A sockets, 20 A MCB, 4 mm²' }
+    },
+    rules: [
+      { id: 'ewe-elcb-hvac', kind: 'elcbMa', when: { loadType: 'hvac' }, value: 100, clause: '10.6, 11.2.2', note: 'Up to three air-conditioning units on one 100 mA ELCB' },
+      { id: 'ewe-elcb-sockets', kind: 'elcbMa', when: { loadType: 'sockets' }, value: 30, clause: '10.2, 11.2.2', note: 'Up to ten sockets on one 30 mA ELCB' }
+    ],
+    entries: [
+      { id: 'ewe-ac-elcb', topic: 'Air-conditioning units per 100 mA ELCB', value: '3', clause: '10.6' },
+      { id: 'ewe-skt-elcb', topic: 'Sockets per 30 mA ELCB', value: '10', clause: '10.2' },
+      { id: 'ewe-ring', topic: '13 A sockets per 32 A ring circuit', value: '8', clause: '10.2' },
+      { id: 'ewe-cooker', topic: 'Cooker control unit — min. MCB / wire', value: '32 A / 6', unit: 'mm²', clause: '10.3' },
+      { id: 'ewe-led', topic: 'Minimum load per point — normal light / LED', value: '100 / 35', unit: 'W', clause: '10.1' }
+    ]
   }
 ];
 
