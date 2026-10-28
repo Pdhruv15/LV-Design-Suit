@@ -97,9 +97,10 @@ describe('ELV estimate', () => {
 
   it('warns when one building needs more than one fire alarm panel', () => {
     const p = tower();
-    p.building!.rooms[0] = { ...p.building!.rooms[0], areaM2: 20000 }; // 556 heat detectors + sounders: 5 loops
+    p.building!.rooms[0] = { ...p.building!.rooms[0], areaM2: 20000 }; // 647 loop devices with the other floors, 100 per loop (125 less 20 % spare) → 7 loops
     const e = estimateElv(p);
     expect(e.supplies.find((s) => s.id === 'FA-T')!.units).toBe(2);
+    expect(e.supplies.find((s) => s.id === 'FA-T')!.equipment).toBe('Fire alarm control panels, Tower (2 panels, 7 loops, 647 devices)');
     expect(e.warnings).toEqual([expect.stringMatching(/networked panels/)]);
   });
 });

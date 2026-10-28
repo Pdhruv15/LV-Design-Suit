@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { buildingInfoOf } from '../calc/building';
 import type { BuildingLevel, BuildingRoom, Project, ProjectBuilding } from '../types';
 import { DEFAULT_ASSUMPTIONS, DEFAULT_CATALOGUE, DEFAULT_RULES, ELV_SYSTEMS, type Catalogue, type Density, type ElvSystem, type RoomRule } from './defaults';
-import { ELV_DEVICES, type ElvDeviceType } from './devices';
+import { ELV_DEVICES, type DeviceLoad, type ElvDeviceType } from './devices';
 import { placedOnLevel } from './placed';
 
 /** ELV estimate from Building information: room type × area → field devices per room → the equipment that powers
@@ -23,6 +23,7 @@ const catalogueOverride = z.object({
     detectorQuiescentMa: z.number().min(0).max(1000), detectorAlarmMa: z.number().min(0).max(1000), sounderQuiescentMa: z.number().min(0).max(1000), sounderAlarmMa: z.number().min(0).max(1000),
     callPointQuiescentMa: z.number().min(0).max(1000), callPointAlarmMa: z.number().min(0).max(1000), moduleQuiescentMa: z.number().min(0).max(1000), moduleAlarmMa: z.number().min(0).max(1000), beaconAlarmMa: z.number().min(0).max(1000),
     devicesPerLoop: z.number().int().min(1).max(1000), loopsPerPanel: z.number().int().min(1).max(64), panelQuiescentMa: z.number().min(0).max(1e5), panelAlarmMa: z.number().min(0).max(1e5),
+    loopMaxMa: z.number().positive().max(1e4), loopSpare: z.number().min(0).max(0.9), inputsInAlarm: z.number().int().min(0).max(1000), isolatorMaxDevices: z.number().int().min(1).max(1000), zoneMaxM2: z.number().positive().max(1e6),
     standbyH: z.number().min(0).max(168), alarmH: z.number().min(0).max(24), batteryFactor: z.number().min(1).max(3), rechargeH: z.number().min(1).max(168), chargerV: pos, efficiency: frac, pf: frac
   }).partial().strict(),
   cctv: z.object({ cameraW: pos, switchPorts: z.number().int().min(1).max(512), switchBudgetW: pos, switchSelfW: z.number().min(0).max(1e4), nvrChannels: z.number().int().min(1).max(4096), nvrW: z.number().min(0).max(1e4), upsEfficiency: frac, spare: z.number().min(1).max(3), pf: frac }).partial().strict(),
@@ -99,6 +100,24 @@ export function elvBasis(settings?: ElvSettings): { systems: ElvSystem[]; rules:
     access: { ...DEFAULT_CATALOGUE.access, ...c.access }, ict: { ...DEFAULT_CATALOGUE.ict, ...c.ict }, pa: { ...DEFAULT_CATALOGUE.pa, ...c.pa }
   };
   return { systems: settings?.systems?.length ? [...new Set(settings.systems)] : [...ELV_SYSTEMS], rules, catalogue };
+}
+
+/** What one fire alarm loop may carry after the design spare: devices, and alarm current in mA. */
+export const loopDevices = (c: Catalogue) => Math.max(1, Math.floor(c.fireAlarm.devicesPerLoop * (1 - c.fireAlarm.loopSpare)));
+export const loopMa = (c: Catalogue) => c.fireAlarm.loopMaxMa * (1 - c.fireAlarm.loopSpare);
+
+/** A loop's current in alarm: every device's quiescent current, plus the alarm rise of every output (sounders,
+ * beacons, modules: all on at once), plus the largest rises of `inputsInAlarm` inputs (detectors, call points). */
+export function loopAlarmMa(items: { n: number; load: DeviceLoad }[], c: Catalogue): number {
+  let ma = 0;
+  const rises: number[] = [];
+  for (const { n, load } of items) {
+    const q = load.quiescentMa ?? 0, rise = Math.max(0, (load.alarmMa ?? 0) - q);
+    ma += n * q;
+    if (load.output) ma += n * rise;
+    else for (let i = 0; i < Math.min(n, c.fireAlarm.inputsInAlarm); i++) rises.push(rise);
+  }
+  return ma + rises.sort((a, b) => b - a).slice(0, c.fireAlarm.inputsInAlarm).reduce((t, x) => t + x, 0);
 }
 
 const many = (x: Density, areaM2: number) => Math.max(x.min, x.m2 > 0 ? Math.ceil(areaM2 / x.m2 - 1e-9) : 0);
@@ -243,7 +262,10 @@ function buildingSupplies(b: ProjectBuilding, d: DeviceCounts, rooms: string[], 
   const onLoops = loop.reduce((t, x) => t + x.n, 0);
   if (on.has('fire-alarm') && onLoops) {
     const k = c.fireAlarm;
-    const loops = Math.ceil(onLoops / k.devicesPerLoop), units = Math.ceil(loops / k.loopsPerPanel);
+    // Loops by current: the inputs in alarm come once per loop, the rest shares the loops.
+    const peak = loopAlarmMa(loop.filter((x) => !x.load.output).map((x) => ({ ...x, load: { ...x.load, quiescentMa: 0 } })), c);
+    const shared = loopAlarmMa(loop.map((x) => ({ ...x, load: x.load.output ? x.load : { ...x.load, alarmMa: x.load.quiescentMa } })), c);
+    const loops = Math.max(Math.ceil(onLoops / loopDevices(c)), Math.ceil(shared / Math.max(loopMa(c) - peak, 1))), units = Math.ceil(loops / k.loopsPerPanel);
     const quiescentA = (units * k.panelQuiescentMa + loop.reduce((t, x) => t + x.n * (x.load.quiescentMa ?? 0), 0)) / 1000;
     const alarmA = (units * k.panelAlarmMa + loop.reduce((t, x) => t + x.n * (x.load.alarmMa ?? 0), 0)) / 1000;
     const ah = k.batteryFactor * (quiescentA * k.standbyH + alarmA * k.alarmH);

@@ -55,6 +55,15 @@ describe('ELV tools', () => {
     await expect(run('elv_place_devices', { project: 'Villa', building: 'V', level: 'GF', remove: ['E1'] })).rejects.toThrow('Not on Ground: E1.');
   });
 
+  it('lists the loops, switches and zones of the placed devices', async () => {
+    expect(await run('elv_schedules', { project: 'Villa' })).toMatchObject({ buildings: [], note: expect.stringMatching(/No ELV devices placed/) });
+    await run('elv_place_devices', { project: 'Villa', building: 'V', level: 'GF', add: [{ type: 'smoke-detector', x: 1, y: 1 }, { type: 'sounder', x: 3, y: 1 }, { type: 'camera', x: 2, y: 2 }], mode: 'apply' });
+    const r = await run('elv_schedules', { project: 'Villa', detail: 'devices' });
+    expect(r.buildings[0].summary).toMatchObject({ zones: 1, loops: 1, panels: 1, loopDevices: 2, isolators: 1, cctvSwitches: 1 });
+    expect(r.buildings[0].loops[0].list.map((d: { deviceId: string; address: number }) => [d.deviceId, d.address])).toEqual([['E1', 1], ['E2', 2]]);
+    expect((await run('elv_schedules', { project: 'Villa', detail: 'summary' })).buildings[0]).not.toHaveProperty('loops');
+  });
+
   it('takes a rules file, and says what is wrong with a bad one', async () => {
     fs.writeFileSync(path.join(folder, 'rules.json'), JSON.stringify({ rules: { office: { door: { m2: 0, min: 3 } } } }));
     const r = await run('elv_estimate', { project: 'Villa', rules: 'rules.json', detail: 'rooms' });

@@ -23,6 +23,7 @@ export interface DeviceLoad {
   loop?: boolean; // an addressable fire alarm loop device (takes one address)
   quiescentMa?: number; // on the loop at 24 V DC
   alarmMa?: number;
+  output?: boolean; // sounders, beacons, modules: all draw alarm current together (inputs only a few at a time)
   port?: boolean; // takes a switch port
   watts?: number; // PoE, 12 V DC or speaker tap
 }
@@ -71,16 +72,16 @@ export const ELV_DEVICES: Record<ElvDeviceType, ElvDeviceSpec> = {
   },
   sounder: {
     type: 'sounder', system: 'fire-alarm', label: 'Sounder', symbol: { shape: 'triangle', text: 'SD' },
-    load: (c) => ({ loop: true, quiescentMa: c.fireAlarm.sounderQuiescentMa, alarmMa: c.fireAlarm.sounderAlarmMa })
+    load: (c) => ({ loop: true, output: true, quiescentMa: c.fireAlarm.sounderQuiescentMa, alarmMa: c.fireAlarm.sounderAlarmMa })
     // Coverage is a sound level (65 dB(A), or 5 dB above ambient; 75 dB(A) at the bedhead), not a distance.
   },
   'sounder-beacon': {
     type: 'sounder-beacon', system: 'fire-alarm', label: 'Sounder beacon', symbol: { shape: 'triangle', text: 'SB', filled: true },
-    load: (c) => ({ loop: true, quiescentMa: c.fireAlarm.sounderQuiescentMa, alarmMa: c.fireAlarm.sounderAlarmMa + c.fireAlarm.beaconAlarmMa })
+    load: (c) => ({ loop: true, output: true, quiescentMa: c.fireAlarm.sounderQuiescentMa, alarmMa: c.fireAlarm.sounderAlarmMa + c.fireAlarm.beaconAlarmMa })
   },
   'interface-module': {
     type: 'interface-module', system: 'fire-alarm', label: 'Interface module', symbol: { shape: 'square', text: 'IM' },
-    load: (c) => ({ loop: true, quiescentMa: c.fireAlarm.moduleQuiescentMa, alarmMa: c.fireAlarm.moduleAlarmMa })
+    load: (c) => ({ loop: true, output: true, quiescentMa: c.fireAlarm.moduleQuiescentMa, alarmMa: c.fireAlarm.moduleAlarmMa })
   },
   camera: {
     type: 'camera', system: 'cctv', label: 'CCTV camera', symbol: { shape: 'camera', text: 'C' },
