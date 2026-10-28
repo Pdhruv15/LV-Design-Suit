@@ -43,7 +43,13 @@ contextBridge.exposeInMainWorld('lvds', {
     run: (request) => ipcRenderer.invoke('engines:run', request)
   },
   cadFile: {
-    openPlan: () => ipcRenderer.invoke('cad:openPlan')
+    openPlan: () => ipcRenderer.invoke('cad:openPlan'),
+    takePending: () => ipcRenderer.invoke('cad:takePending'),
+    onPending: (cb) => {
+      const listener = () => cb();
+      ipcRenderer.on('cad:pending', listener);
+      return () => ipcRenderer.removeListener('cad:pending', listener);
+    }
   },
   openCadStudio: {
     status: () => ipcRenderer.invoke('opencad:status'),

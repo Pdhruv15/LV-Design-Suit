@@ -4,6 +4,7 @@ import {
   BatteryCharging, Building2, Cable, ClipboardCheck, MessageSquareWarning, Inbox, CircuitBoard, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText, GitPullRequestArrow, Send, Stamp,
   Gauge, Hand, LayoutGrid, ListTree, MousePointer2, Pencil, Receipt, Scale, Settings2, ShieldCheck, Sun,
   ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig, Cctv } from 'lucide-react';
+import { Map as MapIcon } from 'lucide-react';
 import type { BoardKind, Feeder } from '../types';
 import type { MainView } from '../views';
 import { STAGE_INFO, type DesignStage, type TenderRoute } from '../model/designStage';
@@ -61,6 +62,8 @@ export interface RibbonActions {
   onSaveAs: () => void;
   /** Export anonymized sample (a copy without client, site or people, for sharing an issue). */
   onAnonymizedSample: () => void;
+  /** Opens the Floor plan window (an architect's DWG / DXF read in the app). */
+  onFloorPlan: () => void;
   onProfile: () => void;
   onChooseFolder: () => void;
   folderLabel: string;
@@ -220,6 +223,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       [
         view('dashboard', 'Overview', LayoutDashboard, 'Overview of this project: next actions, key figures and what is outstanding — load, transformers, generators, panels, area, power density, checks'),
         view('building', 'Building', Building2, 'Building information: GFA, levels, typical floors, rooms and room types'),
+        { label: 'Floor plan', icon: MapIcon, title: 'Floor plan: open an architect\'s DWG / DXF in the app — rooms and areas, cable lengths, tray routes and board locations', onClick: a.onFloorPlan },
         { label: 'Project settings', icon: Scale, title: 'Voltage, ambient, voltage-drop limit, sizing targets, submission form details', onClick: a.onSettings },
         view('parameters', 'Parameters', Braces, '{Parameters}: designed / checked by, submission date, your own values — used in title blocks, notes and labels'),
         view('titleblock', 'Title block', PanelBottom, 'Design your own title blocks with logo, text and {Parameters}'),
@@ -231,6 +235,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
     concept: [
       [
         view('building', 'Building', Building2, 'Building information: GFA, levels, typical floors, rooms and room types'),
+        { label: 'Floor plan', icon: MapIcon, title: 'Floor plan: open an architect\'s DWG / DXF in the app — rooms and areas, cable lengths, tray routes and board locations', onClick: a.onFloorPlan },
         view('load-assessment', 'Load assessment', ChartColumnBig, 'Load assessment: maximum demand, transformers and generator from the building type, area schedule and services')
       ],
       [
