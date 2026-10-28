@@ -39,4 +39,16 @@ async function readDrawingFile(file) {
   return answer.drawing;
 }
 
-module.exports = { readDrawingFile, MAX_BYTES };
+/** A drawing file's bytes for the CAD view (read in the window by the same engine), after the same checks. */
+function readDrawingBytes(file) {
+  if (!/\.(dwg|dxf)$/i.test(file)) throw new Error(`${path.basename(file)} is not a DWG or DXF file.`);
+  const size = fs.statSync(file).size;
+  if (!size) throw new Error(`${path.basename(file)} is empty.`);
+  if (size > MAX_BYTES) throw new Error(`${path.basename(file)} is larger than ${MAX_BYTES / 1024 / 1024} MB.`);
+  return new Uint8Array(fs.readFileSync(file));
+}
+
+/** The engine itself (WebAssembly), for the CAD view in the window. */
+const engineBytes = () => new Uint8Array(fs.readFileSync(path.join(CAD_DIR, 'lvds_cad_reader_bg.wasm')));
+
+module.exports = { readDrawingFile, readDrawingBytes, engineBytes, MAX_BYTES };

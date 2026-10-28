@@ -53,6 +53,11 @@ declare global {
       cadFile?: {
         /** Asks for a floor plan (DWG / DXF) and reads it; null if cancelled. */
         openPlan: () => Promise<{ file: string; path?: string; drawing: import('./model/cadDrawing').CadDrawing } | null>;
+        /** The CAD view's engine (WebAssembly) and drawing bytes, read in the window. */
+        engine?: () => Promise<Uint8Array>;
+        openBytes?: () => Promise<{ file: string; path: string; bytes: Uint8Array } | null>;
+        readBytes?: (path: string) => Promise<{ file: string; path: string; bytes: Uint8Array } | null>;
+        sampleBytes?: (name: string) => Promise<{ file: string; bytes: Uint8Array } | null>;
         /** Reads one of the sample plans shipped with the app (test aid). */
         readSample?: (name: string) => Promise<{ file: string; drawing: import('./model/cadDrawing').CadDrawing } | null>;
         /** Reads a plan opened before (its full path); null when it is no longer there. */

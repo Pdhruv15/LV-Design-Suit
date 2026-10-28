@@ -1,7 +1,7 @@
 /** What each release added, in plain words, for the What's new window shown once after an update (and from Help).
  * Add the new version at the top of RELEASES with each release batch, one line per feature. */
 
-export type WhatsNewAction = 'floor-plan' | 'floor-plan-lengths' | 'floor-plan-trays' | 'floor-plan-boards';
+export type WhatsNewAction = 'cad' | 'floor-plan' | 'floor-plan-lengths' | 'floor-plan-trays' | 'floor-plan-boards';
 
 export interface WhatsNewItem {
   title: string;
@@ -14,6 +14,12 @@ export interface WhatsNewItem {
 export interface Release { version: string; date: string; items: WhatsNewItem[] }
 
 export const RELEASES: Release[] = [
+  {
+    version: '1.90', date: '2026-10-28',
+    items: [
+      { title: 'CAD view: open drawings natively', text: 'A new CAD tab opens DWG / DXF the way a CAD program does: model space, crosshair, snaps (endpoint, midpoint, centre, intersection), layers on / off, blocks drawn as drawn, a command line and SNAP · OSNAP · ORTHO · GRID. Measuring and devices come next.', action: 'cad', actionLabel: 'Open CAD' }
+    ]
+  },
   {
     version: '1.89', date: '2026-10-28',
     items: [

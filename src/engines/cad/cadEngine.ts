@@ -1,0 +1,115 @@
+import { CadDoc, initSync } from '../../../electron/cad/lvds_cad_reader.js';
+import wasmUrl from '../../../electron/cad/lvds_cad_reader_bg.wasm?url';
+import sampleGf from '../../../electron/samples/sample-villa-gf.dxf?url';
+import sampleFf from '../../../electron/samples/sample-villa-ff.dxf?url';
+
+/** The CAD view's engine: the Rust document (engines/cad-reader/src/doc.rs, WebAssembly) run in the app window, in the
+ * desktop app and the web version alike. It opens DWG / DXF and gives the drawing flattened for display (segments with
+ * layer and colour, texts) and snapping. Files come from the desktop app's dialog, or the browser's file picker. */
+
+export interface CadLayer { name: string; rgb: number; on: boolean; count: number }
+export interface CadText { x: number; y: number; h: number; rot: number; s: string; layer: number; rgb: number; align: number }
+export interface CadInfo {
+  format: 'DWG' | 'DXF';
+  units: number; // INSUNITS
+  origin: [number, number];
+  extents: [number, number, number, number];
+  layers: CadLayer[];
+  texts: CadText[];
+  segments: number;
+  snaps: number;
+  truncated: boolean;
+}
+/** An open drawing. Segment coordinates are relative to `info.origin` (drawing units). */
+export interface CadView {
+  file: string;
+  path?: string;
+  info: CadInfo;
+  segs: Float32Array;
+  segLayers: Uint16Array;
+  segColors: Uint32Array;
+  /** Nearest snap point within `r` of (x, y) (drawing units, absolute): [x, y, kind] or empty. */
+  snap: (x: number, y: number, r: number, mask: number, layersOn: Uint8Array) => Float64Array;
+}
+
+/** Snap kinds, as the engine numbers them. */
+export const SNAP = { endpoint: 1, midpoint: 2, center: 4, intersection: 8, insertion: 16, node: 32, quadrant: 64 } as const;
+export const SNAP_NAMES: Record<number, string> = { 1: 'Endpoint', 2: 'Midpoint', 4: 'Centre', 8: 'Intersection', 16: 'Insertion', 32: 'Node', 64: 'Quadrant' };
+/** Colour of "foreground" lines (index 7): white on a dark model space, black on a light one. */
+export const INK = 0xff000007;
+
+const MAX_BYTES = 100 * 1024 * 1024;
+const SAMPLES: Record<string, string> = { 'sample-villa-gf.dxf': sampleGf, 'sample-villa-ff.dxf': sampleFf };
+
+let ready: Promise<void> | null = null;
+function engine(): Promise<void> {
+  ready ??= (async () => {
+    const desktop = window.lvds?.cadFile?.engine;
+    const bytes = desktop ? await desktop() : new Uint8Array(await (await fetch(wasmUrl)).arrayBuffer());
+    initSync({ module: bytes });
+  })().catch((e) => { ready = null; throw e; });
+  return ready;
+}
+
+/** Opens a drawing from its bytes. */
+export async function openDrawing(file: string, bytes: Uint8Array, path?: string): Promise<CadView> {
+  if (!/\.(dwg|dxf)$/i.test(file)) throw new Error(`${file} is not a DWG or DXF file.`);
+  if (!bytes.length) throw new Error(`${file} is empty.`);
+  if (bytes.length > MAX_BYTES) throw new Error(`${file} is larger than ${MAX_BYTES / 1024 / 1024} MB.`);
+  await engine();
+  let doc: CadDoc;
+  try {
+    doc = new CadDoc(bytes);
+  } catch (e) {
+    throw new Error(`${file} could not be read (${e instanceof Error ? e.message : String(e)}).`);
+  }
+  const info = JSON.parse(doc.info()) as CadInfo;
+  return {
+    file, path, info,
+    segs: doc.segments(), segLayers: doc.segment_layers(), segColors: doc.segment_colors(),
+    snap: (x, y, r, mask, layersOn) => doc.snap(x, y, r, mask, layersOn)
+  };
+}
+
+/** The browser's file picker for one DWG / DXF; null when cancelled. */
+function pickFile(): Promise<File | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.dwg,.dxf';
+    input.addEventListener('change', () => resolve(input.files?.[0] ?? null), { once: true });
+    input.addEventListener('cancel', () => resolve(null), { once: true });
+    input.click();
+  });
+}
+
+/** Asks for a drawing (desktop dialog or browser picker) and opens it; null when cancelled. */
+export async function chooseDrawing(): Promise<CadView | null> {
+  const desktop = window.lvds?.cadFile?.openBytes;
+  if (desktop) {
+    const r = await desktop();
+    return r ? openDrawing(r.file, r.bytes, r.path) : null;
+  }
+  const f = await pickFile();
+  return f ? openDrawing(f.name, new Uint8Array(await f.arrayBuffer())) : null;
+}
+
+/** Reopens a drawing opened before (desktop only: by its path); null when it is no longer there. */
+export async function reopenDrawing(path: string): Promise<CadView | null> {
+  const r = await window.lvds?.cadFile?.readBytes?.(path);
+  return r ? openDrawing(r.file, r.bytes, r.path) : null;
+}
+
+/** One of the sample plans shipped with the app (a test aid). */
+export async function sampleDrawing(name: string): Promise<CadView | null> {
+  const desktop = window.lvds?.cadFile?.sampleBytes;
+  if (desktop) {
+    const r = await desktop(name);
+    return r ? openDrawing(r.file, r.bytes) : null;
+  }
+  const url = SAMPLES[name];
+  if (!url) return null;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`The sample plan ${name} could not be loaded.`);
+  return openDrawing(name, new Uint8Array(await res.arrayBuffer()));
+}

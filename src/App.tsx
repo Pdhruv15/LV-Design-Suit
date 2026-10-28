@@ -102,6 +102,7 @@ const AnonymizedSampleDialog = onDemand(() => import('./components/AnonymizedSam
 const SldExportDialog = lazy(() => import('./components/SldExportDialog'));
 const CadLoadsDialog = lazy(() => import('./components/CadLoadsDialog'));
 const FloorPlanPage = lazy(() => import('./components/FloorPlanPage'));
+const CadPage = lazy(() => import('./components/cad/CadPage'));
 const WhatsNewDialog = lazy(() => import('./components/WhatsNewDialog'));
 const PasteBoardDialog = onDemand(() => import('./components/PasteBoardDialog'));
 const EnclosureSizing = lazy(() => import('./components/EnclosureSizing'));
@@ -145,6 +146,8 @@ import { NameDialog, UnsavedDialog } from './components/FileDialogs';
 import type { BoardKind, ProjectStatus } from './types';
 import { useFloorPlan, type FloorPlanTool } from './components/floorPlanState';
 import { cadFileApi } from './engines/cad/webCadFile';
+import { useCad } from './components/cad/cadState';
+import { chooseDrawing } from './engines/cad/cadEngine';
 import { canFill as canFillElv, deviceLabel, devicesFor, SYSTEM_LABEL, SYSTEMS as ELV_SYSTEM_LIST } from './components/elv/elvLabels';
 import { onDemand } from './util/onDemand';
 import { revisionStamp } from './model/revisions';
@@ -177,7 +180,7 @@ const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator
 
 /** Pages the ⌘K palette can open, named as on the ribbon. */
 const PALETTE_PAGES: [MainView, string][] = [
-  ['design', 'Design (SLD)'], ['floor-plan', 'Floor plan'], ['dashboard', 'Overview'], ['building', 'Building'], ['load-assessment', 'Load assessment'], ['load-schedule', 'Load schedule'], ['panels', 'Panels'],
+  ['design', 'Design (SLD)'], ['floor-plan', 'Floor plan'], ['cad', 'CAD'], ['dashboard', 'Overview'], ['building', 'Building'], ['load-assessment', 'Load assessment'], ['load-schedule', 'Load schedule'], ['panels', 'Panels'],
   ['space-planning', 'Space plan'], ['substation-area', 'Substation area'], ['enclosure', 'Enclosure sizing'], ['earth-schematic', 'Earth pits'],
   ['busbar', 'Busbar riser'], ['calculators', 'Quick calcs'], ['voltage-drop', 'Voltage drop'], ['engines', 'Load flow'], ['earthing', 'Earthing'],
   ['coordination', 'Protection coordination'], ['selection', 'Breaker & cable selection'], ['sizing', 'Transformer & generator sizing'], ['pfc', 'Power factor'],
@@ -279,6 +282,12 @@ export default function App() {
   const [showCadLoads, setShowCadLoads] = useState(false);
   // Floor plan page: the plan stays open while other pages are shown.
   const fp = useFloorPlan(project.id);
+  // CAD view: the drawing stays open while other pages are shown.
+  const cadS = useCad(project.id);
+  const openCad = async () => {
+    setView('cad');
+    try { const v = await chooseDrawing(); if (v) { cadS.open(v); setStatus(`${v.file} opened`); } } catch (e) { setStatus(e instanceof Error ? e.message : String(e)); }
+  };
   const showFloorPlan = (t?: FloorPlanTool) => { if (t) fp.setTool(t); setView('floor-plan'); };
   const openFloorPlan = async () => {
     setView('floor-plan');
@@ -291,6 +300,7 @@ export default function App() {
   const closeWhatsNew = () => { markSeen(__APP_VERSION__); setWhatsNew([]); };
   const whatsNewAction = (a: WhatsNewAction) => {
     closeWhatsNew();
+    if (a === 'cad') { setView('cad'); return; }
     showFloorPlan(a === 'floor-plan-lengths' ? 'link' : a === 'floor-plan-trays' ? 'tray' : a === 'floor-plan-boards' ? 'place' : 'auto');
   };
   // Packages from other programs waiting for review, per project (not saved: nothing changes until accepted).
@@ -956,6 +966,7 @@ export default function App() {
     cmd('Export the SLD…', () => { design(); setDiagramMode('system'); setShowExport(true); }, undefined, 'PDF DXF SVG');
     cmd('Loads from CAD floor plan…', () => setShowCadLoads(true), undefined, 'OpenCADStudio DWG DXF blocks fixtures count');
     cmd('Floor plan…', () => showFloorPlan(), undefined, 'open DWG DXF architect plan CAD drawing measure');
+    cmd('Open drawing in CAD…', () => void openCad(), undefined, 'CAD DWG DXF open drawing model space layers snap');
     cmd('Open floor plan (DWG / DXF)…', () => void openFloorPlan(), undefined, 'open DWG DXF architect plan CAD drawing');
     cmd('What\'s new…', () => setWhatsNew(RELEASES.slice(0, 1)), undefined, 'release notes update changes new features version');
     cmd('Cable lengths from CAD floor plan…', () => showFloorPlan('link'), undefined, 'Floor plan DWG DXF route measure length');
@@ -1228,6 +1239,7 @@ export default function App() {
           onSave: () => saveProject(),
           onSaveAs: () => saveAs(),
           onAnonymizedSample: () => setShowAnonymized(true),
+          cad: { onOpen: () => void openCad(), onFit: () => cadS.fit(), onLayers: () => { cadS.setShowLayers(!cadS.showLayers); setView('cad'); }, layersOn: cadS.showLayers, hasDrawing: !!cadS.view },
           floorPlan: {
             hasPlan: !!fp.plan, tool: fp.tool, onTool: (t) => { fp.setTool(t); setView('floor-plan'); }, onOpen: () => void openFloorPlan(),
             onLayers: () => { fp.setShowLayers(!fp.showLayers); setView('floor-plan'); }, layersOn: fp.showLayers,
@@ -1606,6 +1618,7 @@ export default function App() {
                 }}
               />
             )}
+            {view === 'cad' && <CadPage cad={cadS} projectId={project.id} onStatus={setStatus} />}
             {view === 'floor-plan' && <FloorPlanPage project={project} fp={fp} onChange={(next, message) => { setProject(next, { step: true }); setStatus(message); }} onStatus={setStatus} />}
             {view === 'building' && <BuildingView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'load-assessment' && <LoadAssessmentView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
