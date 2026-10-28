@@ -1,6 +1,7 @@
 import { buildingInfoOf } from '../calc/building';
 import { routeNames } from '../calc/cableTray';
 import { autoRoutes, autoTrays } from './cadAutoLink';
+import { planUnits } from './cadUnits';
 import { planFromDrawing, traysFromDrawing, type CadDrawing } from './cadDrawing';
 import { applyCadLengths, pullCadLengths, type CadRoute } from './cadLengths';
 import { applyBoardPlaces, pullBoardPlaces, type CadPlan } from './cadPlaces';
@@ -21,14 +22,16 @@ export interface PlanContext {
 /** The plan as the page sees it in this project: layer roles, links, the plan with the links and the route / tray
  * layer curves, and the rooms its outlines give. */
 export function planState(project: Project, ctx: PlanContext) {
-  const base = planFromDrawing(ctx.drawing, { file: ctx.file });
+  const units = planUnits(project, ctx.file, ctx.drawing.units);
+  const read = { file: ctx.file, ...(units.code !== undefined ? { units: units.code } : {}) };
+  const base = planFromDrawing(ctx.drawing, read);
   const roles = layerMapFor(project, base.layers ?? []);
   const links = linksFor(project, ctx.file);
   const linked = linkedDrawing(ctx.drawing, links);
   const curveLayers = roles.filter((m) => m.role === 'route' || m.role === 'tray').map((m) => m.layer);
-  const plan = withPointPlaces(planFromDrawing(linked, { file: ctx.file, curveLayers }), links);
+  const plan = withPointPlaces(planFromDrawing(linked, { ...read, curveLayers }), links);
   const rooms = roomsFromPlan(base, roles, project.cadLength);
-  return { base, roles, links, linked, plan, rooms };
+  return { base, roles, links, linked, plan, rooms, units };
 }
 
 /** The project with the plan's layer roles and new links saved. */

@@ -106,7 +106,7 @@ const attributeOf = (attributes: Record<string, string>, names: string[]): strin
 /** What a floor plan says, as the CAD dialogs read it (same as the OpenCADStudio link): board symbols, room outlines,
  * texts, room tags and fixtures, with per-layer counts. Curves are returned only for `curveLayers` (an architect's plan
  * has many thousands of wall lines), plus any curve linked to a route or a tray. */
-export function planFromDrawing(d: CadDrawing, options: { curveLayers?: string[]; file?: string } = {}): CadPlan {
+export function planFromDrawing(d: CadDrawing, options: { curveLayers?: string[]; file?: string; units?: number } = {}): CadPlan {
   const curveLayers = new Set((options.curveLayers ?? []).map((l) => l.toLowerCase()));
   const plan: Required<Pick<CadPlan, 'places' | 'symbols' | 'outlines' | 'texts' | 'tags' | 'curves' | 'fixtures'>> = { places: [], symbols: [], outlines: [], texts: [], tags: [], curves: [], fixtures: [] };
   const layers = new Map<string, CadLayerStats>();
@@ -149,7 +149,7 @@ export function planFromDrawing(d: CadDrawing, options: { curveLayers?: string[]
       if (points) plan.curves.push({ layer, points, length: curveLength(e), ...(linked ? { tag } : {}) });
     }
   }
-  return { units: d.units, ...(options.file ? { file: options.file } : {}), ...plan, layers: [...layers.values()].sort((a, b) => a.name.localeCompare(b.name)) };
+  return { units: options.units ?? d.units, ...(options.file ? { file: options.file } : {}), ...plan, layers: [...layers.values()].sort((a, b) => a.name.localeCompare(b.name)) };
 }
 
 /** Blocks placed in the drawing (light fittings, sockets…) with their attribute values, for Loads from CAD. */
