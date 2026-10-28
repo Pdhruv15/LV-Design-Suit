@@ -3,7 +3,7 @@ import CadLayerTable from './CadLayerTable';
 import FloorPlanCanvas, { type PlanDrag, type PlanMark, type PlanOverlay, type PlanPath, type PlanRoomShape } from './FloorPlanCanvas';
 import ElvPlanPanel from './elv/ElvPlanPanel';
 import { coverageNote, deviceLabel, deviceNear, elvLayer, fillAt, moveTo, placeAt, remove, rotate } from './elv/elvPlan';
-import { rememberedPlan, type FloorPlanPanel, type FloorPlanState, type FloorPlanTool } from './floorPlanState';
+import { isSample, rememberedPlan, SAMPLE_PLANS, type FloorPlanPanel, type FloorPlanState, type FloorPlanTool } from './floorPlanState';
 import { buildingInfoOf, roomTypesOf } from '../calc/building';
 import { trayPlanOf } from '../calc/cableTray';
 import { polygonArea, roomBoundaryAt, wallSegments } from '../model/cadBoundary';
@@ -91,6 +91,14 @@ export default function FloorPlanPage({ project, fp, onChange, onStatus }: {
     try { const r = await read(); if (r) fp.setPlan(r); else setNote('That plan is no longer where it was. Open it again.'); } catch (e) { setNote(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
   }
   const last = rememberedPlan(project.id);
+  // While no plan is open (and none to reopen), the sample villa is shown — a test aid (SAMPLE_PLANS).
+  const sampleTried = useRef(false);
+  useEffect(() => {
+    if (open || sampleTried.current || !cadFile?.readSample || !SAMPLE_PLANS.length || last) return;
+    sampleTried.current = true;
+    void load(() => cadFile.readSample!(SAMPLE_PLANS[0].file));
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps -- once, when the page first shows no plan
+  const showSample = (file: string) => cadFile?.readSample && void load(() => cadFile.readSample!(file));
 
   if (!open || !s) {
     return (
@@ -102,6 +110,7 @@ export default function FloorPlanPage({ project, fp, onChange, onStatus }: {
             <div className="fpp-actions">
               <button className="chip primary" disabled={busy} onClick={() => load(() => cadFile.openPlan())}>{busy ? 'Opening…' : 'Open plan…'}</button>
               {last && cadFile.readPlan && <button className="chip" disabled={busy} onClick={() => load(() => cadFile.readPlan!(last!))}>Reopen {last.split(/[\\/]/).pop()}</button>}
+              {cadFile.readSample && SAMPLE_PLANS.map((x) => <button key={x.file} className="chip" disabled={busy} onClick={() => showSample(x.file)}>{x.label}</button>)}
             </div>
           </>
         ) : <p className="m">Opening a floor plan (DWG / DXF) needs the LV Design Studio desktop app.</p>}
@@ -315,6 +324,15 @@ export default function FloorPlanPage({ project, fp, onChange, onStatus }: {
         <div className="fp-hint">{note || HINTS[tool]}</div>
       </div>
       <aside className="fp-side">
+        {isSample(open.file) && (
+          <div className="fpp-file m fpp-sample">
+            <b>Sample plan for testing</b>
+            <select aria-label="Sample floor" value={open.file} onChange={(e) => showSample(e.target.value)}>
+              {SAMPLE_PLANS.map((x) => <option key={x.file} value={x.file}>{x.label}</option>)}
+            </select>
+            <span>· Open plan for your own</span>
+          </div>
+        )}
         <div className="fpp-file m">{open.file} · {open.drawing.format} ·{' '}
           <select aria-label="Units of this plan" value={s.units.unit ?? ''} className={s.units.needsChoice ? 'fpp-units-need' : undefined}
             title="The units the plan is drawn in: areas, outlines, device positions and lengths follow it. Check: measure a door with Length (about 0.9 m)."

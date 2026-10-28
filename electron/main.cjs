@@ -334,6 +334,13 @@ handle('cad:openPlan', async (evt) => {
   const file = result.filePaths[0];
   return { file: path.basename(file), path: file, drawing: await cadFile.readDrawingFile(file) };
 });
+// The sample G+1 villa plans shipped with the app (electron/samples), shown on the Floor plan page while no plan is open —
+// a test aid, to be removed later with SAMPLE_PLANS in src/components/floorPlanState.ts.
+const SAMPLE_PLANS = new Set(['sample-villa-gf.dxf', 'sample-villa-ff.dxf']);
+handle('cad:readSample', async (_evt, name) => {
+  if (!SAMPLE_PLANS.has(name)) return null;
+  return { file: name, drawing: await cadFile.readDrawingFile(path.join(__dirname, 'samples', name)) };
+});
 // Reopens the plan a project had open last time (its path is remembered on this computer, not in the project file).
 handle('cad:readPlan', async (_evt, file) => {
   if (!isPlanFile(file) || !fs.existsSync(file)) return null;

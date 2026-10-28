@@ -39,6 +39,27 @@ function Host({ open, onChange }: { open: boolean; onChange: (p: Project, m: str
 }
 
 describe('Floor plan page', () => {
+  it('shows the sample villa while no plan is open, and switches its floor', async () => {
+    const readSample = vi.fn(async (name: string) => ({ file: name, drawing }));
+    (window as { lvds?: unknown }).lvds = { cadFile: { openPlan: vi.fn(), readSample } };
+    await act(async () => { root.render(<Host open={false} onChange={() => {}} />); });
+    expect(readSample).toHaveBeenCalledWith('sample-villa-gf.dxf');
+    expect(document.body.textContent).toContain('Sample plan for testing');
+    const floor = document.querySelector('select[aria-label="Sample floor"]') as HTMLSelectElement;
+    await act(async () => { floor.value = 'sample-villa-ff.dxf'; floor.dispatchEvent(new Event('change', { bubbles: true })); });
+    expect(readSample).toHaveBeenLastCalledWith('sample-villa-ff.dxf');
+  });
+
+  it('offers to reopen the project\'s own plan instead of the sample', async () => {
+    const readSample = vi.fn(async (name: string) => ({ file: name, drawing }));
+    (window as { lvds?: unknown }).lvds = { cadFile: { openPlan: vi.fn(), readPlan: vi.fn(), readSample } };
+    localStorage.setItem(`lvds.floorPlan.${villa.id ?? 'new'}`, '/plans/GF.dwg');
+    await act(async () => { root.render(<Host open={false} onChange={() => {}} />); });
+    expect(readSample).not.toHaveBeenCalled();
+    expect(button('Reopen GF.dwg')).toBeDefined();
+    expect(button('Sample villa · First floor')).toBeDefined();
+  });
+
   it('offers to open a plan, and to reopen the one the project had', () => {
     (window as { lvds?: unknown }).lvds = { cadFile: { openPlan: vi.fn(), readPlan: vi.fn() } };
     localStorage.setItem(`lvds.floorPlan.${villa.id ?? 'new'}`, '/plans/GF.dwg');

@@ -53,6 +53,8 @@ declare global {
       cadFile?: {
         /** Asks for a floor plan (DWG / DXF) and reads it; null if cancelled. */
         openPlan: () => Promise<{ file: string; path?: string; drawing: import('./model/cadDrawing').CadDrawing } | null>;
+        /** Reads one of the sample plans shipped with the app (test aid). */
+        readSample?: (name: string) => Promise<{ file: string; drawing: import('./model/cadDrawing').CadDrawing } | null>;
         /** Reads a plan opened before (its full path); null when it is no longer there. */
         readPlan?: (path: string) => Promise<{ file: string; path?: string; drawing: import('./model/cadDrawing').CadDrawing } | null>;
         /** The next floor plan opened from Finder / Explorer, read; null when there is none. */
