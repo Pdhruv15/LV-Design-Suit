@@ -4,13 +4,33 @@ import {
   BatteryCharging, Building2, Cable, ClipboardCheck, MessageSquareWarning, Inbox, CircuitBoard, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText, GitPullRequestArrow, Send, Stamp,
   Gauge, Hand, LayoutGrid, ListTree, MousePointer2, Pencil, Receipt, Scale, Settings2, ShieldCheck, Sun,
   ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig, Cctv } from 'lucide-react';
-import { Map as MapIcon } from 'lucide-react';
+import { Map as MapIcon, Layers, MousePointerClick, PenLine, Type, Ruler, Square, ZoomIn, Maximize } from 'lucide-react';
+import type { FloorPlanTool } from './floorPlanState';
 import type { BoardKind, Feeder } from '../types';
 import type { MainView } from '../views';
 import { STAGE_INFO, type DesignStage, type TenderRoute } from '../model/designStage';
 
 export type BomCommand = 'boq' | 'scope' | 'changes' | 'variations' | 'circuits' | 'excel' | 'pdf' | 'summary-pdf' | 'rates-sheet' | 'import' | 'save-list' | 'add-item' | 'add-section' | 'extras' | 'wastage' | 'markup' | 'document' | 'issue-rev';
-export type RibbonTab = 'home' | 'concept' | 'schematic' | 'detailed' | 'reports' | 'issue' | 'cost' | 'standards';
+export type RibbonTab = 'home' | 'concept' | 'schematic' | 'detailed' | 'floorplan' | 'reports' | 'issue' | 'cost' | 'standards';
+
+/** What the Floor plan tab shows and does (the page's state lives in the app). */
+export interface FloorPlanRibbon {
+  hasPlan: boolean;
+  tool: FloorPlanTool;
+  onTool: (t: FloorPlanTool) => void;
+  onOpen: () => void;
+  onLayers: () => void;
+  layersOn: boolean;
+  level?: string;
+  levels: { key: string; label: string }[];
+  onLevel: (key: string) => void;
+  onAddFound: () => void;
+  onZoom: () => void;
+  onFit: () => void;
+  feeder?: string;
+  tray?: string;
+  board?: string;
+}
 export type DiagramTool = 'select' | 'pan';
 
 type Icon = LucideIcon | ((p: { size?: number; strokeWidth?: number }) => JSX.Element);
@@ -62,8 +82,8 @@ export interface RibbonActions {
   onSaveAs: () => void;
   /** Export anonymized sample (a copy without client, site or people, for sharing an issue). */
   onAnonymizedSample: () => void;
-  /** Opens the Floor plan window (an architect's DWG / DXF read in the app). */
-  onFloorPlan: () => void;
+  /** The Floor plan page's tools (Floor plan tab). */
+  floorPlan?: FloorPlanRibbon;
   onProfile: () => void;
   onChooseFolder: () => void;
   folderLabel: string;
@@ -94,6 +114,7 @@ export const CAPTIONS: Record<RibbonTab, string[]> = {
   concept: ['Load', 'Supply', 'Stage'],
   schematic: ['History', 'Distribution', 'Main systems', 'ELV', 'Stage'],
   detailed: ['Run', 'Canvas', 'Boards', 'Equipment', 'Selection', 'Calculate', 'Stage'],
+  floorplan: ['Plan', 'Rooms', 'Cables and boards', 'Measure', 'View'],
   reports: ['Schedules', 'Drawings and reports'],
   issue: ['Tender', 'Track', 'Send', 'IFC'],
   cost: ['Bill', 'Add to the bill', 'Rates', 'Issue and export'],
@@ -111,6 +132,7 @@ const TABS: { id: RibbonTab; label: string; icon: Icon; step?: string; stages?: 
   { id: 'concept', label: 'Concept', icon: ChartColumnBig, step: '1', stages: ['concept'] },
   { id: 'schematic', label: 'Schematic', icon: Waypoints, step: '2', stages: ['schematic'] },
   { id: 'detailed', label: 'Detailed design', icon: CircuitBoard, step: '3', stages: ['detailed'] },
+  { id: 'floorplan', label: 'Floor plan', icon: MapIcon },
   { id: 'reports', label: 'Documents', icon: FileText },
   { id: 'issue', label: 'Tender and IFC', icon: Stamp, step: '4', stages: ['tender', 'ifc'] },
   { id: 'cost', label: 'BOM / Cost', icon: Receipt },
@@ -126,6 +148,7 @@ const TAB_VIEWS: Record<RibbonTab, MainView[]> = {
   concept: ['building', 'load-assessment', 'sizing', 'substation-area', 'space-planning', 'dashboard'],
   schematic: ['panels', 'design', 'busbar', 'pfc', 'ups', 'solar', 'earth-schematic', 'elv', 'inbox'],
   detailed: ['design', 'panels', 'load-schedule', 'enclosure', 'selection', 'voltage-drop', 'earthing', 'coordination', 'engines', 'calculators'],
+  floorplan: ['floor-plan'],
   reports: ['load-schedule', 'cable-schedule', 'cable-tray', 'equipment', 'drawings', 'drawing-register', 'study-reports', 'report', 'export-centre'],
   issue: ['revisions', 'modifications', 'review', 'received-docs', 'submissions'],
   cost: ['boq'],
@@ -223,7 +246,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       [
         view('dashboard', 'Overview', LayoutDashboard, 'Overview of this project: next actions, key figures and what is outstanding — load, transformers, generators, panels, area, power density, checks'),
         view('building', 'Building', Building2, 'Building information: GFA, levels, typical floors, rooms and room types'),
-        { label: 'Floor plan', icon: MapIcon, title: 'Floor plan: open an architect\'s DWG / DXF in the app — rooms and areas, cable lengths, tray routes and board locations', onClick: a.onFloorPlan },
+        view('floor-plan', 'Floor plan', MapIcon, 'Floor plan: an architect\'s DWG / DXF in the app, beside the SLD — rooms and areas, cable lengths, tray routes and board locations'),
         { label: 'Project settings', icon: Scale, title: 'Voltage, ambient, voltage-drop limit, sizing targets, submission form details', onClick: a.onSettings },
         view('parameters', 'Parameters', Braces, '{Parameters}: designed / checked by, submission date, your own values — used in title blocks, notes and labels'),
         view('titleblock', 'Title block', PanelBottom, 'Design your own title blocks with logo, text and {Parameters}'),
@@ -235,7 +258,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
     concept: [
       [
         view('building', 'Building', Building2, 'Building information: GFA, levels, typical floors, rooms and room types'),
-        { label: 'Floor plan', icon: MapIcon, title: 'Floor plan: open an architect\'s DWG / DXF in the app — rooms and areas, cable lengths, tray routes and board locations', onClick: a.onFloorPlan },
+        view('floor-plan', 'Floor plan', MapIcon, 'Floor plan: an architect\'s DWG / DXF in the app, beside the SLD — rooms and areas, cable lengths, tray routes and board locations'),
         view('load-assessment', 'Load assessment', ChartColumnBig, 'Load assessment: maximum demand, transformers and generator from the building type, area schedule and services')
       ],
       [
@@ -304,6 +327,36 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       ],
       [gate('detailed')]
     ],
+    floorplan: (() => {
+      const f = a.floorPlan;
+      const off = !f?.hasPlan;
+      const tool = (t: FloorPlanTool, label: string, icon: Icon, title: string, sub?: string): Tool => ({ label, icon, title, sub, onClick: () => f?.onTool(t), active: f?.tool === t, disabled: off });
+      return [
+        [
+          view('floor-plan', 'Floor plan', MapIcon, 'Floor plan page: the architect\'s plan in the canvas'),
+          { label: 'Open plan', icon: FolderOpen, title: 'Open a floor plan (DWG / DXF) in this page', onClick: () => f?.onOpen() },
+          { label: 'Layers', icon: Layers, title: 'What each layer of the plan is (room outline, room name, wall, tray, route…)', onClick: () => f?.onLayers(), active: f?.layersOn, disabled: off },
+          { label: f?.level ?? 'Level', icon: Building2, sub: 'level', title: 'The level this plan shows (rooms and boards go to it)', onClick: () => {}, disabled: off || !f?.levels.length, menu: f?.levels.map((l) => ({ label: l.label, title: `This plan shows ${l.label}`, onClick: () => f.onLevel(l.key) })) }
+        ],
+        [
+          { label: 'Add found rooms', icon: LayoutGrid, title: 'Add every room the plan outlines to Building information (one undo step); or click one with this tool', onClick: () => { f?.onTool('auto'); f?.onAddFound(); }, active: f?.tool === 'auto', disabled: off },
+          tool('room', 'Click inside room', MousePointerClick, 'Click inside a room: outline from its walls, added to Building information'),
+          tool('trace', 'Trace outline', PenLine, 'Click the corners of a room: added to Building information'),
+          tool('name', 'Pick name', Type, 'Click the room name on the plan: it names the selected room')
+        ],
+        [
+          tool('link', 'Link route', Cable, 'Click the lines of the chosen feeder\'s route: its length is updated', f?.feeder),
+          tool('tray', 'Tray run', Rows3, 'Click the runs of the chosen tray route: tray length and feeders updated', f?.tray),
+          tool('place', 'Place board', CircuitBoard, 'Click the chosen board\'s symbol or spot: its room, level and position updated', f?.board)
+        ],
+        [tool('dist', 'Length', Ruler, 'Measure a length on the plan'), tool('area', 'Area', Square, 'Measure an area on the plan')],
+        [
+          { label: 'Zoom', icon: ZoomIn, title: 'Zoom in (or use the mouse wheel)', onClick: () => f?.onZoom(), disabled: off },
+          { label: 'Fit', icon: Maximize, title: 'Fit the plan to the page', onClick: () => f?.onFit(), disabled: off },
+          { label: 'Undo', icon: Undo2, title: 'Undo (⌘Z / Ctrl+Z)', onClick: a.onUndo, disabled: !a.canUndo }
+        ]
+      ];
+    })(),
     reports: [
       [
         view('load-schedule', 'Load schedule', Table2, 'DEWA load distribution schedule per DB'),

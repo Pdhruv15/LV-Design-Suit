@@ -45,6 +45,7 @@ contextBridge.exposeInMainWorld('lvds', {
   cadFile: {
     openPlan: () => ipcRenderer.invoke('cad:openPlan'),
     takePending: () => ipcRenderer.invoke('cad:takePending'),
+    readPlan: (file) => ipcRenderer.invoke('cad:readPlan', file),
     onPending: (cb) => {
       const listener = () => cb();
       ipcRenderer.on('cad:pending', listener);

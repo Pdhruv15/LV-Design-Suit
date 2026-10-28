@@ -1705,23 +1705,8 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .tpl-file{display:flex;gap:var(--space-2);align-items:center;border:1px solid var(--line);border-radius:var(--radius-sm);padding:4px 8px;background:var(--p2)}.tpl-file>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tpl-preview{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius-sm)}.tpl-preview table{border-collapse:collapse;min-width:0}.tpl-preview td{border:1px solid var(--line);padding:2px 6px;font-size:var(--fs-xs);white-space:nowrap}.tpl-preview tr.rep td{color:var(--acc)}
 
-/* Floor plan window (DWG / DXF read in the app): plan on the left, rooms on the right */
-.modal.fp-window{max-width:min(1440px,calc(100vw - 2 * var(--space-5)));height:calc(100vh - 2 * var(--space-5));padding:0;gap:0;overflow:hidden}
-.fp-head{display:flex;align-items:center;gap:var(--space-2) var(--space-3);flex-wrap:wrap;padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--line)}
-.fp-head label.row{gap:var(--space-2);font-size:var(--fs-sm);color:var(--mut)}
-.fp-tag{font-size:var(--fs-xs);border:1px solid color-mix(in srgb,var(--ok) 50%,transparent);color:var(--ok);border-radius:999px;padding:1px 8px;white-space:nowrap}
-.fp-tools{display:flex;align-items:center;gap:2px;padding:var(--space-1) var(--space-3);background:var(--p2);border-bottom:1px solid var(--line);overflow-x:auto}
-.fp-tool{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:72px;padding:5px 6px;border-radius:var(--radius-sm);border:1px solid transparent;background:none;color:var(--tx);font-size:var(--fs-xs);white-space:nowrap}
-.fp-tool svg{width:20px;height:20px;fill:none;stroke:var(--mut);stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round}
-.fp-tool:hover:not(:disabled){background:var(--panel)}
-.fp-tool[aria-pressed=true]{background:var(--panel);border-color:var(--acc)}
-.fp-tool[aria-pressed=true] svg{stroke:var(--acc)}
-.fp-tool.fp-gap{margin-left:var(--space-2);border-left-color:var(--line)}
-.fp-tool:disabled{opacity:.45}
-.fp-body{display:grid;grid-template-columns:minmax(0,1fr) 380px;flex:1;min-height:0}
-.fp-stage{position:relative;min-height:0;overflow:hidden;border-right:1px solid var(--line);background:var(--bg)}
+/* Floor plan page: shared parts (canvas hints, side panel) */
 .fp-canvas{position:absolute;inset:0;display:block;cursor:crosshair}
-.fp-empty{position:absolute;inset:0;display:grid;place-items:center;padding:var(--space-5);text-align:center}
 .fp-readout,.fp-hint{position:absolute;background:var(--panel);border:1px solid var(--line-strong);border-radius:var(--radius-sm);padding:5px 9px;font-size:var(--fs-sm);pointer-events:none}
 .fp-readout{right:var(--space-3);top:var(--space-3)}
 .fp-hint{left:var(--space-3);bottom:var(--space-3);max-width:calc(100% - 2 * var(--space-3))}
@@ -1734,7 +1719,6 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .fp-layers{padding:0 var(--space-3)}
 .fp-list tr{cursor:pointer}
 .fp-foot{margin:0;padding:var(--space-3);justify-content:flex-start}
-@media (max-width:1000px){.fp-body{grid-template-columns:1fr;grid-template-rows:minmax(320px,1fr) auto}.fp-stage{border-right:0;border-bottom:1px solid var(--line)}}
 .fp-tasks{display:flex;gap:2px;padding:var(--space-2) var(--space-3) 0;border-bottom:1px solid var(--line);overflow-x:auto}
 .fp-tasks button{background:none;border:0;border-bottom:2px solid transparent;padding:6px 10px;color:var(--mut);white-space:nowrap}
 .fp-tasks button[aria-selected=true]{color:var(--tx);border-bottom-color:var(--acc)}
@@ -1748,3 +1732,12 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .wn-item svg{width:22px;height:22px;margin-top:2px;fill:none;stroke:var(--acc);stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round}
 .wn-item b{display:block;font-weight:600}
 .wn-item .m{display:block;font-size:var(--fs-sm)}
+
+/* Floor plan page (beside the SLD): plan canvas, and what is in the model on the right */
+.mid > .fpp{flex:1 1 auto}
+.fpp{display:grid;grid-template-columns:minmax(0,1fr) 380px;min-height:520px;height:100%;border-top:1px solid var(--line)}
+.fpp-stage{position:relative;min-height:0;overflow:hidden;border-right:1px solid var(--line);background:var(--bg)}
+.fpp-file{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;padding:var(--space-2) var(--space-3);border-bottom:1px solid var(--line)}
+.fpp-file select{margin-left:auto}
+.fpp-empty .fpp-actions{display:flex;gap:var(--space-2);margin:var(--space-3) 0}
+@media (max-width:1000px){.fpp{grid-template-columns:1fr;grid-template-rows:minmax(360px,1fr) auto}.fpp-stage{border-right:0;border-bottom:1px solid var(--line)}}
