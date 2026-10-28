@@ -1,4 +1,4 @@
-import { CadDoc, initSync } from '../../../electron/cad/lvds_cad_reader.js';
+import { CadDoc, exportDxf, initSync } from '../../../electron/cad/lvds_cad_reader.js';
 import wasmUrl from '../../../electron/cad/lvds_cad_reader_bg.wasm?url';
 import sampleGf from '../../../electron/samples/sample-villa-gf.dxf?url';
 import sampleFf from '../../../electron/samples/sample-villa-ff.dxf?url';
@@ -42,6 +42,8 @@ export interface CadObject {
 export interface CadView {
   file: string;
   path?: string;
+  /** The file as opened, for saving it again with the devices added. */
+  bytes: Uint8Array;
   info: CadInfo;
   segs: Float32Array;
   segLayers: Uint16Array;
@@ -86,7 +88,7 @@ export async function openDrawing(file: string, bytes: Uint8Array, path?: string
   }
   const info = JSON.parse(doc.info()) as CadInfo;
   return {
-    file, path, info,
+    file, path, info, bytes,
     segs: doc.segments(), segLayers: doc.segment_layers(), segColors: doc.segment_colors(),
     snap: (x, y, r, mask, layersOn) => doc.snap(x, y, r, mask, layersOn),
     pick: (x, y, tol, layersOn, closedOnly = false) => { const j = doc.pick(x, y, tol, layersOn, closedOnly); return j ? (JSON.parse(j) as CadObject) : null; }
@@ -134,4 +136,17 @@ export async function sampleDrawing(name: string): Promise<CadView | null> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`The sample plan ${name} could not be loaded.`);
   return openDrawing(name, new Uint8Array(await res.arrayBuffer()));
+}
+
+/** A device written into the saved drawing: position (drawing units), radius, the letters inside and its label. */
+export interface DeviceOut { layer: string; x: number; y: number; r: number; text: string; label: string }
+
+/** The drawing saved as DXF with the devices added on their own layers (the architect's entities kept as read). */
+export async function drawingWithDevices(view: CadView, devices: DeviceOut[]): Promise<Uint8Array> {
+  await engine();
+  try {
+    return exportDxf(view.bytes, JSON.stringify(devices));
+  } catch (e) {
+    throw new Error(`The drawing could not be saved (${e instanceof Error ? e.message : String(e)}).`);
+  }
 }

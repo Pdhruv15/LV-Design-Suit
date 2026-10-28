@@ -1,9 +1,10 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { CadView } from '../../engines/cad/cadEngine';
 import type { CadToggles } from './CadCanvas';
 
-/** The tool working on the drawing: none (a click inspects the object under it), or a measuring tool. */
-export type CadTool = 'none' | 'dist' | 'area' | 'room';
+/** The tool working on the drawing: none (a click inspects the object under it), a measuring tool, placing a device
+ * (`dev`) or moving the selected one (`move`). */
+export type CadTool = 'none' | 'dist' | 'area' | 'room' | 'dev' | 'move';
 
 const RECENT = (projectId: string | undefined) => `lvds.cad.${projectId ?? 'new'}`;
 /** The drawing a project had open in the CAD view last time on this computer (its path stays out of the project file). */
@@ -19,6 +20,15 @@ export function useCad(projectId: string | undefined) {
   const [showLayers, setShowLayers] = useState(true);
   const [history, setHistory] = useState<string[]>([]);
   const [tool, setTool] = useState<CadTool>('none');
+  // Devices: what Add device places, on which circuit / board, the level the drawing shows, the device selected.
+  const [device, setDevice] = useState('ltg');
+  const [feederId, setFeederId] = useState('');
+  const [boardId, setBoardId] = useState('');
+  const [levelKey, setLevelKey] = useState('');
+  const [selected, setSelected] = useState<string | null>(null);
+  const [showDevices, setShowDevices] = useState(true);
+  /** Save DXF and Delete (ribbon), set by the page while it shows a drawing. */
+  const actions = useRef<{ save: () => void; remove: () => void }>({ save: () => {}, remove: () => {} });
 
   const say = useCallback((line: string) => setHistory((h) => [...h.slice(-49), line]), []);
   const open = useCallback((v: CadView) => {
@@ -32,7 +42,7 @@ export function useCad(projectId: string | undefined) {
   const allLayers = useCallback((on: boolean) => setLayersOn((l) => new Uint8Array(l.length).fill(on ? 1 : 0)), []);
   const toggle = useCallback((k: keyof CadToggles) => setToggles((t) => ({ ...t, [k]: !t[k] })), []);
 
-  return { view, open, layersOn, setLayer, allLayers, toggles, toggle, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, history, say, tool, setTool };
+  return { view, open, layersOn, setLayer, allLayers, toggles, toggle, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, history, say, tool, setTool, device, setDevice, feederId, setFeederId, boardId, setBoardId, levelKey, setLevelKey, selected, setSelected, showDevices, setShowDevices, actions };
 }
 
 export type CadState = ReturnType<typeof useCad>;
