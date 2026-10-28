@@ -18,6 +18,14 @@ export const PANEL_OF: Record<FloorPlanTool, FloorPlanPanel | undefined> = {
 
 export interface OpenPlan { file: string; path?: string; drawing: CadDrawing }
 
+/** Sample plans shipped with the app (electron/samples, made by scripts/make-sample-villa-plans.mjs), shown while no plan is
+ * open — a test aid. To remove: empty this list and delete the files and cad:readSample. */
+export const SAMPLE_PLANS: { file: string; label: string }[] = [
+  { file: 'sample-villa-gf.dxf', label: 'Sample villa · Ground floor' },
+  { file: 'sample-villa-ff.dxf', label: 'Sample villa · First floor' }
+];
+export const isSample = (file: string) => SAMPLE_PLANS.some((x) => x.file === file);
+
 const RECENT = (projectId: string | undefined) => `lvds.floorPlan.${projectId ?? 'new'}`;
 /** The plan a project had open last time on this computer (its full path stays out of the project file). */
 export const rememberedPlan = (projectId: string | undefined): string | undefined => { try { return localStorage.getItem(RECENT(projectId)) ?? undefined; } catch { return undefined; } };
