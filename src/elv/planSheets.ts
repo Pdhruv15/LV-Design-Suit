@@ -61,17 +61,20 @@ function symbolSvg(s: DeviceSymbol, x: number, y: number, r: number, rotationDeg
 export function planSvg(p: Project, lv: PlanLevel): string {
   const { rooms, x0, x1, y0, y1 } = bounds(p, lv);
   const w = x1 - x0, h = y1 - y0;
-  const r = Math.max(w / 370, h / 230) * 1.8; // symbols about 3.6 mm across on an A3 drawing area
+  // The A3 drawing area left beside the legend column and above the title block is about 290 × 225 mm: symbols about
+  // 5 mm across and room names about 3 mm high there.
+  const r = Math.max(w / 290, h / 225) * 2.5;
   const Y = (y: number) => y1 - y + y0; // flip about the box
   const outline = rooms.map((rm) => `<path d="M${rm.outline!.map(([x, y]) => `${x} ${Y(y)}`).join('L')}Z"/>`).join('');
+  // Room names in each room's top-left corner, clear of the devices in the middle.
   const names = rooms.map((rm) => {
-    const cx = rm.outline!.reduce((t, q) => t + q[0], 0) / rm.outline!.length, cy = rm.outline!.reduce((t, q) => t + q[1], 0) / rm.outline!.length;
-    return `<text x="${cx}" y="${Y(cy) + 2.2 * r}" text-anchor="middle">${esc(rm.name.toUpperCase())}</text>`;
+    const left = Math.min(...rm.outline!.map((q) => q[0])), top = Math.max(...rm.outline!.map((q) => q[1]));
+    return `<text x="${left + 0.5 * r}" y="${Y(top) + 1.5 * r}">${esc(rm.name.toUpperCase())}</text>`;
   }).join('');
   const devices = devicesOn(p, lv.buildingId, lv.levelId).map((d) => symbolSvg(ELV_DEVICES[d.type].symbol, d.x, Y(d.y), r, d.rotationDeg ?? 0)).join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x0} ${y0} ${w} ${h}" font-family="Arial, sans-serif">
   <g fill="none" stroke="#999" stroke-width="${r * 0.12}">${outline}</g>
-  <g fill="#777" font-size="${r * 1.1}">${names}</g>
+  <g fill="#777" font-size="${r * 1.2}">${names}</g>
   <g>${devices}</g>
 </svg>`;
 }
