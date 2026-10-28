@@ -51,7 +51,8 @@ describe('Floor plan page', () => {
     (window as { lvds?: unknown }).lvds = { cadFile: { openPlan: vi.fn() } };
     const onChange = vi.fn();
     act(() => root.render(<Host open onChange={onChange} />));
-    expect(document.body.textContent).toContain('GF.dwg · DWG · drawing in mm');
+    expect(document.body.textContent).toContain('GF.dwg · DWG ·');
+    expect((document.querySelector('select[aria-label="Units of this plan"]') as HTMLSelectElement).value).toBe('mm');
     expect(document.body.textContent).toMatch(/8 rooms on the plan · 8 not added/);
     expect(localStorage.getItem(`lvds.floorPlan.${villa.id ?? 'new'}`)).toBe('/plans/GF.dwg');
     act(() => button('Add found rooms').click());
@@ -99,6 +100,25 @@ describe('Floor plan page', () => {
     const [after, deleted] = onChange.mock.calls[onChange.mock.calls.length - 1] as [Project, string];
     expect(deleted).toBe('Smoke detector E1 deleted · ⌘Z to undo');
     expect(after.elvDevices).toEqual([]);
+  });
+
+  it('shows the units the drawing says, and rescales the rooms from the plan when they are changed', () => {
+    (window as { lvds?: unknown }).lvds = { cadFile: { openPlan: vi.fn() } };
+    const onChange = vi.fn();
+    act(() => root.render(<Host open onChange={onChange} />));
+    const units = document.querySelector('select[aria-label="Units of this plan"]') as HTMLSelectElement;
+    expect(units.value).toBe('mm');
+    expect(units.selectedOptions[0].textContent).toBe('Millimetres (drawing)');
+    act(() => button('Add found rooms').click());
+    const area = (p: Project) => buildingInfoOf(p).rooms.find((r) => r.outline)!.areaM2;
+    const before = area(onChange.mock.calls[0][0] as Project);
+    act(() => { units.value = 'cm'; units.dispatchEvent(new Event('change', { bubbles: true })); });
+    const [next, message] = onChange.mock.calls[onChange.mock.calls.length - 1] as [Project, string];
+    expect(message).toMatch(/^GF\.dwg is drawn in centimetres — 8 rooms and 0 ELV devices on this level rescaled/);
+    expect(area(next)).toBeCloseTo(before * 100, 1);
+    expect(next.cadPlanUnits).toEqual({ 'gf.dwg': 'cm' });
+    // Taking the rooms recorded the units the plan was read in, before the change.
+    expect((onChange.mock.calls[0][0] as Project).cadPlanUnits).toEqual({ 'gf.dwg': 'mm' });
   });
 
   it('keeps the outlines of the rooms added from the plan, so ELV devices find their room', () => {

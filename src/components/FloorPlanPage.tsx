@@ -11,6 +11,7 @@ import { CAD_LENGTH_DEFAULTS, lengthBreakdown, metresPerUnit, pullCadLengths } f
 import { inside, pullBoardPlaces } from '../model/cadPlaces';
 import { blockAt, curveAt, linkedPaths, placeBoard, toggleCurve } from '../model/cadPlanLinks';
 import { withLayerMap } from '../model/cadRooms';
+import { CAD_UNITS, withPlanUnit, type CadUnit } from '../model/cadUnits';
 import { pullCadTrays } from '../model/cadTrays';
 import { pickedRoom, planRoutes, planState, putBoards, putLengths, putRooms, putTrays, renameRoom, trayPlan, withPlan } from '../model/floorPlanActions';
 import { floorLabel, floorList } from '../model/levels';
@@ -112,7 +113,11 @@ export default function FloorPlanPage({ project, fp, onChange, onStatus }: {
   const cur = open;
   const roles = s.roles;
   const links = s.links;
-  const change = (next: Project, message: string) => { onChange(next, message); setNote(message); };
+  // Whatever is taken from the plan was worked out in its units: record them for the file (once), so exports in the
+  // plan's units (ELV DXF) know them without the drawing open.
+  const fileKey = open.file.trim().toLowerCase();
+  const withUnits = (next: Project) => (s.units.unit && !next.cadPlanUnits?.[fileKey] ? { ...next, cadPlanUnits: { ...(next.cadPlanUnits ?? {}), [fileKey]: s.units.unit } } : next);
+  const change = (next: Project, message: string) => { onChange(withUnits(next), message); setNote(message); };
   const levelRooms = level ? info.rooms.filter((r) => r.buildingId === level.building && r.levelId === level.level) : [];
   const roomInModel = (name: string, handle?: string) => levelRooms.find((r) => (handle && r.source?.sourceId === handle && r.source.file?.toLowerCase() === open.file.toLowerCase()) || r.name.toLowerCase() === name.toLowerCase());
   const found = s.rooms.rooms.map((r) => ({ room: r, points: s.base.outlines.find((o) => o.handle && o.handle === r.handle)?.points ?? [], model: roomInModel(r.name, r.handle) }));
@@ -134,7 +139,17 @@ export default function FloorPlanPage({ project, fp, onChange, onStatus }: {
     }
     return best?.s;
   };
-  const needLevel = () => { if (!level) setNote('Add the building and its levels in Building information first; rooms are kept per level.'); return !!level; };
+  const needLevel = () => {
+    if (s.units.needsChoice) { setNote('Choose the units this plan is drawn in (Units, beside the plan name): the drawing does not say. Areas and positions depend on it.'); return false; }
+    if (!level) setNote('Add the building and its levels in Building information first; rooms are kept per level.');
+    return !!level;
+  };
+  const setUnits = (unit: CadUnit) => {
+    const r = withPlanUnit(project, cur.file, cur.drawing.units, unit, level);
+    const label = CAD_UNITS.find((u) => u.id === unit)!.label.toLowerCase();
+    const scaled = r.rooms || r.devices ? ` — ${plural(r.rooms, 'room')} and ${plural(r.devices, 'ELV device')} on this level rescaled; apply plan lengths again for cables and trays` : '';
+    change(r.project, `${cur.file} is drawn in ${label}${scaled} · ⌘Z to undo`);
+  };
 
   function addPicked(poly: Pt[], areaUnits: number) {
     if (!needLevel()) return;
@@ -285,7 +300,9 @@ export default function FloorPlanPage({ project, fp, onChange, onStatus }: {
     }
   } : undefined;
   const linkedM = target ? routePaths.filter((p) => p.to === target && p.kind === (panel === 'cables' ? 'route' : 'tray')).reduce((t, p) => t + p.length, 0) * mpu : 0;
-  const readout = lengthM !== undefined ? `Length ${lengthM.toFixed(2)} m` : areaM2 !== undefined ? `Area ${areaM2.toFixed(2)} m²`
+  // A door measures about 0.9 m: a length far from any building size points to the wrong units.
+  const unitsDoubt = lengthM !== undefined && lengthM > 0 && (lengthM < 0.05 || lengthM > 2000) ? ' — check the plan units' : '';
+  const readout = lengthM !== undefined ? `Length ${lengthM.toFixed(2)} m${unitsDoubt}` : areaM2 !== undefined ? `Area ${areaM2.toFixed(2)} m²`
     : panel === 'rooms' ? `${plural(found.length, 'room')} on the plan · ${notAdded.length} not added`
       : panel === 'elv' ? `${deviceLabel(fp.elv.device)}${coverageNote(fp.elv.device)}` : linkedM ? `${target}: ${linkedM.toFixed(2)} m linked on the plan` : '';
 
@@ -298,7 +315,14 @@ export default function FloorPlanPage({ project, fp, onChange, onStatus }: {
         <div className="fp-hint">{note || HINTS[tool]}</div>
       </div>
       <aside className="fp-side">
-        <div className="fpp-file m">{open.file} · {open.drawing.format} · {s.rooms.units}
+        <div className="fpp-file m">{open.file} · {open.drawing.format} ·{' '}
+          <select aria-label="Units of this plan" value={s.units.unit ?? ''} className={s.units.needsChoice ? 'fpp-units-need' : undefined}
+            title="The units the plan is drawn in: areas, outlines, device positions and lengths follow it. Check: measure a door with Length (about 0.9 m)."
+            onChange={(e) => setUnits(e.target.value as CadUnit)}>
+            {!s.units.unit && <option value="">Choose units…</option>}
+            {CAD_UNITS.map((u) => <option key={u.id} value={u.id}>{u.label}{u.id === s.units.declared ? ' (drawing)' : ''}</option>)}
+          </select>{' '}
+          <span className={s.units.needsChoice ? 'warn' : undefined}>{s.units.declared ? (s.units.chosen && s.units.chosen !== s.units.declared ? `drawing says ${s.units.declared}` : '') : 'drawing does not say'}</span>
           {floors.length > 0 && (
             <select aria-label="Level of this plan" value={floor?.key} onChange={(e) => fp.setLevelKey(e.target.value)}>
               {floors.map((f) => <option key={f.key} value={f.key}>{floorLabel(project.building, f)}</option>)}

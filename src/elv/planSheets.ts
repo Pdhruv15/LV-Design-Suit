@@ -108,10 +108,22 @@ export function planSheetHtml(p: Project, lv: PlanLevel, index: number, count: n
   return buildSldSheetHtml(p, planSvg(p, lv), 'A3', sheetInfo(p, lv, index, count, notes));
 }
 
-/** The level's ELV devices as DXF (AutoCAD R12), millimetres on the architect plan's origin: room outlines on A-ELV-ROOMS,
- * each system's symbols on its own layer, each device tagged with its ID. */
-export function planDxf(p: Project, lv: PlanLevel): string {
-  const mm = 1000, r = 150; // symbols 300 mm across: 3 mm on paper at 1:100
+const UNIT_M: Record<string, number> = { mm: 0.001, cm: 0.01, m: 1, in: 0.0254, ft: 0.3048 };
+
+/** The units of the architect plan a level's devices were placed on (project.cadPlanUnits, recorded per drawing file):
+ * the file of the level's rooms, else the only units the project's plans use, else millimetres. */
+export function levelUnits(p: Project, lv: PlanLevel): string {
+  const units = p.cadPlanUnits ?? {};
+  const file = buildingInfoOf(p).rooms.find((r) => r.buildingId === lv.buildingId && r.levelId === lv.levelId && r.source?.file)?.source?.file;
+  const fromFile = file ? units[file.trim().toLowerCase()] : undefined;
+  const all = [...new Set(Object.values(units))];
+  return fromFile ?? (all.length === 1 ? all[0] : 'mm');
+}
+
+/** The level's ELV devices as DXF (AutoCAD R12) in the plan's own units on its origin, so it lies on the architect's
+ * drawing: room outlines on A-ELV-ROOMS, each system's symbols on its own layer, each device tagged with its ID. */
+export function planDxf(p: Project, lv: PlanLevel, units = levelUnits(p, lv)): string {
+  const mm = 1 / (UNIT_M[units] ?? 0.001), r = 0.15 * mm; // symbols 300 mm across: 3 mm on paper at 1:100
   const items: DxfPrimitive[] = [];
   for (const rm of bounds(p, lv).rooms) {
     items.push({ type: 'polyline', layer: 'A-ELV-ROOMS', points: rm.outline!.map(([x, y]): Pt => [x * mm, y * mm]), closed: true });

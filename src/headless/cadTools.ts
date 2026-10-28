@@ -9,6 +9,7 @@ import { applyRooms, LAYER_ROLES, layerMapFor, proposeRooms, roomsFromPlan } fro
 import type { CadPlan } from '../model/cadPlaces';
 import type { CadLayerMap, CadLayerRole, Project } from '../types';
 import { edit } from './editTools';
+import { planUnits } from '../model/cadUnits';
 import { openProject } from './project';
 import { r, type Tool, type ToolContext } from './tools';
 
@@ -59,6 +60,12 @@ export function findLevel(p: Project, buildingRef: string, levelRef: string): { 
   return { building: b.id, level: l.id, name: l.name };
 }
 
+/** The plan read in the units chosen for its file in the project (Floor plan page), else the drawing's own. */
+function withChosenUnits(p: Project, plan: CadPlan): CadPlan {
+  const u = planUnits(p, plan.file, plan.units);
+  return u.code !== undefined ? { ...plan, units: u.code } : plan;
+}
+
 export const CAD_TOOLS: Tool[] = [
   {
     name: 'cad_plan',
@@ -68,7 +75,7 @@ export const CAD_TOOLS: Tool[] = [
     usesProject: true,
     run: (a, ctx) => {
       const { project: p } = openProject({ ref: String(a.project ?? ''), folder: ctx.folder, anywhere: ctx.anywhere });
-      const plan = readPlan(String(a.drawing), ctx);
+      const plan = withChosenUnits(p, readPlan(String(a.drawing), ctx));
       const map = layerMap(p, plan, a.roles);
       const read = roomsFromPlan(plan, map, p.cadLength);
       return {
@@ -93,7 +100,7 @@ export const CAD_TOOLS: Tool[] = [
     },
     usesProject: true, writes: true,
     run: (a, ctx) => edit(a, ctx, 'rooms_from_cad', a.mode === 'apply', (p) => {
-      const plan = readPlan(String(a.drawing), ctx);
+      const plan = withChosenUnits(p, readPlan(String(a.drawing), ctx));
       const map = layerMap(p, plan, a.roles);
       const at = findLevel(p, String(a.building), String(a.level));
       const read = roomsFromPlan(plan, map, p.cadLength);

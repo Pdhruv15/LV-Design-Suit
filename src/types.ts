@@ -489,6 +489,8 @@ export interface Project {
   cadBlocks?: CadBlockMap[];
   /** Cable lengths from the CAD floor plan: drawing units and allowances added to each measured route. */
   cadLength?: CadLengthSettings;
+  /** Units chosen for CAD plans, by drawing file name (lower case): over what the drawing says (src/model/cadUnits.ts). */
+  cadPlanUnits?: Record<string, 'mm' | 'cm' | 'm' | 'in' | 'ft'>;
   /** CAD floor plans: layer name (or part of it) of the room outlines; default any layer with ROOM, SPACE or AREA. */
   cadRoomLayer?: string;
   /** What each layer of the project's CAD floor plans means (room outline, room name, tray…). */

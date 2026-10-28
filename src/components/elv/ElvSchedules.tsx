@@ -74,7 +74,7 @@ export default function ElvSchedules({ project, estimate, stamp, onChange, onSta
   /** The devices of each level as DXF for the CAD team (one file, or a ZIP of one per level). */
   const exportDxf = async () => {
     try {
-      const { planDxf, planLevels } = await import('../../elv/planSheets');
+      const { levelUnits, planDxf, planLevels } = await import('../../elv/planSheets');
       const levels = planLevels(project);
       if (!levels.length) { onStatus('No ELV devices placed on the floor plans yet: place them on the Floor plan page first.'); return; }
       const files = levels.map((lv) => ({ name: `${safeFileName(`${project.name} ELV ${lv.name}`)}.dxf`, data: planDxf(project, lv) }));
@@ -85,7 +85,8 @@ export default function ElvSchedules({ project, estimate, stamp, onChange, onSta
         files.forEach((f) => zip.file(f.name, f.data));
         m = await saveBinary(`${safeFileName(project.name)} - ELV DXF.zip`, await zip.generateAsync({ type: 'uint8array' }), 'ZIP', 'zip', 'application/zip');
       }
-      if (m) onStatus(`${m} — millimetres, on the architect plan's origin`);
+      const units = [...new Set(levels.map((lv) => levelUnits(project, lv)))].join(' / ');
+      if (m) onStatus(`${m} — in ${units}, the plan's units, on its origin`);
     } catch (e) { onStatus(e instanceof Error ? e.message : String(e)); }
   };
   const placedAny = (project.elvDevices ?? []).length > 0;
@@ -121,7 +122,7 @@ export default function ElvSchedules({ project, estimate, stamp, onChange, onSta
         <button className="chip" onClick={exportPdf} disabled={!tables.some((x) => x.rows.length)}>Schedules PDF…</button>
         <button className="chip" onClick={exportExcel} disabled={!tables.some((x) => x.rows.length)}>Excel…</button>
         <button className="chip" onClick={exportSheets} disabled={!placedAny} title="One A3 sheet per level with ELV devices placed; a typical level names its floors">Plan sheets PDF…</button>
-        <button className="chip" onClick={exportDxf} disabled={!placedAny} title="ELV devices as DXF for the CAD team, in millimetres on the architect plan's origin">DXF for CAD…</button>
+        <button className="chip" onClick={exportDxf} disabled={!placedAny} title="ELV devices as DXF for the CAD team, in the plan's units on its origin">DXF for CAD…</button>
       </div>
       {boqOpen && <ProjectBoqDialog project={project} onClose={() => setBoqOpen(false)} onChange={(next, message) => { onChange(next); onStatus(message); setBoqOpen(false); }} />}
     </div>
