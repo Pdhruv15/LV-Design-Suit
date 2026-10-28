@@ -46,6 +46,25 @@ describe('ELV schedules', () => {
     expect(b.loops[1].devices.filter((d) => d.levelId === 'L1').map((d) => d.zone)).toEqual([...Array(30).fill('Z3'), ...Array(30).fill('Z4')]);
   });
 
+  it('keeps each floor whole on one loop: a floor that does not fit starts a new loop', () => {
+    // Typical level × 2 and a second typical level × 2, 30 detectors per floor: 30 + 30 + 30 fit 100, the 4th starts a loop.
+    const twoLevels: Project = { ...base(), building: { ...base().building!, buildings: [{ ...base().building!.buildings[0], levels: [
+      { id: 'L1', name: 'Typical', kind: 'typical', heightM: 3.5, count: 2 }, { id: 'L2', name: 'Typical 2', kind: 'typical', heightM: 3.5, count: 2 }] }],
+      rooms: [{ id: 'R3', buildingId: 'B', levelId: 'L1', name: 'Office', type: 'office', areaM2: 400, outline: box(0, 0, 20, 20) }, { id: 'R4', buildingId: 'B', levelId: 'L2', name: 'Office', type: 'office', areaM2: 400, outline: box(0, 0, 20, 20) }] } };
+    let p = place(twoLevels, 'L1', grid('smoke-detector', 1, 1, 6, 5, 3.5));
+    p = place(p, 'L2', grid('smoke-detector', 1, 1, 6, 5, 3.5));
+    const s = elvSchedules(p);
+    expect(s.buildings[0].loops.map((l) => l.devices.length)).toEqual([90, 30]);
+    expect(new Set(s.buildings[0].loops[1].devices.map((d) => `${d.levelId}/${d.floor}`))).toEqual(new Set(['L2/2']));
+    expect(s.warnings).toEqual([]);
+  });
+
+  it('splits only a floor larger than a loop, and says so', () => {
+    const s = elvSchedules(place(base(), 'GF', [...grid('smoke-detector', 2, 2, 6, 10, 4.5), ...grid('smoke-detector', 32, 2, 6, 10, 4.5)])); // 120 on one floor
+    expect(s.buildings[0].loops.map((l) => l.devices.length)).toEqual([100, 20]);
+    expect(s.warnings).toContain('Tower, Ground: 120 fire alarm devices are more than one loop takes, so the floor is split over loops.');
+  });
+
   it('starts a new loop when the alarm current passes the limit, and warns of a room too big for one zone', () => {
     const p = place(base(), 'GF', grid('sounder-beacon', 2, 2, 5, 4, 5)); // 20 × 25 mA = 500 mA in alarm
     const b = elvSchedules(p).buildings[0];

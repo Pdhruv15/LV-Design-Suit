@@ -112,7 +112,25 @@ function fireAlarm(project: Project, building: string, floors: Floor[], c: Catal
   const maxDevices = loopDevices(c), maxMa = loopMa(c);
   const loads = ordered.map(({ d, f }) => ({ d, f, load: ELV_DEVICES[d.type].load(c) }));
   const alarmOf = (g: typeof loads) => loopAlarmMa(g.map((y) => ({ n: 1, load: y.load })), c);
-  const loops = fill(loads, (g, x) => g.length + 1 <= maxDevices && alarmOf([...g, x]) <= maxMa);
+  // Whole floors on a loop: a floor that does not fit the loop being filled starts a new one. Only a floor larger than
+  // a loop is split over loops (and said so).
+  const fits = (g: typeof loads, more: typeof loads) => g.length + more.length <= maxDevices && alarmOf([...g, ...more]) <= maxMa;
+  const floorGroups: (typeof loads)[] = [];
+  for (const x of loads) {
+    const last = floorGroups[floorGroups.length - 1];
+    if (last && last[0].f === x.f) last.push(x); else floorGroups.push([x]);
+  }
+  const loops: (typeof loads)[] = [];
+  for (const fl of floorGroups) {
+    const cur = loops[loops.length - 1];
+    if (cur && fits(cur, fl)) cur.push(...fl);
+    else if (fits([], fl)) loops.push([...fl]);
+    else {
+      const f = fl[0].f;
+      warnings.push(`${building}, ${f.level.name}${f.floor ? ` (floor ${f.floor})` : ''}: ${fl.length} fire alarm devices are more than one loop takes, so the floor is split over loops.`);
+      loops.push(...fill(fl, (g, x) => fits(g, [x])));
+    }
+  }
   loops.forEach((g, i) => {
     const panel = Math.floor(i / k.loopsPerPanel) + 1, loop = (i % k.loopsPerPanel) + 1;
     const devices = g.map(({ d, f, load }, a): LoopDevice => ({

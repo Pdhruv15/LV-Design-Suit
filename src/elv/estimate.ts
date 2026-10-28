@@ -175,6 +175,7 @@ export function estimateElv(project: Project, settings: ElvSettings | undefined 
   for (const b of info.buildings) {
     const building: DeviceCounts = {};
     const buildingRooms: string[] = [];
+    const floorLoopDevices: number[] = []; // fire alarm loop devices on each floor, bottom to top
     const roomsIn = (l: BuildingLevel) => info.rooms.filter((r) => r.buildingId === b.id && r.levelId === l.id);
     for (const l of b.levels) {
       const floors = Math.max(1, Math.round(l.count ?? 1));
@@ -196,10 +197,12 @@ export function estimateElv(project: Project, settings: ElvSettings | undefined 
       }
       if (!ids.length && !placed.looseCount) continue;
       add(building, level, floors);
+      const onLoop = LOOP_DEVICES.reduce((t, [k]) => t + (level[k] ?? 0), 0);
+      if (onLoop) for (let f = 0; f < floors; f++) floorLoopDevices.push(onLoop);
       buildingRooms.push(...ids);
       for (let f = 1; f <= floors; f++) supplies.push(...floorSupplies(b, l, floors > 1 ? f : undefined, level, ids, on, c));
     }
-    if (buildingRooms.length) supplies.push(...buildingSupplies(b, building, buildingRooms, on, c, warnings));
+    if (buildingRooms.length) supplies.push(...buildingSupplies(b, building, buildingRooms, on, c, warnings, floorLoopDevices));
   }
   if (!rows.length) warnings.push('No rooms in Building information: add buildings, levels and rooms (or import them) first.');
   if (unknownTypes.size) warnings.push(`No ELV rule for room type ${[...unknownTypes].sort().join(', ')}: the default rule is used.`);
@@ -255,7 +258,19 @@ function floorSupplies(b: ProjectBuilding, l: BuildingLevel, floor: number | und
   return out;
 }
 
-function buildingSupplies(b: ProjectBuilding, d: DeviceCounts, rooms: string[], on: Set<ElvSystem>, c: Catalogue, warnings: string[]): ElvSupply[] {
+/** Loops for whole floors: a floor that does not fit the loop being filled starts a new one; a floor larger than a loop
+ * fills loops of its own, its remainder shared with the next floor (as schedules.ts places them). */
+export function loopsForFloors(floors: number[], perLoop: number): number {
+  let loops = 0, used = 0;
+  for (const n of floors) {
+    if (loops && used + n <= perLoop) { used += n; continue; }
+    loops += Math.ceil(n / perLoop);
+    used = n - (Math.ceil(n / perLoop) - 1) * perLoop;
+  }
+  return loops;
+}
+
+function buildingSupplies(b: ProjectBuilding, d: DeviceCounts, rooms: string[], on: Set<ElvSystem>, c: Catalogue, warnings: string[], floorLoopDevices: number[] = []): ElvSupply[] {
   const out: ElvSupply[] = [];
   const base = { buildingId: b.id, rooms };
   const loop = LOOP_DEVICES.map(([key, type]) => ({ n: d[key] ?? 0, load: ELV_DEVICES[type].load(c) })).filter((x) => x.n);
@@ -265,7 +280,8 @@ function buildingSupplies(b: ProjectBuilding, d: DeviceCounts, rooms: string[], 
     // Loops by current: the inputs in alarm come once per loop, the rest shares the loops.
     const peak = loopAlarmMa(loop.filter((x) => !x.load.output).map((x) => ({ ...x, load: { ...x.load, quiescentMa: 0 } })), c);
     const shared = loopAlarmMa(loop.map((x) => ({ ...x, load: x.load.output ? x.load : { ...x.load, alarmMa: x.load.quiescentMa } })), c);
-    const loops = Math.max(Math.ceil(onLoops / loopDevices(c)), Math.ceil(shared / Math.max(loopMa(c) - peak, 1))), units = Math.ceil(loops / k.loopsPerPanel);
+    const byCount = floorLoopDevices.length ? loopsForFloors(floorLoopDevices, loopDevices(c)) : Math.ceil(onLoops / loopDevices(c));
+    const loops = Math.max(byCount, Math.ceil(shared / Math.max(loopMa(c) - peak, 1))), units = Math.ceil(loops / k.loopsPerPanel);
     const quiescentA = (units * k.panelQuiescentMa + loop.reduce((t, x) => t + x.n * (x.load.quiescentMa ?? 0), 0)) / 1000;
     const alarmA = (units * k.panelAlarmMa + loop.reduce((t, x) => t + x.n * (x.load.alarmMa ?? 0), 0)) / 1000;
     const ah = k.batteryFactor * (quiescentA * k.standbyH + alarmA * k.alarmH);
