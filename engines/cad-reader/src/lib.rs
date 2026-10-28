@@ -4,6 +4,8 @@
 //! lines, arcs, polylines (with bulges), hatch outer boundaries, texts and blocks with their attributes, each with its
 //! layer, handle and LVDS tag (extended data). The plan logic itself (rooms, routes, trays) stays in TypeScript.
 
+pub mod doc;
+
 use acadrust::entities::mtext_format::parse_mtext;
 use acadrust::entities::{BoundaryEdge, BoundaryPath, EntityCommon, EntityType};
 use acadrust::{CadDocument, DwgReader, DxfReader};

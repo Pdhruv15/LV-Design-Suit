@@ -1,0 +1,34 @@
+import { useCallback, useState } from 'react';
+import type { CadView } from '../../engines/cad/cadEngine';
+import type { CadToggles } from './CadCanvas';
+
+const RECENT = (projectId: string | undefined) => `lvds.cad.${projectId ?? 'new'}`;
+/** The drawing a project had open in the CAD view last time on this computer (its path stays out of the project file). */
+export const rememberedDrawing = (projectId: string | undefined): string | undefined => { try { return localStorage.getItem(RECENT(projectId)) ?? undefined; } catch { return undefined; } };
+const remember = (projectId: string | undefined, path?: string) => { try { if (path) localStorage.setItem(RECENT(projectId), path); } catch { /* not remembered */ } };
+
+/** State of the CAD view, kept by the app so the drawing stays open while other pages are shown. */
+export function useCad(projectId: string | undefined) {
+  const [view, setViewState] = useState<CadView | null>(null);
+  const [layersOn, setLayersOn] = useState<Uint8Array>(new Uint8Array());
+  const [toggles, setToggles] = useState<CadToggles>({ snap: false, osnap: true, ortho: false, grid: false });
+  const [fitKey, setFitKey] = useState(0);
+  const [showLayers, setShowLayers] = useState(true);
+  const [history, setHistory] = useState<string[]>([]);
+
+  const say = useCallback((line: string) => setHistory((h) => [...h.slice(-49), line]), []);
+  const open = useCallback((v: CadView) => {
+    setViewState(v);
+    setLayersOn(Uint8Array.from(v.info.layers.map((l) => (l.on ? 1 : 0))));
+    setFitKey((k) => k + 1);
+    remember(projectId, v.path);
+    say(`Command: OPEN  ${v.file} — ${v.info.format}, ${v.info.layers.length} layers${v.info.truncated ? ' (very large: part of it shown)' : ''}`);
+  }, [projectId, say]);
+  const setLayer = useCallback((i: number, on: boolean) => setLayersOn((l) => { const n = l.slice(); n[i] = on ? 1 : 0; return n; }), []);
+  const allLayers = useCallback((on: boolean) => setLayersOn((l) => new Uint8Array(l.length).fill(on ? 1 : 0)), []);
+  const toggle = useCallback((k: keyof CadToggles) => setToggles((t) => ({ ...t, [k]: !t[k] })), []);
+
+  return { view, open, layersOn, setLayer, allLayers, toggles, toggle, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, history, say };
+}
+
+export type CadState = ReturnType<typeof useCad>;

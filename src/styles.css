@@ -1758,3 +1758,37 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .fpp-empty .fpp-actions{display:flex;gap:var(--space-2);margin:var(--space-3) 0}
 @media (max-width:1000px){.fpp{grid-template-columns:1fr;grid-template-rows:minmax(360px,1fr) auto}.fpp-stage{border-right:0;border-bottom:1px solid var(--line)}}
 .fpp-sample{background:color-mix(in srgb,var(--acc) 10%,transparent)}
+
+/* CAD view (DWG / DXF opened natively): model space, side panel, command line, status bar */
+.cad{--cad-bg:#1b1f27;--cad-ink:#e6ebf3;--cad-grid:#3a4152;--cad-cross:#e8eef7;--cad-snap:#3df27a;display:flex;flex-direction:column;height:100%;min-height:520px;border-top:1px solid var(--line)}
+:root[data-theme="light"] .cad{--cad-bg:#fbfcfe;--cad-ink:#1d2433;--cad-grid:#c7cfdc;--cad-cross:#1d2433;--cad-snap:#0a8f3c}
+.mid > .cad{flex:1 1 auto}
+.cad-work{display:grid;grid-template-columns:minmax(0,1fr) 260px;flex:1;min-height:0}
+.cad-work:has(> :only-child){grid-template-columns:minmax(0,1fr)}
+.cad-stage{position:relative;min-height:0;overflow:hidden;background:var(--cad-bg)}
+.cad-model{position:absolute;inset:0}
+.cad-layer{position:absolute;inset:0;display:block}
+.cad-over{cursor:none}
+.cad-coords{position:absolute;left:var(--space-2);top:var(--space-2);font:11px ui-monospace,Menlo,monospace;color:var(--mut);pointer-events:none}
+.cad-empty{display:grid;place-content:center;gap:var(--space-3);padding:var(--space-5);text-align:center;background:var(--bg)}
+.cad-actions{display:flex;gap:var(--space-2);flex-wrap:wrap;justify-content:center}
+.cad-side{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-width:0;min-height:0}
+.cad-side h4{margin:0;padding:var(--space-3) var(--space-3) var(--space-1);font-size:var(--fs-xs);color:var(--mut);text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center}
+.cad-res{margin:0 var(--space-3) var(--space-2);padding:var(--space-2);border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--p2);font-size:var(--fs-sm);overflow-wrap:anywhere}
+.cad-sample{margin-top:var(--space-2);font-weight:600}
+.cad-lyr-all{margin-left:auto;text-transform:none;letter-spacing:0}
+.cad-lyr-all button{background:none;border:0;color:var(--acc);font-size:var(--fs-xs);padding:0}
+.cad-layers{flex:1;min-height:0;overflow:auto;padding-bottom:var(--space-2)}
+.cad-lyr{display:flex;align-items:center;gap:var(--space-2);width:100%;padding:3px var(--space-3);background:none;border:0;font-size:var(--fs-sm);text-align:left}
+.cad-lyr:hover{background:var(--p2)}
+.cad-lyr i{width:10px;height:10px;border-radius:2px;flex:none;border:1px solid var(--line)}
+.cad-lyr .m{margin-left:auto;font-size:var(--fs-xs)}
+.cad-lyr.off{opacity:.45}
+.cad-cmd{display:flex;align-items:center;gap:var(--space-2);padding:5px var(--space-3);background:var(--panel);border-top:1px solid var(--line);font:12px ui-monospace,Menlo,monospace}
+.cad-hist{flex:0 1 auto;max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cad-cmd input{flex:1;min-width:120px;background:transparent;border:0;outline:0;color:var(--tx);font:inherit}
+.cad-status{display:flex;align-items:center;gap:var(--space-1);padding:4px var(--space-2);background:var(--p2);border-top:1px solid var(--line);font-size:var(--fs-xs);color:var(--mut)}
+.cad-tg{border:1px solid var(--line);border-radius:4px;padding:1px 7px;background:none;color:var(--mut);font-size:var(--fs-xs)}
+.cad-tg.on{color:var(--tx);border-color:var(--acc);background:color-mix(in srgb,var(--acc) 15%,transparent)}
+.cad-status .sp{flex:1}
+@media (max-width:900px){.cad-work{grid-template-columns:1fr}.cad-side{display:none}}

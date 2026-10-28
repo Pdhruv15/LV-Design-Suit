@@ -341,6 +341,16 @@ handle('cad:readSample', async (_evt, name) => {
   if (!SAMPLE_PLANS.has(name)) return null;
   return { file: name, drawing: await cadFile.readDrawingFile(path.join(__dirname, 'samples', name)) };
 });
+// The CAD view reads drawings itself (engine in the window): the engine, and a drawing's bytes.
+handle('cad:engine', () => cadFile.engineBytes());
+handle('cad:openBytes', async (evt) => {
+  const result = await dialog.showOpenDialog(ownerOf(evt), { title: 'Open a drawing', defaultPath: ensureProjectsFolder(), filters: [{ name: 'CAD drawing', extensions: ['dwg', 'dxf'] }], properties: ['openFile'] });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  const file = result.filePaths[0];
+  return { file: path.basename(file), path: file, bytes: cadFile.readDrawingBytes(file) };
+});
+handle('cad:readBytes', (_evt, file) => (isPlanFile(file) && fs.existsSync(file) ? { file: path.basename(file), path: file, bytes: cadFile.readDrawingBytes(file) } : null));
+handle('cad:sampleBytes', (_evt, name) => (SAMPLE_PLANS.has(name) ? { file: name, bytes: cadFile.readDrawingBytes(path.join(__dirname, 'samples', name)) } : null));
 // Reopens the plan a project had open last time (its path is remembered on this computer, not in the project file).
 handle('cad:readPlan', async (_evt, file) => {
   if (!isPlanFile(file) || !fs.existsSync(file)) return null;

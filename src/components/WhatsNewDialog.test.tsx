@@ -16,8 +16,9 @@ describe("What's new window", () => {
     const onAction = vi.fn(), onClose = vi.fn();
     act(() => root.render(<WhatsNewDialog releases={RELEASES.slice(0, 1)} onAction={onAction} onClose={onClose} />));
     expect(document.body.textContent).toContain(`What's new in v${RELEASES[0].version}`);
-    act(() => button('Open Floor plan').click());
-    expect(onAction).toHaveBeenCalledWith('floor-plan');
+    const first = RELEASES[0].items.find((it) => it.action)!;
+    act(() => button(first.actionLabel ?? 'Show me').click());
+    expect(onAction).toHaveBeenCalledWith(first.action);
     act(() => button('Close').click());
     expect(onClose).toHaveBeenCalled();
   });

@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CAD Basics Mockup</title>
+<style>
+:root{--bg:#0a1120;--panel:#0f1a2f;--p2:#14233f;--line:#20304f;--line-strong:#2f4570;--tx:#dbe4f5;--mut:#8093b5;--acc:#4aa8ff;--on-acc:#04101f;--ok:#37d67a;--warn:#f5c04a;--new:#b784ff;--model:#1b1f27;--ink:#c9d3e3;--snap:#3df27a;--cross:#e8eef7}
+:root[data-theme="light"]{--bg:#eef2f8;--panel:#fff;--p2:#f3f6fb;--line:#d5dceb;--line-strong:#b5c2da;--tx:#17223a;--mut:#5a6a88;--acc:#1f6fd1;--on-acc:#fff;--ok:#16834a;--warn:#9a6a00;--new:#7a3fd6;--model:#fbfcfe;--ink:#2b3346;--snap:#0a8f3c;--cross:#1d2433}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#eef2f8;--panel:#fff;--p2:#f3f6fb;--line:#d5dceb;--line-strong:#b5c2da;--tx:#17223a;--mut:#5a6a88;--acc:#1f6fd1;--on-acc:#fff;--ok:#16834a;--warn:#9a6a00;--new:#7a3fd6;--model:#fbfcfe;--ink:#2b3346;--snap:#0a8f3c;--cross:#1d2433}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.4 -apple-system,"Segoe UI",system-ui,sans-serif}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+.intro{max-width:1320px;margin:0 auto;padding:16px 16px 0}
+.intro h1{font-size:17px;margin:0 0 4px}
+.intro p{margin:0 0 6px;color:var(--mut);max-width:1000px}
+.pick{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.pick button{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 12px;color:var(--mut)}
+.pick button[aria-pressed=true]{border-color:var(--acc);color:var(--tx);background:var(--p2)}
+.pick .theme{margin-left:auto}
+.app{max-width:1320px;margin:6px auto 24px;border:1px solid var(--line-strong);border-radius:10px;overflow:hidden;background:var(--bg)}
+.tabs{display:flex;gap:2px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto}
+.tabs span{padding:7px 12px;color:var(--mut);white-space:nowrap;border-bottom:2px solid transparent}
+.tabs span.on{color:var(--tx);border-bottom-color:var(--acc)}
+.ribbon{display:flex;padding:6px 8px 2px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto}
+.grp{display:flex;flex-direction:column;padding:0 6px;border-right:1px solid var(--line)}
+.grp:last-child{border-right:0}
+.grp .b{display:flex;gap:2px}
+.grp .cap{font-size:10px;color:var(--mut);text-align:center;padding-top:2px}
+.rb{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:60px;padding:5px 6px;border-radius:6px;border:1px solid transparent;background:none;font-size:11px;white-space:nowrap}
+.rb svg{width:20px;height:20px;stroke:var(--mut);fill:none;stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round}
+.rb[aria-pressed=true]{background:var(--p2);border-color:var(--acc)}
+.rb[aria-pressed=true] svg{stroke:var(--acc)}
+.work{display:grid;grid-template-columns:minmax(0,1fr) 260px;height:560px}
+.model{position:relative;background:var(--model);overflow:hidden;cursor:none}
+.model svg{width:100%;height:100%;display:block}
+.w{stroke:var(--ink);stroke-width:30;fill:none}
+.d{stroke:var(--ink);stroke-width:12;fill:none;opacity:.6}
+.t{fill:var(--ink);font-size:300px}
+.dev{stroke:#f5c04a;stroke-width:22;fill:none}
+.devt{fill:#f5c04a;font-size:170px}
+.ghost{stroke:var(--acc);stroke-width:22;fill:none;stroke-dasharray:60 40}
+.dim{stroke:var(--snap);stroke-width:18;fill:none}
+.dimt{fill:var(--snap);font-size:260px;font-weight:600}
+.hatch{fill:color-mix(in srgb,var(--snap) 22%,transparent);stroke:var(--snap);stroke-width:18}
+.snapbox{fill:none;stroke:var(--snap);stroke-width:26}
+.cross{stroke:var(--cross);stroke-width:10}
+.tip{position:absolute;background:var(--panel);border:1px solid var(--line-strong);border-radius:4px;padding:3px 7px;font-size:11px;pointer-events:none}
+.coords{position:absolute;left:8px;top:8px;font:11px ui-monospace,Menlo,monospace;color:var(--mut)}
+.side{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-width:0}
+.side h4{margin:0;padding:10px 12px 6px;font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
+.lyr{display:flex;align-items:center;gap:8px;padding:3px 12px;font-size:12px}
+.lyr i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.lyr .eye{margin-left:auto;color:var(--mut)}
+.lyr.off{opacity:.45}
+.pal{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:4px 12px 10px}
+.pal button{background:var(--p2);border:1px solid var(--line);border-radius:6px;padding:6px 2px;font-size:11px;display:flex;flex-direction:column;align-items:center;gap:3px}
+.pal button[aria-pressed=true]{border-color:var(--acc)}
+.pal svg{width:26px;height:26px;stroke:#f5c04a;fill:none;stroke-width:1.6}
+.res{margin:0 12px 10px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--p2);font-size:12px}
+.res b{font-size:15px}
+.cmd{display:flex;align-items:center;gap:8px;padding:5px 10px;background:var(--panel);border-top:1px solid var(--line);font:12px ui-monospace,Menlo,monospace}
+.cmd .hist{color:var(--mut)}
+.cmd input{flex:1;background:transparent;border:0;outline:0;color:var(--tx);font:inherit}
+.status{display:flex;align-items:center;gap:4px;padding:4px 8px;background:var(--p2);border-top:1px solid var(--line);font-size:11px;color:var(--mut)}
+.status .tg{border:1px solid var(--line);border-radius:4px;padding:1px 7px}
+.status .tg.on{color:var(--tx);border-color:var(--acc);background:color-mix(in srgb,var(--acc) 15%,transparent)}
+.status .sp{flex:1}
+.new{outline:2px dashed var(--new);outline-offset:-2px}
+.hide{display:none}
+.notes{max-width:1320px;margin:0 auto 24px;padding:0 16px;color:var(--mut);font-size:12px}
+.notes li{margin:3px 0}
+</style>
+</head>
+<body>
+<div class="intro">
+  <h1>CAD basics in the app (mockup) — open natively, measure, check area, add devices</h1>
+  <p>Only the core: the plan opens and behaves like a CAD program (model space, crosshair, snaps, command line, layers), and the engineer measures lengths, checks areas and places devices the way they do in CAD. Drawing, editing and submission sheets come later, one by one. Pick a step:</p>
+  <div class="pick" role="group">
+    <button data-s="open" aria-pressed="true">1 · Open</button>
+    <button data-s="dist" aria-pressed="false">2 · Measure length</button>
+    <button data-s="area" aria-pressed="false">3 · Check area</button>
+    <button data-s="dev" aria-pressed="false">4 · Add device</button>
+    <button class="theme" id="theme">Light / dark</button>
+  </div>
+</div>
+
+<div class="app">
+  <div class="tabs"><span>Project</span><span>1 Concept</span><span>2 Schematic</span><span>3 Detailed design</span><span class="on">CAD</span><span>Documents</span><span>4 Tender and IFC</span></div>
+  <div class="ribbon new">
+    <div class="grp"><div class="b">
+      <button class="rb"><svg viewBox="0 0 24 24"><path d="M4 7h6l2 2h8v9H4z"/></svg>Open</button>
+      <button class="rb"><svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6"/></svg>Save DXF</button>
+    </div><div class="cap">File</div></div>
+    <div class="grp"><div class="b">
+      <button class="rb" data-t="dist"><svg viewBox="0 0 24 24"><path d="M3 17 17 3M3 17l3 3M17 3l3 3"/></svg>Distance<small></small></button>
+      <button class="rb" data-t="area"><svg viewBox="0 0 24 24"><path d="M4 20V8l8-4 8 4v12z"/></svg>Area</button>
+      <button class="rb" data-t="room"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM12 9v6M9 12h6"/></svg>Room area</button>
+    </div><div class="cap">Measure</div></div>
+    <div class="grp"><div class="b">
+      <button class="rb" data-t="dev"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7"/></svg>Add device</button>
+      <button class="rb"><svg viewBox="0 0 24 24"><path d="M5 9l7-5 7 5M7 9v10h10V9"/></svg>Move</button>
+      <button class="rb"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>Delete</button>
+    </div><div class="cap">Devices</div></div>
+    <div class="grp"><div class="b">
+      <button class="rb"><svg viewBox="0 0 24 24"><path d="M12 3 3 8l9 5 9-5zM3 13l9 5 9-5"/></svg>Layers</button>
+      <button class="rb"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>Fit</button>
+      <button class="rb"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3"/></svg>Undo</button>
+    </div><div class="cap">View</div></div>
+  </div>
+
+  <div class="work">
+    <div class="model new" id="model">
+      <svg viewBox="-800 -800 17600 13600" preserveAspectRatio="xMidYMid meet">
+        <g transform="translate(0,12000) scale(1,-1)">
+          <!-- double-line walls -->
+          <path class="w" d="M-100 -100H16100V12100H-100zM100 100H15900V11900H100z"/>
+          <path class="w" d="M100 4450H1500M2400 4450H5600M6500 4450H9600M10500 4450H15900M100 4550H1500M2400 4550H5600M6500 4550H9600M10500 4550H15900"/>
+          <path class="w" d="M100 5950H2500M3400 5950H8000M9000 5950H15900M100 6050H2500M3400 6050H8000M9000 6050H15900"/>
+          <path class="w" d="M4950 100V4450M5050 100V4450M8450 100V4450M8550 100V4450M5950 6050V8500M6050 6050V8500M5950 9400V11900M6050 9400V11900"/>
+          <path class="d" d="M1500 4550V5450M1500 5450A900 900 0 0 0 2400 4550M6500 4550V5450"/>
+          <!-- devices already placed -->
+          <g id="placed"><circle class="dev" cx="3000" cy="9000" r="200"/><path class="dev" d="M2860 8860l280 280M2860 9140l280-280"/></g>
+          <g id="ghost" class="hide"><circle class="ghost" cx="9000" cy="9000" r="200"/><path class="ghost" d="M8860 8860l280 280M8860 9140l280-280"/></g>
+          <!-- measure -->
+          <g id="mdist" class="hide"><path class="dim" d="M100 3000H4950"/><path class="dim" d="M100 2800V3200M4950 2800V3200"/></g>
+          <g id="marea" class="hide"><path class="hatch" d="M6050 6050H15900V11900H6050z"/></g>
+          <!-- crosshair + snap marker -->
+          <g id="cursor"><path class="cross" d="M4950 -400V12400M-400 3000H16400"/><rect class="snapbox" x="4830" y="2880" width="240" height="240"/></g>
+        </g>
+        <text class="t" x="1800" y="3300">MAJLIS</text>
+        <text class="t" x="9800" y="3300">LIVING</text>
+        <text class="t" x="1400" y="9700">KITCHEN</text>
+        <text class="t" x="5800" y="9700">MAID</text>
+        <text id="dtext" class="dimt hide" x="1500" y="8750">4.85 m</text>
+        <text id="atext" class="dimt hide" x="9300" y="3500">57.62 m²</text>
+        <text class="devt" x="3250" y="2900">DB-GF1/R1</text>
+      </svg>
+      <div class="coords" id="coords">X 4950.00   Y 3000.00   mm</div>
+      <div class="tip" id="tip" style="left:31%;top:68%">Endpoint</div>
+    </div>
+    <aside class="side new">
+      <h4>Result</h4>
+      <div class="res" id="res">Plan opened — 1 : 1, millimetres. Layers as drawn by the architect.</div>
+      <div id="palette" class="hide">
+        <h4>Devices</h4>
+        <div class="pal">
+          <button aria-pressed="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/><path d="M8 8l8 8M16 8l-8 8"/></svg>Light</button>
+          <button><svg viewBox="0 0 24 24"><path d="M6 10h12v6H6z"/><path d="M9 13h.01M15 13h.01"/></svg>Socket</button>
+          <button><svg viewBox="0 0 24 24"><path d="M5 8h14v8H5zM5 12h14"/></svg>DB</button>
+          <button><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/><path d="M12 6v12"/></svg>Smoke</button>
+          <button><svg viewBox="0 0 24 24"><path d="M5 9h10l4-3v12l-4-3H5z"/></svg>CCTV</button>
+          <button><svg viewBox="0 0 24 24"><path d="M7 5h10v14H7zM10 16h4"/></svg>Data</button>
+        </div>
+        <div class="res">Circuit <b style="font-size:13px">DB-GF1 / R1</b> · placed on layer <b style="font-size:13px">E-LIGHT</b><br>Room: Maid room (from the plan)</div>
+      </div>
+      <h4>Layers</h4>
+      <div class="lyr"><i style="background:#c9d3e3"></i>A-WALL<span class="eye">on</span></div>
+      <div class="lyr"><i style="background:#8a96aa"></i>A-DOOR<span class="eye">on</span></div>
+      <div class="lyr"><i style="background:#c9d3e3"></i>A-ROOM-NAME<span class="eye">on</span></div>
+      <div class="lyr off"><i style="background:#666"></i>A-FURN<span class="eye">off</span></div>
+      <div class="lyr"><i style="background:#f5c04a"></i>E-LIGHT<span class="eye">on</span></div>
+      <div class="lyr"><i style="background:#f5c04a"></i>E-POWER<span class="eye">on</span></div>
+    </aside>
+  </div>
+  <div class="cmd new"><span class="hist" id="hist">Command: OPEN  A-101 Ground floor.dwg</span><span>›</span><input id="cmdline" value="" placeholder="Type a command (DI, AREA, DEV) or click a tool"></div>
+  <div class="status new">
+    <span class="tg on">SNAP</span><span class="tg on">OSNAP</span><span class="tg">ORTHO</span><span class="tg">GRID</span>
+    <span class="sp"></span><span>A-101 Ground floor.dwg · DWG 2018 · mm · 1 : 1</span>
+  </div>
+</div>
+
+<ul class="notes">
+  <li><b>Open natively:</b> the plan fills a CAD model space (dark or light), with a crosshair cursor, live coordinates, snap markers (endpoint, midpoint, intersection, perpendicular, centre), pan with the middle button / space-drag, wheel zoom at the cursor, Fit, and the architect's layers (on / off). Blocks are drawn as drawn (doors, furniture, symbols).</li>
+  <li><b>Measure length (DI):</b> two snapped points → length, ΔX, ΔY, shown on the plan and in Result; ORTHO for straight runs.</li>
+  <li><b>Check area (AREA):</b> click the corners (snapped) or pick a closed outline → area and perimeter; <b>Room area</b> clicks inside a room (walls followed, doors closed). Results can be sent to Building information as a room.</li>
+  <li><b>Add device (DEV):</b> pick a symbol (light, socket, DB, ELV devices…) and its circuit, click on the plan (snapped), it is placed on its layer and counted in the design; Move / Delete as in CAD.</li>
+  <li><b>Command line</b> for engineers used to CAD (DI, AREA, DEV, ESC to cancel); every command also on the ribbon. <b>Save DXF</b> keeps the architect's drawing plus the devices added.</li>
+  <li>Built on the Rust engine (WebAssembly) in the desktop app and the web version. Not now: drawing / editing the architect's walls, dimensions, plotting and submission sheets — added one by one when asked.</li>
+</ul>
+
+<script>
+const $=(s)=>document.querySelector(s),$$=(s)=>[...document.querySelectorAll(s)];
+const states={
+  open:{hist:'Command: OPEN  A-101 Ground floor.dwg',res:'Plan opened — 1 : 1, millimetres. Layers as drawn by the architect.',tip:'Endpoint',show:[]},
+  dist:{hist:'Command: DI   Specify first point: endpoint   Specify second point: endpoint',res:'Length <b>4.85 m</b><br>ΔX 4.85 m · ΔY 0.00 m',tip:'Endpoint',show:['#mdist','#dtext']},
+  area:{hist:'Command: AREA   Specify corner points or [Object]:',res:'Area <b>57.62 m²</b><br>Perimeter 31.38 m<br><button class="chip" style="margin-top:6px;border:1px solid var(--line);background:var(--panel);border-radius:5px;padding:2px 8px">Add as room…</button>',tip:'Intersection',show:['#marea','#atext']},
+  dev:{hist:'Command: DEV   Light · DB-GF1/R1   Specify insertion point:',res:'Placing <b style="font-size:13px">Light</b> — click on the plan. Esc to stop.',tip:'Centre of room',show:['#ghost','#palette']}
+};
+function go(k){
+  $$('.pick button[data-s]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.s===k)));
+  $$('.rb[data-t]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.t===k)));
+  ['#mdist','#dtext','#marea','#atext','#ghost','#palette'].forEach(s=>$(s).classList.add('hide'));
+  states[k].show.forEach(s=>$(s).classList.remove('hide'));
+  $('#hist').textContent=states[k].hist;$('#res').innerHTML=states[k].res;$('#tip').textContent=states[k].tip;
+}
+$$('.pick button[data-s]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.s)));
+$$('.rb[data-t]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.t==='room'?'area':b.dataset.t)));
+$('#theme').addEventListener('click',()=>{const r=document.documentElement,l=r.dataset.theme==='light'||(r.dataset.theme!=='dark'&&matchMedia('(prefers-color-scheme: light)').matches);r.dataset.theme=l?'dark':'light';});
+</script>
+</body>
+</html>

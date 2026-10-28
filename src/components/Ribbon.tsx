@@ -4,14 +4,14 @@ import {
   BatteryCharging, Building2, Cable, ClipboardCheck, MessageSquareWarning, Inbox, CircuitBoard, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText, GitPullRequestArrow, Send, Stamp,
   Gauge, Hand, LayoutGrid, ListTree, MousePointer2, Pencil, Receipt, Scale, Settings2, ShieldCheck, Sun,
   ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig, Cctv } from 'lucide-react';
-import { Map as MapIcon, Layers, MousePointerClick, PenLine, Type, Ruler, Square, ZoomIn, Maximize, BellRing, Crosshair, Grid3x3, Copy, CircleDashed, ListChecks } from 'lucide-react';
+import { Map as MapIcon, PenTool, Layers, MousePointerClick, PenLine, Type, Ruler, Square, ZoomIn, Maximize, BellRing, Crosshair, Grid3x3, Copy, CircleDashed, ListChecks } from 'lucide-react';
 import type { FloorPlanTool } from './floorPlanState';
 import type { BoardKind, Feeder } from '../types';
 import type { MainView } from '../views';
 import { STAGE_INFO, type DesignStage, type TenderRoute } from '../model/designStage';
 
 export type BomCommand = 'boq' | 'scope' | 'changes' | 'variations' | 'circuits' | 'excel' | 'pdf' | 'summary-pdf' | 'rates-sheet' | 'import' | 'save-list' | 'add-item' | 'add-section' | 'extras' | 'wastage' | 'markup' | 'document' | 'issue-rev';
-export type RibbonTab = 'home' | 'concept' | 'schematic' | 'detailed' | 'floorplan' | 'reports' | 'issue' | 'cost' | 'standards';
+export type RibbonTab = 'home' | 'concept' | 'schematic' | 'detailed' | 'floorplan' | 'cad' | 'reports' | 'issue' | 'cost' | 'standards';
 
 /** What the Floor plan tab shows and does (the page's state lives in the app). */
 export interface FloorPlanRibbon {
@@ -97,6 +97,8 @@ export interface RibbonActions {
   onAnonymizedSample: () => void;
   /** The Floor plan page's tools (Floor plan tab). */
   floorPlan?: FloorPlanRibbon;
+  /** The CAD view's tools (CAD tab). */
+  cad?: { onOpen: () => void; onFit: () => void; onLayers: () => void; layersOn: boolean; hasDrawing: boolean };
   onProfile: () => void;
   onChooseFolder: () => void;
   folderLabel: string;
@@ -128,6 +130,7 @@ export const CAPTIONS: Record<RibbonTab, string[]> = {
   schematic: ['History', 'Distribution', 'Main systems', 'ELV', 'Stage'],
   detailed: ['Run', 'Canvas', 'Boards', 'Equipment', 'Selection', 'Calculate', 'Stage'],
   floorplan: ['Plan', 'Rooms', 'Cables and boards', 'ELV', 'Measure', 'View'],
+  cad: ['File', 'View'],
   reports: ['Schedules', 'Drawings and reports'],
   issue: ['Tender', 'Track', 'Send', 'IFC'],
   cost: ['Bill', 'Add to the bill', 'Rates', 'Issue and export'],
@@ -146,6 +149,7 @@ const TABS: { id: RibbonTab; label: string; icon: Icon; step?: string; stages?: 
   { id: 'schematic', label: 'Schematic', icon: Waypoints, step: '2', stages: ['schematic'] },
   { id: 'detailed', label: 'Detailed design', icon: CircuitBoard, step: '3', stages: ['detailed'] },
   { id: 'floorplan', label: 'Floor plan', icon: MapIcon },
+  { id: 'cad', label: 'CAD', icon: PenTool },
   { id: 'reports', label: 'Documents', icon: FileText },
   { id: 'issue', label: 'Tender and IFC', icon: Stamp, step: '4', stages: ['tender', 'ifc'] },
   { id: 'cost', label: 'BOM / Cost', icon: Receipt },
@@ -162,6 +166,7 @@ const TAB_VIEWS: Record<RibbonTab, MainView[]> = {
   schematic: ['panels', 'design', 'busbar', 'pfc', 'ups', 'solar', 'earth-schematic', 'elv', 'inbox'],
   detailed: ['design', 'panels', 'load-schedule', 'enclosure', 'selection', 'voltage-drop', 'earthing', 'coordination', 'engines', 'calculators'],
   floorplan: ['floor-plan'],
+  cad: ['cad'],
   reports: ['load-schedule', 'cable-schedule', 'cable-tray', 'equipment', 'drawings', 'drawing-register', 'study-reports', 'report', 'export-centre'],
   issue: ['revisions', 'modifications', 'review', 'received-docs', 'submissions'],
   cost: ['boq'],
@@ -380,6 +385,16 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         ]
       ];
     })(),
+    cad: [
+      [
+        view('cad', 'CAD', PenTool, 'CAD view: a DWG / DXF drawing opened natively — model space, snaps, layers, command line'),
+        { label: 'Open', icon: FolderOpen, title: 'Open a DWG / DXF drawing in the CAD view', onClick: () => a.cad?.onOpen() }
+      ],
+      [
+        { label: 'Layers', icon: Layers, title: 'Show or hide the layers panel (LAYER)', onClick: () => a.cad?.onLayers(), active: a.cad?.layersOn },
+        { label: 'Fit', icon: Maximize, title: 'Fit the drawing to the window (FIT / ZE, or double-click the middle button)', onClick: () => a.cad?.onFit(), disabled: !a.cad?.hasDrawing }
+      ]
+    ],
     reports: [
       [
         view('load-schedule', 'Load schedule', Table2, 'DEWA load distribution schedule per DB'),
