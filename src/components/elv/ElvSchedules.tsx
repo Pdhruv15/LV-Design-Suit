@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react';
 import type { ElvEstimate } from '../../elv/estimate';
-import { elvTables, remarkOf, withRemark, type TableId } from '../../elv/outputs';
+import { ELV_SYSTEMS, type ElvSystem } from '../../elv/defaults';
+import { elvBoq, elvTables, projectBoqCurrent, remarkOf, withProjectBoq, withRemark, type TableId } from '../../elv/outputs';
+import { Modal } from '../ui';
+import { SYSTEM_LABEL } from './elvLabels';
 import type { Project } from '../../types';
 import { renderPdf, safeFileName, saveBinary, savePdf, saveText } from '../../util/files';
 
@@ -20,6 +23,9 @@ export default function ElvSchedules({ project, estimate, stamp, onChange, onSta
   onStatus: (message: string) => void;
 }) {
   const [tab, setTab] = useState<TableId>('devices');
+  const [boqOpen, setBoqOpen] = useState(false);
+  const inBoq = project.elvBoq;
+  const boqCurrent = useMemo(() => projectBoqCurrent(project), [project]);
   const tables = useMemo(() => elvTables(project, project.elv, estimate), [project, estimate]);
   const t = tables.find((x) => x.id === tab)!;
   const exportExcel = async () => {
@@ -108,12 +114,46 @@ export default function ElvSchedules({ project, estimate, stamp, onChange, onSta
         </div>
       )}
       {t.rows.length > 0 && t.notes.map((n) => <p key={n} className="m">{n}</p>)}
-      <div className="modal-actions"><span className="m">Remarks are kept with the project and printed on the schedules</span><span className="sp" />
+      <div className="modal-actions"><span className="m">{inBoq
+        ? <>In the project BOQ: {inBoq.systems.map((x) => SYSTEM_LABEL[x as ElvSystem] ?? x).join(', ')} (added {inBoq.addedAt}){boqCurrent ? '' : <b> · out of date: the design changed since</b>}</>
+        : 'Remarks are kept with the project and printed on the schedules'}</span><span className="sp" />
+        <button className="chip" onClick={() => setBoqOpen(true)} disabled={!tables.some((x) => x.id === 'boq' && x.rows.length)}>{inBoq ? 'Project BOQ…' : 'Add to project BOQ…'}</button>
         <button className="chip" onClick={exportPdf} disabled={!tables.some((x) => x.rows.length)}>Schedules PDF…</button>
         <button className="chip" onClick={exportExcel} disabled={!tables.some((x) => x.rows.length)}>Excel…</button>
         <button className="chip" onClick={exportSheets} disabled={!placedAny} title="One A3 sheet per level with ELV devices placed; a typical level names its floors">Plan sheets PDF…</button>
         <button className="chip" onClick={exportDxf} disabled={!placedAny} title="ELV devices as DXF for the CAD team, in millimetres on the architect plan's origin">DXF for CAD…</button>
       </div>
+      {boqOpen && <ProjectBoqDialog project={project} onClose={() => setBoqOpen(false)} onChange={(next, message) => { onChange(next); onStatus(message); setBoqOpen(false); }} />}
     </div>
+  );
+}
+
+/** Add to project BOQ: the ELV systems whose quantities go into section P. None is ticked unless already in the BOQ. */
+function ProjectBoqDialog({ project, onClose, onChange }: { project: Project; onClose: () => void; onChange: (next: Project, message: string) => void }) {
+  const lines = useMemo(() => elvBoq(project), [project]);
+  const offered = ELV_SYSTEMS.filter((s) => lines.some((l) => l.system === s));
+  const [chosen, setChosen] = useState<ElvSystem[]>(() => (project.elvBoq?.systems ?? []).filter((s): s is ElvSystem => offered.includes(s as ElvSystem)));
+  const toggle = (s: ElvSystem, on: boolean) => setChosen((c) => (on ? [...c, s] : c.filter((x) => x !== s)));
+  const n = chosen.length;
+  return (
+    <Modal onClose={onClose} label="Add ELV to the project BOQ" style={{ width: 'min(520px, 96vw)' }}>
+      <h3>Add ELV to the project BOQ</h3>
+      <p className="m">Not added unless you choose. The chosen systems' quantities go into section P (Optional ELV systems) of the project BOQ. Press again after changing the devices to update them. Emergency lighting and exit signs are LV: they are in section J already.</p>
+      <div className="fp-form" style={{ gridTemplateColumns: '1fr' }}>
+        {offered.map((s) => (
+          <label key={s} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <input type="checkbox" checked={chosen.includes(s)} onChange={(e) => toggle(s, e.target.checked)} />
+            {SYSTEM_LABEL[s]} <span className="m">({lines.filter((l) => l.system === s).length} lines)</span>
+          </label>
+        ))}
+      </div>
+      <div className="modal-actions">
+        <button type="button" className="chip" onClick={onClose}>Cancel</button><span className="sp" />
+        {project.elvBoq && <button type="button" className="chip" onClick={() => onChange(withProjectBoq(project, []), 'ELV removed from the project BOQ')}>Remove from BOQ</button>}
+        <button type="button" className="chip primary" disabled={!n} onClick={() => onChange(withProjectBoq(project, chosen), `${n} ELV system${n === 1 ? '' : 's'} ${project.elvBoq ? 'updated in' : 'added to'} the project BOQ (section P)`)}>
+          {project.elvBoq ? `Update ${n} system${n === 1 ? '' : 's'}` : `Add ${n} system${n === 1 ? '' : 's'}`}
+        </button>
+      </div>
+    </Modal>
   );
 }

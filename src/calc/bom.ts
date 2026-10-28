@@ -306,6 +306,9 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
     }
   }
 
+  // ELV systems the engineer added to the project BOQ (none by default): section P, Optional ELV systems.
+  for (const l of p.elvBoq?.lines ?? []) add('P', `elv:${l.key}`, l.description, l.unit, l.qty, '', { quantitySource: 'ELV design' });
+
   return [...m.values()]
     .filter((x) => x.qty > 0)
     .map((x) => ({ ...x, qty: x.unit === 'm' ? Math.ceil(x.qty) : x.qty }))

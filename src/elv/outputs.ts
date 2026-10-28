@@ -230,6 +230,24 @@ export function elvBoq(p: Project, settings: ElvSettings | undefined = p.elv, e:
   return lines;
 }
 
+/** The ELV lines for the project BOQ, for the chosen systems: keys carry the system (CCTV and data both have switches). */
+export function projectBoqLines(p: Project, systems: ElvSystem[], settings: ElvSettings | undefined = p.elv): NonNullable<Project['elvBoq']>['lines'] {
+  return elvBoq(p, settings).filter((l) => systems.includes(l.system)).map((l) => ({ key: `${l.system}/${l.key}`, system: l.system, description: `${SYSTEM_TITLE[l.system]}: ${l.description}`, unit: 'no', qty: l.qty }));
+}
+
+/** Adds (or updates) the chosen systems in the project BOQ; no systems removes ELV from it. */
+export function withProjectBoq(p: Project, systems: ElvSystem[], today = new Date().toISOString().slice(0, 10)): Project {
+  if (!systems.length) { const { elvBoq: _gone, ...rest } = p; return rest; }
+  const chosen = ELV_SYSTEMS.filter((s) => systems.includes(s));
+  return { ...p, elvBoq: { systems: chosen, lines: projectBoqLines(p, chosen), addedAt: today } };
+}
+
+/** Whether the ELV lines in the project BOQ still match the design (devices or rules changed since they were added). */
+export function projectBoqCurrent(p: Project): boolean {
+  if (!p.elvBoq) return true;
+  return JSON.stringify(projectBoqLines(p, p.elvBoq.systems as ElvSystem[])) === JSON.stringify(p.elvBoq.lines);
+}
+
 const SYSTEM_TITLE: Record<ElvSystem, string> = { 'fire-alarm': 'Fire alarm', cctv: 'CCTV', 'access-control': 'Access control', ict: 'Data and Wi-Fi', 'public-address': 'Public address' };
 
 function boqTable(p: Project, settings: ElvSettings | undefined, e: ElvEstimate): ScheduleTable {
