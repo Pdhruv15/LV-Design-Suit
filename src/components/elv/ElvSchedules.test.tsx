@@ -30,4 +30,18 @@ describe('ELV schedules on the ELV page', () => {
     act(() => tab('BOQ').click());
     expect(host.textContent).toContain('Fire alarm control panel');
   });
+
+  it('adds the ticked ELV systems to the project BOQ, none ticked at first', () => {
+    const onChange = vi.fn();
+    act(() => root.render(<ElvSchedules project={project} estimate={estimateElv(project)} onChange={onChange} onStatus={() => {}} />));
+    act(() => ([...host.querySelectorAll('button')].find((b) => b.textContent === 'Add to project BOQ…') as HTMLButtonElement).click());
+    const boxes = [...document.querySelectorAll('input[type=checkbox]')] as HTMLInputElement[];
+    expect(boxes.length).toBeGreaterThan(0);
+    expect(boxes.every((b) => !b.checked)).toBe(true);
+    const add = () => [...document.querySelectorAll('button')].find((b) => /^Add \d system/.test(b.textContent ?? '')) as HTMLButtonElement;
+    expect(add().disabled).toBe(true);
+    act(() => boxes[0].click());
+    act(() => add().click());
+    expect((onChange.mock.calls[0][0] as Project).elvBoq!.systems).toEqual(['fire-alarm']);
+  });
 });

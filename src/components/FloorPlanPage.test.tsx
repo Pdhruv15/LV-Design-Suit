@@ -117,6 +117,8 @@ describe('Floor plan page', () => {
     expect(message).toMatch(/^GF\.dwg is drawn in centimetres — 8 rooms and 0 ELV devices on this level rescaled/);
     expect(area(next)).toBeCloseTo(before * 100, 1);
     expect(next.cadPlanUnits).toEqual({ 'gf.dwg': 'cm' });
+    // Taking the rooms recorded the units the plan was read in, before the change.
+    expect((onChange.mock.calls[0][0] as Project).cadPlanUnits).toEqual({ 'gf.dwg': 'mm' });
   });
 
   it('keeps the outlines of the rooms added from the plan, so ELV devices find their room', () => {

@@ -113,7 +113,11 @@ export default function FloorPlanPage({ project, fp, onChange, onStatus }: {
   const cur = open;
   const roles = s.roles;
   const links = s.links;
-  const change = (next: Project, message: string) => { onChange(next, message); setNote(message); };
+  // Whatever is taken from the plan was worked out in its units: record them for the file (once), so exports in the
+  // plan's units (ELV DXF) know them without the drawing open.
+  const fileKey = open.file.trim().toLowerCase();
+  const withUnits = (next: Project) => (s.units.unit && !next.cadPlanUnits?.[fileKey] ? { ...next, cadPlanUnits: { ...(next.cadPlanUnits ?? {}), [fileKey]: s.units.unit } } : next);
+  const change = (next: Project, message: string) => { onChange(withUnits(next), message); setNote(message); };
   const levelRooms = level ? info.rooms.filter((r) => r.buildingId === level.building && r.levelId === level.level) : [];
   const roomInModel = (name: string, handle?: string) => levelRooms.find((r) => (handle && r.source?.sourceId === handle && r.source.file?.toLowerCase() === open.file.toLowerCase()) || r.name.toLowerCase() === name.toLowerCase());
   const found = s.rooms.rooms.map((r) => ({ room: r, points: s.base.outlines.find((o) => o.handle && o.handle === r.handle)?.points ?? [], model: roomInModel(r.name, r.handle) }));

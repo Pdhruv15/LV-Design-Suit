@@ -431,6 +431,9 @@ export interface Project {
   elvDeviceSeq?: number;
   /** Remarks typed on the ELV schedules, by schedule and row (src/elv/outputs.ts). */
   elvRemarks?: Record<string, string>;
+  /** ELV quantities the engineer added to the project BOQ (section P), for the systems chosen; absent: none. A copy
+   * made when added or updated, so the BOQ does not change by itself (src/elv/outputs.ts). */
+  elvBoq?: { systems: string[]; lines: { key: string; system: string; description: string; unit: string; qty: number }[]; addedAt: string };
   /** Design review comments (Reports → Review). */
   reviewComments?: import('./model/reviewComments').ReviewComment[];
   /** Saved setup of the design review report (sections, names, recorded reviewer decision). */
