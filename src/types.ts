@@ -623,6 +623,7 @@ export interface BuildingRoom {
   count?: number; // identical rooms on the level (e.g. 8 × 2BR apartments)
   boardId?: string; // the DB that serves it
   source?: RoomSource; // absent: entered by hand or from a table
+  outline?: [number, number][]; // metres on the level's floor plan, from the CAD outline (arcs as short chords)
 }
 
 export interface BuildingInfo {
