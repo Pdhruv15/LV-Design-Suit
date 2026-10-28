@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import CadLayerTable from './CadLayerTable';
+import { cadFileApi } from '../engines/cad/webCadFile';
 import FloorPlanCanvas, { type PlanDrag, type PlanMark, type PlanOverlay, type PlanPath, type PlanRoomShape } from './FloorPlanCanvas';
 import ElvPlanPanel from './elv/ElvPlanPanel';
 import { coverageNote, deviceLabel, deviceNear, elvLayer, fillAt, moveTo, placeAt, remove, rotate } from './elv/elvPlan';
@@ -55,7 +56,7 @@ export default function FloorPlanPage({ project, fp, onChange, onStatus }: {
   onChange: (next: Project, message: string) => void;
   onStatus: (message: string) => void;
 }) {
-  const cadFile = window.lvds?.cadFile;
+  const cadFile = cadFileApi();
   const [points, setPoints] = useState<Pt[]>([]);
   const [cursor, setCursor] = useState<Pt | null>(null);
   const [busy, setBusy] = useState(false);
@@ -113,7 +114,7 @@ export default function FloorPlanPage({ project, fp, onChange, onStatus }: {
               {cadFile.readSample && SAMPLE_PLANS.map((x) => <button key={x.file} className="chip" disabled={busy} onClick={() => showSample(x.file)}>{x.label}</button>)}
             </div>
           </>
-        ) : <p className="m">Opening a floor plan (DWG / DXF) needs the LV Design Studio desktop app.</p>}
+        ) : <p className="m">Opening a floor plan (DWG / DXF) needs a browser that runs WebAssembly, or the LV Design Studio desktop app.</p>}
         {note && <p className="m">{note}</p>}
       </section>
     );
