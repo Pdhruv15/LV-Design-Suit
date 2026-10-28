@@ -19,6 +19,7 @@ const frac = z.number().gt(0).max(1);
 const catalogueOverride = z.object({
   fireAlarm: z.object({
     detectorQuiescentMa: z.number().min(0).max(1000), detectorAlarmMa: z.number().min(0).max(1000), sounderQuiescentMa: z.number().min(0).max(1000), sounderAlarmMa: z.number().min(0).max(1000),
+    callPointQuiescentMa: z.number().min(0).max(1000), callPointAlarmMa: z.number().min(0).max(1000), moduleQuiescentMa: z.number().min(0).max(1000), moduleAlarmMa: z.number().min(0).max(1000), beaconAlarmMa: z.number().min(0).max(1000),
     devicesPerLoop: z.number().int().min(1).max(1000), loopsPerPanel: z.number().int().min(1).max(64), panelQuiescentMa: z.number().min(0).max(1e5), panelAlarmMa: z.number().min(0).max(1e5),
     standbyH: z.number().min(0).max(168), alarmH: z.number().min(0).max(24), batteryFactor: z.number().min(1).max(3), rechargeH: z.number().min(1).max(168), chargerV: pos, efficiency: frac, pf: frac
   }).partial().strict(),
