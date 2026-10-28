@@ -1740,3 +1740,11 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .fp-tasks button[aria-selected=true]{color:var(--tx);border-bottom-color:var(--acc)}
 .fp-pad{padding:var(--space-2) var(--space-3);margin:0}
 .fp-side .fp-form{padding-top:var(--space-3)}
+
+/* What's new (shown once after an update, and from Help) */
+.modal.whats-new{max-width:620px}
+.modal.whats-new h4{margin:var(--space-2) 0 0;font-size:var(--fs-md)}
+.wn-item{display:grid;grid-template-columns:28px 1fr auto;gap:var(--space-3);align-items:start;padding:var(--space-3) 0;border-top:1px solid var(--line)}
+.wn-item svg{width:22px;height:22px;margin-top:2px;fill:none;stroke:var(--acc);stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round}
+.wn-item b{display:block;font-weight:600}
+.wn-item .m{display:block;font-size:var(--fs-sm)}

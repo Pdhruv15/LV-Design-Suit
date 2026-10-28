@@ -27,10 +27,10 @@ export function Checklist({ items, onGo, compact }: { items: ChecklistItem[]; on
 }
 
 /** Help: the workflow from start to finish, quick paths for one job, and the checklist. */
-export default function HelpView({ project, run, stale, saved, onGo }: { project: Project; run?: CalcRun; stale: StudyKey[]; saved: boolean; onGo: Go }) {
+export default function HelpView({ project, run, stale, saved, onGo, onWhatsNew }: { project: Project; run?: CalcRun; stale: StudyKey[]; saved: boolean; onGo: Go; onWhatsNew?: () => void }) {
   const phases = ['Setup', 'Design', 'Check', 'Deliver'] as const;
   return (
-    <Page title="Help — how to use LV Design Studio" intro="The whole job from start to finish, or just the one calculation you need. Click any step or task to open it.">
+    <Page title="Help — how to use LV Design Studio" actions={onWhatsNew && <button className="chip" onClick={onWhatsNew}>What's new</button>} intro="The whole job from start to finish, or just the one calculation you need. Click any step or task to open it.">
       <div className="help-grid">
         <section className="card">
           <h4>Project workflow — start to finish</h4>

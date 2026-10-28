@@ -102,6 +102,7 @@ import AnonymizedSampleDialog from './components/AnonymizedSampleDialog';
 const SldExportDialog = lazy(() => import('./components/SldExportDialog'));
 const CadLoadsDialog = lazy(() => import('./components/CadLoadsDialog'));
 const FloorPlanView = lazy(() => import('./components/FloorPlanView'));
+const WhatsNewDialog = lazy(() => import('./components/WhatsNewDialog'));
 import PasteBoardDialog from './components/PasteBoardDialog';
 const EnclosureSizing = lazy(() => import('./components/EnclosureSizing'));
 import EarthingView from './components/EarthingView';
@@ -142,6 +143,7 @@ const ProjectsDashboard = lazy(() => import('./components/ProjectsDashboard'));
 import { NameDialog, UnsavedDialog } from './components/FileDialogs';
 import type { BoardKind, ProjectStatus } from './types';
 import type { FloorPlanTask } from './components/FloorPlanView';
+import { markSeen, pendingReleases, RELEASES, type Release, type WhatsNewAction } from './model/whatsNew';
 import type { CadDrawing } from './model/cadDrawing';
 type DiagramMode = 'system' | 'board' | 'earthing' | 'riser';
 
@@ -272,6 +274,13 @@ export default function App() {
   const [showCadLoads, setShowCadLoads] = useState(false);
   // Floor plan window: what it opens on, and a plan handed over from Finder / Explorer.
   const [floorPlan, setFloorPlan] = useState<{ task: FloorPlanTask; plan?: { file: string; drawing: CadDrawing } } | null>(null);
+  // What's new: the releases this computer has not seen yet, shown once after an update; Help opens it again.
+  const [whatsNew, setWhatsNew] = useState<Release[]>(() => pendingReleases(__APP_VERSION__));
+  const closeWhatsNew = () => { markSeen(__APP_VERSION__); setWhatsNew([]); };
+  const whatsNewAction = (a: WhatsNewAction) => {
+    closeWhatsNew();
+    setFloorPlan({ task: a === 'floor-plan-lengths' ? 'lengths' : a === 'floor-plan-trays' ? 'trays' : a === 'floor-plan-boards' ? 'boards' : 'rooms' });
+  };
   // Packages from other programs waiting for review, per project (not saved: nothing changes until accepted).
   const [inbox, setInbox] = useState<{ key: string; item: InboxItem }[]>([]);
   const [showPlaceElv, setShowPlaceElv] = useState(false);
@@ -931,6 +940,7 @@ export default function App() {
     cmd('Export the SLD…', () => { design(); setDiagramMode('system'); setShowExport(true); }, undefined, 'PDF DXF SVG');
     cmd('Loads from CAD floor plan…', () => setShowCadLoads(true), undefined, 'OpenCADStudio DWG DXF blocks fixtures count');
     cmd('Floor plan…', () => setFloorPlan({ task: 'rooms' }), undefined, 'open DWG DXF architect plan CAD drawing measure');
+    cmd('What\'s new…', () => setWhatsNew(RELEASES.slice(0, 1)), undefined, 'release notes update changes new features version');
     cmd('Cable lengths from CAD floor plan…', () => setFloorPlan({ task: 'lengths' }), undefined, 'Floor plan DWG DXF route measure length');
     cmd('Board locations from CAD floor plan…', () => setFloorPlan({ task: 'boards' }), undefined, 'Floor plan DWG DXF room level position');
     cmd('Tray routes from CAD floor plan…', () => setFloorPlan({ task: 'trays' }), undefined, 'Floor plan DWG DXF cable tray route length');
@@ -1530,7 +1540,7 @@ export default function App() {
             {(view === 'drawings' || view === 'drawing-register') && <DrawingsView project={project} run={run} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onOpen={setView} />}
             {view === 'parameters' && <ParametersView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onTitleBlock={() => setView('titleblock')} />}
             {view === 'titleblock' && <TitleBlockDesigner project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onParams={() => setView('parameters')} />}
-            {view === 'help' && <HelpView project={project} run={run} stale={staleKeys} saved={!!currentFile && !dirty} onGo={(v) => (v === 'settings' ? setShowSettings(true) : setView(v))} />}
+            {view === 'help' && <HelpView project={project} run={run} stale={staleKeys} saved={!!currentFile && !dirty} onGo={(v) => (v === 'settings' ? setShowSettings(true) : setView(v))} onWhatsNew={() => setWhatsNew(RELEASES.slice(0, 1))} />}
             {view === 'dashboard' && (
               <ProjectDashboard
                 project={project}
@@ -1713,6 +1723,9 @@ export default function App() {
           onApply={(next, message) => { void autoCheckpoint(project, 'Before placing ELV loads', undefined, setStatus); setProject(next, { step: true }); setStatus(message); setShowPlaceElv(false); }}
           onClose={() => setShowPlaceElv(false)}
         /></Suspense>
+      )}
+      {whatsNew.length > 0 && (
+        <Suspense fallback={null}><WhatsNewDialog releases={whatsNew} onAction={whatsNewAction} onClose={closeWhatsNew} /></Suspense>
       )}
       {floorPlan && (
         <Suspense fallback={null}><FloorPlanView
