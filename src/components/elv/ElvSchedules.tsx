@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import type { ElvEstimate } from '../../elv/estimate';
 import { elvTables, remarkOf, withRemark, type TableId } from '../../elv/outputs';
 import type { Project } from '../../types';
-import { safeFileName, saveBinary } from '../../util/files';
+import { safeFileName, saveBinary, savePdf } from '../../util/files';
 
 const TABS: { id: TableId; label: string }[] = [
   { id: 'devices', label: 'Devices' }, { id: 'loops', label: 'Fire alarm loops' }, { id: 'zones', label: 'Zones' }, { id: 'ports', label: 'Ports and zones' }, { id: 'boq', label: 'BOQ' }
@@ -27,6 +27,14 @@ export default function ElvSchedules({ project, estimate, stamp, onChange, onSta
       const { elvWorkbook } = await import('../../elv/workbook');
       const wb = await elvWorkbook(project, tables, stamp);
       const m = await saveBinary(`${safeFileName(project.name)} - ELV schedules.xlsx`, new Uint8Array(await wb.xlsx.writeBuffer()), 'Excel workbook', 'xlsx', XLSX);
+      if (m) onStatus(m);
+    } catch (e) { onStatus(e instanceof Error ? e.message : String(e)); }
+  };
+  const exportPdf = async () => {
+    try {
+      const { elvSchedulesHtml } = await import('../../elv/pdf');
+      const m = await savePdf(`${safeFileName(project.name)} - ELV schedules.pdf`, elvSchedulesHtml(project, tables, stamp),
+        { pageSize: 'A4', landscape: true, frame: { headerLeft: project.name, headerRight: stamp ?? '', footerLeft: 'ELV schedules' } });
       if (m) onStatus(m);
     } catch (e) { onStatus(e instanceof Error ? e.message : String(e)); }
   };
@@ -56,6 +64,7 @@ export default function ElvSchedules({ project, estimate, stamp, onChange, onSta
       )}
       {t.rows.length > 0 && t.notes.map((n) => <p key={n} className="m">{n}</p>)}
       <div className="modal-actions"><span className="m">Remarks are kept with the project and printed on the schedules</span><span className="sp" />
+        <button className="chip" onClick={exportPdf} disabled={!tables.some((x) => x.rows.length)}>Schedules PDF…</button>
         <button className="chip" onClick={exportExcel} disabled={!tables.some((x) => x.rows.length)}>Excel…</button>
       </div>
     </div>
