@@ -146,6 +146,7 @@ import type { BoardKind, ProjectStatus } from './types';
 import { useFloorPlan, type FloorPlanTool } from './components/floorPlanState';
 import { canFill as canFillElv, deviceLabel, devicesFor, SYSTEM_LABEL, SYSTEMS as ELV_SYSTEM_LIST } from './components/elv/elvLabels';
 import { onDemand } from './util/onDemand';
+import { revisionStamp } from './model/revisions';
 import type { ElvSystem } from './elv/defaults';
 import { markSeen, pendingReleases, RELEASES, type Release, type WhatsNewAction } from './model/whatsNew';
 type DiagramMode = 'system' | 'board' | 'earthing' | 'riser';
@@ -1638,7 +1639,7 @@ export default function App() {
             {view === 'cable-tray' && (
               <TrayScheduleView project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />
             )}
-            {view === 'elv' && <ElvView project={project} onChange={(p) => setProject(p)} onStatus={setStatus} onPlace={() => setShowPlaceElv(true)}
+            {view === 'elv' && <ElvView project={project} revision={revisionStamp(project)} onChange={(p) => setProject(p)} onStatus={setStatus} onPlace={() => setShowPlaceElv(true)}
               onSend={(pkg, hash) => { setInbox((l) => [...l.filter((x) => !(x.key === inboxKey && x.item.pkg.kind === pkg.kind && x.item.pkg.source.file === pkg.source.file)), { key: inboxKey, item: { pkg, hash } }]); setView('inbox'); setStatus('ELV loads sent to the inbox: review and accept them.'); }} />}
             {view === 'inbox' && <InboxView project={project} pending={inboxHere} me={prefs.profile.name ?? ''} onStatus={setStatus} onPlace={() => setShowPlaceElv(true)}
               onOpen={(item) => setInbox((l) => [...l, { key: inboxKey, item }])}

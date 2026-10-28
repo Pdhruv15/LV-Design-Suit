@@ -429,6 +429,8 @@ export interface Project {
   /** ELV devices placed on the floor plans (src/elv/placed.ts), and the highest device number given out. */
   elvDevices?: import('./elv/placed').ElvDevice[];
   elvDeviceSeq?: number;
+  /** Remarks typed on the ELV schedules, by schedule and row (src/elv/outputs.ts). */
+  elvRemarks?: Record<string, string>;
   /** Design review comments (Reports → Review). */
   reviewComments?: import('./model/reviewComments').ReviewComment[];
   /** Saved setup of the design review report (sections, names, recorded reviewer decision). */

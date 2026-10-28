@@ -9,6 +9,7 @@ import type { Project } from '../../types';
 import { safeFileName, saveText } from '../../util/files';
 import { sha256Hex } from '../../util/sha256';
 import { Page } from '../ui';
+import ElvSchedules from './ElvSchedules';
 
 export const SYSTEM_LABEL: Record<ElvSystem, string> = { 'fire-alarm': 'Fire alarm', cctv: 'CCTV', 'access-control': 'Access control', ict: 'ICT', 'public-address': 'Public address' };
 
@@ -34,8 +35,10 @@ const DEVICE_COLUMNS: { label: string; of: (d: Record<string, number | undefined
 /** ELV estimate from the rooms of Building: the systems on and off, upstream kW per system and supply, devices per
  * room, and the assumptions per room type (typical values to verify; a changed value is kept in project.elv).
  * "Send to LV" puts the loads package in the inbox; nothing changes the boards until it is accepted and placed. */
-export default function ElvView({ project, onChange, onSend, onPlace, onStatus }: {
+export default function ElvView({ project, revision, onChange, onSend, onPlace, onStatus }: {
   project: Project;
+  /** Revision stamp for the exported schedules (Excel header). */
+  revision?: string;
   onChange: (p: Project) => void;
   onSend: (pkg: ExchangePackage, hash: string) => void;
   onPlace: () => void;
@@ -186,6 +189,8 @@ export default function ElvView({ project, onChange, onSend, onPlace, onStatus }
             </tbody></table>
           )}
         </div>
+
+        <ElvSchedules project={project} estimate={estimate} stamp={revision} onChange={onChange} onStatus={onStatus} />
       </div>
     </Page>
   );

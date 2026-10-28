@@ -1,5 +1,5 @@
-import type { Board, BuildingInfo, BuildingLevel, Feeder, LoadType, MeterType, PointType, Project, ProjectBuilding, RoomRules, RoomType } from '../types';
-import { buildingInfoOf, roomTypesOf, summarizeBuilding } from './building';
+import type { Board, Feeder, LoadType, MeterType, PointType, Project, ProjectBuilding, RoomRules, RoomType } from '../types';
+import { buildingInfoOf, floorsOf, roomTypesOf, summarizeBuilding, type FloorInstance } from './building';
 import { addCircuit, balancePhases, updateCircuit } from '../model/schedule';
 import { applyRecommendation, recommend } from './sizing';
 import { boardTotals } from './summary';
@@ -40,28 +40,7 @@ export const benchOf = (t?: RoomType): number | undefined => t?.benchWPerM2 ?? (
 export const genPointWatts = (): Partial<Record<PointType, number>> => ({ ltg: rule('wattsLtg'), exfan: rule('wattsExfan'), s13: rule('wattsS13'), wh: rule('wattsWh'), cooker: rule('wattsCooker'), sac: 2500 });
 const maxPerCircuit = (): Partial<Record<PointType, number>> => ({ ltg: rule('maxLtgPerCircuit'), s13: rule('maxS13PerCircuit') });
 
-/** Every floor of the building, bottom to top, with a short tag (B2, B1, G, L1… R). */
-export interface FloorInstance { level: BuildingLevel; index: number; tag: string; name: string; elevationM: number }
-export function floorsOf(info: BuildingInfo, b: ProjectBuilding): FloorInstance[] {
-  const sum = summarizeBuilding(info, b);
-  const out: FloorInstance[] = [];
-  const basements = sum.levels.filter((l) => l.level.kind === 'basement').reduce((s, l) => s + l.count, 0);
-  let bIdx = basements, upper = 0, podium = 0, mezz = 0;
-  for (const li of sum.levels) {
-    for (let k = 0; k < li.count; k++) {
-      const l = li.level;
-      let tag: string;
-      if (l.kind === 'basement') tag = `B${bIdx--}`;
-      else if (l.kind === 'ground') tag = 'G';
-      else if (l.kind === 'roof') tag = 'R';
-      else if (l.kind === 'podium') tag = `P${++podium}`;
-      else if (l.kind === 'other') tag = `M${++mezz}`;
-      else tag = `L${String(++upper).padStart(2, '0')}`;
-      out.push({ level: l, index: k, tag, name: li.count > 1 ? `${l.name} (${tag})` : l.name, elevationM: li.elevationM + k * l.heightM });
-    }
-  }
-  return out;
-}
+export { floorsOf, type FloorInstance } from './building';
 
 const meterFor = (kw: number): MeterType => (kw <= rule('meter1PhMaxKw') ? '1-PH' : kw <= rule('meter3PhMaxKw') ? '3-PH' : 'CT');
 

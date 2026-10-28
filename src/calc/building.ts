@@ -251,3 +251,26 @@ export function spaceAreasFromRooms(info: BuildingInfo, plan: SpacePlan): SpaceP
   });
   return { ...plan, areas, uses: roomTypesOf(info).map(({ id, label, wPerM2, demandFactor }) => ({ id, label, wPerM2, demandFactor })) };
 }
+
+/** Every floor of the building, bottom to top, with a short tag (B2, B1, G, L1… R). */
+export interface FloorInstance { level: BuildingLevel; index: number; tag: string; name: string; elevationM: number }
+export function floorsOf(info: BuildingInfo, b: ProjectBuilding): FloorInstance[] {
+  const sum = summarizeBuilding(info, b);
+  const out: FloorInstance[] = [];
+  const basements = sum.levels.filter((l) => l.level.kind === 'basement').reduce((s, l) => s + l.count, 0);
+  let bIdx = basements, upper = 0, podium = 0, mezz = 0;
+  for (const li of sum.levels) {
+    for (let k = 0; k < li.count; k++) {
+      const l = li.level;
+      let tag: string;
+      if (l.kind === 'basement') tag = `B${bIdx--}`;
+      else if (l.kind === 'ground') tag = 'G';
+      else if (l.kind === 'roof') tag = 'R';
+      else if (l.kind === 'podium') tag = `P${++podium}`;
+      else if (l.kind === 'other') tag = `M${++mezz}`;
+      else tag = `L${String(++upper).padStart(2, '0')}`;
+      out.push({ level: l, index: k, tag, name: li.count > 1 ? `${l.name} (${tag})` : l.name, elevationM: li.elevationM + k * l.heightM });
+    }
+  }
+  return out;
+}
