@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Project } from '../types';
-import { elvBoq, elvTables, floorRef, remarkOf, withRemark } from './outputs';
+import { buildBom } from '../calc/bom';
+import { elvBoq, elvTables, floorRef, projectBoqCurrent, remarkOf, withProjectBoq, withRemark } from './outputs';
 import { placeDevices, type NewElvDevice } from './placed';
 import { elvWorkbook } from './workbook';
 
@@ -77,6 +78,23 @@ describe('ELV schedules', () => {
     const boq = table(p, 'boq');
     expect(boq.rows[0]).toMatchObject({ key: 'fire-alarm', kind: 'group', cells: ['1', 'Fire alarm', '', ''] });
     expect(boq.rows[1].cells[0]).toBe('1.1');
+  });
+
+  it('adds only the chosen systems to the project BOQ (section P), and says when the design has moved on', () => {
+    const p = placed();
+    expect(buildBom(p).filter((i) => i.section === 'P')).toEqual([]); // none by default
+    const withFa = withProjectBoq(p, ['fire-alarm', 'cctv'], '2026-10-28');
+    expect(withFa.elvBoq!.systems).toEqual(['fire-alarm', 'cctv']);
+    expect(new Set(withFa.elvBoq!.lines.map((l) => l.system))).toEqual(new Set(['fire-alarm', 'cctv']));
+    expect(withFa.elvBoq!.lines.find((l) => l.key === 'cctv/switch')).toBeDefined(); // not merged with the data switches
+    const p2 = buildBom(withFa).filter((i) => i.section === 'P');
+    expect(p2.length).toBe(withFa.elvBoq!.lines.length);
+    expect(p2.find((i) => i.key === 'elv:fire-alarm/smoke')).toMatchObject({ description: 'Fire alarm: Addressable smoke detector', unit: 'no', quantitySource: 'ELV design' });
+    expect(projectBoqCurrent(withFa)).toBe(true);
+    const moved = placeDevices(withFa, 'T', 'L1', [{ type: 'smoke-detector', x: 12, y: 5 }]).project;
+    expect(projectBoqCurrent(moved)).toBe(false); // the BOQ keeps its copy until updated
+    expect(buildBom(moved).find((i) => i.key === 'elv:fire-alarm/smoke')!.qty).toBe(p2.find((i) => i.key === 'elv:fire-alarm/smoke')!.qty);
+    expect(withProjectBoq(withFa, []).elvBoq).toBeUndefined();
   });
 
   it('keeps a remark per schedule row, and drops it when cleared', () => {
