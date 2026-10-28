@@ -1760,8 +1760,8 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .fpp-sample{background:color-mix(in srgb,var(--acc) 10%,transparent)}
 
 /* CAD view (DWG / DXF opened natively): model space, side panel, command line, status bar */
-.cad{--cad-bg:#1b1f27;--cad-ink:#e6ebf3;--cad-grid:#3a4152;--cad-cross:#e8eef7;--cad-snap:#3df27a;--cad-dev:#f5c04a;--cad-elv:#59c3ff;display:flex;flex-direction:column;height:100%;min-height:520px;border-top:1px solid var(--line)}
-:root[data-theme="light"] .cad{--cad-bg:#fbfcfe;--cad-ink:#1d2433;--cad-grid:#c7cfdc;--cad-cross:#1d2433;--cad-snap:#0a8f3c;--cad-dev:#b26b00;--cad-elv:#0b6fb8}
+.cad{--cad-bg:#1b1f27;--cad-ink:#e6ebf3;--cad-grid:#262c38;--cad-grid-major:#343c4d;--cad-sketch:#7fe3ff;--cad-cross:#e8eef7;--cad-snap:#3df27a;--cad-dev:#f5c04a;--cad-elv:#59c3ff;display:flex;flex-direction:column;height:100%;min-height:520px;border-top:1px solid var(--line)}
+:root[data-theme="light"] .cad{--cad-bg:#fbfcfe;--cad-ink:#1d2433;--cad-grid:#e6eaf1;--cad-grid-major:#cdd4e0;--cad-sketch:#0a7fa8;--cad-cross:#1d2433;--cad-snap:#0a8f3c;--cad-dev:#b26b00;--cad-elv:#0b6fb8}
 .mid > .cad{flex:1 1 auto}
 .cad-work{display:grid;grid-template-columns:minmax(0,1fr) 260px;flex:1;min-height:0}
 .cad-work:has(> :only-child){grid-template-columns:minmax(0,1fr)}

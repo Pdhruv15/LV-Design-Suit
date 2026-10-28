@@ -175,6 +175,96 @@ describe('CAD view', () => {
     expect(document.querySelector('.cad-hist')?.textContent).toMatch(/SAVE {2}Saved out\.dxf \(1 device on E-LV-POINTS/);
   });
 
+  it('draws lines, rectangles, circles, text and dimensions — by clicks and typed input', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => state.toggle('osnap')); // exact points
+    const sk = () => project.cadSketch?.[0]?.items ?? [];
+    await command('l');
+    await clickAt(1000, 1000);
+    await clickAt(4000, 1000);
+    expect(sk()[0]).toMatchObject({ kind: 'line', layer: 'LV-SKETCH' });
+    expect(sk()[0].pts[1][0] - sk()[0].pts[0][0]).toBeCloseTo(3000, 0);
+    await command('@0,2000'); // relative point from the last one
+    expect(sk()[1].pts[1][1] - sk()[1].pts[0][1]).toBeCloseTo(2000, 6);
+    await command(''); // Enter stops LINE
+    await command('rec');
+    await clickAt(6000, 6000);
+    await clickAt(9000, 8000);
+    expect(sk()[2]).toMatchObject({ kind: 'pline', closed: true });
+    await command('c');
+    await clickAt(12000, 9000);
+    await command('500'); // typed radius
+    expect(sk()[3]).toMatchObject({ kind: 'circle', r: 500 });
+    await command('t');
+    await clickAt(2000, 3000);
+    await command('DB ROOM');
+    expect(sk()[4]).toMatchObject({ kind: 'text', text: 'DB ROOM', layer: 'LV-ANNO' });
+    await command('dim');
+    await clickAt(1000, 500);
+    await clickAt(4000, 500);
+    await clickAt(2500, 200);
+    expect(sk()[5]).toMatchObject({ kind: 'dim', layer: 'LV-ANNO' });
+    expect(Number(sk()[5].text)).toBeCloseTo(3, 1);
+  });
+
+  it('moves, copies, rotates and erases what was drawn, and copies a light onto its circuit', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    await command('l');
+    await clickAt(1000, 1000);
+    await clickAt(4000, 1000);
+    await command('');
+    await command('m');
+    await clickAt(2500, 1000); // select the line
+    await clickAt(1000, 1000); // base point
+    await command('@0,500');
+    const line = () => project.cadSketch![0].items[0];
+    expect(line().pts[0][1] - 1000).toBeCloseTo(500, 0);
+    await command('co');
+    await clickAt(2500, line().pts[0][1]);
+    await clickAt(0, 0);
+    await command('@0,1000');
+    await command('');
+    expect(project.cadSketch![0].items).toHaveLength(2);
+    await command('ro');
+    await clickAt(2500, line().pts[0][1]);
+    await clickAt(line().pts[0][0], line().pts[0][1]);
+    await command('90');
+    expect(Math.abs(line().pts[1][0] - line().pts[0][0])).toBeLessThan(1);
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); });
+    await clickAt(line().pts[0][0], (line().pts[0][1] + line().pts[1][1]) / 2);
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete' })); });
+    expect(project.cadSketch![0].items).toHaveLength(1);
+    // A light copied is one more point on its circuit.
+    act(() => { state.setFeederId('DB-GF1-Y1'); state.setDevice('ltg'); state.setTool('dev'); });
+    await clickAt(3000, 9000);
+    const n = project.feeders.find((f) => f.id === 'DB-GF1-Y1')!.points?.ltg ?? 0;
+    await command('co');
+    await clickAt(3000, 9000);
+    await clickAt(3000, 9000);
+    await command('@1000,0');
+    expect(project.lvPoints).toHaveLength(2);
+    expect(project.feeders.find((f) => f.id === 'DB-GF1-Y1')!.points?.ltg).toBe(n + 1);
+  });
+
+  it('saves what was drawn into the DXF', async () => {
+    const saveBinary = vi.fn(async () => '/plans/out.dxf');
+    (window as unknown as { lvds: { files?: unknown } }).lvds.files = { saveBinary };
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    await command('rec');
+    await clickAt(6000, 6000);
+    await clickAt(9000, 8000);
+    await command('save');
+    await flush();
+    const text = new TextDecoder().decode((saveBinary.mock.calls[0] as unknown as [{ bytes: Uint8Array }])[0].bytes);
+    expect(text).toContain('LV-SKETCH');
+    expect(document.querySelector('.cad-hist')?.textContent).toMatch(/1 drawn object on LV-SKETCH \/ LV-ANNO/);
+  });
+
   it('opens a DWG from the desktop dialog with OPEN', async () => {
     act(() => root.render(<Host />));
     await flush();

@@ -392,6 +392,24 @@ export interface CadBlockMap { block: string; reference: string; per?: number }
 
 export type CadLayerRole = 'room' | 'room-name' | 'wall' | 'tray' | 'route' | 'fixture' | 'board' | 'ignore';
 export interface CadLayerMap { layer: string; role: CadLayerRole }
+/** An object drawn in the CAD view, in drawing units: a line (or connected lines), polyline, circle (centre, r), arc
+ * (centre, r, a0 → a1 anticlockwise, radians), text (insertion, height, rotation) or dimension (p1, p2, a point on the
+ * dimension line). */
+export interface SketchItem {
+  id: string;
+  kind: 'line' | 'pline' | 'circle' | 'arc' | 'text' | 'dim';
+  layer: string;
+  pts: [number, number][];
+  closed?: boolean;
+  r?: number;
+  a0?: number;
+  a1?: number;
+  text?: string;
+  h?: number;
+  rot?: number;
+}
+export interface CadSketch { file: string; items: SketchItem[] }
+
 /** Floor plan links by entity handle: curve → feeder id (cable route) or tray route name; board id → block or point. */
 export interface CadPlanLinks {
   file: string;
@@ -497,6 +515,8 @@ export interface Project {
   cadLayers?: CadLayerMap[];
   /** Room names on CAD floor plans → the room type chosen for them (remembered between pulls). */
   cadRoomTypes?: { name: string; type: string }[];
+  /** What the engineer drew in the CAD view over each drawing (src/model/cadSketch.ts). */
+  cadSketch?: CadSketch[];
   /** LV points (lights, sockets…) placed on plans in the CAD view, on circuits (src/model/cadDevices.ts). */
   lvPoints?: import('./model/cadDevices').LvPoint[];
   /** Highest LV point number given out, so a deleted point's ID is never reused. */
