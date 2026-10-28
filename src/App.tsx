@@ -144,6 +144,7 @@ const ProjectsDashboard = lazy(() => import('./components/ProjectsDashboard'));
 import { NameDialog, UnsavedDialog } from './components/FileDialogs';
 import type { BoardKind, ProjectStatus } from './types';
 import { useFloorPlan, type FloorPlanTool } from './components/floorPlanState';
+import { cadFileApi } from './engines/cad/webCadFile';
 import { canFill as canFillElv, deviceLabel, devicesFor, SYSTEM_LABEL, SYSTEMS as ELV_SYSTEM_LIST } from './components/elv/elvLabels';
 import { onDemand } from './util/onDemand';
 import { revisionStamp } from './model/revisions';
@@ -281,7 +282,7 @@ export default function App() {
   const showFloorPlan = (t?: FloorPlanTool) => { if (t) fp.setTool(t); setView('floor-plan'); };
   const openFloorPlan = async () => {
     setView('floor-plan');
-    const cad = window.lvds?.cadFile;
+    const cad = cadFileApi();
     if (!cad) return;
     try { const r = await cad.openPlan(); if (r) { fp.setPlan(r); setStatus(`Floor plan ${r.file} opened`); } } catch (e) { setStatus(e instanceof Error ? e.message : String(e)); }
   };

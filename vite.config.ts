@@ -10,7 +10,8 @@ import { readFileSync } from 'node:fs';
  * printed sheets' own <style>). */
 const CSP = [
   "default-src 'self'",
-  "script-src 'self'",
+  // WebAssembly (the built-in DWG / DXF reader) may be compiled; JavaScript eval stays blocked.
+  "script-src 'self' 'wasm-unsafe-eval'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
