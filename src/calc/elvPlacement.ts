@@ -156,15 +156,4 @@ export function addElvCircuits(project: Project, plan: ElvPlacementPlan): { proj
   return { project: p, added };
 }
 
-/** Buildings that have ELV circuits placed: the 3 kW ELV placeholder is no longer suggested for them. */
-export function buildingsWithElvCircuits(project: Project): Set<string> {
-  const single = buildingInfoOf(project).buildings.length === 1 ? buildingInfoOf(project).buildings[0].id : undefined;
-  const out = new Set<string>();
-  for (const f of project.feeders) {
-    if (!f.elvLoad) continue;
-    const b = project.boards.find((x) => x.id === f.boardId);
-    const building = b?.level?.building ?? single;
-    if (building) out.add(building);
-  }
-  return out;
-}
+export { buildingsWithElvCircuits } from './buildingDesign';

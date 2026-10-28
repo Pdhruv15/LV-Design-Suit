@@ -6,7 +6,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { LIMITS, readJsonLimited, readFileLimited } = require('./limits.cjs');
 const { replaceFile, copyFileNoFollow, ensureRealDir, listFiles } = require('./safeFs.cjs');
-const ExcelJS = require('exceljs');
+// ExcelJS (about 160 ms and 9 MB to load) is needed only to import or export a database workbook: loaded then.
+let excelJs;
+const workbook = () => new (excelJs ??= require('exceljs')).Workbook();
 const spec = require('./databaseSpec.json');
 
 const MAX_ROWS = LIMITS.workbookRows; // rows given data validation in new workbooks (the most the app writes)
@@ -32,7 +34,7 @@ function cellValue(v) {
 }
 
 async function createWorkbook(file, book, seedRows) {
-  const wb = new ExcelJS.Workbook();
+  const wb = workbook();
   wb.creator = 'LV Design Studio';
   const ws = wb.addWorksheet(book.sheet, { views: [{ state: 'frozen', ySplit: 1 }] });
   ws.columns = book.columns.map((c) => ({ header: c.header, key: c.key, width: c.width }));
@@ -101,7 +103,7 @@ async function loadBook(wb, file, book) {
 }
 
 async function readBook(file, book) {
-  const wb = new ExcelJS.Workbook();
+  const wb = workbook();
   await loadBook(wb, file, book);
   const ws = wb.getWorksheet(book.sheet) ?? wb.worksheets[0];
   if (!ws) return { rows: [], missingColumns: book.columns.map((c) => c.header) };
@@ -193,7 +195,7 @@ async function writeBook(projectsFolder, bookId, rows) {
   if (rows.length > LIMITS.workbookRows) throw new Error(`${book.file}: at most ${LIMITS.workbookRows} rows can be written`);
   if (!fs.existsSync(file)) await createWorkbook(file, book, []);
   backup(folder, book.file);
-  const wb = new ExcelJS.Workbook();
+  const wb = workbook();
   await loadBook(wb, file, book);
   const ws = wb.getWorksheet(book.sheet) ?? wb.worksheets[0];
   const norm = (x) => String(x).toLowerCase().replace(/[^a-z0-9]/g, '');

@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -40,5 +41,26 @@ describe('start-up imports', () => {
 
   it('does not load the calculation or concept report code at start-up', () => {
     for (const f of ['src/docs/calcReport.ts', 'src/docs/studyReport.ts', 'src/docs/conceptReport.ts']) expect(modules.has(join(root, f)), f).toBe(false);
+  });
+
+  it('loads pages and dialogs that are not shown at start-up when they are opened', () => {
+    const later = [
+      'src/components/EarthingView.tsx', 'src/components/RiserView.tsx', 'src/components/PanelsPage.tsx', 'src/components/BriefEditor.tsx',
+      'src/components/PreferencesDialog.tsx', 'src/components/ProjectSettings.tsx', 'src/components/PresetEditor.tsx', 'src/components/ComponentEditor.tsx',
+      'src/components/ProjectDetailsDialog.tsx', 'src/components/AnonymizedSampleDialog.tsx', 'src/components/PasteBoardDialog.tsx'
+    ];
+    for (const f of later) expect(modules.has(join(root, f)), f).toBe(false);
+  });
+
+  it('does not load the ELV engine or zod at start-up (the ribbon only needs the ELV names)', () => {
+    for (const f of ['src/elv/estimate.ts', 'src/elv/placed.ts', 'src/elv/coverage.ts', 'src/elv/schedules.ts', 'src/components/elv/elvPlan.ts']) expect(modules.has(join(root, f)), f).toBe(false);
+    expect([...modules].filter(([, specs]) => specs.includes('zod')).map(([f]) => f.slice(root.length + 1))).toEqual([]);
+  });
+});
+
+describe('desktop app start-up', () => {
+  it('does not load ExcelJS until a database workbook is imported or exported', () => {
+    const out = execFileSync(process.execPath, ['-e', "require('./electron/database.cjs'); process.stdout.write(String(Object.keys(require.cache).some((k) => k.includes('exceljs'))))"], { cwd: root, encoding: 'utf8' });
+    expect(out).toBe('false');
   });
 });

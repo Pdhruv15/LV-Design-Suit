@@ -5,7 +5,6 @@ import { applyRecommendation, recommend } from './sizing';
 import { boardTotals } from './summary';
 import { circuitWatts, pointWattsFor, scheduleCircuits } from './loadSchedule';
 import { rule } from '../database/catalog';
-import { buildingsWithElvCircuits } from './elvPlacement';
 
 /** Building → design: DBs and load schedules generated from the rooms and
  * the flats on each floor, incomer lengths from the riser, common services,
@@ -320,4 +319,17 @@ export function unitLoads(project: Project, buildingId: string): UnitLoad[] {
     const inc = project.feeders.find((f) => f.feedsBoardId === d.id);
     return { db: d.id, unit: d.unit!, type: d.name.replace(/ [^ ]+$/, ''), floor: d.floor.name, meter: inc?.kwhMeter, connectedKw: t.connectedKw, demandKw: t.demandKw };
   });
+}
+
+/** Buildings that have ELV circuits placed: the 3 kW ELV placeholder is no longer suggested for them. */
+export function buildingsWithElvCircuits(project: Project): Set<string> {
+  const single = buildingInfoOf(project).buildings.length === 1 ? buildingInfoOf(project).buildings[0].id : undefined;
+  const out = new Set<string>();
+  for (const f of project.feeders) {
+    if (!f.elvLoad) continue;
+    const b = project.boards.find((x) => x.id === f.boardId);
+    const building = b?.level?.building ?? single;
+    if (building) out.add(building);
+  }
+  return out;
 }

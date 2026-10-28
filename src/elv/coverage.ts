@@ -1,7 +1,7 @@
 import { buildingInfoOf } from '../calc/building';
 import type { Project } from '../types';
 import type { ElvSystem, RoomRule } from './defaults';
-import { ELV_DEVICES, type ElvDeviceType } from './devices';
+import { ELV_DEVICES, reachM } from './devices';
 import { elvBasis, type ElvSettings } from './estimate';
 import { devicesOn, inside, type ElvDevice } from './placed';
 
@@ -22,11 +22,7 @@ export interface RoomCoverage {
   step: number; // their size, metres
 }
 
-/** How far a device covers: a radius, or half the diagonal of its spacing square. 0: no area coverage. */
-export function reachM(type: ElvDeviceType): number {
-  const c = ELV_DEVICES[type].coverage;
-  return c?.kind === 'radius' ? c.m : c?.kind === 'spacing' ? c.m / Math.SQRT2 : 0;
-}
+export { reachM };
 
 const wants = (rule: RoomRule, system: ElvSystem) =>
   system === 'fire-alarm' ? rule.detector !== 'none'

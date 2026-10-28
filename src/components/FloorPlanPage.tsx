@@ -37,6 +37,8 @@ const HINTS: Record<FloorPlanTool, string> = {
   'elv-fill': 'Point at a room to see a grid of the chosen device at its coverage spacing; click to place it.',
   'elv-select': 'Click a device to select it, drag it to move it. Delete removes it; ← → turn a camera or speaker.'
 };
+/** Tools that draw something following the pointer; other tools leave the page alone while it moves. */
+const FOLLOWS_POINTER = new Set<FloorPlanTool>(['trace', 'area', 'dist', 'elv-fill']);
 const PANELS: { id: FloorPlanPanel; label: string }[] = [{ id: 'rooms', label: 'Rooms' }, { id: 'cables', label: 'Cables' }, { id: 'trays', label: 'Trays' }, { id: 'boards', label: 'Boards' }, { id: 'elv', label: 'ELV' }];
 
 export const feederLabel = (f: Feeder) => (f.feedsBoardId ? `${f.boardId} → ${f.feedsBoardId}` : `${f.boardId} ${f.phase && f.way ? `${f.phase}${f.way}` : ''} ${f.name}`.replace(/\s+/g, ' ').trim());
@@ -65,6 +67,8 @@ export default function FloorPlanPage({ project, fp, onChange, onStatus }: {
   const info = buildingInfoOf(project);
   const roomTypes = roomTypesOf(info);
   const s = useMemo(() => (open ? planState(project, open) : null), [project, open]);
+  // Linked routes and tray runs: worked out once per plan and link change, not on every pointer move.
+  const linkPaths = useMemo(() => (open && s ? linkedPaths(open.drawing, s.links) : []), [open, s]);
   const mpu = s ? metresPerUnit(s.plan.units, project.cadLength).factor : 1;
   const segments = useMemo(() => {
     if (!open || !s) return [];
@@ -72,7 +76,7 @@ export default function FloorPlanPage({ project, fp, onChange, onStatus }: {
     const use = s.roles.some((m) => m.role === 'wall') ? walls : s.roles.filter((m) => !['ignore', 'room-name', 'fixture', 'board', 'tray', 'route'].includes(m.role));
     return wallSegments(open.drawing, new Set(use.map((m) => m.layer.toLowerCase())));
   }, [open, s]);
-  useEffect(() => { setPoints([]); setNote(''); }, [tool]);
+  useEffect(() => { setPoints([]); setNote(''); setCursor(null); }, [tool]);
   // Enter / Esc while tracing or measuring (the handler is set below, once a plan is open).
   const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
   useEffect(() => {
@@ -251,7 +255,7 @@ export default function FloorPlanPage({ project, fp, onChange, onStatus }: {
     ...found.map((f, i) => ({ key: `f${i}`, points: f.points, picked: !!f.model, selected: !!f.model && f.model.id === fp.selectedRoom })),
     ...Object.entries(fp.outlines).map(([id, pts]) => ({ key: id, points: pts, picked: true, selected: id === fp.selectedRoom }))
   ] : [];
-  const routePaths = linkedPaths(open.drawing, links);
+  const routePaths = linkPaths;
   const target = panel === 'cables' ? fp.targets.feeder : fp.targets.tray;
   const paths: PlanPath[] = panel === 'cables' || panel === 'trays'
     ? routePaths.filter((p) => (panel === 'cables' ? p.kind === 'route' : true)).map((p) => ({ points: p.points, tone: p.to === target ? 'on' : p.kind }))
@@ -261,9 +265,8 @@ export default function FloorPlanPage({ project, fp, onChange, onStatus }: {
     : [];
   // ELV layer: devices, the chosen system's coverage, the Fill room preview; a dragged device drawn where it is held.
   const elvShown = panel === 'elv' && !!level;
-  const elvView = elvShown && held ? (() => { const d = project.elvDevices?.find((x) => x.id === held.id); return d ? { ...project, elvDevices: project.elvDevices!.map((x) => (x.id === held.id ? { ...x, x: held.at[0], y: held.at[1] } : x)) } : project; })() : project;
-  const elv = elvShown ? elvLayer(elvView, level!, mpu, {
-    system: fp.elv.system, coverage: fp.elv.coverage, selected: fp.elv.selected,
+  const elv = elvShown ? elvLayer(project, level!, mpu, {
+    system: fp.elv.system, coverage: fp.elv.coverage, selected: fp.elv.selected, ...(held ? { held } : {}),
     ...(tool === 'elv-fill' && cursor ? { preview: { type: fp.elv.device, at: [cursor[0] * mpu, cursor[1] * mpu] as Pt } } : {})
   }) : undefined;
   const elvDrag: PlanDrag | undefined = elvShown && tool === 'elv-select' ? {
@@ -290,7 +293,7 @@ export default function FloorPlanPage({ project, fp, onChange, onStatus }: {
     <section className="fpp">
       <div className="fpp-stage">
         <FloorPlanCanvas drawing={open.drawing} rooms={shapes} overlay={overlay} paths={paths} marks={marks} symbols={elv?.symbols} covers={elv?.covers} gaps={elv?.gaps} drag={elvDrag}
-          fitKey={fp.fitKey} zoomKey={fp.zoomKey} onClick={click} onMove={setCursor} />
+          fitKey={fp.fitKey} zoomKey={fp.zoomKey} onClick={click} onMove={FOLLOWS_POINTER.has(tool) ? setCursor : undefined} />
         {readout && <div className="fp-readout">{readout}</div>}
         <div className="fp-hint">{note || HINTS[tool]}</div>
       </div>
