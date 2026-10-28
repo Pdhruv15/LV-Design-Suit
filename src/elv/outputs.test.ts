@@ -59,7 +59,8 @@ describe('ELV schedules', () => {
     const zones = table(placed(), 'zones');
     expect(zones.rows.map((r) => r.cells.slice(0, 3))).toEqual([['Z1', 'Typical (L01)', 220], ['Z2', 'Typical (L02)', 220], ['Z3', 'Typical (L03)', 220], ['Z4', 'Typical (L04)', 220]]);
     expect(table(base(), 'loops').rows).toEqual([]); // nothing placed: no loops yet, and the note says so
-    expect(table(base(), 'loops').notes.at(-1)).toMatch(/No fire alarm devices placed/);
+    const notes = table(base(), 'loops').notes;
+    expect(notes[notes.length - 1]).toMatch(/No fire alarm devices placed/);
   });
 
   it('counts the BOQ from the devices and the equipment serving them, per system', () => {
