@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What's New Mockup</title>
+<style>
+:root{--bg:#0a1120;--panel:#0f1a2f;--p2:#14233f;--line:#20304f;--line-strong:#2f4570;--tx:#dbe4f5;--mut:#8093b5;--acc:#4aa8ff;--on-acc:#04101f;--ok:#37d67a;--field-line:#52709f;--new:#b784ff}
+:root[data-theme="light"]{--bg:#eef2f8;--panel:#fff;--p2:#f3f6fb;--line:#d5dceb;--line-strong:#b5c2da;--tx:#17223a;--mut:#5a6a88;--acc:#1f6fd1;--on-acc:#fff;--ok:#16834a;--field-line:#8796b3;--new:#7a3fd6}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#eef2f8;--panel:#fff;--p2:#f3f6fb;--line:#d5dceb;--line-strong:#b5c2da;--tx:#17223a;--mut:#5a6a88;--acc:#1f6fd1;--on-acc:#fff;--ok:#16834a;--field-line:#8796b3;--new:#7a3fd6}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.45 -apple-system,"Segoe UI",system-ui,sans-serif}
+button{font:inherit;color:inherit;cursor:pointer}
+.intro{max-width:980px;margin:0 auto;padding:16px 16px 0}
+.intro h1{font-size:17px;margin:0 0 4px}
+.intro p{margin:0 0 6px;color:var(--mut)}
+.legend{font-size:12px;color:var(--mut);display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.legend i{display:inline-block;width:12px;height:12px;border:2px dashed var(--new);border-radius:3px;vertical-align:-2px;margin-right:5px}
+.legend button{margin-left:auto;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 12px;color:var(--mut)}
+.stage{max-width:980px;margin:12px auto 16px;padding:28px 16px;border:1px solid var(--line-strong);border-radius:10px;background:color-mix(in srgb,var(--bg) 70%,#000);display:grid;place-items:center}
+.modal{width:min(620px,100%);background:var(--panel);border:1px solid var(--line-strong);border-radius:12px;padding:20px 22px;display:grid;gap:12px;outline:2px dashed var(--new);outline-offset:4px}
+.modal h3{margin:0;font-size:16px}
+.m{color:var(--mut);margin:0}
+.item{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:start;padding:10px 0;border-top:1px solid var(--line)}
+.item svg{width:22px;height:22px;stroke:var(--acc);fill:none;stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round;margin-top:2px}
+.item b{display:block;font-weight:600}
+.item span{color:var(--mut);font-size:12px}
+.chip{border:1px solid var(--field-line);background:var(--p2);border-radius:6px;padding:0 12px;height:30px;white-space:nowrap}
+.chip.primary{background:var(--acc);border-color:var(--acc);color:var(--on-acc);font-weight:600}
+.actions{display:flex;gap:8px;align-items:center;border-top:1px solid var(--line);padding-top:12px}
+.sp{flex:1}
+.where{max-width:980px;margin:0 auto 24px;padding:0 16px;color:var(--mut);font-size:12px}
+.where li{margin:3px 0}
+</style>
+</head>
+<body>
+<div class="intro">
+  <h1>What's new — shown once after an update (mockup)</h1>
+  <p>The first time the app opens after an update, this window lists what the update added, each with a button that opens it. Closing it marks the version as seen. It can be opened again any time from Help.</p>
+  <div class="legend"><span><i></i>New</span><button id="theme">Light / dark</button></div>
+</div>
+<div class="stage">
+  <section class="modal" role="dialog" aria-label="What's new">
+    <h3>What's new in v1.84</h3>
+    <p class="m">Updated from v1.83 · 28 Oct 2026</p>
+    <div class="item">
+      <svg viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14"/></svg>
+      <div><b>Floor plan: open DWG / DXF in the app</b><span>No CAD program needed. Also from Finder: right-click a drawing → Open with → LV Design Studio.</span></div>
+      <button class="chip primary">Open Floor plan</button>
+    </div>
+    <div class="item">
+      <svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM12 9v6M9 12h6"/></svg>
+      <div><b>Rooms and areas from the plan</b><span>Found automatically, or click inside a room and click its name. They go to Building information and the Load assessment.</span></div>
+      <button class="chip">Show me</button>
+    </div>
+    <div class="item">
+      <svg viewBox="0 0 24 24"><path d="M4 18c4 0 4-12 8-12s4 12 8 12"/></svg>
+      <div><b>Cable lengths, tray routes and board locations</b><span>Link routes and trays by clicking their lines, place boards by clicking their symbol; review and apply.</span></div>
+      <button class="chip">Show me</button>
+    </div>
+    <div class="item">
+      <svg viewBox="0 0 24 24"><path d="M4 17l6-6 4 4 6-8"/></svg>
+      <div><b>Command line: cad-plan and rooms-from-cad</b><span>Read a plan and take its rooms without opening the app.</span></div>
+      <span></span>
+    </div>
+    <div class="actions">
+      <span class="m">Also in Help → What's new</span>
+      <span class="sp"></span>
+      <button class="chip">Close</button>
+    </div>
+  </section>
+</div>
+<ul class="where">
+  <li><b>When:</b> once per new version (the last version seen is remembered on this computer); not for a brand-new install.</li>
+  <li><b>Buttons:</b> open the feature on the right tab (Floor plan → Rooms, Cable lengths…). Items without a screen have no button.</li>
+  <li><b>Content:</b> a short list kept with each release (one line per feature), written in plain words, newest version first; skipped versions are shown together.</li>
+</ul>
+<script>
+document.getElementById('theme').addEventListener('click',()=>{const r=document.documentElement,l=r.dataset.theme==='light'||(r.dataset.theme!=='dark'&&matchMedia('(prefers-color-scheme: light)').matches);r.dataset.theme=l?'dark':'light';});
+</script>
+</body>
+</html>

@@ -49,6 +49,15 @@ declare global {
         probe: () => Promise<import('./engines/types').EngineProbe | { error: string }>;
         run: (request: import('./engines/external').EngineRequest) => Promise<import('./engines/types').StudyResults | { error: string }>;
       };
+      /** Floor plans read by the built-in DWG / DXF reader (electron/cadFile.cjs). */
+      cadFile?: {
+        /** Asks for a floor plan (DWG / DXF) and reads it; null if cancelled. */
+        openPlan: () => Promise<{ file: string; drawing: import('./model/cadDrawing').CadDrawing } | null>;
+        /** The next floor plan opened from Finder / Explorer, read; null when there is none. */
+        takePending?: () => Promise<{ file: string; drawing: import('./model/cadDrawing').CadDrawing } | null>;
+        /** Called when a floor plan is opened from Finder / Explorer while the app runs; returns the unsubscribe. */
+        onPending?: (cb: () => void) => () => void;
+      };
       /** Opens generated DXF sheets in the installed OpenCADStudio desktop application. */
       openCadStudio?: {
         status: () => Promise<{ installed: boolean; connected: boolean; version?: string }>;

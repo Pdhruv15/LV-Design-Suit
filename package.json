@@ -84,6 +84,18 @@
     "directories": {
       "output": "release"
     },
+    "fileAssociations": [
+      {
+        "ext": [
+          "dwg",
+          "dxf"
+        ],
+        "name": "CAD drawing",
+        "description": "Floor plan (DWG / DXF)",
+        "role": "Viewer",
+        "rank": "Alternate"
+      }
+    ],
     "mac": {
       "target": {
         "target": "dmg",
