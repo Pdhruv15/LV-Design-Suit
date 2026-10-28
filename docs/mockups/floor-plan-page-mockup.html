@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Floor Plan Page Mockup</title>
+<style>
+:root{--bg:#0a1120;--panel:#0f1a2f;--p2:#14233f;--line:#20304f;--line-strong:#2f4570;--tx:#dbe4f5;--mut:#8093b5;--acc:#4aa8ff;--on-acc:#04101f;--ok:#37d67a;--warn:#f5c04a;--field-line:#52709f;--new:#b784ff;--plan:#9fb2d4;--plan-bg:#0b1324;--room:rgba(74,168,255,.14);--pick:rgba(55,214,122,.24)}
+:root[data-theme="light"]{--bg:#eef2f8;--panel:#fff;--p2:#f3f6fb;--line:#d5dceb;--line-strong:#b5c2da;--tx:#17223a;--mut:#5a6a88;--acc:#1f6fd1;--on-acc:#fff;--ok:#16834a;--warn:#9a6a00;--field-line:#8796b3;--new:#7a3fd6;--plan:#3d4d6b;--plan-bg:#fff;--room:rgba(31,111,209,.10);--pick:rgba(22,131,74,.18)}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#eef2f8;--panel:#fff;--p2:#f3f6fb;--line:#d5dceb;--line-strong:#b5c2da;--tx:#17223a;--mut:#5a6a88;--acc:#1f6fd1;--on-acc:#fff;--ok:#16834a;--warn:#9a6a00;--field-line:#8796b3;--new:#7a3fd6;--plan:#3d4d6b;--plan-bg:#fff;--room:rgba(31,111,209,.10);--pick:rgba(22,131,74,.18)}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.4 -apple-system,"Segoe UI",system-ui,sans-serif}
+button,select{font:inherit;color:inherit}
+button{cursor:pointer}
+.intro{max-width:1320px;margin:0 auto;padding:16px 16px 0}
+.intro h1{font-size:17px;margin:0 0 4px}
+.intro p{margin:0 0 6px;color:var(--mut);max-width:980px}
+.legend{font-size:12px;color:var(--mut);display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:6px 0}
+.legend i{display:inline-block;width:12px;height:12px;border:2px dashed var(--new);border-radius:3px;vertical-align:-2px;margin-right:5px}
+.legend button{margin-left:auto;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 12px;color:var(--mut)}
+.app{max-width:1320px;margin:10px auto 24px;border:1px solid var(--line-strong);border-radius:10px;overflow:hidden;background:var(--bg)}
+.top{display:flex;align-items:center;gap:16px;padding:8px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+.brand{font-weight:700}.brand small{display:block;font-weight:400;font-size:11px;color:var(--mut)}
+.crumb{color:var(--mut)}.crumb b{color:var(--tx);font-weight:500}
+.tabs{display:flex;gap:2px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto}
+.tabs span{padding:7px 12px;color:var(--mut);white-space:nowrap;border-bottom:2px solid transparent}
+.tabs span.on{color:var(--tx);border-bottom-color:var(--acc)}
+.ribbon{display:flex;padding:6px 8px 2px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto}
+.grp{display:flex;flex-direction:column;padding:0 6px;border-right:1px solid var(--line)}
+.grp:last-child{border-right:0}
+.grp .b{display:flex;gap:2px}
+.grp .cap{font-size:10px;color:var(--mut);text-align:center;padding-top:2px}
+.rb{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:62px;padding:5px 6px;border-radius:6px;border:1px solid transparent;background:none;font-size:11px;white-space:nowrap}
+.rb svg{width:20px;height:20px;stroke:var(--mut);fill:none;stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round}
+.rb[aria-pressed=true]{background:var(--p2);border-color:var(--acc)}
+.rb[aria-pressed=true] svg{stroke:var(--acc)}
+.rb.page{background:color-mix(in srgb,var(--acc) 18%,transparent);box-shadow:inset 0 -2px 0 var(--acc)}
+.rb small{color:var(--mut);font-size:10px;margin-top:-2px}
+.new{outline:2px dashed var(--new);outline-offset:1px;border-radius:6px}
+.body{display:grid;grid-template-columns:minmax(0,1fr) 330px;height:540px}
+.canvas{position:relative;background:var(--plan-bg);border-right:1px solid var(--line)}
+.canvas svg{width:100%;height:100%;display:block}
+.hint,.readout{position:absolute;background:var(--panel);border:1px solid var(--line-strong);border-radius:6px;padding:5px 9px;font-size:12px}
+.hint{left:10px;bottom:10px;max-width:calc(100% - 20px)}
+.readout{right:10px;top:10px}
+.side{display:flex;flex-direction:column;min-width:0}
+.ptabs{display:flex;gap:2px;padding:8px 10px 0;border-bottom:1px solid var(--line)}
+.ptabs button{background:none;border:0;border-bottom:2px solid transparent;padding:6px 8px;color:var(--mut)}
+.ptabs button[aria-selected=true]{color:var(--tx);border-bottom-color:var(--acc)}
+.side h4{margin:0;padding:10px 12px 4px;font-size:13px}
+.m{color:var(--mut);font-size:12px;margin:0;padding:0 12px 8px}
+table{width:100%;border-collapse:collapse}
+th{color:var(--mut);font-weight:500;text-align:left;font-size:11px;padding:5px 10px;border-bottom:1px solid var(--line)}
+td{padding:0 10px;height:30px;border-bottom:1px solid var(--line);white-space:nowrap}
+td.n{text-align:right}
+tr.sel td{background:var(--p2)}
+.st{font-size:11px;color:var(--ok)}.st.mut{color:var(--mut)}
+.foot{margin-top:auto;padding:10px 12px;border-top:1px solid var(--line);display:flex;gap:8px;align-items:center}
+.chip{border:1px solid var(--field-line);background:var(--p2);border-radius:6px;padding:0 12px;height:28px}
+.toast{position:absolute;left:50%;top:10px;transform:translateX(-50%);background:var(--panel);border:1px solid var(--ok);color:var(--tx);border-radius:6px;padding:5px 10px;font-size:12px}
+.room{fill:var(--room)}.room.on{fill:var(--pick)}
+.wall{stroke:var(--plan);stroke-width:60;fill:none}
+.txt{fill:var(--plan);font-size:330px}
+.route{stroke:var(--acc);stroke-width:90;fill:none}.route.on{stroke:var(--ok);stroke-width:130}
+.tray{stroke:var(--warn);stroke-width:90;fill:none}
+.notes{max-width:1320px;margin:0 auto 24px;padding:0 16px;color:var(--mut);font-size:12px}
+.notes li{margin:3px 0}
+.hide{display:none}
+</style>
+</head>
+<body>
+<div class="intro">
+  <h1>Floor plan as a page beside the SLD (mockup)</h1>
+  <p>No pop-up window. <b>Floor plan</b> is a page like the SLD: the drawing fills the canvas, the tools are on a <b>Floor plan</b> ribbon tab, and the panel on the right shows what is in the model. What you pick goes into the model at once (one undo step each, ⌘Z).</p>
+  <div class="legend"><span><i></i>New</span><button id="theme">Light / dark</button></div>
+</div>
+
+<div class="app">
+  <div class="top"><div class="brand">LV Design Studio<small>v1.85</small></div><div class="crumb">Villa G+1 · <b>Floor plan</b></div></div>
+  <div class="tabs"><span>Project</span><span>1 Concept</span><span>2 Schematic</span><span>3 Detailed design</span><span class="on new">Floor plan</span><span>Documents</span><span>4 Tender and IFC</span><span>BOM / Cost</span><span>Standards</span></div>
+
+  <div class="ribbon new" role="toolbar">
+    <div class="grp"><div class="b">
+      <button class="rb page"><svg viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14"/></svg>Floor plan</button>
+      <button class="rb"><svg viewBox="0 0 24 24"><path d="M4 7h6l2 2h8v9H4z"/></svg>Open plan</button>
+      <button class="rb"><svg viewBox="0 0 24 24"><path d="M12 3 3 8l9 5 9-5zM3 13l9 5 9-5"/></svg>Layers</button>
+      <button class="rb"><svg viewBox="0 0 24 24"><path d="M4 20h16M6 16h12M8 12h8M10 8h4"/></svg>Ground<small>level</small></button>
+    </div><div class="cap">Plan</div></div>
+    <div class="grp"><div class="b">
+      <button class="rb" data-t="auto"><svg viewBox="0 0 24 24"><path d="M3 4h8v7H3zM13 4h8v7h-8zM3 13h18v7H3z"/></svg>Add found rooms</button>
+      <button class="rb" data-t="room" aria-pressed="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM12 9v6M9 12h6"/></svg>Click inside room</button>
+      <button class="rb" data-t="trace"><svg viewBox="0 0 24 24"><path d="M4 18 6 6l12 2 2 10z"/></svg>Trace outline</button>
+      <button class="rb" data-t="name"><svg viewBox="0 0 24 24"><path d="M5 6h14M12 6v12M9 18h6"/></svg>Pick name</button>
+    </div><div class="cap">Rooms</div></div>
+    <div class="grp"><div class="b">
+      <button class="rb" data-t="link"><svg viewBox="0 0 24 24"><path d="M4 18c4 0 4-12 8-12s4 12 8 12"/></svg>Link route<small>F-03</small></button>
+      <button class="rb" data-t="tray"><svg viewBox="0 0 24 24"><path d="M3 9h18v6H3zM7 9v6M12 9v6M17 9v6"/></svg>Tray run<small>A</small></button>
+      <button class="rb" data-t="place"><svg viewBox="0 0 24 24"><path d="M6 4h12v16H6zM9 8h6M9 12h6"/></svg>Place board<small>DB-G1</small></button>
+    </div><div class="cap">Cables and boards</div></div>
+    <div class="grp"><div class="b">
+      <button class="rb" data-t="dist"><svg viewBox="0 0 24 24"><path d="M3 17 17 3M3 17l3 3M17 3l3 3"/></svg>Length</button>
+      <button class="rb" data-t="area"><svg viewBox="0 0 24 24"><path d="M4 20V8l8-4 8 4v12z"/></svg>Area</button>
+    </div><div class="cap">Measure</div></div>
+    <div class="grp"><div class="b">
+      <button class="rb"><svg viewBox="0 0 24 24"><path d="M11 5a6 6 0 1 0 0 12 6 6 0 0 0 0-12zM20 20l-4.5-4.5"/></svg>Zoom</button>
+      <button class="rb"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>Fit</button>
+      <button class="rb"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3"/></svg>Undo</button>
+    </div><div class="cap">View</div></div>
+  </div>
+
+  <div class="body">
+    <div class="canvas new">
+      <svg viewBox="-600 -600 25200 17200" preserveAspectRatio="xMidYMid meet">
+        <g transform="translate(0,16000) scale(1,-1)">
+          <rect class="room" x="0" y="8000" width="9000" height="8000"/>
+          <rect class="room" x="9000" y="8000" width="7000" height="8000"/>
+          <rect class="room on" id="picked" x="13000" y="0" width="11000" height="8000"/>
+          <rect class="room" x="0" y="0" width="7000" height="5000"/>
+          <rect class="wall" x="0" y="0" width="24000" height="16000"/>
+          <path class="wall" d="M0 8000H13000M16000 8000H24000M9000 8000V16000M16000 8000V16000M7000 0V5000M13000 0V8000M0 5000H13000"/>
+          <path class="tray" d="M1000 7400H23000"/>
+          <path class="route on" d="M1500 7000H18000V3000"/>
+        </g>
+        <text class="txt" x="3200" y="4300">MAJLIS</text>
+        <text class="txt" x="11400" y="4300">DINING</text>
+        <text class="txt" x="16600" y="12300">FAMILY LIVING</text>
+        <text class="txt" x="1300" y="13700">GUEST BED</text>
+      </svg>
+      <div class="toast">Family living · 88.00 m² added to Ground · ⌘Z to undo</div>
+      <div class="readout">F-03 route on plan: 20.50 m → length 33 m</div>
+      <div class="hint">Click inside a room: its outline comes from the walls and it is added to Building information. Click its name text to name it.</div>
+    </div>
+    <aside class="side new">
+      <div class="ptabs" role="tablist"><button role="tab" aria-selected="true">Rooms</button><button role="tab">Cables</button><button role="tab">Trays</button><button role="tab">Boards</button></div>
+      <h4>Rooms on Ground <span class="m" style="padding:0">· in the model</span></h4>
+      <table>
+        <thead><tr><th>Room</th><th>Area m²</th><th>Type</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>Majlis</td><td class="n">72.00</td><td>Living</td><td class="st">plan</td></tr>
+          <tr><td>Dining</td><td class="n">56.00</td><td>Living</td><td class="st">plan</td></tr>
+          <tr><td>Guest bedroom</td><td class="n">35.00</td><td>Bedroom</td><td class="st">plan</td></tr>
+          <tr class="sel"><td>Family living</td><td class="n">88.00</td><td>Living</td><td class="st">picked</td></tr>
+          <tr><td>Store</td><td class="n">6.00</td><td>Store</td><td class="st mut">not on plan</td></tr>
+        </tbody>
+      </table>
+      <p class="m" style="padding-top:8px">2 rooms found on the plan are not added yet — <b>Add found rooms</b> adds them.</p>
+      <div class="foot"><span class="m" style="padding:0">Total 251.00 m² · Load assessment updated</span></div>
+    </aside>
+  </div>
+</div>
+
+<ul class="notes">
+  <li><b>Where:</b> a <b>Floor plan</b> ribbon tab (after 3 Detailed design) with all the tools; the <b>Floor plan</b> page shows the drawing like the SLD canvas. The Floor plan button on Project and 1 Concept goes to this page. No pop-up windows.</li>
+  <li><b>Open plan</b> loads the DWG / DXF into this canvas. The plan stays open while you move between pages; the project remembers it and reopens it next time.</li>
+  <li><b>Into the model at once</b>, each one undo step: click inside / trace a room → room added; pick name → renamed; Add found rooms → all found rooms added or updated; link a route → that feeder's length updated (route + vertical + terminations + waste); tray run → tray route length and the feeder's trays updated; place board → its room, level and position updated. Rounded to two decimals.</li>
+  <li><b>Panel on the right:</b> what is in the model now (Rooms · Cables · Trays · Boards), and what the plan has that is not added yet. Allowances (vertical, terminations, waste) on the Cables panel.</li>
+  <li><b>Kept:</b> the drawing is never changed; links are kept in the project; Finder → Open with LV Design Studio opens the plan on this page.</li>
+</ul>
+<script>
+document.getElementById('theme').addEventListener('click',()=>{const r=document.documentElement,l=r.dataset.theme==='light'||(r.dataset.theme!=='dark'&&matchMedia('(prefers-color-scheme: light)').matches);r.dataset.theme=l?'dark':'light';});
+document.querySelectorAll('.rb[data-t]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.rb[data-t]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));}));
+</script>
+</body>
+</html>

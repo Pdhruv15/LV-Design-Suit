@@ -326,13 +326,18 @@ app.on('open-file', (event, file) => { event.preventDefault(); planOpened(file);
 if (!headless) for (const arg of process.argv.slice(1)) if (isPlanFile(arg)) pendingPlans.push(arg);
 handle('cad:takePending', async () => {
   const file = pendingPlans.shift();
-  return file ? { file: path.basename(file), drawing: await cadFile.readDrawingFile(file) } : null;
+  return file ? { file: path.basename(file), path: file, drawing: await cadFile.readDrawingFile(file) } : null;
 });
 handle('cad:openPlan', async (evt) => {
   const result = await dialog.showOpenDialog(ownerOf(evt), { title: 'Open a floor plan', defaultPath: ensureProjectsFolder(), filters: [{ name: 'CAD drawing', extensions: ['dwg', 'dxf'] }], properties: ['openFile'] });
   if (result.canceled || result.filePaths.length === 0) return null;
   const file = result.filePaths[0];
-  return { file: path.basename(file), drawing: await cadFile.readDrawingFile(file) };
+  return { file: path.basename(file), path: file, drawing: await cadFile.readDrawingFile(file) };
+});
+// Reopens the plan a project had open last time (its path is remembered on this computer, not in the project file).
+handle('cad:readPlan', async (_evt, file) => {
+  if (!isPlanFile(file) || !fs.existsSync(file)) return null;
+  return { file: path.basename(file), path: file, drawing: await cadFile.readDrawingFile(file) };
 });
 
 // ---- IPC: hand generated DXF sheets to the installed OpenCADStudio app (live, token-protected local link) ----

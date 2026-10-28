@@ -52,9 +52,11 @@ declare global {
       /** Floor plans read by the built-in DWG / DXF reader (electron/cadFile.cjs). */
       cadFile?: {
         /** Asks for a floor plan (DWG / DXF) and reads it; null if cancelled. */
-        openPlan: () => Promise<{ file: string; drawing: import('./model/cadDrawing').CadDrawing } | null>;
+        openPlan: () => Promise<{ file: string; path?: string; drawing: import('./model/cadDrawing').CadDrawing } | null>;
+        /** Reads a plan opened before (its full path); null when it is no longer there. */
+        readPlan?: (path: string) => Promise<{ file: string; path?: string; drawing: import('./model/cadDrawing').CadDrawing } | null>;
         /** The next floor plan opened from Finder / Explorer, read; null when there is none. */
-        takePending?: () => Promise<{ file: string; drawing: import('./model/cadDrawing').CadDrawing } | null>;
+        takePending?: () => Promise<{ file: string; path?: string; drawing: import('./model/cadDrawing').CadDrawing } | null>;
         /** Called when a floor plan is opened from Finder / Explorer while the app runs; returns the unsubscribe. */
         onPending?: (cb: () => void) => () => void;
       };
