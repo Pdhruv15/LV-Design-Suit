@@ -121,6 +121,12 @@ export const ELV_DEVICES: Record<ElvDeviceType, ElvDeviceSpec> = {
   }
 };
 
+/** How far a device covers: a radius, or half the diagonal of its spacing square. 0: no area coverage. */
+export function reachM(type: ElvDeviceType): number {
+  const c = ELV_DEVICES[type].coverage;
+  return c?.kind === 'radius' ? c.m : c?.kind === 'spacing' ? c.m / Math.SQRT2 : 0;
+}
+
 export const devicesOf = (system: ElvSystem): ElvDeviceSpec[] => Object.values(ELV_DEVICES).filter((d) => d.system === system);
 
 /** How far a camera meets a class: the scene width there is pixelsH ÷ px/m, and width = 2 × range × tan(fov / 2). */

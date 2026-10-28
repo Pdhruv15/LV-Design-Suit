@@ -1,6 +1,7 @@
 import { buildingInfoOf } from '../../calc/building';
 import { levelCoverage, reachM, type RoomCoverage } from '../../elv/coverage';
-import { ELV_SYSTEMS, type ElvSystem } from '../../elv/defaults';
+import { deviceLabel, SYSTEM_LABEL } from './elvLabels';
+import type { ElvSystem } from '../../elv/defaults';
 import { cameraRangeM, devicesOf, ELV_DEVICES, type ElvDeviceType } from '../../elv/devices';
 import { copyDevices, devicesOn, fillPoints, moveDevice, placeDevices, removeDevices, roomAt, type ElvDevice } from '../../elv/placed';
 import type { Project } from '../../types';
@@ -13,14 +14,7 @@ export interface PlanLevel { building: string; level: string }
 /** ELV design on the Floor plan page: what the ELV layer draws, and what its tools do. Devices are kept in metres on
  * the plan; the canvas works in drawing units, so everything here takes the plan's metres per unit (`mpu`). */
 
-export const SYSTEM_LABEL: Record<ElvSystem, string> = {
-  'fire-alarm': 'Fire alarm', cctv: 'CCTV', 'access-control': 'Access control', ict: 'Data and Wi-Fi', 'public-address': 'Public address'
-};
-export const SYSTEMS = ELV_SYSTEMS.map((id) => ({ id, label: SYSTEM_LABEL[id] }));
-export const devicesFor = (system: ElvSystem) => devicesOf(system);
-export const deviceLabel = (t: ElvDeviceType) => ELV_DEVICES[t].label;
-/** Whether Fill room can place this device: only devices whose coverage sets a spacing. */
-export const canFill = (t: ElvDeviceType) => reachM(t) > 0;
+export { canFill, deviceLabel, devicesFor, SYSTEM_LABEL, SYSTEMS } from './elvLabels';
 /** The coverage a device is placed by, for the readout: " · 7.5 m radius", a speaker spacing, a camera's ranges. */
 export function coverageNote(t: ElvDeviceType): string {
   const c = ELV_DEVICES[t].coverage;
@@ -39,16 +33,28 @@ const symbolOf = (t: ElvDeviceType, at: Pt, extra: Partial<PlanSymbol> = {}): Pl
 
 export interface ElvLayer { symbols: PlanSymbol[]; covers: PlanCover[]; gaps?: PlanCells; coverage: RoomCoverage[] }
 
+/** Coverage per project version, level and system: the page redraws on every pointer move, the check runs once. */
+const coverageCache = new WeakMap<Project, Map<string, RoomCoverage[]>>();
+function coverageOf(p: Project, lv: PlanLevel, system: ElvSystem): RoomCoverage[] {
+  let byKey = coverageCache.get(p);
+  if (!byKey) coverageCache.set(p, (byKey = new Map()));
+  const key = `${lv.building}\0${lv.level}\0${system}`;
+  let c = byKey.get(key);
+  if (!c) byKey.set(key, (c = levelCoverage(p, lv.building, lv.level, system)));
+  return c;
+}
+
 /** The ELV layer of a level: every device (other systems dimmed), the chosen system's coverage and uncovered squares,
- * and the Fill room preview for the room under the pointer. */
-export function elvLayer(p: Project, lv: PlanLevel, mpu: number, o: { system: ElvSystem; coverage: boolean; selected: string | null; preview?: { type: ElvDeviceType; at: Pt } }): ElvLayer {
+ * and the Fill room preview for the room under the pointer. A device being dragged (`held`, metres) is drawn where it
+ * is held; the uncovered squares follow when it is dropped. */
+export function elvLayer(p: Project, lv: PlanLevel, mpu: number, o: { system: ElvSystem; coverage: boolean; selected: string | null; preview?: { type: ElvDeviceType; at: Pt }; held?: { id: string; at: Pt } }): ElvLayer {
   const rooms = new Map(buildingInfoOf(p).rooms.map((r) => [r.id, r]));
-  const list = devicesOn(p, lv.building, lv.level);
+  const list = devicesOn(p, lv.building, lv.level).map((d) => (d.id === o.held?.id ? { ...d, x: o.held.at[0], y: o.held.at[1] } : d));
   const symbols = list.map((d) => symbolOf(d.type, units([d.x, d.y], mpu), {
     dim: ELV_DEVICES[d.type].system !== o.system, selected: d.id === o.selected, ...(d.rotationDeg !== undefined ? { rotationDeg: d.rotationDeg } : {})
   }));
   const covers: PlanCover[] = [];
-  const coverage = levelCoverage(p, lv.building, lv.level, o.system);
+  const coverage = coverageOf(p, lv, o.system);
   let gaps: PlanCells | undefined;
   if (o.coverage) {
     for (const d of list) {
