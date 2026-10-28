@@ -23,7 +23,8 @@ pub enum Item {
     Pline { l: String, h: String, #[serde(skip_serializing_if = "Option::is_none")] x: Option<String>, v: Vec<[f64; 3]>, closed: bool },
     /// A hatch's outer boundary as [x, y, bulge].
     Hatch { l: String, h: String, #[serde(skip_serializing_if = "Option::is_none")] x: Option<String>, v: Vec<[f64; 3]> },
-    Text { l: String, h: String, at: [f64; 2], s: String },
+    /// Text with its height (drawing units).
+    Text { l: String, h: String, at: [f64; 2], s: String, ht: f64 },
     Insert { l: String, h: String, #[serde(skip_serializing_if = "Option::is_none")] x: Option<String>, name: String, at: [f64; 2], attrs: BTreeMap<String, String> },
 }
 
@@ -72,10 +73,10 @@ fn item(e: &EntityType) -> Option<Item> {
             v: x.vertices.iter().map(|v| [v.location.x, v.location.y, v.bulge]).collect(), closed: x.is_closed(),
         },
         EntityType::Hatch(x) => Item::Hatch { l: x.common.layer.clone(), h: handle(&x.common), x: tag(&x.common), v: hatch_outline(&x.paths) },
-        EntityType::Text(x) => Item::Text { l: x.common.layer.clone(), h: handle(&x.common), at: [x.insertion_point.x, x.insertion_point.y], s: x.value.clone() },
+        EntityType::Text(x) => Item::Text { l: x.common.layer.clone(), h: handle(&x.common), at: [x.insertion_point.x, x.insertion_point.y], s: x.value.clone(), ht: x.height },
         EntityType::MText(x) => Item::Text {
             l: x.common.layer.clone(), h: handle(&x.common), at: [x.insertion_point.x, x.insertion_point.y],
-            s: parse_mtext(&x.value, true).to_plain_text(),
+            s: parse_mtext(&x.value, true).to_plain_text(), ht: x.height,
         },
         EntityType::Insert(x) => Item::Insert {
             l: x.common.layer.clone(), h: handle(&x.common), x: tag(&x.common), name: x.block_name.clone(),

@@ -1,5 +1,5 @@
-import { initSync, readDrawing } from './generated/lvds_cad_reader.js';
-import wasmDataUrl from './generated/lvds_cad_reader_bg.wasm?inline';
+import { initSync, readDrawing } from '../../../electron/cad/lvds_cad_reader.js';
+import wasmDataUrl from '../../../electron/cad/lvds_cad_reader_bg.wasm?inline';
 import { parseReaderAnswer, type CadDrawing } from '../../model/cadDrawing';
 
 /** The built-in DWG / DXF reader: acadrust compiled to WebAssembly (engines/cad-reader, rebuilt with

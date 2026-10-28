@@ -11,7 +11,7 @@ export type CadItem =
   | { k: 'arc'; l: string; h: string; x?: string; c: Pt; r: number; s: number; e: number } // angles in radians
   | { k: 'pline'; l: string; h: string; x?: string; v: [number, number, number][]; closed: boolean } // [x, y, bulge]
   | { k: 'hatch'; l: string; h: string; x?: string; v: [number, number, number][] } // outer boundary
-  | { k: 'text'; l: string; h: string; at: Pt; s: string }
+  | { k: 'text'; l: string; h: string; at: Pt; s: string; ht?: number } // ht: text height
   | { k: 'insert'; l: string; h: string; x?: string; name: string; at: Pt; attrs: Record<string, string> };
 
 export interface CadDrawing {
