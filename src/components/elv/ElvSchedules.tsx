@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import type { ElvEstimate } from '../../elv/estimate';
 import { elvTables, remarkOf, withRemark, type TableId } from '../../elv/outputs';
 import type { Project } from '../../types';
-import { safeFileName, saveBinary, savePdf } from '../../util/files';
+import { renderPdf, safeFileName, saveBinary, savePdf, saveText } from '../../util/files';
 
 const TABS: { id: TableId; label: string }[] = [
   { id: 'devices', label: 'Devices' }, { id: 'loops', label: 'Fire alarm loops' }, { id: 'zones', label: 'Zones' }, { id: 'ports', label: 'Ports and zones' }, { id: 'boq', label: 'BOQ' }
@@ -38,6 +38,51 @@ export default function ElvSchedules({ project, estimate, stamp, onChange, onSta
       if (m) onStatus(m);
     } catch (e) { onStatus(e instanceof Error ? e.message : String(e)); }
   };
+  /** One A3 sheet per level with devices placed, all in one PDF (the browser prints the first level only). */
+  const exportSheets = async () => {
+    try {
+      const { planLevels, planSheetHtml } = await import('../../elv/planSheets');
+      const levels = planLevels(project);
+      if (!levels.length) { onStatus('No ELV devices placed on the floor plans yet: place them on the Floor plan page first.'); return; }
+      const name = `${safeFileName(project.name)} - ELV plan sheets`;
+      const parts: Uint8Array[] = [];
+      for (const [i, lv] of levels.entries()) {
+        const bytes = await renderPdf(planSheetHtml(project, lv, i, levels.length), { pageSize: 'A3', landscape: true }, lv.name);
+        if (!bytes) break;
+        parts.push(bytes);
+      }
+      let m: string | null;
+      if (parts.length === levels.length) {
+        const { PDFDocument } = await import('pdf-lib');
+        const doc = await PDFDocument.create();
+        for (const b of parts) { const src = await PDFDocument.load(b); for (const pg of await doc.copyPages(src, src.getPageIndices())) doc.addPage(pg); }
+        doc.setTitle(`${project.name} — ELV plan sheets`);
+        m = await saveBinary(`${name}.pdf`, await doc.save(), 'PDF', 'pdf', 'application/pdf');
+      } else {
+        m = await savePdf(`${name}.pdf`, planSheetHtml(project, levels[0], 0, levels.length), { pageSize: 'A3', landscape: true });
+        if (m && levels.length > 1) m += ' (first level only — the desktop app saves every level in one PDF)';
+      }
+      if (m) onStatus(m);
+    } catch (e) { onStatus(e instanceof Error ? e.message : String(e)); }
+  };
+  /** The devices of each level as DXF for the CAD team (one file, or a ZIP of one per level). */
+  const exportDxf = async () => {
+    try {
+      const { planDxf, planLevels } = await import('../../elv/planSheets');
+      const levels = planLevels(project);
+      if (!levels.length) { onStatus('No ELV devices placed on the floor plans yet: place them on the Floor plan page first.'); return; }
+      const files = levels.map((lv) => ({ name: `${safeFileName(`${project.name} ELV ${lv.name}`)}.dxf`, data: planDxf(project, lv) }));
+      let m: string | null;
+      if (files.length === 1) m = await saveText(files[0].name, files[0].data, 'DXF drawing (AutoCAD R12)', 'dxf');
+      else {
+        const zip = new (await import('jszip')).default();
+        files.forEach((f) => zip.file(f.name, f.data));
+        m = await saveBinary(`${safeFileName(project.name)} - ELV DXF.zip`, await zip.generateAsync({ type: 'uint8array' }), 'ZIP', 'zip', 'application/zip');
+      }
+      if (m) onStatus(`${m} — millimetres, on the architect plan's origin`);
+    } catch (e) { onStatus(e instanceof Error ? e.message : String(e)); }
+  };
+  const placedAny = (project.elvDevices ?? []).length > 0;
   return (
     <div className="card">
       <h4>Schedules <span className="m">from the devices placed on the floor plans; levels with nothing placed use the room-area estimate</span></h4>
@@ -66,6 +111,8 @@ export default function ElvSchedules({ project, estimate, stamp, onChange, onSta
       <div className="modal-actions"><span className="m">Remarks are kept with the project and printed on the schedules</span><span className="sp" />
         <button className="chip" onClick={exportPdf} disabled={!tables.some((x) => x.rows.length)}>Schedules PDF…</button>
         <button className="chip" onClick={exportExcel} disabled={!tables.some((x) => x.rows.length)}>Excel…</button>
+        <button className="chip" onClick={exportSheets} disabled={!placedAny} title="One A3 sheet per level with ELV devices placed; a typical level names its floors">Plan sheets PDF…</button>
+        <button className="chip" onClick={exportDxf} disabled={!placedAny} title="ELV devices as DXF for the CAD team, in millimetres on the architect plan's origin">DXF for CAD…</button>
       </div>
     </div>
   );
