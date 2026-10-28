@@ -25,7 +25,7 @@ export default tseslint.config(
   // share the core (types, rooms, exchange contracts, util, ui) and exchange loads only through src/exchange.
   // App.tsx and src/headless wire both together; tests may cross.
   {
-    files: ['src/elv/**/*.ts', 'src/components/elv/ElvView.tsx', 'src/components/elv/ElvPlanPanel.tsx', 'src/components/elv/elvPlan.ts', 'src/components/elv/elvLabels.ts'],
+    files: ['src/elv/**/*.ts', 'src/components/elv/{Elv,elv}*.{ts,tsx}'],
     ignores: ['**/*.test.*'],
     rules: {
       '@typescript-eslint/no-restricted-imports': ['error', { patterns: [{
@@ -36,7 +36,7 @@ export default tseslint.config(
   },
   {
     files: ['src/**/*.{ts,tsx}'],
-    ignores: ['**/*.test.*', 'src/elv/**', 'src/components/elv/ElvView.tsx', 'src/components/elv/ElvPlanPanel.tsx', 'src/components/elv/elvPlan.ts', 'src/components/elv/elvLabels.ts', 'src/App.tsx', 'src/headless/**'],
+    ignores: ['**/*.test.*', 'src/elv/**', 'src/components/elv/{Elv,elv}*.{ts,tsx}', 'src/App.tsx', 'src/headless/**'],
     rules: {
       '@typescript-eslint/no-restricted-imports': ['error', { patterns: [{
         group: ['**/elv/*', '!**/components/elv/*', '!./elv/*'], allowTypeImports: true,
