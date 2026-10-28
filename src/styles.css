@@ -1735,3 +1735,8 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .fp-list tr{cursor:pointer}
 .fp-foot{margin:0;padding:var(--space-3);justify-content:flex-start}
 @media (max-width:1000px){.fp-body{grid-template-columns:1fr;grid-template-rows:minmax(320px,1fr) auto}.fp-stage{border-right:0;border-bottom:1px solid var(--line)}}
+.fp-tasks{display:flex;gap:2px;padding:var(--space-2) var(--space-3) 0;border-bottom:1px solid var(--line);overflow-x:auto}
+.fp-tasks button{background:none;border:0;border-bottom:2px solid transparent;padding:6px 10px;color:var(--mut);white-space:nowrap}
+.fp-tasks button[aria-selected=true]{color:var(--tx);border-bottom-color:var(--acc)}
+.fp-pad{padding:var(--space-2) var(--space-3);margin:0}
+.fp-side .fp-form{padding-top:var(--space-3)}

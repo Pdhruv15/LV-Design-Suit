@@ -392,6 +392,13 @@ export interface CadBlockMap { block: string; reference: string; per?: number }
 
 export type CadLayerRole = 'room' | 'room-name' | 'wall' | 'tray' | 'route' | 'fixture' | 'board' | 'ignore';
 export interface CadLayerMap { layer: string; role: CadLayerRole }
+/** Floor plan links by entity handle: curve → feeder id (cable route) or tray route name; board id → block or point. */
+export interface CadPlanLinks {
+  file: string;
+  routes?: Record<string, string>;
+  trays?: Record<string, string>;
+  places?: Record<string, { handle?: string; x: number; y: number }>;
+}
 
 /** Length = (measured route + vertical + terminations) × (1 + waste %), rounded up to a whole metre. */
 export interface CadLengthSettings {
@@ -480,6 +487,8 @@ export interface Project {
   cadLayers?: CadLayerMap[];
   /** Room names on CAD floor plans → the room type chosen for them (remembered between pulls). */
   cadRoomTypes?: { name: string; type: string }[];
+  /** Links made on floor plans in the Floor plan window, per drawing file (the drawing is never changed). */
+  cadPlanLinks?: CadPlanLinks[];
   substations?: DmSubstationRoom[]; // DM-D-013 minimum substation / LV room areas
   studyReport?: StudyReportSetup; // the study report being prepared (Reports → Study reports)
   calcReportDocNo?: string; // document number on page 1 of the calculation report

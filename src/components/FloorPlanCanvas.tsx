@@ -5,14 +5,20 @@ type Pt = [number, number];
 
 export interface PlanRoomShape { key: string; points: Pt[]; picked?: boolean; selected?: boolean }
 export interface PlanOverlay { points: Pt[]; closed?: boolean; label?: string }
+/** A linked curve drawn over the plan: a cable route, a tray run, or one of the current feeder / tray (`on`). */
+export interface PlanPath { points: Pt[]; tone: 'route' | 'tray' | 'on' }
+/** A board placed on the plan. */
+export interface PlanMark { at: Pt; label: string; on?: boolean }
 
 /** The floor plan drawn on a canvas (plan view, drawing units): lines, arcs, polylines, hatch outlines, texts and block
  * positions, with the rooms filled and the current measurement on top. Drag to pan, wheel to zoom. Clicks are reported
  * in drawing units with the size of one screen pixel, for hit-testing. */
-export default function FloorPlanCanvas({ drawing, rooms, overlay, fitKey, zoomKey, onClick, onMove }: {
+export default function FloorPlanCanvas({ drawing, rooms, overlay, paths = [], marks = [], fitKey, zoomKey, onClick, onMove }: {
   drawing: CadDrawing;
   rooms: PlanRoomShape[];
   overlay?: PlanOverlay;
+  paths?: PlanPath[];
+  marks?: PlanMark[];
   /** Changes to fit the drawing to the view again. */
   fitKey: number;
   /** Changes to zoom in once about the centre. */
@@ -26,7 +32,7 @@ export default function FloorPlanCanvas({ drawing, rooms, overlay, fitKey, zoomK
   const drag = useRef<{ x: number; y: number; ox: number; oy: number; moved: boolean } | null>(null);
 
   // Paths in drawing units, built once per drawing.
-  const paths = useMemo(() => {
+  const geometry = useMemo(() => {
     const lines = new Path2D(), hatches = new Path2D();
     const xs: number[] = [], ys: number[] = [];
     for (const e of drawing.entities) {
@@ -58,10 +64,10 @@ export default function FloorPlanCanvas({ drawing, rooms, overlay, fitKey, zoomK
   }, []);
 
   useEffect(() => {
-    const { x0, x1, y0, y1 } = paths.box;
+    const { x0, x1, y0, y1 } = geometry.box;
     const scale = Math.min(size.w / Math.max(1e-9, x1 - x0), size.h / Math.max(1e-9, y1 - y0)) * 0.92;
     setView({ scale, ox: (x0 + x1) / 2 - size.w / 2 / scale, oy: (y0 + y1) / 2 - size.h / 2 / scale });
-  }, [paths, fitKey, size.w, size.h]);
+  }, [geometry, fitKey, size.w, size.h]);
 
   useEffect(() => {
     if (!zoomKey) return;
@@ -83,7 +89,7 @@ export default function FloorPlanCanvas({ drawing, rooms, overlay, fitKey, zoomK
     c.width = Math.round(size.w * dpr); c.height = Math.round(size.h * dpr);
     const css = getComputedStyle(c);
     const color = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
-    const ink = color('--mut', '#8093b5'), acc = color('--acc', '#4aa8ff'), ok = color('--ok', '#37d67a'), tx = color('--tx', '#dbe4f5');
+    const ink = color('--mut', '#8093b5'), acc = color('--acc', '#4aa8ff'), ok = color('--ok', '#37d67a'), tx = color('--tx', '#dbe4f5'), warn = color('--warn', '#f5c04a');
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, c.width, c.height);
     const { scale, ox, oy } = view;
@@ -104,11 +110,21 @@ export default function FloorPlanCanvas({ drawing, rooms, overlay, fitKey, zoomK
     ctx.globalAlpha = 1;
     // Drawing
     ctx.lineWidth = 1 / scale;
-    ctx.strokeStyle = ink; ctx.globalAlpha = 0.45; ctx.stroke(paths.hatches);
-    ctx.globalAlpha = 1; ctx.stroke(paths.lines);
+    ctx.strokeStyle = ink; ctx.globalAlpha = 0.45; ctx.stroke(geometry.hatches);
+    ctx.globalAlpha = 1; ctx.stroke(geometry.lines);
     const mark = 3 / scale;
     ctx.fillStyle = ink;
     for (const [x, y] of blocks) ctx.fillRect(x - mark / 2, y - mark / 2, mark, mark);
+    // Linked routes and tray runs
+    for (const p of paths) {
+      if (p.points.length < 2) continue;
+      ctx.strokeStyle = p.tone === 'on' ? ok : p.tone === 'tray' ? warn : acc;
+      ctx.lineWidth = (p.tone === 'on' ? 5 : 3) / scale;
+      ctx.beginPath();
+      ctx.moveTo(p.points[0][0], p.points[0][1]);
+      for (const q of p.points.slice(1)) ctx.lineTo(q[0], q[1]);
+      ctx.stroke();
+    }
     // Overlay (measuring, tracing)
     if (overlay && overlay.points.length) {
       ctx.strokeStyle = acc; ctx.lineWidth = 2 / scale;
@@ -130,13 +146,21 @@ export default function FloorPlanCanvas({ drawing, rooms, overlay, fitKey, zoomK
       ctx.font = `${Math.min(px, 64)}px system-ui, sans-serif`;
       ctx.fillText(t.s, (t.at[0] - ox) * scale, size.h - (t.at[1] - oy) * scale);
     }
+    // Boards placed on the plan
+    ctx.font = '600 11px system-ui, sans-serif';
+    for (const m of marks) {
+      const x = (m.at[0] - ox) * scale, y = size.h - (m.at[1] - oy) * scale;
+      ctx.fillStyle = m.on ? ok : acc;
+      ctx.beginPath(); ctx.arc(x, y, m.on ? 6 : 4.5, 0, 2 * Math.PI); ctx.fill();
+      ctx.fillText(m.label, x + 8, y - 6);
+    }
     if (overlay?.label && overlay.points.length) {
       const [x, y] = overlay.points[overlay.points.length - 1];
       ctx.font = '600 12px system-ui, sans-serif';
       ctx.fillStyle = acc;
       ctx.fillText(overlay.label, (x - ox) * scale + 8, size.h - (y - oy) * scale - 8);
     }
-  }, [view, size, paths, texts, blocks, rooms, overlay]);
+  }, [view, size, geometry, paths, texts, blocks, rooms, overlay, marks]);
 
   const local = (e: React.MouseEvent) => {
     const r = canvas.current!.getBoundingClientRect();

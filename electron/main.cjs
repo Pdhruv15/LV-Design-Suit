@@ -309,6 +309,25 @@ handle('files:saveBinary', async (evt, args) => {
 });
 
 // ---- IPC: a floor plan (DWG / DXF) read by the built-in reader, for the Floor plan window ----
+// Plans opened from Finder / Explorer ("Open with LV Design Studio", or dropped on the app icon) wait here until the
+// window takes them: macOS sends open-file (also before the app is ready), Windows passes the path on the command line.
+const pendingPlans = [];
+const isPlanFile = (file) => typeof file === 'string' && path.isAbsolute(file) && /\.(dwg|dxf)$/i.test(file);
+function planOpened(file) {
+  if (!isPlanFile(file)) return;
+  pendingPlans.push(file);
+  if (win && !win.isDestroyed()) {
+    if (win.isMinimized()) win.restore();
+    win.focus();
+    win.webContents.send('cad:pending');
+  }
+}
+app.on('open-file', (event, file) => { event.preventDefault(); planOpened(file); });
+if (!headless) for (const arg of process.argv.slice(1)) if (isPlanFile(arg)) pendingPlans.push(arg);
+handle('cad:takePending', async () => {
+  const file = pendingPlans.shift();
+  return file ? { file: path.basename(file), drawing: await cadFile.readDrawingFile(file) } : null;
+});
 handle('cad:openPlan', async (evt) => {
   const result = await dialog.showOpenDialog(ownerOf(evt), { title: 'Open a floor plan', defaultPath: ensureProjectsFolder(), filters: [{ name: 'CAD drawing', extensions: ['dwg', 'dxf'] }], properties: ['openFile'] });
   if (result.canceled || result.filePaths.length === 0) return null;

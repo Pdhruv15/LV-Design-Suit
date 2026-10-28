@@ -101,9 +101,6 @@ import { safeFileName, savePdf, saveText } from './util/files';
 import AnonymizedSampleDialog from './components/AnonymizedSampleDialog';
 const SldExportDialog = lazy(() => import('./components/SldExportDialog'));
 const CadLoadsDialog = lazy(() => import('./components/CadLoadsDialog'));
-const CadLengthsDialog = lazy(() => import('./components/CadLengthsDialog'));
-const CadPlacesDialog = lazy(() => import('./components/CadPlacesDialog'));
-const CadTraysDialog = lazy(() => import('./components/CadTraysDialog'));
 const FloorPlanView = lazy(() => import('./components/FloorPlanView'));
 import PasteBoardDialog from './components/PasteBoardDialog';
 const EnclosureSizing = lazy(() => import('./components/EnclosureSizing'));
@@ -144,6 +141,8 @@ import { moveBoard, moveSummary, reorderBoard } from './model/moveBoard';
 const ProjectsDashboard = lazy(() => import('./components/ProjectsDashboard'));
 import { NameDialog, UnsavedDialog } from './components/FileDialogs';
 import type { BoardKind, ProjectStatus } from './types';
+import type { FloorPlanTask } from './components/FloorPlanView';
+import type { CadDrawing } from './model/cadDrawing';
 type DiagramMode = 'system' | 'board' | 'earthing' | 'riser';
 
 /** Fixed, read-only start position used only by the offline manual capture command. */
@@ -271,10 +270,8 @@ export default function App() {
   const [supply, setSupply] = useState<SupplyMode>('normal');
   const [showExport, setShowExport] = useState(false);
   const [showCadLoads, setShowCadLoads] = useState(false);
-  const [showCadLengths, setShowCadLengths] = useState(false);
-  const [showCadPlaces, setShowCadPlaces] = useState(false);
-  const [showCadTrays, setShowCadTrays] = useState(false);
-  const [showCadRooms, setShowCadRooms] = useState(false);
+  // Floor plan window: what it opens on, and a plan handed over from Finder / Explorer.
+  const [floorPlan, setFloorPlan] = useState<{ task: FloorPlanTask; plan?: { file: string; drawing: CadDrawing } } | null>(null);
   // Packages from other programs waiting for review, per project (not saved: nothing changes until accepted).
   const [inbox, setInbox] = useState<{ key: string; item: InboxItem }[]>([]);
   const [showPlaceElv, setShowPlaceElv] = useState(false);
@@ -320,6 +317,14 @@ export default function App() {
     if (!hasDatabase) return;
     dbHandlers.current.initDatabase();
     return window.lvds.database.onChange((raw) => dbHandlers.current.receiveDatabase(raw));
+  }, []);
+  // A floor plan opened from Finder / Explorer ("Open with LV Design Studio"): read by the app, shown in the Floor plan window.
+  useEffect(() => {
+    const cad = window.lvds?.cadFile;
+    if (!cad?.takePending) return;
+    const take = () => void cad.takePending!().then((plan) => { if (plan) setFloorPlan({ task: 'rooms', plan }); }, (e: unknown) => setStatus(e instanceof Error ? e.message : String(e)));
+    take();
+    return cad.onPending?.(take);
   }, []);
   // Navigating (left menu or ribbon) keeps the ribbon on the matching tab.
   const setView = (v: MainView) => {
@@ -925,10 +930,11 @@ export default function App() {
     if (board) cmd(`Add a feeder on ${board.id}…`, () => { design(); openAddFeeder({}); }, undefined, 'circuit load');
     cmd('Export the SLD…', () => { design(); setDiagramMode('system'); setShowExport(true); }, undefined, 'PDF DXF SVG');
     cmd('Loads from CAD floor plan…', () => setShowCadLoads(true), undefined, 'OpenCADStudio DWG DXF blocks fixtures count');
-    cmd('Cable lengths from CAD floor plan…', () => setShowCadLengths(true), undefined, 'OpenCADStudio DWG DXF route measure length');
-    cmd('Board locations from CAD floor plan…', () => setShowCadPlaces(true), undefined, 'OpenCADStudio DWG DXF room level position');
-    cmd('Tray routes from CAD floor plan…', () => setShowCadTrays(true), undefined, 'OpenCADStudio DWG DXF cable tray route length');
-    cmd('Rooms and areas from CAD floor plan…', () => setShowCadRooms(true), undefined, 'Floor plan DWG DXF architect layers room area m2 building measure');
+    cmd('Floor plan…', () => setFloorPlan({ task: 'rooms' }), undefined, 'open DWG DXF architect plan CAD drawing measure');
+    cmd('Cable lengths from CAD floor plan…', () => setFloorPlan({ task: 'lengths' }), undefined, 'Floor plan DWG DXF route measure length');
+    cmd('Board locations from CAD floor plan…', () => setFloorPlan({ task: 'boards' }), undefined, 'Floor plan DWG DXF room level position');
+    cmd('Tray routes from CAD floor plan…', () => setFloorPlan({ task: 'trays' }), undefined, 'Floor plan DWG DXF cable tray route length');
+    cmd('Rooms and areas from CAD floor plan…', () => setFloorPlan({ task: 'rooms' }), undefined, 'Floor plan DWG DXF architect layers room area m2 building measure');
     cmd('Copy LV scripts for OpenCADStudio…', async () => {
       const copy = window.lvds?.openCadStudio?.copyScripts;
       if (!copy) { setStatus('The OpenCADStudio scripts come with the LV Design Studio desktop app'); return; }
@@ -1195,6 +1201,7 @@ export default function App() {
           onSave: () => saveProject(),
           onSaveAs: () => saveAs(),
           onAnonymizedSample: () => setShowAnonymized(true),
+          onFloorPlan: () => setFloorPlan({ task: 'rooms' }),
           onProfile: () => setShowPrefs(true),
           onChooseFolder: chooseFolder,
           folderLabel: hasBridge ? `Folder: ${projectsFolder.split(/[\\/]/).pop() || 'choose…'}` : 'This browser',
@@ -1707,32 +1714,13 @@ export default function App() {
           onClose={() => setShowPlaceElv(false)}
         /></Suspense>
       )}
-      {showCadRooms && (
+      {floorPlan && (
         <Suspense fallback={null}><FloorPlanView
           project={project}
-          onApply={(next, message) => { void autoCheckpoint(project, 'Before Rooms and areas from CAD', undefined, setStatus); setProject(next, { step: true }); setStatus(message); setShowCadRooms(false); }}
-          onClose={() => setShowCadRooms(false)}
-        /></Suspense>
-      )}
-      {showCadTrays && (
-        <Suspense fallback={null}><CadTraysDialog
-          project={project}
-          onApply={(next, message) => { void autoCheckpoint(project, 'Before Tray routes from CAD', undefined, setStatus); setProject(next, { step: true }); setStatus(message); setShowCadTrays(false); }}
-          onClose={() => setShowCadTrays(false)}
-        /></Suspense>
-      )}
-      {showCadPlaces && (
-        <Suspense fallback={null}><CadPlacesDialog
-          project={project}
-          onApply={(next, message) => { void autoCheckpoint(project, 'Before Board locations from CAD', undefined, setStatus); setProject(next, { step: true }); setStatus(message); setShowCadPlaces(false); }}
-          onClose={() => setShowCadPlaces(false)}
-        /></Suspense>
-      )}
-      {showCadLengths && (
-        <Suspense fallback={null}><CadLengthsDialog
-          project={project}
-          onApply={(next, message) => { void autoCheckpoint(project, 'Before Cable lengths from CAD', undefined, setStatus); setProject(next, { step: true }); setStatus(message); setShowCadLengths(false); }}
-          onClose={() => setShowCadLengths(false)}
+          initialTask={floorPlan.task}
+          initialPlan={floorPlan.plan}
+          onApply={(next, message) => { void autoCheckpoint(project, 'Before applying the floor plan', undefined, setStatus); setProject(next, { step: true }); setStatus(message); }}
+          onClose={() => setFloorPlan(null)}
         /></Suspense>
       )}
       {showCadLoads && (

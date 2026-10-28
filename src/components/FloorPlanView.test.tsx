@@ -55,6 +55,41 @@ describe('Floor plan window', () => {
     expect(next.building!.rooms.find((r) => r.id === 'R1')!.source).toMatchObject({ app: 'cad', file: 'GF plan.dwg' });
   });
 
+  it('opens on a plan handed over from Finder, on the task asked for', () => {
+    (window as { lvds?: unknown }).lvds = { cadFile: { openPlan: async () => null } };
+    act(() => root.render(<FloorPlanView project={villa} initialTask="boards" initialPlan={{ file: 'GF plan.dwg', drawing }} onApply={() => {}} onClose={() => {}} />));
+    expect(document.body.textContent).toContain('GF plan.dwg · DWG');
+    expect(document.querySelector('[role=tab][aria-selected=true]')?.textContent).toBe('Boards');
+    expect(button('Place board').getAttribute('aria-pressed')).toBe('true');
+    expect(document.querySelector('.fp-side')?.textContent).toMatch(/Boards found by a TAG/);
+  });
+
+  it('measures linked cable routes and applies lengths, keeping the links in the project', () => {
+    const feederId = villa.feeders[0].id;
+    const withRoute: Project = { ...villa, cadPlanLinks: [{ file: 'GF plan.dwg', routes: { [drawing.entities.find((e) => e.k === 'line')!.h]: feederId } }] };
+    const onApply = vi.fn();
+    (window as { lvds?: unknown }).lvds = { cadFile: { openPlan: async () => null } };
+    act(() => root.render(<FloorPlanView project={withRoute} initialTask="lengths" initialPlan={{ file: 'GF plan.dwg', drawing }} onApply={onApply} onClose={() => {}} />));
+    const side = document.querySelector('.fp-side')!.textContent!;
+    expect(side).toMatch(/1 route linked here/);
+    const apply = [...document.querySelectorAll('.fp-side button')].find((b) => /^Apply/.test(b.textContent ?? '')) as HTMLButtonElement;
+    act(() => apply.click());
+    const [next, message] = onApply.mock.calls[0] as [Project, string];
+    expect(message).toMatch(/^Cable lengths from the floor plan/);
+    expect(next.cadPlanLinks).toEqual(withRoute.cadPlanLinks);
+  });
+
+  it('switches between the tasks', async () => {
+    (window as { lvds?: unknown }).lvds = { cadFile: { openPlan: async () => ({ file: 'GF plan.dwg', drawing }) } };
+    act(() => root.render(<FloorPlanView project={villa} onApply={() => {}} onClose={() => {}} />));
+    await act(async () => { button('Open floor plan…').click(); });
+    act(() => button('Tray routes').click());
+    expect(button('Link tray run').getAttribute('aria-pressed')).toBe('true');
+    expect(document.querySelector('.fp-side')?.textContent).toMatch(/tray runs? \(/);
+    act(() => button('Rooms').click());
+    expect(button('Find rooms').getAttribute('aria-pressed')).toBe('true');
+  });
+
   it('shows the layers for mapping', async () => {
     (window as { lvds?: unknown }).lvds = { cadFile: { openPlan: async () => ({ file: 'GF plan.dwg', drawing }) } };
     act(() => root.render(<FloorPlanView project={villa} onApply={() => {}} onClose={() => {}} />));
