@@ -53,6 +53,7 @@ export interface Catalogue {
     detectorQuiescentMa: number; detectorAlarmMa: number; sounderQuiescentMa: number; sounderAlarmMa: number;
     callPointQuiescentMa: number; callPointAlarmMa: number; moduleQuiescentMa: number; moduleAlarmMa: number; beaconAlarmMa: number;
     devicesPerLoop: number; loopsPerPanel: number; panelQuiescentMa: number; panelAlarmMa: number;
+    loopMaxMa: number; loopSpare: number; inputsInAlarm: number; isolatorMaxDevices: number; zoneMaxM2: number;
     standbyH: number; alarmH: number; batteryFactor: number; rechargeH: number; chargerV: number; efficiency: number; pf: number;
   };
   cctv: { cameraW: number; switchPorts: number; switchBudgetW: number; switchSelfW: number; nvrChannels: number; nvrW: number; upsEfficiency: number; spare: number; pf: number };
@@ -66,6 +67,7 @@ export const DEFAULT_CATALOGUE: Catalogue = {
     detectorQuiescentMa: 0.3, detectorAlarmMa: 5, sounderQuiescentMa: 0.3, sounderAlarmMa: 15,
     callPointQuiescentMa: 0.3, callPointAlarmMa: 3, moduleQuiescentMa: 0.5, moduleAlarmMa: 5, beaconAlarmMa: 10,
     devicesPerLoop: 125, loopsPerPanel: 4, panelQuiescentMa: 200, panelAlarmMa: 500,
+    loopMaxMa: 500, loopSpare: 0.2, inputsInAlarm: 5, isolatorMaxDevices: 32, zoneMaxM2: 2000,
     standbyH: 24, alarmH: 0.5, batteryFactor: 1.25, rechargeH: 24, chargerV: 27.6, efficiency: 0.8, pf: 0.9
   },
   cctv: { cameraW: 12.95, switchPorts: 20, switchBudgetW: 370, switchSelfW: 30, nvrChannels: 64, nvrW: 150, upsEfficiency: 0.9, spare: 1.25, pf: 0.9 },
@@ -78,7 +80,8 @@ export const DEFAULT_CATALOGUE: Catalogue = {
 export const DEFAULT_ASSUMPTIONS: Record<ElvSystem, string[]> = {
   'fire-alarm': [
     'Smoke detector per 75 m², heat detector per 36 m² (kitchens, car parks), at least one per room; toilets and bathrooms none (BS 5839-1 coverage, reduced for walls and beams) — verify against the Fire and Life Safety Code.',
-    'Addressable loops of 125 devices, panels of 4 loops, one panel per building (networked panels beyond 4 loops).',
+    'Addressable loops of 125 devices and 500 mA in alarm, each used to 80 % (20 % spare); loop alarm current = every device quiescent + all sounders, beacons and modules in alarm + 5 detectors / call points in alarm (verify with the panel\'s loop calculator); panels of 4 loops, one panel per building (networked panels beyond 4 loops).',
+    'Short-circuit isolators: no more than 32 devices between two (EN 54-2). Detection zones: one floor each, at most 2,000 m² (BS 5839-1).',
     'Batteries: 1.25 × (quiescent × 24 h + alarm × 0.5 h); recharged to 80 % in 24 h. Panel input = (alarm load + charging) ÷ 0.8 at 27.6 V.',
     'Call points (by exits) are not counted from rooms.'
   ],

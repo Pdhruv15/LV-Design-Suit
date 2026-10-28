@@ -4,6 +4,7 @@ import { elvSettings, estimateElv, type ElvSettings } from '../elv/estimate';
 import { placeElvLoads } from '../calc/elvPlace';
 import { ELV_DEVICES } from '../elv/devices';
 import { devicesOn, newElvDevice, placeDevices, removeDevices } from '../elv/placed';
+import { elvSchedules } from '../elv/schedules';
 import { buildingInfoOf } from '../calc/building';
 import { findLevel } from './cadTools';
 import { AUTHOR, edit } from './editTools';
@@ -51,6 +52,37 @@ export const ELV_TOOLS: Tool[] = [
     run: (a, ctx) => {
       const { project: p } = openProject({ ref: String(a.project ?? ''), folder: ctx.folder, anywhere: ctx.anywhere });
       return listDevices(p, String(a.building), String(a.level));
+    }
+  },
+  {
+    name: 'elv_schedules',
+    title: 'ELV loops, ports, controllers and PA zones',
+    description: 'The placed ELV devices grouped as they are wired, by the project\'s ELV rules: fire alarm detection zones (one floor, at most 2,000 m²), loops with addresses in route order (devices and alarm current within the loop limit less spare) and isolators (≤ 32 devices between two); CCTV and ICT switch ports and PoE budget; door controllers; PA zones per floor and amplifiers. Read-only; worked out again on every call.',
+    input: {
+      project,
+      detail: z.enum(['summary', 'groups', 'devices']).default('groups').describe('summary = counts; groups = every loop / switch / controller / zone; devices = also every device with its address')
+    },
+    usesProject: true,
+    run: (a, ctx) => {
+      const { project: p } = openProject({ ref: String(a.project ?? ''), folder: ctx.folder, anywhere: ctx.anywhere });
+      const s = elvSchedules(p, elvSettingsFor(p, {}, ctx));
+      const strip = a.detail !== 'devices';
+      return {
+        buildings: s.buildings.map((b) => ({
+          building: b.buildingId,
+          summary: { zones: b.zones.length, loops: b.loops.length, panels: new Set(b.loops.map((l) => l.panel)).size, loopDevices: b.loops.reduce((t, l) => t + l.devices.length, 0), isolators: b.loops.reduce((t, l) => t + l.isolators, 0), cctvSwitches: b.switches.filter((x) => x.system === 'cctv').length, ictSwitches: b.switches.filter((x) => x.system === 'ict').length, controllers: b.controllers.length, paZones: b.paZones.length, amplifiers: b.amplifiers.length },
+          ...(a.detail === 'summary' ? {} : {
+            zones: b.zones,
+            loops: b.loops.map(({ devices, ...l }) => ({ ...l, devices: devices.length, ...(strip ? {} : { list: devices }) })),
+            switches: b.switches.map(({ devices, ...x }) => ({ ...x, ...(strip ? {} : { list: devices }) })),
+            controllers: b.controllers.map(({ devices, ...x }) => ({ ...x, ...(strip ? {} : { list: devices }) })),
+            paZones: b.paZones.map(({ devices, ...x }) => ({ ...x, ...(strip ? {} : { list: devices }) })),
+            amplifiers: b.amplifiers
+          })
+        })),
+        ...(s.warnings.length ? { warnings: s.warnings } : {}),
+        ...(s.buildings.length ? {} : { note: 'No ELV devices placed yet: place them with elv_place_devices.' })
+      };
     }
   },
   {
