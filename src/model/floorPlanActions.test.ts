@@ -34,6 +34,13 @@ describe('Floor plan page: picks change the model directly', () => {
     expect(rooms(renameRoom(project, ids[0], 'Store')).find((r) => r.id === ids[0])!.name).toBe('Store');
   });
 
+  it('keeps the outline of a room clicked or traced on the plan, in metres', () => {
+    const outline: [number, number][] = [[0, 0], [4, 0], [4, 3], [0, 3]];
+    const room = pickedRoom(villa, 'Store', 12, 'GF.dwg', level, outline);
+    const { project, ids } = putRooms(villa, [room], level, []);
+    expect(rooms(project).find((r) => r.id === ids[0])!.outline).toEqual(outline);
+  });
+
   it('sets a feeder length from a route linked by clicking', () => {
     const route = drawing.entities.find((e) => e.l === 'E-CABLE')!.h;
     const linked = withLinks(villa, toggleCurve({ file: 'GF.dwg' }, 'routes', route, 'GF-LTG'));

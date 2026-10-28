@@ -1722,6 +1722,17 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .fp-tasks{display:flex;gap:2px;padding:var(--space-2) var(--space-3) 0;border-bottom:1px solid var(--line);overflow-x:auto}
 .fp-tasks button{background:none;border:0;border-bottom:2px solid transparent;padding:6px 10px;color:var(--mut);white-space:nowrap}
 .fp-tasks button[aria-selected=true]{color:var(--tx);border-bottom-color:var(--acc)}
+.elv-pal{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:0 var(--space-3) var(--space-2)}
+.elv-pal button{display:flex;align-items:center;gap:6px;background:var(--p2);border:1px solid var(--line);border-radius:var(--radius-sm);padding:4px 6px;text-align:left;font-size:var(--fs-sm);color:var(--tx);min-width:0}
+.elv-pal button[aria-pressed=true]{border-color:var(--acc);box-shadow:inset 0 0 0 1px var(--acc)}
+.elv-pal button b{margin-left:auto;font-weight:500;color:var(--mut);font-variant-numeric:tabular-nums}
+.elv-sym{width:20px;height:20px;flex:none;color:var(--tx)}
+.fp-side .elv-sel{grid-template-columns:1fr auto auto;align-items:end;padding-top:0}
+.fp-side .elv-sel > span{grid-column:1 / -1}
+.elv-ok{color:var(--ok)}.elv-warn{color:var(--warn)}.elv-bad{color:var(--bad)}
+.elv-groups{margin:0;padding:0 var(--space-3) var(--space-2);list-style:none;font-size:var(--fs-sm)}
+.elv-groups li{padding:4px 0;border-bottom:1px solid var(--line)}
+.elv-warns{margin:var(--space-2) 0;padding:0 var(--space-3) 0 calc(var(--space-3) + 14px);font-size:var(--fs-sm);color:var(--warn)}
 .fp-pad{padding:var(--space-2) var(--space-3);margin:0}
 .fp-side .fp-form{padding-top:var(--space-3)}
 

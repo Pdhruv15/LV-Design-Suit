@@ -73,4 +73,40 @@ describe('Floor plan page', () => {
     act(() => button('Apply plan boards').click());
     expect(document.body.textContent).toMatch(/boards? placed from the plan/);
   });
+
+  it('places ELV devices with a click, lists them per room, and deletes the selected one with the Delete key', () => {
+    (window as { lvds?: unknown }).lvds = { cadFile: { openPlan: vi.fn() } };
+    const onChange = vi.fn();
+    act(() => root.render(<Host open onChange={onChange} />));
+    act(() => button('Add found rooms').click());
+    act(() => state.setTool('elv-place'));
+    expect(document.querySelector('[role=tab][aria-selected=true]')?.textContent).toBe('ELV');
+    expect(document.body.textContent).toContain('Fire alarm devices');
+    expect(document.querySelector('.fp-readout')?.textContent).toBe('Smoke detector · 7.5 m radius');
+    // A click in the middle of the canvas (jsdom: the canvas sits at 0, 0 and the plan is fitted to 800 × 500).
+    const canvas = document.querySelector('canvas')!;
+    act(() => {
+      canvas.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: 400, clientY: 250 }));
+      canvas.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 400, clientY: 250 }));
+    });
+    const [placed, message] = onChange.mock.calls[onChange.mock.calls.length - 1] as [Project, string];
+    expect(message).toMatch(/^Smoke detector E1 added/);
+    expect(placed.elvDevices).toHaveLength(1);
+    expect(document.querySelector('.elv-pal [aria-pressed=true]')?.textContent).toContain('Smoke detector');
+    expect(document.querySelector('.elv-pal [aria-pressed=true] b')?.textContent).toBe('1');
+    expect(document.body.textContent).toContain('Smoke detector E1');
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete' })); });
+    const [after, deleted] = onChange.mock.calls[onChange.mock.calls.length - 1] as [Project, string];
+    expect(deleted).toBe('Smoke detector E1 deleted · ⌘Z to undo');
+    expect(after.elvDevices).toEqual([]);
+  });
+
+  it('keeps the outlines of the rooms added from the plan, so ELV devices find their room', () => {
+    (window as { lvds?: unknown }).lvds = { cadFile: { openPlan: vi.fn() } };
+    const onChange = vi.fn();
+    act(() => root.render(<Host open onChange={onChange} />));
+    act(() => button('Add found rooms').click());
+    const [next] = onChange.mock.calls[0] as [Project, string];
+    expect(buildingInfoOf(next).rooms.filter((r) => r.outline && r.outline.length >= 3)).toHaveLength(8);
+  });
 });

@@ -14,7 +14,7 @@ Revisit a separate repo only if ELV gets its own team, its own release cadence, 
 
 | Side | Files | May import |
 | --- | --- | --- |
-| **ELV design** | `src/elv/**`, `src/components/elv/ElvView.tsx` | Shared core only: `types`, `calc/building` (rooms), `exchange`, `util`, `components/ui` |
+| **ELV design** | `src/elv/**`, `src/components/elv/ElvView.tsx`, `ElvPlanPanel.tsx`, `elvPlan.ts` (the ELV layer and tab of the Floor plan page) | Shared core only: `types`, `calc/building` (rooms), `exchange`, `util`, `components/ui` |
 | **LV** | the rest of `src/` | Not ELV internals (`src/elv/**`). Type-only imports allowed (`Project.elv` settings). Accepted ELV loads are read with `acceptedElvLoads` in `src/exchange/inbox.ts`. |
 | **Wiring** | `src/App.tsx`, `src/headless/**`, tests | Both |
 

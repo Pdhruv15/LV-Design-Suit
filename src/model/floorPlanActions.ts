@@ -44,11 +44,12 @@ export function putRooms(project: Project, rooms: CadRoom[], level: LevelRef, ro
 }
 
 /** A room picked on the plan (outline from the walls, or traced), named by the text inside it or "Room n". */
-export function pickedRoom(project: Project, name: string, areaM2: number, file: string, level: LevelRef): CadRoom {
+/** A room clicked or traced on the plan; `outline` in metres, kept on the room (ELV devices find their room by it). */
+export function pickedRoom(project: Project, name: string, areaM2: number, file: string, level: LevelRef, outline?: [number, number][]): CadRoom {
   const onLevel = buildingInfoOf(project).rooms.filter((r) => r.buildingId === level.building && r.levelId === level.level);
   let n = onLevel.length + 1;
   while (!name && onLevel.some((r) => r.name === `Room ${n}`)) n += 1;
-  return { name: name || `Room ${n}`, areaM2: Math.round(areaM2 * 100) / 100, layer: '', named: !!name, file };
+  return { name: name || `Room ${n}`, areaM2: Math.round(areaM2 * 100) / 100, layer: '', named: !!name, file, ...(outline ? { outline } : {}) };
 }
 
 export function renameRoom(project: Project, roomId: string, name: string): Project {
