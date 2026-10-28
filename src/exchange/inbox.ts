@@ -357,3 +357,11 @@ export function roomsExport(project: Project, exportedAt: string, sha256: (text:
   };
   return { ...pkg, sha256: sha256(hashedText(pkg)) };
 }
+
+/** The link a circuit keeps to its load: program, file and load ID. */
+export const elvLink = (source: PackageSource, id: string) => `${source.app}:${source.file ?? ''}#${id}`;
+
+/** The accepted ELV loads, each with its link. */
+export function acceptedElvLoads(project: Project): { link: string; load: LoadItem }[] {
+  return exchangeOf(project).packages.filter((a) => a.kind === 'loads').flatMap((a) => (a.loads ?? []).map((load) => ({ link: elvLink(a.source, load.id), load })));
+}

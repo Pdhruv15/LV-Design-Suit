@@ -12,6 +12,7 @@ Ideas and features agreed for later. One note per idea; link it here.
 - [[AI agent proposal]] — agent / local LLM tools to build a full design (G+10 ≈ $4–10 with Claude)
 - [[BIM integration - 3D - 2026-10-21]] — Revit / IFC link for elevations, 3D tray and cable routes, spaces with volume; the CAD link stays **2D plan only** until then (noted 2026-10-21)
 - [[Standard load details for regular use]] — a ready set of regular loads with references and watts (sockets SS1 200 W, TS1 400 W so far), picked into circuits and WATT / UNIT (noted 2026-10-16)
+- [[ELV module boundary - decision - 2026-10-28]] — ELV stays in one repo and one app as a separate module; the boundary is checked by lint; next ELV steps listed (decided 2026-10-28)
 - Enclosure charts for SMDB, MDB, LV MDB, MCC — waiting for supplier data (DB chart done)
 - ~~Transformers: one LV panel fed by two transformers with a coupler~~ — done: normally open or closed (transformers in parallel) — fault level, load sharing, coupler current and IEC 60076-8 conditions (v1.75); chosen by clicking the coupler on the SLD, N/C drawn (v1.76)
 - ~~Earthing on the riser diagram (LV pits at the base, main earth conductor up the floors)~~ — done: earthing riser with a floor earth bar on every level, any number of floors over sheets or typical floors grouped (v1.47), floor earthing sheets, several risers per building (v1.48)
