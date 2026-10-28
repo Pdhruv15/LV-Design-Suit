@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import CadCanvas, { type CadMarks, type CadToggles } from './CadCanvas';
+import CadCanvas, { type CadMarks, type CadToggles, type CanvasDevice } from './CadCanvas';
 import { rememberedDrawing, type CadState, type CadTool } from './cadState';
-import { chooseDrawing, reopenDrawing, sampleDrawing, type CadObject, type CadView } from '../../engines/cad/cadEngine';
+import { chooseDrawing, drawingWithDevices, reopenDrawing, sampleDrawing, type CadObject, type CadView } from '../../engines/cad/cadEngine';
+import { circuitLabel, finalCircuits, LV_PALETTE, moveItem, placedOn, placeItem, removeItem, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
+import { ELV_PALETTE, elvPlacedOn, moveElv, placeElv, removeElv } from '../../components/elv/elvCadDevices';
+import { saveBinary } from '../../util/files';
 import { angleDeg, areaOf, distance, drawingUnits, inside, m, m2, roomAround, segmentsOn, WALL_LAYER } from '../../model/cadMeasure';
 import { pickedRoom, putRooms } from '../../model/floorPlanActions';
 import { floorLabel, floorList } from '../../model/levels';
@@ -12,18 +15,23 @@ type Pt = [number, number];
 type Result =
   | { kind: 'dist'; a: Pt; b: Pt }
   | { kind: 'area'; points: Pt[]; how: 'corners' | 'object' | 'room'; name?: string }
-  | { kind: 'object'; o: CadObject };
+  | { kind: 'object'; o: CadObject }
+  | { kind: 'device'; it: PlacedItem };
 
 const hex = (rgb: number) => (rgb === 0xff000007 ? 'var(--cad-ink)' : `#${rgb.toString(16).padStart(6, '0')}`);
 const TOGGLES: { k: keyof CadToggles; label: string; key: string }[] = [
   { k: 'snap', label: 'SNAP', key: 'F9' }, { k: 'osnap', label: 'OSNAP', key: 'F3' }, { k: 'ortho', label: 'ORTHO', key: 'F8' }, { k: 'grid', label: 'GRID', key: 'F7' }
 ];
-const HELP = 'Commands: OPEN · DI (distance) · AREA (O = object) · RA (room area) · LI (inspect) · FIT (ZE) · LAYER · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · Esc cancels, Enter closes an area.';
+const HELP = 'Commands: OPEN · SAVE (DXF with devices) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LAYER · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · Esc cancels, Enter closes an area.';
+/** Device symbol size on the plan (radius, metres). */
+const DEVICE_R_M = 0.2;
 const PROMPT: Record<CadTool, string> = {
   none: 'Click an object to see what it is.',
   dist: 'DI  Specify first point:',
   area: 'AREA  Specify first corner point or [Object]:',
-  room: 'ROOM AREA  Click inside a room:'
+  room: 'ROOM AREA  Click inside a room:',
+  dev: 'DEV  Specify insertion point:',
+  move: 'MOVE  Specify the new point:'
 };
 
 /** The CAD view: a DWG / DXF drawing opened natively, as a CAD program shows it — model space, crosshair, snaps, layers,
@@ -79,6 +87,45 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     return segmentsOn(view.segs, view.segLayers, view.info.origin, new Set(named.length ? named : shown));
   }, [view, cad.layersOn]);
 
+  // Devices are kept per level, in metres on its plan: the level this drawing shows, and what is placed on it.
+  const floors = floorList(project.building).filter((f) => !f.ref.index);
+  const floor = floors.find((f) => f.key === cad.levelKey) ?? floors[0];
+  const placed: PlacedItem[] = useMemo(() => (floor ? [...placedOn(project, floor.ref), ...elvPlacedOn(project, floor.ref)] : []), [project, floor]);
+  const palette: PaletteItem[] = [...LV_PALETTE, ...ELV_PALETTE];
+  const item = palette.find((x) => x.id === cad.device) ?? palette[0];
+  const circuits = useMemo(() => finalCircuits(project), [project]);
+  const selectedItem = placed.find((d) => d.key === cad.selected) ?? null;
+  const rUnits = DEVICE_R_M / units.factor;
+  const devices: CanvasDevice[] = cad.showDevices ? placed.map((d) => ({
+    key: d.key, x: d.x / units.factor, y: d.y / units.factor, r: d.what === 'board' ? rUnits * 2 : rUnits, shape: d.symbol.shape, text: d.symbol.text,
+    label: d.what === 'lv' ? d.detail.split(' · ')[0] : d.what === 'board' ? d.label : '', selected: d.key === cad.selected, elv: d.what === 'elv'
+  })) : [];
+  const deviceAt = (at: Pt, pixel: number) => {
+    let best: { d: PlacedItem; dist: number } | undefined;
+    for (const d of placed) {
+      const dist = distance(at, [d.x / units.factor, d.y / units.factor]);
+      if (dist <= Math.max(rUnits * (d.what === 'board' ? 2 : 1), 8 * pixel) && (!best || dist < best.dist)) best = { d, dist };
+    }
+    return best?.d;
+  };
+  const change = (next: Project, message: string) => { onChange(next, message); cad.say(message); };
+  function removeSelected() {
+    if (!selectedItem) { cad.say('ERASE  Select a device first (click it).'); return; }
+    change(selectedItem.what === 'elv' ? removeElv(project, selectedItem.id) : removeItem(project, selectedItem), `${selectedItem.label} deleted${selectedItem.what === 'lv' ? ` — taken off ${selectedItem.detail.split(' · ')[0]}` : ''} · ⌘Z to undo`);
+    cad.setSelected(null); setResult(null);
+  }
+  async function saveDxf() {
+    if (!view) return;
+    try {
+      const out = placed.map((d) => ({ layer: d.what === 'lv' ? 'E-LV-POINTS' : d.what === 'elv' ? 'E-ELV-DEVICES' : 'E-BOARDS', x: d.x / units.factor, y: d.y / units.factor, r: rUnits * (d.what === 'board' ? 2 : 1), text: d.symbol.text, label: d.what === 'lv' ? d.detail.split(' · ')[0] : d.label }));
+      const bytes = await drawingWithDevices(view, out);
+      const name = `${view.file.replace(/\.(dwg|dxf)$/i, '')} - with devices.dxf`;
+      const msg = await saveBinary(name, bytes, 'DXF drawing', 'dxf', 'application/dxf');
+      if (msg) { cad.say(`SAVE  ${msg} (${placed.length} device${placed.length === 1 ? '' : 's'} on E-LV-POINTS / E-ELV-DEVICES / E-BOARDS)`); onStatus(msg); }
+    } catch (e) { const msg = e instanceof Error ? e.message : String(e); cad.say(msg); onStatus(msg); }
+  }
+  cad.actions.current = { save: () => void saveDxf(), remove: removeSelected };
+
   /** The room name inside an outline: a text on a layer named like room names, else any text inside. */
   const nameInside = (poly: Pt[]) => {
     const texts = (view?.info.texts ?? []).filter((t) => cad.layersOn[t.layer] && inside([t.x, t.y], poly));
@@ -97,6 +144,9 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   function click(at: Pt, pixel: number) {
     if (!view) return;
     if (tool === 'none') {
+      const d = deviceAt(at, pixel);
+      if (d) { cad.setSelected(d.key); setResult({ kind: 'device', it: d }); cad.say(`LIST  ${d.label}${d.detail ? ` · ${d.detail}` : ''}${d.room ? ` · ${d.room}` : ''}`); return; }
+      cad.setSelected(null);
       const o = view.pick(at[0], at[1], 6 * pixel, cad.layersOn);
       setResult(o ? { kind: 'object', o } : null);
       if (o) cad.say(`LIST  ${o.kind}${o.block ? ` ${o.block}` : ''} on ${view.info.layers[o.layer]?.name ?? '?'}${o.length !== undefined && !o.closed ? `, length ${m(toM(o.length))}` : ''}${o.area !== undefined ? `, area ${m2(toM2(o.area))}` : ''}`);
@@ -120,6 +170,19 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       if (points.length === 0) setResult(null);
       setPoints((p) => [...p, at]);
       cad.say('AREA  Specify next corner point or press Enter to close:');
+    } else if (tool === 'dev') {
+      if (!floor) { cad.say('DEV  Add the building and its levels in Building information first; devices are kept per level.'); return; }
+      try {
+        const [x, y] = [at[0] * units.factor, at[1] * units.factor];
+        const r = 'elv' in item.kind ? placeElv(project, (ELV_PALETTE.find((e) => e.id === item.id) ?? ELV_PALETTE[0]).kind.elv, floor.ref, x, y)
+          : placeItem(project, item, floor.ref, x, y, { feederId: cad.feederId, boardId: cad.boardId });
+        change(r.project, `${r.message} · ⌘Z to undo`);
+      } catch (e) { cad.say(`DEV  ${e instanceof Error ? e.message : String(e)}`); }
+    } else if (tool === 'move') {
+      if (!selectedItem || !floor) { cad.say('MOVE  Select a device first (Esc, then click it).'); cad.setTool('none'); return; }
+      const [x, y] = [at[0] * units.factor, at[1] * units.factor];
+      change(selectedItem.what === 'elv' ? moveElv(project, selectedItem.id, x, y) : moveItem(project, selectedItem, x, y, floor.ref), `${selectedItem.label} moved · ⌘Z to undo`);
+      cad.setTool('none');
     } else if (tool === 'room') {
       const r = roomAround(walls, at, units.factor);
       if (!r) { cad.say('ROOM AREA  No closed room around that point (open to the outside, or over 50 m across). Use AREA and click its corners.'); return; }
@@ -139,6 +202,10 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     else if (c === 'O' && tool === 'area') { setObjectMode(true); setPoints([]); cad.say('AREA  Select a closed object:'); }
     else if (c === 'RA' || c === 'ROOM' || c === 'ROOMAREA') cad.setTool('room');
     else if (c === 'LI' || c === 'LIST') cad.setTool('none');
+    else if (c === 'DEV' || c === 'DEVICE' || c === 'INSERT' || c === 'I') cad.setTool('dev');
+    else if (c === 'M' || c === 'MOVE') { if (selectedItem) cad.setTool('move'); else cad.say('MOVE  Select a device first (click it).'); }
+    else if (c === 'E' || c === 'ERASE' || c === 'DEL' || c === 'DELETE') removeSelected();
+    else if (c === 'SAVE' || c === 'DXFOUT' || c === 'SAVEAS') void saveDxf();
     else if (c === 'LA' || c === 'LAYER' || c === 'LAYERS') cad.setShowLayers(!cad.showLayers);
     else if (c === 'OS' || c === 'OSNAP') cad.toggle('osnap');
     else if (c === 'GRID') cad.toggle('grid');
@@ -161,6 +228,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       return;
     }
     if (e.key === 'Enter' && !typing && tool === 'area' && points.length >= 3) { finishArea(points); return; }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && !typing && selectedItem) { e.preventDefault(); removeSelected(); return; }
     if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && /^[a-zA-Z?]$/.test(e.key)) input.current?.focus();
   };
   useEffect(() => {
@@ -185,7 +253,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       <div className="cad-work">
         {view ? (
           <div className="cad-stage">
-            <CadCanvas view={view} layersOn={cad.layersOn} toggles={cad.toggles} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} />
+            <CadCanvas view={view} layersOn={cad.layersOn} toggles={cad.toggles} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} />
             <div className="cad-coords">{cursor.at ? `X ${cursor.at[0].toFixed(2)}   Y ${cursor.at[1].toFixed(2)}   ${units.label}` : units.label}</div>
           </div>
         ) : (
@@ -202,7 +270,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
           <aside className="cad-side">
             <h4>Result</h4>
             <div className="cad-res">
-              {result ? <ResultView r={result} view={view!} toM={toM} toM2={toM2} project={project} onChange={onChange} /> : view ? (
+              {result ? <ResultView r={result} view={view!} toM={toM} toM2={toM2} project={project} onChange={onChange} onMove={() => cad.setTool('move')} onRemove={removeSelected} /> : view ? (
                 <>{view.file}<br /><span className="m">{view.info.format} · {units.label}{units.assumed ? ' (not set in the drawing: taken as mm)' : ''} · {view.info.segments.toLocaleString()} lines · {view.info.texts.length} texts</span><br /><span className="m">{PROMPT[tool]}</span></>
               ) : <span className="m">No drawing open.</span>}
               {view && SAMPLE_PLANS.some((x) => x.file === view.file) && (
@@ -214,8 +282,42 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
                 </div>
               )}
             </div>
+            {(tool === 'dev' || tool === 'move') && view && (
+              <>
+                <h4>Devices</h4>
+                <div className="cad-pal" role="group" aria-label="Device to place">
+                  {palette.map((x) => (
+                    <button key={x.id} aria-pressed={cad.device === x.id} className={'elv' in x.kind ? 'elv' : 'lv'} onClick={() => { cad.setDevice(x.id); cad.setTool('dev'); }}>{x.symbol.text || '●'}<span>{x.label}</span></button>
+                  ))}
+                </div>
+                <div className="cad-devform">
+                  {floors.length > 0 && (
+                    <label>This drawing shows<select aria-label="Level of this drawing" value={floor?.key} onChange={(e) => cad.setLevelKey(e.target.value)}>{floors.map((f) => <option key={f.key} value={f.key}>{floorLabel(project.building, f)}</option>)}</select></label>
+                  )}
+                  {'lv' in item.kind && (
+                    <label>Circuit<select aria-label="Circuit" value={cad.feederId} onChange={(e) => cad.setFeederId(e.target.value)}>
+                      <option value="">Choose a circuit…</option>
+                      {circuits.map((f) => <option key={f.id} value={f.id}>{circuitLabel(project, f)}</option>)}
+                    </select></label>
+                  )}
+                  {'board' in item.kind && (
+                    <label>Board<select aria-label="Board" value={cad.boardId} onChange={(e) => cad.setBoardId(e.target.value)}>
+                      <option value="">Choose a board…</option>
+                      {project.boards.map((b) => <option key={b.id} value={b.id}>{b.id} · {b.name}</option>)}
+                    </select></label>
+                  )}
+                  {!floors.length && <p className="m">Add the building and its levels in Building information first; devices are kept per level.</p>}
+                  <span className="m">{placed.length} device{placed.length === 1 ? '' : 's'} on this level</span>
+                </div>
+              </>
+            )}
             <h4>Layers {view && <span className="cad-lyr-all"><button onClick={() => cad.allLayers(true)}>All on</button></span>}</h4>
             <div className="cad-layers">
+              {view && placed.length > 0 && (
+                <button className={`cad-lyr${cad.showDevices ? '' : ' off'}`} aria-pressed={cad.showDevices} onClick={() => cad.setShowDevices(!cad.showDevices)}>
+                  <i style={{ background: 'var(--cad-dev)' }} />Devices placed in the app<span className="m">{cad.showDevices ? 'on' : 'off'}</span>
+                </button>
+              )}
               {view?.info.layers.map((l, i) => l.count > 0 || view.info.texts.some((t) => t.layer === i) ? (
                 <button key={l.name} className={`cad-lyr${cad.layersOn[i] ? '' : ' off'}`} aria-pressed={!!cad.layersOn[i]} title={`${l.count.toLocaleString()} lines`} onClick={() => cad.setLayer(i, !cad.layersOn[i])}>
                   <i style={{ background: hex(l.rgb) }} />{l.name}<span className="m">{cad.layersOn[i] ? 'on' : 'off'}</span>
@@ -243,9 +345,24 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
 }
 
 /** The Result panel: a distance, an area (with Add as room…), or what the clicked object is. */
-function ResultView({ r, view, toM, toM2, project, onChange }: {
+function ResultView({ r, view, toM, toM2, project, onChange, onMove, onRemove }: {
   r: Result; view: CadView; toM: (v: number) => number; toM2: (v: number) => number; project: Project; onChange: (next: Project, message: string) => void;
+  onMove: () => void; onRemove: () => void;
 }) {
+  if (r.kind === 'device') {
+    const it = r.it;
+    return (
+      <>
+        <div><b>{it.label}</b> <span className="m">{it.what === 'lv' ? 'LV point' : it.what === 'elv' ? 'ELV device' : 'Board'}</span></div>
+        <dl className="cad-props">
+          {it.detail && <><dt>{it.what === 'lv' ? 'Circuit' : it.what === 'elv' ? 'System' : 'Name'}</dt><dd>{it.detail}</dd></>}
+          <dt>Room</dt><dd>{it.room ?? '—'}</dd>
+          <dt>Position</dt><dd>{it.x.toFixed(2)}, {it.y.toFixed(2)} m</dd>
+        </dl>
+        <div className="cad-devbtns"><button className="chip" onClick={onMove}>Move</button><button className="chip" onClick={onRemove}>Delete</button></div>
+      </>
+    );
+  }
   if (r.kind === 'dist') {
     const d = distance(r.a, r.b);
     return <><div>Distance <b className="cad-big">{m(toM(d))}</b></div><div className="m">ΔX {m(toM(r.b[0] - r.a[0]))} · ΔY {m(toM(r.b[1] - r.a[1]))} · angle {angleDeg(r.a, r.b).toFixed(2)}°</div></>;

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { act } from 'react';
+import { act, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import CadPage from './CadPage';
@@ -34,7 +34,12 @@ beforeEach(() => {
 });
 afterEach(() => { act(() => root.unmount()); document.body.innerHTML = ''; delete (window as { lvds?: unknown }).lvds; });
 
-function Host() { const cad = useCad('p1'); state = cad; return <CadPage cad={cad} project={villa} onChange={onChange} onStatus={() => {}} />; }
+function Host() {
+  const cad = useCad('p1');
+  const [p, setP] = useState(villa);
+  state = cad;
+  return <CadPage cad={cad} project={p} onChange={(next, msg) => { setP(next); onChange(next, msg); }} onStatus={() => {}} />;
+}
 const flush = async () => { for (let i = 0; i < 5; i += 1) await act(async () => { await new Promise((r) => setTimeout(r, 0)); }); };
 const button = (text: string) => [...document.querySelectorAll('button')].find((b) => b.textContent?.trim() === text)!;
 const result = () => document.querySelector('.cad-res')?.textContent ?? '';
@@ -130,6 +135,44 @@ describe('CAD view', () => {
     await clickAt(2500, 150); // the kitchen outline (A-ROOM), 4.85 × 4.35 m
     expect(result()).toMatch(/Area 21\.10 m²/);
     expect(result()).toMatch(/Perimeter 18\.40 m · of the object picked/);
+  });
+
+  it('places a light on a circuit, selects it with a click, and deletes it (the circuit count follows)', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    await command('dev');
+    expect(state.tool).toBe('dev');
+    act(() => { state.setFeederId('DB-GF1-Y1'); state.toggle('osnap'); }); // OSNAP off: placed exactly where clicked
+    const before = villa.feeders.find((f) => f.id === 'DB-GF1-Y1')!.points?.ltg ?? 0;
+    await clickAt(3000, 9000);
+    expect(project.lvPoints).toEqual([expect.objectContaining({ type: 'ltg', feederId: 'DB-GF1-Y1', buildingId: 'V', levelId: 'GF', x: expect.closeTo(3, 6), y: expect.closeTo(9, 6) })]);
+    expect(project.feeders.find((f) => f.id === 'DB-GF1-Y1')!.points?.ltg).toBe(before + 1);
+    expect(onChange.mock.calls[0][1]).toMatch(/^Light placed on DB-GF1\/Y1 · Majlis lighting/);
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); });
+    expect(state.tool).toBe('none');
+    await clickAt(3000, 9000);
+    expect(result()).toMatch(/Light LV point/);
+    expect(result()).toMatch(/CircuitDB-GF1\/Y1 · Majlis lighting/);
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete' })); });
+    expect(project.lvPoints ?? []).toEqual([]);
+    expect(project.feeders.find((f) => f.id === 'DB-GF1-Y1')!.points?.ltg).toBe(before);
+  });
+
+  it('places an ELV device and saves the drawing as DXF with the devices on their layers', async () => {
+    const saveBinary = vi.fn(async () => '/plans/out.dxf');
+    (window as unknown as { lvds: { files?: unknown } }).lvds.files = { saveBinary };
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => { state.setDevice('smoke-detector'); state.setTool('dev'); state.toggle('osnap'); });
+    await clickAt(3000, 8000);
+    expect(project.elvDevices).toEqual([expect.objectContaining({ type: 'smoke-detector', x: expect.closeTo(3, 6), y: expect.closeTo(8, 6) })]);
+    await command('save');
+    await flush();
+    const arg = (saveBinary.mock.calls[0] as unknown as [{ defaultName: string; bytes: Uint8Array }])[0];
+    expect(arg.defaultName).toBe('sample-villa-gf - with devices.dxf');
+    const text = new TextDecoder().decode(arg.bytes);
+    expect(text).toContain('E-ELV-DEVICES');
+    expect(document.querySelector('.cad-hist')?.textContent).toMatch(/SAVE {2}Saved out\.dxf \(1 device on E-LV-POINTS/);
   });
 
   it('opens a DWG from the desktop dialog with OPEN', async () => {

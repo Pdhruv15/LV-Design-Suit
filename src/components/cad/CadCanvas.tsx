@@ -7,6 +7,8 @@ type Pt = [number, number];
 export interface CadToggles { snap: boolean; osnap: boolean; ortho: boolean; grid: boolean }
 /** What a tool draws over the drawing: picked points (drawing units, absolute), and while `live` a rubber band to the
  * cursor; `closed` outlines are shaded. */
+/** A device placed in the app, drawn over the drawing (drawing units, absolute): its symbol, letters and label. */
+export interface CanvasDevice { key: string; x: number; y: number; r: number; shape: string; text: string; label: string; selected?: boolean; elv?: boolean }
 export interface CadMarks { points: Pt[]; live?: boolean; closed?: boolean; area?: boolean; label?: string }
 /** View transform: screen = (world − origin − (ox, oy)) × scale, y up. */
 interface ViewT { scale: number; ox: number; oy: number }
@@ -24,7 +26,7 @@ export function gridStep(scale: number): number {
 /** The drawing in a CAD model space: lines by layer and colour, texts at their height, a crosshair cursor with the snap
  * point under it, live coordinates. Wheel zooms at the cursor (two-finger scroll pans, pinch zooms), the middle button
  * or Space + drag pans, a middle double-click fits. */
-export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, onClick, marks, highlight }: {
+export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, onClick, marks, highlight, devices = [] }: {
   view: CadView;
   layersOn: Uint8Array;
   toggles: CadToggles;
@@ -33,6 +35,7 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
   marks?: CadMarks | null;
   /** Segments of the object picked (start, end), drawn highlighted. */
   highlight?: [number, number] | null;
+  devices?: CanvasDevice[];
   /** Changes to fit the drawing to the window. */
   fitKey: number;
   /** The cursor in drawing units (absolute), snapped, and the snap kind's name. */
@@ -117,6 +120,24 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
       ctx.lineWidth = 3 / scale;
       ctx.stroke(p);
     }
+    // Devices placed in the app: symbols in drawing units (they zoom with the plan), letters and labels below.
+    const lvC = colour('--cad-dev', '#f5c04a'), elvC = colour('--cad-elv', '#59c3ff'), selC = colour('--cad-snap', '#3df27a');
+    for (const d of devices) {
+      const x = d.x - o0, y = d.y - o1, r = d.r;
+      ctx.strokeStyle = d.selected ? selC : d.elv ? elvC : lvC;
+      ctx.lineWidth = (d.selected ? 3 : 1.5) / scale;
+      ctx.beginPath();
+      if (d.shape === 'square' || d.shape === 'rect') ctx.rect(x - r, y - (d.shape === 'rect' ? r * 0.6 : r), 2 * r, d.shape === 'rect' ? r * 1.2 : 2 * r);
+      else if (d.shape === 'twin') { ctx.rect(x - r, y - r * 0.6, 2 * r, r * 1.2); ctx.moveTo(x, y - r * 0.6); ctx.lineTo(x, y + r * 0.6); }
+      else if (d.shape === 'triangle') { ctx.moveTo(x, y + r); ctx.lineTo(x + r, y - r * 0.8); ctx.lineTo(x - r, y - r * 0.8); ctx.closePath(); }
+      else if (d.shape === 'diamond') { ctx.moveTo(x, y + r); ctx.lineTo(x + r, y); ctx.lineTo(x, y - r); ctx.lineTo(x - r, y); ctx.closePath(); }
+      else if (d.shape === 'hexagon') { for (let k = 0; k < 6; k += 1) { const a = (k * Math.PI) / 3; if (k) ctx.lineTo(x + r * Math.cos(a), y + r * Math.sin(a)); else ctx.moveTo(x + r, y); } ctx.closePath(); }
+      else if (d.shape === 'camera') { ctx.rect(x - r, y - r * 0.5, r * 1.4, r); ctx.moveTo(x + r * 0.4, y); ctx.lineTo(x + r, y + r * 0.4); ctx.lineTo(x + r, y - r * 0.4); ctx.closePath(); }
+      else if (d.shape === 'speaker') { ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.moveTo(x + r * 0.5, y); ctx.arc(x, y, r * 0.5, 0, 2 * Math.PI); }
+      else { ctx.arc(x, y, r, 0, 2 * Math.PI); }
+      if (d.shape === 'cross') { const k = r * 0.7; ctx.moveTo(x - k, y - k); ctx.lineTo(x + k, y + k); ctx.moveTo(x - k, y + k); ctx.lineTo(x + k, y - k); }
+      ctx.stroke();
+    }
     // Texts in screen space at their drawn height; too small to read: left out.
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.textBaseline = 'alphabetic';
@@ -137,7 +158,15 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
       ctx.restore();
       drawn += 1;
     }
-  }, [t, size, batches, layersOn, toggles.grid, view, highlight]); // eslint-disable-line react-hooks/exhaustive-deps -- colours read from CSS each draw
+    for (const d of devices) {
+      const px = d.r * scale;
+      if (px < 4) continue;
+      const sx = (d.x - o0 - ox) * scale, sy = size.h - (d.y - o1 - oy) * scale;
+      ctx.fillStyle = d.selected ? selC : d.elv ? elvC : lvC;
+      if (d.text) { ctx.font = `600 ${Math.min(px * 0.8, 40)}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.fillText(d.text, sx, sy + px * 0.3); }
+      if (px >= 7 && d.label) { ctx.font = `${Math.min(Math.max(px * 0.6, 9), 16)}px system-ui, sans-serif`; ctx.textAlign = 'left'; ctx.fillText(d.label, sx + px * 1.3, sy + px * 0.3); }
+    }
+  }, [t, size, batches, layersOn, toggles.grid, view, highlight, devices]); // eslint-disable-line react-hooks/exhaustive-deps -- colours read from CSS each draw
 
   /** The cursor: crosshair and pick box, and the snap marker with its name. */
   function drawCursor(at: Pt | null, snap?: { p: Pt; kind: number }) {

@@ -699,3 +699,36 @@ impl CadDoc {
         self.grid = g;
     }
 }
+
+/// A device placed in the app, written into the drawing (drawing units).
+#[derive(serde::Deserialize)]
+struct DeviceOut { layer: String, x: f64, y: f64, r: f64, text: String, label: String }
+
+/// The drawing (DWG or DXF) saved as DXF with the devices placed in the app added on their own layers: each device as a
+/// circle with its letters inside and its label (circuit or type) beside it. The architect's entities are kept as read.
+#[wasm_bindgen(js_name = exportDxf)]
+pub fn export_dxf(bytes: Vec<u8>, devices_json: &str) -> Result<Vec<u8>, JsError> {
+    use acadrust::entities::{Circle, Text};
+    use acadrust::tables::Layer;
+    use acadrust::types::Vector3;
+    let (mut doc, _) = read(bytes).map_err(|e| JsError::new(&e))?;
+    let devices: Vec<DeviceOut> = serde_json::from_str(devices_json).map_err(|e| JsError::new(&e.to_string()))?;
+    for d in &devices {
+        if !doc.layers.contains(&d.layer) { doc.layers.add(Layer::new(d.layer.clone())).map_err(|e| JsError::new(&e.to_string()))?; }
+        let mut c = Circle::new();
+        c.center = Vector3::new(d.x, d.y, 0.0);
+        c.radius = d.r;
+        c.common.layer = d.layer.clone();
+        doc.add_entity(EntityType::Circle(c)).map_err(|e| JsError::new(&e.to_string()))?;
+        for (s, h, dx, dy) in [(&d.text, d.r * 0.7, -d.r * 0.35 * d.text.chars().count() as f64, -d.r * 0.35), (&d.label, d.r * 0.6, d.r * 1.3, -d.r * 0.3)] {
+            if s.is_empty() { continue; }
+            let mut t = Text::new();
+            t.value = s.clone();
+            t.insertion_point = Vector3::new(d.x + dx, d.y + dy, 0.0);
+            t.height = h;
+            t.common.layer = d.layer.clone();
+            doc.add_entity(EntityType::Text(t)).map_err(|e| JsError::new(&e.to_string()))?;
+        }
+    }
+    acadrust::DxfWriter::new(&doc).write_to_vec().map_err(|e| JsError::new(&e.to_string()))
+}

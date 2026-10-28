@@ -1760,8 +1760,8 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .fpp-sample{background:color-mix(in srgb,var(--acc) 10%,transparent)}
 
 /* CAD view (DWG / DXF opened natively): model space, side panel, command line, status bar */
-.cad{--cad-bg:#1b1f27;--cad-ink:#e6ebf3;--cad-grid:#3a4152;--cad-cross:#e8eef7;--cad-snap:#3df27a;display:flex;flex-direction:column;height:100%;min-height:520px;border-top:1px solid var(--line)}
-:root[data-theme="light"] .cad{--cad-bg:#fbfcfe;--cad-ink:#1d2433;--cad-grid:#c7cfdc;--cad-cross:#1d2433;--cad-snap:#0a8f3c}
+.cad{--cad-bg:#1b1f27;--cad-ink:#e6ebf3;--cad-grid:#3a4152;--cad-cross:#e8eef7;--cad-snap:#3df27a;--cad-dev:#f5c04a;--cad-elv:#59c3ff;display:flex;flex-direction:column;height:100%;min-height:520px;border-top:1px solid var(--line)}
+:root[data-theme="light"] .cad{--cad-bg:#fbfcfe;--cad-ink:#1d2433;--cad-grid:#c7cfdc;--cad-cross:#1d2433;--cad-snap:#0a8f3c;--cad-dev:#b26b00;--cad-elv:#0b6fb8}
 .mid > .cad{flex:1 1 auto}
 .cad-work{display:grid;grid-template-columns:minmax(0,1fr) 260px;flex:1;min-height:0}
 .cad-work:has(> :only-child){grid-template-columns:minmax(0,1fr)}
@@ -1800,3 +1800,11 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .cad-addroom{margin-top:var(--space-2)}
 .cad-roomform{display:grid;gap:var(--space-2);margin-top:var(--space-2)}
 .cad-roomform label{display:grid;gap:2px;font-size:var(--fs-xs);color:var(--mut)}
+.cad-pal{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-1);padding:0 var(--space-3) var(--space-2)}
+.cad-pal button{display:flex;flex-direction:column;align-items:center;gap:2px;padding:5px 2px;background:var(--p2);border:1px solid var(--line);border-radius:var(--radius-sm);font-size:var(--fs-xs);line-height:1.2;text-align:center}
+.cad-pal button[aria-pressed=true]{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 12%,var(--p2))}
+.cad-pal .elv{color:var(--cad-elv)}
+.cad-pal .lv{color:var(--cad-dev)}
+.cad-devform{display:grid;gap:var(--space-2);padding:0 var(--space-3) var(--space-2)}
+.cad-devform label{display:grid;gap:2px;font-size:var(--fs-xs);color:var(--mut)}
+.cad-devbtns{display:flex;gap:var(--space-2);margin-top:var(--space-2)}

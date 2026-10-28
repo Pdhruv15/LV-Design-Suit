@@ -497,6 +497,10 @@ export interface Project {
   cadLayers?: CadLayerMap[];
   /** Room names on CAD floor plans → the room type chosen for them (remembered between pulls). */
   cadRoomTypes?: { name: string; type: string }[];
+  /** LV points (lights, sockets…) placed on plans in the CAD view, on circuits (src/model/cadDevices.ts). */
+  lvPoints?: import('./model/cadDevices').LvPoint[];
+  /** Highest LV point number given out, so a deleted point's ID is never reused. */
+  lvPointSeq?: number;
   /** Links made on floor plans in the Floor plan window, per drawing file (the drawing is never changed). */
   cadPlanLinks?: CadPlanLinks[];
   substations?: DmSubstationRoom[]; // DM-D-013 minimum substation / LV room areas

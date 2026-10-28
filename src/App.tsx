@@ -1239,7 +1239,7 @@ export default function App() {
           onSave: () => saveProject(),
           onSaveAs: () => saveAs(),
           onAnonymizedSample: () => setShowAnonymized(true),
-          cad: { tool: cadS.tool, onTool: (t) => { cadS.setTool(cadS.tool === t ? 'none' : t); setView('cad'); }, onOpen: () => void openCad(), onFit: () => cadS.fit(), onLayers: () => { cadS.setShowLayers(!cadS.showLayers); setView('cad'); }, layersOn: cadS.showLayers, hasDrawing: !!cadS.view },
+          cad: { tool: cadS.tool, onTool: (t) => { cadS.setTool(cadS.tool === t ? 'none' : t); setView('cad'); }, onOpen: () => void openCad(), onSave: () => cadS.actions.current.save(), onDelete: () => cadS.actions.current.remove(), hasSelection: !!cadS.selected, onFit: () => cadS.fit(), onLayers: () => { cadS.setShowLayers(!cadS.showLayers); setView('cad'); }, layersOn: cadS.showLayers, hasDrawing: !!cadS.view },
           floorPlan: {
             hasPlan: !!fp.plan, tool: fp.tool, onTool: (t) => { fp.setTool(t); setView('floor-plan'); }, onOpen: () => void openFloorPlan(),
             onLayers: () => { fp.setShowLayers(!fp.showLayers); setView('floor-plan'); }, layersOn: fp.showLayers,

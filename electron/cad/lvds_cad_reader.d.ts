@@ -35,6 +35,12 @@ export class CadDoc {
 }
 
 /**
+ * The drawing (DWG or DXF) saved as DXF with the devices placed in the app added on their own layers: each device as a
+ * circle with its letters inside and its label (circuit or type) beside it. The architect's entities are kept as read.
+ */
+export function exportDxf(bytes: Uint8Array, devices_json: string): Uint8Array;
+
+/**
  * WebAssembly entry point: the drawing's bytes → JSON (see `read_json`).
  */
 export function readDrawing(bytes: Uint8Array): string;
@@ -51,10 +57,12 @@ export interface InitOutput {
     readonly caddoc_segment_layers: (a: number, b: number) => void;
     readonly caddoc_segments: (a: number, b: number) => void;
     readonly caddoc_snap: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
+    readonly exportDxf: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly readDrawing: (a: number, b: number, c: number) => void;
     readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
     readonly __wbindgen_export: (a: number, b: number, c: number) => void;
     readonly __wbindgen_export2: (a: number, b: number) => number;
+    readonly __wbindgen_export3: (a: number, b: number, c: number, d: number) => number;
 }
 
 export type SyncInitInput = BufferSource | WebAssembly.Module;
