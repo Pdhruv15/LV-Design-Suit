@@ -4,6 +4,7 @@ export const memory: WebAssembly.Memory;
 export const __wbg_caddoc_free: (a: number, b: number) => void;
 export const caddoc_info: (a: number, b: number) => void;
 export const caddoc_new: (a: number, b: number, c: number) => void;
+export const caddoc_pick: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
 export const caddoc_segment_colors: (a: number, b: number) => void;
 export const caddoc_segment_layers: (a: number, b: number) => void;
 export const caddoc_segments: (a: number, b: number) => void;

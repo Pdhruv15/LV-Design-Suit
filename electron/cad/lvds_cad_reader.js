@@ -55,6 +55,35 @@ export class CadDoc {
         }
     }
     /**
+     * The object under (x, y) within `tol` (drawing units) on shown layers, as JSON (ObjInfo with its `id`), or "".
+     * The nearest drawn line wins; a text wins when the point is on it. `closed_only` considers only objects with an
+     * area (closed polylines, circles, hatches…), as for AREA → Object.
+     * @param {number} x
+     * @param {number} y
+     * @param {number} tol
+     * @param {Uint8Array} layers_on
+     * @param {boolean} closed_only
+     * @returns {string}
+     */
+    pick(x, y, tol, layers_on, closed_only) {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            const ptr0 = passArray8ToWasm0(layers_on, wasm.__wbindgen_export2);
+            const len0 = WASM_VECTOR_LEN;
+            wasm.caddoc_pick(retptr, this.__wbg_ptr, x, y, tol, ptr0, len0, closed_only);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            deferred2_0 = r0;
+            deferred2_1 = r1;
+            return getStringFromWasm0(r0, r1);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+            wasm.__wbindgen_export(deferred2_0, deferred2_1, 1);
+        }
+    }
+    /**
      * Colour of each segment: 0xRRGGBB, or 0xFF000007 for the foreground (index 7).
      * @returns {Uint32Array}
      */

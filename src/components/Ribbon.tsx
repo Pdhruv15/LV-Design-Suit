@@ -6,6 +6,7 @@ import {
   ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig, Cctv } from 'lucide-react';
 import { Map as MapIcon, PenTool, Layers, MousePointerClick, PenLine, Type, Ruler, Square, ZoomIn, Maximize, BellRing, Crosshair, Grid3x3, Copy, CircleDashed, ListChecks } from 'lucide-react';
 import type { FloorPlanTool } from './floorPlanState';
+import type { CadTool } from './cad/cadState';
 import type { BoardKind, Feeder } from '../types';
 import type { MainView } from '../views';
 import { STAGE_INFO, type DesignStage, type TenderRoute } from '../model/designStage';
@@ -98,7 +99,7 @@ export interface RibbonActions {
   /** The Floor plan page's tools (Floor plan tab). */
   floorPlan?: FloorPlanRibbon;
   /** The CAD view's tools (CAD tab). */
-  cad?: { onOpen: () => void; onFit: () => void; onLayers: () => void; layersOn: boolean; hasDrawing: boolean };
+  cad?: { tool: CadTool; onTool: (t: CadTool) => void; onOpen: () => void; onFit: () => void; onLayers: () => void; layersOn: boolean; hasDrawing: boolean };
   onProfile: () => void;
   onChooseFolder: () => void;
   folderLabel: string;
@@ -130,7 +131,7 @@ export const CAPTIONS: Record<RibbonTab, string[]> = {
   schematic: ['History', 'Distribution', 'Main systems', 'ELV', 'Stage'],
   detailed: ['Run', 'Canvas', 'Boards', 'Equipment', 'Selection', 'Calculate', 'Stage'],
   floorplan: ['Plan', 'Rooms', 'Cables and boards', 'ELV', 'Measure', 'View'],
-  cad: ['File', 'View'],
+  cad: ['File', 'Measure', 'View'],
   reports: ['Schedules', 'Drawings and reports'],
   issue: ['Tender', 'Track', 'Send', 'IFC'],
   cost: ['Bill', 'Add to the bill', 'Rates', 'Issue and export'],
@@ -389,6 +390,11 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       [
         view('cad', 'CAD', PenTool, 'CAD view: a DWG / DXF drawing opened natively — model space, snaps, layers, command line'),
         { label: 'Open', icon: FolderOpen, title: 'Open a DWG / DXF drawing in the CAD view', onClick: () => a.cad?.onOpen() }
+      ],
+      [
+        { label: 'Distance', icon: Ruler, title: 'Measure the distance between two snapped points (DI); ORTHO keeps it straight', onClick: () => a.cad?.onTool('dist'), active: a.cad?.tool === 'dist', disabled: !a.cad?.hasDrawing },
+        { label: 'Area', icon: Square, title: 'Area and perimeter from snapped corners, or a closed object (AREA, then O)', onClick: () => a.cad?.onTool('area'), active: a.cad?.tool === 'area', disabled: !a.cad?.hasDrawing },
+        { label: 'Room area', icon: MousePointerClick, title: 'Click inside a room: its outline from the walls (doors closed), its area (RA)', onClick: () => a.cad?.onTool('room'), active: a.cad?.tool === 'room', disabled: !a.cad?.hasDrawing }
       ],
       [
         { label: 'Layers', icon: Layers, title: 'Show or hide the layers panel (LAYER)', onClick: () => a.cad?.onLayers(), active: a.cad?.layersOn },
