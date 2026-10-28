@@ -51,7 +51,7 @@ function layerMap(p: Project, plan: CadPlan, given: unknown): CadLayerMap[] {
 }
 
 /** A level of a building by ID, else by name (case does not matter). */
-function findLevel(p: Project, buildingRef: string, levelRef: string): { building: string; level: string; name: string } {
+export function findLevel(p: Project, buildingRef: string, levelRef: string): { building: string; level: string; name: string } {
   const b = findBuilding(p, buildingRef);
   const lower = levelRef.trim().toLowerCase();
   const l = b.levels.find((x) => x.id === levelRef) ?? b.levels.find((x) => x.name.trim().toLowerCase() === lower || x.id.toLowerCase() === lower);

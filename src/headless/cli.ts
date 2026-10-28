@@ -16,7 +16,7 @@ const ALIASES: Record<string, string> = {
   propose: 'propose_changes', size: 'size_circuits', 'add-panel': 'add_panel', 'add-circuit': 'add_circuit', move: 'move_panel',
   rename: 'rename_panels', copy: 'copy_panel', changes: 'list_changes', undo: 'undo_change',
   'delete-panel': 'delete_panel', 'delete-circuit': 'delete_circuit', 'add-building': 'add_building', 'add-level': 'add_level',
-  'exchange-check': 'exchange_check', 'exchange-review': 'exchange_review', 'exchange-apply': 'exchange_apply', 'rooms-package': 'export_rooms_package', elv: 'elv_estimate', 'elv-package': 'export_elv_loads_package', 'elv-place': 'elv_place_loads',
+  'exchange-check': 'exchange_check', 'exchange-review': 'exchange_review', 'exchange-apply': 'exchange_apply', 'rooms-package': 'export_rooms_package', elv: 'elv_estimate', 'elv-package': 'export_elv_loads_package', 'elv-place': 'elv_place_loads', 'elv-devices': 'elv_devices', 'elv-place-devices': 'elv_place_devices',
   'cad-plan': 'cad_plan', 'rooms-from-cad': 'rooms_from_cad',
   exports: 'list_exports', report: 'export_report', 'forms-xlsx': 'export_forms_xlsx', 'boq-xlsx': 'export_boq_xlsx', 'schedule-xlsx': 'export_schedule_template', dxf: 'export_dxf'
 };
