@@ -1239,7 +1239,7 @@ export default function App() {
           onSave: () => saveProject(),
           onSaveAs: () => saveAs(),
           onAnonymizedSample: () => setShowAnonymized(true),
-          cad: { onOpen: () => void openCad(), onFit: () => cadS.fit(), onLayers: () => { cadS.setShowLayers(!cadS.showLayers); setView('cad'); }, layersOn: cadS.showLayers, hasDrawing: !!cadS.view },
+          cad: { tool: cadS.tool, onTool: (t) => { cadS.setTool(cadS.tool === t ? 'none' : t); setView('cad'); }, onOpen: () => void openCad(), onFit: () => cadS.fit(), onLayers: () => { cadS.setShowLayers(!cadS.showLayers); setView('cad'); }, layersOn: cadS.showLayers, hasDrawing: !!cadS.view },
           floorPlan: {
             hasPlan: !!fp.plan, tool: fp.tool, onTool: (t) => { fp.setTool(t); setView('floor-plan'); }, onOpen: () => void openFloorPlan(),
             onLayers: () => { fp.setShowLayers(!fp.showLayers); setView('floor-plan'); }, layersOn: fp.showLayers,
@@ -1618,7 +1618,7 @@ export default function App() {
                 }}
               />
             )}
-            {view === 'cad' && <CadPage cad={cadS} projectId={project.id} onStatus={setStatus} />}
+            {view === 'cad' && <CadPage cad={cadS} project={project} onChange={(next, message) => { setProject(next, { step: true }); setStatus(message); }} onStatus={setStatus} />}
             {view === 'floor-plan' && <FloorPlanPage project={project} fp={fp} onChange={(next, message) => { setProject(next, { step: true }); setStatus(message); }} onStatus={setStatus} />}
             {view === 'building' && <BuildingView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'load-assessment' && <LoadAssessmentView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}

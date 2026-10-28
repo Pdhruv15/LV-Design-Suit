@@ -1792,3 +1792,11 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .cad-tg.on{color:var(--tx);border-color:var(--acc);background:color-mix(in srgb,var(--acc) 15%,transparent)}
 .cad-status .sp{flex:1}
 @media (max-width:900px){.cad-work{grid-template-columns:1fr}.cad-side{display:none}}
+.cad-big{font-size:16px;margin-left:var(--space-1)}
+.cad-props{display:grid;grid-template-columns:auto 1fr;gap:2px var(--space-2);margin:var(--space-2) 0 0;font-size:var(--fs-sm)}
+.cad-props dt{color:var(--mut)}
+.cad-props dd{margin:0;overflow-wrap:anywhere}
+.cad-props dd i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.cad-addroom{margin-top:var(--space-2)}
+.cad-roomform{display:grid;gap:var(--space-2);margin-top:var(--space-2)}
+.cad-roomform label{display:grid;gap:2px;font-size:var(--fs-xs);color:var(--mut)}

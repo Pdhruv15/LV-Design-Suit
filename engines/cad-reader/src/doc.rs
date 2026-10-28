@@ -8,7 +8,7 @@ use acadrust::entities::{BoundaryEdge, EntityType};
 use acadrust::types::Color;
 use acadrust::{CadDocument, DwgReader, DxfReader};
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::f64::consts::PI;
 use std::io::Cursor;
 use wasm_bindgen::prelude::*;
@@ -53,7 +53,26 @@ impl Affine {
 struct LayerInfo { name: String, rgb: u32, on: bool, count: u32 }
 
 #[derive(Serialize)]
-struct TextItem { x: f64, y: f64, h: f64, rot: f64, s: String, layer: u16, rgb: u32, align: u8 }
+struct TextItem { x: f64, y: f64, h: f64, rot: f64, s: String, layer: u16, rgb: u32, align: u8, o: u32 }
+
+/** What one object of model space is, for inspecting it: kind, layer, handle, block and attributes, and its length /
+ * area in drawing units. Its drawn segments are `seg_start..seg_end`. */
+#[derive(Serialize, Clone, Default)]
+struct ObjInfo {
+    kind: &'static str,
+    layer: u16,
+    handle: String,
+    #[serde(skip_serializing_if = "Option::is_none")] block: Option<String>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")] attrs: BTreeMap<String, String>,
+    #[serde(skip_serializing_if = "Option::is_none")] length: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] area: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] radius: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")] text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] vertices: Option<usize>,
+    closed: bool,
+    seg_start: u32,
+    seg_end: u32,
+}
 
 struct SnapPoint { x: f64, y: f64, kind: u32, layer: u16 }
 
@@ -66,6 +85,8 @@ pub struct CadDoc {
     seg_layer: Vec<u16>,
     seg_rgb: Vec<u32>,
     seg_real: Vec<bool>, // a drawn straight piece (not a curve tessellation step) — used for intersections
+    seg_obj: Vec<u32>, // the model-space object each segment belongs to
+    objects: Vec<ObjInfo>,
     texts: Vec<TextItem>,
     snaps: Vec<SnapPoint>,
     layers: Vec<LayerInfo>,
@@ -89,6 +110,7 @@ struct Builder<'a> {
     layer_rgb: Vec<u32>,
     blocks: HashMap<String, (f64, f64)>, // block name (upper) → base point
     out: CadDoc,
+    current: u32,
 }
 
 fn rgb_of(c: &Color) -> Option<u32> {
@@ -129,6 +151,7 @@ impl<'a> Builder<'a> {
         self.out.seg_layer.push(l);
         self.out.seg_rgb.push(rgb);
         self.out.seg_real.push(real);
+        self.out.seg_obj.push(self.current);
         self.out.layers[l as usize].count += 1;
     }
 
@@ -183,7 +206,7 @@ impl<'a> Builder<'a> {
     fn text(&mut self, t: &Affine, at: (f64, f64), h: f64, rot: f64, s: String, l: u16, rgb: u32, align: u8) {
         if s.trim().is_empty() { return; }
         let (x, y) = t.apply(at.0, at.1);
-        self.out.texts.push(TextItem { x, y, h: h * t.size(), rot: rot + t.angle(), s, layer: l, rgb, align });
+        self.out.texts.push(TextItem { x, y, h: h * t.size(), rot: rot + t.angle(), s, layer: l, rgb, align, o: self.current });
         self.snap(t, at, INSERTION, l);
     }
 
@@ -358,6 +381,105 @@ fn spline_points(s: &acadrust::entities::Spline) -> Vec<(f64, f64)> {
     src.iter().map(|v| (v.x, v.y)).collect()
 }
 
+/// Length and (when closed) area of a polyline with bulges: vertices [x, y, bulge].
+fn poly_measure(v: &[(f64, f64, f64)], closed: bool) -> (f64, f64) {
+    let n = v.len();
+    if n < 2 { return (0.0, 0.0); }
+    let (mut len, mut twice_area) = (0.0, 0.0);
+    let last = if closed { n } else { n - 1 };
+    for i in 0..last {
+        let (a, b) = (v[i], v[(i + 1) % n]);
+        let chord = ((b.0 - a.0).powi(2) + (b.1 - a.1).powi(2)).sqrt();
+        twice_area += a.0 * b.1 - b.0 * a.1;
+        if a.2.abs() < 1e-12 || chord < 1e-12 { len += chord; continue; }
+        let theta = 4.0 * a.2.atan();
+        let r = chord / (2.0 * (theta.abs() / 2.0).sin());
+        len += r * theta.abs();
+        // the arc's segment beyond the chord, on the bulge's side
+        twice_area += theta.signum() * r * r * (theta.abs() - theta.abs().sin());
+    }
+    (len, if closed { (twice_area / 2.0).abs() } else { 0.0 })
+}
+
+/// What a model-space object is (kind, handle, block, attributes, length, area) in its own coordinates.
+fn describe(e: &EntityType) -> ObjInfo {
+    let c = e.common();
+    let mut o = ObjInfo { handle: format!("{:X}", c.handle.value()), ..Default::default() };
+    match e {
+        EntityType::Line(x) => { o.kind = "Line"; o.length = Some(((x.end.x - x.start.x).powi(2) + (x.end.y - x.start.y).powi(2)).sqrt()); }
+        EntityType::Arc(x) => {
+            o.kind = "Arc"; o.radius = Some(x.radius);
+            let mut sweep = x.end_angle - x.start_angle;
+            while sweep <= 0.0 { sweep += 2.0 * PI; }
+            o.length = Some(x.radius * sweep);
+        }
+        EntityType::Circle(x) => { o.kind = "Circle"; o.radius = Some(x.radius); o.length = Some(2.0 * PI * x.radius); o.area = Some(PI * x.radius * x.radius); o.closed = true; }
+        EntityType::Ellipse(x) => {
+            o.kind = "Ellipse";
+            let a = (x.major_axis.x.powi(2) + x.major_axis.y.powi(2)).sqrt();
+            let b = a * x.minor_axis_ratio;
+            let full = ((x.end_parameter - x.start_parameter).abs() - 2.0 * PI).abs() < 1e-6 || (x.end_parameter - x.start_parameter).abs() < 1e-9;
+            if full {
+                o.closed = true; o.area = Some(PI * a * b);
+                let h = ((a - b) / (a + b)).powi(2);
+                o.length = Some(PI * (a + b) * (1.0 + 3.0 * h / (10.0 + (4.0 - 3.0 * h).sqrt())));
+            }
+        }
+        EntityType::LwPolyline(x) => {
+            o.kind = "Polyline"; o.closed = x.is_closed; o.vertices = Some(x.vertices.len());
+            let v: Vec<_> = x.vertices.iter().map(|v| (v.location.x, v.location.y, v.bulge)).collect();
+            let (l, a) = poly_measure(&v, x.is_closed);
+            o.length = Some(l); if x.is_closed { o.area = Some(a); }
+        }
+        EntityType::Polyline2D(x) => {
+            o.kind = "Polyline"; o.closed = x.is_closed(); o.vertices = Some(x.vertices.len());
+            let v: Vec<_> = x.vertices.iter().map(|v| (v.location.x, v.location.y, v.bulge)).collect();
+            let (l, a) = poly_measure(&v, x.is_closed());
+            o.length = Some(l); if x.is_closed() { o.area = Some(a); }
+        }
+        EntityType::Polyline3D(x) => {
+            o.kind = "3D polyline"; o.closed = x.is_closed(); o.vertices = Some(x.vertices.len());
+            let v: Vec<_> = x.vertices.iter().map(|v| (v.position.x, v.position.y, 0.0)).collect();
+            o.length = Some(poly_measure(&v, x.is_closed()).0);
+        }
+        EntityType::Spline(x) => {
+            o.kind = "Spline";
+            let p = spline_points(x);
+            o.length = Some(p.windows(2).map(|w| ((w[1].0 - w[0].0).powi(2) + (w[1].1 - w[0].1).powi(2)).sqrt()).sum());
+        }
+        EntityType::Hatch(x) => {
+            o.kind = "Hatch"; o.closed = true;
+            let path = x.paths.iter().find(|p| p.flags.is_external()).or(x.paths.first());
+            if let Some(path) = path {
+                let mut v = Vec::new();
+                for edge in &path.edges {
+                    match edge {
+                        BoundaryEdge::Polyline(p) => v.extend(p.vertices.iter().map(|q| (q.x, q.y, q.z))),
+                        BoundaryEdge::Line(l) => v.push((l.start.x, l.start.y, 0.0)),
+                        _ => {}
+                    }
+                }
+                if v.len() >= 3 { let (l, a) = poly_measure(&v, true); o.length = Some(l); o.area = Some(a); }
+            }
+        }
+        EntityType::Solid(x) => {
+            o.kind = "Solid"; o.closed = true;
+            let v = [(x.first_corner.x, x.first_corner.y, 0.0), (x.second_corner.x, x.second_corner.y, 0.0), (x.fourth_corner.x, x.fourth_corner.y, 0.0), (x.third_corner.x, x.third_corner.y, 0.0)];
+            let (l, a) = poly_measure(&v, true); o.length = Some(l); o.area = Some(a);
+        }
+        EntityType::Text(x) => { o.kind = "Text"; o.text = Some(x.value.clone()); }
+        EntityType::MText(x) => { o.kind = "Multiline text"; o.text = Some(parse_mtext(&x.value, true).to_plain_text()); }
+        EntityType::Point(_) => { o.kind = "Point"; }
+        EntityType::Insert(x) => {
+            o.kind = "Block"; o.block = Some(x.block_name.clone());
+            for a in &x.attributes { o.attrs.insert(a.tag.clone(), a.value.clone()); }
+        }
+        EntityType::Dimension(x) => { o.kind = "Dimension"; o.length = Some(x.base().actual_measurement); }
+        _ => { o.kind = "Other"; }
+    }
+    o
+}
+
 fn read(bytes: Vec<u8>) -> Result<(CadDocument, &'static str), String> {
     if bytes.starts_with(b"AC10") {
         DwgReader::from_stream(Cursor::new(bytes)).read().map(|d| (d, "DWG")).map_err(|e| e.to_string())
@@ -377,7 +499,8 @@ impl CadDoc {
             layer_index: HashMap::new(),
             layer_rgb: Vec::new(),
             blocks: HashMap::new(),
-            out: CadDoc { format, units: doc.header.insertion_units, origin: (0.0, 0.0), segs: vec![], seg_layer: vec![], seg_rgb: vec![], seg_real: vec![], texts: vec![], snaps: vec![], layers: vec![], grid: Grid { x0: 0.0, y0: 0.0, cell: 1.0, nx: 1, ny: 1, segs: vec![vec![]], pts: vec![vec![]] }, truncated: false },
+            current: 0,
+            out: CadDoc { format, units: doc.header.insertion_units, origin: (0.0, 0.0), segs: vec![], seg_layer: vec![], seg_rgb: vec![], seg_real: vec![], seg_obj: vec![], objects: vec![], texts: vec![], snaps: vec![], layers: vec![], grid: Grid { x0: 0.0, y0: 0.0, cell: 1.0, nx: 1, ny: 1, segs: vec![vec![]], pts: vec![vec![]] }, truncated: false },
         };
         for layer in doc.layers.iter() {
             let i = b.layer(&layer.name);
@@ -392,7 +515,16 @@ impl CadDoc {
             }
         }
         let model: Vec<&EntityType> = doc.model_space_entities().collect();
-        for e in model { b.entity(e, &Affine::ID, (u16::MAX, u32::MAX), 0); }
+        for e in model {
+            let mut info = describe(e);
+            info.layer = b.layer(&e.common().layer);
+            info.seg_start = b.out.seg_layer.len() as u32;
+            b.current = b.out.objects.len() as u32;
+            b.out.objects.push(info);
+            b.entity(e, &Affine::ID, (u16::MAX, u32::MAX), 0);
+            let end = b.out.seg_layer.len() as u32;
+            b.out.objects.last_mut().unwrap().seg_end = end;
+        }
         let mut out = b.out;
         out.build_grid();
         Ok(out)
@@ -415,6 +547,62 @@ impl CadDoc {
     pub fn segment_layers(&self) -> Vec<u16> { self.seg_layer.clone() }
     /// Colour of each segment: 0xRRGGBB, or 0xFF000007 for the foreground (index 7).
     pub fn segment_colors(&self) -> Vec<u32> { self.seg_rgb.clone() }
+
+    /// The object under (x, y) within `tol` (drawing units) on shown layers, as JSON (ObjInfo with its `id`), or "".
+    /// The nearest drawn line wins; a text wins when the point is on it. `closed_only` considers only objects with an
+    /// area (closed polylines, circles, hatches…), as for AREA → Object.
+    pub fn pick(&self, x: f64, y: f64, tol: f64, layers_on: &[u8], closed_only: bool) -> String {
+        let on = |l: u16| layers_on.get(l as usize).map_or(true, |v| *v != 0);
+        let wanted = |o: u32| !closed_only || self.objects.get(o as usize).map_or(false, |x| x.area.is_some());
+        let mut best: Option<(f64, u32)> = None;
+        let g = &self.grid;
+        let (cx0, cy0) = g.cell_of(x - tol, y - tol);
+        let (cx1, cy1) = g.cell_of(x + tol, y + tol);
+        let mut seen = std::collections::HashSet::new();
+        for cy in cy0..=cy1 {
+            for cx in cx0..=cx1 {
+                for &s in &g.segs[cy * g.nx + cx] {
+                    if !seen.insert(s) || !on(self.seg_layer[s as usize]) || !wanted(self.seg_obj[s as usize]) { continue; }
+                    let (x1, y1, x2, y2) = self.seg_at(s as usize);
+                    let (dx, dy) = (x2 - x1, y2 - y1);
+                    let l2 = dx * dx + dy * dy;
+                    let t = if l2 > 0.0 { (((x - x1) * dx + (y - y1) * dy) / l2).clamp(0.0, 1.0) } else { 0.0 };
+                    let d = ((x - x1 - t * dx).powi(2) + (y - y1 - t * dy).powi(2)).sqrt();
+                    if d <= tol && best.map_or(true, |b| d < b.0) { best = Some((d, self.seg_obj[s as usize])); }
+                }
+            }
+        }
+        for t in &self.texts {
+            if closed_only || !on(t.layer) || t.h <= 0.0 { continue; }
+            let w = 0.6 * t.h * t.s.chars().count() as f64;
+            let (sin, cos) = t.rot.sin_cos();
+            let (px, py) = ((x - t.x) * cos + (y - t.y) * sin, -(x - t.x) * sin + (y - t.y) * cos);
+            let x0 = match t.align { 1 => -w / 2.0, 2 => -w, _ => 0.0 };
+            if px >= x0 - tol && px <= x0 + w + tol && py >= -tol && py <= t.h + tol { best = Some((0.0, t.o)); break; }
+        }
+        if best.is_none() && !closed_only {
+            // Inside a block (a board symbol, a fitting) but not on its lines: the smallest block around the point.
+            let mut inside: Option<(f64, u32)> = None;
+            for (i, o) in self.objects.iter().enumerate() {
+                if o.kind != "Block" || o.seg_end <= o.seg_start || !on(o.layer) { continue; }
+                let (mut x0, mut y0, mut x1, mut y1) = (f64::MAX, f64::MAX, f64::MIN, f64::MIN);
+                for sgi in o.seg_start..o.seg_end {
+                    let (a, b, c, d) = self.seg_at(sgi as usize);
+                    x0 = x0.min(a.min(c)); y0 = y0.min(b.min(d)); x1 = x1.max(a.max(c)); y1 = y1.max(b.max(d));
+                }
+                if x >= x0 && x <= x1 && y >= y0 && y <= y1 {
+                    let area = (x1 - x0) * (y1 - y0);
+                    if inside.map_or(true, |b| area < b.0) { inside = Some((area, i as u32)); }
+                }
+            }
+            best = inside.map(|(_, i)| (0.0, i));
+        }
+        let Some((_, id)) = best else { return String::new() };
+        let Some(o) = self.objects.get(id as usize) else { return String::new() };
+        let mut v = serde_json::to_value(o).unwrap_or_default();
+        v["id"] = serde_json::json!(id);
+        v.to_string()
+    }
 
     /// The snap point nearest (x, y) within r (drawing units): [x, y, kind], or empty. `mask` chooses the kinds,
     /// `layers_on` (one byte per layer, 1 = shown) leaves out hidden layers.

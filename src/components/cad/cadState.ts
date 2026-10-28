@@ -2,6 +2,9 @@ import { useCallback, useState } from 'react';
 import type { CadView } from '../../engines/cad/cadEngine';
 import type { CadToggles } from './CadCanvas';
 
+/** The tool working on the drawing: none (a click inspects the object under it), or a measuring tool. */
+export type CadTool = 'none' | 'dist' | 'area' | 'room';
+
 const RECENT = (projectId: string | undefined) => `lvds.cad.${projectId ?? 'new'}`;
 /** The drawing a project had open in the CAD view last time on this computer (its path stays out of the project file). */
 export const rememberedDrawing = (projectId: string | undefined): string | undefined => { try { return localStorage.getItem(RECENT(projectId)) ?? undefined; } catch { return undefined; } };
@@ -15,6 +18,7 @@ export function useCad(projectId: string | undefined) {
   const [fitKey, setFitKey] = useState(0);
   const [showLayers, setShowLayers] = useState(true);
   const [history, setHistory] = useState<string[]>([]);
+  const [tool, setTool] = useState<CadTool>('none');
 
   const say = useCallback((line: string) => setHistory((h) => [...h.slice(-49), line]), []);
   const open = useCallback((v: CadView) => {
@@ -28,7 +32,7 @@ export function useCad(projectId: string | undefined) {
   const allLayers = useCallback((on: boolean) => setLayersOn((l) => new Uint8Array(l.length).fill(on ? 1 : 0)), []);
   const toggle = useCallback((k: keyof CadToggles) => setToggles((t) => ({ ...t, [k]: !t[k] })), []);
 
-  return { view, open, layersOn, setLayer, allLayers, toggles, toggle, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, history, say };
+  return { view, open, layersOn, setLayer, allLayers, toggles, toggle, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, history, say, tool, setTool };
 }
 
 export type CadState = ReturnType<typeof useCad>;

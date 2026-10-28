@@ -20,6 +20,24 @@ export interface CadInfo {
   snaps: number;
   truncated: boolean;
 }
+/** One object of model space under a click: its kind, layer, handle, block and attributes, length / area (drawing
+ * units), and the range of its drawn segments. */
+export interface CadObject {
+  id: number;
+  kind: string;
+  layer: number;
+  handle: string;
+  block?: string;
+  attrs?: Record<string, string>;
+  length?: number;
+  area?: number;
+  radius?: number;
+  text?: string;
+  vertices?: number;
+  closed: boolean;
+  seg_start: number;
+  seg_end: number;
+}
 /** An open drawing. Segment coordinates are relative to `info.origin` (drawing units). */
 export interface CadView {
   file: string;
@@ -30,6 +48,9 @@ export interface CadView {
   segColors: Uint32Array;
   /** Nearest snap point within `r` of (x, y) (drawing units, absolute): [x, y, kind] or empty. */
   snap: (x: number, y: number, r: number, mask: number, layersOn: Uint8Array) => Float64Array;
+  /** The object under (x, y) within `tol` (drawing units, absolute) on shown layers; null when none. `closedOnly`:
+   * only objects with an area (as for AREA → Object). */
+  pick: (x: number, y: number, tol: number, layersOn: Uint8Array, closedOnly?: boolean) => CadObject | null;
 }
 
 /** Snap kinds, as the engine numbers them. */
@@ -67,7 +88,8 @@ export async function openDrawing(file: string, bytes: Uint8Array, path?: string
   return {
     file, path, info,
     segs: doc.segments(), segLayers: doc.segment_layers(), segColors: doc.segment_colors(),
-    snap: (x, y, r, mask, layersOn) => doc.snap(x, y, r, mask, layersOn)
+    snap: (x, y, r, mask, layersOn) => doc.snap(x, y, r, mask, layersOn),
+    pick: (x, y, tol, layersOn, closedOnly = false) => { const j = doc.pick(x, y, tol, layersOn, closedOnly); return j ? (JSON.parse(j) as CadObject) : null; }
   };
 }
 
