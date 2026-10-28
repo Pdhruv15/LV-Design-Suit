@@ -9,6 +9,8 @@ const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 
 export default defineConfig({
   define: { __APP_VERSION__: JSON.stringify(pkg.version.split('.').slice(0, 2).join('.')) },
   publicDir: false,
+  // The built-in DWG / DXF reader (src/engines/cad): its WebAssembly is inlined, so the CLI stays one file.
+  assetsInclude: ['**/*.wasm'],
   build: {
     outDir: 'dist-cli',
     emptyOutDir: true,

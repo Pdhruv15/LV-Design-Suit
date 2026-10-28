@@ -71,6 +71,8 @@ export default defineConfig({
   // App version shown in the title and header: v1.2 (major.minor of package.json).
   define: { __APP_VERSION__: JSON.stringify(pkg.version.split('.').slice(0, 2).join('.')) },
   plugins: [react(), csp(), pwa()],
+  // The built-in DWG / DXF reader (src/engines/cad) is WebAssembly, inlined where it is imported.
+  assetsInclude: ['**/*.wasm'],
   resolve: {
     // ExcelJS's browser build: the app writes .xlsx files in the page (the
     // Node build needs Node streams).

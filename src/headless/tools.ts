@@ -13,6 +13,7 @@ import { EXPORT_TOOLS } from './exportTools';
 import { EXCHANGE_TOOLS } from './exchangeTools';
 import { ELV_TOOLS } from './elvTools';
 import { BUILDING_TOOLS } from './buildingTools';
+import { CAD_TOOLS } from './cadTools';
 
 /** The tools the command line, the MCP server and the local API offer — one list, so the three
  * always agree. The tools in this file read and check only; the ones that change a project are in editTools.ts.
@@ -311,7 +312,7 @@ export function circuitIssues(run: CalcRun, status: string): { circuit: string; 
 }
 
 /** Every tool, read-only ones first. */
-export const allTools = (): Tool[] => [...TOOLS, ...EDIT_TOOLS, ...BUILDING_TOOLS, ...EXCHANGE_TOOLS, ...ELV_TOOLS, ...EXPORT_TOOLS];
+export const allTools = (): Tool[] => [...TOOLS, ...EDIT_TOOLS, ...BUILDING_TOOLS, ...CAD_TOOLS, ...EXCHANGE_TOOLS, ...ELV_TOOLS, ...EXPORT_TOOLS];
 /** The tools a server offers: write tools only when it was started with --write. */
 export const offeredTools = (ctx: ToolContext): Tool[] => allTools().filter((t) => !t.writes || ctx.write);
 export const toolByName = (name: string, list: Tool[] = allTools()): Tool | undefined => list.find((t) => t.name === name || t.name.replace(/_/g, '-') === name);
