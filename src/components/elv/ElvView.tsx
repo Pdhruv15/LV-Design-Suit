@@ -25,7 +25,7 @@ const kw = (n: number) => n.toFixed(2);
 const DEVICE_COLUMNS: { label: string; of: (d: Record<string, number | undefined>) => number }[] = [
   { label: 'Det.', of: (d) => (d.smokeDetector ?? 0) + (d.heatDetector ?? 0) + (d.multiDetector ?? 0) },
   { label: 'Cam.', of: (d) => d.camera ?? 0 },
-  { label: 'Doors', of: (d) => (d.door ?? 0) + Math.max(d.cardReader ?? 0, d.maglock ?? 0) },
+  { label: 'Doors', of: (d) => (d.door ?? 0) + (d.controlledDoor ?? 0) },
   { label: 'Data', of: (d) => d.dataPort ?? 0 },
   { label: 'APs', of: (d) => d.accessPoint ?? 0 },
   { label: 'Spk.', of: (d) => (d.ceilingSpeaker ?? 0) + (d.hornSpeaker ?? 0) }

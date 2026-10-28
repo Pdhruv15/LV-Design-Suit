@@ -39,7 +39,7 @@ export const elvSettings = z.object({
 }).strict();
 export type ElvSettings = z.infer<typeof elvSettings>;
 
-export type DeviceCounts = Partial<Record<'smokeDetector' | 'heatDetector' | 'multiDetector' | 'callPoint' | 'sounder' | 'sounderBeacon' | 'interfaceModule' | 'camera' | 'door' | 'cardReader' | 'maglock' | 'exitButton' | 'dataPort' | 'accessPoint' | 'ceilingSpeaker' | 'hornSpeaker', number>>;
+export type DeviceCounts = Partial<Record<'smokeDetector' | 'heatDetector' | 'multiDetector' | 'callPoint' | 'sounder' | 'sounderBeacon' | 'interfaceModule' | 'camera' | 'door' | 'cardReader' | 'maglock' | 'exitButton' | 'controlledDoor' | 'dataPort' | 'accessPoint' | 'ceilingSpeaker' | 'hornSpeaker', number>>;
 
 /** The count each placed device type adds to. */
 const COUNT_OF: Record<ElvDeviceType, keyof DeviceCounts> = {
@@ -122,7 +122,7 @@ function add(into: DeviceCounts, d: DeviceCounts, times: number) {
 }
 
 const SYSTEM_DEVICES: Record<ElvSystem, (keyof DeviceCounts)[]> = {
-  'fire-alarm': LOOP_DEVICES.map(([k]) => k), cctv: ['camera'], 'access-control': ['door', 'cardReader', 'maglock', 'exitButton'],
+  'fire-alarm': LOOP_DEVICES.map(([k]) => k), cctv: ['camera'], 'access-control': ['door', 'cardReader', 'maglock', 'exitButton', 'controlledDoor'],
   ict: ['dataPort', 'accessPoint'], 'public-address': ['ceilingSpeaker', 'hornSpeaker']
 };
 const only = (d: DeviceCounts, s: ElvSystem): DeviceCounts => Object.fromEntries(SYSTEM_DEVICES[s].filter((k) => d[k]).map((k) => [k, d[k]]));
@@ -130,6 +130,10 @@ const only = (d: DeviceCounts, s: ElvSystem): DeviceCounts => Object.fromEntries
 function countsOf(placed: Partial<Record<ElvDeviceType, number>> | undefined): DeviceCounts {
   const out: DeviceCounts = {};
   for (const [t, n] of Object.entries(placed ?? {}) as [ElvDeviceType, number][]) out[COUNT_OF[t]] = (out[COUNT_OF[t]] ?? 0) + n;
+  // Doors in the room: a door per lock (in and out readers on one door are two readers and one lock), or per reader
+  // where no locks are drawn.
+  const doors = (out.maglock ?? 0) || (out.cardReader ?? 0);
+  if (doors) out.controlledDoor = doors;
   return out;
 }
 
@@ -203,9 +207,9 @@ function floorSupplies(b: ProjectBuilding, l: BuildingLevel, floor: number | und
       demandBasis: `${cams} × ${k.cameraW} W PoE + ${units} × ${k.switchSelfW} W switch, × ${k.spare} spare, ÷ ${k.upsEfficiency} UPS`, backup: 'UPS'
     });
   }
-  // Area rules give doors (a reader and a lock each); placed devices give readers and locks, a door per lock (or reader).
+  // Area rules give doors (a reader and a lock each); placed devices give readers, locks and the doors they make.
   const ruleDoors = d.door ?? 0, readers = d.cardReader ?? 0, locks = d.maglock ?? 0;
-  const doors = ruleDoors + Math.max(readers, locks);
+  const doors = ruleDoors + (d.controlledDoor ?? 0);
   if (on.has('access-control') && doors) {
     const k = c.access;
     const units = Math.ceil(doors / k.doorsPerController);

@@ -74,6 +74,16 @@ describe('placed ELV devices', () => {
     expect(acs.demandBasis).toMatch(/^2 × 1\.8 W reader \+ 1 × 6 W lock \+ 1 × 5 W/);
   });
 
+  it('counts a door per lock, so in and out readers on one door are one door', () => {
+    const { project: p } = placeDevices(project(), 'B', 'L1', [
+      { type: 'maglock', x: 5, y: 1 }, { type: 'card-reader', x: 5, y: 1.2 }, { type: 'card-reader', x: 5, y: 0.8 }, // R1: one door, in and out
+      { type: 'card-reader', x: 18, y: 6 } // R2: reader only (no lock drawn): one door
+    ]);
+    const e = estimateElv(p);
+    expect(e.rooms.find((r) => r.roomId === 'R1')!.devices).toMatchObject({ cardReader: 2, maglock: 1, controlledDoor: 1 });
+    expect(e.supplies.find((s) => s.system === 'access-control' && s.floor === 1)!.equipment).toMatch(/\(1 controller, 2 doors\)$/);
+  });
+
   it('keeps per-level results apart', () => {
     const { project: p } = placeDevices(project(), 'B', 'L1', [{ type: 'camera', x: 5, y: 5 }]);
     const on = placedOnLevel(p, 'B', 'L1');
