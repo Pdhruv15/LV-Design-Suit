@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import type { Project } from '../types';
 import { decide, readPackage, reviewPackage } from '../exchange/inbox';
-import { elvSettings, estimateElv } from './estimate';
+import { elvSettings, estimateElv, loopsForFloors } from './estimate';
 import { elvLoadsPackage } from './package';
 
 const sha256 = (t: string) => crypto.createHash('sha256').update(t).digest('hex');
@@ -93,6 +93,14 @@ describe('ELV estimate', () => {
     p.building!.rooms.push({ id: 'R8', buildingId: 'T', levelId: 'GF', name: 'Prayer room', type: 'prayer', areaM2: 40 });
     expect(estimateElv(p).warnings).toEqual(['No ELV rule for room type prayer: the default rule is used.']);
     expect(estimateElv({ ...p, building: undefined }).warnings).toEqual([expect.stringMatching(/No rooms in Building information/)]);
+  });
+
+  it('counts loops for whole floors: a floor that does not fit starts a loop, a floor larger than a loop fills its own', () => {
+    expect(loopsForFloors([30, 30, 30, 30], 100)).toBe(2); // 90 + 30, not 100 + 20
+    expect(loopsForFloors([60, 60, 60], 100)).toBe(3);
+    expect(loopsForFloors([120, 30], 100)).toBe(2); // 100, then 20 + 30
+    expect(loopsForFloors([250], 100)).toBe(3);
+    expect(loopsForFloors([], 100)).toBe(0);
   });
 
   it('warns when one building needs more than one fire alarm panel', () => {
