@@ -244,7 +244,7 @@ export interface Feeder {
   lengthToCheck?: boolean;
   /** Made as a placeholder (e.g. by Build hierarchy): cable and breaker not sized yet. */
   sizingPending?: boolean;
-  /** The accepted ELV load this circuit feeds (program:file#load ID, src/elv/placement.ts). */
+  /** The accepted ELV load this circuit feeds (program:file#load ID, src/calc/elvPlacement.ts). */
   elvLoad?: string;
   feedsBoardId?: string; // if set, this feeder is the incomer to a downstream board —
   // its loadKw/demandFactor are ignored and its current is derived from that

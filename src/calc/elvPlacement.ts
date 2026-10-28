@@ -1,7 +1,7 @@
-import { buildingInfoOf } from '../calc/building';
-import { applyRecommendation, recommend } from '../calc/sizing';
-import type { LoadItem, PackageSource } from '../exchange/contracts';
-import { exchangeOf } from '../exchange/inbox';
+import { buildingInfoOf } from './building';
+import { applyRecommendation, recommend } from './sizing';
+import type { LoadItem } from '../exchange/contracts';
+import { acceptedElvLoads } from '../exchange/inbox';
 import { feederPhaseKw } from '../model/phases';
 import type { Board, BoardKind, Feeder, Phase, Project } from '../types';
 
@@ -35,9 +35,6 @@ const ESSENTIAL_KINDS: BoardKind[] = ['EMDB', 'LV-EMDB', 'EDB', 'EMCC'];
 const PLACEHOLDER = /^ELV \/ BMS \/ security/;
 const SINGLE_PHASE_MAX_KW = 3;
 
-/** The link a circuit keeps to its load: program, file and load ID. */
-export const elvLink = (source: PackageSource, id: string) => `${source.app}:${source.file ?? ''}#${id}`;
-
 /** On the essential side: an essential board kind, or fed (at any depth) from a board with a standby generator. */
 export function onEssentialSide(project: Project, board: Board): boolean {
   const seen = new Set<string>();
@@ -46,11 +43,6 @@ export function onEssentialSide(project: Project, board: Board): boolean {
     if (b.standby || (b.kind && ESSENTIAL_KINDS.includes(b.kind))) return true;
   }
   return false;
-}
-
-/** The accepted ELV loads, each with its link. */
-export function acceptedElvLoads(project: Project): { link: string; load: LoadItem }[] {
-  return exchangeOf(project).packages.filter((a) => a.kind === 'loads').flatMap((a) => (a.loads ?? []).map((load) => ({ link: elvLink(a.source, load.id), load })));
 }
 
 /** Where a load is: the building and level of the rooms it serves (one level → a floor supply, unless the package

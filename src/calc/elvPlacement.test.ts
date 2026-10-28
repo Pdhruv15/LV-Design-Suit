@@ -2,11 +2,11 @@
 import crypto from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import type { Board, Project } from '../types';
-import { defaultServices } from '../calc/buildingDesign';
+import { defaultServices } from './buildingDesign';
 import { decide, readPackage } from '../exchange/inbox';
-import { estimateElv } from './estimate';
-import { elvLoadsPackage } from './package';
-import { addElvCircuits, onEssentialSide, planElvPlacement } from './placement';
+import { estimateElv } from '../elv/estimate';
+import { elvLoadsPackage } from '../elv/package';
+import { addElvCircuits, onEssentialSide, planElvPlacement } from './elvPlacement';
 
 const sha256 = (t: string) => crypto.createHash('sha256').update(t).digest('hex');
 const AT = '2026-10-26T12:00:00Z';

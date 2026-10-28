@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { placeElvLoads, type ElvPlaced } from '../../elv/place';
+import { placeElvLoads, type ElvPlaced } from '../../calc/elvPlace';
 import type { Project } from '../../types';
 import { Modal } from '../ui';
 

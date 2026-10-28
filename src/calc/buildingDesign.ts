@@ -5,7 +5,7 @@ import { applyRecommendation, recommend } from './sizing';
 import { boardTotals } from './summary';
 import { circuitWatts, pointWattsFor, scheduleCircuits } from './loadSchedule';
 import { rule } from '../database/catalog';
-import { buildingsWithElvCircuits } from '../elv/placement';
+import { buildingsWithElvCircuits } from './elvPlacement';
 
 /** Building → design: DBs and load schedules generated from the rooms and
  * the flats on each floor, incomer lengths from the riser, common services,
@@ -220,7 +220,7 @@ export function defaultServices(project: Project, buildingId: string): ServiceIt
     { id: 'ev', label: 'EV charger 7.4 kW', kw: 7.4, qty: 0, loadType: 'ev' },
     { id: 'pool', label: 'Swimming pool plant', kw: 15, qty: 0, loadType: 'motor' },
     { id: 'irrigation', label: 'Irrigation pump', kw: 3, qty: 0, loadType: 'motor' },
-    // Placeholder until ELV loads are placed as circuits (src/elv/placement.ts).
+    // Placeholder until ELV loads are placed as circuits (src/calc/elvPlacement.ts).
     { id: 'elv', label: 'ELV / BMS / security', kw: 3, qty: buildingsWithElvCircuits(project).has(buildingId) ? 0 : 1, loadType: 'it', essential: true },
     { id: 'kitchen-exh', label: 'Kitchen exhaust fan', kw: 5.5, qty: 0, loadType: 'motor' }
   ];

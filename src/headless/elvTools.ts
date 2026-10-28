@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { ELV_SYSTEMS } from '../elv/defaults';
 import { elvSettings, estimateElv, type ElvSettings } from '../elv/estimate';
-import { placeElvLoads } from '../elv/place';
+import { placeElvLoads } from '../calc/elvPlace';
 import { AUTHOR, edit } from './editTools';
 import type { Project } from '../types';
 import { readFile } from './exchangeTools';

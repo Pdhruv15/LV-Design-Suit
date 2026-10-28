@@ -1,6 +1,6 @@
 import { addOp, newModification, transition, withRecord } from '../model/designChanges';
 import type { Project } from '../types';
-import { addElvCircuits, planElvPlacement, type ElvPlacementPlan } from './placement';
+import { addElvCircuits, planElvPlacement, type ElvPlacementPlan } from './elvPlacement';
 
 /** Placing the accepted ELV loads, shared by the app and the headless tool: the planned circuits are added and a
  * changed kW becomes a proposal (Reports → Changes); removed loads and placeholders only come back as warnings. */

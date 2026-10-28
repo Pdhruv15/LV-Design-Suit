@@ -3,7 +3,7 @@ import { buildingInfoOf, roomTypesOf } from '../../calc/building';
 import { DEFAULT_RULES, ELV_SYSTEMS, type Density, type ElvSystem, type RoomRule } from '../../elv/defaults';
 import { estimateElv, type ElvSettings } from '../../elv/estimate';
 import { elvLoadsPackage } from '../../elv/package';
-import { acceptedElvLoads } from '../../elv/placement';
+import { acceptedElvLoads } from '../../exchange/inbox';
 import type { ExchangePackage } from '../../exchange/contracts';
 import type { Project } from '../../types';
 import { safeFileName, saveText } from '../../util/files';

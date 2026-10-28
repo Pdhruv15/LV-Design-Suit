@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { sampleProject } from '../../data/sampleProject';
 import { estimateElv } from '../../elv/estimate';
 import { elvLoadsPackage } from '../../elv/package';
-import { placeElvLoads } from '../../elv/place';
+import { placeElvLoads } from '../../calc/elvPlace';
 import { decide, exchangeOf } from '../../exchange/inbox';
 import type { Project } from '../../types';
 import { sha256Hex } from '../../util/sha256';
