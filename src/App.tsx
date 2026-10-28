@@ -143,6 +143,8 @@ const ProjectsDashboard = lazy(() => import('./components/ProjectsDashboard'));
 import { NameDialog, UnsavedDialog } from './components/FileDialogs';
 import type { BoardKind, ProjectStatus } from './types';
 import { useFloorPlan, type FloorPlanTool } from './components/floorPlanState';
+import { canFill as canFillElv, copyTo as copyElvTo, deviceLabel, devicesFor, SYSTEM_LABEL, SYSTEMS as ELV_SYSTEM_LIST } from './components/elv/elvPlan';
+import type { ElvSystem } from './elv/defaults';
 import { markSeen, pendingReleases, RELEASES, type Release, type WhatsNewAction } from './model/whatsNew';
 type DiagramMode = 'system' | 'board' | 'earthing' | 'riser';
 
@@ -1228,7 +1230,26 @@ export default function App() {
             level: (() => { const fl = floorList(project.building).filter((f) => !f.ref.index); const f = fl.find((x) => x.key === fp.levelKey) ?? fl[0]; return f ? floorLabel(project.building, f) : undefined; })(),
             levels: floorList(project.building).filter((f) => !f.ref.index).map((f) => ({ key: f.key, label: floorLabel(project.building, f) })),
             onLevel: fp.setLevelKey, onAddFound: () => fp.addFoundRef.current?.(), onZoom: fp.zoom, onFit: fp.fit,
-            feeder: fp.targets.feeder || undefined, tray: fp.targets.tray || undefined, board: fp.targets.board || undefined
+            feeder: fp.targets.feeder || undefined, tray: fp.targets.tray || undefined, board: fp.targets.board || undefined,
+            elv: (() => {
+              const fl = floorList(project.building).filter((f) => !f.ref.index);
+              const cur = fl.find((x) => x.key === fp.levelKey) ?? fl[0];
+              return {
+                system: SYSTEM_LABEL[fp.elv.system], systems: ELV_SYSTEM_LIST,
+                onSystem: (id: string) => { const sys = id as ElvSystem; fp.setElv((e) => ({ ...e, system: sys, device: devicesFor(sys)[0].type, selected: null })); fp.setPanel('elv'); fp.setShowLayers(false); setView('floor-plan'); },
+                device: deviceLabel(fp.elv.device), canFill: canFillElv(fp.elv.device),
+                coverage: fp.elv.coverage, onCoverage: () => fp.setElv((e) => ({ ...e, coverage: !e.coverage })),
+                copyTo: cur ? fl.filter((x) => x.key !== cur.key).map((x) => ({ key: x.key, label: floorLabel(project.building, x) })) : [],
+                onCopy: (key: string) => {
+                  const to = fl.find((x) => x.key === key);
+                  if (!cur || !to) return;
+                  const r = copyElvTo(project, cur.ref, to.ref, fp.elv.system, floorLabel(project.building, to));
+                  if (r.next) setProject(r.next, { step: true });
+                  setStatus(r.message);
+                },
+                onSchedules: () => setView('elv')
+              };
+            })()
           },
           onProfile: () => setShowPrefs(true),
           onChooseFolder: chooseFolder,

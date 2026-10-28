@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { curvePoints, type CadDrawing } from '../model/cadDrawing';
+import type { SymbolShape } from '../elv/devices';
 
 type Pt = [number, number];
 
@@ -9,16 +10,28 @@ export interface PlanOverlay { points: Pt[]; closed?: boolean; label?: string }
 export interface PlanPath { points: Pt[]; tone: 'route' | 'tray' | 'on' }
 /** A board placed on the plan. */
 export interface PlanMark { at: Pt; label: string; on?: boolean }
+/** A device symbol (ELV), drawn at a fixed screen size: a shape with a letter code. */
+export interface PlanSymbol { at: Pt; shape: SymbolShape; text: string; filled?: boolean; dim?: boolean; ghost?: boolean; selected?: boolean; rotationDeg?: number }
+/** What a device covers, in drawing units: a circle, or a camera's view in bands (nearest first); cut at `clip`. */
+export interface PlanCover { at: Pt; r: number; clip?: Pt[]; cone?: { fovDeg: number; rotationDeg: number; bands: number[] } }
+/** Squares not covered, in drawing units. */
+export interface PlanCells { size: number; at: Pt[] }
+/** Dragging something on the plan instead of panning: `start` says whether the press is on such a thing. */
+export interface PlanDrag { start: (at: Pt, pixel: number) => boolean; move: (at: Pt) => void; end: (at: Pt) => void }
 
 /** The floor plan drawn on a canvas (plan view, drawing units): lines, arcs, polylines, hatch outlines, texts and block
  * positions, with the rooms filled and the current measurement on top. Drag to pan, wheel to zoom. Clicks are reported
  * in drawing units with the size of one screen pixel, for hit-testing. */
-export default function FloorPlanCanvas({ drawing, rooms, overlay, paths = [], marks = [], fitKey, zoomKey, onClick, onMove }: {
+export default function FloorPlanCanvas({ drawing, rooms, overlay, paths = [], marks = [], symbols = [], covers = [], gaps, drag: dragging, fitKey, zoomKey, onClick, onMove }: {
   drawing: CadDrawing;
   rooms: PlanRoomShape[];
   overlay?: PlanOverlay;
   paths?: PlanPath[];
   marks?: PlanMark[];
+  symbols?: PlanSymbol[];
+  covers?: PlanCover[];
+  gaps?: PlanCells;
+  drag?: PlanDrag;
   /** Changes to fit the drawing to the view again. */
   fitKey: number;
   /** Changes to zoom in once about the centre. */
@@ -30,6 +43,7 @@ export default function FloorPlanCanvas({ drawing, rooms, overlay, paths = [], m
   const [size, setSize] = useState({ w: 800, h: 500 });
   const [view, setView] = useState({ scale: 1, ox: 0, oy: 0 }); // screen = (world - origin) × scale, y up
   const drag = useRef<{ x: number; y: number; ox: number; oy: number; moved: boolean } | null>(null);
+  const holding = useRef(false); // dragging a symbol (PlanDrag), not the view
 
   // Paths in drawing units, built once per drawing.
   const geometry = useMemo(() => {
@@ -90,6 +104,7 @@ export default function FloorPlanCanvas({ drawing, rooms, overlay, paths = [], m
     const css = getComputedStyle(c);
     const color = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
     const ink = color('--mut', '#8093b5'), acc = color('--acc', '#4aa8ff'), ok = color('--ok', '#37d67a'), tx = color('--tx', '#dbe4f5'), warn = color('--warn', '#f5c04a');
+    const bad = color('--bad', '#ff5d6c'), paper = color('--panel', '#0f1a2f');
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, c.width, c.height);
     const { scale, ox, oy } = view;
@@ -108,6 +123,30 @@ export default function FloorPlanCanvas({ drawing, rooms, overlay, paths = [], m
       if (r.selected) { ctx.globalAlpha = 1; ctx.strokeStyle = ok; ctx.lineWidth = 2 / scale; ctx.stroke(p); }
     }
     ctx.globalAlpha = 1;
+    // Coverage (under the drawing's lines): circles and camera views cut at their room, then the squares not covered.
+    const poly = (pts: Pt[]) => { const q = new Path2D(); q.moveTo(pts[0][0], pts[0][1]); for (const v of pts.slice(1)) q.lineTo(v[0], v[1]); q.closePath(); return q; };
+    for (const c of covers) {
+      ctx.save();
+      if (c.clip && c.clip.length >= 3) ctx.clip(poly(c.clip));
+      ctx.fillStyle = acc;
+      if (c.cone) {
+        const a = (c.cone.rotationDeg * Math.PI) / 180, half = (c.cone.fovDeg * Math.PI) / 360;
+        [...c.cone.bands].reverse().forEach((r, i, all) => {
+          ctx.globalAlpha = 0.08 * (i + 1) + (i === all.length - 1 ? 0.04 : 0);
+          ctx.beginPath(); ctx.moveTo(c.at[0], c.at[1]); ctx.arc(c.at[0], c.at[1], r, a - half, a + half); ctx.closePath(); ctx.fill();
+        });
+      } else {
+        ctx.globalAlpha = 0.12;
+        ctx.beginPath(); ctx.arc(c.at[0], c.at[1], c.r, 0, 2 * Math.PI); ctx.fill();
+        ctx.globalAlpha = 0.6; ctx.strokeStyle = acc; ctx.lineWidth = 1 / scale; ctx.setLineDash([5 / scale, 4 / scale]); ctx.stroke(); ctx.setLineDash([]);
+      }
+      ctx.restore();
+    }
+    if (gaps?.at.length) {
+      ctx.globalAlpha = 0.35; ctx.fillStyle = bad;
+      for (const [x, y] of gaps.at) ctx.fillRect(x - gaps.size / 2, y - gaps.size / 2, gaps.size, gaps.size);
+      ctx.globalAlpha = 1;
+    }
     // Drawing
     ctx.lineWidth = 1 / scale;
     ctx.strokeStyle = ink; ctx.globalAlpha = 0.45; ctx.stroke(geometry.hatches);
@@ -154,13 +193,18 @@ export default function FloorPlanCanvas({ drawing, rooms, overlay, paths = [], m
       ctx.beginPath(); ctx.arc(x, y, m.on ? 6 : 4.5, 0, 2 * Math.PI); ctx.fill();
       ctx.fillText(m.label, x + 8, y - 6);
     }
+    // Device symbols, at a fixed screen size
+    for (const m of symbols) {
+      const x = (m.at[0] - ox) * scale, y = size.h - (m.at[1] - oy) * scale;
+      drawSymbol(ctx, m, x, y, { tx, paper, acc });
+    }
     if (overlay?.label && overlay.points.length) {
       const [x, y] = overlay.points[overlay.points.length - 1];
       ctx.font = '600 12px system-ui, sans-serif';
       ctx.fillStyle = acc;
       ctx.fillText(overlay.label, (x - ox) * scale + 8, size.h - (y - oy) * scale - 8);
     }
-  }, [view, size, geometry, paths, texts, blocks, rooms, overlay, marks]);
+  }, [view, size, geometry, paths, texts, blocks, rooms, overlay, marks, symbols, covers, gaps]);
 
   const local = (e: React.MouseEvent) => {
     const r = canvas.current!.getBoundingClientRect();
@@ -174,9 +218,14 @@ export default function FloorPlanCanvas({ drawing, rooms, overlay, paths = [], m
       style={{ width: size.w, height: size.h }}
       aria-label="Floor plan"
       onWheel={(e) => { const [sx, sy] = local(e); setView((v) => zoomAbout(v, sx, sy, e.deltaY < 0 ? 1.2 : 1 / 1.2)); }}
-      onMouseDown={(e) => { const [x, y] = local(e); drag.current = { x, y, ox: view.ox, oy: view.oy, moved: false }; }}
+      onMouseDown={(e) => {
+        const [x, y] = local(e);
+        if (dragging?.start(toWorld(x, y), 1 / view.scale)) { holding.current = true; return; }
+        drag.current = { x, y, ox: view.ox, oy: view.oy, moved: false };
+      }}
       onMouseMove={(e) => {
         const [x, y] = local(e);
+        if (holding.current) { dragging?.move(toWorld(x, y)); return; }
         const d = drag.current;
         if (d && (d.moved || Math.hypot(x - d.x, y - d.y) > 4)) {
           d.moved = true;
@@ -185,11 +234,42 @@ export default function FloorPlanCanvas({ drawing, rooms, overlay, paths = [], m
         onMove?.(toWorld(x, y));
       }}
       onMouseUp={(e) => {
+        if (holding.current) { holding.current = false; const [x, y] = local(e); dragging?.end(toWorld(x, y)); return; }
         const d = drag.current;
         drag.current = null;
         if (d && !d.moved) { const [x, y] = local(e); onClick(toWorld(x, y), 1 / view.scale); }
       }}
-      onMouseLeave={() => { drag.current = null; }}
+      onMouseLeave={(e) => { drag.current = null; if (holding.current) { holding.current = false; const [x, y] = local(e); dragging?.end(toWorld(x, y)); } }}
     />
   );
+}
+
+/** One device symbol in screen pixels: shape outlined (or filled) with its letter code; cameras and speakers point
+ * along their rotation (plan angles are anticlockwise, the screen's y runs down). */
+function drawSymbol(ctx: CanvasRenderingContext2D, m: PlanSymbol, x: number, y: number, c: { tx: string; paper: string; acc: string }) {
+  const r = 9;
+  ctx.save();
+  ctx.globalAlpha = m.ghost ? 0.45 : m.dim ? 0.25 : 1;
+  ctx.translate(x, y);
+  ctx.lineWidth = 1.5; ctx.strokeStyle = c.tx; ctx.fillStyle = m.filled ? c.tx : c.paper;
+  const path = new Path2D();
+  if (m.shape === 'circle') path.arc(0, 0, r, 0, 2 * Math.PI);
+  else if (m.shape === 'square') path.rect(-r, -r, 2 * r, 2 * r);
+  else if (m.shape === 'triangle') { path.moveTo(0, -r - 1); path.lineTo(r + 1, r - 1); path.lineTo(-r - 1, r - 1); path.closePath(); }
+  else if (m.shape === 'diamond') { path.moveTo(0, -r - 1); path.lineTo(r + 1, 0); path.lineTo(0, r + 1); path.lineTo(-r - 1, 0); path.closePath(); }
+  else if (m.shape === 'hexagon') for (let i = 0; i <= 6; i++) { const a = (Math.PI / 3) * i; if (i) path.lineTo(r * Math.cos(a), r * Math.sin(a)); else path.moveTo(r, 0); }
+  else {
+    ctx.rotate(-((m.rotationDeg ?? 0) * Math.PI) / 180);
+    if (m.shape === 'camera') { path.rect(-r, -r * 0.6, r * 1.3, r * 1.2); path.moveTo(r * 0.3, -r * 0.25); path.lineTo(r, -r * 0.6); path.lineTo(r, r * 0.6); path.lineTo(r * 0.3, r * 0.25); path.closePath(); }
+    else { path.rect(-r, -r * 0.45, r * 0.6, r * 0.9); path.moveTo(-r * 0.4, -r * 0.45); path.lineTo(r * 0.6, -r); path.lineTo(r * 0.6, r); path.lineTo(-r * 0.4, r * 0.45); path.closePath(); }
+  }
+  ctx.fill(path); ctx.stroke(path);
+  if (m.shape !== 'camera' && m.shape !== 'speaker') {
+    ctx.fillStyle = m.filled ? c.paper : c.tx;
+    ctx.font = `600 ${m.text.length > 1 ? 7.5 : 9}px system-ui, sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(m.text, 0, m.shape === 'triangle' ? 2 : 0.5);
+  }
+  ctx.restore();
+  if (m.selected) { ctx.save(); ctx.strokeStyle = c.acc; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, r + 5, 0, 2 * Math.PI); ctx.stroke(); ctx.restore(); }
 }

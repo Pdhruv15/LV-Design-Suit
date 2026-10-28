@@ -1,13 +1,19 @@
 import { useCallback, useRef, useState } from 'react';
 import type { CadDrawing } from '../model/cadDrawing';
+import type { ElvSystem } from '../elv/defaults';
+import type { ElvDeviceType } from '../elv/devices';
 
 type Pt = [number, number];
-export type FloorPlanTool = 'auto' | 'room' | 'trace' | 'name' | 'link' | 'tray' | 'place' | 'dist' | 'area';
-export type FloorPlanPanel = 'rooms' | 'cables' | 'trays' | 'boards';
+export type FloorPlanTool = 'auto' | 'room' | 'trace' | 'name' | 'link' | 'tray' | 'place' | 'dist' | 'area' | 'elv-place' | 'elv-fill' | 'elv-select';
+export type FloorPlanPanel = 'rooms' | 'cables' | 'trays' | 'boards' | 'elv';
+
+/** ELV design on the plan: the system and device being placed, coverage shown, the selected device. */
+export interface ElvChoice { system: ElvSystem; device: ElvDeviceType; coverage: boolean; selected: string | null }
 
 /** The panel each tool works with. */
 export const PANEL_OF: Record<FloorPlanTool, FloorPlanPanel | undefined> = {
-  auto: 'rooms', room: 'rooms', trace: 'rooms', name: 'rooms', link: 'cables', tray: 'trays', place: 'boards', dist: undefined, area: undefined
+  auto: 'rooms', room: 'rooms', trace: 'rooms', name: 'rooms', link: 'cables', tray: 'trays', place: 'boards', dist: undefined, area: undefined,
+  'elv-place': 'elv', 'elv-fill': 'elv', 'elv-select': 'elv'
 };
 
 export interface OpenPlan { file: string; path?: string; drawing: CadDrawing }
@@ -27,6 +33,7 @@ export function useFloorPlan(projectId: string | undefined) {
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
   const [outlines, setOutlines] = useState<Record<string, Pt[]>>({}); // rooms picked on the plan this session → outline
   const [showLayers, setShowLayers] = useState(false);
+  const [elv, setElv] = useState<ElvChoice>({ system: 'fire-alarm', device: 'smoke-detector', coverage: true, selected: null });
   const [fitKey, setFitKey] = useState(0);
   const [zoomKey, setZoomKey] = useState(0);
   /** Add found rooms (ribbon button), set by the page while it shows a plan. */
@@ -41,7 +48,7 @@ export function useFloorPlan(projectId: string | undefined) {
 
   return {
     plan, setPlan, tool, setTool, panel, setPanel, targets, setTargets, levelKey, setLevelKey, selectedRoom, setSelectedRoom,
-    outlines, setOutlines, addFoundRef, showLayers, setShowLayers, fitKey, fit: () => setFitKey((k) => k + 1), zoomKey, zoom: () => setZoomKey((k) => k + 1)
+    outlines, setOutlines, addFoundRef, showLayers, setShowLayers, elv, setElv, fitKey, fit: () => setFitKey((k) => k + 1), zoomKey, zoom: () => setZoomKey((k) => k + 1)
   };
 }
 

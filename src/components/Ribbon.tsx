@@ -4,7 +4,7 @@ import {
   BatteryCharging, Building2, Cable, ClipboardCheck, MessageSquareWarning, Inbox, CircuitBoard, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText, GitPullRequestArrow, Send, Stamp,
   Gauge, Hand, LayoutGrid, ListTree, MousePointer2, Pencil, Receipt, Scale, Settings2, ShieldCheck, Sun,
   ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig, Cctv } from 'lucide-react';
-import { Map as MapIcon, Layers, MousePointerClick, PenLine, Type, Ruler, Square, ZoomIn, Maximize } from 'lucide-react';
+import { Map as MapIcon, Layers, MousePointerClick, PenLine, Type, Ruler, Square, ZoomIn, Maximize, BellRing, Crosshair, Grid3x3, Copy, CircleDashed, ListChecks } from 'lucide-react';
 import type { FloorPlanTool } from './floorPlanState';
 import type { BoardKind, Feeder } from '../types';
 import type { MainView } from '../views';
@@ -30,6 +30,19 @@ export interface FloorPlanRibbon {
   feeder?: string;
   tray?: string;
   board?: string;
+  /** ELV design on the plan (ELV group). */
+  elv?: {
+    system: string; // label of the chosen system
+    systems: { id: string; label: string }[];
+    onSystem: (id: string) => void;
+    device: string; // label of the chosen device
+    canFill: boolean;
+    coverage: boolean;
+    onCoverage: () => void;
+    copyTo: { key: string; label: string }[];
+    onCopy: (key: string) => void;
+    onSchedules: () => void;
+  };
 }
 export type DiagramTool = 'select' | 'pan';
 
@@ -114,7 +127,7 @@ export const CAPTIONS: Record<RibbonTab, string[]> = {
   concept: ['Load', 'Supply', 'Stage'],
   schematic: ['History', 'Distribution', 'Main systems', 'ELV', 'Stage'],
   detailed: ['Run', 'Canvas', 'Boards', 'Equipment', 'Selection', 'Calculate', 'Stage'],
-  floorplan: ['Plan', 'Rooms', 'Cables and boards', 'Measure', 'View'],
+  floorplan: ['Plan', 'Rooms', 'Cables and boards', 'ELV', 'Measure', 'View'],
   reports: ['Schedules', 'Drawings and reports'],
   issue: ['Tender', 'Track', 'Send', 'IFC'],
   cost: ['Bill', 'Add to the bill', 'Rates', 'Issue and export'],
@@ -329,6 +342,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
     ],
     floorplan: (() => {
       const f = a.floorPlan;
+      const e = f?.elv;
       const off = !f?.hasPlan;
       const tool = (t: FloorPlanTool, label: string, icon: Icon, title: string, sub?: string): Tool => ({ label, icon, title, sub, onClick: () => f?.onTool(t), active: f?.tool === t, disabled: off });
       return [
@@ -348,6 +362,15 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
           tool('link', 'Link route', Cable, 'Click the lines of the chosen feeder\'s route: its length is updated', f?.feeder),
           tool('tray', 'Tray run', Rows3, 'Click the runs of the chosen tray route: tray length and feeders updated', f?.tray),
           tool('place', 'Place board', CircuitBoard, 'Click the chosen board\'s symbol or spot: its room, level and position updated', f?.board)
+        ],
+        [
+          { label: e?.system ?? 'ELV', icon: BellRing, sub: 'system', title: 'The ELV system to design: its devices, coverage and loops / ports / zones', onClick: () => {}, disabled: off || !e, menu: e?.systems.map((x) => ({ label: x.label, title: `Design ${x.label}`, onClick: () => e.onSystem(x.id) })) },
+          { ...tool('elv-place', 'Place', Crosshair, 'Click the plan to place the chosen device; it goes into the room under it', e?.device), disabled: off || !e },
+          { ...tool('elv-fill', 'Fill room', Grid3x3, 'Point at a room to see a grid of the chosen device at its coverage spacing; click to place it'), disabled: off || !e?.canFill },
+          { ...tool('elv-select', 'Select', MousePointer2, 'Select a device; drag to move it, Delete removes it, ← → turn a camera or speaker'), disabled: off || !e },
+          { label: 'Copy to level', icon: Copy, title: "Copy this level's devices of the chosen system to another level, at the same plan positions", onClick: () => {}, disabled: off || !e?.copyTo.length, menu: e?.copyTo.map((l) => ({ label: l.label, title: `Copy to ${l.label}`, onClick: () => e.onCopy(l.key) })) },
+          { label: 'Coverage', icon: CircleDashed, title: 'Show what the devices cover and what is not covered', onClick: () => e?.onCoverage(), active: e?.coverage, disabled: off || !e },
+          { label: 'Schedules', icon: ListChecks, sub: 'ELV page', title: 'The ELV page: supplies, kW and the loads package for LV', onClick: () => e?.onSchedules(), disabled: !e }
         ],
         [tool('dist', 'Length', Ruler, 'Measure a length on the plan'), tool('area', 'Area', Square, 'Measure an area on the plan')],
         [

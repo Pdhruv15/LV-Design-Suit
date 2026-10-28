@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import CadLayerTable from './CadLayerTable';
-import FloorPlanCanvas, { type PlanMark, type PlanOverlay, type PlanPath, type PlanRoomShape } from './FloorPlanCanvas';
+import FloorPlanCanvas, { type PlanDrag, type PlanMark, type PlanOverlay, type PlanPath, type PlanRoomShape } from './FloorPlanCanvas';
+import ElvPlanPanel from './elv/ElvPlanPanel';
+import { coverageNote, deviceLabel, deviceNear, elvLayer, fillAt, moveTo, placeAt, remove, rotate } from './elv/elvPlan';
 import { rememberedPlan, type FloorPlanPanel, type FloorPlanState, type FloorPlanTool } from './floorPlanState';
 import { buildingInfoOf, roomTypesOf } from '../calc/building';
 import { trayPlanOf } from '../calc/cableTray';
@@ -30,9 +32,12 @@ const HINTS: Record<FloorPlanTool, string> = {
   tray: 'Type the tray route on the right, then click its runs: the tray length and the feeders on it are updated.',
   place: 'Choose the board on the right, then click its symbol or the spot: its room, level and position are updated.',
   dist: 'Click two points to measure a length.',
-  area: 'Click the corners of an area, then the first corner again (or Enter). Nothing is added.'
+  area: 'Click the corners of an area, then the first corner again (or Enter). Nothing is added.',
+  'elv-place': 'Pick a device on the right, then click the plan: it goes into the room under it.',
+  'elv-fill': 'Point at a room to see a grid of the chosen device at its coverage spacing; click to place it.',
+  'elv-select': 'Click a device to select it, drag it to move it. Delete removes it; ← → turn a camera or speaker.'
 };
-const PANELS: { id: FloorPlanPanel; label: string }[] = [{ id: 'rooms', label: 'Rooms' }, { id: 'cables', label: 'Cables' }, { id: 'trays', label: 'Trays' }, { id: 'boards', label: 'Boards' }];
+const PANELS: { id: FloorPlanPanel; label: string }[] = [{ id: 'rooms', label: 'Rooms' }, { id: 'cables', label: 'Cables' }, { id: 'trays', label: 'Trays' }, { id: 'boards', label: 'Boards' }, { id: 'elv', label: 'ELV' }];
 
 export const feederLabel = (f: Feeder) => (f.feedsBoardId ? `${f.boardId} → ${f.feedsBoardId}` : `${f.boardId} ${f.phase && f.way ? `${f.phase}${f.way}` : ''} ${f.name}`.replace(/\s+/g, ' ').trim());
 const num = (v: string) => { const n = Number(v.replace(',', '.')); return Number.isFinite(n) && n >= 0 ? n : undefined; };
@@ -51,6 +56,7 @@ export default function FloorPlanPage({ project, fp, onChange, onStatus }: {
   const [points, setPoints] = useState<Pt[]>([]);
   const [cursor, setCursor] = useState<Pt | null>(null);
   const [busy, setBusy] = useState(false);
+  const [held, setHeld] = useState<{ id: string; at: Pt } | null>(null); // ELV device being dragged (metres)
   const [note, setNote] = useState('');
   const { plan: open, tool } = fp;
   const floors = floorList(project.building).filter((f) => !f.ref.index); // one entry per level, not per typical floor
@@ -128,7 +134,7 @@ export default function FloorPlanPage({ project, fp, onChange, onStatus }: {
 
   function addPicked(poly: Pt[], areaUnits: number) {
     if (!needLevel()) return;
-    const room = pickedRoom(project, nameInside(poly), areaUnits * mpu * mpu, cur.file, level!);
+    const room = pickedRoom(project, nameInside(poly), areaUnits * mpu * mpu, cur.file, level!, poly.map(([x, y]): Pt => [Math.round(x * mpu * 1000) / 1000, Math.round(y * mpu * 1000) / 1000]));
     const { project: next, ids } = putRooms(withPlan(project, roles, links), [room], level!, roles);
     if (ids[0]) { fp.setOutlines((o) => ({ ...o, [ids[0]]: poly })); fp.setSelectedRoom(ids[0]); }
     setPoints([]);
@@ -187,6 +193,20 @@ export default function FloorPlanPage({ project, fp, onChange, onStatus }: {
         const t = trayPlanOf(next).routes.find((r) => r.name === target);
         change(next, `${unlink ? 'Unlinked from' : 'Linked to'} tray ${target}${t?.lengthM ? ` · ${t.lengthM} m` : ''} · ⌘Z to undo`);
       }
+    } else if (tool === 'elv-place' || tool === 'elv-fill' || tool === 'elv-select') {
+      if (!needLevel()) return;
+      const m: Pt = [at[0] * mpu, at[1] * mpu];
+      if (tool === 'elv-select') {
+        const d = deviceNear(project, level!, fp.elv.system, m, 10 * pixel * mpu);
+        fp.setElv((e) => ({ ...e, selected: d?.id ?? null }));
+      } else if (tool === 'elv-place') {
+        const r = placeAt(project, level!, fp.elv.device, m);
+        fp.setElv((e) => ({ ...e, selected: r.id }));
+        change(r.next, r.message);
+      } else {
+        const r = fillAt(project, level!, fp.elv.device, m);
+        if (r.next) change(r.next, r.message); else setNote(r.message);
+      }
     } else if (tool === 'place') {
       const board = fp.targets.board;
       if (!board) { setNote('Choose the board on the right first.'); return; }
@@ -200,6 +220,19 @@ export default function FloorPlanPage({ project, fp, onChange, onStatus }: {
   }
 
   keyRef.current = (e: KeyboardEvent) => {
+    const sel = fp.panel === 'elv' && fp.elv.selected && (project.elvDevices ?? []).some((d) => d.id === fp.elv.selected) ? fp.elv.selected : null;
+    const typing = e.target instanceof HTMLElement && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName);
+    if (sel && !typing && (e.key === 'Delete' || e.key === 'Backspace')) {
+      e.preventDefault(); e.stopPropagation();
+      const r = remove(project, sel); fp.setElv((x) => ({ ...x, selected: null })); change(r.next, r.message); return;
+    }
+    if (sel && !typing && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      const d = project.elvDevices!.find((x) => x.id === sel)!;
+      if (d.type === 'camera' || d.type === 'ceiling-speaker' || d.type === 'horn-speaker') {
+        e.preventDefault(); e.stopPropagation();
+        const r = rotate(project, sel, (d.rotationDeg ?? 0) + (e.key === 'ArrowLeft' ? 15 : -15)); change(r.next, r.message); return;
+      }
+    }
     if (e.key === 'Escape' && points.length) { e.stopPropagation(); setPoints([]); }
     if (e.key === 'Enter' && points.length >= 3) {
       if (tool === 'trace') addPicked(points, Math.abs(polygonArea(points)));
@@ -226,14 +259,38 @@ export default function FloorPlanPage({ project, fp, onChange, onStatus }: {
   const marks: PlanMark[] = panel === 'boards'
     ? [...s.plan.places.map((p) => ({ at: [p.x, p.y] as Pt, label: p.boardId, on: p.boardId === fp.targets.board })), ...s.plan.symbols.filter((x) => !s.plan.places.some((p) => p.boardId === x.name)).map((x) => ({ at: [x.x, x.y] as Pt, label: x.name }))]
     : [];
+  // ELV layer: devices, the chosen system's coverage, the Fill room preview; a dragged device drawn where it is held.
+  const elvShown = panel === 'elv' && !!level;
+  const elvView = elvShown && held ? (() => { const d = project.elvDevices?.find((x) => x.id === held.id); return d ? { ...project, elvDevices: project.elvDevices!.map((x) => (x.id === held.id ? { ...x, x: held.at[0], y: held.at[1] } : x)) } : project; })() : project;
+  const elv = elvShown ? elvLayer(elvView, level!, mpu, {
+    system: fp.elv.system, coverage: fp.elv.coverage, selected: fp.elv.selected,
+    ...(tool === 'elv-fill' && cursor ? { preview: { type: fp.elv.device, at: [cursor[0] * mpu, cursor[1] * mpu] as Pt } } : {})
+  }) : undefined;
+  const elvDrag: PlanDrag | undefined = elvShown && tool === 'elv-select' ? {
+    start: (at, pixel) => {
+      const d = deviceNear(project, level!, fp.elv.system, [at[0] * mpu, at[1] * mpu], 10 * pixel * mpu);
+      if (!d) return false;
+      fp.setElv((e) => ({ ...e, selected: d.id })); setHeld({ id: d.id, at: [d.x, d.y] }); return true;
+    },
+    move: (at) => setHeld((h) => (h ? { ...h, at: [at[0] * mpu, at[1] * mpu] } : h)),
+    end: (at) => {
+      const h = held; setHeld(null);
+      if (!h) return;
+      const d = project.elvDevices?.find((x) => x.id === h.id);
+      const m: Pt = [at[0] * mpu, at[1] * mpu];
+      if (d && Math.hypot(d.x - m[0], d.y - m[1]) > 0.05) { const r = moveTo(project, h.id, m); change(r.next, r.message); }
+    }
+  } : undefined;
   const linkedM = target ? routePaths.filter((p) => p.to === target && p.kind === (panel === 'cables' ? 'route' : 'tray')).reduce((t, p) => t + p.length, 0) * mpu : 0;
   const readout = lengthM !== undefined ? `Length ${lengthM.toFixed(2)} m` : areaM2 !== undefined ? `Area ${areaM2.toFixed(2)} m²`
-    : panel === 'rooms' ? `${plural(found.length, 'room')} on the plan · ${notAdded.length} not added` : linkedM ? `${target}: ${linkedM.toFixed(2)} m linked on the plan` : '';
+    : panel === 'rooms' ? `${plural(found.length, 'room')} on the plan · ${notAdded.length} not added`
+      : panel === 'elv' ? `${deviceLabel(fp.elv.device)}${coverageNote(fp.elv.device)}` : linkedM ? `${target}: ${linkedM.toFixed(2)} m linked on the plan` : '';
 
   return (
     <section className="fpp">
       <div className="fpp-stage">
-        <FloorPlanCanvas drawing={open.drawing} rooms={shapes} overlay={overlay} paths={paths} marks={marks} fitKey={fp.fitKey} zoomKey={fp.zoomKey} onClick={click} onMove={setCursor} />
+        <FloorPlanCanvas drawing={open.drawing} rooms={shapes} overlay={overlay} paths={paths} marks={marks} symbols={elv?.symbols} covers={elv?.covers} gaps={elv?.gaps} drag={elvDrag}
+          fitKey={fp.fitKey} zoomKey={fp.zoomKey} onClick={click} onMove={setCursor} />
         {readout && <div className="fp-readout">{readout}</div>}
         <div className="fp-hint">{note || HINTS[tool]}</div>
       </div>
@@ -261,6 +318,9 @@ export default function FloorPlanPage({ project, fp, onChange, onStatus }: {
           <CablesPanel project={project} s={s} target={fp.targets.feeder} onTarget={(v) => fp.setTargets((t) => ({ ...t, feeder: v }))} onChange={change} />
         ) : panel === 'trays' ? (
           <TraysPanel project={project} s={s} target={fp.targets.tray} onTarget={(v) => fp.setTargets((t) => ({ ...t, tray: v }))} onChange={change} />
+        ) : panel === 'elv' ? (
+          <ElvPlanPanel project={project} level={level} levelName={floor ? floorLabel(project.building, floor) : undefined} system={fp.elv.system} device={fp.elv.device}
+            selected={fp.elv.selected} coverage={elv?.coverage ?? []} onDevice={(t) => fp.setElv((e) => ({ ...e, device: t }))} onSelect={(id) => fp.setElv((e) => ({ ...e, selected: id }))} onChange={change} />
         ) : (
           <BoardsPanel project={project} s={s} level={level} target={fp.targets.board} onTarget={(v) => fp.setTargets((t) => ({ ...t, board: v }))} onChange={change} onStatus={onStatus} />
         )}
