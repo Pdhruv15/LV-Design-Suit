@@ -2,6 +2,10 @@ import { z } from 'zod';
 import { ELV_SYSTEMS } from '../elv/defaults';
 import { elvSettings, estimateElv, type ElvSettings } from '../elv/estimate';
 import { placeElvLoads } from '../calc/elvPlace';
+import { ELV_DEVICES } from '../elv/devices';
+import { devicesOn, newElvDevice, placeDevices, removeDevices } from '../elv/placed';
+import { buildingInfoOf } from '../calc/building';
+import { findLevel } from './cadTools';
 import { AUTHOR, edit } from './editTools';
 import type { Project } from '../types';
 import { readFile } from './exchangeTools';
@@ -32,7 +36,54 @@ export function elvSettingsFor(p: Project, args: Record<string, unknown>, ctx: T
   return { ...settings, ...(Array.isArray(args.systems) ? { systems: args.systems as ElvSettings['systems'] } : {}) };
 }
 
+const atLevel = {
+  building: z.string().describe('Building id or name'),
+  level: z.string().describe('Level id or name')
+};
+
 export const ELV_TOOLS: Tool[] = [
+  {
+    name: 'elv_devices',
+    title: 'ELV devices placed on a level',
+    description: 'The ELV devices placed on a level\'s floor plan (metres on the plan, the room each is in), and the count per type. Once any device of a system is placed on a level, the ELV estimate counts placed devices there instead of the room-area rules.',
+    input: { project, ...atLevel },
+    usesProject: true,
+    run: (a, ctx) => {
+      const { project: p } = openProject({ ref: String(a.project ?? ''), folder: ctx.folder, anywhere: ctx.anywhere });
+      return listDevices(p, String(a.building), String(a.level));
+    }
+  },
+  {
+    name: 'elv_place_devices',
+    title: 'Place or remove ELV devices on a level',
+    description: 'Adds ELV devices at points on a level\'s floor plan (metres, the coordinates of the room outlines read from CAD) and removes devices by ID. Each device is put in the room whose outline is around it. Types: ' + Object.values(ELV_DEVICES).map((d) => `${d.type} (${d.label})`).join(', ') + '. Preview first.',
+    input: {
+      project, ...atLevel,
+      add: z.array(newElvDevice).max(5000).optional().describe('Devices to add'),
+      remove: z.array(z.string()).max(5000).optional().describe('Device IDs to remove (E1, E2, …)'),
+      mode: z.enum(['preview', 'apply']).default('preview').describe('preview = show what would change, nothing is written; apply = change the project file (a backup is kept; undo_change puts it back)')
+    },
+    usesProject: true, writes: true,
+    run: (a, ctx) => edit(a, ctx, 'elv_place_devices', a.mode === 'apply', (p) => {
+      const at = findLevel(p, String(a.building), String(a.level));
+      const remove = (a.remove as string[] | undefined) ?? [];
+      const add = (a.add as z.infer<typeof newElvDevice>[] | undefined) ?? [];
+      if (!remove.length && !add.length) throw new Error('Nothing to do: give add and/or remove.');
+      const onLevel = new Set(devicesOn(p, at.building, at.level).map((d) => d.id));
+      const elsewhere = remove.filter((id) => !onLevel.has(id));
+      if (elsewhere.length) throw new Error(`Not on ${at.name}: ${elsewhere.join(', ')}.`);
+      const { project: next, ids } = placeDevices(remove.length ? removeDevices(p, remove) : p, at.building, at.level, add);
+      const added = (next.elvDevices ?? []).filter((d) => ids.includes(d.id));
+      const outside = added.filter((d) => !d.roomId).length;
+      const rooms = new Map(buildingInfoOf(p).rooms.map((r) => [r.id, r.name]));
+      return {
+        next,
+        summary: `${at.name}: ${ids.length} ELV device${ids.length === 1 ? '' : 's'} added, ${remove.length} removed`,
+        details: { added: added.map((d) => ({ id: d.id, type: d.type, x: d.x, y: d.y, room: d.roomId ? rooms.get(d.roomId) ?? d.roomId : undefined })), ...(remove.length ? { removed: remove } : {}) },
+        ...(outside ? { warnings: [`${outside} device${outside === 1 ? ' is' : 's are'} outside every room outline: take the rooms from the CAD plan (rooms_from_cad) or check the coordinates.`] } : {})
+      };
+    })
+  },
   {
     name: 'elv_estimate',
     title: 'ELV estimate',
@@ -94,3 +145,15 @@ export const ELV_TOOLS: Tool[] = [
     }
   }
 ];
+
+function listDevices(p: Project, buildingRef: string, levelRef: string) {
+  const at = findLevel(p, buildingRef, levelRef);
+  const rooms = new Map(buildingInfoOf(p).rooms.map((r) => [r.id, r.name]));
+  const list = devicesOn(p, at.building, at.level);
+  const perType: Record<string, number> = {};
+  for (const d of list) perType[d.type] = (perType[d.type] ?? 0) + 1;
+  return {
+    level: at.name, devices: list.length, perType,
+    list: list.map((d) => ({ id: d.id, type: d.type, x: d.x, y: d.y, ...(d.rotationDeg !== undefined ? { rotationDeg: d.rotationDeg } : {}), room: d.roomId ? rooms.get(d.roomId) ?? d.roomId : undefined }))
+  };
+}

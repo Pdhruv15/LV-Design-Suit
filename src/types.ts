@@ -426,6 +426,9 @@ export interface Project {
   exchange?: import('./exchange/inbox').ExchangeState;
   /** ELV estimate: changes to the default rules and device data (src/elv). */
   elv?: import('./elv/estimate').ElvSettings;
+  /** ELV devices placed on the floor plans (src/elv/placed.ts), and the highest device number given out. */
+  elvDevices?: import('./elv/placed').ElvDevice[];
+  elvDeviceSeq?: number;
   /** Design review comments (Reports → Review). */
   reviewComments?: import('./model/reviewComments').ReviewComment[];
   /** Saved setup of the design review report (sections, names, recorded reviewer decision). */

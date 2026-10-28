@@ -41,6 +41,20 @@ describe('ELV tools', () => {
     expect((await run('elv_estimate', { project: 'Villa', detail: 'summary', systems: ['ict'] }))).not.toHaveProperty('supplies');
   });
 
+  it('places devices on a level from the command line, and the estimate counts them', async () => {
+    const preview = await run('elv_place_devices', { project: 'Villa', building: 'Villa', level: 'Ground', add: [{ type: 'smoke-detector', x: 1, y: 1 }] });
+    expect(preview).toMatchObject({ mode: 'preview', written: false, summary: 'Ground: 1 ELV device added, 0 removed' });
+    expect(preview.warnings[0]).toMatch(/outside every room outline/); // the villa's rooms have no outlines
+    await run('elv_place_devices', { project: 'Villa', building: 'V', level: 'GF', add: [{ type: 'smoke-detector', x: 1, y: 1 }, { type: 'camera', x: 2, y: 2, rotationDeg: 90 }], mode: 'apply' });
+    expect(await run('elv_devices', { project: 'Villa', building: 'V', level: 'GF' })).toMatchObject({ devices: 2, perType: { 'smoke-detector': 1, camera: 1 } });
+    const r = await run('elv_estimate', { project: 'Villa', detail: 'supplies' });
+    expect(r.supplies.find((s: { id: string }) => s.id === 'FA-V').equipment).toMatch(/, 1 devices\)$/);
+    expect(r.supplies.find((s: { id: string }) => s.id === 'CCTV-V-GF').devices).toEqual({ camera: 1 });
+    await run('elv_place_devices', { project: 'Villa', building: 'V', level: 'GF', remove: ['E1'], mode: 'apply' });
+    expect((await run('elv_devices', { project: 'Villa', building: 'V', level: 'GF' })).list.map((d: { id: string }) => d.id)).toEqual(['E2']);
+    await expect(run('elv_place_devices', { project: 'Villa', building: 'V', level: 'GF', remove: ['E1'] })).rejects.toThrow('Not on Ground: E1.');
+  });
+
   it('takes a rules file, and says what is wrong with a bad one', async () => {
     fs.writeFileSync(path.join(folder, 'rules.json'), JSON.stringify({ rules: { office: { door: { m2: 0, min: 3 } } } }));
     const r = await run('elv_estimate', { project: 'Villa', rules: 'rules.json', detail: 'rooms' });

@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { buildingInfoOf } from '../calc/building';
 import type { BuildingLevel, BuildingRoom, Project, ProjectBuilding } from '../types';
 import { DEFAULT_ASSUMPTIONS, DEFAULT_CATALOGUE, DEFAULT_RULES, ELV_SYSTEMS, type Catalogue, type Density, type ElvSystem, type RoomRule } from './defaults';
+import { ELV_DEVICES, type ElvDeviceType } from './devices';
+import { placedOnLevel } from './placed';
 
 /** ELV estimate from Building information: room type × area → field devices per room → the equipment that powers
  * them (fire alarm panels, PoE switches, door controllers, amplifiers), sized by capacity → upstream AC load per
@@ -37,12 +39,25 @@ export const elvSettings = z.object({
 }).strict();
 export type ElvSettings = z.infer<typeof elvSettings>;
 
-export type DeviceCounts = Partial<Record<'smokeDetector' | 'heatDetector' | 'sounder' | 'camera' | 'door' | 'dataPort' | 'accessPoint' | 'ceilingSpeaker' | 'hornSpeaker', number>>;
+export type DeviceCounts = Partial<Record<'smokeDetector' | 'heatDetector' | 'multiDetector' | 'callPoint' | 'sounder' | 'sounderBeacon' | 'interfaceModule' | 'camera' | 'door' | 'cardReader' | 'maglock' | 'exitButton' | 'controlledDoor' | 'dataPort' | 'accessPoint' | 'ceilingSpeaker' | 'hornSpeaker', number>>;
+
+/** The count each placed device type adds to. */
+const COUNT_OF: Record<ElvDeviceType, keyof DeviceCounts> = {
+  'smoke-detector': 'smokeDetector', 'heat-detector': 'heatDetector', 'multi-detector': 'multiDetector', 'call-point': 'callPoint', sounder: 'sounder',
+  'sounder-beacon': 'sounderBeacon', 'interface-module': 'interfaceModule', camera: 'camera', 'card-reader': 'cardReader', maglock: 'maglock',
+  'exit-button': 'exitButton', 'data-outlet': 'dataPort', 'access-point': 'accessPoint', 'ceiling-speaker': 'ceilingSpeaker', 'horn-speaker': 'hornSpeaker'
+};
+/** Fire alarm loop devices behind each count (the area rules give smoke and heat detectors and sounders). */
+const LOOP_DEVICES: [keyof DeviceCounts, ElvDeviceType][] = [
+  ['smokeDetector', 'smoke-detector'], ['heatDetector', 'heat-detector'], ['multiDetector', 'multi-detector'], ['callPoint', 'call-point'],
+  ['sounder', 'sounder'], ['sounderBeacon', 'sounder-beacon'], ['interfaceModule', 'interface-module']
+];
 
 export interface ElvRoomRow {
   roomId: string; building: string; level: string; name: string; type: string; areaM2: number;
   count: number; // identical rooms × identical floors
   devices: DeviceCounts; // in one room
+  placed?: ElvSystem[]; // systems counted from devices placed on the plan instead of the area rules
 }
 
 export type EquipmentType = 'panel' | 'psu' | 'poe-switch' | 'ups' | 'rack' | 'amplifier' | 'other';
@@ -107,9 +122,28 @@ function add(into: DeviceCounts, d: DeviceCounts, times: number) {
 }
 
 const SYSTEM_DEVICES: Record<ElvSystem, (keyof DeviceCounts)[]> = {
-  'fire-alarm': ['smokeDetector', 'heatDetector', 'sounder'], cctv: ['camera'], 'access-control': ['door'], ict: ['dataPort', 'accessPoint'], 'public-address': ['ceilingSpeaker', 'hornSpeaker']
+  'fire-alarm': LOOP_DEVICES.map(([k]) => k), cctv: ['camera'], 'access-control': ['door', 'cardReader', 'maglock', 'exitButton', 'controlledDoor'],
+  ict: ['dataPort', 'accessPoint'], 'public-address': ['ceilingSpeaker', 'hornSpeaker']
 };
 const only = (d: DeviceCounts, s: ElvSystem): DeviceCounts => Object.fromEntries(SYSTEM_DEVICES[s].filter((k) => d[k]).map((k) => [k, d[k]]));
+
+function countsOf(placed: Partial<Record<ElvDeviceType, number>> | undefined): DeviceCounts {
+  const out: DeviceCounts = {};
+  for (const [t, n] of Object.entries(placed ?? {}) as [ElvDeviceType, number][]) out[COUNT_OF[t]] = (out[COUNT_OF[t]] ?? 0) + n;
+  // Doors in the room: a door per lock (in and out readers on one door are two readers and one lock), or per reader
+  // where no locks are drawn.
+  const doors = (out.maglock ?? 0) || (out.cardReader ?? 0);
+  if (doors) out.controlledDoor = doors;
+  return out;
+}
+
+/** A room's area-rule devices, with the designed systems' counts replaced by the devices placed in it. */
+function withPlaced(area: DeviceCounts, placed: DeviceCounts, systems: Set<ElvSystem>): DeviceCounts {
+  if (!systems.size) return area;
+  const out: DeviceCounts = {};
+  for (const s of ELV_SYSTEMS) Object.assign(out, only(systems.has(s) ? placed : area, s));
+  return out;
+}
 
 export function estimateElv(project: Project, settings: ElvSettings | undefined = project.elv): ElvEstimate {
   const { systems, rules, catalogue: c } = elvBasis(settings);
@@ -127,15 +161,21 @@ export function estimateElv(project: Project, settings: ElvSettings | undefined 
       const floors = Math.max(1, Math.round(l.count ?? 1));
       const level: DeviceCounts = {};
       const ids: string[] = [];
+      const placed = placedOnLevel(project, b.id, l.id);
+      const designed = [...placed.systems].filter((s) => on.has(s));
       for (const r of roomsIn(l)) {
         if (!rules[r.type]) unknownTypes.add(r.type);
-        const devices = roomDevices(r, rules[r.type] ?? rules.default);
+        const devices = withPlaced(roomDevices(r, rules[r.type] ?? rules.default), countsOf(placed.byRoom.get(r.id)), placed.systems);
         const each = Math.max(1, Math.round(r.count ?? 1));
-        rows.push({ roomId: r.id, building: b.name, level: l.name, name: r.name, type: r.type, areaM2: r.areaM2, count: each * floors, devices });
+        rows.push({ roomId: r.id, building: b.name, level: l.name, name: r.name, type: r.type, areaM2: r.areaM2, count: each * floors, devices, ...(designed.length ? { placed: designed } : {}) });
         add(level, devices, each);
         ids.push(r.id);
       }
-      if (!ids.length) continue;
+      if (placed.looseCount) {
+        add(level, countsOf(placed.loose), 1);
+        warnings.push(`${b.name}, ${l.name}: ${plural(placed.looseCount, 'placed ELV device')} outside every room outline, counted on the level.`);
+      }
+      if (!ids.length && !placed.looseCount) continue;
       add(building, level, floors);
       buildingRooms.push(...ids);
       for (let f = 1; f <= floors; f++) supplies.push(...floorSupplies(b, l, floors > 1 ? f : undefined, level, ids, on, c));
@@ -167,14 +207,20 @@ function floorSupplies(b: ProjectBuilding, l: BuildingLevel, floor: number | und
       demandBasis: `${cams} × ${k.cameraW} W PoE + ${units} × ${k.switchSelfW} W switch, × ${k.spare} spare, ÷ ${k.upsEfficiency} UPS`, backup: 'UPS'
     });
   }
-  const doors = d.door ?? 0;
+  // Area rules give doors (a reader and a lock each); placed devices give readers, locks and the doors they make.
+  const ruleDoors = d.door ?? 0, readers = d.cardReader ?? 0, locks = d.maglock ?? 0;
+  const doors = ruleDoors + (d.controlledDoor ?? 0);
   if (on.has('access-control') && doors) {
     const k = c.access;
     const units = Math.ceil(doors / k.doorsPerController);
+    const devicesW = readers + locks ? (ruleDoors + readers) * k.readerW + (ruleDoors + locks) * k.lockW : doors * (k.readerW + k.lockW);
+    const basis = readers + locks
+      ? `${ruleDoors + readers} × ${k.readerW} W reader + ${ruleDoors + locks} × ${k.lockW} W lock`
+      : `${doors} × (${k.readerW} W reader + ${k.lockW} W lock)`;
     out.push({
       ...base, id: id('ACS'), system: 'access-control', equipment: `Access control door controllers and PSUs, ${at} (${plural(units, 'controller')}, ${plural(doors, 'door')})`, equipmentType: 'psu',
-      devices: only(d, 'access-control'), units, kW: kw(((doors * (k.readerW + k.lockW) + units * k.controllerW) / k.psuEfficiency) * k.chargeAllowance * k.spare), pf: k.pf, supply: 'essential',
-      demandBasis: `${doors} × (${k.readerW} W reader + ${k.lockW} W lock) + ${units} × ${k.controllerW} W, ÷ ${k.psuEfficiency} PSU, × ${k.chargeAllowance} charging, × ${k.spare} spare`, backup: 'PSU batteries (fail-safe locks release on mains failure)'
+      devices: only(d, 'access-control'), units, kW: kw(((devicesW + units * k.controllerW) / k.psuEfficiency) * k.chargeAllowance * k.spare), pf: k.pf, supply: 'essential',
+      demandBasis: `${basis} + ${units} × ${k.controllerW} W, ÷ ${k.psuEfficiency} PSU, × ${k.chargeAllowance} charging, × ${k.spare} spare`, backup: 'PSU batteries (fail-safe locks release on mains failure)'
     });
   }
   const ports = d.dataPort ?? 0, aps = d.accessPoint ?? 0;
@@ -193,17 +239,18 @@ function floorSupplies(b: ProjectBuilding, l: BuildingLevel, floor: number | und
 function buildingSupplies(b: ProjectBuilding, d: DeviceCounts, rooms: string[], on: Set<ElvSystem>, c: Catalogue, warnings: string[]): ElvSupply[] {
   const out: ElvSupply[] = [];
   const base = { buildingId: b.id, rooms };
-  const det = (d.smokeDetector ?? 0) + (d.heatDetector ?? 0), snd = d.sounder ?? 0;
-  if (on.has('fire-alarm') && det + snd) {
+  const loop = LOOP_DEVICES.map(([key, type]) => ({ n: d[key] ?? 0, load: ELV_DEVICES[type].load(c) })).filter((x) => x.n);
+  const onLoops = loop.reduce((t, x) => t + x.n, 0);
+  if (on.has('fire-alarm') && onLoops) {
     const k = c.fireAlarm;
-    const loops = Math.ceil((det + snd) / k.devicesPerLoop), units = Math.ceil(loops / k.loopsPerPanel);
-    const quiescentA = (units * k.panelQuiescentMa + det * k.detectorQuiescentMa + snd * k.sounderQuiescentMa) / 1000;
-    const alarmA = (units * k.panelAlarmMa + det * k.detectorAlarmMa + snd * k.sounderAlarmMa) / 1000;
+    const loops = Math.ceil(onLoops / k.devicesPerLoop), units = Math.ceil(loops / k.loopsPerPanel);
+    const quiescentA = (units * k.panelQuiescentMa + loop.reduce((t, x) => t + x.n * (x.load.quiescentMa ?? 0), 0)) / 1000;
+    const alarmA = (units * k.panelAlarmMa + loop.reduce((t, x) => t + x.n * (x.load.alarmMa ?? 0), 0)) / 1000;
     const ah = k.batteryFactor * (quiescentA * k.standbyH + alarmA * k.alarmH);
     const chargeA = (0.8 * ah) / k.rechargeH;
     if (units > 1) warnings.push(`${b.name}: ${loops} fire alarm loops need ${units} networked panels; the load is shown as one supply.`);
     out.push({
-      ...base, id: `FA-${b.id}`, system: 'fire-alarm', equipment: `Fire alarm control panel${units > 1 ? 's' : ''}, ${b.name} (${plural(units, 'panel')}, ${plural(loops, 'loop')}, ${det + snd} devices)`, equipmentType: 'panel',
+      ...base, id: `FA-${b.id}`, system: 'fire-alarm', equipment: `Fire alarm control panel${units > 1 ? 's' : ''}, ${b.name} (${plural(units, 'panel')}, ${plural(loops, 'loop')}, ${onLoops} devices)`, equipmentType: 'panel',
       devices: only(d, 'fire-alarm'), units, kW: kw((alarmA * 24 + chargeA * k.chargerV) / k.efficiency), pf: k.pf, supply: 'essential',
       demandBasis: `alarm ${alarmA.toFixed(2)} A at 24 V + charging ${chargeA.toFixed(2)} A at ${k.chargerV} V, ÷ ${k.efficiency}`,
       backup: `${Math.ceil(ah)} Ah batteries: ${k.standbyH} h standby + ${k.alarmH * 60} min alarm`
