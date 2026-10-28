@@ -51,6 +51,7 @@ export const DEFAULT_RULES: Record<string, RoomRule> = {
 export interface Catalogue {
   fireAlarm: {
     detectorQuiescentMa: number; detectorAlarmMa: number; sounderQuiescentMa: number; sounderAlarmMa: number;
+    callPointQuiescentMa: number; callPointAlarmMa: number; moduleQuiescentMa: number; moduleAlarmMa: number; beaconAlarmMa: number;
     devicesPerLoop: number; loopsPerPanel: number; panelQuiescentMa: number; panelAlarmMa: number;
     standbyH: number; alarmH: number; batteryFactor: number; rechargeH: number; chargerV: number; efficiency: number; pf: number;
   };
@@ -63,6 +64,7 @@ export interface Catalogue {
 export const DEFAULT_CATALOGUE: Catalogue = {
   fireAlarm: {
     detectorQuiescentMa: 0.3, detectorAlarmMa: 5, sounderQuiescentMa: 0.3, sounderAlarmMa: 15,
+    callPointQuiescentMa: 0.3, callPointAlarmMa: 3, moduleQuiescentMa: 0.5, moduleAlarmMa: 5, beaconAlarmMa: 10,
     devicesPerLoop: 125, loopsPerPanel: 4, panelQuiescentMa: 200, panelAlarmMa: 500,
     standbyH: 24, alarmH: 0.5, batteryFactor: 1.25, rechargeH: 24, chargerV: 27.6, efficiency: 0.8, pf: 0.9
   },
