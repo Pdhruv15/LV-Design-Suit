@@ -61,11 +61,33 @@ export function outlineArea(points: Pt[], bulges?: number[]): number {
   }
   return Math.abs(area);
 }
+/** A closed outline as points only: each arc segment (bulge) replaced by chords of at most 10°. */
+export function flattenOutline(points: Pt[], bulges?: number[]): Pt[] {
+  const out: Pt[] = [];
+  for (let i = 0; i < points.length; i += 1) {
+    const a = points[i], b = bulges?.[i];
+    out.push(a);
+    if (!b) continue;
+    const c = points[(i + 1) % points.length];
+    const chord = Math.hypot(c[0] - a[0], c[1] - a[1]);
+    if (!chord) continue;
+    const theta = 4 * Math.atan(b); // signed sweep, + = anticlockwise
+    const r = chord / (2 * Math.sin(Math.abs(theta) / 2));
+    const [mx, my] = [(a[0] + c[0]) / 2, (a[1] + c[1]) / 2];
+    const h = Math.sign(theta) * Math.sqrt(Math.max(r * r - (chord / 2) ** 2, 0)) * (Math.abs(theta) > Math.PI ? -1 : 1);
+    const [cx, cy] = [mx - (h * (c[1] - a[1])) / chord, my + (h * (c[0] - a[0])) / chord]; // arc centre
+    const start = Math.atan2(a[1] - cy, a[0] - cx);
+    const n = Math.ceil(Math.abs(theta) / (Math.PI / 18));
+    for (let k = 1; k < n; k += 1) out.push([cx + r * Math.cos(start + (theta * k) / n), cy + r * Math.sin(start + (theta * k) / n)]);
+  }
+  return out;
+}
+
 const centroid = (pts: Pt[]): Pt => [pts.reduce((s, p) => s + p[0], 0) / pts.length, pts.reduce((s, p) => s + p[1], 0) / pts.length];
 
 /** A room read from the plan: name (and number) from the room name text or room tag inside it, area in m²; the
  * outline's handle and the drawing's file name, when known, identify it in the next revision of the drawing. */
-export interface CadRoom { name: string; number?: string; areaM2: number; layer: string; named: boolean; handle?: string; file?: string }
+export interface CadRoom { name: string; number?: string; areaM2: number; layer: string; named: boolean; handle?: string; file?: string; outline?: Pt[] /* metres */ }
 
 /** Rooms on a plan: closed outlines (polylines or hatches) on room layers. An outline that has other room outlines
  * inside it is a zone (a flat, a wing), not a room; outlines drawn twice (a polyline and its hatch) count once. */
@@ -93,7 +115,8 @@ export function roomsFromPlan(plan: CadPlan, map: CadLayerMap[], settings?: Proj
     const pick = (nameLayers.size ? onNameLayers : texts).sort((a, b) => Math.hypot(a.x - o.c[0], a.y - o.c[1]) - Math.hypot(b.x - o.c[0], b.y - o.c[1]))[0];
     const name = tag?.name ?? (pick ? tidy(pick.text) : undefined);
     if (!name) unnamed += 1;
-    rooms.push({ name: name ?? `Room ${unnamed}`, ...(tag?.number ? { number: tag.number } : {}), areaM2: Math.round(o.area * unit.factor * unit.factor * 100) / 100, layer: o.layer, named: !!name, ...(o.handle ? { handle: o.handle } : {}) });
+    rooms.push({ name: name ?? `Room ${unnamed}`, ...(tag?.number ? { number: tag.number } : {}), areaM2: Math.round(o.area * unit.factor * unit.factor * 100) / 100, layer: o.layer, named: !!name,
+      outline: flattenOutline(o.points, o.bulges).map(([x, y]): Pt => [Math.round(x * unit.factor * 1000) / 1000, Math.round(y * unit.factor * 1000) / 1000]), ...(o.handle ? { handle: o.handle } : {}) });
   }
   // A handle seen twice cannot identify a room; neither can a handle without the drawing it belongs to.
   const seen = new Map<string, number>();
@@ -136,6 +159,7 @@ export interface RoomProposal {
   currentAreaM2?: number;
   status: 'new' | 'changed' | 'same';
   source?: RoomSource; // the outline it was read from, recorded on the room when applied
+  outline?: Pt[]; // metres, recorded on the room when applied
 }
 
 const sameName = (x: BuildingRoom, r: CadRoom) => x.name.toLowerCase() === r.name.toLowerCase();
@@ -166,7 +190,7 @@ export function proposeRooms(project: Project, rooms: CadRoom[], buildingId: str
     const status = !existing ? 'new' : Math.abs(existing.areaM2 - r.areaM2) < 0.05 && sameName(existing, r) ? 'same' : 'changed';
     return {
       key: `${i}:${r.name}`, name: r.name, ...(r.number ? { number: r.number } : {}), areaM2: r.areaM2, type, existingId: existing?.id, currentAreaM2: existing?.areaM2, status,
-      ...(r.handle && r.file ? { source: { app: 'cad' as const, file: r.file, sourceId: r.handle } } : {})
+      ...(r.handle && r.file ? { source: { app: 'cad' as const, file: r.file, sourceId: r.handle } } : {}), ...(r.outline ? { outline: r.outline } : {})
     };
   });
   return { proposals, notOnPlan: onLevel.filter((r) => !used.has(r.id)) };
@@ -179,10 +203,11 @@ export function applyRooms(project: Project, accepted: RoomProposal[], buildingI
   const info = buildingInfoOf(project);
   const types = roomTypesOf(info);
   let rooms = [...info.rooms];
-  for (const u of unchanged) if (u.existingId && u.source) rooms = rooms.map((r) => (r.id === u.existingId ? { ...r, source: u.source } : r));
+  const drawn = (p: RoomProposal) => ({ ...(p.source ? { source: p.source } : {}), ...(p.outline ? { outline: p.outline } : {}) });
+  for (const u of unchanged) if (u.existingId && (u.source || u.outline)) rooms = rooms.map((r) => (r.id === u.existingId ? { ...r, ...drawn(u) } : r));
   for (const a of accepted) {
     const type = a.type ?? types[0]?.id ?? 'office';
-    const source = a.source ? { source: a.source } : {};
+    const source = drawn(a);
     if (a.existingId) {
       rooms = rooms.map((r) => (r.id === a.existingId ? { ...r, name: r.name.toLowerCase() === a.name.toLowerCase() ? r.name : a.name, areaM2: a.areaM2, type, ...source } : r));
     } else {

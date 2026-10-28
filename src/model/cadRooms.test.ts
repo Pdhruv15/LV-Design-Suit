@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyRooms, guessRole, guessRoomType, layerMapFor, outlineArea, proposeRooms, roomsFromPlan } from './cadRooms';
+import { applyRooms, flattenOutline, guessRole, guessRoomType, layerMapFor, outlineArea, proposeRooms, roomsFromPlan } from './cadRooms';
 import { DEFAULT_ROOM_TYPES } from '../calc/building';
 import type { CadPlan } from './cadPlaces';
 import type { CadLayerMap, Project } from '../types';
@@ -66,14 +66,28 @@ describe('room areas from the CAD floor plan', () => {
     expect(outlineArea(pts, [0, 0, -1, 0])).toBeCloseTo(2 - Math.PI / 2, 6);
   });
 
+  it('keeps each room outline in metres, arcs as chords of 10° or less', () => {
+    const pts: [number, number][] = [[0, 0], [2, 0], [2, 1], [0, 1]];
+    const half = flattenOutline(pts, [0, 0, 1, 0]); // top edge bulges out into a half circle
+    expect(half).toHaveLength(4 + 17);
+    expect(half[2]).toEqual([2, 1]);
+    expect(half[11][0]).toBeCloseTo(1, 9); // the top of the half circle
+    expect(half[11][1]).toBeCloseTo(2, 9);
+    for (const [b, cases] of [[1, [0, 0, 1, 0]], [-1, [0, 0, -1, 0]], [0.25, [0.25, 0, 0, 0]], [-0.4, [0, -0.4, 0, 0]], [2.5, [0, 0, 2.5, 0]]] as [number, number[]][]) {
+      const exact = outlineArea(pts, cases);
+      expect(Math.abs(outlineArea(flattenOutline(pts, cases)) - exact) / Math.max(exact, outlineArea(pts)), `bulge ${b}`).toBeLessThan(0.01); // chords lose < 1 %
+    }
+    expect(flattenOutline(pts)).toEqual(pts);
+  });
+
   it('reads rooms with names from tags and name texts, skipping zones, twins and other layers', () => {
     const { rooms, zones, units } = roomsFromPlan(plan(), map);
     expect(units).toBe('drawing in mm');
     expect(zones).toBe(1);
     expect(rooms).toEqual([
-      { name: 'Kitchen', number: 'G.03', areaM2: 30, layer: 'A-AREA', named: true },
-      { name: 'Master bedroom', areaM2: 20, layer: 'A-AREA', named: true },
-      { name: 'Room 1', areaM2: 6, layer: 'A-AREA', named: false }
+      { name: 'Kitchen', number: 'G.03', areaM2: 30, layer: 'A-AREA', named: true, outline: box(4, 0, 10, 5) },
+      { name: 'Master bedroom', areaM2: 20, layer: 'A-AREA', named: true, outline: box(0, 0, 4, 5) },
+      { name: 'Room 1', areaM2: 6, layer: 'A-AREA', named: false, outline: box(20, 0, 23, 2) }
     ]);
   });
 
@@ -125,12 +139,12 @@ describe('room areas from the CAD floor plan', () => {
     const linked = { app: 'cad' as const, file: 'GF plan.dwg', sourceId: '2A' };
 
     it('records the outline each room came from, also on rooms the plan leaves unchanged', () => {
-      expect(read(revision('Store', 4000))).toEqual([{ name: 'Store', areaM2: 20, layer: 'A-AREA', named: true, handle: '2A', file: 'GF plan.dwg' }]);
+      expect(read(revision('Store', 4000))).toEqual([{ name: 'Store', areaM2: 20, layer: 'A-AREA', named: true, handle: '2A', file: 'GF plan.dwg', outline: box(0, 0, 4, 5) }]);
       const old = project([{ id: 'R1', buildingId: 'V', levelId: 'GF', name: 'Store', type: 'store', areaM2: 20 }]); // saved before room sources
       const { proposals } = proposeRooms(old, read(revision('Store', 4000)), 'V', 'GF');
       expect(proposals.map((x) => [x.status, x.existingId])).toEqual([['same', 'R1']]);
       const next = applyRooms(old, [], 'V', 'GF', map, proposals);
-      expect(next.building!.rooms).toEqual([{ id: 'R1', buildingId: 'V', levelId: 'GF', name: 'Store', type: 'store', areaM2: 20, source: linked }]);
+      expect(next.building!.rooms).toEqual([{ id: 'R1', buildingId: 'V', levelId: 'GF', name: 'Store', type: 'store', areaM2: 20, source: linked, outline: box(0, 0, 4, 5) }]);
     });
 
     it('keeps the room ID when the architect renames the room', () => {
@@ -139,7 +153,7 @@ describe('room areas from the CAD floor plan', () => {
       expect(proposals.map((x) => [x.name, x.status, x.existingId, x.type])).toEqual([['Pantry', 'changed', 'R7', 'store']]);
       expect(notOnPlan).toEqual([]);
       expect(applyRooms(p, proposals, 'V', 'GF', map).building!.rooms).toEqual([
-        { id: 'R7', buildingId: 'V', levelId: 'GF', name: 'Pantry', type: 'store', areaM2: 20, boardId: 'DB1', source: linked }
+        { id: 'R7', buildingId: 'V', levelId: 'GF', name: 'Pantry', type: 'store', areaM2: 20, boardId: 'DB1', source: linked, outline: box(0, 0, 4, 5) }
       ]);
     });
 
