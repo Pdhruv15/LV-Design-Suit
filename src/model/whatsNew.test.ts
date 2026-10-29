@@ -17,6 +17,7 @@ describe("What's new", () => {
   it('compares versions as numbers', () => {
     expect(compareVersions('1.9', '1.84')).toBeLessThan(0);
     expect(compareVersions('1.100', '1.99')).toBeGreaterThan(0);
+    expect(compareVersions('2.0', '1.100')).toBeGreaterThan(0); // the move to 2.0 after 1.100
     expect(compareVersions('1.84', '1.84.0')).toBe(0);
   });
 
