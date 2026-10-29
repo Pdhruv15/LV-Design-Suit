@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { addSketch, arcThrough, dimensionLines, itemAt, moved, rectangle, removeSketch, rotated, shapesOut, sketchOf, snapPoints, typedPoint, updateSketch } from './cadSketch';
+import { addSketch, arcThrough, dimensionLines, itemAt, moved, rectangle, removeSketch, rotated, shapesOut, sketchOf, snapPoints, trayEdges, trayLabel, trayLength, typedPoint, updateSketch } from './cadSketch';
 import type { SketchItem } from '../types';
 
 const p0 = { ...sampleProject, cadSketch: undefined };
@@ -59,3 +59,38 @@ describe('drawing in the CAD view', () => {
     expect(out.filter((s) => s.layer === 'LV-ANNO' && s.kind === 'line').length).toBe(5);
   });
 });
+
+describe('cable tray runs', () => {
+  const run: SketchItem = { id: 'S1', kind: 'pline', layer: 'E-TRAY', pts: [[0, 0], [1000, 0], [1000, 1000]], tray: { widthMm: 300 } };
+  const round = (e: [number, number][][]) => e.map((l) => l.map(([x, y]) => [Math.round(x), Math.round(y)]));
+
+  it('draws both edges at the tray width, mitred at a bend, and closes the ends', () => {
+    expect(round(trayEdges(run, 1))).toEqual([
+      [[0, 150], [850, 150]], [[850, 150], [850, 1000]], // the inside edge
+      [[0, -150], [1150, -150]], [[1150, -150], [1150, 1000]], // the outside edge
+      [[0, 150], [0, -150]], [[850, 1000], [1150, 1000]] // the ends
+    ]);
+    expect(trayEdges({ ...run, tray: undefined }, 1)).toEqual([]);
+    expect(trayLength(run)).toBe(2000);
+  });
+
+  it('labels a run "CT 300" with its route once assigned, never upside down', () => {
+    expect(trayLabel(run)).toEqual({ at: [500, 0], text: 'CT 300', rot: 0 });
+    const back = trayLabel({ ...run, pts: [[1000, 0], [0, 0]], tray: { widthMm: 450, route: 'A' } });
+    expect(back.text).toBe('CT 450 · A');
+    expect(back.rot).toBeCloseTo(0);
+  });
+
+  it('writes the edges, the centreline and the label into the DXF', () => {
+    const out = shapesOut([run], 0.001);
+    expect(out.map((o) => o.kind)).toEqual(['line', 'line', 'line', 'line', 'line', 'line', 'pline', 'text']);
+    expect(out.every((o) => o.layer === 'E-TRAY')).toBe(true);
+    expect(out[7]).toMatchObject({ text: 'CT 300', h: 150 });
+  });
+
+  it('keeps the tray when moved, copied or rotated', () => {
+    expect(moved(run, 10, 0).tray).toEqual({ widthMm: 300 });
+    expect(rotated(run, [0, 0], Math.PI / 2).tray).toEqual({ widthMm: 300 });
+  });
+});
+

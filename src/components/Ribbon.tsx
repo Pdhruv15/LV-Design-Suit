@@ -135,7 +135,7 @@ export const CAPTIONS: Record<RibbonTab, string[]> = {
   schematic: ['History', 'Distribution', 'Main systems', 'ELV', 'Stage'],
   detailed: ['Run', 'Canvas', 'Boards', 'Equipment', 'Selection', 'Calculate', 'Stage'],
   floorplan: ['Plan', 'Rooms', 'Cables and boards', 'ELV', 'Measure', 'View'],
-  cad: ['File', 'Rooms', 'Draw', 'Modify', 'Annotate', 'Measure', 'Devices', 'View'],
+  cad: ['File', 'Rooms', 'Cables', 'Draw', 'Modify', 'Annotate', 'Measure', 'Devices', 'View'],
   reports: ['Schedules', 'Drawings and reports'],
   issue: ['Tender', 'Track', 'Send', 'IFC'],
   cost: ['Bill', 'Add to the bill', 'Rates', 'Issue and export'],
@@ -414,6 +414,9 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         cadTool('room', 'Click inside', MousePointerClick, 'Click inside a room: its outline from the walls (doors closed), its area — then Add (RA)'),
         cadTool('trace', 'Trace', PenLine, 'Click the corners of a room, Enter to close — then Add (TR)'),
         cadTool('name', 'Pick name', Type, 'Click the room name on the drawing: it names the room found, or renames the room it is in (PN)')
+      ],
+      [
+        cadTool('tray', 'Cable tray', Rows3, 'Draw a cable tray run (CT): its points, Enter to finish, at the width chosen; the tray route can be assigned later')
       ],
       [
         cadTool('line', 'Line', Slash, 'Line (L): click points; type a length, x,y or @dx,dy; Enter stops'),

@@ -103,6 +103,41 @@ export function segmentsOf(it: SketchItem): [Pt, Pt][] {
   return out;
 }
 
+/** Layer of the cable tray runs drawn in Design CAD, and the usual tray widths (mm). */
+export const TRAY_LAYER = 'E-TRAY';
+export const TRAY_WIDTHS = [50, 100, 150, 200, 300, 450, 600, 750, 900];
+
+/** The two edges of a tray run, `widthMm` apart around its centreline (mitred at the bends); `unitsPerMm` converts
+ * the width to drawing units. */
+export function trayEdges(it: SketchItem, unitsPerMm: number): [Pt, Pt][] {
+  const pts = it.pts, half = ((it.tray?.widthMm ?? 0) * unitsPerMm) / 2;
+  if (!it.tray || pts.length < 2 || half <= 0) return [];
+  const normal = (a: Pt, b: Pt): Pt => { const d = dist(a, b) || 1; return [-(b[1] - a[1]) / d, (b[0] - a[0]) / d]; };
+  const side = (k: 1 | -1): Pt[] => pts.map((p, i) => {
+    const n0 = i > 0 ? normal(pts[i - 1], p) : undefined, n1 = i < pts.length - 1 ? normal(p, pts[i + 1]) : undefined;
+    if (!n0 || !n1) { const n = (n0 ?? n1)!; return [p[0] + k * half * n[0], p[1] + k * half * n[1]]; }
+    const mx = n0[0] + n1[0], my = n0[1] + n1[1], ml = Math.hypot(mx, my);
+    const cos = ml / 2; // cos of half the turn
+    const f = cos > 0.25 ? half / cos : half * 4; // limit the mitre at sharp turns
+    return ml < 1e-9 ? [p[0] + k * half * n1[0], p[1] + k * half * n1[1]] : [p[0] + (k * f * mx) / ml, p[1] + (k * f * my) / ml];
+  });
+  const edge = (q: Pt[]) => q.slice(1).map((b, i): [Pt, Pt] => [q[i], b]);
+  const l = side(1), r = side(-1);
+  return [...edge(l), ...edge(r), [l[0], r[0]], [l[l.length - 1], r[r.length - 1]]];
+}
+
+/** The label of a tray run, "CT 300" (with its route once assigned), at the middle of its middle piece, along it and
+ * never upside down. */
+export function trayLabel(it: SketchItem): { at: Pt; text: string; rot: number } {
+  const mid = Math.max(0, Math.floor((it.pts.length - 2) / 2)), a = it.pts[mid], b = it.pts[mid + 1] ?? a;
+  let rot = Math.atan2(b[1] - a[1], b[0] - a[0]);
+  if (rot > Math.PI / 2) rot -= Math.PI; else if (rot <= -Math.PI / 2) rot += Math.PI;
+  return { at: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], text: `CT ${it.tray?.widthMm ?? ''}${it.tray?.route ? ` · ${it.tray.route}` : ''}`, rot };
+}
+
+/** Length of a tray run along its centreline (drawing units). */
+export const trayLength = (it: SketchItem) => it.pts.slice(1).reduce((t, p, i) => t + dist(it.pts[i], p), 0);
+
 /** Points the cursor snaps to on drawn items: endpoint (1), midpoint (2), centre (4), insertion (16). */
 export function snapPoints(items: SketchItem[]): { x: number; y: number; kind: number }[] {
   const out: { x: number; y: number; kind: number }[] = [];
@@ -150,6 +185,13 @@ export function shapesOut(items: SketchItem[], metresPerUnit: number): ShapeOut[
       const d = dimensionLines(it.pts[0], it.pts[1], it.pts[2]);
       return [...d.lines.map((l): ShapeOut => ({ layer: it.layer, kind: 'line', pts: l })),
         { layer: it.layer, kind: 'text', pts: [d.text], text: `${(d.length * metresPerUnit).toFixed(2)}`, h: it.h ?? d.length * 0.04, rot: d.angle }];
+    }
+    if (it.tray) {
+      // The tray's edges and ends, its centreline, and a label "CT 300" (with its route once assigned) at the middle.
+      const unitsPerMm = 0.001 / metresPerUnit;
+      const l = trayLabel(it);
+      return [...trayEdges(it, unitsPerMm).map((e): ShapeOut => ({ layer: it.layer, kind: 'line', pts: e })), { layer: it.layer, kind: 'pline', pts: it.pts },
+        { layer: it.layer, kind: 'text', pts: [l.at], text: l.text, h: 150 * unitsPerMm, rot: l.rot }];
     }
     if (it.kind === 'line' && it.pts.length > 2) return [{ layer: it.layer, kind: 'pline', pts: it.pts }];
     return [{ layer: it.layer, kind: it.kind, pts: it.pts, closed: it.closed, r: it.r, a0: it.a0, a1: it.a1, text: it.text, h: it.h, rot: it.rot }];
