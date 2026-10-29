@@ -3,7 +3,7 @@ import { newProject, type Project } from '../types';
 import { advanceStage, ifcIssued, nextStage, setTenderRoute, splitByStage, stageOf, stagesOf, stageStatusesListed, stepBackStage } from './designStage';
 import { baselineOf } from './designBaseline';
 import { changedSinceRevision } from './revisions';
-import { tabForStage, tabForView } from '../components/Ribbon';
+import { tabForStage, tabForView, viewForTab } from '../components/Ribbon';
 import { stageChecklist } from '../calc/projectReadiness';
 import { buildDashboard } from '../calc/dashboard';
 import { newComment, withComment, openTenderQueries } from './reviewComments';
@@ -88,6 +88,17 @@ describe('ribbon follows the stages', () => {
     expect(tabForView('voltage-drop')).toBe('detailed');
     expect(tabForView('submissions')).toBe('issue');
     expect(tabForView('cable-schedule')).toBe('reports');
+    expect(tabForView('design', 'home')).toBe('home'); // the SLD button on Project keeps the tab
+  });
+
+  it('shows the chosen tab\'s page unless the page on screen is on that tab', () => {
+    expect(viewForTab('cad', 'design')).toBe('cad');
+    expect(viewForTab('floorplan', 'cad')).toBe('floor-plan');
+    expect(viewForTab('schematic', 'cad')).toBe('design');
+    expect(viewForTab('detailed', 'design')).toBe('design');
+    expect(viewForTab('home', 'design')).toBe('design');
+    expect(viewForTab('reports', 'cable-schedule')).toBe('cable-schedule');
+    expect(viewForTab('cost', 'design')).toBe('boq');
   });
 });
 

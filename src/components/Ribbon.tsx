@@ -166,7 +166,7 @@ export const tabForStage = (s: DesignStage): RibbonTab => TABS.find((t) => t.sta
 
 /** Screens on each tab. A screen on several tabs (the SLD on Schematic and Detailed design) keeps the tab you are on. */
 const TAB_VIEWS: Record<RibbonTab, MainView[]> = {
-  home: ['projects', 'dashboard', 'help', 'parameters', 'titleblock', 'building'],
+  home: ['projects', 'dashboard', 'help', 'parameters', 'titleblock', 'building', 'design'],
   concept: ['building', 'load-assessment', 'sizing', 'substation-area', 'space-planning', 'dashboard'],
   schematic: ['panels', 'design', 'busbar', 'pfc', 'ups', 'solar', 'earth-schematic', 'elv', 'inbox'],
   detailed: ['design', 'panels', 'load-schedule', 'enclosure', 'selection', 'voltage-drop', 'earthing', 'coordination', 'engines', 'calculators'],
@@ -178,6 +178,15 @@ const TAB_VIEWS: Record<RibbonTab, MainView[]> = {
   standards: ['database', 'design-references']
 };
 const HOME_TAB: Partial<Record<MainView, RibbonTab>> = { building: 'concept', dashboard: 'home', design: 'detailed', panels: 'detailed', 'load-schedule': 'detailed' };
+
+/** The page a tab shows when it is chosen and the page on screen is not one of its own. */
+const TAB_PAGE: Record<RibbonTab, MainView> = {
+  home: 'dashboard', concept: 'building', schematic: 'design', detailed: 'design', floorplan: 'floor-plan', cad: 'cad',
+  reports: 'load-schedule', issue: 'revisions', cost: 'boq', standards: 'database'
+};
+/** The page to show when a tab is chosen: the page on screen when it is on that tab (the SLD stays on Schematic and
+ * Detailed design), else the tab's own page — Design CAD shows the drawing, Floor plan the plan. */
+export const viewForTab = (t: RibbonTab, current: MainView): MainView => (TAB_VIEWS[t].includes(current) ? current : TAB_PAGE[t]);
 
 /** The ribbon tab that owns a screen, so the ribbon follows navigation
  * (the current tab is kept when the screen is on it too). */
