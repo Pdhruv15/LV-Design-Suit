@@ -16,10 +16,10 @@ export function planLevel(p: Project, file: string | undefined): { floor?: Floor
 }
 
 /** Makes `file` the plan of a level (Level in the ribbon, or the device panel). */
-export function setPlanLevel(p: Project, file: string, f: Floor, apply: Apply) {
+export function setPlanLevel(p: Project, file: string, f: Floor, apply: Apply, units?: number) {
   const label = floorLabel(p.building, f);
   const before = plansOf(p).find((x) => x.floor.key === f.key)?.file;
-  apply(withLevelPlan(p, file, f.ref), `${file} is the plan of ${label}${before && before.toLowerCase() !== file.toLowerCase() ? ` (was ${before})` : ''} · ⌘Z to undo`);
+  apply(withLevelPlan(p, file, f.ref, units), `${file} is the plan of ${label}${before && before.toLowerCase() !== file.toLowerCase() ? ` (was ${before})` : ''} · ⌘Z to undo`);
 }
 
 /** Design CAD's File group: Plans (each level's drawing: open it, or open one for a level without), Level, Units. */
@@ -41,7 +41,7 @@ export function cadFileMenu(p: Project, cad: CadState, apply: Apply, status: (m:
     cad.open(v);
     status(`${v.file} opened`);
     if (levelOfPlan(p, v.file)?.key === f.key) return;
-    const r = replacePlan(p, v.file, f.ref);
+    const r = replacePlan(p, v.file, f.ref, v.info.units);
     apply(r.project, `${v.file} is the plan of ${floorLabel(p.building, f)}${r.replaced ? ` in place of ${r.replaced} (what you drew moved to it)` : ''} · ⌘Z to undo`);
   }
 
@@ -69,7 +69,7 @@ export function cadFileMenu(p: Project, cad: CadState, apply: Apply, status: (m:
     plansSub: plans.length ? `${plans.filter((x) => x.file).length} of ${plans.length} levels` : undefined,
     level: floor && set ? floor.name : 'Level?',
     levelTitle: !view ? 'The level the drawing is the plan of' : set && floor ? `${view.file} is the plan of ${floorLabel(p.building, floor)}: rooms and devices go to it` : `Which level is ${view.file}? Choose it so rooms and devices go to that level`,
-    levels: view ? plans.map((x) => ({ label: x.label, title: `${view.file} is the plan of ${x.label}`, onClick: () => setPlanLevel(p, view.file, x.floor, apply) })) : [],
+    levels: view ? plans.map((x) => ({ label: x.label, title: `${view.file} is the plan of ${x.label}`, onClick: () => setPlanLevel(p, view.file, x.floor, apply, view.info.units) })) : [],
     unit: scale ? `${scale.label}${scale.assumed ? '?' : ''}` : 'Units',
     unitTitle: !scale ? 'The units the drawing is in' : scale.assumed ? 'The drawing does not say its units: taken as millimetres. Choose them if not.' : `The drawing is in ${scale.label}`,
     units: view ? unitsMenu : []

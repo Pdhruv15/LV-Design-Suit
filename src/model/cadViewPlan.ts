@@ -18,6 +18,18 @@ export function outlinePoints(view: CadView, o: CadObject): Pt[] {
   return pts;
 }
 
+/** The path of a drawn object (a line, polyline, arc…) along its segments, end to end, in absolute drawing units. */
+export function objectPath(view: CadView, o: CadObject): Pt[] {
+  const [ox, oy] = view.info.origin, s = view.segs;
+  const pts: Pt[] = [];
+  for (let i = o.seg_start; i < o.seg_end; i += 1) {
+    if (pts.length && (s[i * 4] + ox !== pts[pts.length - 1][0] || s[i * 4 + 1] + oy !== pts[pts.length - 1][1])) break; // a second piece
+    if (!pts.length) pts.push([s[i * 4] + ox, s[i * 4 + 1] + oy]);
+    pts.push([s[i * 4 + 2] + ox, s[i * 4 + 3] + oy]);
+  }
+  return pts;
+}
+
 /** What each layer of the drawing holds (only layers that hold something). */
 export function layerStatsOf(view: CadView): CadLayerStats[] {
   const closed = view.outlines();
