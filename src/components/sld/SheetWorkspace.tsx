@@ -21,6 +21,7 @@ import { IssueDialog } from '../docs/IssueDialog';
 import SheetMarkupLayer, { type SheetAnchor } from './SheetMarkupLayer';
 import { ALL_TOOLS } from './markupTools';
 import { NO_SHEET_ACTIONS, type SheetUi } from './sheetUi';
+import { isFitClick, isPanPress, KEY_STEP, PAN_STEP, useSpaceHeld, viewKey, wheelAction, ZoomChip } from '../drawingView';
 import { MARKUP_LABEL, type SheetMarkup } from '../../model/sheetMarkup';
 
 /** Colours of the sheet outlines on the design canvas. */
@@ -166,6 +167,7 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, ui
   const { zoom, setZoom, side, tool, setTool, color: mColor, setColor: setMColor, size: mSize, setSize: setMSize, selId, setSelId } = ui;
   const [publish, setPublish] = useState(false);
   const host = useRef<HTMLDivElement>(null);
+  const space = useSpaceHeld(); // Space + drag pans, with any markup tool
   const [hostW, setHostW] = useState(900);
   const [hostH, setHostH] = useState(600);
   const save = (next: DrawingSet) => onChange({ ...project, drawingSet: next });
@@ -183,7 +185,15 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, ui
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
       if ((e.key === 'Delete' || e.key === 'Backspace') && selected) { e.preventDefault(); removeSelected(); }
       else if (e.key === 'Escape') { setTool('select'); setSelId(null); }
-      else if (!e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'f' || e.key === 'F')) setZoom('fit');
+      else if (viewKey(e)) {
+        // F or 0 fits, + and − zoom, arrows scroll the page (the paper has no grid).
+        const k = viewKey(e), el = host.current;
+        if (k === 'grid') return;
+        e.preventDefault();
+        if (k === 'fit') setZoom('fit');
+        else if (k === 'in' || k === 'out') setZoom(Math.min(3, Math.max(0.15, scaleRef.current * (k === 'in' ? KEY_STEP : 1 / KEY_STEP))));
+        else if (k && el) el.scrollBy(k.pan[0] * el.clientWidth * PAN_STEP, k.pan[1] * el.clientHeight * PAN_STEP);
+      }
       else if (!e.ctrlKey && !e.metaKey && !e.altKey) {
         const t = ALL_TOOLS.find((x) => x.key === e.key.toUpperCase() && (s?.kind === 'system' || (x.tool !== 'pcloud' && x.tool !== 'parrow')));
         if (t) { setTool(t.tool); if (t.tool !== 'select') setSelId(null); }
@@ -218,15 +228,22 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, ui
     return () => ro.disconnect();
   }, [side]);
 
-  // Ctrl/⌘ + wheel zooms the sheet (a native listener: React's wheel handler is passive and cannot stop the page zoom).
-  const scaleRef = useRef(1);
+  // A mouse wheel or a pinch zooms the sheet about the cursor; two fingers on a trackpad scroll it (a native listener:
+  // React's wheel handler is passive and cannot stop the page zoom).
+  const scaleRef = useRef(1), fitRef = useRef(1);
   useEffect(() => {
     const el = host.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
-      if (!e.ctrlKey && !e.metaKey) return;
+      const w = wheelAction(e);
+      if ('pan' in w) return;
       e.preventDefault();
-      setZoom(Math.min(3, Math.max(0.15, scaleRef.current * (e.deltaY < 0 ? 1.1 : 1 / 1.1))));
+      const r = el.getBoundingClientRect(), cx = e.clientX - r.left, cy = e.clientY - r.top;
+      const old = scaleRef.current, next = Math.min(3, Math.max(0.15, old * w.zoom));
+      const px = el.scrollLeft + cx, py = el.scrollTop + cy;
+      setZoom(next);
+      // Keep the point under the cursor where it is.
+      requestAnimationFrame(() => { el.scrollLeft = (px * next) / old - cx; el.scrollTop = (py * next) / old - cy; });
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
@@ -247,7 +264,7 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, ui
         else void exportSheetsDwg(project, set, run, onStatus, [s.id]);
       }
     };
-    ui.setPct(`${Math.round(scaleRef.current * 100)} %`);
+    ui.setPct(`${Math.round((scaleRef.current / fitRef.current) * 100)} %`); // 100 % = the sheet fits
   });
   useEffect(() => () => { ui.actions.current = NO_SHEET_ACTIONS; }, []); // eslint-disable-line react-hooks/exhaustive-deps -- on leaving
 
@@ -257,6 +274,7 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, ui
   const fit = Math.min((hostW - 24) / pxW, (hostH - 24) / pxH);
   const scale = zoom === 'fit' ? fit : zoom;
   scaleRef.current = scale;
+  fitRef.current = fit;
   const boards = boardsInSupplyOrder(project);
   const depth = (id: string) => { let n = 0, x = project.boards.find((b) => b.id === id); while (x?.upstreamId && n < 20) { n++; x = project.boards.find((b) => b.id === x!.upstreamId); } return n; };
   const tags = s.tags ?? set.tags ?? SHEET_LAYERS;
@@ -286,7 +304,19 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, ui
       </div>
       <div className="sheet-body">
         {side && <div className="sheet-design">{design}</div>}
-        <div className="sheet-page" ref={host}>
+        <ZoomChip pct={(scale / fit) * 100} onFit={() => setZoom('fit')} />
+        <div className="sheet-page" ref={host}
+          onPointerDownCapture={(e) => {
+            if (!isPanPress(e, space.current)) return;
+            // Pan, not a markup: the page scrolls with the pointer.
+            e.preventDefault(); e.stopPropagation();
+            const el = e.currentTarget, from = { x: e.clientX, y: e.clientY, l: el.scrollLeft, t: el.scrollTop };
+            el.setPointerCapture(e.pointerId);
+            const move = (m: PointerEvent) => { el.scrollLeft = from.l - (m.clientX - from.x); el.scrollTop = from.t - (m.clientY - from.y); };
+            const up = () => { el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); };
+            el.addEventListener('pointermove', move); el.addEventListener('pointerup', up);
+          }}
+          onAuxClick={(e) => { if (isFitClick(e)) setZoom('fit'); }}>
           {!drawable(s) ? <p className="m">Tick the panels for this sheet on the right.</p> : page ? (
             <div style={{ width: pxW * scale, height: pxH * scale, position: 'relative' }} className="sheet-paper">
               <iframe title={s.number} srcDoc={page.html} sandbox="allow-same-origin" onLoad={(e) => setAnchors(measureAnchors(e.currentTarget, mm.w / pxW))} style={{ width: pxW, height: pxH, transform: `scale(${scale})`, transformOrigin: '0 0', border: 0, background: '#fff' }} />

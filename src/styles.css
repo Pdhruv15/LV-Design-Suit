@@ -163,7 +163,6 @@ code{background:var(--p2);padding:1px 5px;border-radius:4px}
 /* Canvas toolbar: labelled groups (Drawing, View) on a panel so they stay readable over the drawing. */
 .sd-group{display:flex;align-items:center;gap:4px;padding:3px 4px 3px var(--space-2);background:color-mix(in srgb,var(--panel) 92%,transparent);border:1px solid var(--line);border-radius:var(--radius-md);box-shadow:var(--shadow-pop)}
 .sd-cap{font-size:var(--fs-xs);color:var(--mut);margin-right:2px}
-.sysdiag-tools .sd-zoom{min-width:58px;font-variant-numeric:tabular-nums}
 .sysdiag:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
 .sysdiag .bus{stroke:var(--bus);stroke-width:4;stroke-linecap:round}
 .sysdiag .bus.sel{stroke:var(--acc)}
@@ -1195,7 +1194,11 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .sheet-bar{display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--line)}
 .pub-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--warn);margin-right:6px;box-shadow:0 0 0 2px color-mix(in srgb,var(--warn) 30%,transparent)}
 .chip-lite{font-size:11px;padding:1px 8px;border-radius:999px;border:1px solid var(--line)}
-.sheet-body{flex:1;display:flex;min-height:0}
+.sheet-body{flex:1;display:flex;min-height:0;position:relative}
+/* The zoom of every drawing (SLD, Design CAD, sheets), bottom right; a click fits it. */
+.zoom-chip{position:absolute;right:var(--space-2);bottom:var(--space-2);z-index:3;min-height:var(--control-h-sm);padding:0 var(--space-2);border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--panel);color:var(--tx);font:inherit;font-size:var(--fs-sm);font-variant-numeric:tabular-nums;cursor:pointer;box-shadow:var(--shadow-pop)}
+.zoom-chip:hover{border-color:var(--line-strong)}
+.zoom-chip:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
 .sheet-hint{padding:4px var(--space-2);border-top:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sheet-page{flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:12px;background:color-mix(in srgb,var(--bg) 70%,#888 30%);min-height:520px}
 .sheet-paper{box-shadow:var(--shadow-paper);background:#fff;overflow:hidden;flex:none}
