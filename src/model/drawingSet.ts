@@ -108,6 +108,20 @@ export function addEarthingSheet(set: DrawingSet): { set: DrawingSet; id: string
   const id = `sh-${Date.now().toString(36)}`;
   return { id, set: renumber({ ...set, sheets: [...set.sheets, { id, number: '', title: 'Earthing schematic diagram', kind: 'earthing', boards: [], size: 'auto', status: startStatus(set) }] }) };
 }
+/** What publishing a sheet would issue (the ribbon's Publish): its first revision, or the next once it changed since
+ * its last issue. */
+export function publishState(project: Project, set: DrawingSet, s: DrawingSheet, projectRev?: string): { label: string; title: string; changed: boolean } {
+  const cur = sheetRev(s, projectRev), issued = !!(s.history?.length || s.rev);
+  const changed = !!s.issuedHash && s.issuedHash !== sheetHash(project, set, s);
+  const next = issued ? nextRev(cur) : cur || 'A';
+  return {
+    changed,
+    label: !s.history?.length || changed ? `Rev ${next}…` : '',
+    title: !s.history?.length ? `Not issued yet — issuing gives this sheet Rev ${next}`
+      : changed ? `Changed since Rev ${cur} was issued — the next issue is Rev ${next}` : `No changes since Rev ${cur} was issued — exports and the issue register`
+  };
+}
+
 /** The earthing schematic, or a building's earth riser / floor earthing sheet `part`, for the earthing screen's Sheets
  * button: from the set, else added (every sheet of that kind for the building). No id when there is nothing to draw. */
 export function earthSheetFor(set: DrawingSet, project: Project, kind: 'earthing' | 'earthRiser' | 'earthFloor', buildingId?: string, part = 0): { set: DrawingSet; id?: string } {

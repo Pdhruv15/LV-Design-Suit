@@ -48,7 +48,7 @@ const CadSheets = lazy(() => import('./components/cad/CadSheets'));
 import { withCableRefs } from './model/cableRefs';
 import { withEarthPitIds } from './model/earthingPlan';
 import type { DrawingsTab } from './components/docs/DrawingsView';
-import { earthSheetFor, setOf } from './model/drawingSet';
+import { earthSheetFor, publishState, setOf } from './model/drawingSet';
 import { boardsInSupplyOrder } from './calc/summary';
 const ComponentEditor = onDemand(() => import('./components/ComponentEditor'));
 import { componentPreset, newComponent, syncComponent, type UserComponent } from './model/components';
@@ -148,7 +148,8 @@ import { cadFileMenu, planLevel } from './components/cad/cadFileMenu';
 import { plansOf } from './model/cadPlans';
 import { chooseDrawing, openDrawing } from './engines/cad/cadEngine';
 import { onDemand } from './util/onDemand';
-import { revisionStamp } from './model/revisions';
+import { currentRevision, revisionStamp } from './model/revisions';
+import { useSheetUi } from './components/sld/sheetUi';
 import { markSeen, pendingReleases, RELEASES, type Release, type WhatsNewAction } from './model/whatsNew';
 type DiagramMode = 'system' | 'board' | 'earthing' | 'riser';
 
@@ -202,6 +203,7 @@ export default function App() {
   // SLD tabs: null = Design (the working canvas), else a drawing sheet.
   const [sheetTab, setSheetTab] = useState<string | null>(null);
   const [drawingsTab, setDrawingsTab] = useState<DrawingsTab>('sheets');
+  const sheetUi = useSheetUi();
   // Earthing screen → Sheets: the sheet of what it shows, in Design CAD → Sheets (added to the set the first time).
   const openEarthSheet = (kind: 'earthing' | 'earthRiser' | 'earthFloor', buildingId?: string, part = 0) => {
     const set = setOf(project), r = earthSheetFor(set, project, kind, buildingId, part);
@@ -209,6 +211,15 @@ export default function App() {
     if (r.set !== set) setProject({ ...project, drawingSet: r.set }, { step: true });
     setSheetTab(r.id);
     setView('drawings');
+  };
+  // The ribbon's Sheets groups: the register tabs, and the open sheet's markup, view and issue buttons.
+  const openSheet = useMemo(() => (sheetTab ? setOf(project).sheets.find((x) => x.id === sheetTab) : undefined), [project, sheetTab]);
+  const sheetPublish = useMemo(() => (openSheet ? publishState(project, setOf(project), openSheet, currentRevision(project)?.id) : undefined), [project, openSheet]);
+  const sheetRibbon = {
+    tab: drawingsTab, open: !!openSheet, onTab: (t: DrawingsTab) => { setSheetTab(null); setDrawingsTab(t); setView('drawings'); },
+    ui: sheetUi, kind: openSheet?.kind, selected: openSheet?.markups?.find((m) => m.id === sheetUi.selId), publish: sheetPublish,
+    legend: { on: project.drawing?.legend !== false, shown: project.drawing?.symbols !== 'simple' },
+    onLegend: () => setProject({ ...project, drawing: { ...project.drawing, legend: project.drawing?.legend === false } }, { step: true })
   };
   // Results under the SLD: open / closed (remembered); a row click centres the drawing on it.
   const [resTab, setResTab] = useState<'summary' | 'buses' | 'feeders' | null>(() => { try { const v = localStorage.getItem('lvds.resTab'); return v === 'summary' || v === 'buses' || v === 'feeders' ? v : null; } catch { return null; } });
@@ -1206,7 +1217,7 @@ export default function App() {
         a={{
           view,
           onView: setView,
-          sheets: { tab: drawingsTab, open: !!sheetTab && setOf(project).sheets.some((x) => x.id === sheetTab), onTab: (t) => { setSheetTab(null); setDrawingsTab(t); setView('drawings'); } },
+          sheets: sheetRibbon,
           onBom: (cmd) => { setView('boq'); setBomCmd((c) => ({ cmd, n: (c?.n ?? 0) + 1 })); },
           hasPriceList: !!project.priceList,
           tool,
@@ -1541,7 +1552,7 @@ export default function App() {
             {view === 'coordination' && <CoordinationStudy project={calcProject} board={board?.id} onBoard={setActiveBoardId} />}
             {view === 'sizing' && <TransformerGeneratorStudy project={project} onStatus={setStatus} onChange={(p) => setProject(p, { step: true })} />}
             {(view === 'drawings' || view === 'drawing-register') && (
-              <CadSheets project={project} calcProject={calcProject} results={allResults} annotations={annotations} run={run} sheetId={sheetTab} tab={drawingsTab}
+              <CadSheets project={project} calcProject={calcProject} results={allResults} annotations={annotations} run={run} sheetId={sheetTab} tab={drawingsTab} ui={sheetUi}
                 onActive={setSheetTab} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onOpen={setView} />
             )}
             {view === 'parameters' && <ParametersView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onTitleBlock={() => setView('titleblock')} />}

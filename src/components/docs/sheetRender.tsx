@@ -23,6 +23,7 @@ import FeederRiserDiagram, { FeederRiserLegendSvg } from '../../diagram/FeederRi
 import { feederRiserLayout } from '../../diagram/feederRiserLayout';
 import { boardIncomerLabel } from '../../docs/loadScheduleDoc';
 import SingleLineDiagram from '../SingleLineDiagram';
+import { dxfToDwg } from '../../engines/cad/cadEngine';
 
 const noop = () => {};
 
@@ -193,6 +194,27 @@ export async function exportSheetsDxf(project: Project, set: DrawingSet, run: Ca
     if (m) onStatus(`${m} — ${files.length} DXF sheets${notice ? ` — ${notice}` : ''}`);
   } catch (e) {
     onStatus(`DXF export failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+/** The sheets as DWG (AutoCAD 2018, by the Design CAD engine): the DXF sheets, each saved as DWG; a ZIP when several. */
+export async function exportSheetsDwg(project: Project, set: DrawingSet, run: CalcRun | undefined, onStatus: (m: string) => void, only?: string[]): Promise<void> {
+  try {
+    const files = await dxfFiles(project, set, run, only);
+    if (!files.length) { onStatus('No sheets to export'); return; }
+    const dwg = await Promise.all(files.map(async (f) => ({ name: f.name.replace(/\.dxf$/i, '.dwg'), data: await dxfToDwg(f.data) })));
+    const notice = dxfExportNotice(files);
+    if (dwg.length === 1) {
+      const m = await saveBinary(dwg[0].name, dwg[0].data, 'DWG drawing (AutoCAD 2018)', 'dwg', 'application/acad');
+      if (m) onStatus(`${m}${notice ? ` — ${notice}` : ''}`);
+      return;
+    }
+    const zip = new (await import('jszip')).default();
+    for (const f of dwg) zip.file(f.name, f.data);
+    const m = await saveBinary(`${safeFileName(`${project.name} drawings DWG`)}.zip`, await zip.generateAsync({ type: 'uint8array' }), 'ZIP', 'zip', 'application/zip');
+    if (m) onStatus(`${m} — ${dwg.length} DWG sheets${notice ? ` — ${notice}` : ''}`);
+  } catch (e) {
+    onStatus(`DWG export failed: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 

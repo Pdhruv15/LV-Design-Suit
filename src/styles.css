@@ -1196,6 +1196,7 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .pub-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--warn);margin-right:6px;box-shadow:0 0 0 2px color-mix(in srgb,var(--warn) 30%,transparent)}
 .chip-lite{font-size:11px;padding:1px 8px;border-radius:999px;border:1px solid var(--line)}
 .sheet-body{flex:1;display:flex;min-height:0}
+.sheet-hint{padding:4px var(--space-2);border-top:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sheet-page{flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:12px;background:color-mix(in srgb,var(--bg) 70%,#888 30%);min-height:520px}
 .sheet-paper{box-shadow:var(--shadow-paper);background:#fff;overflow:hidden;flex:none}
 .sheet-side{width:290px;flex:none;overflow:auto;border-left:1px solid var(--line);padding:8px 10px;font-size:13px}
@@ -1516,15 +1517,6 @@ button.calc-chip.warn{color:var(--warn);border-color:color-mix(in srgb,var(--war
 .ls-panels .chip.on{border-color:var(--acc);color:var(--acc)}
 .ls-panels .ls-form{margin-left:auto}
 .save-failed{color:var(--bad);font-size:12px;margin-right:6px;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.markup-bar{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:4px 8px;border-bottom:1px solid var(--line)}
-.markup-bar .markup-hint{flex:1 1 160px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.markup-tools{display:inline-flex;gap:2px;padding:2px;border:1px solid var(--line);border-radius:6px}
-.markup-tool{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:4px}
-.markup-tool.on{background:color-mix(in srgb,var(--acc) 22%,transparent);color:var(--acc)}
-.markup-tool:disabled{opacity:.4}
-.markup-colors{display:inline-flex;gap:4px;margin:0 4px}
-.markup-dot{width:16px;height:16px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0}
-.markup-dot.on{border-color:var(--tx);box-shadow:0 0 0 1px #000}
 .markup-row.on{background:color-mix(in srgb,var(--acc) 18%,transparent)}
 .th-sort{display:inline-flex;align-items:center;gap:2px;color:inherit;font:inherit;text-transform:inherit}
 .projects-table tr.archived td{opacity:.6}

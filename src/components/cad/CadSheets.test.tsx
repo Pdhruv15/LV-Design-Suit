@@ -5,12 +5,14 @@ import CadSheets from './CadSheets';
 import { sampleProject } from '../../data/sampleProject';
 import { evaluateProject } from '../../calc/electrical';
 import { autoSheets, setOf } from '../../model/drawingSet';
+import { NO_SHEET_ACTIONS, useSheetUi, type SheetUi } from '../sld/sheetUi';
 import type { Project } from '../../types';
 
 const noop = () => {};
+const ui: SheetUi = { tool: 'select', setTool: noop, color: 'black', setColor: noop, size: 3.5, setSize: noop, selId: null, setSelId: noop, zoom: 'fit', setZoom: noop, pct: '', setPct: noop, side: false, setSide: noop, actions: { current: NO_SHEET_ACTIONS } };
 const project: Project = { ...sampleProject, drawingSet: autoSheets(sampleProject, 'perMdb') }; // an SLD and the earthing schematic
 const render = (sheetId: string | null) => renderToStaticMarkup(
-  <CadSheets project={project} calcProject={project} results={evaluateProject(project)} sheetId={sheetId} tab="titleblock"
+  <CadSheets project={project} calcProject={project} results={evaluateProject(project)} sheetId={sheetId} tab="titleblock" ui={ui}
     onActive={noop} onChange={noop} onStatus={noop} onOpen={noop} />
 );
 
@@ -30,7 +32,18 @@ describe('Design CAD → Sheets', () => {
   it('opens a sheet with its markup tools, earthing sheets included', () => {
     const html = render(earthing.id);
     expect(html).toContain('class="sheet-ws');
-    expect(html).toContain('Markup');
+    expect(html).toContain('Markups (0)'); // earthing sheets have markups too
     expect(html).toContain('aria-label="Sheet"'); // its settings on the right
+    expect(html).not.toMatch(/<button[^>]*>(<span[^>]*><\/span>)?Publish/); // the sheet's buttons are on the ribbon
+    expect(html).not.toContain('Side by side');
+  });
+});
+
+describe('the open sheet\'s tools', () => {
+  it('start with Select and black markups', () => {
+    let got: SheetUi | undefined;
+    const Probe = () => { got = useSheetUi(); return null; };
+    renderToStaticMarkup(<Probe />);
+    expect([got?.tool, got?.color, got?.size, got?.zoom]).toEqual(['select', 'black', 3.5, 'fit']);
   });
 });

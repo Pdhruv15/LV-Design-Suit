@@ -16,10 +16,12 @@ import {
 } from '../../model/drawingSet';
 import { currentRevision } from '../../model/revisions';
 import { SHEET_MM } from '../../docs/sldSheet';
-import { exportDrawingSet, exportEverythingZip, exportSheetsDxf, sheetHtml } from '../docs/sheetRender';
+import { exportDrawingSet, exportEverythingZip, exportSheetsDwg, exportSheetsDxf, sheetHtml } from '../docs/sheetRender';
 import { IssueDialog } from '../docs/IssueDialog';
-import SheetMarkupLayer, { MarkupToolbar, ALL_TOOLS, type MarkupTool, type SheetAnchor } from './SheetMarkupLayer';
-import { MARKUP_LABEL, type MarkupColor, type SheetMarkup } from '../../model/sheetMarkup';
+import SheetMarkupLayer, { type SheetAnchor } from './SheetMarkupLayer';
+import { ALL_TOOLS } from './markupTools';
+import { NO_SHEET_ACTIONS, type SheetUi } from './sheetUi';
+import { MARKUP_LABEL, type SheetMarkup } from '../../model/sheetMarkup';
 
 /** Colours of the sheet outlines on the design canvas. */
 export const OUTLINE_COLORS = ['#2f80ed', '#e2711d', '#27ae60', '#9b51e0', '#d1495b', '#00a6a6', '#b8860b'];
@@ -60,6 +62,7 @@ export function SheetList({ project, active, selectedBoardId, onActive, onChange
     if (what === 'left' || what === 'right') { const j = what === 'left' ? i - 1 : i + 1; if (j < 0 || j >= set.sheets.length) return; const sheets = [...set.sheets]; [sheets[i], sheets[j]] = [sheets[j], sheets[i]]; save(renumber({ ...set, sheets })); }
     if (what === 'pdf') void exportDrawingSet(project, set, run, false, onStatus, [id], false);
     if (what === 'dxf') void exportSheetsDxf(project, set, run, onStatus, [id]);
+    if (what === 'dwg') void exportSheetsDwg(project, set, run, onStatus, [id]);
     if (SHEET_STATUSES.includes(what)) save({ ...set, sheets: set.sheets.map((x) => (x.id === id ? { ...x, status: what } : x)) });
     if (what === 'nextrev') save({ ...set, sheets: set.sheets.map((x) => (x.id === id ? { ...x, rev: nextRev(sheetRev(x, currentRevision(project)?.id)) } : x)) });
   };
@@ -138,6 +141,7 @@ export function SheetList({ project, active, selectedBoardId, onActive, onChange
             <div className="st-sub">Status: {SHEET_STATUSES.slice(0, 5).map((x) => <button key={x} onClick={() => act(x, menu.id)} style={{ color: statusColor(x) }}>{x.replace('FOR ', '')}</button>)}</div>
             <button onClick={() => act('pdf', menu.id)}>Export this sheet (PDF)</button>
             <button onClick={() => act('dxf', menu.id)}>Export this sheet (DXF)</button>
+            <button onClick={() => act('dwg', menu.id)}>Export this sheet (DWG)</button>
             <button className="danger" onClick={() => act('del', menu.id)}>Delete</button>
           </div>
         </>
@@ -147,8 +151,10 @@ export function SheetList({ project, active, selectedBoardId, onActive, onChange
 }
 
 /** One sheet as it prints, live, with its settings beside it. */
-export function SheetWorkspace({ project, run, sheetId, design, settingsHost, onChange, onStatus, onActive }: {
+export function SheetWorkspace({ project, run, sheetId, design, settingsHost, ui, onChange, onStatus, onActive }: {
   project: Project; run?: CalcRun; sheetId: string; design: React.ReactNode;
+  /** Markup tool, colour, zoom and side by side: shared with the ribbon, which holds the buttons. */
+  ui: SheetUi;
   /** Where the sheet settings go (the app's right panel); beside the page when absent. */
   settingsHost?: HTMLElement | null;
   onChange: (p: Project) => void; onStatus: (m: string) => void; onActive: (id: string | null) => void;
@@ -157,28 +163,20 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
   const s = set.sheets.find((x) => x.id === sheetId);
   const [page, setPage] = useState<{ html: string; size: SheetSize; fits: boolean; refs: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [zoom, setZoom] = useState<number | 'fit'>('fit');
-  const [side, setSide] = useState(() => { try { return localStorage.getItem('lvds.sheetSide') === '1'; } catch { return false; } });
+  const { zoom, setZoom, side, tool, setTool, color: mColor, setColor: setMColor, size: mSize, setSize: setMSize, selId, setSelId } = ui;
   const [publish, setPublish] = useState(false);
-  const [markOn, setMarkOn] = useState(() => { try { return localStorage.getItem('lvds.sheetMarkup') === '1'; } catch { return false; } });
-  const toggleMarkup = (on: boolean) => { setMarkOn(on); if (!on) { setTool('select'); setSelId(null); } try { localStorage.setItem('lvds.sheetMarkup', on ? '1' : '0'); } catch { /* ignore */ } };
-  const toggleSide = (on: boolean) => { setSide(on); try { localStorage.setItem('lvds.sheetSide', on ? '1' : '0'); } catch { /* ignore */ } };
   const host = useRef<HTMLDivElement>(null);
   const [hostW, setHostW] = useState(900);
   const [hostH, setHostH] = useState(600);
   const save = (next: DrawingSet) => onChange({ ...project, drawingSet: next });
   const patch = (p: Partial<DrawingSheet>) => s && save({ ...set, sheets: set.sheets.map((x) => (x.id === s.id ? { ...x, ...p } : x)) });
-  const [tool, setTool] = useState<MarkupTool>('select');
-  const [mColor, setMColor] = useState<MarkupColor>('red');
-  const [mSize, setMSize] = useState(3.5);
-  const [selId, setSelId] = useState<string | null>(null);
   const [anchors, setAnchors] = useState<{ list: SheetAnchor[]; mmPerUnit: number }>({ list: [], mmPerUnit: 1 });
   const markups = s?.markups ?? [];
   const setMarkups = (next: SheetMarkup[]) => patch({ markups: next.length ? next : undefined });
   const selected = markups.find((m) => m.id === selId);
   const removeSelected = () => { if (selected) { setMarkups(markups.filter((m) => m.id !== selected.id)); setSelId(null); } };
   const restyle = (p: Partial<SheetMarkup>) => selected && setMarkups(markups.map((m) => (m.id === selected.id ? { ...m, ...p } : m)));
-  useEffect(() => { setSelId(null); setTool('select'); }, [sheetId]);
+  useEffect(() => { setSelId(null); setTool('select'); }, [sheetId, setSelId, setTool]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
@@ -186,7 +184,6 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
       if ((e.key === 'Delete' || e.key === 'Backspace') && selected) { e.preventDefault(); removeSelected(); }
       else if (e.key === 'Escape') { setTool('select'); setSelId(null); }
       else if (!e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'f' || e.key === 'F')) setZoom('fit');
-      else if (!e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'm' || e.key === 'M') && s) toggleMarkup(!(markOn || tool !== 'select' || !!selected));
       else if (!e.ctrlKey && !e.metaKey && !e.altKey) {
         const t = ALL_TOOLS.find((x) => x.key === e.key.toUpperCase() && (s?.kind === 'system' || (x.tool !== 'pcloud' && x.tool !== 'parrow')));
         if (t) { setTool(t.tool); if (t.tool !== 'select') setSelId(null); }
@@ -233,7 +230,26 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [side, s?.id]);
+  }, [side, s?.id, setZoom]);
+
+  // The ribbon's sheet buttons act on this sheet while it is shown.
+  useEffect(() => {
+    ui.actions.current = {
+      zoomIn: () => setZoom(Math.min(3, scaleRef.current * 1.25)),
+      zoomOut: () => setZoom(Math.max(0.15, scaleRef.current / 1.25)),
+      removeSelected,
+      restyle: (p) => { if (p.color) setMColor(p.color); if (p.size) setMSize(p.size); restyle(p); },
+      publish: () => setPublish(true),
+      exportAs: (kind) => {
+        if (!s) return;
+        if (kind === 'pdf') void exportDrawingSet(project, set, run, false, onStatus, [s.id], false);
+        else if (kind === 'dxf') void exportSheetsDxf(project, set, run, onStatus, [s.id]);
+        else void exportSheetsDwg(project, set, run, onStatus, [s.id]);
+      }
+    };
+    ui.setPct(`${Math.round(scaleRef.current * 100)} %`);
+  });
+  useEffect(() => () => { ui.actions.current = NO_SHEET_ACTIONS; }, []); // eslint-disable-line react-hooks/exhaustive-deps -- on leaving
 
   if (!s) return <p className="m">This sheet no longer exists.</p>;
   const mm = SHEET_MM[page?.size ?? (s.size === 'auto' ? 'A3' : s.size)];
@@ -241,8 +257,6 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
   const fit = Math.min((hostW - 24) / pxW, (hostH - 24) / pxH);
   const scale = zoom === 'fit' ? fit : zoom;
   scaleRef.current = scale;
-  const pct = `${Math.round(scale * 100)} %`;
-  const showMarkup = markOn || tool !== 'select' || !!selected;
   const boards = boardsInSupplyOrder(project);
   const depth = (id: string) => { let n = 0, x = project.boards.find((b) => b.id === id); while (x?.upstreamId && n < 20) { n++; x = project.boards.find((b) => b.id === x!.upstreamId); } return n; };
   const tags = s.tags ?? set.tags ?? SHEET_LAYERS;
@@ -269,37 +283,7 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
           );
           return incoming.length + outgoing.length ? <span className="sheet-refs">{incoming.map((r) => chip(r, 'From'))}{outgoing.map((r) => chip(r, 'To'))}</span> : null;
         })()}
-        <span className="sp" />
-        <button className="icon-btn" title="Zoom out" onClick={() => setZoom(Math.max(0.15, (zoom === 'fit' ? fit : zoom) / 1.25))}>−</button>
-        <button className={`chip${zoom === 'fit' ? ' on' : ''}`} title="Fit the sheet to the window (F) · Ctrl/⌘ + scroll to zoom" onClick={() => setZoom('fit')}>{zoom === 'fit' ? `Fit · ${pct}` : pct}</button>
-        <button className="icon-btn" title="Zoom in" onClick={() => setZoom(Math.min(3, (zoom === 'fit' ? fit : zoom) * 1.25))}>+</button>
-        {project.drawing?.symbols !== 'simple' && (
-          <button className={`chip${project.drawing?.legend !== false ? ' on' : ''}`} onClick={() => onChange({ ...project, drawing: { ...project.drawing, legend: project.drawing?.legend === false } })}
-            title="Symbol legend in the sheets' legend column (and on SLD exports)">Legend</button>
-        )}
-        {drawable(s) && (
-          <button className={`chip${showMarkup ? ' on' : ''}`} aria-pressed={showMarkup} title="Show the markup tools: clouds, arrows, text and callouts on this sheet (M)" onClick={() => toggleMarkup(!showMarkup)}>
-            Markup{markups.length ? ` (${markups.length})` : ''}
-          </button>
-        )}
-        <button className={`chip${side ? ' on' : ''}`} aria-pressed={side} title="The design on the left, this sheet on the right" onClick={() => toggleSide(!side)}>Side by side</button>
-        {(() => {
-          // Say what publishing would issue for this sheet: its first revision, or the next one once it has changed since its last issue.
-          const cur = sheetRev(s, rev?.id), issued = !!(s.history?.length || s.rev);
-          const changed = !!s.issuedHash && s.issuedHash !== sheetHash(project, set, s);
-          const next = issued ? nextRev(cur) : cur || 'A';
-          const label = !s.history?.length || changed ? `Publish · Rev ${next}…` : 'Publish…';
-          const title = !s.history?.length ? `Not issued yet — issuing gives this sheet Rev ${next}`
-            : changed ? `Changed since Rev ${cur} was issued — the next issue is Rev ${next}` : `No changes since Rev ${cur} was issued — exports and the issue register`;
-          return <button className={`chip primary${changed ? ' publish-changed' : ''}`} title={title} onClick={() => setPublish(true)}>{changed && <span className="pub-dot" aria-label="changed since issue" />}{label}</button>;
-        })()}
       </div>
-      {drawable(s) && showMarkup && (
-        <MarkupToolbar anchored={s.kind === 'system'} tool={tool} color={selected?.color ?? mColor} size={mSize} selected={selected} count={markups.length}
-          onTool={(t) => { setTool(t); if (t !== 'select') setSelId(null); }}
-          onColor={(c) => { setMColor(c); restyle({ color: c }); }}
-          onSize={(z) => { setMSize(z); restyle({ size: z }); }} onDelete={removeSelected} />
-      )}
       <div className="sheet-body">
         {side && <div className="sheet-design">{design}</div>}
         <div className="sheet-page" ref={host}>
@@ -381,7 +365,7 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
               </div>
             ))}
             {markups.length > 0 && <button className="linkish" onClick={async () => { if (await ask(`Remove all ${markups.length} markups from ${s.number}?`)) { setMarkups([]); setSelId(null); } }}>Remove all</button>}
-            <p className="m">Draw on the sheet with the Markup button above it. They stay on this sheet when the design changes and print in the PDF and DXF.</p>
+            <p className="m">Draw on the sheet with the Markup tools on the ribbon. They stay on this sheet when the design changes and print in the PDF and DXF.</p>
           </details>
           <details><summary>Arrows and callouts ({(s.arrows ?? []).length})</summary>
             {(s.arrows ?? []).map((a, i) => (
@@ -404,6 +388,11 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
           return settingsHost ? createPortal(settings, settingsHost) : <aside className="sheet-side">{settings}</aside>;
         })()}
       </div>
+      {(() => {
+        // What the markup tool does, once a tool or a markup is picked (the tools are on the ribbon).
+        const t = ALL_TOOLS.find((x) => x.tool === tool);
+        return t && (tool !== 'select' || selected) ? <div className="m sheet-hint">{t.label}: {t.hint}{markups.length ? ` · ${markups.length} on this sheet` : ''}</div> : null;
+      })()}
       {publish && <PublishDialog project={project} run={run} onClose={() => setPublish(false)} onChange={onChange} onStatus={onStatus} onOpen={(id) => { setPublish(false); onActive(id); }} />}
     </div>
   );
