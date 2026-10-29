@@ -53,6 +53,8 @@ export interface CadView {
   /** The object under (x, y) within `tol` (drawing units, absolute) on shown layers; null when none. `closedOnly`:
    * only objects with an area (as for AREA → Object). */
   pick: (x: number, y: number, tol: number, layersOn: Uint8Array, closedOnly?: boolean) => CadObject | null;
+  /** Closed objects of model space (polylines, circles, hatches…), for rooms from outline layers. */
+  outlines: () => CadObject[];
 }
 
 /** Snap kinds, as the engine numbers them. */
@@ -87,11 +89,13 @@ export async function openDrawing(file: string, bytes: Uint8Array, path?: string
     throw new Error(`${file} could not be read (${e instanceof Error ? e.message : String(e)}).`);
   }
   const info = JSON.parse(doc.info()) as CadInfo;
+  let outlines: CadObject[] | undefined;
   return {
     file, path, info, bytes,
     segs: doc.segments(), segLayers: doc.segment_layers(), segColors: doc.segment_colors(),
     snap: (x, y, r, mask, layersOn) => doc.snap(x, y, r, mask, layersOn),
-    pick: (x, y, tol, layersOn, closedOnly = false) => { const j = doc.pick(x, y, tol, layersOn, closedOnly); return j ? (JSON.parse(j) as CadObject) : null; }
+    pick: (x, y, tol, layersOn, closedOnly = false) => { const j = doc.pick(x, y, tol, layersOn, closedOnly); return j ? (JSON.parse(j) as CadObject) : null; },
+    outlines: () => (outlines ??= JSON.parse(doc.outlines()) as CadObject[])
   };
 }
 

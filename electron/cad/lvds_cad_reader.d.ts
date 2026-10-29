@@ -13,6 +13,11 @@ export class CadDoc {
      */
     constructor(bytes: Uint8Array);
     /**
+     * Closed objects of model space (polylines, circles, ellipses, hatches, solids) as JSON — each ObjInfo with its `id`
+     * — for rooms from outline layers; their drawn segments are `seg_start..seg_end`.
+     */
+    outlines(): string;
+    /**
      * The object under (x, y) within `tol` (drawing units) on shown layers, as JSON (ObjInfo with its `id`), or "".
      * The nearest drawn line wins; a text wins when the point is on it. `closed_only` considers only objects with an
      * area (closed polylines, circles, hatches…), as for AREA → Object.
@@ -52,6 +57,7 @@ export interface InitOutput {
     readonly __wbg_caddoc_free: (a: number, b: number) => void;
     readonly caddoc_info: (a: number, b: number) => void;
     readonly caddoc_new: (a: number, b: number, c: number) => void;
+    readonly caddoc_outlines: (a: number, b: number) => void;
     readonly caddoc_pick: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
     readonly caddoc_segment_colors: (a: number, b: number) => void;
     readonly caddoc_segment_layers: (a: number, b: number) => void;
