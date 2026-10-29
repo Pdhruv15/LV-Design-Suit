@@ -60,5 +60,15 @@ describe('CAD engine (Rust, WebAssembly)', () => {
     expect(blocks.filter((b) => b.block === 'L1' && b.attributes.CCT === 'DB-GF1/R1')).toHaveLength(8);
     expect(blocks.find((b) => b.block === 'DB-PANEL' && b.attributes.TAG === 'DB-GF1')).toMatchObject({ layer: 'E-BOARD' });
   });
+
+  it('reads linetypes (with LTSCALE) and hatches: solid ones filled, pattern ones with their lines', async () => {
+    const d = await openDrawing('linetypes-hatches.dxf', bytes('tests/fixtures/cad/linetypes-hatches.dxf'));
+    expect(d.info.linetypes).toEqual([[], [20, -10]]);
+    expect([...d.segLinetypes.slice(0, 2)]).toEqual([1, 0]); // the dashed line, then the plain one
+    expect(d.segLinetypes.length).toBe(d.segLayers.length);
+    expect(d.info.fills.map((f) => [f.solid, f.loops.length, f.lines.length])).toEqual([[true, 1, 0], [false, 1, 1]]);
+    expect(d.info.fills[1].lines[0].angle).toBeCloseTo(Math.PI / 4);
+    expect(gf.info.fills).toEqual([]); // the sample villa has none
+  });
 });
 

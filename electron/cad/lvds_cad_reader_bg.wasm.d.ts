@@ -9,6 +9,7 @@ export const caddoc_outlines: (a: number, b: number) => void;
 export const caddoc_pick: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
 export const caddoc_segment_colors: (a: number, b: number) => void;
 export const caddoc_segment_layers: (a: number, b: number) => void;
+export const caddoc_segment_linetypes: (a: number, b: number) => void;
 export const caddoc_segments: (a: number, b: number) => void;
 export const caddoc_snap: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
 export const exportDxf: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;

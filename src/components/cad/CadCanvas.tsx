@@ -4,6 +4,7 @@ import { ortho as orthoFrom } from '../../model/cadMeasure';
 import { dimensionLines, segmentsOf, trayEdges, trayLabel } from '../../model/cadSketch';
 import type { PlanCells, PlanCover } from '../elv/elvOverlay';
 import { fittingLabel, trayFittings } from '../../model/cadTrayFittings';
+import { dashArray, hatchLines, patternLength, tileOf } from '../../model/cadDraw';
 import type { SketchItem } from '../../types';
 
 type Pt = [number, number];
@@ -75,19 +76,42 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
   previewRef.current = preview;
   const [o0, o1] = view.info.origin;
 
-  // Lines batched per layer and colour, in drawing units relative to the origin.
+  // Lines batched per layer, colour, linetype and tile of the drawing (so what is off screen is not drawn), in drawing
+  // units relative to the origin; a segment that goes on from the last one continues its path (dashes run on).
   const batches = useMemo(() => {
-    const by = new Map<string, { layer: number; rgb: number; path: Path2D }>();
-    const { segs, segLayers, segColors } = view;
+    type Batch = { layer: number; rgb: number; lt: number; path: Path2D; box: [number, number, number, number]; end: [number, number] };
+    const by = new Map<string, Batch>();
+    const { segs, segLayers, segColors, segLinetypes } = view;
+    const [e0, e1, e2, e3] = view.info.extents;
+    const ext: [number, number, number, number] = [e0 - o0, e1 - o1, e2 - o0, e3 - o1];
     for (let i = 0; i < segLayers.length; i += 1) {
-      const key = `${segLayers[i]}:${segColors[i]}`;
+      const [x1, y1, x2, y2] = [segs[i * 4], segs[i * 4 + 1], segs[i * 4 + 2], segs[i * 4 + 3]];
+      const lt = segLinetypes?.[i] ?? 0;
+      const key = `${segLayers[i]}:${segColors[i]}:${lt}:${tileOf((x1 + x2) / 2, (y1 + y2) / 2, ext)}`;
       let b = by.get(key);
-      if (!b) { b = { layer: segLayers[i], rgb: segColors[i], path: new Path2D() }; by.set(key, b); }
-      b.path.moveTo(segs[i * 4], segs[i * 4 + 1]);
-      b.path.lineTo(segs[i * 4 + 2], segs[i * 4 + 3]);
+      if (!b) { b = { layer: segLayers[i], rgb: segColors[i], lt, path: new Path2D(), box: [x1, y1, x1, y1], end: [NaN, NaN] }; by.set(key, b); }
+      if (b.end[0] !== x1 || b.end[1] !== y1) b.path.moveTo(x1, y1);
+      b.path.lineTo(x2, y2);
+      b.end = [x2, y2];
+      b.box = [Math.min(b.box[0], x1, x2), Math.min(b.box[1], y1, y2), Math.max(b.box[2], x1, x2), Math.max(b.box[3], y1, y2)];
     }
     return [...by.values()];
-  }, [view]);
+  }, [view, o0, o1]);
+  // Filled areas (solid hatches and 2D solids, pattern hatches): their boundary paths and boxes, relative to the origin.
+  const fills = useMemo(() => (view.info.fills ?? []).map((f) => {
+    const path = new Path2D();
+    let box: [number, number, number, number] = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const [a, z] of f.loops) {
+      for (let i = a; i < z; i += 1) {
+        const [x1, y1, x2, y2] = [view.segs[i * 4], view.segs[i * 4 + 1], view.segs[i * 4 + 2], view.segs[i * 4 + 3]];
+        if (i === a) path.moveTo(x1, y1);
+        path.lineTo(x2, y2);
+        box = [Math.min(box[0], x1, x2), Math.min(box[1], y1, y2), Math.max(box[2], x1, x2), Math.max(box[3], y1, y2)];
+      }
+      path.closePath();
+    }
+    return { ...f, path, box };
+  }), [view]);
 
   useEffect(() => {
     const el = host.current;
@@ -135,12 +159,45 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
       }
     }
     ctx.setTransform(dpr * scale, 0, 0, -dpr * scale, -dpr * ox * scale, dpr * (size.h + oy * scale));
-    ctx.lineWidth = 1 / scale;
+    // What is on screen (drawing units relative to the origin), with a pixel of margin.
+    const vx0 = ox - 2 / scale, vy0 = oy - 2 / scale, vx1 = ox + (size.w + 2) / scale, vy1 = oy + (size.h + 2) / scale;
+    const onScreen = (bx: [number, number, number, number]) => bx[2] >= vx0 && bx[0] <= vx1 && bx[3] >= vy0 && bx[1] <= vy1;
+    const px = 1 / scale;
+    // Hatches under the lines: solid ones filled; pattern lines clipped to the boundary, or a light fill when they would
+    // be closer than 3 pixels (or too many to draw).
+    for (const f of fills) {
+      if (!layersOn[f.layer] || !onScreen(f.box)) continue;
+      const col = f.rgb === INK ? ink : hex(f.rgb);
+      if (f.solid) { ctx.fillStyle = col; ctx.fill(f.path, 'evenodd'); continue; }
+      const families = f.lines.map((l) => ({ l, lines: hatchLines({ angle: l.angle, base: [l.base[0] - o0, l.base[1] - o1], offset: l.offset }, f.box, 3 * px) }));
+      ctx.save();
+      ctx.clip(f.path, 'evenodd');
+      if (!families.length || families.some((x) => !x.lines.length)) {
+        ctx.globalAlpha = 0.18; ctx.fillStyle = col; ctx.fill(f.path, 'evenodd'); ctx.globalAlpha = 1;
+      } else {
+        ctx.strokeStyle = col; ctx.lineWidth = px;
+        for (const { l, lines } of families) {
+          const dash = dashArray(l.dashes, px), len = patternLength(dash);
+          ctx.setLineDash(dash.length && len * scale >= 4 ? dash : []);
+          ctx.beginPath();
+          for (const x of lines) { ctx.lineDashOffset = len ? ((x.phase % len) + len) % len : 0; ctx.moveTo(x.a[0], x.a[1]); ctx.lineTo(x.b[0], x.b[1]); }
+          ctx.stroke();
+        }
+        ctx.setLineDash([]); ctx.lineDashOffset = 0;
+      }
+      ctx.restore();
+    }
+    ctx.lineWidth = px;
+    const dashes = view.info.linetypes ?? [];
     for (const b of batches) {
-      if (!layersOn[b.layer]) continue;
+      if (!layersOn[b.layer] || !onScreen(b.box)) continue;
       ctx.strokeStyle = b.rgb === INK ? ink : hex(b.rgb);
+      // A linetype too fine to see at this zoom (repeat under 4 pixels) is drawn continuous, as CAD does.
+      const dash = b.lt ? dashArray(dashes[b.lt] ?? [], px) : [];
+      ctx.setLineDash(dash.length && patternLength(dash) * scale >= 4 ? dash : []);
       ctx.stroke(b.path);
     }
+    ctx.setLineDash([]);
     if (highlight && highlight[1] > highlight[0]) {
       const p = new Path2D();
       for (let i = highlight[0]; i < highlight[1]; i += 1) { p.moveTo(view.segs[i * 4], view.segs[i * 4 + 1]); p.lineTo(view.segs[i * 4 + 2], view.segs[i * 4 + 3]); }
@@ -273,7 +330,7 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
         ctx.fillText(fittingLabel(f), sx + fpx * 1.2, sy - fpx * 1.2);
       }
     }
-  }, [t, size, batches, layersOn, toggles.grid, view, highlight, devices, sketch, selectedSketch, unitsPerMm, labels, covers, gaps]); // eslint-disable-line react-hooks/exhaustive-deps -- colours read from CSS each draw
+  }, [t, size, batches, fills, layersOn, toggles.grid, view, highlight, devices, sketch, selectedSketch, unitsPerMm, labels, covers, gaps]); // eslint-disable-line react-hooks/exhaustive-deps -- colours read from CSS each draw
 
   /** The cursor: crosshair and pick box, and the snap marker with its name. */
   function drawCursor(at: Pt | null, snap?: { p: Pt; kind: number }) {

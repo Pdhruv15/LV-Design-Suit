@@ -159,6 +159,23 @@ export class CadDoc {
         }
     }
     /**
+     * The dash pattern of each segment: an index into info().linetypes (0: continuous).
+     * @returns {Uint16Array}
+     */
+    segment_linetypes() {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.caddoc_segment_linetypes(retptr, this.__wbg_ptr);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var v1 = getArrayU16FromWasm0(r0, r1).slice();
+            wasm.__wbindgen_export(r0, r1 * 2, 2);
+            return v1;
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
      * Segments x1, y1, x2, y2 relative to the origin (single precision is enough for drawing).
      * @returns {Float32Array}
      */

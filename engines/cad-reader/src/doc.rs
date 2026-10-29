@@ -76,6 +76,13 @@ struct ObjInfo {
 
 struct SnapPoint { x: f64, y: f64, kind: u32, layer: u16 }
 
+/// A filled area: a solid hatch or 2D solid (`solid`), or a pattern hatch with its pattern lines (drawing units,
+/// absolute). Its loops are ranges of drawn segments (`seg_start..seg_end`), each one closed boundary.
+#[derive(Serialize)]
+struct Fill { layer: u16, rgb: u32, solid: bool, loops: Vec<[u32; 2]>, lines: Vec<PatLine> }
+#[derive(Serialize)]
+struct PatLine { angle: f64, base: [f64; 2], offset: [f64; 2], dashes: Vec<f64> }
+
 #[wasm_bindgen]
 pub struct CadDoc {
     format: &'static str,
@@ -86,6 +93,9 @@ pub struct CadDoc {
     seg_rgb: Vec<u32>,
     seg_real: Vec<bool>, // a drawn straight piece (not a curve tessellation step) — used for intersections
     seg_obj: Vec<u32>, // the model-space object each segment belongs to
+    seg_lt: Vec<u16>, // the dash pattern each segment is drawn with (index into `linetypes`; 0 continuous)
+    linetypes: Vec<Vec<f64>>, // dash patterns in drawing units: dash > 0, gap < 0, dot 0
+    fills: Vec<Fill>,
     objects: Vec<ObjInfo>,
     texts: Vec<TextItem>,
     snaps: Vec<SnapPoint>,
@@ -111,6 +121,11 @@ struct Builder<'a> {
     blocks: HashMap<String, (f64, f64)>, // block name (upper) → base point
     out: CadDoc,
     current: u32,
+    layer_lt: Vec<String>, // each layer's linetype name
+    lt_defs: HashMap<String, Vec<f64>>, // linetype name (upper) → pattern (unscaled)
+    lt_index: HashMap<(String, u64), u16>, // (name, scale bits) → index in out.linetypes
+    lt: u16, // the dash pattern of the entity being drawn (ByBlock children keep their insert's)
+    ltscale: f64,
 }
 
 fn rgb_of(c: &Color) -> Option<u32> {
@@ -126,6 +141,7 @@ impl<'a> Builder<'a> {
         let i = self.out.layers.len() as u16;
         self.out.layers.push(LayerInfo { name: name.to_string(), rgb: INK, on: true, count: 0 });
         self.layer_rgb.push(INK);
+        self.layer_lt.push(String::new());
         self.layer_index.insert(name.to_string(), i);
         i
     }
@@ -152,8 +168,25 @@ impl<'a> Builder<'a> {
         self.out.seg_rgb.push(rgb);
         self.out.seg_real.push(real);
         self.out.seg_obj.push(self.current);
+        self.out.seg_lt.push(self.lt);
         self.out.layers[l as usize].count += 1;
     }
+
+    /// The dash pattern of a linetype at a scale, as an index into the drawing's patterns (0: continuous).
+    fn linetype(&mut self, name: &str, scale: f64) -> u16 {
+        let key = name.to_uppercase();
+        let Some(def) = self.lt_defs.get(&key) else { return 0 };
+        if def.is_empty() || def.iter().all(|x| *x >= 0.0) || !scale.is_finite() || scale <= 0.0 { return 0; }
+        let k = (key, scale.to_bits());
+        if let Some(i) = self.lt_index.get(&k) { return *i; }
+        let i = self.out.linetypes.len() as u16;
+        self.out.linetypes.push(def.iter().map(|x| x * scale).collect());
+        self.lt_index.insert(k, i);
+        i
+    }
+
+    /// The segments a closed boundary is drawn with, from here on: call before drawing it, then `loop_end`.
+    fn loop_start(&self) -> u32 { self.out.seg_layer.len() as u32 }
 
     fn snap(&mut self, t: &Affine, p: (f64, f64), kind: u32, l: u16) {
         let (x, y) = t.apply(p.0, p.1);
@@ -214,6 +247,19 @@ impl<'a> Builder<'a> {
         let c = e.common();
         if c.invisible { return; }
         let (l, rgb) = self.style(&c.layer, &c.color, parent);
+        // Linetype: its own, the layer's (ByLayer), or the insert's (ByBlock), at LTSCALE × its scale × the insert's.
+        let outer = self.lt;
+        let named = c.linetype.trim().to_uppercase();
+        if named != "BYBLOCK" {
+            let name = if named.is_empty() || named == "BYLAYER" { self.layer_lt[l as usize].clone() } else { named };
+            let k = if c.linetype_scale > 0.0 { c.linetype_scale } else { 1.0 };
+            self.lt = self.linetype(&name, self.ltscale * k * t.size());
+        }
+        self.entity_drawn(e, t, l, rgb, depth);
+        self.lt = outer;
+    }
+
+    fn entity_drawn(&mut self, e: &EntityType, t: &Affine, l: u16, rgb: u32, depth: u32) {
         // Entities whose extrusion points down (mirrored in plan): x mirrored in their own coordinates.
         let mirror = |n: &acadrust::types::Vector3, t: &Affine| if n.z < -0.5 { t.then(&Affine::scale(-1.0, 1.0)) } else { *t };
         match e {
@@ -273,10 +319,15 @@ impl<'a> Builder<'a> {
             }
             EntityType::Solid(x) => {
                 let p = [(x.first_corner.x, x.first_corner.y), (x.second_corner.x, x.second_corner.y), (x.fourth_corner.x, x.fourth_corner.y), (x.third_corner.x, x.third_corner.y)];
+                let start = self.loop_start();
                 for i in 0..4 { self.seg(t, p[i], p[(i + 1) % 4], l, rgb, true); self.snap(t, p[i], ENDPOINT, l); }
+                let end = self.loop_start();
+                if end > start { self.out.fills.push(Fill { layer: l, rgb, solid: true, loops: vec![[start, end]], lines: vec![] }); }
             }
             EntityType::Hatch(x) => {
+                let mut loops = vec![];
                 for path in &x.paths {
+                    let start = self.loop_start();
                     for edge in &path.edges {
                         match edge {
                             BoundaryEdge::Line(e) => self.seg(t, (e.start.x, e.start.y), (e.end.x, e.end.y), l, rgb, true),
@@ -293,6 +344,20 @@ impl<'a> Builder<'a> {
                             _ => {}
                         }
                     }
+                    let end = self.loop_start();
+                    if end > start { loops.push([start, end]); }
+                }
+                if !loops.is_empty() {
+                    // Pattern lines as stored (scale and angle applied), moved into place with the insert's transform.
+                    let (ox, oy) = t.apply(0.0, 0.0);
+                    let lines = if x.is_solid { vec![] } else {
+                        x.pattern.lines.iter().map(|pl| {
+                            let b = t.apply(pl.base_point.x, pl.base_point.y);
+                            let o = t.apply(pl.offset.x, pl.offset.y);
+                            PatLine { angle: pl.angle + t.angle(), base: [b.0, b.1], offset: [o.0 - ox, o.1 - oy], dashes: pl.dash_lengths.iter().map(|d| d * t.size()).collect() }
+                        }).collect()
+                    };
+                    self.out.fills.push(Fill { layer: l, rgb, solid: x.is_solid, loops, lines });
                 }
             }
             EntityType::Text(x) => {
@@ -500,7 +565,12 @@ impl CadDoc {
             layer_rgb: Vec::new(),
             blocks: HashMap::new(),
             current: 0,
-            out: CadDoc { format, units: doc.header.insertion_units, origin: (0.0, 0.0), segs: vec![], seg_layer: vec![], seg_rgb: vec![], seg_real: vec![], seg_obj: vec![], objects: vec![], texts: vec![], snaps: vec![], layers: vec![], grid: Grid { x0: 0.0, y0: 0.0, cell: 1.0, nx: 1, ny: 1, segs: vec![vec![]], pts: vec![vec![]] }, truncated: false },
+            layer_lt: Vec::new(),
+            lt_defs: doc.line_types.iter().map(|lt| (lt.name.to_uppercase(), lt.elements.iter().map(|e| e.length).collect())).collect(),
+            lt_index: HashMap::new(),
+            lt: 0,
+            ltscale: if doc.header.linetype_scale > 0.0 { doc.header.linetype_scale } else { 1.0 },
+            out: CadDoc { format, units: doc.header.insertion_units, origin: (0.0, 0.0), segs: vec![], seg_layer: vec![], seg_rgb: vec![], seg_real: vec![], seg_obj: vec![], seg_lt: vec![], linetypes: vec![vec![]], fills: vec![], objects: vec![], texts: vec![], snaps: vec![], layers: vec![], grid: Grid { x0: 0.0, y0: 0.0, cell: 1.0, nx: 1, ny: 1, segs: vec![vec![]], pts: vec![vec![]] }, truncated: false },
         };
         for layer in doc.layers.iter() {
             let i = b.layer(&layer.name);
@@ -508,6 +578,7 @@ impl CadDoc {
             b.layer_rgb[i as usize] = rgb;
             b.out.layers[i as usize].rgb = rgb;
             b.out.layers[i as usize].on = !layer.is_off() && !layer.is_frozen();
+            b.layer_lt[i as usize] = layer.line_type.clone();
         }
         for rec in doc.block_records.iter() {
             if let Some(EntityType::Block(blk)) = doc.get_entity(rec.block_entity_handle) {
@@ -536,7 +607,8 @@ impl CadDoc {
         serde_json::json!({
             "format": self.format, "units": self.units, "origin": [self.origin.0, self.origin.1],
             "extents": [x0, y0, x1, y1], "layers": self.layers, "texts": self.texts,
-            "segments": self.seg_layer.len(), "snaps": self.snaps.len(), "truncated": self.truncated
+            "segments": self.seg_layer.len(), "snaps": self.snaps.len(), "truncated": self.truncated,
+            "linetypes": self.linetypes, "fills": self.fills
         }).to_string()
     }
 
@@ -545,6 +617,8 @@ impl CadDoc {
         self.segs.chunks(4).flat_map(|s| [(s[0] - self.origin.0) as f32, (s[1] - self.origin.1) as f32, (s[2] - self.origin.0) as f32, (s[3] - self.origin.1) as f32]).collect()
     }
     pub fn segment_layers(&self) -> Vec<u16> { self.seg_layer.clone() }
+    /// The dash pattern of each segment: an index into info().linetypes (0: continuous).
+    pub fn segment_linetypes(&self) -> Vec<u16> { self.seg_lt.clone() }
     /// Colour of each segment: 0xRRGGBB, or 0xFF000007 for the foreground (index 7).
     pub fn segment_colors(&self) -> Vec<u32> { self.seg_rgb.clone() }
 
@@ -795,4 +869,54 @@ pub fn export_dxf(bytes: Vec<u8>, devices_json: &str, shapes_json: &str) -> Resu
         }
     }
     acadrust::DxfWriter::new(&doc).write_to_vec().map_err(|e| JsError::new(&e.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use acadrust::entities::{BoundaryPath, Hatch, HatchPattern, HatchPatternLine, Line, PolylineEdge};
+    use acadrust::tables::{LineType, LineTypeElement};
+    use acadrust::types::Vector2;
+
+    /// A small drawing with a dashed line, a solid hatch and a pattern hatch (ANSI31-like), written by acadrust.
+    fn drawing() -> Vec<u8> {
+        let mut doc = CadDocument::new();
+        doc.header.linetype_scale = 2.0;
+        let mut dashed = LineType::new("DASHED");
+        dashed.add_element(LineTypeElement::dash(10.0));
+        dashed.add_element(LineTypeElement::space(5.0));
+        doc.line_types.add(dashed).unwrap();
+        let mut l = Line::from_coords(0.0, 0.0, 0.0, 100.0, 0.0, 0.0);
+        l.common.linetype = "DASHED".into();
+        doc.add_entity(EntityType::Line(l)).unwrap();
+        doc.add_entity(EntityType::Line(Line::from_coords(0.0, 10.0, 0.0, 100.0, 10.0, 0.0))).unwrap();
+        let square = |x: f64| { let mut p = BoundaryPath::new(); p.add_edge(BoundaryEdge::Polyline(PolylineEdge::new(vec![Vector2::new(x, 20.0), Vector2::new(x + 10.0, 20.0), Vector2::new(x + 10.0, 30.0), Vector2::new(x, 30.0)], true))); p };
+        let mut solid = Hatch::solid();
+        solid.add_path(square(0.0));
+        doc.add_entity(EntityType::Hatch(Box::new(solid))).unwrap();
+        let mut pat = HatchPattern::new("ANSI31");
+        pat.add_line(HatchPatternLine { angle: PI / 4.0, base_point: Vector2::new(0.0, 0.0), offset: Vector2::new(-2.0, 2.0), dash_lengths: vec![] });
+        let mut hatched = Hatch::with_pattern(pat);
+        hatched.add_path(square(20.0));
+        doc.add_entity(EntityType::Hatch(Box::new(hatched))).unwrap();
+        acadrust::DxfWriter::new(&doc).write_to_vec().unwrap()
+    }
+
+    #[test]
+    fn linetypes_and_fills() {
+        let bytes = drawing();
+        if let Ok(path) = std::env::var("LVDS_WRITE_FIXTURE") { std::fs::write(path, &bytes).unwrap(); }
+        let d = CadDoc::new(bytes).unwrap();
+        // The dashed line at LTSCALE 2: 20 on, 10 off; the plain line continuous.
+        assert_eq!(d.linetypes.len(), 2);
+        assert_eq!(d.linetypes[1], vec![20.0, -10.0]);
+        let lt: Vec<u16> = d.seg_lt.clone();
+        assert_eq!(&lt[0..2], &[1, 0]);
+        // The solid hatch filled; the pattern hatch with its line family, one loop each.
+        assert_eq!(d.fills.len(), 2);
+        assert!(d.fills[0].solid && d.fills[0].loops.len() == 1 && d.fills[0].lines.is_empty());
+        assert!(!d.fills[1].solid && d.fills[1].lines.len() == 1);
+        let [a, b] = d.fills[1].loops[0];
+        assert_eq!(b - a, 4);
+    }
 }
