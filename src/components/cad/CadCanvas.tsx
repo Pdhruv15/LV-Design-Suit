@@ -6,6 +6,7 @@ import type { PlanCells, PlanCover } from '../elv/elvOverlay';
 import { fittingLabel, trayFittings } from '../../model/cadTrayFittings';
 import { dashArray, hatchLines, patternLength, tileOf } from '../../model/cadDraw';
 import type { SketchItem } from '../../types';
+import { onScreenThemeChange, screenTheme } from '../../theme/theme';
 
 type Pt = [number, number];
 
@@ -75,6 +76,9 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
   const previewRef = useRef(preview);
   previewRef.current = preview;
   const [o0, o1] = view.info.origin;
+  // Colours are read from CSS on each draw, so a theme change redraws.
+  const [theme, setTheme] = useState(screenTheme);
+  useEffect(() => onScreenThemeChange(setTheme), []);
 
   // Lines batched per layer, colour, linetype and tile of the drawing (so what is off screen is not drawn), in drawing
   // units relative to the origin; a segment that goes on from the last one continues its path (dashes run on).
@@ -330,7 +334,7 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
         ctx.fillText(fittingLabel(f), sx + fpx * 1.2, sy - fpx * 1.2);
       }
     }
-  }, [t, size, batches, fills, layersOn, toggles.grid, view, highlight, devices, sketch, selectedSketch, unitsPerMm, labels, covers, gaps]); // eslint-disable-line react-hooks/exhaustive-deps -- colours read from CSS each draw
+  }, [t, size, batches, fills, layersOn, toggles.grid, view, highlight, devices, sketch, selectedSketch, unitsPerMm, labels, covers, gaps, theme]); // eslint-disable-line react-hooks/exhaustive-deps -- colours read from CSS each draw
 
   /** The cursor: crosshair and pick box, and the snap marker with its name. */
   function drawCursor(at: Pt | null, snap?: { p: Pt; kind: number }) {
@@ -438,7 +442,7 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
   // After zoom / pan: the cursor's drawing point moves, so it is tracked again. When only the marks change (a pick, the
   // cursor moving in a tool), they are redrawn without reporting the cursor back (that would loop).
   useEffect(() => { if (mouse.current) track(mouse.current[0], mouse.current[1]); else drawCursor(null); }, [t]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { drawCursor(mouse.current ? lastAt.current?.at ?? null : null, mouse.current ? lastAt.current?.snap : undefined); }, [marks, preview]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { drawCursor(mouse.current ? lastAt.current?.at ?? null : null, mouse.current ? lastAt.current?.snap : undefined); }, [marks, preview, theme]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => { if (e.code === 'Space' && !(e.target instanceof HTMLInputElement)) { space.current = true; } };

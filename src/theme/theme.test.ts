@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
-import { applyTheme, resolveTheme, withPrintTheme } from './theme';
+import { applyTheme, onScreenThemeChange, resolveTheme, screenTheme, withPrintTheme } from './theme';
 import { loadPrefs } from '../model/profile';
 
 const html = () => document.documentElement;
@@ -31,6 +31,26 @@ describe('screen theme', () => {
     applyTheme('light');
     expect(() => withPrintTheme(() => { throw new Error('boom'); })).toThrow('boom');
     expect(html().getAttribute('data-theme')).toBe('light');
+  });
+
+  it('reports a theme change to canvas drawing, but not the export switch and back', async () => {
+    const seen: string[] = [];
+    const off = onScreenThemeChange((t) => seen.push(t));
+    const flush = () => new Promise((r) => setTimeout(r, 0));
+    applyTheme('light');
+    await flush();
+    expect(seen).toEqual(['light']);
+    expect(screenTheme()).toBe('light');
+    withPrintTheme(() => null);
+    await flush();
+    expect(seen).toEqual(['light']);
+    applyTheme('dark');
+    await flush();
+    expect(seen).toEqual(['light', 'dark']);
+    off();
+    applyTheme('light');
+    await flush();
+    expect(seen).toEqual(['light', 'dark']);
   });
 
   it('ignores an unknown stored theme', () => {
