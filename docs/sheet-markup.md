@@ -1,7 +1,9 @@
 # Sheet markups (SLD sheets)
 
-Added 5 October 2026. Every SLD, board and riser sheet has a **Markup** toolbar
-above the page in the sheet view (not on the earthing schematic sheet yet).
+Added 5 October 2026. Every sheet has a **Markup** toolbar above the page in
+**Design CAD > Sheets**: SLD, board, riser, and, since 29 October 2026, the earthing
+schematic, earth riser and floor earthing sheets. The SLD and earthing screens
+have no markup; their **Sheets** button opens the sheet.
 
 Tools: revision cloud (with its revision triangle, default the sheet's next
 revision), box, line, arrow, note and callout (boxed text with a leader arrow to
@@ -19,5 +21,4 @@ editable polylines and `TEXT` on `E-MARKUP` (red), `E-MARKUP-BLUE` and
 `E-MARKUP-BLACK`, above the diagram. Code: `src/model/sheetMarkup.ts`,
 `src/components/sld/SheetMarkupLayer.tsx`.
 
-Not yet: pinning markups to equipment, earthing sheet markups, per-sheet
-hide / print switch.
+Not yet: pinning markups to equipment, per-sheet hide / print switch.

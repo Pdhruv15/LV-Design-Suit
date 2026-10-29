@@ -61,5 +61,17 @@ describe('Ribbon', () => {
     for (const c of ['Draw', 'Modify', 'Annotate']) expect(html).not.toContain(`aria-label="${c}"`);
     expect(render('home')).not.toContain('ribbon-subtabs');
   });
+
+  it('has a Sheets sub-tab in Design CAD for the sheets pages, with the register tabs', () => {
+    const html = render('cad', { view: 'drawings', sheets: { tab: 'layout', open: false, onTab: noop } });
+    expect(html).toMatch(/aria-selected="true"[^>]*>Sheets</);
+    for (const label of ['All sheets', 'Layout', 'Title block', 'Issues']) expect(html).toContain(`>${label}<`);
+    expect(html).not.toContain('>Save DWG<'); // floor-plan tools stay on Plan and Draw
+    expect(render('cad', { view: 'cad' })).not.toContain('>All sheets<');
+  });
+
+  it('opens the sheets from the SLD tabs', () => {
+    for (const tab of ['schematic', 'detailed'] as const) expect(render(tab), tab).toContain('in Design CAD → Sheets');
+  });
 });
 

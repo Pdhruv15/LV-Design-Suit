@@ -1,7 +1,7 @@
 /** What each release added, in plain words, for the What's new window shown once after an update (and from Help).
  * Add the new version at the top of RELEASES with each release batch, one line per feature. */
 
-export type WhatsNewAction = 'cad' | 'floor-plan' | 'floor-plan-lengths' | 'floor-plan-trays' | 'floor-plan-boards';
+export type WhatsNewAction = 'cad' | 'sheets' | 'floor-plan' | 'floor-plan-lengths' | 'floor-plan-trays' | 'floor-plan-boards';
 
 export interface WhatsNewItem {
   title: string;
@@ -14,6 +14,14 @@ export interface WhatsNewItem {
 export interface Release { version: string; date: string; items: WhatsNewItem[] }
 
 export const RELEASES: Release[] = [
+  {
+    version: '2.4', date: '2026-10-29',
+    items: [
+      { title: 'Sheets in Design CAD', text: 'Every submission sheet is in Design CAD → Sheets: SLDs, risers, the earthing schematic, earth riser and floor earthing, with the register (layout, title block and numbering, issues, export). The SLD and earthing screens keep the design; their Sheets button opens the sheet.', action: 'sheets', actionLabel: 'Open Sheets' },
+      { title: 'Clouds and notes on earthing sheets', text: 'The earthing schematic, earth riser and floor earthing sheets get the Markup tools too: revision clouds, notes, callouts, arrows, boxes and lines, printed on the PDF and DXF.' },
+      { title: 'New sheet from any panel', text: 'Panel and its branch asks which panel when none is picked; Side by side shows the design with each sheet\'s panels outlined, to move a panel to another sheet.' }
+    ]
+  },
   {
     version: '2.3', date: '2026-10-29',
     items: [

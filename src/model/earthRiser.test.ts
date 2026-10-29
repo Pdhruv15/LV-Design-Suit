@@ -4,7 +4,7 @@ import type { Board, Feeder, Project } from '../types';
 import { DEFAULT_RISER_TAPE, earthRiserLayout, floorGroups, newRiserId, nextRiserName, riserPages, riserRows, risersOf, setRisers } from './earthRiser';
 import { earthFloorDrawing, earthRiserDrawing, earthSheetRefs } from '../diagram/earthRiserDrawing';
 import { earthingDrawing, pitTags } from '../diagram/earthingDrawing';
-import { addEarthRiserSheet, drawable, earthSheetGaps, renumber, setOf, sheetChecks, sheetType } from './drawingSet';
+import { addEarthRiserSheet, drawable, earthSheetFor, earthSheetGaps, renumber, setOf, sheetChecks, sheetType } from './drawingSet';
 import { cpcOf } from '../calc/cableTable';
 
 /** G+3 tower (or taller): one SMDB per floor fed from MDB-1 of the sample project. */
@@ -134,6 +134,19 @@ describe('earthing riser', () => {
     const p: Project = { ...r.project, boards: [...r.project.boards, { id: 'DB-X', name: 'No level', kind: 'DB', upstreamId: r.panelIds[0] }] };
     expect(earthRiserLayout(p, r.buildingId).notOnLevel).toEqual(['DB-X']);
     expect(earthRiserDrawing(p, r.buildingId).svg).toContain('NOT SHOWN — NO LEVEL IN THIS BUILDING: DB-X');
+  });
+
+  it('finds or adds the sheet the earthing screen shows, for Design CAD → Sheets', () => {
+    const r = tower(41); // 3 riser sheets
+    const set = setOf(r.project);
+    const second = earthSheetFor(set, r.project, 'earthRiser', r.buildingId, 1);
+    expect(second.set.sheets.filter((x) => x.kind === 'earthRiser')).toHaveLength(3); // the whole riser, the first time
+    expect(second.set.sheets.find((x) => x.id === second.id)).toMatchObject({ kind: 'earthRiser', part: 1, buildingId: r.buildingId });
+    expect(earthSheetFor(second.set, r.project, 'earthRiser', r.buildingId, 1)).toEqual({ set: second.set, id: second.id }); // there: unchanged
+    const e = earthSheetFor(set, r.project, 'earthing');
+    expect(e.set.sheets.filter((x) => x.kind === 'earthing')).toHaveLength(1);
+    expect(earthSheetFor(e.set, r.project, 'earthing').id).toBe(e.id);
+    expect(earthSheetFor(set, r.project, 'earthFloor')).toEqual({ set }); // no building chosen
   });
 
   it('adds every riser sheet and floor sheet, numbered with the earthing sheets, and flags a riser that outgrew its sheets', () => {

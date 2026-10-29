@@ -3,6 +3,7 @@ import type { Release, WhatsNewAction } from '../model/whatsNew';
 
 const ICONS: Record<WhatsNewAction | 'cli', string> = {
   cad: 'M12 19l7-7 3 3-7 7-3-3zM18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5zM2 2l7.586 7.586',
+  sheets: 'M14 3H6v18h12V7zM14 3v4h4M9 12h6M9 16h6',
   'floor-plan': 'M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14',
   'floor-plan-lengths': 'M4 18c4 0 4-12 8-12s4 12 8 12',
   'floor-plan-trays': 'M3 9h18v6H3zM7 9v6M12 9v6M17 9v6',
