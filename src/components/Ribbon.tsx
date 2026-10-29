@@ -66,7 +66,7 @@ export interface RibbonActions {
   onAnonymizedSample: () => void;
   /** Design CAD's tools (src/components/cad); `file`: the File group's Plans, Level and Units (cadFileMenu.ts). */
   cad?: {
-    tool: CadTool; onTool: (t: CadTool) => void; onOpen: () => void; onSave: () => void; onDelete: () => void; hasSelection: boolean; onFit: () => void; onLayers: () => void; layersOn: boolean; hasDrawing: boolean;
+    tool: CadTool; onTool: (t: CadTool) => void; onOpen: () => void; onSave: () => void; onSaveDwg: () => void; onDelete: () => void; hasSelection: boolean; onFit: () => void; onLayers: () => void; layersOn: boolean; hasDrawing: boolean;
     file: { plans: Tool['menu']; plansSub?: string; level: string; levelTitle: string; levels: Tool['menu']; unit: string; unitTitle: string; units: Tool['menu'] };
     onRoles: () => void; rolesOn: boolean; onAddFound: () => void; onSchedules: () => void; onPlaceBoard: () => void; placingBoard: boolean;
     onCoverage: () => void; coverageOn: boolean; copyLevels: Tool['menu'];
@@ -347,7 +347,8 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: a.cad?.file.level ?? 'Level', icon: Building2, sub: 'level', title: a.cad?.file.levelTitle ?? 'The level the drawing is the plan of', onClick: () => {}, disabled: !a.cad?.hasDrawing || !a.cad.file.levels?.length, menu: a.cad?.file.levels },
         { label: a.cad?.file.unit ?? 'Units', icon: Scale, sub: 'units', title: a.cad?.file.unitTitle ?? 'The units the drawing is in', onClick: () => {}, disabled: !a.cad?.hasDrawing, menu: a.cad?.file.units },
         { label: 'Layer roles', icon: Layers, title: 'What each layer is: wall, room outline, room name, tray, route… (used to find rooms and walls)', onClick: () => a.cad?.onRoles(), active: a.cad?.rolesOn, disabled: !a.cad?.hasDrawing },
-        { label: 'Save DXF', icon: Save, title: 'Save the drawing as DXF with what you drew (LV-SKETCH, LV-ANNO) and the devices placed (E-LV-POINTS, E-ELV-DEVICES, E-BOARDS)', onClick: () => a.cad?.onSave(), disabled: !a.cad?.hasDrawing }
+        { label: 'Save DXF', icon: Save, title: 'Save the drawing as DXF with what you drew (LV-SKETCH, LV-ANNO) and the devices placed (E-LV-POINTS, E-ELV-DEVICES, E-BOARDS)', onClick: () => a.cad?.onSave(), disabled: !a.cad?.hasDrawing },
+        { label: 'Save DWG', icon: SaveAll, title: 'Save the drawing as DWG (its own version, else AutoCAD 2018) with what you drew and the devices placed, as a new file — the architect\'s drawing is not changed (SAVEDWG)', onClick: () => a.cad?.onSaveDwg(), disabled: !a.cad?.hasDrawing }
       ],
       [
         { label: 'Add found', icon: LayoutGrid, title: 'Add every room the plan outlines (closed outlines on the Room outline layers, named by the text inside) to Building information on this level — one undo step (ROOMS)', onClick: () => a.cad?.onAddFound(), disabled: !a.cad?.hasDrawing },

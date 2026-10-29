@@ -30,8 +30,8 @@ const rememberPath = (projectId: string | undefined, file: string, path?: string
 };
 
 /** What the ribbon asks of the page showing the drawing; nothing while the page is not shown. */
-export interface CadActions { save: () => void; remove: () => void; addFound: () => void; schedules: () => void; copyTo: (levelKey: string) => void }
-export const NO_ACTIONS: CadActions = { save: () => {}, remove: () => {}, addFound: () => {}, schedules: () => {}, copyTo: () => {} };
+export interface CadActions { save: () => void; saveDwg: () => void; remove: () => void; addFound: () => void; schedules: () => void; copyTo: (levelKey: string) => void }
+export const NO_ACTIONS: CadActions = { save: () => {}, saveDwg: () => {}, remove: () => {}, addFound: () => {}, schedules: () => {}, copyTo: () => {} };
 
 /** State of the CAD view, kept by the app so the drawing stays open while other pages are shown. */
 export function useCad(projectId: string | undefined) {

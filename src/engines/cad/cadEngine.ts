@@ -1,4 +1,4 @@
-import { CadDoc, exportDxf, initSync } from '../../../electron/cad/lvds_cad_reader.js';
+import { CadDoc, exportDwg, exportDxf, initSync } from '../../../electron/cad/lvds_cad_reader.js';
 import type { CadBlock } from '../../model/cadLoads';
 import wasmUrl from '../../../electron/cad/lvds_cad_reader_bg.wasm?url';
 import sampleGf from '../../../electron/samples/sample-villa-gf.dxf?url';
@@ -165,10 +165,11 @@ export interface DeviceOut { layer: string; x: number; y: number; r: number; tex
 
 /** The drawing saved as DXF with the devices and what was drawn in the app added on their own layers (the architect's
  * entities kept as read). */
-export async function drawingWithDevices(view: CadView, devices: DeviceOut[], shapes: unknown[] = []): Promise<Uint8Array> {
+export async function drawingWithDevices(view: CadView, devices: DeviceOut[], shapes: unknown[] = [], as: 'dxf' | 'dwg' = 'dxf'): Promise<Uint8Array> {
   await engine();
   try {
-    return exportDxf(view.bytes, JSON.stringify(devices), JSON.stringify(shapes));
+    // DWG: in the version the drawing came in, else AutoCAD 2018 (engines/cad-reader/src/doc.rs dwg_bytes).
+    return (as === 'dwg' ? exportDwg : exportDxf)(view.bytes, JSON.stringify(devices), JSON.stringify(shapes));
   } catch (e) {
     throw new Error(`The drawing could not be saved (${e instanceof Error ? e.message : String(e)}).`);
   }
