@@ -15,6 +15,14 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.1', date: '2026-10-29',
+    items: [
+      { title: 'Design CAD: linetypes', text: 'Dashed, centre, hidden and other linetypes are drawn as in the drawing (with its LTSCALE and each object\'s scale); too fine to see at the zoom, they show continuous, as in CAD.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Hatches', text: 'Solid hatches and 2D solids are filled; pattern hatches (ANSI31, brick…) show their pattern lines inside the boundary, or a light fill when zoomed out.' },
+      { title: 'Faster on big drawings', text: 'The drawing is kept in tiles and only what is on screen is drawn while you pan and zoom.' }
+    ]
+  },
+  {
     version: '2.0', date: '2026-10-29',
     items: [
       { title: 'Loads from CAD reads Design CAD', text: 'Loads from CAD floor plan now counts the fixture blocks (with their CCT circuit) on the drawing open in Design CAD — no other CAD program needed.', action: 'cad', actionLabel: 'Open Design CAD' },

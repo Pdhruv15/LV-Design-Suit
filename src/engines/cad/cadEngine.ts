@@ -20,6 +20,18 @@ export interface CadInfo {
   segments: number;
   snaps: number;
   truncated: boolean;
+  /** Dash patterns in drawing units (dash > 0, gap < 0, dot 0); the first is continuous (empty). */
+  linetypes: number[][];
+  /** Filled areas: solid hatches and 2D solids, or pattern hatches with their pattern lines (absolute drawing units). */
+  fills: CadFill[];
+}
+/** A filled area; its loops are ranges of drawn segments, each one closed boundary. */
+export interface CadFill {
+  layer: number;
+  rgb: number;
+  solid: boolean;
+  loops: [number, number][];
+  lines: { angle: number; base: [number, number]; offset: [number, number]; dashes: number[] }[];
 }
 /** One object of model space under a click: its kind, layer, handle, block and attributes, length / area (drawing
  * units), and the range of its drawn segments. */
@@ -49,6 +61,8 @@ export interface CadView {
   segs: Float32Array;
   segLayers: Uint16Array;
   segColors: Uint32Array;
+  /** The dash pattern of each segment: an index into info.linetypes (0 continuous). */
+  segLinetypes: Uint16Array;
   /** Nearest snap point within `r` of (x, y) (drawing units, absolute): [x, y, kind] or empty. */
   snap: (x: number, y: number, r: number, mask: number, layersOn: Uint8Array) => Float64Array;
   /** The object under (x, y) within `tol` (drawing units, absolute) on shown layers; null when none. `closedOnly`:
@@ -95,7 +109,7 @@ export async function openDrawing(file: string, bytes: Uint8Array, path?: string
   let outlines: CadObject[] | undefined;
   return {
     file, path, info, bytes,
-    segs: doc.segments(), segLayers: doc.segment_layers(), segColors: doc.segment_colors(),
+    segs: doc.segments(), segLayers: doc.segment_layers(), segColors: doc.segment_colors(), segLinetypes: doc.segment_linetypes(),
     snap: (x, y, r, mask, layersOn) => doc.snap(x, y, r, mask, layersOn),
     pick: (x, y, tol, layersOn, closedOnly = false) => { const j = doc.pick(x, y, tol, layersOn, closedOnly); return j ? (JSON.parse(j) as CadObject) : null; },
     outlines: () => (outlines ??= JSON.parse(doc.outlines()) as CadObject[]),

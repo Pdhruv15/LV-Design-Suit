@@ -34,6 +34,10 @@ export class CadDoc {
     segment_colors(): Uint32Array;
     segment_layers(): Uint16Array;
     /**
+     * The dash pattern of each segment: an index into info().linetypes (0: continuous).
+     */
+    segment_linetypes(): Uint16Array;
+    /**
      * Segments x1, y1, x2, y2 relative to the origin (single precision is enough for drawing).
      */
     segments(): Float32Array;
@@ -67,6 +71,7 @@ export interface InitOutput {
     readonly caddoc_pick: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
     readonly caddoc_segment_colors: (a: number, b: number) => void;
     readonly caddoc_segment_layers: (a: number, b: number) => void;
+    readonly caddoc_segment_linetypes: (a: number, b: number) => void;
     readonly caddoc_segments: (a: number, b: number) => void;
     readonly caddoc_snap: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
     readonly exportDxf: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
