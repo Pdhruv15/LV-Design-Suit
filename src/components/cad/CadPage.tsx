@@ -7,11 +7,17 @@ import { addSketch, arcThrough, dimensionLines, itemAt, moved, rectangle, remove
 import type { SketchItem } from '../../types';
 import { ELV_PALETTE, elvPlacedOn, moveElv, placeElv, removeElv } from '../../components/elv/elvCadDevices';
 import { saveBinary } from '../../util/files';
-import { angleDeg, areaOf, distance, drawingUnits, inside, m, m2, roomAround, segmentsOn, WALL_LAYER } from '../../model/cadMeasure';
+import { angleDeg, areaOf, distance, inside, m, m2, roomAround, segmentsOn } from '../../model/cadMeasure';
+import { layerMapFor, layersWith, withLayerMap } from '../../model/cadRooms';
+import { plansOf } from '../../model/cadPlans';
+import { planScale } from '../../model/cadUnits';
+import CadLayerTable from '../CadLayerTable';
+import { planLevel, setPlanLevel } from './cadFileMenu';
+import { pathOfPlan } from './cadState';
 import { pickedRoom, putRooms } from '../../model/floorPlanActions';
 import { floorLabel, floorList } from '../../model/levels';
 import { SAMPLE_PLANS } from '../floorPlanState';
-import type { Project } from '../../types';
+import type { CadLayerMap, CadLayerRole, Project } from '../../types';
 
 type Pt = [number, number];
 type Result =
@@ -67,7 +73,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   const [result, setResult] = useState<Result | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const last = rememberedDrawing(project.id);
-  const units = view ? drawingUnits(view.info.units) : drawingUnits(4);
+  const units = planScale(project, view?.file, view?.info.units);
   const toM = (v: number) => v * units.factor;
   const toM2 = (v: number) => v * units.factor * units.factor;
 
@@ -94,17 +100,24 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   // A tool chosen (ribbon or command line): start it afresh and say what it asks for.
   useEffect(() => { setPoints([]); setObjectMode(false); cad.setTextAt(null); cad.say(`Command: ${PROMPT[tool]}`); }, [tool]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Walls for Room area: layers named WALL / PARTITION / COLUMN that are shown, else every shown layer.
+  // Layer roles (File → Layer roles): the project's, else a guess from the layer's name and what it holds.
+  const layerStats = useMemo(() => (view ? view.info.layers.map((l, i) => ({
+    name: l.name, curves: l.count, texts: view.info.texts.filter((t) => t.layer === i).length, outlines: 0, hatches: 0, blocks: 0
+  })).filter((l) => l.curves + l.texts > 0) : []), [view]);
+  const roles = useMemo(() => layerMapFor(project, layerStats), [project, layerStats]);
+  // Walls for Room area: shown layers whose role is Wall, else every shown layer.
   const walls = useMemo(() => {
     if (!view) return [];
+    const wallNames = layersWith(roles, 'wall');
     const shown = view.info.layers.map((_, i) => i).filter((i) => cad.layersOn[i]);
-    const named = shown.filter((i) => WALL_LAYER.test(view.info.layers[i].name));
+    const named = shown.filter((i) => wallNames.has(view.info.layers[i].name.toLowerCase()));
     return segmentsOn(view.segs, view.segLayers, view.info.origin, new Set(named.length ? named : shown));
-  }, [view, cad.layersOn]);
+  }, [view, cad.layersOn, roles]);
 
   // Devices are kept per level, in metres on its plan: the level this drawing shows, and what is placed on it.
   const floors = floorList(project.building).filter((f) => !f.ref.index);
-  const floor = floors.find((f) => f.key === cad.levelKey) ?? floors[0];
+  const { floor, set: levelSet } = planLevel(project, view?.file);
+  const plans = plansOf(project);
   const placed: PlacedItem[] = useMemo(() => (floor ? [...placedOn(project, floor.ref), ...elvPlacedOn(project, floor.ref)] : []), [project, floor]);
   const palette: PaletteItem[] = [...LV_PALETTE, ...ELV_PALETTE];
   const item = palette.find((x) => x.id === cad.device) ?? palette[0];
@@ -458,7 +471,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
                 </div>
                 <div className="cad-devform">
                   {floors.length > 0 && (
-                    <label>This drawing shows<select aria-label="Level of this drawing" value={floor?.key} onChange={(e) => cad.setLevelKey(e.target.value)}>{floors.map((f) => <option key={f.key} value={f.key}>{floorLabel(project.building, f)}</option>)}</select></label>
+                    <label>This drawing shows<select aria-label="Level of this drawing" value={floor?.key} onChange={(e) => { const f = floors.find((x) => x.key === e.target.value); if (f && view) setPlanLevel(project, view.file, f, change); }}>{floors.map((f) => <option key={f.key} value={f.key}>{floorLabel(project.building, f)}</option>)}</select></label>
                   )}
                   {'lv' in item.kind && (
                     <label>Circuit<select aria-label="Circuit" value={cad.feederId} onChange={(e) => cad.setFeederId(e.target.value)}>
@@ -474,6 +487,38 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
                   )}
                   {!floors.length && <p className="m">Add the building and its levels in Building information first; devices are kept per level.</p>}
                   <span className="m">{placed.length} device{placed.length === 1 ? '' : 's'} on this level</span>
+                </div>
+              </>
+            )}
+            {plans.length > 0 && (
+              <>
+                <h4>Plans</h4>
+                <div className="cad-layers" role="list" aria-label="Plans of this project">
+                  {plans.map((x) => {
+                    const here = !!view && levelSet && floor?.key === x.floor.key;
+                    const canOpen = !!x.file && (SAMPLE_PLANS.some((s) => s.file === x.file) || (!!pathOfPlan(project.id, x.file) && !!window.lvds?.cadFile?.readBytes));
+                    return (
+                      <button key={x.floor.key} role="listitem" className={`cad-lyr${x.file ? '' : ' off'}`} aria-current={here || undefined} disabled={busy || here || (!!x.file && !canOpen)}
+                        title={x.file ? (canOpen ? `Open ${x.file}` : `${x.file}: open it from Plans (its folder is not known on this computer)`) : `Open a drawing as the plan of ${x.label}`}
+                        onClick={() => void load(async () => {
+                          const v = !x.file ? await chooseDrawing() : SAMPLE_PLANS.some((s) => s.file === x.file) ? await sampleDrawing(x.file) : await reopenDrawing(pathOfPlan(project.id, x.file)!);
+                          if (v && !x.file) setPlanLevel(project, v.file, x.floor, change);
+                          return v;
+                        }, 'That drawing is no longer where it was. Open it from Plans.')}>
+                        <b>{x.label}</b>{x.file ?? 'no plan'}<span className="m">{here ? 'open' : x.file ? '' : 'open…'}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+            {view && cad.showRoles && (
+              <>
+                <h4>Layer roles</h4>
+                <div>
+                  <CadLayerTable layers={layerStats} roles={roles}
+                    onChange={(layer: string, role: CadLayerRole) => change(withLayerMap(project, roles.map((x) => (x.layer === layer ? { ...x, role } : x))), `Layer ${layer}: ${role} · ⌘Z to undo`)}
+                    onApplyMap={(m: CadLayerMap[]) => change(withLayerMap(project, m), 'Layer template applied · ⌘Z to undo')} />
                 </div>
               </>
             )}
@@ -557,7 +602,7 @@ function ResultView({ r, view, toM, toM2, project, onChange, onMove, onRemove, o
       <>
         <div>{r.how === 'room' ? 'Room area' : 'Area'} <b className="cad-big">{m2(toM2(area))}</b></div>
         <div className="m">Perimeter {m(toM(perimeter))}{r.how === 'object' ? ' · of the object picked' : ''}</div>
-        <AddRoom key={`${area}`} project={project} areaM2={toM2(area)} name={r.name ?? ''} file={view.file} onChange={onChange} />
+        <AddRoom key={`${area}`} project={project} areaM2={toM2(area)} name={r.name ?? ''} file={view.file} level={planLevel(project, view.file).floor?.key} onChange={onChange} />
       </>
     );
   }
@@ -581,11 +626,11 @@ function ResultView({ r, view, toM, toM2, project, onChange, onMove, onRemove, o
 }
 
 /** Sends a measured area to Building information as a room on a level. */
-function AddRoom({ project, areaM2, name: initial, file, onChange }: { project: Project; areaM2: number; name: string; file: string; onChange: (next: Project, message: string) => void }) {
+function AddRoom({ project, areaM2, name: initial, file, level, onChange }: { project: Project; areaM2: number; name: string; file: string; level?: string; onChange: (next: Project, message: string) => void }) {
   const floors = floorList(project.building).filter((f) => !f.ref.index);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(initial);
-  const [levelKey, setLevelKey] = useState(floors[0]?.key ?? '');
+  const [levelKey, setLevelKey] = useState(level ?? floors[0]?.key ?? '');
   const floor = floors.find((f) => f.key === levelKey);
   if (!open) return <button className="chip cad-addroom" onClick={() => setOpen(true)}>Add as room…</button>;
   if (!floors.length) return <p className="m">Add the building and its levels in Building information first; rooms are kept per level.</p>;

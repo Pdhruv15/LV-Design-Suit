@@ -6,6 +6,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import CadPage from './CadPage';
 import { useCad, type CadState } from './cadState';
+import { cadFileMenu } from './cadFileMenu';
 import { buildingInfoOf } from '../../calc/building';
 import { sampleProject } from '../../data/sampleProject';
 import type { Project } from '../../types';
@@ -34,9 +35,9 @@ beforeEach(() => {
 });
 afterEach(() => { act(() => root.unmount()); document.body.innerHTML = ''; delete (window as { lvds?: unknown }).lvds; });
 
-function Host() {
+function Host({ start = villa }: { start?: Project }) {
   const cad = useCad('p1');
-  const [p, setP] = useState(villa);
+  const [p, setP] = useState(start);
   state = cad;
   return <CadPage cad={cad} project={p} onChange={(next, msg) => { setP(next); onChange(next, msg); }} onStatus={() => {}} />;
 }
@@ -273,4 +274,37 @@ describe('CAD view', () => {
     expect(state.view?.file).toBe('plan.dwg');
     expect(localStorage.getItem('lvds.cad.p1')).toBe('/plans/plan.dwg');
   });
+
+  it('lists the plan of each level; opening one for a level makes the drawing that level\'s plan', async () => {
+    const twoLevels: Project = { ...villa, building: { ...villa.building!, buildings: [{ id: 'V', name: 'Villa', levels: [{ id: 'GF', name: 'Ground', kind: 'ground', heightM: 4 }, { id: 'FF', name: 'First', kind: 'typical', heightM: 4 }] }] } };
+    act(() => root.render(<Host start={twoLevels} />));
+    await flush();
+    const plans = () => [...document.querySelectorAll('[aria-label="Plans of this project"] button')];
+    expect(plans().map((b) => b.textContent)).toEqual(['Groundno planopen…', 'Firstno planopen…']);
+    await act(async () => { (plans()[1] as HTMLButtonElement).click(); });
+    await flush();
+    expect(state.view?.file).toBe('plan.dwg');
+    expect(project.cadPlans).toEqual([{ building: 'V', level: 'FF', file: 'plan.dwg' }]);
+    expect(plans()[1].textContent).toBe('Firstplan.dwgopen');
+  });
+
+  it('File group: sets the level and the units of the drawing, and shows the layer roles', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    const apply = (next: Project, message: string) => onChange(next, message);
+    let menu = cadFileMenu(project, state, apply, () => {});
+    expect([menu.level, menu.unit, menu.plansSub]).toEqual(['Level?', 'mm', '0 of 1 levels']);
+    act(() => menu.levels![0].onClick());
+    expect(project.cadPlans).toEqual([{ building: 'V', level: 'GF', file: 'sample-villa-gf.dxf' }]);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe('sample-villa-gf.dxf is the plan of Ground · ⌘Z to undo');
+    menu = cadFileMenu(project, state, apply, () => {});
+    expect(menu.level).toBe('Ground');
+    act(() => menu.units!.find((u) => u.label.startsWith('Metres'))!.onClick());
+    expect(project.cadPlanUnits).toEqual({ 'sample-villa-gf.dxf': 'm' });
+    act(() => state.setShowRoles(true));
+    expect(document.body.textContent).toContain('Layer roles');
+    const wallRole = [...document.querySelectorAll('select')].find((x) => x.closest('tr')?.textContent?.includes('A-WALL')) as HTMLSelectElement | undefined;
+    expect(wallRole?.value).toBe('wall');
+  });
 });
+

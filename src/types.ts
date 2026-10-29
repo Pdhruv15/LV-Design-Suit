@@ -409,6 +409,8 @@ export interface SketchItem {
   rot?: number;
 }
 export interface CadSketch { file: string; items: SketchItem[] }
+/** A level's plan in Design CAD: the drawing file (name only) that shows the level. */
+export interface CadPlan { building: string; level: string; file: string }
 
 /** Floor plan links by entity handle: curve → feeder id (cable route) or tray route name; board id → block or point. */
 export interface CadPlanLinks {
@@ -517,6 +519,8 @@ export interface Project {
   cadRoomTypes?: { name: string; type: string }[];
   /** What the engineer drew in the CAD view over each drawing (src/model/cadSketch.ts). */
   cadSketch?: CadSketch[];
+  /** Which drawing file is each level's plan in Design CAD (src/model/cadPlans.ts). */
+  cadPlans?: CadPlan[];
   /** LV points (lights, sockets…) placed on plans in the CAD view, on circuits (src/model/cadDevices.ts). */
   lvPoints?: import('./model/cadDevices').LvPoint[];
   /** Highest LV point number given out, so a deleted point's ID is never reused. */

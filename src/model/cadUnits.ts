@@ -32,11 +32,21 @@ export function planUnits(p: Project, file: string | undefined, insunits: number
   return { ...(declared ? { declared } : {}), ...(chosen ? { chosen } : {}), ...(unit ? { unit, code: CAD_UNITS.find((u) => u.id === unit)!.code } : {}), needsChoice: !unit };
 }
 
+/** Metres per drawing unit for a plan: the engineer's choice for the file, else what the drawing says, else millimetres
+ * (`assumed`, as architects' plans usually are). */
+export function planScale(p: Project, file: string | undefined, insunits: number | undefined): { unit: CadUnit; factor: number; label: string; assumed: boolean } {
+  const u = planUnits(p, file, insunits).unit;
+  const def = CAD_UNITS.find((x) => x.id === (u ?? 'mm'))!;
+  return { unit: def.id, factor: def.m, label: def.id, assumed: !u };
+}
+
 /** Sets the units of a plan file. What was already taken from the plan in the old units is scaled to the new ones (one
- * undo step): the outlines and areas of the level's rooms that came from a plan, and the ELV devices placed on the level.
+ * undo step): the outlines and areas of the level's rooms that came from a plan, and the devices placed on the level
+ * (ELV devices, LV points and boards placed in Design CAD), so they stay where they were on the drawing.
  * Cable and tray lengths are worked out from the plan again when applied. */
-export function withPlanUnit(p: Project, file: string, insunits: number | undefined, unit: CadUnit, level?: { building: string; level: string }): { project: Project; rooms: number; devices: number } {
-  const before = planUnits(p, file, insunits).unit;
+export function withPlanUnit(p: Project, file: string, insunits: number | undefined, unit: CadUnit, level?: { building: string; level: string }, assumed?: CadUnit): { project: Project; rooms: number; devices: number } {
+  // `assumed`: the units the plan was being read in when it said none (Design CAD takes millimetres).
+  const before = planUnits(p, file, insunits).unit ?? assumed;
   const units = { ...(p.cadPlanUnits ?? {}), [keyOf(file)]: unit };
   let next: Project = { ...p, cadPlanUnits: units };
   if (!before || before === unit || !level) return { project: next, rooms: 0, devices: 0 };
@@ -56,6 +66,17 @@ export function withPlanUnit(p: Project, file: string, insunits: number | undefi
     devices += 1;
     return { ...d, x: Math.round(d.x * k * 100) / 100, y: Math.round(d.y * k * 100) / 100 };
   });
-  next = { ...next, building: { ...info, rooms: scaled }, ...(elvDevices ? { elvDevices } : {}) };
+  const onLevel = (r?: { building: string; level: string }) => r?.building === level.building && r?.level === level.level;
+  const lvPoints = p.lvPoints?.map((d) => {
+    if (d.buildingId !== level.building || d.levelId !== level.level) return d;
+    devices += 1;
+    return { ...d, x: Math.round(d.x * k * 1000) / 1000, y: Math.round(d.y * k * 1000) / 1000 };
+  });
+  const boards = p.boards.map((b) => {
+    if (!b.planPoint || !onLevel(b.level)) return b;
+    devices += 1;
+    return { ...b, planPoint: { x: Math.round(b.planPoint.x * k * 1000) / 1000, y: Math.round(b.planPoint.y * k * 1000) / 1000 } };
+  });
+  next = { ...next, building: { ...info, rooms: scaled }, boards, ...(elvDevices ? { elvDevices } : {}), ...(lvPoints ? { lvPoints } : {}) };
   return { project: next, rooms, devices };
 }

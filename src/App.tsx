@@ -147,6 +147,7 @@ import type { BoardKind, ProjectStatus } from './types';
 import { useFloorPlan, type FloorPlanTool } from './components/floorPlanState';
 import { cadFileApi } from './engines/cad/webCadFile';
 import { useCad } from './components/cad/cadState';
+import { cadFileMenu } from './components/cad/cadFileMenu';
 import { chooseDrawing } from './engines/cad/cadEngine';
 import { canFill as canFillElv, deviceLabel, devicesFor, SYSTEM_LABEL, SYSTEMS as ELV_SYSTEM_LIST } from './components/elv/elvLabels';
 import { onDemand } from './util/onDemand';
@@ -180,7 +181,7 @@ const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator
 
 /** Pages the ⌘K palette can open, named as on the ribbon. */
 const PALETTE_PAGES: [MainView, string][] = [
-  ['design', 'Design (SLD)'], ['floor-plan', 'Floor plan'], ['cad', 'CAD'], ['dashboard', 'Overview'], ['building', 'Building'], ['load-assessment', 'Load assessment'], ['load-schedule', 'Load schedule'], ['panels', 'Panels'],
+  ['design', 'Design (SLD)'], ['floor-plan', 'Floor plan'], ['cad', 'Design CAD'], ['dashboard', 'Overview'], ['building', 'Building'], ['load-assessment', 'Load assessment'], ['load-schedule', 'Load schedule'], ['panels', 'Panels'],
   ['space-planning', 'Space plan'], ['substation-area', 'Substation area'], ['enclosure', 'Enclosure sizing'], ['earth-schematic', 'Earth pits'],
   ['busbar', 'Busbar riser'], ['calculators', 'Quick calcs'], ['voltage-drop', 'Voltage drop'], ['engines', 'Load flow'], ['earthing', 'Earthing'],
   ['coordination', 'Protection coordination'], ['selection', 'Breaker & cable selection'], ['sizing', 'Transformer & generator sizing'], ['pfc', 'Power factor'],
@@ -966,7 +967,7 @@ export default function App() {
     cmd('Export the SLD…', () => { design(); setDiagramMode('system'); setShowExport(true); }, undefined, 'PDF DXF SVG');
     cmd('Loads from CAD floor plan…', () => setShowCadLoads(true), undefined, 'OpenCADStudio DWG DXF blocks fixtures count');
     cmd('Floor plan…', () => showFloorPlan(), undefined, 'open DWG DXF architect plan CAD drawing measure');
-    cmd('Open drawing in CAD…', () => void openCad(), undefined, 'CAD DWG DXF open drawing model space layers snap');
+    cmd('Open drawing in Design CAD…', () => void openCad(), undefined, 'CAD DWG DXF open drawing model space layers snap');
     cmd('Open floor plan (DWG / DXF)…', () => void openFloorPlan(), undefined, 'open DWG DXF architect plan CAD drawing');
     cmd('What\'s new…', () => setWhatsNew(RELEASES.slice(0, 1)), undefined, 'release notes update changes new features version');
     cmd('Cable lengths from CAD floor plan…', () => showFloorPlan('link'), undefined, 'Floor plan DWG DXF route measure length');
@@ -1239,7 +1240,13 @@ export default function App() {
           onSave: () => saveProject(),
           onSaveAs: () => saveAs(),
           onAnonymizedSample: () => setShowAnonymized(true),
-          cad: { tool: cadS.tool, onTool: (t) => { cadS.setTool(cadS.tool === t ? 'none' : t); setView('cad'); }, onOpen: () => void openCad(), onSave: () => cadS.actions.current.save(), onDelete: () => cadS.actions.current.remove(), hasSelection: !!cadS.selected, onFit: () => cadS.fit(), onLayers: () => { cadS.setShowLayers(!cadS.showLayers); setView('cad'); }, layersOn: cadS.showLayers, hasDrawing: !!cadS.view },
+          cad: { tool: cadS.tool, onTool: (t) => { cadS.setTool(cadS.tool === t ? 'none' : t); setView('cad'); }, onOpen: () => void openCad(), onSave: () => cadS.actions.current.save(), onDelete: () => cadS.actions.current.remove(), hasSelection: !!cadS.selected, onFit: () => cadS.fit(), onLayers: () => { cadS.setShowLayers(!cadS.showLayers); setView('cad'); }, layersOn: cadS.showLayers, hasDrawing: !!cadS.view,
+            file: (() => {
+              const f = cadFileMenu(project, cadS, (next, message) => { setProject(next, { step: true }); setStatus(message); }, setStatus);
+              const show = (m: { label: string; title: string; onClick: () => void; sep?: boolean }[]) => m.map((x) => ({ ...x, onClick: () => { setView('cad'); x.onClick(); } }));
+              return { ...f, plans: show(f.plans), levels: show(f.levels), units: show(f.units) };
+            })(),
+            onRoles: () => { cadS.setShowRoles(!cadS.showRoles); cadS.setShowLayers(true); setView('cad'); }, rolesOn: cadS.showRoles && cadS.showLayers },
           floorPlan: {
             hasPlan: !!fp.plan, tool: fp.tool, onTool: (t) => { fp.setTool(t); setView('floor-plan'); }, onOpen: () => void openFloorPlan(),
             onLayers: () => { fp.setShowLayers(!fp.showLayers); setView('floor-plan'); }, layersOn: fp.showLayers,
