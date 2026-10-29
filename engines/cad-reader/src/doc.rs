@@ -548,6 +548,16 @@ impl CadDoc {
     /// Colour of each segment: 0xRRGGBB, or 0xFF000007 for the foreground (index 7).
     pub fn segment_colors(&self) -> Vec<u32> { self.seg_rgb.clone() }
 
+    /// Closed objects of model space (polylines, circles, ellipses, hatches, solids) as JSON — each ObjInfo with its `id`
+    /// — for rooms from outline layers; their drawn segments are `seg_start..seg_end`.
+    pub fn outlines(&self) -> String {
+        let all: Vec<serde_json::Value> = self.objects.iter().enumerate()
+            .filter(|(_, o)| o.area.is_some() && o.seg_end > o.seg_start)
+            .map(|(i, o)| { let mut v = serde_json::to_value(o).unwrap_or_default(); v["id"] = i.into(); v })
+            .collect();
+        serde_json::Value::Array(all).to_string()
+    }
+
     /// The object under (x, y) within `tol` (drawing units) on shown layers, as JSON (ObjInfo with its `id`), or "".
     /// The nearest drawn line wins; a text wins when the point is on it. `closed_only` considers only objects with an
     /// area (closed polylines, circles, hatches…), as for AREA → Object.

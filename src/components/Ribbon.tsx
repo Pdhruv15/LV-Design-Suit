@@ -102,7 +102,7 @@ export interface RibbonActions {
   cad?: {
     tool: CadTool; onTool: (t: CadTool) => void; onOpen: () => void; onSave: () => void; onDelete: () => void; hasSelection: boolean; onFit: () => void; onLayers: () => void; layersOn: boolean; hasDrawing: boolean;
     file: { plans: Tool['menu']; plansSub?: string; level: string; levelTitle: string; levels: Tool['menu']; unit: string; unitTitle: string; units: Tool['menu'] };
-    onRoles: () => void; rolesOn: boolean;
+    onRoles: () => void; rolesOn: boolean; onAddFound: () => void;
   };
   onProfile: () => void;
   onChooseFolder: () => void;
@@ -135,7 +135,7 @@ export const CAPTIONS: Record<RibbonTab, string[]> = {
   schematic: ['History', 'Distribution', 'Main systems', 'ELV', 'Stage'],
   detailed: ['Run', 'Canvas', 'Boards', 'Equipment', 'Selection', 'Calculate', 'Stage'],
   floorplan: ['Plan', 'Rooms', 'Cables and boards', 'ELV', 'Measure', 'View'],
-  cad: ['File', 'Draw', 'Modify', 'Annotate', 'Measure', 'Devices', 'View'],
+  cad: ['File', 'Rooms', 'Draw', 'Modify', 'Annotate', 'Measure', 'Devices', 'View'],
   reports: ['Schedules', 'Drawings and reports'],
   issue: ['Tender', 'Track', 'Send', 'IFC'],
   cost: ['Bill', 'Add to the bill', 'Rates', 'Issue and export'],
@@ -410,6 +410,12 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'Save DXF', icon: Save, title: 'Save the drawing as DXF with what you drew (LV-SKETCH, LV-ANNO) and the devices placed (E-LV-POINTS, E-ELV-DEVICES, E-BOARDS)', onClick: () => a.cad?.onSave(), disabled: !a.cad?.hasDrawing }
       ],
       [
+        { label: 'Add found', icon: LayoutGrid, title: 'Add every room the plan outlines (closed outlines on the Room outline layers, named by the text inside) to Building information on this level — one undo step (ROOMS)', onClick: () => a.cad?.onAddFound(), disabled: !a.cad?.hasDrawing },
+        cadTool('room', 'Click inside', MousePointerClick, 'Click inside a room: its outline from the walls (doors closed), its area — then Add (RA)'),
+        cadTool('trace', 'Trace', PenLine, 'Click the corners of a room, Enter to close — then Add (TR)'),
+        cadTool('name', 'Pick name', Type, 'Click the room name on the drawing: it names the room found, or renames the room it is in (PN)')
+      ],
+      [
         cadTool('line', 'Line', Slash, 'Line (L): click points; type a length, x,y or @dx,dy; Enter stops'),
         cadTool('pline', 'Polyline', Spline, 'Polyline (PL): click points; C or the first point closes it; Enter finishes'),
         cadTool('rect', 'Rectangle', RectangleHorizontal, 'Rectangle (REC): two opposite corners'),
@@ -428,8 +434,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       ],
       [
         { label: 'Distance', icon: Ruler, title: 'Measure the distance between two snapped points (DI); ORTHO keeps it straight', onClick: () => a.cad?.onTool('dist'), active: a.cad?.tool === 'dist', disabled: !a.cad?.hasDrawing },
-        { label: 'Area', icon: Square, title: 'Area and perimeter from snapped corners, or a closed object (AREA, then O)', onClick: () => a.cad?.onTool('area'), active: a.cad?.tool === 'area', disabled: !a.cad?.hasDrawing },
-        { label: 'Room area', icon: MousePointerClick, title: 'Click inside a room: its outline from the walls (doors closed), its area (RA)', onClick: () => a.cad?.onTool('room'), active: a.cad?.tool === 'room', disabled: !a.cad?.hasDrawing }
+        { label: 'Area', icon: Square, title: 'Area and perimeter from snapped corners, or a closed object (AREA, then O)', onClick: () => a.cad?.onTool('area'), active: a.cad?.tool === 'area', disabled: !a.cad?.hasDrawing }
       ],
       [
         { label: 'Add device', icon: CirclePlus, title: 'Place lights, sockets, a DB or ELV devices on the plan (DEV): choose it and its circuit, then click', onClick: () => a.cad?.onTool('dev'), active: a.cad?.tool === 'dev', disabled: !a.cad?.hasDrawing }

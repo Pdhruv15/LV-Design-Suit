@@ -8,13 +8,15 @@ import type { SketchItem } from '../../types';
 import { ELV_PALETTE, elvPlacedOn, moveElv, placeElv, removeElv } from '../../components/elv/elvCadDevices';
 import { saveBinary } from '../../util/files';
 import { angleDeg, areaOf, distance, inside, m, m2, roomAround, segmentsOn } from '../../model/cadMeasure';
-import { layerMapFor, layersWith, withLayerMap } from '../../model/cadRooms';
+import { layerMapFor, layersWith, roomsFromPlan, withLayerMap } from '../../model/cadRooms';
+import { layerStatsOf, planOfView } from '../../model/cadViewPlan';
+import { buildingInfoOf } from '../../calc/building';
 import { plansOf } from '../../model/cadPlans';
-import { planScale } from '../../model/cadUnits';
+import { CAD_UNITS, planScale } from '../../model/cadUnits';
 import CadLayerTable from '../CadLayerTable';
 import { planLevel, setPlanLevel } from './cadFileMenu';
 import { pathOfPlan } from './cadState';
-import { pickedRoom, putRooms } from '../../model/floorPlanActions';
+import { pickedRoom, putRooms, renameRoom } from '../../model/floorPlanActions';
 import { floorLabel, floorList } from '../../model/levels';
 import { SAMPLE_PLANS } from '../floorPlanState';
 import type { CadLayerMap, CadLayerRole, Project } from '../../types';
@@ -22,7 +24,7 @@ import type { CadLayerMap, CadLayerRole, Project } from '../../types';
 type Pt = [number, number];
 type Result =
   | { kind: 'dist'; a: Pt; b: Pt }
-  | { kind: 'area'; points: Pt[]; how: 'corners' | 'object' | 'room'; name?: string }
+  | { kind: 'area'; points: Pt[]; how: 'corners' | 'object' | 'room' | 'trace'; name?: string }
   | { kind: 'object'; o: CadObject }
   | { kind: 'device'; it: PlacedItem }
   | { kind: 'sketch'; it: SketchItem };
@@ -31,14 +33,16 @@ const hex = (rgb: number) => (rgb === 0xff000007 ? 'var(--cad-ink)' : `#${rgb.to
 const TOGGLES: { k: keyof CadToggles; label: string; key: string }[] = [
   { k: 'snap', label: 'SNAP', key: 'F9' }, { k: 'osnap', label: 'OSNAP', key: 'F3' }, { k: 'ortho', label: 'ORTHO', key: 'F8' }, { k: 'grid', label: 'GRID', key: 'F7' }
 ];
-const HELP = 'Commands: OPEN · SAVE (DXF) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LAYER · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · Esc cancels, Enter closes an area.';
+const HELP = 'Commands: OPEN · SAVE (DXF) · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LAYER · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · Esc cancels, Enter closes an area.';
 /** Device symbol size on the plan (radius, metres). */
 const DEVICE_R_M = 0.2;
 const PROMPT: Record<CadTool, string> = {
   none: 'Click an object to see what it is.',
   dist: 'DI  Specify first point:',
   area: 'AREA  Specify first corner point or [Object]:',
-  room: 'ROOM AREA  Click inside a room:',
+  room: 'ROOM  Click inside a room (its outline comes from the walls):',
+  trace: 'TRACE  Specify first corner of the room:',
+  name: 'NAME  Click the room name on the drawing:',
   dev: 'DEV  Specify insertion point:',
   move: 'MOVE  Select object, then specify base point:',
   copy: 'COPY  Select object, then specify base point:',
@@ -101,9 +105,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   useEffect(() => { setPoints([]); setObjectMode(false); cad.setTextAt(null); cad.say(`Command: ${PROMPT[tool]}`); }, [tool]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Layer roles (File → Layer roles): the project's, else a guess from the layer's name and what it holds.
-  const layerStats = useMemo(() => (view ? view.info.layers.map((l, i) => ({
-    name: l.name, curves: l.count, texts: view.info.texts.filter((t) => t.layer === i).length, outlines: 0, hatches: 0, blocks: 0
-  })).filter((l) => l.curves + l.texts > 0) : []), [view]);
+  const layerStats = useMemo(() => (view ? layerStatsOf(view) : []), [view]);
   const roles = useMemo(() => layerMapFor(project, layerStats), [project, layerStats]);
   // Walls for Room area: shown layers whose role is Wall, else every shown layer.
   const walls = useMemo(() => {
@@ -158,7 +160,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       if (msg) { cad.say(`SAVE  ${msg} (${placed.length} device${placed.length === 1 ? '' : 's'} on E-LV-POINTS / E-ELV-DEVICES / E-BOARDS, ${sketch.length} drawn object${sketch.length === 1 ? '' : 's'} on ${DRAW_LAYER} / ${ANNO_LAYER})`); onStatus(msg); }
     } catch (e) { const msg = e instanceof Error ? e.message : String(e); cad.say(msg); onStatus(msg); }
   }
-  cad.actions.current = { save: () => void saveDxf(), remove: removeSelected };
+  cad.actions.current = { save: () => void saveDxf(), remove: removeSelected, addFound: () => addFound() };
 
   /** The room name inside an outline: a text on a layer named like room names, else any text inside. */
   const nameInside = (poly: Pt[]) => {
@@ -169,7 +171,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
 
   function finishArea(pts: Pt[]) {
     if (pts.length < 3) { cad.say('An area needs at least 3 corners.'); return; }
-    setResult({ kind: 'area', points: pts, how: 'corners', name: nameInside(pts) });
+    setResult({ kind: 'area', points: pts, how: tool === 'trace' ? 'trace' : 'corners', name: nameInside(pts) });
     const { area, perimeter } = areaOf(pts);
     cad.say(`Area = ${m2(toM2(area))}, Perimeter = ${m(toM(perimeter))}`);
     setPoints([]);
@@ -276,8 +278,8 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       setResult({ kind: 'dist', a, b: at });
       cad.say(`Distance = ${m(toM(distance(a, at)))}, Angle = ${angleDeg(a, at).toFixed(2)}°, ΔX = ${m(toM(at[0] - a[0]))}, ΔY = ${m(toM(at[1] - a[1]))}`);
       setPoints([]);
-    } else if (tool === 'area') {
-      if (objectMode) {
+    } else if (tool === 'area' || tool === 'trace') {
+      if (objectMode && tool === 'area') {
         const o = view.pick(at[0], at[1], 6 * pixel, cad.layersOn, true);
         if (!o || o.area === undefined) { cad.say('AREA  That is not a closed object (polyline, circle, hatch). Select a closed object:'); return; }
         const segs: Pt[] = [];
@@ -289,7 +291,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       if (points.length >= 3 && distance(at, points[0]) <= 8 * pixel) { finishArea(points); return; }
       if (points.length === 0) setResult(null);
       setPoints((p) => [...p, at]);
-      cad.say('AREA  Specify next corner point or press Enter to close:');
+      cad.say(`${tool === 'trace' ? 'TRACE' : 'AREA'}  Specify next corner point or press Enter to close:`);
     } else if (tool === 'dev') {
       if (!floor) { cad.say('DEV  Add the building and its levels in Building information first; devices are kept per level.'); return; }
       try {
@@ -303,7 +305,35 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       if (!r) { cad.say('ROOM AREA  No closed room around that point (open to the outside, or over 50 m across). Use AREA and click its corners.'); return; }
       setResult({ kind: 'area', points: r.points, how: 'room', name: nameInside(r.points) });
       cad.say(`Room area = ${m2(toM2(r.area))}`);
+    } else if (tool === 'name') {
+      const o = view.pick(at[0], at[1], 6 * pixel, cad.layersOn);
+      const text = o?.text?.trim();
+      if (!text) { cad.say('NAME  That is not a text. Click the room name on the drawing:'); return; }
+      if (result?.kind === 'area' && result.how !== 'object') { setResult({ ...result, name: text }); cad.say(`NAME  ${text} — Add as room… to add it`); return; }
+      const room = floor && roomAtPoint(at);
+      if (!room) { cad.say(`NAME  “${text}” is not inside a room yet: find the room first (Click inside or Trace).`); return; }
+      if (room.name.toLowerCase() === text.toLowerCase()) { cad.say(`NAME  ${room.name} already`); return; }
+      change(renameRoom(project, room.id, text), `${room.name} renamed ${text} · ⌘Z to undo`);
     }
+  }
+
+  /** The smallest room of the plan's level whose outline (metres) is around a point (drawing units). */
+  const roomAtPoint = (at: Pt) => buildingInfoOf(project).rooms
+    .filter((r) => floor && r.buildingId === floor.ref.building && r.levelId === floor.ref.level && (r.outline?.length ?? 0) >= 3 && inside([at[0] * units.factor, at[1] * units.factor], r.outline!))
+    .sort((a, b) => a.areaM2 - b.areaM2)[0];
+
+  /** Add found rooms: the closed outlines on the room-outline layers (Layer roles), named by the text inside, added to
+   * Building information on the plan's level (a room found again keeps its ID; one undo step). */
+  function addFound() {
+    if (!view) return;
+    if (!floor) { cad.say('ROOMS  Add the building and its levels in Building information first; rooms are kept per level.'); return; }
+    if (!roles.some((r) => r.role === 'room')) { cad.say('ROOMS  No layer has the role Room outline: set it in File → Layer roles, or use Click inside / Trace.'); cad.setShowRoles(true); return; }
+    const code = CAD_UNITS.find((u) => u.id === units.unit)!.code;
+    const { rooms, zones } = roomsFromPlan(planOfView(view, code, cad.layersOn), roles, project.cadLength);
+    if (!rooms.length) { cad.say('ROOMS  No closed outlines on the room-outline layers that are shown. Use Click inside or Trace.'); return; }
+    const { project: next } = putRooms(project, rooms.map((r) => ({ ...r, file: view.file })), floor.ref, roles);
+    const label = floorLabel(project.building, floor);
+    change(next, `${rooms.length} room${rooms.length === 1 ? '' : 's'} from the plan on ${label}${rooms.some((r) => !r.named) ? ` (${rooms.filter((r) => !r.named).length} without a name: Pick name)` : ''}${zones ? ` · ${zones} zone outline${zones === 1 ? '' : 's'} left out` : ''}${levelSet ? '' : ' — level not set: File → Level'} · ⌘Z to undo`);
   }
 
   function finishPline(closed: boolean) {
@@ -325,7 +355,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       cad.setTextAt(null); cad.say(PROMPT.text); return;
     }
     if (!c) {
-      if (tool === 'area' && points.length >= 3) finishArea(points);
+      if ((tool === 'area' || tool === 'trace') && points.length >= 3) finishArea(points);
       else if (tool === 'pline') finishPline(false);
       else if (tool === 'line') { setPoints([]); cad.say(PROMPT.line); }
       else if (tool === 'copy') { setPoints([]); cad.setSelected(null); setResult(null); cad.setTool('none'); }
@@ -338,7 +368,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       if (view) change(updateSketch(project, view.file, rotated(selSketch, points[0], a)), `Rotated ${Number(c).toFixed(2)}° · ⌘Z to undo`);
       setPoints([]); cad.setSelected(null); setResult(null); cad.setTool('none'); return;
     }
-    if (DRAW_TOOLS.includes(tool) || tool === 'dist' || tool === 'area') {
+    if (DRAW_TOOLS.includes(tool) || tool === 'dist' || tool === 'area' || tool === 'trace') {
       const p = typedPoint(raw, points[points.length - 1], cursor.at);
       if (p) { cad.say(`  ${raw}`); click(p, 1e-9); return; }
     }
@@ -349,6 +379,9 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     else if (c === 'AREA' || c === 'AA') cad.setTool('area');
     else if (c === 'O' && tool === 'area') { setObjectMode(true); setPoints([]); cad.say('AREA  Select a closed object:'); }
     else if (c === 'RA' || c === 'ROOM' || c === 'ROOMAREA') cad.setTool('room');
+    else if (c === 'ROOMS' || c === 'ADDROOMS') addFound();
+    else if (c === 'TR' || c === 'TRACE') cad.setTool('trace');
+    else if (c === 'PN' || c === 'NAME') cad.setTool('name');
     else if (c === 'LI' || c === 'LIST') cad.setTool('none');
     else if (c === 'DEV' || c === 'DEVICE' || c === 'INSERT' || c === 'I') cad.setTool('dev');
     else if (c === 'M' || c === 'MOVE') cad.setTool('move');
@@ -384,7 +417,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       if (points.length || objectMode || cad.textAt) { setPoints([]); setObjectMode(false); cad.setTextAt(null); cad.say('*Cancel*'); } else if (tool !== 'none') cad.setTool('none'); else { setResult(null); cad.setSelected(null); }
       return;
     }
-    if (e.key === 'Enter' && !typing && tool === 'area' && points.length >= 3) { finishArea(points); return; }
+    if (e.key === 'Enter' && !typing && (tool === 'area' || tool === 'trace') && points.length >= 3) { finishArea(points); return; }
     if ((e.key === 'Delete' || e.key === 'Backspace') && !typing && (selectedItem || selSketch)) { e.preventDefault(); removeSelected(); return; }
     if (e.key === 'Enter' && !typing && (tool === 'pline' || tool === 'line' || tool === 'copy')) { run(''); return; }
     if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && /^[a-zA-Z?]$/.test(e.key)) input.current?.focus();
@@ -420,10 +453,11 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     : result?.kind === 'area' && result.how !== 'object' ? { points: result.points, closed: true, label: m2(toM2(areaOf(result.points).area)) }
     : points.length ? (() => {
       const live = cursor.at ? [...points, cursor.at] : points;
-      const label = tool === 'dist' && live.length === 2 ? m(toM(distance(live[0], live[1]))) : tool === 'area' && live.length >= 3 ? m2(toM2(areaOf(live).area)) : undefined;
-      return { points, live: true, area: tool === 'area', label };
+      const corners = tool === 'area' || tool === 'trace';
+      const label = tool === 'dist' && live.length === 2 ? m(toM(distance(live[0], live[1]))) : corners && live.length >= 3 ? m2(toM2(areaOf(live).area)) : undefined;
+      return { points, live: true, area: corners, label };
     })()
-    : tool === 'dist' || tool === 'area' ? { points: [], live: false } : null;
+    : tool === 'dist' || tool === 'area' || tool === 'trace' ? { points: [], live: false } : null;
   const highlight: [number, number] | null = result?.kind === 'object' ? [result.o.seg_start, result.o.seg_end] : null;
   const objectArea = result?.kind === 'area' && result.how === 'object';
 
@@ -449,7 +483,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
           <aside className="cad-side">
             <h4>Result</h4>
             <div className="cad-res">
-              {result ? <ResultView r={result} view={view!} toM={toM} toM2={toM2} project={project} onChange={onChange} onMove={() => cad.setTool('move')} onRemove={removeSelected} onCopy={() => cad.setTool('copy')} onRotate={() => cad.setTool('rotate')} /> : view ? (
+              {result ? <ResultView r={result} view={view!} toM={toM} toM2={toM2} project={project} onChange={onChange} onMove={() => cad.setTool('move')} onRemove={removeSelected} onCopy={() => cad.setTool('copy')} onRotate={() => cad.setTool('rotate')} onAdded={() => setResult(null)} /> : view ? (
                 <>{view.file}<br /><span className="m">{view.info.format} · {units.label}{units.assumed ? ' (not set in the drawing: taken as mm)' : ''} · {view.info.segments.toLocaleString()} lines · {view.info.texts.length} texts</span><br /><span className="m">{PROMPT[tool]}</span></>
               ) : <span className="m">No drawing open.</span>}
               {view && SAMPLE_PLANS.some((x) => x.file === view.file) && (
@@ -556,9 +590,9 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
 }
 
 /** The Result panel: a distance, an area (with Add as room…), or what the clicked object is. */
-function ResultView({ r, view, toM, toM2, project, onChange, onMove, onRemove, onCopy, onRotate }: {
+function ResultView({ r, view, toM, toM2, project, onChange, onMove, onRemove, onCopy, onRotate, onAdded }: {
   r: Result; view: CadView; toM: (v: number) => number; toM2: (v: number) => number; project: Project; onChange: (next: Project, message: string) => void;
-  onMove: () => void; onRemove: () => void; onCopy: () => void; onRotate: () => void;
+  onMove: () => void; onRemove: () => void; onCopy: () => void; onRotate: () => void; onAdded: () => void;
 }) {
   if (r.kind === 'sketch') {
     const it = r.it;
@@ -600,9 +634,10 @@ function ResultView({ r, view, toM, toM2, project, onChange, onMove, onRemove, o
     const { area, perimeter } = areaOf(r.points);
     return (
       <>
-        <div>{r.how === 'room' ? 'Room area' : 'Area'} <b className="cad-big">{m2(toM2(area))}</b></div>
+        <div>{r.how === 'room' || r.how === 'trace' ? 'Room area' : 'Area'} <b className="cad-big">{m2(toM2(area))}</b></div>
         <div className="m">Perimeter {m(toM(perimeter))}{r.how === 'object' ? ' · of the object picked' : ''}</div>
-        <AddRoom key={`${area}`} project={project} areaM2={toM2(area)} name={r.name ?? ''} file={view.file} level={planLevel(project, view.file).floor?.key} onChange={onChange} />
+        <AddRoom key={`${area}:${r.name ?? ''}`} project={project} areaM2={toM2(area)} name={r.name ?? ''} file={view.file} level={planLevel(project, view.file).floor?.key} onChange={onChange}
+          outline={r.points.map(([x, y]): Pt => [Math.round(toM(x) * 1000) / 1000, Math.round(toM(y) * 1000) / 1000])} startOpen={r.how === 'trace' || r.how === 'room'} onAdded={onAdded} />
       </>
     );
   }
@@ -626,9 +661,11 @@ function ResultView({ r, view, toM, toM2, project, onChange, onMove, onRemove, o
 }
 
 /** Sends a measured area to Building information as a room on a level. */
-function AddRoom({ project, areaM2, name: initial, file, level, onChange }: { project: Project; areaM2: number; name: string; file: string; level?: string; onChange: (next: Project, message: string) => void }) {
+function AddRoom({ project, areaM2, name: initial, file, level, outline, startOpen, onChange, onAdded }: {
+  project: Project; areaM2: number; name: string; file: string; level?: string; outline: Pt[]; startOpen?: boolean; onChange: (next: Project, message: string) => void; onAdded: () => void;
+}) {
   const floors = floorList(project.building).filter((f) => !f.ref.index);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!!startOpen);
   const [name, setName] = useState(initial);
   const [levelKey, setLevelKey] = useState(level ?? floors[0]?.key ?? '');
   const floor = floors.find((f) => f.key === levelKey);
@@ -639,10 +676,10 @@ function AddRoom({ project, areaM2, name: initial, file, level, onChange }: { pr
       <label>Name<input value={name} placeholder="e.g. Majlis" onChange={(e) => setName(e.target.value)} /></label>
       <label>Level<select value={levelKey} onChange={(e) => setLevelKey(e.target.value)}>{floors.map((f) => <option key={f.key} value={f.key}>{floorLabel(project.building, f)}</option>)}</select></label>
       <button className="chip primary" disabled={!floor} onClick={() => {
-        const room = pickedRoom(project, name.trim(), areaM2, file, floor!.ref);
+        const room = pickedRoom(project, name.trim(), areaM2, file, floor!.ref, outline);
         const { project: next } = putRooms(project, [room], floor!.ref, []);
         onChange(next, `${room.name} · ${m2(room.areaM2)} added to ${floorLabel(project.building, floor!)} · ⌘Z to undo`);
-        setOpen(false);
+        setOpen(false); onAdded();
       }}>Add</button>
     </div>
   );

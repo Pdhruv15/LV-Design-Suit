@@ -55,6 +55,27 @@ export class CadDoc {
         }
     }
     /**
+     * Closed objects of model space (polylines, circles, ellipses, hatches, solids) as JSON — each ObjInfo with its `id`
+     * — for rooms from outline layers; their drawn segments are `seg_start..seg_end`.
+     * @returns {string}
+     */
+    outlines() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.caddoc_outlines(retptr, this.__wbg_ptr);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            deferred1_0 = r0;
+            deferred1_1 = r1;
+            return getStringFromWasm0(r0, r1);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+            wasm.__wbindgen_export(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
      * The object under (x, y) within `tol` (drawing units) on shown layers, as JSON (ObjInfo with its `id`), or "".
      * The nearest drawn line wins; a text wins when the point is on it. `closed_only` considers only objects with an
      * area (closed polylines, circles, hatches…), as for AREA → Object.

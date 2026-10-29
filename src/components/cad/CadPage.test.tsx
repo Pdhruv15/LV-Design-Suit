@@ -119,12 +119,12 @@ describe('CAD view', () => {
     act(() => state.setTool('room'));
     await clickAt(10500, 2250); // the guest bedroom: no outline on the plan
     expect(result()).toMatch(/Room area 16\.\d\d m²/);
-    act(() => button('Add as room…').click());
-    act(() => button('Add').click());
+    act(() => button('Add').click()); // the room form is open: Click inside is a room tool
     const rooms = buildingInfoOf(project).rooms;
     expect(rooms).toHaveLength(1);
     expect(rooms[0]).toMatchObject({ buildingId: 'V', levelId: 'GF' });
     expect(rooms[0].areaM2).toBeGreaterThan(16);
+    expect(rooms[0].outline!.length).toBeGreaterThanOrEqual(4); // kept in metres: devices find their room by it
     expect(onChange.mock.calls[0][1]).toMatch(/added to Ground · ⌘Z to undo$/);
   });
 
@@ -305,6 +305,40 @@ describe('CAD view', () => {
     expect(document.body.textContent).toContain('Layer roles');
     const wallRole = [...document.querySelectorAll('select')].find((x) => x.closest('tr')?.textContent?.includes('A-WALL')) as HTMLSelectElement | undefined;
     expect(wallRole?.value).toBe('wall');
+  });
+
+  it('adds the rooms the plan outlines, named by the text inside; adding again updates them', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => state.actions.current.addFound());
+    const names = () => buildingInfoOf(project).rooms.map((r) => r.name.toLowerCase()).sort();
+    expect(names()).toEqual(['dining', 'electrical room', 'kitchen', 'living', 'maid room', 'majlis']);
+    expect(onChange.mock.calls[0][1]).toMatch(/^6 rooms from the plan on Ground — level not set: File → Level · ⌘Z to undo$/);
+    const majlis = buildingInfoOf(project).rooms.find((r) => /majlis/i.test(r.name))!;
+    expect(majlis.outline!.length).toBeGreaterThanOrEqual(4);
+    expect(majlis.areaM2).toBeGreaterThan(10);
+    await command('ROOMS');
+    expect(names()).toHaveLength(6);
+  });
+
+  it('traces a room and names it by picking its name on the drawing; a name outside any room says so', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    const text = (s: string) => state.view!.info.texts.find((t) => t.s.trim() === s)!;
+    const onText = async (s: string) => { const t = text(s); await clickAt(t.x + t.h * 0.1, t.y + t.h * 0.3); };
+    const k = text('KITCHEN');
+    await command('TR');
+    for (const [dx, dy] of [[-1500, -1500], [1500, -1500], [1500, 1500], [-1500, 1500]]) await clickAt(k.x + dx, k.y + dy);
+    await command('');
+    expect(result()).toMatch(/Room area 9\.00 m²/);
+    await command('PN');
+    await onText('KITCHEN');
+    expect((document.querySelector('.cad-roomform input') as HTMLInputElement).value).toBe('KITCHEN');
+    act(() => button('Add').click());
+    expect(buildingInfoOf(project).rooms.map((r) => r.name)).toEqual(['KITCHEN']);
+    act(() => state.setTool('name'));
+    await onText('HALL');
+    expect(state.history[state.history.length - 1]).toMatch(/“HALL” is not inside a room yet/);
   });
 });
 
