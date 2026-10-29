@@ -1,4 +1,5 @@
 import { buildingInfoOf } from '../../calc/building';
+import type { ElvSystem } from '../../elv/defaults';
 import { ELV_DEVICES, type ElvDeviceType } from '../../elv/devices';
 import { moveDevice, placeDevices, removeDevices } from '../../elv/placed';
 import type { Project } from '../../types';
@@ -18,6 +19,9 @@ export function placeElv(p: Project, type: ElvDeviceType, level: Level, x: numbe
   const { project } = placeDevices(p, level.building, level.level, [{ type, x, y }]);
   return { project, message: `${ELV_DEVICES[type].label} placed` };
 }
+/** The ELV system a device belongs to (its coverage and Copy to level go by it). */
+export const elvSystemOf = (type: ElvDeviceType): ElvSystem => ELV_DEVICES[type].system;
+
 export const moveElv = (p: Project, id: string, x: number, y: number) => moveDevice(p, id, x, y);
 export const removeElv = (p: Project, id: string) => removeDevices(p, [id]);
 

@@ -415,5 +415,24 @@ describe('CAD view', () => {
     expect(project.cadSketch![0].items).toHaveLength(3);
     expect(project.cadSketch![0].items[2]).toMatchObject({ layer: 'E-CABLE', cable: { feederId: f.id } });
   });
+
+  it('fills a room with an ELV device at its spacing, shows coverage, and copies the devices to another level', async () => {
+    const twoLevels: Project = { ...villa, building: { ...villa.building!, buildings: [{ id: 'V', name: 'Villa', levels: [{ id: 'GF', name: 'Ground', kind: 'ground', heightM: 4 }, { id: 'FF', name: 'First', kind: 'typical', heightM: 4 }] }] } };
+    act(() => root.render(<Host start={twoLevels} />));
+    await flush();
+    act(() => state.actions.current.addFound()); // rooms with outlines to fill
+    const majlis = buildingInfoOf(project).rooms.find((r) => /majlis/i.test(r.name))!;
+    const [cx, cy] = majlis.outline!.reduce(([x, y], q) => [x + q[0] / majlis.outline!.length, y + q[1] / majlis.outline!.length], [0, 0]);
+    act(() => { state.setDevice('smoke-detector'); state.setTool('fill'); });
+    await clickAt(cx / 0.001, cy / 0.001);
+    const onGf = () => (project.elvDevices ?? []).filter((d) => d.levelId === 'GF');
+    expect(onGf().length).toBeGreaterThan(0);
+    expect(onGf().every((d) => d.type === 'smoke-detector' && d.roomId === majlis.id)).toBe(true);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toMatch(/smoke detectors? placed · ⌘Z to undo$/i);
+    act(() => state.setCoverage(true));
+    expect(document.body.textContent).toMatch(/not fully covered/);
+    act(() => state.actions.current.copyTo('V/FF/0'));
+    expect((project.elvDevices ?? []).filter((d) => d.levelId === 'FF')).toHaveLength(onGf().length);
+  });
 });
 

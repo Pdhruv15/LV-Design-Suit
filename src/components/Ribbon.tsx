@@ -103,6 +103,7 @@ export interface RibbonActions {
     tool: CadTool; onTool: (t: CadTool) => void; onOpen: () => void; onSave: () => void; onDelete: () => void; hasSelection: boolean; onFit: () => void; onLayers: () => void; layersOn: boolean; hasDrawing: boolean;
     file: { plans: Tool['menu']; plansSub?: string; level: string; levelTitle: string; levels: Tool['menu']; unit: string; unitTitle: string; units: Tool['menu'] };
     onRoles: () => void; rolesOn: boolean; onAddFound: () => void; onSchedules: () => void; onPlaceBoard: () => void; placingBoard: boolean;
+    onCoverage: () => void; coverageOn: boolean; copyLevels: Tool['menu'];
   };
   onProfile: () => void;
   onChooseFolder: () => void;
@@ -444,7 +445,10 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'Area', icon: Square, title: 'Area and perimeter from snapped corners, or a closed object (AREA, then O)', onClick: () => a.cad?.onTool('area'), active: a.cad?.tool === 'area', disabled: !a.cad?.hasDrawing }
       ],
       [
-        { label: 'Add device', icon: CirclePlus, title: 'Place lights, sockets, a DB or ELV devices on the plan (DEV): choose it and its circuit, then click', onClick: () => a.cad?.onTool('dev'), active: a.cad?.tool === 'dev', disabled: !a.cad?.hasDrawing }
+        { label: 'Add device', icon: CirclePlus, title: 'Place lights, sockets, a DB or ELV devices on the plan (DEV): choose it and its circuit, then click', onClick: () => a.cad?.onTool('dev'), active: a.cad?.tool === 'dev', disabled: !a.cad?.hasDrawing },
+        cadTool('fill', 'Fill room', Grid3x3, 'Choose an ELV device, point at a room to see it at its coverage spacing, click to place them all (FILL)'),
+        { label: 'Coverage', icon: CircleDashed, title: 'Show what the devices of the chosen ELV device\'s system cover, and what is not covered (COV)', onClick: () => a.cad?.onCoverage(), active: a.cad?.coverageOn, disabled: !a.cad?.hasDrawing },
+        { label: 'Copy to level', icon: Copy, title: "Copy this level's devices of the chosen ELV device's system to another level, at the same plan positions", onClick: () => {}, disabled: !a.cad?.hasDrawing || !a.cad.copyLevels?.length, menu: a.cad?.copyLevels }
       ],
       [
         { label: 'Layers', icon: Layers, title: 'Show or hide the layers panel (LAYER)', onClick: () => a.cad?.onLayers(), active: a.cad?.layersOn },

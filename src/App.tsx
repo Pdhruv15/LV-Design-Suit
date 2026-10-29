@@ -147,7 +147,8 @@ import type { BoardKind, ProjectStatus } from './types';
 import { useFloorPlan, type FloorPlanTool } from './components/floorPlanState';
 import { cadFileApi } from './engines/cad/webCadFile';
 import { useCad } from './components/cad/cadState';
-import { cadFileMenu } from './components/cad/cadFileMenu';
+import { cadFileMenu, planLevel } from './components/cad/cadFileMenu';
+import { plansOf } from './model/cadPlans';
 import { chooseDrawing } from './engines/cad/cadEngine';
 import { canFill as canFillElv, deviceLabel, devicesFor, SYSTEM_LABEL, SYSTEMS as ELV_SYSTEM_LIST } from './components/elv/elvLabels';
 import { onDemand } from './util/onDemand';
@@ -1248,7 +1249,12 @@ export default function App() {
             })(),
             onRoles: () => { cadS.setShowRoles(!cadS.showRoles); cadS.setShowLayers(true); setView('cad'); }, rolesOn: cadS.showRoles && cadS.showLayers, onAddFound: () => { setView('cad'); cadS.actions.current.addFound(); },
             onSchedules: () => { setView('cad'); cadS.actions.current.schedules(); },
-            onPlaceBoard: () => { cadS.setDevice('db'); cadS.setTool('dev'); setView('cad'); }, placingBoard: cadS.tool === 'dev' && cadS.device === 'db' },
+            onPlaceBoard: () => { cadS.setDevice('db'); cadS.setTool('dev'); setView('cad'); }, placingBoard: cadS.tool === 'dev' && cadS.device === 'db',
+            onCoverage: () => { cadS.setCoverage(!cadS.coverage); setView('cad'); }, coverageOn: cadS.coverage,
+            copyLevels: (() => {
+              const here = planLevel(project, cadS.view?.file).floor;
+              return view === 'cad' && here ? plansOf(project).filter((x) => x.floor.key !== here.key).map((x) => ({ label: x.label, title: `Copy to ${x.label}`, onClick: () => cadS.actions.current.copyTo(x.floor.key) })) : [];
+            })() },
           floorPlan: {
             hasPlan: !!fp.plan, tool: fp.tool, onTool: (t) => { fp.setTool(t); setView('floor-plan'); }, onOpen: () => void openFloorPlan(),
             onLayers: () => { fp.setShowLayers(!fp.showLayers); setView('floor-plan'); }, layersOn: fp.showLayers,
