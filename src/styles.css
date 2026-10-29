@@ -147,10 +147,10 @@ table.compare td:first-child,table.compare th:first-child{text-align:left}
 .engine-notes{margin:12px 0 0;padding-left:18px;line-height:1.6}
 code{background:var(--p2);padding:1px 5px;border-radius:4px}
 /* ---- System diagram ---- */
-.sysdiag{position:relative;height:clamp(420px,calc(100vh - 290px),3000px);border:1px solid var(--line);border-radius:8px;background:var(--bg);overflow:hidden;margin-top:8px}
-.sysdiag .grid-minor{fill:none;stroke:color-mix(in srgb,var(--line) 55%,transparent);stroke-width:.6;vector-effect:non-scaling-stroke}
-.sysdiag .grid-major{fill:none;stroke:var(--line);stroke-width:1;vector-effect:non-scaling-stroke}
-.sysdiag .grid-dot{fill:var(--line)}
+.sysdiag{position:relative;height:clamp(420px,calc(100vh - 290px),3000px);border:1px solid var(--line);border-radius:8px;background:var(--canvas-bg);overflow:hidden;margin-top:8px}
+.sysdiag .grid-minor{fill:none;stroke:var(--canvas-grid);stroke-width:.6;vector-effect:non-scaling-stroke}
+.sysdiag .grid-major{fill:none;stroke:var(--canvas-grid-major);stroke-width:1;vector-effect:non-scaling-stroke}
+.sysdiag .grid-dot{fill:var(--canvas-grid-major)}
 .sysdiag-resize{position:absolute;left:0;right:0;bottom:0;height:9px;cursor:ns-resize;z-index:2;background:linear-gradient(to bottom,transparent 3px,color-mix(in srgb,var(--mut) 35%,transparent) 3px,color-mix(in srgb,var(--mut) 35%,transparent) 5px,transparent 5px) center/44px 100% no-repeat}
 .sysdiag-resize:hover{background-color:color-mix(in srgb,var(--acc) 18%,transparent)}
 .sld-edit.full{position:fixed;inset:0;z-index:60;background:var(--bg);padding:10px}
@@ -409,7 +409,7 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 .sysdiag.drop-ok>svg{outline:2px dashed var(--acc);outline-offset:-4px}
 .sysdiag .cable-lbl{cursor:pointer}
 .sysdiag .cable-lbl:hover{fill:var(--acc);text-decoration:underline dotted}
-.move-ghost{position:absolute;z-index:5;pointer-events:none;background:var(--acc);color:var(--on-acc);font-size:12px;font-weight:600;padding:3px 8px;border-radius:5px;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.35)}
+.move-ghost{position:absolute;z-index:5;pointer-events:none;background:var(--acc);color:var(--on-acc);font-size:12px;font-weight:600;padding:3px 8px;border-radius:5px;white-space:nowrap;box-shadow:var(--shadow-pop)}
 .cable-edit{position:absolute;z-index:6;display:grid;grid-template-columns:auto auto;gap:6px 10px;align-items:center;background:var(--panel);border:1px solid var(--acc);border-radius:8px;padding:10px 12px;box-shadow:var(--shadow-pop);font-size:var(--fs-sm)}
 .cable-edit b{grid-column:1/-1}
 .cable-edit label{display:contents}
@@ -583,7 +583,7 @@ td.ec .ec-err{position:absolute;left:4px;top:100%;z-index:2;background:var(--bad
 .qc-key{display:inline-block;width:18px;vertical-align:middle;border-top:2px solid var(--tx)}
 .qc-key.dash{border-top:2px dashed var(--mut)}
 .lux-plan{margin:0;display:grid;gap:6px}
-.lux-plan svg{width:100%;height:auto;background:var(--bg);border:1px solid var(--line);border-radius:8px}
+.lux-plan svg{width:100%;height:auto;background:var(--canvas-bg);border:1px solid var(--line);border-radius:8px}
 .lux-plan .room{fill:var(--p2);stroke:var(--tx);stroke-width:2}
 .lux-plan .axis{stroke:var(--mut);stroke-width:.6;stroke-dasharray:6 4;opacity:.6}
 .lux-plan .lum circle{fill:color-mix(in srgb,var(--warn) 22%,var(--p2));stroke:var(--warn);stroke-width:1.4}
@@ -931,7 +931,7 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .help-grid h4{margin:0 0 10px}
 .help-flow{display:flex;flex-direction:column;gap:8px}
 .help-phase{border-left:3px solid var(--acc);padding-left:10px;display:flex;flex-direction:column;gap:4px}
-.help-phase.p-design{border-color:#9085e9}.help-phase.p-check{border-color:var(--ok)}.help-phase.p-deliver{border-color:var(--warn)}
+.help-phase.p-design{border-color:var(--res-pf)}.help-phase.p-check{border-color:var(--ok)}.help-phase.p-deliver{border-color:var(--warn)}
 .help-phase-name{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut)}
 .help-step{display:flex;gap:10px;text-align:left;padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:var(--p2);color:var(--tx);font-size:13px}
 .help-step:hover{border-color:var(--acc)}
@@ -1154,21 +1154,21 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .dw-empty{display:flex;flex-direction:column;gap:8px}
 .dw-table tr.dw-editing td{outline:1px solid var(--acc);outline-offset:-1px}
 .dw-panel-backdrop{position:fixed;inset:0;z-index:50;background:var(--backdrop)}
-.dw-panel{position:absolute;right:0;top:0;bottom:0;width:min(440px,100vw);display:flex;flex-direction:column;background:var(--panel);color:inherit;border-left:1px solid var(--line);box-shadow:-8px 0 24px rgba(0,0,0,.2)}
+.dw-panel{position:absolute;right:0;top:0;bottom:0;width:min(440px,100vw);display:flex;flex-direction:column;background:var(--panel);color:inherit;border-left:1px solid var(--line);box-shadow:var(--shadow-side)}
 .dw-panel-head{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line)}
 .dw-panel-head h3{margin:0}
 .dw-panel-body{flex:1;overflow:auto;padding:12px 16px}
 .dw-panel-body h4{margin:16px 0 6px}
 .dw-panel-foot{display:flex;gap:6px;align-items:center;padding:10px 16px;border-top:1px solid var(--line)}
 /* Cable reference number on the SLD (legend: CABLE SCHEDULE) */
-.cable-ref-c{fill:var(--panel);stroke:#d33;stroke-width:1}
+.cable-ref-c{fill:var(--panel);stroke:var(--bad);stroke-width:1}
 .cable-ref-t{font-size:8.5px;font-weight:700;fill:currentColor}
 .sld-print .cable-ref-c,.sheet .cable-ref-c{fill:#fff}
 /* Sheet outlines on the design canvas, revision clouds on sheets */
 .sysdiag .sheet-outline rect{fill:none;stroke-width:1.6;stroke-dasharray:10 6;opacity:.85}
 .sysdiag .sheet-outline text{font-size:12px;font-weight:700}
 .sysdiag .sheet-outline{cursor:pointer}
-.sysdiag .rev-cloud path{fill:none;stroke:#d33;stroke-width:1.4}
+.sysdiag .rev-cloud path{fill:none;stroke:var(--bad);stroke-width:1.4}
 .sysdiag .rev-cloud .rev-tri{fill:var(--panel)}
 /* SLD tabs: Design + one tab per drawing sheet */
 .sheet-tabs{display:flex;align-items:flex-end;gap:2px;flex-wrap:wrap;padding:4px 6px 0;border-bottom:1px solid var(--line);background:var(--p2,transparent);position:relative;flex:0 0 100%;order:-1;z-index:5}
@@ -1260,7 +1260,7 @@ button.calc-chip.warn{color:var(--warn);border-color:color-mix(in srgb,var(--war
 .results-src select.chip{width:auto;max-width:260px;padding:0 26px 0 10px;border-radius:6px;color:var(--tx);background-color:var(--p2);cursor:pointer}
 .results-src select.chip:disabled{opacity:.6;cursor:default}
 /* Results tabs under the SLD: always in the window, open on demand */
-.res-drawer{position:sticky;bottom:0;z-index:6;background:var(--bg);border:1px solid var(--line);border-radius:10px 10px 0 0;margin-top:auto;box-shadow:0 -6px 18px rgba(0,0,0,.25)}
+.res-drawer{position:sticky;bottom:0;z-index:6;background:var(--bg);border:1px solid var(--line);border-radius:10px 10px 0 0;margin-top:auto;box-shadow:var(--shadow-drawer)}
 .rd-tabs{display:flex;align-items:center;gap:2px;padding:4px 8px}
 .rd-tabs > button[role=tab]{background:transparent;border:0;border-bottom:2px solid transparent;color:var(--mut);font:inherit;font-size:13px;padding:6px 12px;cursor:pointer}
 .rd-tabs > button[role=tab].on{color:var(--acc);border-bottom-color:var(--acc)}
@@ -1270,7 +1270,7 @@ button.calc-chip.warn{color:var(--warn);border-color:color-mix(in srgb,var(--war
 .cards.one{grid-template-columns:1fr}
 /* Riser diagram (same unit for every symbol) */
 .sysdiag .sym-fill{fill:var(--tx)}
-.sysdiag .riser-bus line{stroke:#E8A33B;stroke-width:2.6}
+.sysdiag .riser-bus line{stroke:var(--bus);stroke-width:2.6}
 .sysdiag .riser-floor{stroke:var(--mut);stroke-dasharray:6 6;stroke-width:.8;opacity:.7}
 .sysdiag .riser-standby{stroke-dasharray:5 4}
 .sysdiag.riser text.b{font-size:12px}
@@ -1407,8 +1407,9 @@ button.calc-chip.warn{color:var(--warn);border-color:color-mix(in srgb,var(--war
 .enc-cols .card{display:flex;flex-direction:column;gap:8px;min-width:0}
 @media (max-width:1100px){.enc-cols{grid-template-columns:1fr}}
 .enc-result{border:1px solid var(--line);border-radius:6px;padding:8px;display:flex;flex-direction:column;gap:3px}
-.enc-key .k{display:inline-block;width:14px;height:9px;margin:0 3px 0 8px;vertical-align:middle;border:1px dashed #2a78d6}
-.enc-key .k.eq{background:#2a78d6;opacity:.6;border-style:solid}.enc-key .k.allow{border-color:#c8a000}
+.enc-key .k{display:inline-block;width:14px;height:9px;margin:0 3px 0 8px;vertical-align:middle;border:1px dashed var(--acc)}
+.enc-key .k.eq{background:var(--acc);opacity:.6;border-style:solid}.enc-key .k.allow{border-color:var(--warn)}
+.pfcc-svg .enc-eq{color:var(--acc)}.pfcc-svg .enc-allow{color:var(--warn)}
 .enc-foot{margin-top:10px}
 .enc-tabs{margin-bottom:10px}
 .f4-group{margin:6px 0 2px;font-size:var(--fs-xs);font-weight:600;letter-spacing:.02em}
@@ -1622,7 +1623,7 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .earth-pop p{margin:0}
 .earth-st.pass{color:var(--ok)}.earth-st.fail{color:var(--bad);font-weight:600}.earth-st.untested{color:var(--mut)}
 .earth-dot{display:inline-block;width:10px;height:10px;border:1px solid var(--mut);vertical-align:-1px}
-.earth-dot.pass{background:#7cc68d}.earth-dot.fail{background:#e5736b}.earth-dot.untested{background:#d5d8de}
+.earth-dot.pass{background:var(--pit-pass)}.earth-dot.fail{background:var(--pit-fail)}.earth-dot.untested{background:var(--pit-untested)}
 .earth-key{margin:0}
 .earth-table{overflow-x:auto}.earth-table td.num,.earth-table th.num{text-align:right}
 .earth-checks{padding:var(--space-2) 0}
@@ -1763,8 +1764,8 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 .fpp-sample{background:color-mix(in srgb,var(--acc) 10%,transparent)}
 
 /* CAD view (DWG / DXF opened natively): model space, side panel, command line, status bar */
-.cad{--cad-bg:#1b1f27;--cad-ink:#e6ebf3;--cad-grid:#262c38;--cad-grid-major:#343c4d;--cad-sketch:#7fe3ff;--cad-cross:#e8eef7;--cad-snap:#3df27a;--cad-dev:#f5c04a;--cad-elv:#59c3ff;display:flex;flex-direction:column;height:100%;min-height:520px;border-top:1px solid var(--line)}
-:root[data-theme="light"] .cad{--cad-bg:#fbfcfe;--cad-ink:#1d2433;--cad-grid:#e6eaf1;--cad-grid-major:#cdd4e0;--cad-sketch:#0a7fa8;--cad-cross:#1d2433;--cad-snap:#0a8f3c;--cad-dev:#b26b00;--cad-elv:#0b6fb8}
+/* Design CAD draws on the shared drawing surface; its colours are read from these on each draw (CadCanvas.tsx). */
+.cad{--cad-bg:var(--canvas-bg);--cad-ink:var(--canvas-ink);--cad-grid:var(--canvas-grid);--cad-grid-major:var(--canvas-grid-major);--cad-sketch:var(--res-cur);--cad-cross:var(--canvas-ink);--cad-snap:var(--ok);--cad-dev:var(--warn);--cad-elv:var(--acc);display:flex;flex-direction:column;height:100%;min-height:520px;border-top:1px solid var(--line)}
 .mid > .cad{flex:1 1 auto}
 .cad-work{display:grid;grid-template-columns:minmax(0,1fr) 260px;flex:1;min-height:0}
 .cad-work:has(> :only-child){grid-template-columns:minmax(0,1fr)}

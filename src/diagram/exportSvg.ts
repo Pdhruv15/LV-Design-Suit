@@ -10,6 +10,8 @@ export { pathPoints } from './svgPath';
 
 const STYLE_PROPS = ['stroke', 'stroke-width', 'stroke-dasharray', 'fill', 'opacity', 'font-size', 'font-weight', 'font-family', 'text-anchor', 'display', 'writing-mode'];
 const DROP = '.bus-hit, .sel-ring, title, .grid-bg';
+/** Marks in the red status colour on screen that print black, like the rest of the drawing. */
+const PRINT_BLACK = '.rev-cloud path, .cable-ref-c';
 
 /** Theme colour (rgb string) → print colour. */
 function printPalette(): Map<string, string> {
@@ -41,10 +43,12 @@ function printableSvgDark(live: SVGSVGElement, width: number, height: number): s
   src.forEach((el, i) => {
     const out = dst[i] as SVGElement;
     const cs = getComputedStyle(el);
+    const black = el.matches(PRINT_BLACK);
     const style = STYLE_PROPS.map((p) => {
       let v = cs.getPropertyValue(p);
       if (!v) return '';
       if (p === 'stroke' || p === 'fill') v = palette.get(v) ?? v;
+      if (p === 'stroke' && black) v = '#000000';
       if (p === 'font-family') v = 'Arial, Helvetica, sans-serif';
       return `${p}:${v}`;
     }).filter(Boolean).join(';');

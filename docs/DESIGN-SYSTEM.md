@@ -14,7 +14,7 @@ Principles, for engineering software used for hours at a time:
 
 | Token | Role | Dark | Light |
 |---|---|---|---|
-| `--bg` | canvas, diagram background | `#0a1120` | `#f5f6f8` |
+| `--bg` | page background behind panels | `#0a1120` | `#f5f6f8` |
 | `--panel` | header, sidebar, cards, dialogs | `#0f1a2f` | `#ffffff` |
 | `--p2` | raised: inputs, chips, hover rows | `#14233f` | `#f0f2f5` |
 | `--line` / `--line-strong` | dividers / hover edges | `#20304f` / `#2f4570` | `#dde1e7` / `#c4cad3` |
@@ -25,14 +25,18 @@ Principles, for engineering software used for hours at a time:
 | `--bus` | SLD busbars, board group labels | `#ffb347` | `#a64b07` |
 | `--res-cur` `--res-fault` `--res-pf` | SLD result labels | | |
 | `--ph-r` `--ph-y` `--ph-b` `--ph-ryb` | phase colours | | |
+| `--canvas-bg` `--canvas-ink` `--canvas-grid` `--canvas-grid-major` | the one drawing surface: SLD, riser, earthing, lux plan, Design CAD | `--bg`, `--tx`, `#16223a`, `--line` | `--bg`, `--tx`, `#e8eaef`, `--line` |
+| `--pit-pass` `--pit-fail` `--pit-untested` | earth pit test status | mixes of `--ok`, `--bad`, `--mut` | |
 | `--curve-1` … `--curve-8` | chart series (protection curves) | original curve colours | darker, ≥ 4.8:1 on white |
-| `--backdrop`, `--shadow-pop`, `--shadow-modal`, `--shadow-palette`, `--shadow-paper`, `--row-sub` | overlays and elevation | | |
+| `--backdrop`, `--shadow-pop`, `--shadow-modal`, `--shadow-palette`, `--shadow-paper`, `--shadow-drawer`, `--shadow-side`, `--row-sub` | overlays and elevation | | |
 
 **Light theme (v2, Oct 2026):** neutral cool greys, body text about 15:1 rather than near-black, status colours close to common GitHub/Fluent values. Proposal frame: Figma *Screens* page, "Light theme v2 (proposal)".
 
 **Contrast** (checked by `src/theme/tokens.test.ts` on every test run): all text tokens are ≥4.5:1 on `--bg`, `--panel` and `--p2` in both themes; `--field-line` is ≥3:1 on `--panel` and `--p2`.
 
-**Do not** use `#fff`, `#000` or hex colours for screen UI. White and black remain correct for *paper* (drawing sheets, title-block previews, logo previews), which are white in both themes on purpose.
+**Do not** use `#fff`, `#000` or hex colours for screen UI. White and black remain correct for *paper* (drawing sheets, title-block previews, logo previews), which are white in both themes on purpose. `tokens.test.ts` lists the stylesheet rules and components allowed fixed colours and fails on a new one.
+
+**Drawings on screen** use the `--canvas-*` tokens, so every drawing has the same background and grid. Design CAD shows a DWG colour under 3:1 against the canvas lighter (dark theme) or darker (light theme) with the same hue, and yellow as gold (`src/model/cadDraw.ts`, `screenColour`). Saved DWG, DXF and PDF keep the stored colours.
 
 Legacy names `--border`, `--accent`, `--fg`, `--muted` are aliases kept so older rules resolve; use `--line`, `--acc`, `--tx`, `--mut` in new CSS.
 

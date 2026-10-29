@@ -15,6 +15,14 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.3', date: '2026-10-29',
+    items: [
+      { title: 'One drawing background', text: 'Design CAD now draws on the same background and grid as the SLD, riser, earthing and lux plans, in the dark and light themes. Switching theme redraws the CAD plan straight away.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'DWG colours you can read', text: 'Layer colours too faint on the background are shown lighter or darker with the same hue: yellow shows as gold on the light theme, blue lighter on the dark one. Saved DWG, DXF and PDF keep the original colours.' },
+      { title: 'Black revision clouds on the PDF', text: 'Revision clouds and cable reference circles print black, like the rest of the drawing; riser busbar trunking prints black and shows in the busbar colour on screen.' }
+    ]
+  },
+  {
     version: '2.2', date: '2026-10-29',
     items: [
       { title: 'Design CAD: Save DWG', text: 'File → Save DWG (SAVEDWG) saves the plan as a DWG — in the version it came in, else AutoCAD 2018 — with what you drew, the trays and routes, and the devices placed, as a new file. The architect\'s drawing is not changed. Open it once in your CAD program to check before you send it.', action: 'cad', actionLabel: 'Open Design CAD' }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dashArray, hatchLines, patternLength, tileOf } from './cadDraw';
+import { contrastRatio, cssRgb, dashArray, hatchLines, patternLength, screenColour, tileOf } from './cadDraw';
 
 describe('drawing linetypes and hatches', () => {
   it('turns a linetype pattern into a canvas dash array', () => {
@@ -26,5 +26,46 @@ describe('drawing linetypes and hatches', () => {
     expect(tileOf(159, 0, [0, 0, 160, 160])).toBe(15);
     expect(tileOf(15, 25, [0, 0, 160, 160])).toBe(2 * 16 + 1);
     expect(tileOf(-50, 999, [0, 0, 160, 160])).toBe(15 * 16); // outside: the nearest tile
+  });
+});
+
+describe('drawing colours on screen', () => {
+  const light = cssRgb('#f5f6f8')!, dark = cssRgb('#0a1120')!; // the drawing surface in each theme
+  const ratio = (c: string, bg: [number, number, number]) => contrastRatio(cssRgb(c)!, bg);
+
+  it('reads the colour forms the stylesheet gives', () => {
+    expect(cssRgb('#0a1120')).toEqual([10, 17, 32]);
+    expect(cssRgb(' #fff ')).toEqual([255, 255, 255]);
+    expect(cssRgb('rgb(245, 246, 248)')).toEqual([245, 246, 248]);
+    expect(cssRgb('color-mix(in srgb, red, blue)')).toBeNull();
+  });
+
+  it('keeps colours that already stand out', () => {
+    expect(screenColour(0xff0000, light)).toBe('#ff0000');
+    expect(screenColour(0xffff00, dark)).toBe('#ffff00');
+    expect(screenColour(0x0000ff, light)).toBe('#0000ff');
+  });
+
+  it('turns yellow gold on the light surface, the shade chosen on 2026-10-29', () => {
+    expect(screenColour(0xffff00, light)).toBe('#b28600');
+    expect(ratio('#b28600', light)).toBeGreaterThanOrEqual(3);
+  });
+
+  it('darkens cyan, green and light grey on light, keeping their hue', () => {
+    for (const rgb of [0x00ffff, 0x00ff00, 0xc0c0c0]) {
+      const c = screenColour(rgb, light), [r, g, b] = cssRgb(c)!;
+      expect(ratio(c, light), c).toBeGreaterThanOrEqual(3);
+      if (rgb === 0x00ffff) expect([r, g === b]).toEqual([0, true]);
+      if (rgb === 0x00ff00) expect([r, b]).toEqual([0, 0]);
+      if (rgb === 0xc0c0c0) expect(r === g && g === b).toBe(true);
+    }
+  });
+
+  it('lightens blue and dark grey on dark, keeping their hue', () => {
+    const blue = cssRgb(screenColour(0x0000ff, dark))!;
+    expect(contrastRatio(blue, dark)).toBeGreaterThanOrEqual(3);
+    expect(blue[0] === blue[1] && blue[2] === 255).toBe(true);
+    expect(ratio(screenColour(0x333333, dark), dark)).toBeGreaterThanOrEqual(3);
+    expect(ratio(screenColour(0x000000, dark), dark)).toBeGreaterThanOrEqual(3);
   });
 });

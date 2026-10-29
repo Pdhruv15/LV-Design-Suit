@@ -4,7 +4,7 @@ import { ortho as orthoFrom } from '../../model/cadMeasure';
 import { dimensionLines, segmentsOf, trayEdges, trayLabel } from '../../model/cadSketch';
 import type { PlanCells, PlanCover } from '../elv/elvOverlay';
 import { fittingLabel, trayFittings } from '../../model/cadTrayFittings';
-import { dashArray, hatchLines, patternLength, tileOf } from '../../model/cadDraw';
+import { cssRgb, dashArray, hatchLines, patternLength, screenColour, tileOf } from '../../model/cadDraw';
 import type { SketchItem } from '../../types';
 import { onScreenThemeChange, screenTheme } from '../../theme/theme';
 
@@ -141,14 +141,22 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
     if (!c || !ctx) return;
     const dpr = window.devicePixelRatio || 1;
     c.width = Math.round(size.w * dpr); c.height = Math.round(size.h * dpr);
-    const bg = colour('--cad-bg', '#1b1f27'), ink = colour('--cad-ink', '#e6ebf3');
+    const bg = colour('--cad-bg', '#0a1120'), ink = colour('--cad-ink', '#dbe4f5');
+    // Stored colours too faint on this background are drawn lighter or darker (each worked out once per draw).
+    const bgRgb = cssRgb(bg), shown = new Map<number, string>();
+    const shade = (rgb: number) => {
+      if (rgb === INK) return ink;
+      let v = shown.get(rgb);
+      if (!v) { v = bgRgb ? screenColour(rgb, bgRgb) : hex(rgb); shown.set(rgb, v); }
+      return v;
+    };
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = bg; ctx.fillRect(0, 0, c.width, c.height);
     const { scale, ox, oy } = t;
     if (toggles.grid) {
       // Grid lines: fine every step, stronger every fifth (in drawing units relative to the origin).
       const step = gridStep(scale);
-      const minor = colour('--cad-grid', '#2a3140'), major = colour('--cad-grid-major', '#3a4356');
+      const minor = colour('--cad-grid', '#16223a'), major = colour('--cad-grid-major', '#20304f');
       const x0 = Math.floor(ox / step), y0 = Math.floor(oy / step);
       ctx.lineWidth = Math.max(1, dpr * 0.5);
       for (let i = x0; i * step < ox + size.w / scale; i += 1) {
@@ -171,7 +179,7 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
     // be closer than 3 pixels (or too many to draw).
     for (const f of fills) {
       if (!layersOn[f.layer] || !onScreen(f.box)) continue;
-      const col = f.rgb === INK ? ink : hex(f.rgb);
+      const col = shade(f.rgb);
       if (f.solid) { ctx.fillStyle = col; ctx.fill(f.path, 'evenodd'); continue; }
       const families = f.lines.map((l) => ({ l, lines: hatchLines({ angle: l.angle, base: [l.base[0] - o0, l.base[1] - o1], offset: l.offset }, f.box, 3 * px) }));
       ctx.save();
@@ -195,7 +203,7 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
     const dashes = view.info.linetypes ?? [];
     for (const b of batches) {
       if (!layersOn[b.layer] || !onScreen(b.box)) continue;
-      ctx.strokeStyle = b.rgb === INK ? ink : hex(b.rgb);
+      ctx.strokeStyle = shade(b.rgb);
       // A linetype too fine to see at this zoom (repeat under 4 pixels) is drawn continuous, as CAD does.
       const dash = b.lt ? dashArray(dashes[b.lt] ?? [], px) : [];
       ctx.setLineDash(dash.length && patternLength(dash) * scale >= 4 ? dash : []);
@@ -205,13 +213,13 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
     if (highlight && highlight[1] > highlight[0]) {
       const p = new Path2D();
       for (let i = highlight[0]; i < highlight[1]; i += 1) { p.moveTo(view.segs[i * 4], view.segs[i * 4 + 1]); p.lineTo(view.segs[i * 4 + 2], view.segs[i * 4 + 3]); }
-      ctx.strokeStyle = colour('--cad-snap', '#3df27a');
+      ctx.strokeStyle = colour('--cad-snap', '#37d67a');
       ctx.lineWidth = 3 / scale;
       ctx.stroke(p);
     }
     // ELV coverage: circles and camera views cut at their room, then the squares not covered.
     if (covers.length || gaps?.at.length) {
-      const cov = colour('--cad-elv', '#59c3ff'), bad = colour('--bad', '#ff5d6c');
+      const cov = colour('--cad-elv', '#4aa8ff'), bad = colour('--bad', '#ff5d6c');
       const poly = (pts: Pt[]) => { const q = new Path2D(); q.moveTo(pts[0][0] - o0, pts[0][1] - o1); for (const v of pts.slice(1)) q.lineTo(v[0] - o0, v[1] - o1); q.closePath(); return q; };
       for (const c of covers) {
         const [x, y] = [c.at[0] - o0, c.at[1] - o1];
@@ -239,7 +247,7 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
     }
     // What the engineer drew, over the drawing; tray runs with their fittings (joined ends left open).
     const { fittings, joined } = trayFittings(sketch, unitsPerMm);
-    const skC = colour('--cad-sketch', '#7fe3ff'), selSk = colour('--cad-snap', '#3df27a');
+    const skC = colour('--cad-sketch', '#7fd1ff'), selSk = colour('--cad-snap', '#37d67a');
     for (const it of sketch) {
       if (it.kind === 'text') continue;
       ctx.strokeStyle = it.id === selectedSketch ? selSk : skC;
@@ -257,7 +265,7 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
       ctx.stroke();
     }
     // Devices placed in the app: symbols in drawing units (they zoom with the plan), letters and labels below.
-    const lvC = colour('--cad-dev', '#f5c04a'), elvC = colour('--cad-elv', '#59c3ff'), selC = colour('--cad-snap', '#3df27a');
+    const lvC = colour('--cad-dev', '#f5c04a'), elvC = colour('--cad-elv', '#4aa8ff'), selC = colour('--cad-snap', '#37d67a');
     for (const d of devices) {
       const x = d.x - o0, y = d.y - o1, r = d.r;
       ctx.strokeStyle = d.selected ? selC : d.elv ? elvC : lvC;
@@ -291,7 +299,7 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
       ctx.rotate(-tx.rot);
       ctx.font = `${Math.min(px, 200)}px system-ui, sans-serif`;
       ctx.textAlign = tx.align === 1 ? 'center' : tx.align === 2 ? 'right' : 'left';
-      ctx.fillStyle = tx.rgb === INK ? ink : hex(tx.rgb);
+      ctx.fillStyle = shade(tx.rgb);
       ctx.fillText(tx.s, 0, 0);
       ctx.restore();
       drawn += 1;
@@ -350,7 +358,7 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
       const pts = mk.live && at ? [...mk.points, at] : mk.points;
       const scr = pts.map((p) => [(p[0] - o0 - ox) * scale, size.h - (p[1] - o1 - oy) * scale] as Pt);
       if (scr.length) {
-        const snapC = colour('--cad-snap', '#3df27a');
+        const snapC = colour('--cad-snap', '#37d67a');
         ctx.beginPath();
         ctx.moveTo(scr[0][0], scr[0][1]);
         for (const q of scr.slice(1)) ctx.lineTo(q[0], q[1]);
@@ -373,7 +381,7 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
     }
     const pv = previewRef.current;
     if (pv.length) {
-      ctx.strokeStyle = colour('--cad-sketch', '#7fe3ff');
+      ctx.strokeStyle = colour('--cad-sketch', '#7fd1ff');
       ctx.lineWidth = 1.5;
       ctx.setLineDash([6, 4]);
       ctx.beginPath();
@@ -386,7 +394,7 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
     }
     if (!at) return;
     const sx = (at[0] - o0 - ox) * scale, sy = size.h - (at[1] - o1 - oy) * scale;
-    ctx.strokeStyle = colour('--cad-cross', '#e8eef7');
+    ctx.strokeStyle = colour('--cad-cross', '#dbe4f5');
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, Math.round(sy) + 0.5); ctx.lineTo(size.w, Math.round(sy) + 0.5);
@@ -395,7 +403,7 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
     ctx.strokeRect(Math.round(sx) - 4.5, Math.round(sy) - 4.5, 9, 9);
     if (!snap) return;
     const mx = (snap.p[0] - o0 - ox) * scale, my = size.h - (snap.p[1] - o1 - oy) * scale;
-    ctx.strokeStyle = colour('--cad-snap', '#3df27a');
+    ctx.strokeStyle = colour('--cad-snap', '#37d67a');
     ctx.lineWidth = 2;
     ctx.beginPath();
     const r = 7;
