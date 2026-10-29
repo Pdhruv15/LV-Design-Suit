@@ -41,6 +41,25 @@ export function applyTheme(pref: ThemePref | undefined) {
   }
 }
 
+/** The theme on screen now. */
+export function screenTheme(): Resolved {
+  return typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+}
+
+/** Call `on` when the screen theme changes (Preferences, or the OS under "Match system"), for drawing that reads
+ * colours once instead of through CSS, such as a canvas. withPrintTheme's switch and back is not a change.
+ * Returns the unsubscribe. */
+export function onScreenThemeChange(on: (t: Resolved) => void): () => void {
+  if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return () => {};
+  let last = screenTheme();
+  const mo = new MutationObserver(() => {
+    const now = screenTheme();
+    if (now !== last) { last = now; on(now); }
+  });
+  mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  return () => mo.disconnect();
+}
+
 /** Run `read` with the dark palette in force, then restore the screen theme.
  * Export code reads live computed colours and maps the dark palette to
  * black-on-white print colours; this keeps that mapping (and so every exported
