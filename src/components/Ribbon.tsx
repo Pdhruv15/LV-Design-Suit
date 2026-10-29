@@ -4,47 +4,15 @@ import {
   BatteryCharging, Building2, Cable, ClipboardCheck, MessageSquareWarning, Inbox, CircuitBoard, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText, GitPullRequestArrow, Send, Stamp,
   Gauge, Hand, LayoutGrid, ListTree, MousePointer2, Pencil, Receipt, Scale, Settings2, ShieldCheck, Sun,
   ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig, Cctv } from 'lucide-react';
-import { Map as MapIcon, PenTool, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Square, ZoomIn, Maximize, BellRing, Crosshair, Grid3x3, Copy, CircleDashed, ListChecks } from 'lucide-react';
-import type { FloorPlanTool } from './floorPlanState';
+import { PenTool, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Square, Maximize, Grid3x3, Copy, CircleDashed, ListChecks } from 'lucide-react';
 import type { CadTool } from './cad/cadState';
 import type { BoardKind, Feeder } from '../types';
 import type { MainView } from '../views';
 import { STAGE_INFO, type DesignStage, type TenderRoute } from '../model/designStage';
 
 export type BomCommand = 'boq' | 'scope' | 'changes' | 'variations' | 'circuits' | 'excel' | 'pdf' | 'summary-pdf' | 'rates-sheet' | 'import' | 'save-list' | 'add-item' | 'add-section' | 'extras' | 'wastage' | 'markup' | 'document' | 'issue-rev';
-export type RibbonTab = 'home' | 'concept' | 'schematic' | 'detailed' | 'floorplan' | 'cad' | 'reports' | 'issue' | 'cost' | 'standards';
+export type RibbonTab = 'home' | 'concept' | 'schematic' | 'detailed' | 'cad' | 'reports' | 'issue' | 'cost' | 'standards';
 
-/** What the Floor plan tab shows and does (the page's state lives in the app). */
-export interface FloorPlanRibbon {
-  hasPlan: boolean;
-  tool: FloorPlanTool;
-  onTool: (t: FloorPlanTool) => void;
-  onOpen: () => void;
-  onLayers: () => void;
-  layersOn: boolean;
-  level?: string;
-  levels: { key: string; label: string }[];
-  onLevel: (key: string) => void;
-  onAddFound: () => void;
-  onZoom: () => void;
-  onFit: () => void;
-  feeder?: string;
-  tray?: string;
-  board?: string;
-  /** ELV design on the plan (ELV group). */
-  elv?: {
-    system: string; // label of the chosen system
-    systems: { id: string; label: string }[];
-    onSystem: (id: string) => void;
-    device: string; // label of the chosen device
-    canFill: boolean;
-    coverage: boolean;
-    onCoverage: () => void;
-    copyTo: { key: string; label: string }[];
-    onCopy: (key: string) => void;
-    onSchedules: () => void;
-  };
-}
 export type DiagramTool = 'select' | 'pan';
 
 type Icon = LucideIcon | ((p: { size?: number; strokeWidth?: number }) => JSX.Element);
@@ -96,8 +64,6 @@ export interface RibbonActions {
   onSaveAs: () => void;
   /** Export anonymized sample (a copy without client, site or people, for sharing an issue). */
   onAnonymizedSample: () => void;
-  /** The Floor plan page's tools (Floor plan tab). */
-  floorPlan?: FloorPlanRibbon;
   /** Design CAD's tools (src/components/cad); `file`: the File group's Plans, Level and Units (cadFileMenu.ts). */
   cad?: {
     tool: CadTool; onTool: (t: CadTool) => void; onOpen: () => void; onSave: () => void; onDelete: () => void; hasSelection: boolean; onFit: () => void; onLayers: () => void; layersOn: boolean; hasDrawing: boolean;
@@ -129,13 +95,25 @@ export interface RibbonActions {
   onConceptReport: () => void;
 }
 
+/** Design CAD's two sub-tabs over the same drawing: Plan (engineering) and Draw (drafting), as groups of the cad tab
+ * (File · Rooms · Cables and boards · Draw · Modify · Annotate · Measure · Devices · View). */
+export type CadSub = 'plan' | 'draw';
+export const CAD_SUB: Record<CadSub, { label: string; groups: number[] }> = {
+  plan: { label: 'Plan', groups: [0, 1, 2, 7, 6, 8] },
+  draw: { label: 'Draw', groups: [0, 3, 4, 5, 8] }
+};
+/** The sub-tab a tool is on, so the ribbon shows the tool in use. */
+const SUB_OF: Partial<Record<CadTool, CadSub>> = {
+  line: 'draw', pline: 'draw', rect: 'draw', circle: 'draw', arc: 'draw', text: 'draw', dim: 'draw', rotate: 'draw',
+  room: 'plan', trace: 'plan', name: 'plan', tray: 'plan', cable: 'plan', link: 'plan', dev: 'plan', fill: 'plan', dist: 'plan', area: 'plan'
+};
+
 /** Group captions under the ribbon groups (same order as the groups). */
 export const CAPTIONS: Record<RibbonTab, string[]> = {
   home: ['Project', 'Diagram & history', 'Setup'],
   concept: ['Load', 'Supply', 'Stage'],
   schematic: ['History', 'Distribution', 'Main systems', 'ELV', 'Stage'],
   detailed: ['Run', 'Canvas', 'Boards', 'Equipment', 'Selection', 'Calculate', 'Stage'],
-  floorplan: ['Plan', 'Rooms', 'Cables and boards', 'ELV', 'Measure', 'View'],
   cad: ['File', 'Rooms', 'Cables and boards', 'Draw', 'Modify', 'Annotate', 'Measure', 'Devices', 'View'],
   reports: ['Schedules', 'Drawings and reports'],
   issue: ['Tender', 'Track', 'Send', 'IFC'],
@@ -155,7 +133,6 @@ const TABS: { id: RibbonTab; label: string; icon: Icon; step?: string; stages?: 
   { id: 'concept', label: 'Concept', icon: ChartColumnBig, step: '1', stages: ['concept'] },
   { id: 'schematic', label: 'Schematic', icon: Waypoints, step: '2', stages: ['schematic'] },
   { id: 'detailed', label: 'Detailed design', icon: CircuitBoard, step: '3', stages: ['detailed'] },
-  { id: 'floorplan', label: 'Floor plan', icon: MapIcon },
   { id: 'reports', label: 'Documents', icon: FileText },
   { id: 'issue', label: 'Tender and IFC', icon: Stamp, step: '4', stages: ['tender', 'ifc'] },
   { id: 'cost', label: 'BOM / Cost', icon: Receipt },
@@ -171,7 +148,6 @@ const TAB_VIEWS: Record<RibbonTab, MainView[]> = {
   concept: ['building', 'load-assessment', 'sizing', 'substation-area', 'space-planning', 'dashboard'],
   schematic: ['panels', 'design', 'busbar', 'pfc', 'ups', 'solar', 'earth-schematic', 'elv', 'inbox'],
   detailed: ['design', 'panels', 'load-schedule', 'enclosure', 'selection', 'voltage-drop', 'earthing', 'coordination', 'engines', 'calculators'],
-  floorplan: ['floor-plan'],
   cad: ['cad'],
   reports: ['load-schedule', 'cable-schedule', 'cable-tray', 'equipment', 'drawings', 'drawing-register', 'study-reports', 'report', 'export-centre'],
   issue: ['revisions', 'modifications', 'review', 'received-docs', 'submissions'],
@@ -182,7 +158,7 @@ const HOME_TAB: Partial<Record<MainView, RibbonTab>> = { building: 'concept', da
 
 /** The page a tab shows when it is chosen and the page on screen is not one of its own. */
 const TAB_PAGE: Record<RibbonTab, MainView> = {
-  home: 'dashboard', concept: 'building', schematic: 'design', detailed: 'design', floorplan: 'floor-plan', cad: 'cad',
+  home: 'dashboard', concept: 'building', schematic: 'design', detailed: 'design', cad: 'cad',
   reports: 'load-schedule', issue: 'revisions', cost: 'boq', standards: 'database'
 };
 /** The page to show when a tab is chosen: the page on screen when it is on that tab (the SLD stays on Schematic and
@@ -200,6 +176,9 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   const [moreOpen, setMoreOpen] = useState(false);
   const [menuLeft, setMenuLeft] = useState(0);
   const [splitOpen, setSplitOpen] = useState<string | null>(null);
+  const [cadSub, setCadSub] = useState<CadSub>('plan');
+  const cadToolNow = a.cad?.tool;
+  useEffect(() => { const s = cadToolNow && SUB_OF[cadToolNow]; if (s) setCadSub(s); }, [cadToolNow]);
   const [splitAt, setSplitAt] = useState({ x: 0, y: 0 });
   // Collapsed: only the tabs show; a tab click drops its tools over the page until a tool is used or you click elsewhere.
   const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem('lvds.ribbonCollapsed') === '1'; } catch { return false; } });
@@ -280,7 +259,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       [
         view('dashboard', 'Overview', LayoutDashboard, 'Overview of this project: next actions, key figures and what is outstanding — load, transformers, generators, panels, area, power density, checks'),
         view('building', 'Building', Building2, 'Building information: GFA, levels, typical floors, rooms and room types'),
-        view('floor-plan', 'Floor plan', MapIcon, 'Floor plan: an architect\'s DWG / DXF in the app, beside the SLD — rooms and areas, cable lengths, tray routes and board locations'),
+        view('cad', 'Design CAD', PenTool, 'Design CAD: the architect\'s DWG / DXF of each level — rooms and areas, devices, cable trays and routes, lengths for the schedules'),
         { label: 'Project settings', icon: Scale, title: 'Voltage, ambient, voltage-drop limit, sizing targets, submission form details', onClick: a.onSettings },
         view('parameters', 'Parameters', Braces, '{Parameters}: designed / checked by, submission date, your own values — used in title blocks, notes and labels'),
         view('titleblock', 'Title block', PanelBottom, 'Design your own title blocks with logo, text and {Parameters}'),
@@ -292,7 +271,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
     concept: [
       [
         view('building', 'Building', Building2, 'Building information: GFA, levels, typical floors, rooms and room types'),
-        view('floor-plan', 'Floor plan', MapIcon, 'Floor plan: an architect\'s DWG / DXF in the app, beside the SLD — rooms and areas, cable lengths, tray routes and board locations'),
+        view('cad', 'Design CAD', PenTool, 'Design CAD: the architect\'s DWG / DXF of each level — rooms and areas, devices, cable trays and routes, lengths for the schedules'),
         view('load-assessment', 'Load assessment', ChartColumnBig, 'Load assessment: maximum demand, transformers and generator from the building type, area schedule and services')
       ],
       [
@@ -361,46 +340,6 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       ],
       [gate('detailed')]
     ],
-    floorplan: (() => {
-      const f = a.floorPlan;
-      const e = f?.elv;
-      const off = !f?.hasPlan;
-      const tool = (t: FloorPlanTool, label: string, icon: Icon, title: string, sub?: string): Tool => ({ label, icon, title, sub, onClick: () => f?.onTool(t), active: f?.tool === t, disabled: off });
-      return [
-        [
-          view('floor-plan', 'Floor plan', MapIcon, 'Floor plan page: the architect\'s plan in the canvas'),
-          { label: 'Open plan', icon: FolderOpen, title: 'Open a floor plan (DWG / DXF) in this page', onClick: () => f?.onOpen() },
-          { label: 'Layers', icon: Layers, title: 'What each layer of the plan is (room outline, room name, wall, tray, route…)', onClick: () => f?.onLayers(), active: f?.layersOn, disabled: off },
-          { label: f?.level ?? 'Level', icon: Building2, sub: 'level', title: 'The level this plan shows (rooms and boards go to it)', onClick: () => {}, disabled: off || !f?.levels.length, menu: f?.levels.map((l) => ({ label: l.label, title: `This plan shows ${l.label}`, onClick: () => f.onLevel(l.key) })) }
-        ],
-        [
-          { label: 'Add found rooms', icon: LayoutGrid, title: 'Add every room the plan outlines to Building information (one undo step); or click one with this tool', onClick: () => { f?.onTool('auto'); f?.onAddFound(); }, active: f?.tool === 'auto', disabled: off },
-          tool('room', 'Click inside room', MousePointerClick, 'Click inside a room: outline from its walls, added to Building information'),
-          tool('trace', 'Trace outline', PenLine, 'Click the corners of a room: added to Building information'),
-          tool('name', 'Pick name', Type, 'Click the room name on the plan: it names the selected room')
-        ],
-        [
-          tool('link', 'Link route', Cable, 'Click the lines of the chosen feeder\'s route: its length is updated', f?.feeder),
-          tool('tray', 'Tray run', Rows3, 'Click the runs of the chosen tray route: tray length and feeders updated', f?.tray),
-          tool('place', 'Place board', CircuitBoard, 'Click the chosen board\'s symbol or spot: its room, level and position updated', f?.board)
-        ],
-        [
-          { label: e?.system ?? 'ELV', icon: BellRing, sub: 'system', title: 'The ELV system to design: its devices, coverage and loops / ports / zones', onClick: () => {}, disabled: off || !e, menu: e?.systems.map((x) => ({ label: x.label, title: `Design ${x.label}`, onClick: () => e.onSystem(x.id) })) },
-          { ...tool('elv-place', 'Place', Crosshair, 'Click the plan to place the chosen device; it goes into the room under it', e?.device), disabled: off || !e },
-          { ...tool('elv-fill', 'Fill room', Grid3x3, 'Point at a room to see a grid of the chosen device at its coverage spacing; click to place it'), disabled: off || !e?.canFill },
-          { ...tool('elv-select', 'Select', MousePointer2, 'Select a device; drag to move it, Delete removes it, ← → turn a camera or speaker'), disabled: off || !e },
-          { label: 'Copy to level', icon: Copy, title: "Copy this level's devices of the chosen system to another level, at the same plan positions", onClick: () => {}, disabled: off || !e?.copyTo.length, menu: e?.copyTo.map((l) => ({ label: l.label, title: `Copy to ${l.label}`, onClick: () => e.onCopy(l.key) })) },
-          { label: 'Coverage', icon: CircleDashed, title: 'Show what the devices cover and what is not covered', onClick: () => e?.onCoverage(), active: e?.coverage, disabled: off || !e },
-          { label: 'Schedules', icon: ListChecks, sub: 'ELV page', title: 'The ELV page: supplies, kW and the loads package for LV', onClick: () => e?.onSchedules(), disabled: !e }
-        ],
-        [tool('dist', 'Length', Ruler, 'Measure a length on the plan'), tool('area', 'Area', Square, 'Measure an area on the plan')],
-        [
-          { label: 'Zoom', icon: ZoomIn, title: 'Zoom in (or use the mouse wheel)', onClick: () => f?.onZoom(), disabled: off },
-          { label: 'Fit', icon: Maximize, title: 'Fit the plan to the page', onClick: () => f?.onFit(), disabled: off },
-          { label: 'Undo', icon: Undo2, title: 'Undo (⌘Z / Ctrl+Z)', onClick: a.onUndo, disabled: !a.canUndo }
-        ]
-      ];
-    })(),
     cad: [
       [
         view('cad', 'Design CAD', PenTool, 'Design CAD: the plan of each level opened natively — model space, snaps, layers, command line'),
@@ -543,13 +482,20 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
           {collapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
         </button>
       </div>
+      {tab === 'cad' && (!collapsed || peek) && (
+        <div className="ribbon-subtabs" role="tablist" aria-label="Design CAD">
+          {(Object.keys(CAD_SUB) as CadSub[]).map((k) => (
+            <button key={k} role="tab" aria-selected={cadSub === k} className={cadSub === k ? 'on' : ''} onClick={() => setCadSub(k)}>{CAD_SUB[k].label}</button>
+          ))}
+        </div>
+      )}
       {(!collapsed || peek) && <div id="ribbon-tools" className={`ribbon-tools${collapsed ? ' peek' : ''}`} onClick={(e) => {
         // A tool was used: put the dropped-down tools away (not for buttons that open a menu of their own).
         const b = (e.target as HTMLElement).closest('button');
         if (collapsed && b && !b.hasAttribute('aria-haspopup') && !b.hasAttribute('aria-expanded')) setPeek(false);
       }} role="toolbar" aria-label={`${TABS.find((t) => t.id === tab)?.label} tools`}>
-        {groups[tab].map((group, gi) => (
-          <div key={gi} className="ribbon-group" role="group" aria-label={CAPTIONS[tab]?.[gi]}>
+        {groups[tab].map((group, gi) => (tab === 'cad' && !CAD_SUB[cadSub].groups.includes(gi) ? null :
+          <div key={gi} className="ribbon-group" role="group" aria-label={CAPTIONS[tab]?.[gi]} style={tab === 'cad' ? { order: CAD_SUB[cadSub].groups.indexOf(gi) + 1 } : undefined}>
             <div className="ribbon-group-btns">
               {group.map(({ label, icon: I, title, onClick, active, disabled, stale, page, menu, sub }) => {
                 const btn = (

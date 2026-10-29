@@ -434,5 +434,17 @@ describe('CAD view', () => {
     act(() => state.actions.current.copyTo('V/FF/0'));
     expect((project.elvDevices ?? []).filter((d) => d.levelId === 'FF')).toHaveLength(onGf().length);
   });
+
+  it('turns a camera to face the point clicked (RO)', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    act(() => { state.setDevice('camera'); state.setTool('dev'); });
+    await clickAt(5000, 5000);
+    act(() => state.setTool('rotate'));
+    await clickAt(5000, 5000); // select it
+    await clickAt(5000, 9000); // face north
+    expect(project.elvDevices![0]).toMatchObject({ type: 'camera', rotationDeg: 90 });
+  });
 });
 

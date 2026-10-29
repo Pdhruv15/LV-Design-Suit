@@ -11,7 +11,7 @@ import { applyCadTrays, pullCadTrays, type CadTrayPlan } from './cadTrays';
 import type { LevelRef } from './levels';
 import type { CadLayerMap, CadPlanLinks, Project } from '../types';
 
-/** The Floor plan page changes the model directly: each pick on the plan is one change to the project (one undo
+/** Design CAD changes the model directly: each pick on the plan is one change to the project (one undo
  * step), using the same reading as the reviewed CAD pulls. Links and layer roles are kept in the project. */
 
 export interface PlanContext {

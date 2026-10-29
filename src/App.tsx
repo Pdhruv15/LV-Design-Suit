@@ -10,7 +10,7 @@ import { sampleProject } from './data/sampleProject';
 import { evaluateProject, type Status } from './calc/electrical';
 import { boardIncomerLabel } from './docs/loadScheduleDoc';
 import { panelSummary } from './docs/mdSheet';
-import { boardLocation, floorLabel, floorList } from './model/levels';
+import { boardLocation } from './model/levels';
 import ResultsTable from './components/ResultsTable';
 import SidePanel from './components/SidePanel';
 import InspectorPanel from './components/InspectorPanel';
@@ -101,7 +101,6 @@ import { safeFileName, savePdf, saveText } from './util/files';
 const AnonymizedSampleDialog = onDemand(() => import('./components/AnonymizedSampleDialog'));
 const SldExportDialog = lazy(() => import('./components/SldExportDialog'));
 const CadLoadsDialog = lazy(() => import('./components/CadLoadsDialog'));
-const FloorPlanPage = lazy(() => import('./components/FloorPlanPage'));
 const CadPage = lazy(() => import('./components/cad/CadPage'));
 const WhatsNewDialog = lazy(() => import('./components/WhatsNewDialog'));
 const PasteBoardDialog = onDemand(() => import('./components/PasteBoardDialog'));
@@ -144,16 +143,12 @@ import { moveBoard, moveSummary, reorderBoard } from './model/moveBoard';
 const ProjectsDashboard = lazy(() => import('./components/ProjectsDashboard'));
 import { NameDialog, UnsavedDialog } from './components/FileDialogs';
 import type { BoardKind, ProjectStatus } from './types';
-import { useFloorPlan, type FloorPlanTool } from './components/floorPlanState';
-import { cadFileApi } from './engines/cad/webCadFile';
 import { useCad } from './components/cad/cadState';
 import { cadFileMenu, planLevel } from './components/cad/cadFileMenu';
 import { plansOf } from './model/cadPlans';
-import { chooseDrawing } from './engines/cad/cadEngine';
-import { canFill as canFillElv, deviceLabel, devicesFor, SYSTEM_LABEL, SYSTEMS as ELV_SYSTEM_LIST } from './components/elv/elvLabels';
+import { chooseDrawing, openDrawing } from './engines/cad/cadEngine';
 import { onDemand } from './util/onDemand';
 import { revisionStamp } from './model/revisions';
-import type { ElvSystem } from './elv/defaults';
 import { markSeen, pendingReleases, RELEASES, type Release, type WhatsNewAction } from './model/whatsNew';
 type DiagramMode = 'system' | 'board' | 'earthing' | 'riser';
 
@@ -182,7 +177,7 @@ const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator
 
 /** Pages the ⌘K palette can open, named as on the ribbon. */
 const PALETTE_PAGES: [MainView, string][] = [
-  ['design', 'Design (SLD)'], ['floor-plan', 'Floor plan'], ['cad', 'Design CAD'], ['dashboard', 'Overview'], ['building', 'Building'], ['load-assessment', 'Load assessment'], ['load-schedule', 'Load schedule'], ['panels', 'Panels'],
+  ['design', 'Design (SLD)'], ['cad', 'Design CAD'], ['dashboard', 'Overview'], ['building', 'Building'], ['load-assessment', 'Load assessment'], ['load-schedule', 'Load schedule'], ['panels', 'Panels'],
   ['space-planning', 'Space plan'], ['substation-area', 'Substation area'], ['enclosure', 'Enclosure sizing'], ['earth-schematic', 'Earth pits'],
   ['busbar', 'Busbar riser'], ['calculators', 'Quick calcs'], ['voltage-drop', 'Voltage drop'], ['engines', 'Load flow'], ['earthing', 'Earthing'],
   ['coordination', 'Protection coordination'], ['selection', 'Breaker & cable selection'], ['sizing', 'Transformer & generator sizing'], ['pfc', 'Power factor'],
@@ -282,28 +277,22 @@ export default function App() {
   const [supply, setSupply] = useState<SupplyMode>('normal');
   const [showExport, setShowExport] = useState(false);
   const [showCadLoads, setShowCadLoads] = useState(false);
-  // Floor plan page: the plan stays open while other pages are shown.
-  const fp = useFloorPlan(project.id);
   // CAD view: the drawing stays open while other pages are shown.
   const cadS = useCad(project.id);
   const openCad = async () => {
     setView('cad');
     try { const v = await chooseDrawing(); if (v) { cadS.open(v); setStatus(`${v.file} opened`); } } catch (e) { setStatus(e instanceof Error ? e.message : String(e)); }
   };
-  const showFloorPlan = (t?: FloorPlanTool) => { if (t) fp.setTool(t); setView('floor-plan'); };
-  const openFloorPlan = async () => {
-    setView('floor-plan');
-    const cad = cadFileApi();
-    if (!cad) return;
-    try { const r = await cad.openPlan(); if (r) { fp.setPlan(r); setStatus(`Floor plan ${r.file} opened`); } } catch (e) { setStatus(e instanceof Error ? e.message : String(e)); }
-  };
   // What's new: the releases this computer has not seen yet, shown once after an update; Help opens it again.
   const [whatsNew, setWhatsNew] = useState<Release[]>(() => pendingReleases(__APP_VERSION__));
   const closeWhatsNew = () => { markSeen(__APP_VERSION__); setWhatsNew([]); };
   const whatsNewAction = (a: WhatsNewAction) => {
     closeWhatsNew();
-    if (a === 'cad') { setView('cad'); return; }
-    showFloorPlan(a === 'floor-plan-lengths' ? 'link' : a === 'floor-plan-trays' ? 'tray' : a === 'floor-plan-boards' ? 'place' : 'auto');
+    // Floor plan items of earlier releases open Design CAD, which does what the Floor plan page did.
+    setView('cad');
+    if (a === 'floor-plan-lengths') cadS.setTool('cable');
+    else if (a === 'floor-plan-trays') cadS.setTool('tray');
+    else if (a === 'floor-plan-boards') { cadS.setDevice('db'); cadS.setTool('dev'); }
   };
   // Packages from other programs waiting for review, per project (not saved: nothing changes until accepted).
   const [inbox, setInbox] = useState<{ key: string; item: InboxItem }[]>([]);
@@ -351,14 +340,18 @@ export default function App() {
     dbHandlers.current.initDatabase();
     return window.lvds.database.onChange((raw) => dbHandlers.current.receiveDatabase(raw));
   }, []);
-  // A floor plan opened from Finder / Explorer ("Open with LV Design Studio"): read by the app, shown on the Floor plan page.
-  const fpRef = useRef(fp);
-  fpRef.current = fp;
+  // A drawing opened from Finder / Explorer ("Open with LV Design Studio"): opened in Design CAD.
+  const cadRef = useRef(cadS);
+  cadRef.current = cadS;
   const setViewRef = useRef<(v: MainView) => void>(() => {});
   useEffect(() => {
     const cad = window.lvds?.cadFile;
     if (!cad?.takePending) return;
-    const take = () => void cad.takePending!().then((plan) => { if (plan) { fpRef.current.setPlan(plan); setViewRef.current('floor-plan'); } }, (e: unknown) => setStatus(e instanceof Error ? e.message : String(e)));
+    const take = () => void cad.takePending!().then(async (d) => {
+      if (!d) return;
+      const v = await openDrawing(d.file, d.bytes, d.path);
+      cadRef.current.open(v); setViewRef.current('cad'); setStatus(`${v.file} opened`);
+    }).catch((e: unknown) => setStatus(e instanceof Error ? e.message : String(e)));
     take();
     return cad.onPending?.(take);
   }, []);
@@ -967,14 +960,14 @@ export default function App() {
     if (board) cmd(`Add a feeder on ${board.id}…`, () => { design(); openAddFeeder({}); }, undefined, 'circuit load');
     cmd('Export the SLD…', () => { design(); setDiagramMode('system'); setShowExport(true); }, undefined, 'PDF DXF SVG');
     cmd('Loads from CAD floor plan…', () => setShowCadLoads(true), undefined, 'OpenCADStudio DWG DXF blocks fixtures count');
-    cmd('Floor plan…', () => showFloorPlan(), undefined, 'open DWG DXF architect plan CAD drawing measure');
+    const cadTool = (t: Parameters<typeof cadS.setTool>[0]) => { cadS.setTool(t); setView('cad'); };
+    cmd('Design CAD…', () => setView('cad'), undefined, 'floor plan open DWG DXF architect plan CAD drawing measure');
     cmd('Open drawing in Design CAD…', () => void openCad(), undefined, 'CAD DWG DXF open drawing model space layers snap');
-    cmd('Open floor plan (DWG / DXF)…', () => void openFloorPlan(), undefined, 'open DWG DXF architect plan CAD drawing');
     cmd('What\'s new…', () => setWhatsNew(RELEASES.slice(0, 1)), undefined, 'release notes update changes new features version');
-    cmd('Cable lengths from CAD floor plan…', () => showFloorPlan('link'), undefined, 'Floor plan DWG DXF route measure length');
-    cmd('Board locations from CAD floor plan…', () => showFloorPlan('place'), undefined, 'Floor plan DWG DXF room level position');
-    cmd('Tray routes from CAD floor plan…', () => showFloorPlan('tray'), undefined, 'Floor plan DWG DXF cable tray route length');
-    cmd('Rooms and areas from CAD floor plan…', () => showFloorPlan('auto'), undefined, 'Floor plan DWG DXF architect layers room area m2 building measure');
+    cmd('Cable routes in Design CAD…', () => cadTool('cable'), undefined, 'Floor plan DWG DXF route measure length cable lengths');
+    cmd('Board locations in Design CAD…', () => { cadS.setDevice('db'); cadTool('dev'); }, undefined, 'Floor plan DWG DXF room level position place board');
+    cmd('Cable trays in Design CAD…', () => cadTool('tray'), undefined, 'Floor plan DWG DXF cable tray route length fittings');
+    cmd('Rooms and areas from Design CAD…', () => cadTool('room'), undefined, 'Floor plan DWG DXF architect layers room area m2 building measure');
     cmd('Copy LV scripts for OpenCADStudio…', async () => {
       const copy = window.lvds?.openCadStudio?.copyScripts;
       if (!copy) { setStatus('The OpenCADStudio scripts come with the LV Design Studio desktop app'); return; }
@@ -1255,35 +1248,6 @@ export default function App() {
               const here = planLevel(project, cadS.view?.file).floor;
               return view === 'cad' && here ? plansOf(project).filter((x) => x.floor.key !== here.key).map((x) => ({ label: x.label, title: `Copy to ${x.label}`, onClick: () => cadS.actions.current.copyTo(x.floor.key) })) : [];
             })() },
-          floorPlan: {
-            hasPlan: !!fp.plan, tool: fp.tool, onTool: (t) => { fp.setTool(t); setView('floor-plan'); }, onOpen: () => void openFloorPlan(),
-            onLayers: () => { fp.setShowLayers(!fp.showLayers); setView('floor-plan'); }, layersOn: fp.showLayers,
-            level: (() => { const fl = floorList(project.building).filter((f) => !f.ref.index); const f = fl.find((x) => x.key === fp.levelKey) ?? fl[0]; return f ? floorLabel(project.building, f) : undefined; })(),
-            levels: floorList(project.building).filter((f) => !f.ref.index).map((f) => ({ key: f.key, label: floorLabel(project.building, f) })),
-            onLevel: fp.setLevelKey, onAddFound: () => fp.addFoundRef.current?.(), onZoom: fp.zoom, onFit: fp.fit,
-            feeder: fp.targets.feeder || undefined, tray: fp.targets.tray || undefined, board: fp.targets.board || undefined,
-            elv: (() => {
-              const fl = floorList(project.building).filter((f) => !f.ref.index);
-              const cur = fl.find((x) => x.key === fp.levelKey) ?? fl[0];
-              return {
-                system: SYSTEM_LABEL[fp.elv.system], systems: ELV_SYSTEM_LIST,
-                onSystem: (id: string) => { const sys = id as ElvSystem; fp.setElv((e) => ({ ...e, system: sys, device: devicesFor(sys)[0].type, selected: null })); fp.setPanel('elv'); fp.setShowLayers(false); setView('floor-plan'); },
-                device: deviceLabel(fp.elv.device), canFill: canFillElv(fp.elv.device),
-                coverage: fp.elv.coverage, onCoverage: () => fp.setElv((e) => ({ ...e, coverage: !e.coverage })),
-                copyTo: cur ? fl.filter((x) => x.key !== cur.key).map((x) => ({ key: x.key, label: floorLabel(project.building, x) })) : [],
-                onCopy: (key: string) => {
-                  const to = fl.find((x) => x.key === key);
-                  if (!cur || !to) return;
-                  void import('./components/elv/elvPlan').then(({ copyTo }) => {
-                    const r = copyTo(project, cur.ref, to.ref, fp.elv.system, floorLabel(project.building, to));
-                    if (r.next) setProject(r.next, { step: true });
-                    setStatus(r.message);
-                  });
-                },
-                onSchedules: () => setView('elv')
-              };
-            })()
-          },
           onProfile: () => setShowPrefs(true),
           onChooseFolder: chooseFolder,
           folderLabel: hasBridge ? `Folder: ${projectsFolder.split(/[\\/]/).pop() || 'choose…'}` : 'This browser',
@@ -1634,7 +1598,6 @@ export default function App() {
               />
             )}
             {view === 'cad' && <CadPage cad={cadS} project={project} onChange={(next, message) => { setProject(next, { step: true }); setStatus(message); }} onStatus={setStatus} />}
-            {view === 'floor-plan' && <FloorPlanPage project={project} fp={fp} onChange={(next, message) => { setProject(next, { step: true }); setStatus(message); }} onStatus={setStatus} />}
             {view === 'building' && <BuildingView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'load-assessment' && <LoadAssessmentView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'busbar' && <BusbarStudy project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}

@@ -15,6 +15,14 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '1.99', date: '2026-10-29',
+    items: [
+      { title: 'One place for plans: Design CAD', text: 'Floor plan and CAD are now one page, Design CAD. Its ribbon has two sub-tabs over the same drawing: Plan (File, Rooms, Cables and boards, Devices, Measure) and Draw (Draw, Modify, Annotate). The Floor plan tab is gone; everything it did is in Design CAD.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Open with LV Design Studio', text: 'A DWG / DXF opened from Finder or Explorer now opens in Design CAD.' },
+      { title: 'Turn cameras and speakers', text: 'Rotate (RO) on a camera or speaker: click where it faces, or type the angle; its coverage turns with it.' }
+    ]
+  },
+  {
     version: '1.98', date: '2026-10-29',
     items: [
       { title: 'Design CAD: Fill room', text: 'Devices → Fill room (FILL): choose an ELV device (detector, speaker, data outlet…), point at a room to see them at their coverage spacing, click to place them all.', action: 'cad', actionLabel: 'Open Design CAD' },

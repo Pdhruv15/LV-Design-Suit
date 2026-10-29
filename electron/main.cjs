@@ -308,7 +308,7 @@ handle('files:saveBinary', async (evt, args) => {
   return result.filePath;
 });
 
-// ---- IPC: a floor plan (DWG / DXF) read by the built-in reader, for the Floor plan window ----
+// ---- IPC: drawings (DWG / DXF) for Design CAD, which reads them with its own engine in the window ----
 // Plans opened from Finder / Explorer ("Open with LV Design Studio", or dropped on the app icon) wait here until the
 // window takes them: macOS sends open-file (also before the app is ready), Windows passes the path on the command line.
 const pendingPlans = [];
@@ -326,21 +326,11 @@ app.on('open-file', (event, file) => { event.preventDefault(); planOpened(file);
 if (!headless) for (const arg of process.argv.slice(1)) if (isPlanFile(arg)) pendingPlans.push(arg);
 handle('cad:takePending', async () => {
   const file = pendingPlans.shift();
-  return file ? { file: path.basename(file), path: file, drawing: await cadFile.readDrawingFile(file) } : null;
+  return file ? { file: path.basename(file), path: file, bytes: cadFile.readDrawingBytes(file) } : null;
 });
-handle('cad:openPlan', async (evt) => {
-  const result = await dialog.showOpenDialog(ownerOf(evt), { title: 'Open a floor plan', defaultPath: ensureProjectsFolder(), filters: [{ name: 'CAD drawing', extensions: ['dwg', 'dxf'] }], properties: ['openFile'] });
-  if (result.canceled || result.filePaths.length === 0) return null;
-  const file = result.filePaths[0];
-  return { file: path.basename(file), path: file, drawing: await cadFile.readDrawingFile(file) };
-});
-// The sample G+1 villa plans shipped with the app (electron/samples), shown on the Floor plan page while no plan is open —
-// a test aid, to be removed later with SAMPLE_PLANS in src/components/floorPlanState.ts.
+// The sample G+1 villa plans shipped with the app (electron/samples), shown in Design CAD while no drawing is open —
+// a test aid, to be removed later with SAMPLE_PLANS in src/components/cad/cadState.ts.
 const SAMPLE_PLANS = new Set(['sample-villa-gf.dxf', 'sample-villa-ff.dxf']);
-handle('cad:readSample', async (_evt, name) => {
-  if (!SAMPLE_PLANS.has(name)) return null;
-  return { file: name, drawing: await cadFile.readDrawingFile(path.join(__dirname, 'samples', name)) };
-});
 // The CAD view reads drawings itself (engine in the window): the engine, and a drawing's bytes.
 handle('cad:engine', () => cadFile.engineBytes());
 handle('cad:openBytes', async (evt) => {
@@ -351,11 +341,6 @@ handle('cad:openBytes', async (evt) => {
 });
 handle('cad:readBytes', (_evt, file) => (isPlanFile(file) && fs.existsSync(file) ? { file: path.basename(file), path: file, bytes: cadFile.readDrawingBytes(file) } : null));
 handle('cad:sampleBytes', (_evt, name) => (SAMPLE_PLANS.has(name) ? { file: name, bytes: cadFile.readDrawingBytes(path.join(__dirname, 'samples', name)) } : null));
-// Reopens the plan a project had open last time (its path is remembered on this computer, not in the project file).
-handle('cad:readPlan', async (_evt, file) => {
-  if (!isPlanFile(file) || !fs.existsSync(file)) return null;
-  return { file: path.basename(file), path: file, drawing: await cadFile.readDrawingFile(file) };
-});
 
 // ---- IPC: hand generated DXF sheets to the installed OpenCADStudio app (live, token-protected local link) ----
 const openCadSession = new OpenCadRestSession();
