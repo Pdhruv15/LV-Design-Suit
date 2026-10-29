@@ -103,7 +103,7 @@ const attributeOf = (attributes: Record<string, string>, names: string[]): strin
   return (key && attributes[key].trim()) || undefined;
 };
 
-/** What a floor plan says, as the CAD dialogs read it (same as the OpenCADStudio link): board symbols, room outlines,
+/** What a floor plan says, as the CAD dialogs read it (the built-in reader): board symbols, room outlines,
  * texts, room tags and fixtures, with per-layer counts. Curves are returned only for `curveLayers` (an architect's plan
  * has many thousands of wall lines), plus any curve linked to a route or a tray. */
 export function planFromDrawing(d: CadDrawing, options: { curveLayers?: string[]; file?: string; units?: number } = {}): CadPlan {

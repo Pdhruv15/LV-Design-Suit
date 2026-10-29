@@ -548,6 +548,17 @@ impl CadDoc {
     /// Colour of each segment: 0xRRGGBB, or 0xFF000007 for the foreground (index 7).
     pub fn segment_colors(&self) -> Vec<u32> { self.seg_rgb.clone() }
 
+    /// Blocks inserted in model space with their attributes, as JSON [{block, attributes, layer, handle}] — fixtures
+    /// with a CCT attribute are counted on their circuits (Loads from CAD).
+    pub fn blocks(&self) -> String {
+        let all: Vec<serde_json::Value> = self.objects.iter()
+            .filter_map(|o| o.block.as_ref().map(|name| serde_json::json!({
+                "block": name, "attributes": o.attrs, "layer": self.layers.get(o.layer as usize).map(|l| l.name.as_str()).unwrap_or(""), "handle": o.handle
+            })))
+            .collect();
+        serde_json::Value::Array(all).to_string()
+    }
+
     /// Closed objects of model space (polylines, circles, ellipses, hatches, solids) as JSON — each ObjInfo with its `id`
     /// — for rooms from outline layers; their drawn segments are `seg_start..seg_end`.
     pub fn outlines(&self) -> String {

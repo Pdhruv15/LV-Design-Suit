@@ -12,6 +12,27 @@ export class CadDoc {
         wasm.__wbg_caddoc_free(ptr, 0);
     }
     /**
+     * Blocks inserted in model space with their attributes, as JSON [{block, attributes, layer, handle}] — fixtures
+     * with a CCT attribute are counted on their circuits (Loads from CAD).
+     * @returns {string}
+     */
+    blocks() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.caddoc_blocks(retptr, this.__wbg_ptr);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            deferred1_0 = r0;
+            deferred1_1 = r1;
+            return getStringFromWasm0(r0, r1);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+            wasm.__wbindgen_export(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
      * Drawing facts as JSON: format, units (INSUNITS), origin, extents (most of the drawing), layers, texts, counts.
      * @returns {string}
      */

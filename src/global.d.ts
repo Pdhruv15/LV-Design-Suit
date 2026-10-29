@@ -61,33 +61,6 @@ declare global {
         /** Called when a drawing is opened from Finder / Explorer while the app runs; returns the unsubscribe. */
         onPending?: (cb: () => void) => () => void;
       };
-      /** Opens generated DXF sheets in the installed OpenCADStudio desktop application. */
-      openCadStudio?: {
-        status: () => Promise<{ installed: boolean; connected: boolean; version?: string }>;
-        openDxf: (files: { name: string; content: string }[]) => Promise<{ files: string[]; connected: boolean; version?: string; linked?: number }>;
-        /** Boards and feeders tagged in the drawing open in OpenCADStudio ("feeder:<id>", "board:<id>"), with their object counts. */
-        linked?: () => Promise<{ tag: string; objects: number }[]>;
-        /** Redraws, in the drawing open in OpenCADStudio, only the boards, feeders and sheet furniture that changed (first sheet). */
-        update?: (files: { name: string; content: string }[]) => Promise<{ changed: string[]; added: string[]; removed: string[]; unchanged: number }>;
-        /** Asks for a floor plan (DWG / DXF) and opens it in the live OpenCADStudio window; null if cancelled. */
-        openPlan?: () => Promise<{ file: string; version?: string } | null>;
-        /** Blocks placed in the drawing active in OpenCADStudio, with their attribute values. */
-        blocks?: () => Promise<import('./model/cadLoads').CadBlock[]>;
-        /** Cable routes linked to feeders on the active drawing, measured in drawing units, with its INSUNITS code. */
-        routes?: () => Promise<{ units?: number; routes: { feederId: string; length: number; pieces: number }[] }>;
-        /** Links the curves selected in OpenCADStudio to a feeder's route; '' unlinks them. */
-        linkSelection?: (feederId: string) => Promise<{ linked: number; skipped: number }>;
-        /** What the active floor plan says about board locations, in drawing units, with its INSUNITS code. */
-        plan?: (options?: { curveLayers?: string[] }) => Promise<import('./model/cadPlaces').CadPlan>;
-        /** Marks the objects selected in OpenCADStudio as a board's symbol; '' unlinks them. */
-        placeSelection?: (boardId: string) => Promise<{ linked: number }>;
-        /** Tray runs and linked cable routes on the active drawing, as paths in drawing units. */
-        trays?: () => Promise<import('./model/cadTrays').CadTrayPlan>;
-        /** Links the curves selected in OpenCADStudio to a tray route by name; '' unlinks them. */
-        traySelection?: (name: string) => Promise<{ linked: number; skipped: number }>;
-        /** Copies the LV scripts for OpenCADStudio into a folder the engineer chooses; null if cancelled. */
-        copyScripts?: () => Promise<{ folder: string; files: string[] } | null>;
-      };
       files: {
         /** Shows a save dialog and writes the text; resolves to the saved path, or null if cancelled. */
         saveText: (opts: { defaultName: string; content: string; filterName: string; extensions: string[] }) => Promise<string | null>;
