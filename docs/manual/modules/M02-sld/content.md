@@ -155,8 +155,9 @@ floor earthing sheets.
    a panel onto another outline to move it to that sheet.
 
 Right-click a sheet in the list to rename, renumber, duplicate, move, revise,
-export, or delete it. Clouds, notes, and callouts are added with **Markup** on the
-sheet.
+export, or delete it. Add clouds, notes, and callouts with the **Markup** tools on
+the ribbon; new markups are black. Publish and export the open sheet from the
+ribbon's **Issue and export** group.
 
 <a id="SLD-120"></a>
 ## Export drawings

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import Ribbon, { CAPTIONS, type RibbonActions, type RibbonTab } from './Ribbon';
+import { NO_SHEET_ACTIONS, type SheetUi } from './sld/sheetUi';
 
 const noop = () => {};
 const actions = (over: Partial<RibbonActions> = {}): RibbonActions => ({
@@ -72,6 +73,34 @@ describe('Ribbon', () => {
 
   it('opens the sheets from the SLD tabs', () => {
     for (const tab of ['schematic', 'detailed'] as const) expect(render(tab), tab).toContain('in Design CAD → Sheets');
+  });
+
+  describe('with a sheet open in Design CAD → Sheets', () => {
+    const ui = (over: Partial<SheetUi> = {}): SheetUi => ({ tool: 'select', setTool: noop, color: 'black', setColor: noop, size: 3.5, setSize: noop, selId: null, setSelId: noop,
+      zoom: 'fit', setZoom: noop, pct: '64 %', setPct: noop, side: false, setSide: noop, actions: { current: NO_SHEET_ACTIONS }, ...over });
+    const sheets = (over: Partial<NonNullable<RibbonActions['sheets']>> = {}): RibbonActions['sheets'] => ({ tab: 'sheets', open: true, onTab: noop, ui: ui(), kind: 'system',
+      publish: { label: 'Rev C…', title: 'Changed since Rev B was issued', changed: true }, legend: { on: true, shown: true }, onLegend: noop, ...over });
+    /** The opening tag of the ribbon button labelled `label`. */
+    const button = (html: string, label: string) => html.match(new RegExp(`<button[^>]*>(?:(?!</button>).)*?<span>${label}</span>`))?.[0].match(/^<button[^>]*>/)?.[0] ?? '';
+
+    it('has the markup, style, view and issue tools in the ribbon', () => {
+      const html = render('cad', { view: 'drawings', sheets: sheets({ ui: ui({ tool: 'cloud' }) }) });
+      for (const g of ['Markup', 'On panels', 'Style', 'Issue and export']) expect(html).toContain(`aria-label="${g}"`);
+      expect(button(html, 'Cloud')).toContain('aria-pressed="true"');
+      expect(button(html, 'Panel cloud')).not.toContain('disabled');
+      expect(html).toContain('<span class="ribbon-sub">Black</span>'); // new markups are black
+      expect(html).toContain('<span class="ribbon-sub">Rev C…</span>');
+      expect(button(html, 'Publish')).toContain('stale');
+      for (const l of ['Fit', 'PDF', 'DXF', 'DWG', 'Side by side']) expect(button(html, l), l).not.toContain('disabled');
+      expect(button(html, 'Delete')).toContain('disabled'); // nothing selected
+    });
+
+    it('keeps panel tools to system SLD sheets, and greys the sheet tools with no sheet open', () => {
+      expect(button(render('cad', { view: 'drawings', sheets: sheets({ kind: 'earthing' }) }), 'Panel cloud')).toContain('disabled');
+      const none = render('cad', { view: 'drawings', sheets: sheets({ open: false }) });
+      for (const l of ['Cloud', 'Colour', 'Fit', 'Publish', 'DWG']) expect(button(none, l), l).toContain('disabled');
+      expect(button(none, 'All sheets')).not.toContain('disabled');
+    });
   });
 });
 

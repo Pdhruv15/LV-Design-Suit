@@ -4,11 +4,15 @@ import {
   BatteryCharging, Building2, Cable, ClipboardCheck, MessageSquareWarning, Inbox, CircuitBoard, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText, GitPullRequestArrow, Send, Stamp,
   Gauge, Hand, LayoutGrid, ListTree, MousePointer2, Pencil, Receipt, Scale, Settings2, ShieldCheck, Sun,
   ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig, Cctv } from 'lucide-react';
-import { PenTool, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Square, Maximize, Grid3x3, Copy, CircleDashed, ListChecks } from 'lucide-react';
+import { PenTool, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Square, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall } from 'lucide-react';
 import type { CadTool } from './cad/cadState';
 import type { BoardKind, Feeder } from '../types';
 import type { MainView } from '../views';
 import type { DrawingsTab } from './docs/DrawingsView';
+import type { DrawingSheet } from '../model/drawingSet';
+import { markupSize, type MarkupColor, type SheetMarkup } from '../model/sheetMarkup';
+import { ALL_TOOLS, MARKUP_SIZES } from './sld/markupTools';
+import type { SheetUi } from './sld/sheetUi';
 import { STAGE_INFO, type DesignStage, type TenderRoute } from '../model/designStage';
 
 export type BomCommand = 'boq' | 'scope' | 'changes' | 'variations' | 'circuits' | 'excel' | 'pdf' | 'summary-pdf' | 'rates-sheet' | 'import' | 'save-list' | 'add-item' | 'add-section' | 'extras' | 'wastage' | 'markup' | 'document' | 'issue-rev';
@@ -39,8 +43,14 @@ interface Tool {
 export interface RibbonActions {
   view: MainView;
   onView: (v: MainView) => void;
-  /** Design CAD → Sheets: the register tab shown when no sheet is open, and choosing one. */
-  sheets?: { tab: DrawingsTab; open: boolean; onTab: (t: DrawingsTab) => void };
+  /** Design CAD → Sheets: the register tab shown when no sheet is open, and choosing one; with a sheet open, its tools
+   * (shared with the sheet), its kind, the markup selected, what Publish would issue, and the symbol legend. */
+  sheets?: {
+    tab: DrawingsTab; open: boolean; onTab: (t: DrawingsTab) => void;
+    ui?: SheetUi; kind?: DrawingSheet['kind']; selected?: SheetMarkup;
+    publish?: { label: string; title: string; changed: boolean };
+    legend?: { on: boolean; shown: boolean }; onLegend?: () => void;
+  };
   tool: DiagramTool;
   onTool: (t: DiagramTool) => void;
   boardId: string;
@@ -105,7 +115,7 @@ export type CadSub = 'plan' | 'draw' | 'sheets';
 export const CAD_SUB: Record<CadSub, { label: string; groups: number[] }> = {
   plan: { label: 'Plan', groups: [0, 1, 2, 7, 6, 8] },
   draw: { label: 'Draw', groups: [0, 3, 4, 5, 8] },
-  sheets: { label: 'Sheets', groups: [9] }
+  sheets: { label: 'Sheets', groups: [9, 10, 11, 12, 13, 14] }
 };
 const SHEET_VIEWS: MainView[] = ['drawings', 'drawing-register'];
 /** The sub-tab a tool is on, so the ribbon shows the tool in use. */
@@ -120,7 +130,7 @@ export const CAPTIONS: Record<RibbonTab, string[]> = {
   concept: ['Load', 'Supply', 'Stage'],
   schematic: ['History', 'Distribution', 'Main systems', 'ELV', 'Stage'],
   detailed: ['Run', 'Canvas', 'Boards', 'Equipment', 'Selection', 'Calculate', 'Stage'],
-  cad: ['File', 'Rooms', 'Cables and boards', 'Draw', 'Modify', 'Annotate', 'Measure', 'Devices', 'View', 'Sheets'],
+  cad: ['File', 'Rooms', 'Cables and boards', 'Draw', 'Modify', 'Annotate', 'Measure', 'Devices', 'View', 'Sheets', 'Markup', 'On panels', 'Style', 'View', 'Issue and export'],
   reports: ['Schedules', 'Drawings and reports'],
   issue: ['Tender', 'Track', 'Send', 'IFC'],
   cost: ['Bill', 'Add to the bill', 'Rates', 'Issue and export'],
@@ -228,6 +238,20 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   const addTo = `to ${a.boardId}`;
   const view = (v: MainView, label: string, icon: Icon, title: string): Tool => ({ label, icon, title, onClick: go(v), active: a.view === v, page: true });
   const cadTool = (t: CadTool, label: string, icon: Icon, title: string): Tool => ({ label, icon, title, onClick: () => a.cad?.onTool(t), active: a.cad?.tool === t, disabled: !a.cad?.hasDrawing });
+  // The open sheet's tools (Design CAD → Sheets); greyed while no sheet is open.
+  const sh = a.sheets, ui = sh?.ui, onSheet = !!sh?.open && !!ui && SHEET_VIEWS.includes(a.view), act = () => ui!.actions.current;
+  const noSheet = 'Open a sheet first';
+  const markTool = (id: string): Tool => {
+    const t = ALL_TOOLS.find((x) => x.tool === id)!, panelOnly = t.tool === 'pcloud' || t.tool === 'parrow';
+    return { label: t.label, icon: t.icon, title: !onSheet ? noSheet : panelOnly && sh?.kind !== 'system' ? 'On system SLD sheets' : `${t.label} (${t.key}): ${t.hint}`,
+      onClick: () => { ui?.setTool(t.tool); if (t.tool !== 'select') ui?.setSelId(null); }, active: onSheet && ui?.tool === t.tool, disabled: !onSheet || (panelOnly && sh?.kind !== 'system') };
+  };
+  const colour: MarkupColor = sh?.selected?.color ?? ui?.color ?? 'black';
+  const setColour = (c: MarkupColor) => act().restyle({ color: c });
+  const COLOURS: MarkupColor[] = ['black', 'red', 'blue'];
+  const named = (c: string) => c[0].toUpperCase() + c.slice(1);
+  const textual = ui?.tool === 'text' || ui?.tool === 'callout' || sh?.selected?.kind === 'text' || sh?.selected?.kind === 'callout';
+  const height = sh?.selected && (sh.selected.kind === 'text' || sh.selected.kind === 'callout') ? markupSize(sh.selected) : ui?.size ?? 3.5;
   const sel = a.selection;
   const selName = sel ? `${sel.kind === 'board' ? 'board' : 'feeder'} ${sel.id}` : '';
   const boardMenu = [
@@ -409,6 +433,29 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'Layout', icon: LayoutGrid, title: 'How sheets are made and what they show: panels per sheet, values printed, legend', onClick: () => a.sheets?.onTab('layout'), active: SHEET_VIEWS.includes(a.view) && !a.sheets?.open && a.sheets?.tab === 'layout', page: true },
         { label: 'Title block', icon: PanelBottom, title: 'Title block and drawing numbering of the set', onClick: () => a.sheets?.onTab('titleblock'), active: SHEET_VIEWS.includes(a.view) && !a.sheets?.open && a.sheets?.tab === 'titleblock', page: true },
         { label: 'Issues', icon: Stamp, title: 'Issue sheets: revisions and transmittals', onClick: () => a.sheets?.onTab('issues'), active: SHEET_VIEWS.includes(a.view) && !a.sheets?.open && a.sheets?.tab === 'issues', page: true }
+      ],
+      ['select', 'cloud', 'text', 'callout', 'arrow', 'rect', 'line'].map(markTool),
+      ['pcloud', 'parrow'].map(markTool),
+      [
+        { label: 'Colour', icon: Palette, sub: named(colour), title: onSheet ? 'Colour of new markups and of the one selected: click for the next, the arrow to choose' : noSheet,
+          onClick: () => setColour(COLOURS[(COLOURS.indexOf(colour) + 1) % COLOURS.length]), disabled: !onSheet,
+          menu: COLOURS.map((c) => ({ label: named(c), title: `${named(c)} markups`, onClick: () => setColour(c) })) },
+        { label: 'Text height', icon: ALargeSmall, sub: `${height} mm`, title: onSheet ? 'Letter height of notes and callouts on the paper' : noSheet, onClick: () => act().restyle({ size: MARKUP_SIZES[(MARKUP_SIZES.indexOf(height) + 1) % MARKUP_SIZES.length] }),
+          disabled: !onSheet || !textual, menu: MARKUP_SIZES.map((z) => ({ label: `${z} mm`, title: `Letters ${z} mm high`, onClick: () => act().restyle({ size: z }) })) },
+        { label: 'Delete', icon: Trash2, title: onSheet ? 'Delete the selected markup (Delete key)' : noSheet, onClick: () => act().removeSelected(), disabled: !onSheet || !sh?.selected }
+      ],
+      [
+        { label: 'Fit', icon: Maximize, sub: onSheet ? ui?.pct : undefined, title: onSheet ? 'Fit the sheet to the window (F) · Ctrl/⌘ + scroll to zoom' : noSheet, onClick: () => ui?.setZoom('fit'), active: onSheet && ui?.zoom === 'fit', disabled: !onSheet },
+        { label: 'Zoom in', icon: ZoomIn, title: onSheet ? 'Zoom in' : noSheet, onClick: () => act().zoomIn(), disabled: !onSheet },
+        { label: 'Zoom out', icon: ZoomOut, title: onSheet ? 'Zoom out' : noSheet, onClick: () => act().zoomOut(), disabled: !onSheet },
+        { label: 'Legend', icon: BookImage, title: onSheet ? 'Symbol legend in the sheets\' legend column (and on SLD exports)' : noSheet, onClick: () => sh?.onLegend?.(), active: onSheet && !!sh?.legend?.on, disabled: !onSheet || !sh?.legend?.shown },
+        { label: 'Side by side', icon: Columns2, title: onSheet ? 'The design on the left with each sheet\'s panels outlined, this sheet on the right' : noSheet, onClick: () => ui?.setSide(!ui.side), active: onSheet && !!ui?.side, disabled: !onSheet }
+      ],
+      [
+        { label: 'Publish', icon: Send, sub: onSheet ? sh?.publish?.label || undefined : undefined, title: onSheet ? sh?.publish?.title ?? 'Issue this sheet' : noSheet, onClick: () => act().publish(), stale: onSheet && !!sh?.publish?.changed, disabled: !onSheet },
+        { label: 'PDF', icon: FileText, title: onSheet ? 'This sheet as PDF' : noSheet, onClick: () => act().exportAs('pdf'), disabled: !onSheet },
+        { label: 'DXF', icon: FileCode, title: onSheet ? 'This sheet as DXF (AutoCAD R12, editable layers)' : noSheet, onClick: () => act().exportAs('dxf'), disabled: !onSheet },
+        { label: 'DWG', icon: FileDown, title: onSheet ? 'This sheet as DWG (AutoCAD 2018)' : noSheet, onClick: () => act().exportAs('dwg'), disabled: !onSheet }
       ]
     ],
     reports: [

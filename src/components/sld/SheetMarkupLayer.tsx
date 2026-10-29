@@ -1,33 +1,18 @@
 import { askText } from '../ConfirmDialog';
 import { useRef, useState } from 'react';
-import { ArrowUpRight, Cloud, CloudCog, Crosshair, MessageSquareText, MousePointer2, Slash, Square, Trash2, Type , type LucideIcon } from 'lucide-react';
 import {
-  dragHandle, markupBounds, markupFromDrag, markupHandles, markupHit, markupSvg, MARKUP_COLORS, MARKUP_LABEL, markupSize, moveMarkup, newMarkupId,
-  type MarkupColor, type MarkupHandle, type MarkupKind, type SheetMarkup
+  dragHandle, markupBounds, markupFromDrag, markupHandles, markupHit, markupSvg, moveMarkup, newMarkupId,
+  type MarkupColor, type MarkupHandle, type SheetMarkup
 } from '../../model/sheetMarkup';
 import { sanitizeSvgFragment } from '../../util/sanitize';
 
-export type MarkupTool = 'select' | MarkupKind | 'pcloud' | 'parrow';
+import type { MarkupTool } from './markupTools';
+export { ALL_TOOLS, ANCHORED_TOOLS, MARKUP_SIZES, MARKUP_TOOLS, type MarkupTool } from './markupTools';
 /** A panel or circuit outline on the page, in paper mm (target `f:<id>` for a circuit). */
 export interface SheetAnchor { target: string; x: number; y: number; w: number; h: number }
 type PanelArrow = { target: string; text: string; dir: 'ne' | 'nw' | 'se' | 'sw'; len: number };
 type Pt = [number, number];
 
-export const MARKUP_TOOLS: { tool: MarkupTool; label: string; key: string; icon: LucideIcon; hint: string }[] = [
-  { tool: 'select', label: 'Select', key: 'V', icon: MousePointer2, hint: 'Click a markup to select it; drag to move, drag a handle to resize, Delete to remove, double-click to edit its text' },
-  { tool: 'cloud', label: 'Cloud', key: 'C', icon: Cloud, hint: 'Drag a rectangle to draw a revision cloud with its revision triangle' },
-  { tool: 'rect', label: 'Box', key: 'B', icon: Square, hint: 'Drag a rectangle' },
-  { tool: 'line', label: 'Line', key: 'L', icon: Slash, hint: 'Drag a line' },
-  { tool: 'arrow', label: 'Arrow', key: 'A', icon: ArrowUpRight, hint: 'Drag from the tail to the point' },
-  { tool: 'text', label: 'Note', key: 'T', icon: Type, hint: 'Click where the note goes' },
-  { tool: 'callout', label: 'Callout', key: 'O', icon: MessageSquareText, hint: 'Press on what you point at, drag to where the text goes, release' }
-];
-/** Tools tied to panels and circuits: they follow the design when it moves. */
-export const ANCHORED_TOOLS: typeof MARKUP_TOOLS = [
-  { tool: 'pcloud', label: 'Panel cloud', key: 'P', icon: CloudCog, hint: 'Drag around panels: a revision cloud that stays around them when the design changes' },
-  { tool: 'parrow', label: 'Panel arrow', key: 'R', icon: Crosshair, hint: 'Press on a panel or circuit, drag to where the text goes: the arrow follows it when the design changes' }
-];
-export const ALL_TOOLS = [...MARKUP_TOOLS, ...ANCHORED_TOOLS];
 const inside = (p: Pt, a: SheetAnchor) => p[0] >= a.x && p[0] <= a.x + a.w && p[1] >= a.y && p[1] <= a.y + a.h;
 /** The smallest outline under a point: a circuit wins over the panel around it. */
 export const anchorAt = (anchors: SheetAnchor[], p: Pt) => anchors.filter((a) => inside(p, a)).sort((a, b) => a.w * a.h - b.w * b.h)[0];
@@ -42,7 +27,6 @@ export const arrowFromDrag = (target: string, a: Pt, b: Pt, mmPerUnit: number, t
   dir: `${b[1] < a[1] ? 'n' : 's'}${b[0] >= a[0] ? 'e' : 'w'}` as PanelArrow['dir'],
   len: Math.round(Math.min(300, Math.max(30, Math.abs(b[0] - a[0]) / mmPerUnit)))
 });
-export const MARKUP_SIZES = [2.5, 3.5, 5];
 
 const fromText = (s: string) => s.split('|').map((x) => x.trim()).join('\n').trim();
 /** Text typed in the dialog: Enter or | starts a new line. */
@@ -191,39 +175,3 @@ export default function SheetMarkupLayer({ markups, mmW, mmH, width, height, too
   );
 }
 
-/** Tool buttons, colour and letter height for the markup layer. */
-export function MarkupToolbar({ tool, color, size, selected, count, anchored, onTool, onColor, onSize, onDelete }: {
-  anchored?: boolean; tool: MarkupTool; color: MarkupColor; size: number; selected: SheetMarkup | undefined; count: number;
-  onTool: (t: MarkupTool) => void; onColor: (c: MarkupColor) => void; onSize: (s: number) => void; onDelete: () => void;
-}) {
-  const hint = ALL_TOOLS.find((t) => t.tool === tool)?.hint ?? '';
-  const btn = ({ tool: t, label, key, icon: Icon, hint: h }: (typeof ALL_TOOLS)[number]) => (
-    <button key={t} className={`icon-btn markup-tool${tool === t ? ' on' : ''}`} title={`${label} (${key}) — ${h}`} aria-label={label} aria-pressed={tool === t} onClick={() => onTool(t)}><Icon size={16} /></button>
-  );
-  const textual = tool === 'text' || tool === 'callout' || selected?.kind === 'text' || selected?.kind === 'callout';
-  return (
-    <div className="markup-bar">
-      <b>Markup</b>
-      <span className="markup-tools" role="toolbar" aria-label="Markup tools">
-        {MARKUP_TOOLS.map(btn)}
-      </span>
-      {anchored && <span className="markup-tools" role="toolbar" aria-label="Panel annotation tools" title="Tied to panels and circuits">{ANCHORED_TOOLS.map(btn)}</span>}
-      <span className="markup-colors">
-        {(Object.keys(MARKUP_COLORS) as MarkupColor[]).map((c) => (
-          <button key={c} className={`markup-dot${(selected?.color ?? color) === c ? ' on' : ''}`} style={{ background: MARKUP_COLORS[c].css }} title={`${c[0].toUpperCase()}${c.slice(1)}`} onClick={() => onColor(c)} />
-        ))}
-      </span>
-      {textual && (
-        <select className="chip" title="Letter height on the paper" value={selected && (selected.kind === 'text' || selected.kind === 'callout') ? markupSize(selected) : size} onChange={(e) => onSize(Number(e.target.value))}>
-          {MARKUP_SIZES.map((s) => <option key={s} value={s}>{s} mm</option>)}
-        </select>
-      )}
-      <button className="icon-btn markup-tool" disabled={!selected} onClick={onDelete} title={`Delete the selected ${selected ? MARKUP_LABEL[selected.kind].toLowerCase() : 'markup'} (Delete key)`} aria-label="Delete markup"><Trash2 size={16} /></button>
-      {(() => {
-        // The select hint is long and always the same — show the hint only once a drawing tool or a markup is picked.
-        const text = tool !== 'select' || selected ? `${ALL_TOOLS.find((t) => t.tool === tool)?.label}: ${hint}${count ? ` · ${count} on this sheet` : ''}` : '';
-        return text ? <span className="m markup-hint" title={`${ALL_TOOLS.find((t) => t.tool === tool)?.label}: ${hint}`}>{text}</span> : null;
-      })()}
-    </div>
-  );
-}

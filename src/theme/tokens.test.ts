@@ -75,7 +75,7 @@ describe('design tokens', () => {
       '.chip.primary:hover:not(:disabled)', 'td.ec .ec-err', '.tray-section', '.tray-section figcaption', '.logo-box', '.logo-box .m',
       '.tbd-preview-wrap', '.tbd-preview', '.tbd-cell', '.tbd-cell:hover', '.tbd-cell.on', '.tbd-cap', '.tbd-print', '.ds-paper', '.ds-sheet',
       '.sg-thumb', '.sg-thumb iframe', '.sg-badge', '.sg-size', '.sld-print .cable-ref-c,.sheet .cable-ref-c', '.sheet-page', '.sheet-paper',
-      '.hc-st', '.earth-drawing', '.markup-dot.on', '.paper-sheet', '.paper-sheet iframe', '.paper-guides'
+      '.hc-st', '.earth-drawing', '.paper-sheet', '.paper-sheet iframe', '.paper-guides'
     ]);
     const fixed = [...styles.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)]
       .filter((m) => /#[0-9a-f]{3,8}\b|rgba?\(/i.test(m[2])).map((m) => m[1].trim());

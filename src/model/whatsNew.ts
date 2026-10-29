@@ -15,6 +15,14 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.5', date: '2026-10-29',
+    items: [
+      { title: 'Sheet tools on the ribbon', text: 'With a sheet open in Design CAD → Sheets, the ribbon has its tools: Markup (Select, Cloud, Note, Callout, Arrow, Box, Line), On panels, Style (colour, text height, Delete), View (Fit, zoom, Legend, Side by side) and Issue and export. The sheet gets the whole page; the keys are the same.', action: 'sheets', actionLabel: 'Open Sheets' },
+      { title: 'Black markups', text: 'New clouds, notes and callouts are black, like the printed sheets; red and blue are still in Style → Colour.' },
+      { title: 'One sheet as DWG', text: 'Issue and export → DWG (or right-click a sheet) saves that sheet as AutoCAD 2018 DWG.' }
+    ]
+  },
+  {
     version: '2.4', date: '2026-10-29',
     items: [
       { title: 'Sheets in Design CAD', text: 'Every submission sheet is in Design CAD → Sheets: SLDs, risers, the earthing schematic, earth riser and floor earthing, with the register (layout, title block and numbering, issues, export). The SLD and earthing screens keep the design; their Sheets button opens the sheet.', action: 'sheets', actionLabel: 'Open Sheets' },

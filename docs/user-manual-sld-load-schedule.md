@@ -132,7 +132,7 @@ The SLD is the editable full-network canvas. The publishable drawing sheets are 
 
 Select **Side by side** on a sheet to show the design with each system sheet's panel boundary. A panel can be dragged into another sheet outline, and clicking a panel there makes it the start of **Panel and its branch**.
 
-Right-click a sheet in the list to rename it, set its drawing number, duplicate or reorder it, advance its revision, change its status, export it, or delete it. Use **[** and **]** to move between All sheets and the sheets. Add revision clouds, notes, and callouts with **Markup** on the sheet, earthing sheets included.
+Right-click a sheet in the list to rename it, set its drawing number, duplicate or reorder it, advance its revision, change its status, export it, or delete it. Use **[** and **]** to move between All sheets and the sheets. Add revision clouds, notes, and callouts with the **Markup** tools on the ribbon, earthing sheets included; new markups are black. **Style** sets the colour and text height, **View** has Fit, zoom, Legend and Side by side, and **Issue and export** publishes the sheet or exports it as PDF, DXF or DWG.
 
 ### 4.2 Manage and export the drawing set
 
