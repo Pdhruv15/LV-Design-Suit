@@ -74,7 +74,7 @@ const hasDatabase = hasBridge && !!window.lvds.database;
 
 import type { MainView } from './views';
 import CommandPalette, { ShortcutHelp, type Command } from './components/CommandPalette';
-import Ribbon, { type BomCommand, tabForStage, tabForView, type DiagramTool, type RibbonTab } from './components/Ribbon';
+import Ribbon, { type BomCommand, tabForStage, tabForView, viewForTab, type DiagramTool, type RibbonTab } from './components/Ribbon';
 import { advanceStage, ifcIssued, nextStage, prevStage, setTenderRoute, STAGE_INFO, stageOf, stepBackStage, tenderRoute } from './model/designStage';
 const ProjectSettings = onDemand(() => import('./components/ProjectSettings'));
 import type { BoardTab } from './components/BoardPanel';
@@ -1212,7 +1212,7 @@ export default function App() {
 
       {!home && <Ribbon
         tab={ribbonTab}
-        onTab={setRibbonTab}
+        onTab={(t) => { setRibbonTab(t); const v = viewForTab(t, view); if (v !== view) setViewState(v); }}
         a={{
           view,
           onView: setView,
