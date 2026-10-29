@@ -98,8 +98,12 @@ export interface RibbonActions {
   onAnonymizedSample: () => void;
   /** The Floor plan page's tools (Floor plan tab). */
   floorPlan?: FloorPlanRibbon;
-  /** The CAD view's tools (CAD tab). */
-  cad?: { tool: CadTool; onTool: (t: CadTool) => void; onOpen: () => void; onSave: () => void; onDelete: () => void; hasSelection: boolean; onFit: () => void; onLayers: () => void; layersOn: boolean; hasDrawing: boolean };
+  /** Design CAD's tools (src/components/cad); `file`: the File group's Plans, Level and Units (cadFileMenu.ts). */
+  cad?: {
+    tool: CadTool; onTool: (t: CadTool) => void; onOpen: () => void; onSave: () => void; onDelete: () => void; hasSelection: boolean; onFit: () => void; onLayers: () => void; layersOn: boolean; hasDrawing: boolean;
+    file: { plans: Tool['menu']; plansSub?: string; level: string; levelTitle: string; levels: Tool['menu']; unit: string; unitTitle: string; units: Tool['menu'] };
+    onRoles: () => void; rolesOn: boolean;
+  };
   onProfile: () => void;
   onChooseFolder: () => void;
   folderLabel: string;
@@ -146,11 +150,11 @@ const ADD_BOARD: { kind: BoardKind; ratingA: number }[] = [
 /** Tabs in the order the design is done: concept → schematic → detailed design → documents → tender and IFC. */
 const TABS: { id: RibbonTab; label: string; icon: Icon; step?: string; stages?: DesignStage[] }[] = [
   { id: 'home', label: 'Project', icon: House },
+  { id: 'cad', label: 'Design CAD', icon: PenTool },
   { id: 'concept', label: 'Concept', icon: ChartColumnBig, step: '1', stages: ['concept'] },
   { id: 'schematic', label: 'Schematic', icon: Waypoints, step: '2', stages: ['schematic'] },
   { id: 'detailed', label: 'Detailed design', icon: CircuitBoard, step: '3', stages: ['detailed'] },
   { id: 'floorplan', label: 'Floor plan', icon: MapIcon },
-  { id: 'cad', label: 'CAD', icon: PenTool },
   { id: 'reports', label: 'Documents', icon: FileText },
   { id: 'issue', label: 'Tender and IFC', icon: Stamp, step: '4', stages: ['tender', 'ifc'] },
   { id: 'cost', label: 'BOM / Cost', icon: Receipt },
@@ -389,8 +393,11 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
     })(),
     cad: [
       [
-        view('cad', 'CAD', PenTool, 'CAD view: a DWG / DXF drawing opened natively — model space, snaps, layers, command line'),
-        { label: 'Open', icon: FolderOpen, title: 'Open a DWG / DXF drawing in the CAD view', onClick: () => a.cad?.onOpen() },
+        view('cad', 'Design CAD', PenTool, 'Design CAD: the plan of each level opened natively — model space, snaps, layers, command line'),
+        { label: 'Plans', icon: FolderOpen, sub: a.cad?.file.plansSub, title: 'Open a DWG / DXF drawing; the arrow: the plan of each level of the project (open it, or open one for a level without)', onClick: () => a.cad?.onOpen(), menu: a.cad?.file.plans?.length ? a.cad.file.plans : undefined },
+        { label: a.cad?.file.level ?? 'Level', icon: Building2, sub: 'level', title: a.cad?.file.levelTitle ?? 'The level the drawing is the plan of', onClick: () => {}, disabled: !a.cad?.hasDrawing || !a.cad.file.levels?.length, menu: a.cad?.file.levels },
+        { label: a.cad?.file.unit ?? 'Units', icon: Scale, sub: 'units', title: a.cad?.file.unitTitle ?? 'The units the drawing is in', onClick: () => {}, disabled: !a.cad?.hasDrawing, menu: a.cad?.file.units },
+        { label: 'Layer roles', icon: Layers, title: 'What each layer is: wall, room outline, room name, tray, route… (used to find rooms and walls)', onClick: () => a.cad?.onRoles(), active: a.cad?.rolesOn, disabled: !a.cad?.hasDrawing },
         { label: 'Save DXF', icon: Save, title: 'Save the drawing as DXF with what you drew (LV-SKETCH, LV-ANNO) and the devices placed (E-LV-POINTS, E-ELV-DEVICES, E-BOARDS)', onClick: () => a.cad?.onSave(), disabled: !a.cad?.hasDrawing }
       ],
       [
