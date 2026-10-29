@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const root = join(__dirname, '..');
@@ -23,6 +23,10 @@ const lum = (hex: string) => {
   return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
 };
 const contrast = (a: string, b: string) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+const walk = (d: string): string[] => readdirSync(d).flatMap((f) => { const p = join(d, f); return statSync(p).isDirectory() ? walk(p) : /\.tsx?$/.test(f) ? [p] : []; });
+/** `a` at `k` over `b`, as #rrggbb. */
+const over = (a: string, b: string, k: number) =>
+  '#' + [1, 3, 5].map((i) => Math.round(k * parseInt(a.slice(i, i + 2), 16) + (1 - k) * parseInt(b.slice(i, i + 2), 16)).toString(16).padStart(2, '0')).join('');
 
 describe('design tokens', () => {
   it('keeps the dark theme exactly as the app looked before tokens moved here', () => {
@@ -54,10 +58,39 @@ describe('design tokens', () => {
   it('defines every custom property the stylesheet uses, with or without a fallback', () => {
     const defined = new Set<string>([...tokens.matchAll(/(--[\w-]+)\s*:/g), ...styles.matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]));
     // Properties set from components (style={{ '--side-w': … }}) also count.
-    const walk = (d: string): string[] => readdirSync(d).flatMap((f) => { const p = join(d, f); return statSync(p).isDirectory() ? walk(p) : /\.tsx?$/.test(f) ? [p] : []; });
     for (const f of walk(root)) for (const m of readFileSync(f, 'utf8').matchAll(/['"](--[\w-]+)['"]\s*[:\]]/g)) defined.add(m[1]);
     const used = [...styles.matchAll(/var\((--[\w-]+)[,)]/g)].map((m) => m[1]);
     expect([...new Set(used.filter((u) => !defined.has(u)))]).toEqual([]);
+  });
+
+  it.each([['dark', dark], ['light', light]] as const)('keeps the SLD grid when it moves to the shared drawing surface (%s)', (_, t) => {
+    // The SLD drew its minor grid as --line at 55 % over --bg; the shared token is that colour, solid.
+    expect(t['--canvas-grid']).toBe(over(t['--line'], t['--bg'], 0.55));
+    expect([dark['--canvas-bg'], dark['--canvas-ink'], dark['--canvas-grid-major']]).toEqual(['var(--bg)', 'var(--tx)', 'var(--line)']);
+  });
+
+  it('keeps fixed colours to paper, print and text on a status fill', () => {
+    // Screens take their colours from the tokens, so they follow both themes. A new fixed colour needs a reason here.
+    const paper = new Set([
+      '.chip.primary:hover:not(:disabled)', 'td.ec .ec-err', '.tray-section', '.tray-section figcaption', '.logo-box', '.logo-box .m',
+      '.tbd-preview-wrap', '.tbd-preview', '.tbd-cell', '.tbd-cell:hover', '.tbd-cell.on', '.tbd-cap', '.tbd-print', '.ds-paper', '.ds-sheet',
+      '.sg-thumb', '.sg-thumb iframe', '.sg-badge', '.sg-size', '.sld-print .cable-ref-c,.sheet .cable-ref-c', '.sheet-page', '.sheet-paper',
+      '.hc-st', '.earth-drawing', '.markup-dot.on', '.paper-sheet', '.paper-sheet iframe', '.paper-guides'
+    ]);
+    const fixed = [...styles.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter((m) => /#[0-9a-f]{3,8}\b|rgba?\(/i.test(m[2])).map((m) => m[1].trim());
+    expect(fixed.filter((sel) => !paper.has(sel))).toEqual([]);
+    // Components: print CSS, paper markup and fallbacks for colours read from CSS. No more than today in each file.
+    const known: Record<string, number> = {
+      'components/BriefEditor.tsx': 1, 'components/EarthingView.tsx': 10, 'components/EnclosureSizing.tsx': 12, 'components/FileDialogs.tsx': 1,
+      'components/Form4Sizing.tsx': 10, 'components/PaperPreview.tsx': 1, 'components/ProjectsDashboard.tsx': 1, 'components/cad/CadCanvas.tsx': 19,
+      'components/docs/sheetRender.tsx': 1, 'components/sld/SheetMarkupLayer.tsx': 6, 'components/sld/SheetWorkspace.tsx': 8, 'diagram/symbolLibrary.tsx': 8
+    };
+    for (const f of walk(root).filter((p) => p.endsWith('.tsx') && !/\.test\./.test(p))) {
+      const n = (readFileSync(f, 'utf8').match(/['"`(:\s]#[0-9a-f]{3,8}\b/gi) ?? []).length;
+      const name = relative(root, f).split(sep).join('/');
+      expect(n, name).toBeLessThanOrEqual(known[name] ?? 0);
+    }
   });
 
   it('declares the segmented control once', () => {

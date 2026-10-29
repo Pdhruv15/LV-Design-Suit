@@ -20,7 +20,7 @@ import { sanitizedSvgFragment } from '../util/sanitize';
 type Tab = 'drawing' | 'riser' | 'floor' | 'pits' | 'checks';
 const stored = <T,>(key: string, initial: T): T => { try { const s = localStorage.getItem(key); return s ? (JSON.parse(s) as T) : initial; } catch { return initial; } };
 const store = (key: string, v: unknown) => { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* preference only */ } };
-const PIT_FILL = { pass: '#7cc68d', fail: '#e5736b', untested: '#d5d8de' } as const;
+const PIT_FILL = { pass: 'var(--pit-pass)', fail: 'var(--pit-fail)', untested: 'var(--pit-untested)' } as const;
 
 /** The printed drawing (black on white) restyled for the canvas, like the SLD: transparent over the grid,
  * lines and text in the theme's colours, earth conductors in the OK green. Theme variables reach into the
@@ -29,7 +29,7 @@ const DARK = [
   'svg{width:100%;height:auto;display:block;fill:var(--tx)}',
   'svg>rect:first-child{fill:transparent}',
   '[fill="#111"]{fill:var(--tx)}[stroke="#111"]{stroke:var(--tx)}',
-  '[fill="#fff"]{fill:var(--bg)}[stroke="#999"]{stroke:var(--line)}',
+  '[fill="#fff"]{fill:var(--canvas-bg)}[stroke="#999"]{stroke:var(--line)}',
   '[fill="#1a7f37"]{fill:var(--ok)}[stroke="#1a7f37"]{stroke:var(--ok)}',
   '[fill="#5b6b82"]{fill:var(--mut)}[stroke="#5b6b82"]{stroke:var(--mut)}',
   '[fill="#1d4f8f"]{fill:var(--acc)}[stroke="#1d4f8f"]{stroke:var(--acc)}'

@@ -42,12 +42,24 @@
   --ph-b: #4aa8ff;
   --ph-ryb: #b784ff;
 
+  /* Drawing surfaces: the SLD, riser, earthing, lux plan and Design CAD share one canvas and grid */
+  --canvas-bg: var(--bg);
+  --canvas-ink: var(--tx);         /* lines and text in the drawing's default colour */
+  --canvas-grid: #16223a;          /* minor grid: --line at 55 % over --bg */
+  --canvas-grid-major: var(--line);
+  /* Earth pit test status on the earthing drawing and its key */
+  --pit-pass: color-mix(in srgb, var(--ok) 70%, var(--bg));
+  --pit-fail: color-mix(in srgb, var(--bad) 70%, var(--bg));
+  --pit-untested: color-mix(in srgb, var(--mut) 35%, var(--bg));
+
   /* Overlays and elevation */
   --backdrop: rgba(2, 6, 14, .6);
   --shadow-pop: 0 8px 24px rgba(0, 0, 0, .4);    /* menus, popovers, hover cards */
   --shadow-modal: 0 12px 32px rgba(0, 0, 0, .35);
   --shadow-palette: 0 18px 48px rgba(0, 0, 0, .5);
   --shadow-paper: 0 2px 10px rgba(0, 0, 0, .35); /* white drawing sheets */
+  --shadow-drawer: 0 -6px 18px rgba(0, 0, 0, .25); /* bottom drawers, cast upward */
+  --shadow-side: -8px 0 24px rgba(0, 0, 0, .2);    /* right-hand panels, cast left */
   --row-sub: rgba(255, 255, 255, .015);         /* indented sub-rows in tables */
 
   /* Aliases: names some screens used without them ever being defined, which made
@@ -112,11 +124,14 @@
   --ph-y: #8a5d00;
   --ph-b: #1f69c9;
   --ph-ryb: #7e22ce;
+  --canvas-grid: #e8eaef;
   --backdrop: rgba(20, 32, 53, .35);
   --shadow-pop: 0 8px 24px rgba(20, 32, 53, .16);
   --shadow-modal: 0 12px 32px rgba(20, 32, 53, .18);
   --shadow-palette: 0 18px 48px rgba(20, 32, 53, .22);
   --shadow-paper: 0 2px 10px rgba(20, 32, 53, .18);
+  --shadow-drawer: 0 -6px 18px rgba(20, 32, 53, .12);
+  --shadow-side: -8px 0 24px rgba(20, 32, 53, .12);
   --row-sub: rgba(20, 32, 53, .025);
   color-scheme: light;
   --curve-1: #1f69c9;

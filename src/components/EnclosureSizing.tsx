@@ -32,9 +32,10 @@ function preview(cat: EnclosureCatalogue, c: Candidate | undefined, i: SizingInp
     for (let n = 0; n < total; n++) {
       const r = Math.floor(n / per), m = n % per;
       const kind = n >= total - allow ? 'allow' : n < i.equipmentModules ? 'eq' : n < i.equipmentModules + i.spareModules ? 'spare' : 'free';
-      // mono: the PDF — equipment grey-filled, spare dashed, allowance dotted, so it reads in black and white
-      const eq = mono ? '#000' : '#2a78d6', al = mono ? '#000' : '#c8a000';
-      const style = kind === 'eq' ? `fill="${eq}" fill-opacity="${mono ? '.3' : '.55'}" stroke="${eq}"` : kind === 'spare' ? `fill="none" stroke="${eq}" stroke-dasharray="2 2"` : kind === 'allow' ? `fill="none" stroke="${al}" stroke-dasharray="${mono ? '0.5 2.5' : '2 2'}" stroke-linecap="round"` : `fill="none" stroke="${S}" stroke-opacity=".15"`;
+      // mono: the PDF — equipment grey-filled, spare dashed, allowance dotted, so it reads in black and white.
+      // On screen the theme's accent and warning colours (.enc-eq / .enc-allow in styles.css).
+      const eq = mono ? '#000' : 'currentColor', al = mono ? '#000' : 'currentColor';
+      const style = kind === 'eq' ? `class="enc-eq" fill="${eq}" fill-opacity="${mono ? '.3' : '.55'}" stroke="${eq}"` : kind === 'spare' ? `class="enc-eq" fill="none" stroke="${eq}" stroke-dasharray="2 2"` : kind === 'allow' ? `class="enc-allow" fill="none" stroke="${al}" stroke-dasharray="${mono ? '0.5 2.5' : '2 2'}" stroke-linecap="round"` : `fill="none" stroke="${S}" stroke-opacity=".15"`;
       cells.push(`<rect x="${x0 + pad + m * mw + 1}" y="${y0 + pad + r * rh + rh * 0.25}" width="${mw - 2}" height="${rh * 0.5}" ${style}/>`);
     }
   } else {
