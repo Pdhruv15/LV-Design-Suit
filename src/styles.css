@@ -253,6 +253,9 @@ tr.total td{background:var(--p2);font-weight:600}
 .stage-now{font-size:var(--fs-xs);font-weight:600;line-height:1;padding:2px 6px;border:1px solid var(--ok);border-radius:999px;color:var(--ok)}
 .ribbon-tabs button.on .stage-now{background:var(--panel)}
 .ribbon-tools{display:flex;align-items:stretch;gap:0;padding:var(--space-1) calc(var(--gutter) - var(--space-2));background:var(--p2);border-top:1px solid var(--line);overflow-x:auto}
+.ribbon-subtabs{display:flex;gap:2px;padding:0 var(--gutter);background:var(--p2);border-top:1px solid var(--line)}
+.ribbon-subtabs button{background:none;border:0;border-bottom:2px solid transparent;padding:4px 12px;font-size:12px;color:var(--mut);cursor:pointer}
+.ribbon-subtabs button.on{color:var(--tx);border-bottom-color:var(--acc)}
 .ribbon-group{display:flex;flex-direction:column;align-items:stretch;gap:2px;padding:0 var(--space-2);border-right:1px solid var(--line)}
 .ribbon-group-btns{display:flex;gap:2px;flex:1}
 .ribbon-caption{font-size:var(--fs-xs);color:var(--mut);text-align:center;letter-spacing:.02em;line-height:1.2;padding-top:1px;white-space:nowrap}

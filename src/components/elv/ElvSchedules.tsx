@@ -49,7 +49,7 @@ export default function ElvSchedules({ project, estimate, stamp, onChange, onSta
     try {
       const { planLevels, planSheetHtml } = await import('../../elv/planSheets');
       const levels = planLevels(project);
-      if (!levels.length) { onStatus('No ELV devices placed on the floor plans yet: place them on the Floor plan page first.'); return; }
+      if (!levels.length) { onStatus('No ELV devices placed on the floor plans yet: place them in Design CAD first.'); return; }
       const name = `${safeFileName(project.name)} - ELV plan sheets`;
       const parts: Uint8Array[] = [];
       for (const [i, lv] of levels.entries()) {
@@ -76,7 +76,7 @@ export default function ElvSchedules({ project, estimate, stamp, onChange, onSta
     try {
       const { levelUnits, planDxf, planLevels } = await import('../../elv/planSheets');
       const levels = planLevels(project);
-      if (!levels.length) { onStatus('No ELV devices placed on the floor plans yet: place them on the Floor plan page first.'); return; }
+      if (!levels.length) { onStatus('No ELV devices placed on the floor plans yet: place them in Design CAD first.'); return; }
       const files = levels.map((lv) => ({ name: `${safeFileName(`${project.name} ELV ${lv.name}`)}.dxf`, data: planDxf(project, lv) }));
       let m: string | null;
       if (files.length === 1) m = await saveText(files[0].name, files[0].data, 'DXF drawing (AutoCAD R12)', 'dxf');

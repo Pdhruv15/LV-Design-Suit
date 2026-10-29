@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import CadCanvas, { type CadMarks, type CadToggles, type CanvasDevice } from './CadCanvas';
-import { NO_ACTIONS, rememberedDrawing, type CadState, type CadTool } from './cadState';
+import { NO_ACTIONS, rememberedDrawing, SAMPLE_PLANS, type CadState, type CadTool } from './cadState';
 import { chooseDrawing, drawingWithDevices, reopenDrawing, sampleDrawing, type CadObject, type CadView } from '../../engines/cad/cadEngine';
 import { cableLabel, cablesOf, circuitLabel, finalCircuits, LV_PALETTE, moveItem, placedOn, placeItem, placeLvPoint, removeItem, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
 import { addSketch, arcThrough, dimensionLines, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_WIDTHS, typedPoint, updateSketch } from '../../model/cadSketch';
@@ -8,7 +8,7 @@ import { trayPlanOf } from '../../calc/cableTray';
 import { fittingCounts, trayFittings, type TrayFitting } from '../../model/cadTrayFittings';
 import type { SketchItem } from '../../types';
 import { ELV_PALETTE, elvPlacedOn, elvSystemOf, moveElv, placeElv, removeElv } from '../../components/elv/elvCadDevices';
-import { copyTo, coverageNote, elvLayer, fillAt, SYSTEM_LABEL } from '../../components/elv/elvPlan';
+import { copyTo, coverageNote, elvLayer, fillAt, rotate as rotateElv, SYSTEM_LABEL } from '../../components/elv/elvPlan';
 import { saveBinary } from '../../util/files';
 import { angleDeg, areaOf, distance, inside, m, m2, roomAround, segmentsOn } from '../../model/cadMeasure';
 import { layerMapFor, layersWith, roomsFromPlan, withLayerMap } from '../../model/cadRooms';
@@ -22,7 +22,6 @@ import { planLevel, setPlanLevel } from './cadFileMenu';
 import { pathOfPlan } from './cadState';
 import { pickedRoom, putRooms, renameRoom } from '../../model/floorPlanActions';
 import { floorLabel, floorList } from '../../model/levels';
-import { SAMPLE_PLANS } from '../floorPlanState';
 import type { CadLayerMap, CadLayerRole, Project } from '../../types';
 
 type Pt = [number, number];
@@ -258,10 +257,16 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     const last = points[points.length - 1];
     if (tool === 'move' || tool === 'copy' || tool === 'rotate') {
       if (!selSketch && !selectedItem) {
-        if (selectAt(at, pixel)) cad.say(`${tool.toUpperCase()}  Specify base point:`); else cad.say(`${tool.toUpperCase()}  Select object:`);
+        if (selectAt(at, pixel)) cad.say(tool === 'rotate' && !itemAt(sketch, at, 6 * pixel) ? 'ROTATE  Click where it faces:' : `${tool.toUpperCase()}  Specify base point:`); else cad.say(`${tool.toUpperCase()}  Select object:`);
         return;
       }
-      if (tool === 'rotate' && !selSketch) { cad.say('ROTATE  Drawn objects only (devices keep their orientation).'); return; }
+      if (tool === 'rotate' && !selSketch) {
+        // A camera or speaker turns to face the point clicked (its coverage follows); other devices keep their way.
+        if (selectedItem?.what !== 'elv') { cad.say('ROTATE  Drawn objects, cameras and speakers only (other devices keep their orientation).'); return; }
+        const deg = (Math.atan2(at[1] - selectedItem.y / units.factor, at[0] - selectedItem.x / units.factor) * 180) / Math.PI;
+        const r = rotateElv(project, selectedItem.id, deg);
+        change(r.next, r.message); setPoints([]); cad.setSelected(null); setResult(null); cad.setTool('none'); return;
+      }
       if (!points.length) { setPoints([at]); cad.say(tool === 'rotate' ? 'ROTATE  Specify rotation angle (degrees) or a point:' : `${tool.toUpperCase()}  Specify second point:`); return; }
       const base = points[0];
       if (tool === 'rotate') {
@@ -444,6 +449,10 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     }
     if (tool === 'pline' && c === 'C' && points.length >= 3) { finishPline(true); return; }
     if (tool === 'circle' && points.length === 1 && /^-?[\d.]+$/.test(c)) { finishCircle(Number(c)); return; }
+    if (tool === 'rotate' && !selSketch && selectedItem?.what === 'elv' && /^-?[\d.]+$/.test(c)) {
+      const r = rotateElv(project, selectedItem.id, Number(c));
+      change(r.next, r.message); cad.setSelected(null); setResult(null); cad.setTool('none'); return;
+    }
     if (tool === 'rotate' && selSketch && points.length === 1 && /^-?[\d.]+$/.test(c)) {
       const a = (Number(c) * Math.PI) / 180;
       if (view) change(updateSketch(project, view.file, rotated(selSketch, points[0], a)), `Rotated ${Number(c).toFixed(2)}° · ⌘Z to undo`);

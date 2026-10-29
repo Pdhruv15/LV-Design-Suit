@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { INK, SNAP, SNAP_NAMES, type CadView } from '../../engines/cad/cadEngine';
 import { ortho as orthoFrom } from '../../model/cadMeasure';
 import { dimensionLines, segmentsOf, trayEdges, trayLabel } from '../../model/cadSketch';
-import type { PlanCells, PlanCover } from '../FloorPlanCanvas';
+import type { PlanCells, PlanCover } from '../elv/elvOverlay';
 import { fittingLabel, trayFittings } from '../../model/cadTrayFittings';
 import type { SketchItem } from '../../types';
 

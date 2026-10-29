@@ -9,6 +9,14 @@ import type { CadToggles } from './CadCanvas';
  * or annotating (`text`, `dim`). */
 export type CadTool = 'none' | 'dist' | 'area' | 'room' | 'trace' | 'name' | 'tray' | 'cable' | 'link' | 'dev' | 'fill' | 'move' | 'copy' | 'rotate' | 'line' | 'pline' | 'rect' | 'circle' | 'arc' | 'text' | 'dim';
 
+/** Sample plans shipped with the app (electron/samples, made by scripts/make-sample-villa-plans.mjs), shown while no
+ * drawing is open — a test aid. To remove: empty this list and delete the files and cad:sampleBytes. */
+export const SAMPLE_PLANS: { file: string; label: string }[] = [
+  { file: 'sample-villa-gf.dxf', label: 'Sample villa · Ground floor' },
+  { file: 'sample-villa-ff.dxf', label: 'Sample villa · First floor' }
+];
+export const isSample = (file: string) => SAMPLE_PLANS.some((x) => x.file === file);
+
 const RECENT = (projectId: string | undefined) => `lvds.cad.${projectId ?? 'new'}`;
 /** The drawing a project had open in the CAD view last time on this computer (its path stays out of the project file). */
 export const rememberedDrawing = (projectId: string | undefined): string | undefined => { try { return localStorage.getItem(RECENT(projectId)) ?? undefined; } catch { return undefined; } };

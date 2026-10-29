@@ -60,7 +60,7 @@ export function findLevel(p: Project, buildingRef: string, levelRef: string): { 
   return { building: b.id, level: l.id, name: l.name };
 }
 
-/** The plan read in the units chosen for its file in the project (Floor plan page), else the drawing's own. */
+/** The plan read in the units chosen for its file in the project (Design CAD), else the drawing's own. */
 function withChosenUnits(p: Project, plan: CadPlan): CadPlan {
   const u = planUnits(p, plan.file, plan.units);
   return u.code !== undefined ? { ...plan, units: u.code } : plan;

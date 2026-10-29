@@ -93,7 +93,7 @@ describe('ribbon follows the stages', () => {
 
   it('shows the chosen tab\'s page unless the page on screen is on that tab', () => {
     expect(viewForTab('cad', 'design')).toBe('cad');
-    expect(viewForTab('floorplan', 'cad')).toBe('floor-plan');
+    expect(viewForTab('cad', 'cad')).toBe('cad');
     expect(viewForTab('schematic', 'cad')).toBe('design');
     expect(viewForTab('detailed', 'design')).toBe('design');
     expect(viewForTab('home', 'design')).toBe('design');

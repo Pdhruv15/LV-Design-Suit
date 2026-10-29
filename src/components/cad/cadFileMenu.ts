@@ -2,8 +2,7 @@ import { chooseDrawing, reopenDrawing, sampleDrawing, type CadView } from '../..
 import { levelOfPlan, plansOf, replacePlan, withLevelPlan } from '../../model/cadPlans';
 import { CAD_UNITS, planScale, withPlanUnit, type CadUnit } from '../../model/cadUnits';
 import { floorLabel, type Floor } from '../../model/levels';
-import { isSample } from '../floorPlanState';
-import { pathOfPlan, type CadState } from './cadState';
+import { isSample, pathOfPlan, type CadState } from './cadState';
 import type { Project } from '../../types';
 
 type Apply = (next: Project, message: string) => void;

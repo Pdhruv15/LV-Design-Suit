@@ -5,13 +5,13 @@ import type { ElvSystem } from '../../elv/defaults';
 import { cameraRangeM, devicesOf, ELV_DEVICES, type ElvDeviceType } from '../../elv/devices';
 import { copyDevices, devicesOn, fillPoints, moveDevice, placeDevices, removeDevices, roomAt, type ElvDevice } from '../../elv/placed';
 import type { Project } from '../../types';
-import type { PlanCells, PlanCover, PlanSymbol } from '../FloorPlanCanvas';
+import type { PlanCells, PlanCover, PlanSymbol } from './elvOverlay';
 
 type Pt = [number, number];
-/** A level, as the Floor plan page names it. */
+/** A level, as Design CAD names it. */
 export interface PlanLevel { building: string; level: string }
 
-/** ELV design on the Floor plan page: what the ELV layer draws, and what its tools do. Devices are kept in metres on
+/** ELV design on the plans in Design CAD: what the ELV layer draws, and what its tools do. Devices are kept in metres on
  * the plan; the canvas works in drawing units, so everything here takes the plan's metres per unit (`mpu`). */
 
 export { canFill, deviceLabel, devicesFor, SYSTEM_LABEL, SYSTEMS } from './elvLabels';
@@ -104,7 +104,7 @@ export function placeAt(p: Project, lv: PlanLevel, type: ElvDeviceType, at: Pt):
 /** Fill room: a grid of the device in the room under the point. */
 export function fillAt(p: Project, lv: PlanLevel, type: ElvDeviceType, at: Pt): { next?: Project; message: string } {
   const room = roomAt(p, lv.building, lv.level, at[0], at[1]);
-  if (!room) return { message: 'No room with an outline there. Add the room from the plan first (Rooms panel).' };
+  if (!room) return { message: 'No room with an outline there. Add the room from the plan first (Design CAD → Rooms).' };
   const items = fillPoints(room.outline!, type);
   if (!items.length) return { message: `${deviceLabel(type)} has no coverage spacing to fill by: place it one by one.` };
   const { project } = placeDevices(p, lv.building, lv.level, items);

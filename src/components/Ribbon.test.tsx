@@ -53,4 +53,13 @@ describe('Ribbon', () => {
     expect(html.split('aria-controls="ribbon-tools"').length - 1).toBe(TABS.length);
     expect(html).toContain('id="ribbon-tools"');
   });
+
+  it('shows Design CAD as Plan (engineering) and Draw (drafting) over the same drawing', () => {
+    const html = render('cad');
+    expect(html).toContain('ribbon-subtabs');
+    for (const c of ['File', 'Rooms', 'Cables and boards', 'Devices', 'Measure', 'View']) expect(html).toContain(`aria-label="${c}"`);
+    for (const c of ['Draw', 'Modify', 'Annotate']) expect(html).not.toContain(`aria-label="${c}"`);
+    expect(render('home')).not.toContain('ribbon-subtabs');
+  });
 });
+

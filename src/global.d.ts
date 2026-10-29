@@ -49,22 +49,16 @@ declare global {
         probe: () => Promise<import('./engines/types').EngineProbe | { error: string }>;
         run: (request: import('./engines/external').EngineRequest) => Promise<import('./engines/types').StudyResults | { error: string }>;
       };
-      /** Floor plans read by the built-in DWG / DXF reader (electron/cadFile.cjs). */
+      /** Drawings (DWG / DXF) for Design CAD (electron/cadFile.cjs): the engine and drawing bytes. */
       cadFile?: {
-        /** Asks for a floor plan (DWG / DXF) and reads it; null if cancelled. */
-        openPlan: () => Promise<{ file: string; path?: string; drawing: import('./model/cadDrawing').CadDrawing } | null>;
         /** The CAD view's engine (WebAssembly) and drawing bytes, read in the window. */
         engine?: () => Promise<Uint8Array>;
         openBytes?: () => Promise<{ file: string; path: string; bytes: Uint8Array } | null>;
         readBytes?: (path: string) => Promise<{ file: string; path: string; bytes: Uint8Array } | null>;
         sampleBytes?: (name: string) => Promise<{ file: string; bytes: Uint8Array } | null>;
-        /** Reads one of the sample plans shipped with the app (test aid). */
-        readSample?: (name: string) => Promise<{ file: string; drawing: import('./model/cadDrawing').CadDrawing } | null>;
-        /** Reads a plan opened before (its full path); null when it is no longer there. */
-        readPlan?: (path: string) => Promise<{ file: string; path?: string; drawing: import('./model/cadDrawing').CadDrawing } | null>;
-        /** The next floor plan opened from Finder / Explorer, read; null when there is none. */
-        takePending?: () => Promise<{ file: string; path?: string; drawing: import('./model/cadDrawing').CadDrawing } | null>;
-        /** Called when a floor plan is opened from Finder / Explorer while the app runs; returns the unsubscribe. */
+        /** The next drawing opened from Finder / Explorer, read; null when there is none. */
+        takePending?: () => Promise<{ file: string; path: string; bytes: Uint8Array } | null>;
+        /** Called when a drawing is opened from Finder / Explorer while the app runs; returns the unsubscribe. */
         onPending?: (cb: () => void) => () => void;
       };
       /** Opens generated DXF sheets in the installed OpenCADStudio desktop application. */
