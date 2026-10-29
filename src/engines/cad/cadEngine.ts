@@ -141,11 +141,12 @@ export async function sampleDrawing(name: string): Promise<CadView | null> {
 /** A device written into the saved drawing: position (drawing units), radius, the letters inside and its label. */
 export interface DeviceOut { layer: string; x: number; y: number; r: number; text: string; label: string }
 
-/** The drawing saved as DXF with the devices added on their own layers (the architect's entities kept as read). */
-export async function drawingWithDevices(view: CadView, devices: DeviceOut[]): Promise<Uint8Array> {
+/** The drawing saved as DXF with the devices and what was drawn in the app added on their own layers (the architect's
+ * entities kept as read). */
+export async function drawingWithDevices(view: CadView, devices: DeviceOut[], shapes: unknown[] = []): Promise<Uint8Array> {
   await engine();
   try {
-    return exportDxf(view.bytes, JSON.stringify(devices));
+    return exportDxf(view.bytes, JSON.stringify(devices), JSON.stringify(shapes));
   } catch (e) {
     throw new Error(`The drawing could not be saved (${e instanceof Error ? e.message : String(e)}).`);
   }

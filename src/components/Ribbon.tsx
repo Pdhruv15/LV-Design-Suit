@@ -4,7 +4,7 @@ import {
   BatteryCharging, Building2, Cable, ClipboardCheck, MessageSquareWarning, Inbox, CircuitBoard, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText, GitPullRequestArrow, Send, Stamp,
   Gauge, Hand, LayoutGrid, ListTree, MousePointer2, Pencil, Receipt, Scale, Settings2, ShieldCheck, Sun,
   ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig, Cctv } from 'lucide-react';
-import { Map as MapIcon, PenTool, CirclePlus, Move, Layers, MousePointerClick, PenLine, Type, Ruler, Square, ZoomIn, Maximize, BellRing, Crosshair, Grid3x3, Copy, CircleDashed, ListChecks } from 'lucide-react';
+import { Map as MapIcon, PenTool, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Square, ZoomIn, Maximize, BellRing, Crosshair, Grid3x3, Copy, CircleDashed, ListChecks } from 'lucide-react';
 import type { FloorPlanTool } from './floorPlanState';
 import type { CadTool } from './cad/cadState';
 import type { BoardKind, Feeder } from '../types';
@@ -131,7 +131,7 @@ export const CAPTIONS: Record<RibbonTab, string[]> = {
   schematic: ['History', 'Distribution', 'Main systems', 'ELV', 'Stage'],
   detailed: ['Run', 'Canvas', 'Boards', 'Equipment', 'Selection', 'Calculate', 'Stage'],
   floorplan: ['Plan', 'Rooms', 'Cables and boards', 'ELV', 'Measure', 'View'],
-  cad: ['File', 'Measure', 'Devices', 'View'],
+  cad: ['File', 'Draw', 'Modify', 'Annotate', 'Measure', 'Devices', 'View'],
   reports: ['Schedules', 'Drawings and reports'],
   issue: ['Tender', 'Track', 'Send', 'IFC'],
   cost: ['Bill', 'Add to the bill', 'Rates', 'Issue and export'],
@@ -226,6 +226,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   const go = (v: MainView) => () => a.onView(v);
   const addTo = `to ${a.boardId}`;
   const view = (v: MainView, label: string, icon: Icon, title: string): Tool => ({ label, icon, title, onClick: go(v), active: a.view === v, page: true });
+  const cadTool = (t: CadTool, label: string, icon: Icon, title: string): Tool => ({ label, icon, title, onClick: () => a.cad?.onTool(t), active: a.cad?.tool === t, disabled: !a.cad?.hasDrawing });
   const sel = a.selection;
   const selName = sel ? `${sel.kind === 'board' ? 'board' : 'feeder'} ${sel.id}` : '';
   const boardMenu = [
@@ -390,7 +391,24 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       [
         view('cad', 'CAD', PenTool, 'CAD view: a DWG / DXF drawing opened natively — model space, snaps, layers, command line'),
         { label: 'Open', icon: FolderOpen, title: 'Open a DWG / DXF drawing in the CAD view', onClick: () => a.cad?.onOpen() },
-        { label: 'Save DXF', icon: Save, title: 'Save the drawing as DXF with the devices placed here (layers E-LV-POINTS, E-ELV-DEVICES, E-BOARDS)', onClick: () => a.cad?.onSave(), disabled: !a.cad?.hasDrawing }
+        { label: 'Save DXF', icon: Save, title: 'Save the drawing as DXF with what you drew (LV-SKETCH, LV-ANNO) and the devices placed (E-LV-POINTS, E-ELV-DEVICES, E-BOARDS)', onClick: () => a.cad?.onSave(), disabled: !a.cad?.hasDrawing }
+      ],
+      [
+        cadTool('line', 'Line', Slash, 'Line (L): click points; type a length, x,y or @dx,dy; Enter stops'),
+        cadTool('pline', 'Polyline', Spline, 'Polyline (PL): click points; C or the first point closes it; Enter finishes'),
+        cadTool('rect', 'Rectangle', RectangleHorizontal, 'Rectangle (REC): two opposite corners'),
+        cadTool('circle', 'Circle', Circle, 'Circle (C): centre, then radius (a point or typed)'),
+        cadTool('arc', 'Arc', Rainbow, 'Arc (A): start, a point on it, end')
+      ],
+      [
+        cadTool('move', 'Move', Move, 'Move (M): select an object (drawn or a device), base point, second point'),
+        cadTool('copy', 'Copy', Copy, 'Copy (CO): select, base point, then as many copies as you click; Enter stops. A copied light or socket is counted on its circuit'),
+        cadTool('rotate', 'Rotate', RotateCw, 'Rotate (RO): select a drawn object, base point, then an angle (typed degrees or a point)'),
+        { label: 'Erase', icon: Eraser, title: 'Erase the selected object (E or Delete); a light or socket is taken off its circuit. The architect\'s drawing is not changed', onClick: () => a.cad?.onDelete(), disabled: !a.cad?.hasSelection }
+      ],
+      [
+        cadTool('text', 'Text', Type, 'Text (T): click where it goes, type it on the command line, Enter'),
+        cadTool('dim', 'Dimension', MoveHorizontal, 'Dimension (DIM): two points, then where the dimension line goes; it shows the length in metres')
       ],
       [
         { label: 'Distance', icon: Ruler, title: 'Measure the distance between two snapped points (DI); ORTHO keeps it straight', onClick: () => a.cad?.onTool('dist'), active: a.cad?.tool === 'dist', disabled: !a.cad?.hasDrawing },
@@ -398,9 +416,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'Room area', icon: MousePointerClick, title: 'Click inside a room: its outline from the walls (doors closed), its area (RA)', onClick: () => a.cad?.onTool('room'), active: a.cad?.tool === 'room', disabled: !a.cad?.hasDrawing }
       ],
       [
-        { label: 'Add device', icon: CirclePlus, title: 'Place lights, sockets, a DB or ELV devices on the plan (DEV): choose it and its circuit, then click', onClick: () => a.cad?.onTool('dev'), active: a.cad?.tool === 'dev', disabled: !a.cad?.hasDrawing },
-        { label: 'Move', icon: Move, title: 'Move the selected device (M): click it, then click where it goes', onClick: () => a.cad?.onTool('move'), active: a.cad?.tool === 'move', disabled: !a.cad?.hasSelection },
-        { label: 'Delete', icon: Trash2, title: 'Delete the selected device (E or Delete); a light or socket is taken off its circuit', onClick: () => a.cad?.onDelete(), disabled: !a.cad?.hasSelection }
+        { label: 'Add device', icon: CirclePlus, title: 'Place lights, sockets, a DB or ELV devices on the plan (DEV): choose it and its circuit, then click', onClick: () => a.cad?.onTool('dev'), active: a.cad?.tool === 'dev', disabled: !a.cad?.hasDrawing }
       ],
       [
         { label: 'Layers', icon: Layers, title: 'Show or hide the layers panel (LAYER)', onClick: () => a.cad?.onLayers(), active: a.cad?.layersOn },

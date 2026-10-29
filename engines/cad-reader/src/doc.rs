@@ -704,15 +704,58 @@ impl CadDoc {
 #[derive(serde::Deserialize)]
 struct DeviceOut { layer: String, x: f64, y: f64, r: f64, text: String, label: String }
 
+/// Something drawn in the app: line / polyline (pts), circle (centre, r), arc (centre, r, a0 → a1 radians), text.
+#[derive(serde::Deserialize)]
+struct ShapeOut {
+    layer: String,
+    kind: String,
+    pts: Vec<(f64, f64)>,
+    #[serde(default)] closed: bool,
+    #[serde(default)] r: f64,
+    #[serde(default)] a0: f64,
+    #[serde(default)] a1: f64,
+    #[serde(default)] text: String,
+    #[serde(default)] h: f64,
+    #[serde(default)] rot: f64,
+}
+
 /// The drawing (DWG or DXF) saved as DXF with the devices placed in the app added on their own layers: each device as a
 /// circle with its letters inside and its label (circuit or type) beside it. The architect's entities are kept as read.
 #[wasm_bindgen(js_name = exportDxf)]
-pub fn export_dxf(bytes: Vec<u8>, devices_json: &str) -> Result<Vec<u8>, JsError> {
-    use acadrust::entities::{Circle, Text};
+pub fn export_dxf(bytes: Vec<u8>, devices_json: &str, shapes_json: &str) -> Result<Vec<u8>, JsError> {
+    use acadrust::entities::{Arc, Circle, Line, LwPolyline, LwVertex, Text};
     use acadrust::tables::Layer;
-    use acadrust::types::Vector3;
+    use acadrust::types::{Vector2, Vector3};
     let (mut doc, _) = read(bytes).map_err(|e| JsError::new(&e))?;
     let devices: Vec<DeviceOut> = serde_json::from_str(devices_json).map_err(|e| JsError::new(&e.to_string()))?;
+    let shapes: Vec<ShapeOut> = if shapes_json.is_empty() { vec![] } else { serde_json::from_str(shapes_json).map_err(|e| JsError::new(&e.to_string()))? };
+    let err = |e: acadrust::DxfError| JsError::new(&e.to_string());
+    for sh in &shapes {
+        if !doc.layers.contains(&sh.layer) { doc.layers.add(Layer::new(sh.layer.clone())).map_err(err)?; }
+        let e = match sh.kind.as_str() {
+            "line" if sh.pts.len() == 2 => { let mut l = Line::from_coords(sh.pts[0].0, sh.pts[0].1, 0.0, sh.pts[1].0, sh.pts[1].1, 0.0); l.common.layer = sh.layer.clone(); EntityType::Line(l) }
+            "line" | "pline" if sh.pts.len() >= 2 => {
+                let mut l = LwPolyline::new();
+                l.vertices = sh.pts.iter().map(|p| LwVertex::new(Vector2::new(p.0, p.1))).collect();
+                l.is_closed = sh.closed;
+                l.common.layer = sh.layer.clone();
+                EntityType::LwPolyline(l)
+            }
+            "circle" if !sh.pts.is_empty() => { let mut c = Circle::new(); c.center = Vector3::new(sh.pts[0].0, sh.pts[0].1, 0.0); c.radius = sh.r; c.common.layer = sh.layer.clone(); EntityType::Circle(c) }
+            "arc" if !sh.pts.is_empty() => {
+                let mut a = Arc::new();
+                a.center = Vector3::new(sh.pts[0].0, sh.pts[0].1, 0.0); a.radius = sh.r; a.start_angle = sh.a0; a.end_angle = sh.a1; a.common.layer = sh.layer.clone();
+                EntityType::Arc(a)
+            }
+            "text" if !sh.pts.is_empty() && !sh.text.is_empty() => {
+                let mut t = Text::new();
+                t.value = sh.text.clone(); t.insertion_point = Vector3::new(sh.pts[0].0, sh.pts[0].1, 0.0); t.height = sh.h; t.rotation = sh.rot; t.common.layer = sh.layer.clone();
+                EntityType::Text(t)
+            }
+            _ => continue,
+        };
+        doc.add_entity(e).map_err(err)?;
+    }
     for d in &devices {
         if !doc.layers.contains(&d.layer) { doc.layers.add(Layer::new(d.layer.clone())).map_err(|e| JsError::new(&e.to_string()))?; }
         let mut c = Circle::new();

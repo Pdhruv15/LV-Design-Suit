@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { INK, SNAP, SNAP_NAMES, type CadView } from '../../engines/cad/cadEngine';
 import { ortho as orthoFrom } from '../../model/cadMeasure';
+import { dimensionLines, segmentsOf } from '../../model/cadSketch';
+import type { SketchItem } from '../../types';
 
 type Pt = [number, number];
 
@@ -26,7 +28,7 @@ export function gridStep(scale: number): number {
 /** The drawing in a CAD model space: lines by layer and colour, texts at their height, a crosshair cursor with the snap
  * point under it, live coordinates. Wheel zooms at the cursor (two-finger scroll pans, pinch zooms), the middle button
  * or Space + drag pans, a middle double-click fits. */
-export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, onClick, marks, highlight, devices = [] }: {
+export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, onClick, marks, highlight, devices = [], sketch = [], selectedSketch, extraSnaps = [], preview = [] }: {
   view: CadView;
   layersOn: Uint8Array;
   toggles: CadToggles;
@@ -36,6 +38,12 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
   /** Segments of the object picked (start, end), drawn highlighted. */
   highlight?: [number, number] | null;
   devices?: CanvasDevice[];
+  /** What the engineer drew (drawing units), the one selected, and their snap points. */
+  sketch?: SketchItem[];
+  selectedSketch?: string | null;
+  extraSnaps?: { x: number; y: number; kind: number }[];
+  /** The object being drawn, following the cursor (drawn on the cursor layer). */
+  preview?: SketchItem[];
   /** Changes to fit the drawing to the window. */
   fitKey: number;
   /** The cursor in drawing units (absolute), snapped, and the snap kind's name. */
@@ -54,6 +62,8 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
   const lastAt = useRef<{ at: Pt; snap?: { p: Pt; kind: number } } | null>(null);
   const marksRef = useRef(marks);
   marksRef.current = marks;
+  const previewRef = useRef(preview);
+  previewRef.current = preview;
   const [o0, o1] = view.info.origin;
 
   // Lines batched per layer and colour, in drawing units relative to the origin.
@@ -99,11 +109,20 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
     ctx.fillStyle = bg; ctx.fillRect(0, 0, c.width, c.height);
     const { scale, ox, oy } = t;
     if (toggles.grid) {
+      // Grid lines: fine every step, stronger every fifth (in drawing units relative to the origin).
       const step = gridStep(scale);
-      ctx.fillStyle = colour('--cad-grid', '#3a4152');
-      const x0 = Math.floor(ox / step) * step, y0 = Math.floor(oy / step) * step;
-      for (let x = x0; x < ox + size.w / scale; x += step) for (let y = y0; y < oy + size.h / scale; y += step) {
-        ctx.fillRect(Math.round((x - ox) * scale * dpr), Math.round((size.h - (y - oy) * scale) * dpr), Math.max(1, dpr), Math.max(1, dpr));
+      const minor = colour('--cad-grid', '#2a3140'), major = colour('--cad-grid-major', '#3a4356');
+      const x0 = Math.floor(ox / step), y0 = Math.floor(oy / step);
+      ctx.lineWidth = Math.max(1, dpr * 0.5);
+      for (let i = x0; i * step < ox + size.w / scale; i += 1) {
+        const sx = Math.round((i * step - ox) * scale * dpr) + 0.5;
+        ctx.strokeStyle = i % 5 === 0 ? major : minor;
+        ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, c.height); ctx.stroke();
+      }
+      for (let j = y0; j * step < oy + size.h / scale; j += 1) {
+        const sy = Math.round((size.h - (j * step - oy) * scale) * dpr) + 0.5;
+        ctx.strokeStyle = j % 5 === 0 ? major : minor;
+        ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(c.width, sy); ctx.stroke();
       }
     }
     ctx.setTransform(dpr * scale, 0, 0, -dpr * scale, -dpr * ox * scale, dpr * (size.h + oy * scale));
@@ -119,6 +138,16 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
       ctx.strokeStyle = colour('--cad-snap', '#3df27a');
       ctx.lineWidth = 3 / scale;
       ctx.stroke(p);
+    }
+    // What the engineer drew, over the drawing.
+    const skC = colour('--cad-sketch', '#7fe3ff'), selSk = colour('--cad-snap', '#3df27a');
+    for (const it of sketch) {
+      if (it.kind === 'text') continue;
+      ctx.strokeStyle = it.id === selectedSketch ? selSk : skC;
+      ctx.lineWidth = (it.id === selectedSketch ? 3 : 1.5) / scale;
+      ctx.beginPath();
+      for (const [a, b] of segmentsOf(it)) { ctx.moveTo(a[0] - o0, a[1] - o1); ctx.lineTo(b[0] - o0, b[1] - o1); }
+      ctx.stroke();
     }
     // Devices placed in the app: symbols in drawing units (they zoom with the plan), letters and labels below.
     const lvC = colour('--cad-dev', '#f5c04a'), elvC = colour('--cad-elv', '#59c3ff'), selC = colour('--cad-snap', '#3df27a');
@@ -166,7 +195,23 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
       if (d.text) { ctx.font = `600 ${Math.min(px * 0.8, 40)}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.fillText(d.text, sx, sy + px * 0.3); }
       if (px >= 7 && d.label) { ctx.font = `${Math.min(Math.max(px * 0.6, 9), 16)}px system-ui, sans-serif`; ctx.textAlign = 'left'; ctx.fillText(d.label, sx + px * 1.3, sy + px * 0.3); }
     }
-  }, [t, size, batches, layersOn, toggles.grid, view, highlight, devices]); // eslint-disable-line react-hooks/exhaustive-deps -- colours read from CSS each draw
+    for (const it of sketch) {
+      const label = it.kind === 'text' ? { at: it.pts[0], s: it.text ?? '', h: it.h ?? 0, rot: it.rot ?? 0, align: 'left' as CanvasTextAlign }
+        : it.kind === 'dim' ? (() => { const d = dimensionLines(it.pts[0], it.pts[1], it.pts[2]); return { at: d.text, s: it.text ?? '', h: it.h ?? d.length * 0.04, rot: d.angle, align: 'center' as CanvasTextAlign }; })()
+        : null;
+      if (!label || !label.s) continue;
+      const px = label.h * scale;
+      if (px < 4) continue;
+      ctx.save();
+      ctx.translate((label.at[0] - o0 - ox) * scale, size.h - (label.at[1] - o1 - oy) * scale);
+      ctx.rotate(-label.rot);
+      ctx.font = `${Math.min(px, 200)}px system-ui, sans-serif`;
+      ctx.textAlign = label.align;
+      ctx.fillStyle = it.id === selectedSketch ? selSk : skC;
+      ctx.fillText(label.s, 0, 0);
+      ctx.restore();
+    }
+  }, [t, size, batches, layersOn, toggles.grid, view, highlight, devices, sketch, selectedSketch]); // eslint-disable-line react-hooks/exhaustive-deps -- colours read from CSS each draw
 
   /** The cursor: crosshair and pick box, and the snap marker with its name. */
   function drawCursor(at: Pt | null, snap?: { p: Pt; kind: number }) {
@@ -202,6 +247,19 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
           ctx.fillText(mk.label, q[0] + 18, q[1] - 15);
         }
       }
+    }
+    const pv = previewRef.current;
+    if (pv.length) {
+      ctx.strokeStyle = colour('--cad-sketch', '#7fe3ff');
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      for (const it of pv) for (const [a, b] of segmentsOf(it)) {
+        ctx.moveTo((a[0] - o0 - ox) * scale, size.h - (a[1] - o1 - oy) * scale);
+        ctx.lineTo((b[0] - o0 - ox) * scale, size.h - (b[1] - o1 - oy) * scale);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
     }
     if (!at) return;
     const sx = (at[0] - o0 - ox) * scale, sy = size.h - (at[1] - o1 - oy) * scale;
@@ -240,8 +298,14 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
     let at = raw;
     let snap: { p: Pt; kind: number } | undefined;
     if (toggles.osnap) {
-      const s = view.snap(raw[0], raw[1], 10 / v.scale, OSNAP_ALL, layersOn);
+      const r = 10 / v.scale;
+      const s = view.snap(raw[0], raw[1], r, OSNAP_ALL, layersOn);
       if (s.length === 3) snap = { p: [s[0], s[1]], kind: s[2] };
+      // Points on what was drawn in the app snap too; the nearer one wins.
+      for (const e of extraSnaps) {
+        const d = Math.hypot(e.x - raw[0], e.y - raw[1]);
+        if (d <= r && (!snap || d < Math.hypot(snap.p[0] - raw[0], snap.p[1] - raw[1]))) snap = { p: [e.x, e.y], kind: e.kind };
+      }
     }
     if (snap) at = snap.p;
     else if (toggles.snap) { const g = gridStep(v.scale); at = [Math.round(raw[0] / g) * g, Math.round(raw[1] / g) * g]; }
@@ -255,7 +319,7 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
   // After zoom / pan: the cursor's drawing point moves, so it is tracked again. When only the marks change (a pick, the
   // cursor moving in a tool), they are redrawn without reporting the cursor back (that would loop).
   useEffect(() => { if (mouse.current) track(mouse.current[0], mouse.current[1]); else drawCursor(null); }, [t]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { drawCursor(mouse.current ? lastAt.current?.at ?? null : null, mouse.current ? lastAt.current?.snap : undefined); }, [marks]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { drawCursor(mouse.current ? lastAt.current?.at ?? null : null, mouse.current ? lastAt.current?.snap : undefined); }, [marks, preview]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => { if (e.code === 'Space' && !(e.target instanceof HTMLInputElement)) { space.current = true; } };

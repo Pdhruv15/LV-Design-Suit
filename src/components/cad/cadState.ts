@@ -3,8 +3,9 @@ import type { CadView } from '../../engines/cad/cadEngine';
 import type { CadToggles } from './CadCanvas';
 
 /** The tool working on the drawing: none (a click inspects the object under it), a measuring tool, placing a device
- * (`dev`) or moving the selected one (`move`). */
-export type CadTool = 'none' | 'dist' | 'area' | 'room' | 'dev' | 'move';
+ * (`dev`), modifying the selected object (`move`, `copy`, `rotate`), drawing (`line`, `pline`, `rect`, `circle`, `arc`)
+ * or annotating (`text`, `dim`). */
+export type CadTool = 'none' | 'dist' | 'area' | 'room' | 'dev' | 'move' | 'copy' | 'rotate' | 'line' | 'pline' | 'rect' | 'circle' | 'arc' | 'text' | 'dim';
 
 const RECENT = (projectId: string | undefined) => `lvds.cad.${projectId ?? 'new'}`;
 /** The drawing a project had open in the CAD view last time on this computer (its path stays out of the project file). */
@@ -29,6 +30,8 @@ export function useCad(projectId: string | undefined) {
   const [showDevices, setShowDevices] = useState(true);
   /** Save DXF and Delete (ribbon), set by the page while it shows a drawing. */
   const actions = useRef<{ save: () => void; remove: () => void }>({ save: () => {}, remove: () => {} });
+  /** Text being typed for the TEXT tool: where it goes (drawing units). */
+  const [textAt, setTextAt] = useState<[number, number] | null>(null);
 
   const say = useCallback((line: string) => setHistory((h) => [...h.slice(-49), line]), []);
   const open = useCallback((v: CadView) => {
@@ -42,7 +45,7 @@ export function useCad(projectId: string | undefined) {
   const allLayers = useCallback((on: boolean) => setLayersOn((l) => new Uint8Array(l.length).fill(on ? 1 : 0)), []);
   const toggle = useCallback((k: keyof CadToggles) => setToggles((t) => ({ ...t, [k]: !t[k] })), []);
 
-  return { view, open, layersOn, setLayer, allLayers, toggles, toggle, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, history, say, tool, setTool, device, setDevice, feederId, setFeederId, boardId, setBoardId, levelKey, setLevelKey, selected, setSelected, showDevices, setShowDevices, actions };
+  return { view, open, layersOn, setLayer, allLayers, toggles, toggle, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, history, say, tool, setTool, device, setDevice, feederId, setFeederId, boardId, setBoardId, levelKey, setLevelKey, selected, setSelected, showDevices, setShowDevices, actions, textAt, setTextAt };
 }
 
 export type CadState = ReturnType<typeof useCad>;

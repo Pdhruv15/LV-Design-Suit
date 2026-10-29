@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import CadCanvas, { type CadMarks, type CadToggles, type CanvasDevice } from './CadCanvas';
 import { rememberedDrawing, type CadState, type CadTool } from './cadState';
 import { chooseDrawing, drawingWithDevices, reopenDrawing, sampleDrawing, type CadObject, type CadView } from '../../engines/cad/cadEngine';
-import { circuitLabel, finalCircuits, LV_PALETTE, moveItem, placedOn, placeItem, removeItem, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
+import { circuitLabel, finalCircuits, LV_PALETTE, moveItem, placedOn, placeItem, placeLvPoint, removeItem, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
+import { addSketch, arcThrough, dimensionLines, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, typedPoint, updateSketch } from '../../model/cadSketch';
+import type { SketchItem } from '../../types';
 import { ELV_PALETTE, elvPlacedOn, moveElv, placeElv, removeElv } from '../../components/elv/elvCadDevices';
 import { saveBinary } from '../../util/files';
 import { angleDeg, areaOf, distance, drawingUnits, inside, m, m2, roomAround, segmentsOn, WALL_LAYER } from '../../model/cadMeasure';
@@ -16,13 +18,14 @@ type Result =
   | { kind: 'dist'; a: Pt; b: Pt }
   | { kind: 'area'; points: Pt[]; how: 'corners' | 'object' | 'room'; name?: string }
   | { kind: 'object'; o: CadObject }
-  | { kind: 'device'; it: PlacedItem };
+  | { kind: 'device'; it: PlacedItem }
+  | { kind: 'sketch'; it: SketchItem };
 
 const hex = (rgb: number) => (rgb === 0xff000007 ? 'var(--cad-ink)' : `#${rgb.toString(16).padStart(6, '0')}`);
 const TOGGLES: { k: keyof CadToggles; label: string; key: string }[] = [
   { k: 'snap', label: 'SNAP', key: 'F9' }, { k: 'osnap', label: 'OSNAP', key: 'F3' }, { k: 'ortho', label: 'ORTHO', key: 'F8' }, { k: 'grid', label: 'GRID', key: 'F7' }
 ];
-const HELP = 'Commands: OPEN · SAVE (DXF with devices) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LAYER · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · Esc cancels, Enter closes an area.';
+const HELP = 'Commands: OPEN · SAVE (DXF) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LAYER · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · Esc cancels, Enter closes an area.';
 /** Device symbol size on the plan (radius, metres). */
 const DEVICE_R_M = 0.2;
 const PROMPT: Record<CadTool, string> = {
@@ -31,8 +34,20 @@ const PROMPT: Record<CadTool, string> = {
   area: 'AREA  Specify first corner point or [Object]:',
   room: 'ROOM AREA  Click inside a room:',
   dev: 'DEV  Specify insertion point:',
-  move: 'MOVE  Specify the new point:'
+  move: 'MOVE  Select object, then specify base point:',
+  copy: 'COPY  Select object, then specify base point:',
+  rotate: 'ROTATE  Select object, then specify base point:',
+  line: 'LINE  Specify first point:',
+  pline: 'PLINE  Specify start point:',
+  rect: 'RECTANG  Specify first corner point:',
+  circle: 'CIRCLE  Specify center point:',
+  arc: 'ARC  Specify start point:',
+  text: 'TEXT  Specify start point of text:',
+  dim: 'DIM  Specify first extension line origin:'
 };
+/** Layers for what is drawn in the app (written into the DXF on save). */
+const DRAW_LAYER = 'LV-SKETCH', ANNO_LAYER = 'LV-ANNO';
+const DRAW_TOOLS: CadTool[] = ['line', 'pline', 'rect', 'circle', 'arc', 'text', 'dim', 'move', 'copy', 'rotate'];
 
 /** The CAD view: a DWG / DXF drawing opened natively, as a CAD program shows it — model space, crosshair, snaps, layers,
  * a command line and a status bar. Engine in Rust (WebAssembly), desktop and web alike. Measure a distance, an area (by
@@ -77,7 +92,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   }, [view]); // eslint-disable-line react-hooks/exhaustive-deps -- once, when the page first shows no drawing
 
   // A tool chosen (ribbon or command line): start it afresh and say what it asks for.
-  useEffect(() => { setPoints([]); setObjectMode(false); cad.say(`Command: ${PROMPT[tool]}`); }, [tool]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setPoints([]); setObjectMode(false); cad.setTextAt(null); cad.say(`Command: ${PROMPT[tool]}`); }, [tool]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Walls for Room area: layers named WALL / PARTITION / COLUMN that are shown, else every shown layer.
   const walls = useMemo(() => {
@@ -95,6 +110,11 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   const item = palette.find((x) => x.id === cad.device) ?? palette[0];
   const circuits = useMemo(() => finalCircuits(project), [project]);
   const selectedItem = placed.find((d) => d.key === cad.selected) ?? null;
+  // What the engineer drew on this drawing (drawing units), its snap points, and the drawn object selected.
+  const sketch = useMemo(() => (view ? sketchOf(project, view.file) : []), [project, view]);
+  const sketchSnaps = useMemo(() => snapPoints(sketch), [sketch]);
+  const selSketch = sketch.find((it) => `sk:${it.id}` === cad.selected) ?? null;
+  const textH = 0.25 / units.factor;
   const rUnits = DEVICE_R_M / units.factor;
   const devices: CanvasDevice[] = cad.showDevices ? placed.map((d) => ({
     key: d.key, x: d.x / units.factor, y: d.y / units.factor, r: d.what === 'board' ? rUnits * 2 : rUnits, shape: d.symbol.shape, text: d.symbol.text,
@@ -110,7 +130,8 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   };
   const change = (next: Project, message: string) => { onChange(next, message); cad.say(message); };
   function removeSelected() {
-    if (!selectedItem) { cad.say('ERASE  Select a device first (click it).'); return; }
+    if (selSketch && view) { change(removeSketch(project, view.file, selSketch.id), `${selSketch.kind === 'pline' ? 'Polyline' : selSketch.kind[0].toUpperCase() + selSketch.kind.slice(1)} erased · ⌘Z to undo`); cad.setSelected(null); setResult(null); return; }
+    if (!selectedItem) { cad.say('ERASE  Select an object first (click it).'); return; }
     change(selectedItem.what === 'elv' ? removeElv(project, selectedItem.id) : removeItem(project, selectedItem), `${selectedItem.label} deleted${selectedItem.what === 'lv' ? ` — taken off ${selectedItem.detail.split(' · ')[0]}` : ''} · ⌘Z to undo`);
     cad.setSelected(null); setResult(null);
   }
@@ -118,10 +139,10 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     if (!view) return;
     try {
       const out = placed.map((d) => ({ layer: d.what === 'lv' ? 'E-LV-POINTS' : d.what === 'elv' ? 'E-ELV-DEVICES' : 'E-BOARDS', x: d.x / units.factor, y: d.y / units.factor, r: rUnits * (d.what === 'board' ? 2 : 1), text: d.symbol.text, label: d.what === 'lv' ? d.detail.split(' · ')[0] : d.label }));
-      const bytes = await drawingWithDevices(view, out);
+      const bytes = await drawingWithDevices(view, out, shapesOut(sketch, units.factor));
       const name = `${view.file.replace(/\.(dwg|dxf)$/i, '')} - with devices.dxf`;
       const msg = await saveBinary(name, bytes, 'DXF drawing', 'dxf', 'application/dxf');
-      if (msg) { cad.say(`SAVE  ${msg} (${placed.length} device${placed.length === 1 ? '' : 's'} on E-LV-POINTS / E-ELV-DEVICES / E-BOARDS)`); onStatus(msg); }
+      if (msg) { cad.say(`SAVE  ${msg} (${placed.length} device${placed.length === 1 ? '' : 's'} on E-LV-POINTS / E-ELV-DEVICES / E-BOARDS, ${sketch.length} drawn object${sketch.length === 1 ? '' : 's'} on ${DRAW_LAYER} / ${ANNO_LAYER})`); onStatus(msg); }
     } catch (e) { const msg = e instanceof Error ? e.message : String(e); cad.say(msg); onStatus(msg); }
   }
   cad.actions.current = { save: () => void saveDxf(), remove: removeSelected };
@@ -141,12 +162,98 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     setPoints([]);
   }
 
+  const draw = (item: Omit<SketchItem, 'id'>, what: string) => {
+    if (!view) return;
+    const { project: next, id } = addSketch(project, view.file, item);
+    change(next, `${what} · ⌘Z to undo`);
+    return id;
+  };
+  /** The object a modify tool works on: the drawn object or the device under the click. */
+  const selectAt = (at: Pt, pixel: number): boolean => {
+    const d = deviceAt(at, pixel);
+    if (d) { cad.setSelected(d.key); setResult({ kind: 'device', it: d }); return true; }
+    const sk = itemAt(sketch, at, 6 * pixel);
+    if (sk) { cad.setSelected(`sk:${sk.id}`); setResult({ kind: 'sketch', it: sk }); return true; }
+    return false;
+  };
+  /** Moves (or copies) the selected object by (dx, dy) drawing units. */
+  function shift(dx: number, dy: number, copy: boolean) {
+    if (!view || !floor && !selSketch) return;
+    if (selSketch) {
+      if (copy) draw({ ...moved(selSketch, dx, dy), id: undefined } as Omit<SketchItem, 'id'>, 'Copied');
+      else change(updateSketch(project, view.file, moved(selSketch, dx, dy)), 'Moved · ⌘Z to undo');
+      return;
+    }
+    if (!selectedItem || !floor) return;
+    const [x, y] = [selectedItem.x + dx * units.factor, selectedItem.y + dy * units.factor];
+    if (!copy) { change(selectedItem.what === 'elv' ? moveElv(project, selectedItem.id, x, y) : moveItem(project, selectedItem, x, y, floor.ref), `${selectedItem.label} moved · ⌘Z to undo`); return; }
+    if (selectedItem.what === 'lv') {
+      const src = (project.lvPoints ?? []).find((p) => p.id === selectedItem.id)!;
+      change(placeLvPoint(project, floor.ref, src.type, src.feederId, x, y).project, `${selectedItem.label} copied onto ${selectedItem.detail.split(' · ')[0]} · ⌘Z to undo`);
+    } else if (selectedItem.what === 'elv') {
+      const src = (project.elvDevices ?? []).find((p) => p.id === selectedItem.id)!;
+      change(placeElv(project, src.type, floor.ref, x, y).project, `${selectedItem.label} copied · ⌘Z to undo`);
+    } else cad.say('COPY  A board is one item; place another board with Add device.');
+  }
+
   function click(at: Pt, pixel: number) {
     if (!view) return;
+    const last = points[points.length - 1];
+    if (tool === 'move' || tool === 'copy' || tool === 'rotate') {
+      if (!selSketch && !selectedItem) {
+        if (selectAt(at, pixel)) cad.say(`${tool.toUpperCase()}  Specify base point:`); else cad.say(`${tool.toUpperCase()}  Select object:`);
+        return;
+      }
+      if (tool === 'rotate' && !selSketch) { cad.say('ROTATE  Drawn objects only (devices keep their orientation).'); return; }
+      if (!points.length) { setPoints([at]); cad.say(tool === 'rotate' ? 'ROTATE  Specify rotation angle (degrees) or a point:' : `${tool.toUpperCase()}  Specify second point:`); return; }
+      const base = points[0];
+      if (tool === 'rotate') {
+        const a = Math.atan2(at[1] - base[1], at[0] - base[0]);
+        change(updateSketch(project, view.file, rotated(selSketch!, base, a)), `Rotated ${(a * 180 / Math.PI).toFixed(2)}° · ⌘Z to undo`);
+        setPoints([]); cad.setSelected(null); setResult(null); cad.setTool('none'); return;
+      }
+      shift(at[0] - base[0], at[1] - base[1], tool === 'copy');
+      if (tool === 'move') { setPoints([]); cad.setSelected(null); setResult(null); cad.setTool('none'); }
+      return;
+    }
+    if (tool === 'line') {
+      if (last) draw({ kind: 'line', layer: DRAW_LAYER, pts: [last, at] }, `Line ${m(toM(distance(last, at)))}`);
+      setPoints([at]); cad.say('LINE  Specify next point or Enter to stop:'); return;
+    }
+    if (tool === 'pline') {
+      if (points.length >= 3 && distance(at, points[0]) <= 8 * pixel) { finishPline(true); return; }
+      setPoints((p) => [...p, at]); cad.say('PLINE  Specify next point, C to close, Enter to finish:'); return;
+    }
+    if (tool === 'rect') {
+      if (!last) { setPoints([at]); cad.say('RECTANG  Specify other corner point:'); return; }
+      const pts = rectangle(last, at);
+      draw({ kind: 'pline', layer: DRAW_LAYER, pts, closed: true }, `Rectangle ${m(toM(Math.abs(at[0] - last[0])))} × ${m(toM(Math.abs(at[1] - last[1])))}`);
+      setPoints([]); cad.say(PROMPT.rect); return;
+    }
+    if (tool === 'circle') {
+      if (!last) { setPoints([at]); cad.say('CIRCLE  Specify radius (a point, or type it):'); return; }
+      finishCircle(distance(last, at)); return;
+    }
+    if (tool === 'arc') {
+      if (points.length < 2) { setPoints((p) => [...p, at]); cad.say(points.length ? 'ARC  Specify end point:' : 'ARC  Specify second point:'); return; }
+      const a = arcThrough(points[0], points[1], at);
+      if (!a) cad.say('ARC  The three points are in line; pick another end point.');
+      else { draw({ ...a, layer: DRAW_LAYER } as Omit<SketchItem, 'id'>, `Arc radius ${m(toM(a.r ?? 0))}`); setPoints([]); cad.say(PROMPT.arc); }
+      return;
+    }
+    if (tool === 'text') { cad.setTextAt(at); cad.say('TEXT  Enter text (then Enter):'); input.current?.focus(); return; }
+    if (tool === 'dim') {
+      if (points.length < 2) { setPoints((p) => [...p, at]); cad.say(points.length ? 'DIM  Specify dimension line location:' : 'DIM  Specify second extension line origin:'); return; }
+      const len = distance(points[0], points[1]);
+      draw({ kind: 'dim', layer: ANNO_LAYER, pts: [points[0], points[1], at], text: toM(len).toFixed(2), h: textH * 0.8 }, `Dimension ${m(toM(len))}`);
+      setPoints([]); cad.say(PROMPT.dim); return;
+    }
     if (tool === 'none') {
       const d = deviceAt(at, pixel);
       if (d) { cad.setSelected(d.key); setResult({ kind: 'device', it: d }); cad.say(`LIST  ${d.label}${d.detail ? ` · ${d.detail}` : ''}${d.room ? ` · ${d.room}` : ''}`); return; }
       cad.setSelected(null);
+      const sk = itemAt(sketch, at, 6 * pixel);
+      if (sk) { cad.setSelected(`sk:${sk.id}`); setResult({ kind: 'sketch', it: sk }); cad.say(`LIST  ${sk.kind === 'pline' ? 'Polyline' : sk.kind} on ${sk.layer} (drawn here)`); return; }
       const o = view.pick(at[0], at[1], 6 * pixel, cad.layersOn);
       setResult(o ? { kind: 'object', o } : null);
       if (o) cad.say(`LIST  ${o.kind}${o.block ? ` ${o.block}` : ''} on ${view.info.layers[o.layer]?.name ?? '?'}${o.length !== undefined && !o.closed ? `, length ${m(toM(o.length))}` : ''}${o.area !== undefined ? `, area ${m2(toM2(o.area))}` : ''}`);
@@ -178,11 +285,6 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
           : placeItem(project, item, floor.ref, x, y, { feederId: cad.feederId, boardId: cad.boardId });
         change(r.project, `${r.message} · ⌘Z to undo`);
       } catch (e) { cad.say(`DEV  ${e instanceof Error ? e.message : String(e)}`); }
-    } else if (tool === 'move') {
-      if (!selectedItem || !floor) { cad.say('MOVE  Select a device first (Esc, then click it).'); cad.setTool('none'); return; }
-      const [x, y] = [at[0] * units.factor, at[1] * units.factor];
-      change(selectedItem.what === 'elv' ? moveElv(project, selectedItem.id, x, y) : moveItem(project, selectedItem, x, y, floor.ref), `${selectedItem.label} moved · ⌘Z to undo`);
-      cad.setTool('none');
     } else if (tool === 'room') {
       const r = roomAround(walls, at, units.factor);
       if (!r) { cad.say('ROOM AREA  No closed room around that point (open to the outside, or over 50 m across). Use AREA and click its corners.'); return; }
@@ -191,9 +293,42 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     }
   }
 
+  function finishPline(closed: boolean) {
+    if (points.length >= 2) draw({ kind: 'pline', layer: DRAW_LAYER, pts: points, closed }, `Polyline (${points.length} points${closed ? ', closed' : ''})`);
+    setPoints([]); cad.say(PROMPT.pline);
+  }
+  function finishCircle(r: number) {
+    if (!points[0] || r <= 0) return;
+    draw({ kind: 'circle', layer: DRAW_LAYER, pts: [points[0]], r }, `Circle radius ${m(toM(r))}`);
+    setPoints([]); cad.say(PROMPT.circle);
+  }
+
   function run(text: string) {
-    const c = text.trim().toUpperCase().replace(/\s+/g, ' ');
-    if (!c) { if (tool === 'area' && points.length >= 3) finishArea(points); return; }
+    const raw = text.trim();
+    const c = raw.toUpperCase().replace(/\s+/g, ' ');
+    // Typed input for the tool in use: the text of TEXT, a radius, an angle, a point or a distance.
+    if (tool === 'text' && cad.textAt && raw) {
+      draw({ kind: 'text', layer: ANNO_LAYER, pts: [cad.textAt], text: raw, h: textH }, `Text "${raw}"`);
+      cad.setTextAt(null); cad.say(PROMPT.text); return;
+    }
+    if (!c) {
+      if (tool === 'area' && points.length >= 3) finishArea(points);
+      else if (tool === 'pline') finishPline(false);
+      else if (tool === 'line') { setPoints([]); cad.say(PROMPT.line); }
+      else if (tool === 'copy') { setPoints([]); cad.setSelected(null); setResult(null); cad.setTool('none'); }
+      return;
+    }
+    if (tool === 'pline' && c === 'C' && points.length >= 3) { finishPline(true); return; }
+    if (tool === 'circle' && points.length === 1 && /^-?[\d.]+$/.test(c)) { finishCircle(Number(c)); return; }
+    if (tool === 'rotate' && selSketch && points.length === 1 && /^-?[\d.]+$/.test(c)) {
+      const a = (Number(c) * Math.PI) / 180;
+      if (view) change(updateSketch(project, view.file, rotated(selSketch, points[0], a)), `Rotated ${Number(c).toFixed(2)}° · ⌘Z to undo`);
+      setPoints([]); cad.setSelected(null); setResult(null); cad.setTool('none'); return;
+    }
+    if (DRAW_TOOLS.includes(tool) || tool === 'dist' || tool === 'area') {
+      const p = typedPoint(raw, points[points.length - 1], cursor.at);
+      if (p) { cad.say(`  ${raw}`); click(p, 1e-9); return; }
+    }
     cad.say(`Command: ${c}`);
     if (c === 'OPEN') openFile();
     else if (['FIT', 'ZE', 'Z E', 'ZOOM E', 'ZOOM EXTENTS'].includes(c)) cad.fit();
@@ -203,7 +338,16 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     else if (c === 'RA' || c === 'ROOM' || c === 'ROOMAREA') cad.setTool('room');
     else if (c === 'LI' || c === 'LIST') cad.setTool('none');
     else if (c === 'DEV' || c === 'DEVICE' || c === 'INSERT' || c === 'I') cad.setTool('dev');
-    else if (c === 'M' || c === 'MOVE') { if (selectedItem) cad.setTool('move'); else cad.say('MOVE  Select a device first (click it).'); }
+    else if (c === 'M' || c === 'MOVE') cad.setTool('move');
+    else if (c === 'CO' || c === 'CP' || c === 'COPY') cad.setTool('copy');
+    else if (c === 'RO' || c === 'ROTATE') cad.setTool('rotate');
+    else if (c === 'L' || c === 'LINE') cad.setTool('line');
+    else if (c === 'PL' || c === 'PLINE' || c === 'POLYLINE') cad.setTool('pline');
+    else if (c === 'REC' || c === 'RECTANG' || c === 'RECTANGLE') cad.setTool('rect');
+    else if (c === 'C' || c === 'CIRCLE') cad.setTool('circle');
+    else if (c === 'A' || c === 'ARC') cad.setTool('arc');
+    else if (c === 'T' || c === 'DT' || c === 'TEXT' || c === 'MT') cad.setTool('text');
+    else if (c === 'DIM' || c === 'DIMALIGNED' || c === 'DAL' || c === 'DLI') cad.setTool('dim');
     else if (c === 'E' || c === 'ERASE' || c === 'DEL' || c === 'DELETE') removeSelected();
     else if (c === 'SAVE' || c === 'DXFOUT' || c === 'SAVEAS') void saveDxf();
     else if (c === 'LA' || c === 'LAYER' || c === 'LAYERS') cad.setShowLayers(!cad.showLayers);
@@ -224,11 +368,12 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     if (fn[e.key]) { e.preventDefault(); cad.toggle(fn[e.key]); return; }
     if (e.key === 'Escape' && (!typing || e.target === input.current)) {
       setCmd(''); input.current?.blur();
-      if (points.length || objectMode) { setPoints([]); setObjectMode(false); cad.say('*Cancel*'); } else if (tool !== 'none') cad.setTool('none'); else setResult(null);
+      if (points.length || objectMode || cad.textAt) { setPoints([]); setObjectMode(false); cad.setTextAt(null); cad.say('*Cancel*'); } else if (tool !== 'none') cad.setTool('none'); else { setResult(null); cad.setSelected(null); }
       return;
     }
     if (e.key === 'Enter' && !typing && tool === 'area' && points.length >= 3) { finishArea(points); return; }
-    if ((e.key === 'Delete' || e.key === 'Backspace') && !typing && selectedItem) { e.preventDefault(); removeSelected(); return; }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && !typing && (selectedItem || selSketch)) { e.preventDefault(); removeSelected(); return; }
+    if (e.key === 'Enter' && !typing && (tool === 'pline' || tool === 'line' || tool === 'copy')) { run(''); return; }
     if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && /^[a-zA-Z?]$/.test(e.key)) input.current?.focus();
   };
   useEffect(() => {
@@ -237,7 +382,28 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     return () => window.removeEventListener('keydown', key);
   }, []);
 
-  const marks: CadMarks | null = result?.kind === 'dist' ? { points: [result.a, result.b], label: m(toM(distance(result.a, result.b))) }
+  // The object being drawn (or moved / copied / rotated), following the cursor.
+  const cur = cursor.at;
+  const lastPt = points[points.length - 1];
+  const preview: SketchItem[] = !cur ? [] : (() => {
+    const base = { id: '_', layer: '' };
+    if (tool === 'line' && lastPt) return [{ ...base, kind: 'line', pts: [lastPt, cur] }];
+    if (tool === 'pline' && points.length) return [{ ...base, kind: 'line', pts: [...points, cur] }];
+    if (tool === 'rect' && lastPt) return [{ ...base, kind: 'pline', pts: rectangle(lastPt, cur), closed: true }];
+    if (tool === 'circle' && lastPt) return [{ ...base, kind: 'circle', pts: [lastPt], r: distance(lastPt, cur) }];
+    if (tool === 'arc' && points.length === 1) return [{ ...base, kind: 'line', pts: [points[0], cur] }];
+    if (tool === 'arc' && points.length === 2) { const a = arcThrough(points[0], points[1], cur); return a ? [{ ...base, ...a } as SketchItem] : []; }
+    if (tool === 'dim' && points.length === 1) return [{ ...base, kind: 'line', pts: [points[0], cur] }];
+    if (tool === 'dim' && points.length === 2) return [{ ...base, kind: 'dim', pts: [points[0], points[1], cur] }];
+    if ((tool === 'move' || tool === 'copy') && lastPt && selSketch) return [moved(selSketch, cur[0] - lastPt[0], cur[1] - lastPt[1])];
+    if ((tool === 'move' || tool === 'copy') && lastPt) return [{ ...base, kind: 'line', pts: [lastPt, cur] }];
+    if (tool === 'rotate' && lastPt && selSketch) return [rotated(selSketch, lastPt, Math.atan2(cur[1] - lastPt[1], cur[0] - lastPt[0]))];
+    return [];
+  })();
+  const liveLabel = cur && lastPt && ['line', 'pline', 'dim', 'move', 'copy'].includes(tool) ? `${m(toM(distance(lastPt, cur)))}  ${angleDeg(lastPt, cur).toFixed(1)}°`
+    : cur && lastPt && tool === 'circle' ? `R ${m(toM(distance(lastPt, cur)))}` : undefined;
+  const marks: CadMarks | null = DRAW_TOOLS.includes(tool) && lastPt ? { points: [lastPt], live: true, label: liveLabel }
+    : result?.kind === 'dist' ? { points: [result.a, result.b], label: m(toM(distance(result.a, result.b))) }
     : result?.kind === 'area' && result.how !== 'object' ? { points: result.points, closed: true, label: m2(toM2(areaOf(result.points).area)) }
     : points.length ? (() => {
       const live = cursor.at ? [...points, cursor.at] : points;
@@ -253,7 +419,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       <div className="cad-work">
         {view ? (
           <div className="cad-stage">
-            <CadCanvas view={view} layersOn={cad.layersOn} toggles={cad.toggles} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} />
+            <CadCanvas view={view} layersOn={cad.layersOn} toggles={cad.toggles} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} sketch={sketch} selectedSketch={selSketch?.id ?? null} extraSnaps={sketchSnaps} preview={preview} />
             <div className="cad-coords">{cursor.at ? `X ${cursor.at[0].toFixed(2)}   Y ${cursor.at[1].toFixed(2)}   ${units.label}` : units.label}</div>
           </div>
         ) : (
@@ -270,7 +436,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
           <aside className="cad-side">
             <h4>Result</h4>
             <div className="cad-res">
-              {result ? <ResultView r={result} view={view!} toM={toM} toM2={toM2} project={project} onChange={onChange} onMove={() => cad.setTool('move')} onRemove={removeSelected} /> : view ? (
+              {result ? <ResultView r={result} view={view!} toM={toM} toM2={toM2} project={project} onChange={onChange} onMove={() => cad.setTool('move')} onRemove={removeSelected} onCopy={() => cad.setTool('copy')} onRotate={() => cad.setTool('rotate')} /> : view ? (
                 <>{view.file}<br /><span className="m">{view.info.format} · {units.label}{units.assumed ? ' (not set in the drawing: taken as mm)' : ''} · {view.info.segments.toLocaleString()} lines · {view.info.texts.length} texts</span><br /><span className="m">{PROMPT[tool]}</span></>
               ) : <span className="m">No drawing open.</span>}
               {view && SAMPLE_PLANS.some((x) => x.file === view.file) && (
@@ -345,10 +511,28 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
 }
 
 /** The Result panel: a distance, an area (with Add as room…), or what the clicked object is. */
-function ResultView({ r, view, toM, toM2, project, onChange, onMove, onRemove }: {
+function ResultView({ r, view, toM, toM2, project, onChange, onMove, onRemove, onCopy, onRotate }: {
   r: Result; view: CadView; toM: (v: number) => number; toM2: (v: number) => number; project: Project; onChange: (next: Project, message: string) => void;
-  onMove: () => void; onRemove: () => void;
+  onMove: () => void; onRemove: () => void; onCopy: () => void; onRotate: () => void;
 }) {
+  if (r.kind === 'sketch') {
+    const it = r.it;
+    const len = segmentsOf(it).reduce((t, [a, b]) => t + distance(a, b), 0);
+    const name = { line: 'Line', pline: it.closed ? 'Closed polyline' : 'Polyline', circle: 'Circle', arc: 'Arc', text: 'Text', dim: 'Dimension' }[it.kind];
+    return (
+      <>
+        <div><b>{name}</b> <span className="m">drawn here · {it.layer}</span></div>
+        <dl className="cad-props">
+          {it.kind === 'text' && <><dt>Text</dt><dd>{it.text}</dd></>}
+          {it.kind === 'dim' && <><dt>Measures</dt><dd>{m(toM(dimensionLines(it.pts[0], it.pts[1], it.pts[2]).length))}</dd></>}
+          {it.r !== undefined && <><dt>Radius</dt><dd>{m(toM(it.r))}</dd></>}
+          {it.kind !== 'text' && it.kind !== 'dim' && <><dt>{it.closed || it.kind === 'circle' ? 'Perimeter' : 'Length'}</dt><dd>{m(toM(len))}</dd></>}
+          {it.closed && <><dt>Area</dt><dd>{m2(toM2(areaOf(it.pts).area))}</dd></>}
+        </dl>
+        <div className="cad-devbtns"><button className="chip" onClick={onMove}>Move</button><button className="chip" onClick={onCopy}>Copy</button><button className="chip" onClick={onRotate}>Rotate</button><button className="chip" onClick={onRemove}>Erase</button></div>
+      </>
+    );
+  }
   if (r.kind === 'device') {
     const it = r.it;
     return (
@@ -359,7 +543,7 @@ function ResultView({ r, view, toM, toM2, project, onChange, onMove, onRemove }:
           <dt>Room</dt><dd>{it.room ?? '—'}</dd>
           <dt>Position</dt><dd>{it.x.toFixed(2)}, {it.y.toFixed(2)} m</dd>
         </dl>
-        <div className="cad-devbtns"><button className="chip" onClick={onMove}>Move</button><button className="chip" onClick={onRemove}>Delete</button></div>
+        <div className="cad-devbtns"><button className="chip" onClick={onMove}>Move</button><button className="chip" onClick={onCopy}>Copy</button><button className="chip" onClick={onRemove}>Delete</button></div>
       </>
     );
   }
