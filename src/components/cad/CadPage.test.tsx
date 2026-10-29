@@ -367,5 +367,18 @@ describe('CAD view', () => {
     expect(text).toContain('E-TRAY');
     expect(text).toContain('CT 450');
   });
+
+  it('finds the fittings of the trays drawn: a branch of another width is a tee', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    await command('CT');
+    for (const [x, y] of [[2000, 3000], [8000, 3000]]) await clickAt(x, y);
+    await command('');
+    act(() => state.setTray({ widthMm: 150, route: '' }));
+    for (const [x, y] of [[5000, 3000], [5000, 7000]]) await clickAt(x, y);
+    await command('');
+    expect(document.querySelector('[aria-label="Fittings on this plan"]')?.textContent).toBe('Fittings on this plan1 × Tee 300 × 150');
+  });
 });
 

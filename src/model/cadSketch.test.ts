@@ -83,9 +83,10 @@ describe('cable tray runs', () => {
 
   it('writes the edges, the centreline and the label into the DXF', () => {
     const out = shapesOut([run], 0.001);
-    expect(out.map((o) => o.kind)).toEqual(['line', 'line', 'line', 'line', 'line', 'line', 'pline', 'text']);
+    expect(out.map((o) => o.kind)).toEqual(['line', 'line', 'line', 'line', 'line', 'line', 'pline', 'text', 'text']);
     expect(out.every((o) => o.layer === 'E-TRAY')).toBe(true);
     expect(out[7]).toMatchObject({ text: 'CT 300', h: 150 });
+    expect(out[8]).toMatchObject({ text: 'Bend 90° 300', h: 100 }); // its fitting
   });
 
   it('keeps the tray when moved, copied or rotated', () => {

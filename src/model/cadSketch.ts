@@ -1,3 +1,4 @@
+import { fittingLabel, trayFittings } from './cadTrayFittings';
 import type { CadSketch, Project, SketchItem } from '../types';
 
 type Pt = [number, number];
@@ -107,9 +108,10 @@ export function segmentsOf(it: SketchItem): [Pt, Pt][] {
 export const TRAY_LAYER = 'E-TRAY';
 export const TRAY_WIDTHS = [50, 100, 150, 200, 300, 450, 600, 750, 900];
 
-/** The two edges of a tray run, `widthMm` apart around its centreline (mitred at the bends); `unitsPerMm` converts
- * the width to drawing units. */
-export function trayEdges(it: SketchItem, unitsPerMm: number): [Pt, Pt][] {
+/** The two edges of a tray run, `widthMm` apart around its centreline (mitred at the bends), and its end lines except
+ * where the end joins another tray (`joined`: "<id>:start" / "<id>:end", from trayFittings); `unitsPerMm` converts the
+ * width to drawing units. */
+export function trayEdges(it: SketchItem, unitsPerMm: number, joined?: Set<string>): [Pt, Pt][] {
   const pts = it.pts, half = ((it.tray?.widthMm ?? 0) * unitsPerMm) / 2;
   if (!it.tray || pts.length < 2 || half <= 0) return [];
   const normal = (a: Pt, b: Pt): Pt => { const d = dist(a, b) || 1; return [-(b[1] - a[1]) / d, (b[0] - a[0]) / d]; };
@@ -123,7 +125,10 @@ export function trayEdges(it: SketchItem, unitsPerMm: number): [Pt, Pt][] {
   });
   const edge = (q: Pt[]) => q.slice(1).map((b, i): [Pt, Pt] => [q[i], b]);
   const l = side(1), r = side(-1);
-  return [...edge(l), ...edge(r), [l[0], r[0]], [l[l.length - 1], r[r.length - 1]]];
+  const caps: [Pt, Pt][] = [];
+  if (!joined?.has(`${it.id}:start`)) caps.push([l[0], r[0]]);
+  if (!joined?.has(`${it.id}:end`)) caps.push([l[l.length - 1], r[r.length - 1]]);
+  return [...edge(l), ...edge(r), ...caps];
 }
 
 /** The label of a tray run, "CT 300" (with its route once assigned), at the middle of its middle piece, along it and
@@ -180,7 +185,11 @@ export function itemAt(items: SketchItem[], at: Pt, tol: number): SketchItem | u
 /** Drawn items as the engine writes them into a DXF (drawing units). */
 export interface ShapeOut { layer: string; kind: 'line' | 'pline' | 'circle' | 'arc' | 'text'; pts: Pt[]; closed?: boolean; r?: number; a0?: number; a1?: number; text?: string; h?: number; rot?: number }
 export function shapesOut(items: SketchItem[], metresPerUnit: number): ShapeOut[] {
-  return items.flatMap((it): ShapeOut[] => {
+  const unitsPerMm = 0.001 / metresPerUnit;
+  const { fittings, joined } = trayFittings(items, unitsPerMm);
+  // Tray fittings are written as their labels at the joint ("Tee 300 × 150").
+  const fittingTexts = fittings.map((f): ShapeOut => ({ layer: TRAY_LAYER, kind: 'text', pts: [[f.at[0] + 120 * unitsPerMm, f.at[1] + 120 * unitsPerMm]], text: fittingLabel(f), h: 100 * unitsPerMm, rot: 0 }));
+  return [...items.flatMap((it): ShapeOut[] => {
     if (it.kind === 'dim') {
       const d = dimensionLines(it.pts[0], it.pts[1], it.pts[2]);
       return [...d.lines.map((l): ShapeOut => ({ layer: it.layer, kind: 'line', pts: l })),
@@ -188,14 +197,13 @@ export function shapesOut(items: SketchItem[], metresPerUnit: number): ShapeOut[
     }
     if (it.tray) {
       // The tray's edges and ends, its centreline, and a label "CT 300" (with its route once assigned) at the middle.
-      const unitsPerMm = 0.001 / metresPerUnit;
       const l = trayLabel(it);
-      return [...trayEdges(it, unitsPerMm).map((e): ShapeOut => ({ layer: it.layer, kind: 'line', pts: e })), { layer: it.layer, kind: 'pline', pts: it.pts },
+      return [...trayEdges(it, unitsPerMm, joined).map((e): ShapeOut => ({ layer: it.layer, kind: 'line', pts: e })), { layer: it.layer, kind: 'pline', pts: it.pts },
         { layer: it.layer, kind: 'text', pts: [l.at], text: l.text, h: 150 * unitsPerMm, rot: l.rot }];
     }
     if (it.kind === 'line' && it.pts.length > 2) return [{ layer: it.layer, kind: 'pline', pts: it.pts }];
     return [{ layer: it.layer, kind: it.kind, pts: it.pts, closed: it.closed, r: it.r, a0: it.a0, a1: it.a1, text: it.text, h: it.h, rot: it.rot }];
-  });
+  }), ...fittingTexts];
 }
 
 /** A point typed on the command line, in drawing units: "x,y" (absolute), "@dx,dy" (from the last point), "@d<angle"

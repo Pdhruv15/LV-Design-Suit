@@ -5,6 +5,7 @@ import { chooseDrawing, drawingWithDevices, reopenDrawing, sampleDrawing, type C
 import { circuitLabel, finalCircuits, LV_PALETTE, moveItem, placedOn, placeItem, placeLvPoint, removeItem, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
 import { addSketch, arcThrough, dimensionLines, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_WIDTHS, typedPoint, updateSketch } from '../../model/cadSketch';
 import { trayPlanOf } from '../../calc/cableTray';
+import { fittingCounts, trayFittings, type TrayFitting } from '../../model/cadTrayFittings';
 import type { SketchItem } from '../../types';
 import { ELV_PALETTE, elvPlacedOn, moveElv, placeElv, removeElv } from '../../components/elv/elvCadDevices';
 import { saveBinary } from '../../util/files';
@@ -131,6 +132,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   const sketch = useMemo(() => (view ? sketchOf(project, view.file) : []), [project, view]);
   const sketchSnaps = useMemo(() => snapPoints(sketch), [sketch]);
   const selSketch = sketch.find((it) => `sk:${it.id}` === cad.selected) ?? null;
+  const fittings = useMemo(() => trayFittings(sketch, 0.001 / units.factor).fittings, [sketch, units.factor]);
   const textH = 0.25 / units.factor;
   const rUnits = DEVICE_R_M / units.factor;
   const devices: CanvasDevice[] = cad.showDevices ? placed.map((d) => ({
@@ -498,7 +500,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
           <aside className="cad-side">
             <h4>Result</h4>
             <div className="cad-res">
-              {result ? <ResultView r={result.kind === 'sketch' && selSketch ? { kind: 'sketch', it: selSketch } : result} view={view!} toM={toM} toM2={toM2} project={project} onChange={onChange} onMove={() => cad.setTool('move')} onRemove={removeSelected} onCopy={() => cad.setTool('copy')} onRotate={() => cad.setTool('rotate')} onAdded={() => setResult(null)} /> : view ? (
+              {result ? <ResultView r={result.kind === 'sketch' && selSketch ? { kind: 'sketch', it: selSketch } : result} view={view!} toM={toM} toM2={toM2} project={project} onChange={onChange} onMove={() => cad.setTool('move')} onRemove={removeSelected} onCopy={() => cad.setTool('copy')} onRotate={() => cad.setTool('rotate')} onAdded={() => setResult(null)} fittings={fittings} /> : view ? (
                 <>{view.file}<br /><span className="m">{view.info.format} · {units.label}{units.assumed ? ' (not set in the drawing: taken as mm)' : ''} · {view.info.segments.toLocaleString()} lines · {view.info.texts.length} texts</span><br /><span className="m">{PROMPT[tool]}</span></>
               ) : <span className="m">No drawing open.</span>}
               {view && SAMPLE_PLANS.some((x) => x.file === view.file) && (
@@ -515,8 +517,9 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
                 <h4>Cable tray</h4>
                 <div className="cad-devform">
                   <TrayFields project={project} widthMm={cad.tray.widthMm} route={cad.tray.route} onChange={(t) => cad.setTray({ ...cad.tray, ...t })} />
-                  <span className="m">Click the run's points, Enter to finish. The route can be left for later.</span>
+                  <span className="m">Click the run's points, Enter to finish. The route can be left for later. End a run on another tray for a tee; a run of another width in line makes a reducer.</span>
                 </div>
+                <Fittings fittings={fittings} title="Fittings on this plan" />
               </>
             )}
             {(tool === 'dev' || tool === 'move') && view && (
@@ -614,9 +617,9 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
 }
 
 /** The Result panel: a distance, an area (with Add as room…), or what the clicked object is. */
-function ResultView({ r, view, toM, toM2, project, onChange, onMove, onRemove, onCopy, onRotate, onAdded }: {
+function ResultView({ r, view, toM, toM2, project, onChange, onMove, onRemove, onCopy, onRotate, onAdded, fittings }: {
   r: Result; view: CadView; toM: (v: number) => number; toM2: (v: number) => number; project: Project; onChange: (next: Project, message: string) => void;
-  onMove: () => void; onRemove: () => void; onCopy: () => void; onRotate: () => void; onAdded: () => void;
+  onMove: () => void; onRemove: () => void; onCopy: () => void; onRotate: () => void; onAdded: () => void; fittings: TrayFitting[];
 }) {
   if (r.kind === 'sketch' && r.it.tray) {
     const it = r.it, tray = r.it.tray;
@@ -634,6 +637,7 @@ function ResultView({ r, view, toM, toM2, project, onChange, onMove, onRemove, o
             onChange(updateSketch(project, view.file, { ...it, tray: route ? { ...rest, route } : rest }), `Cable tray ${next.widthMm} mm${route ? ` on route ${route}` : ', no route'} · ⌘Z to undo`);
           }} />
         </div>
+        <Fittings fittings={fittings.filter((f) => f.runs.includes(it.id))} title="Fittings on this run" />
         <div className="cad-devbtns"><button className="chip" onClick={onMove}>Move</button><button className="chip" onClick={onCopy}>Copy</button><button className="chip" onClick={onRotate}>Rotate</button><button className="chip" onClick={onRemove}>Erase</button></div>
       </>
     );
@@ -701,6 +705,16 @@ function ResultView({ r, view, toM, toM2, project, onChange, onMove, onRemove, o
         {Object.entries(o.attrs ?? {}).map(([k, v]) => <><dt key={`k${k}`}>{k}</dt><dd key={`v${k}`}>{v || '—'}</dd></>)}
       </dl>
     </>
+  );
+}
+
+/** Tray fittings counted by kind and size ("2 × Bend 90° 300"). */
+function Fittings({ fittings, title }: { fittings: TrayFitting[]; title: string }) {
+  if (!fittings.length) return null;
+  return (
+    <dl className="cad-props" aria-label={title}>
+      <dt>{title}</dt><dd>{fittingCounts(fittings).map(([label, n]) => `${n} × ${label}`).join(', ')}</dd>
+    </dl>
   );
 }
 
