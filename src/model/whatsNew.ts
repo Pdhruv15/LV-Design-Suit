@@ -19,7 +19,8 @@ export const RELEASES: Release[] = [
     items: [
       { title: 'One drawing background', text: 'Design CAD now draws on the same background and grid as the SLD, riser, earthing and lux plans, in the dark and light themes. Switching theme redraws the CAD plan straight away.', action: 'cad', actionLabel: 'Open Design CAD' },
       { title: 'DWG colours you can read', text: 'Layer colours too faint on the background are shown lighter or darker with the same hue: yellow shows as gold on the light theme, blue lighter on the dark one. Saved DWG, DXF and PDF keep the original colours.' },
-      { title: 'Black revision clouds on the PDF', text: 'Revision clouds and cable reference circles print black, like the rest of the drawing; riser busbar trunking prints black and shows in the busbar colour on screen.' }
+      { title: 'Black revision clouds on the PDF', text: 'Revision clouds and cable reference circles print black, like the rest of the drawing; riser busbar trunking prints black and shows in the busbar colour on screen.' },
+      { title: 'SLD as DWG', text: 'Export SLD drawing → DWG saves the SLD sheets as AutoCAD 2018 DWG, with the same layers and title block as the DXF; continuation sheets come in a ZIP. Made by the Design CAD engine.' }
     ]
   },
   {
