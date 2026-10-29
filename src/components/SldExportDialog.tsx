@@ -7,6 +7,7 @@ import { buildSheetDxfPages } from '../docs/sheetDxf';
 import { dxfExportNotice, namedDxfFiles } from '../docs/dxfFiles';
 import { cableRefsUsed } from '../model/cableRefs';
 import { printableSvg } from '../diagram/exportSvg';
+import { dxfToDwg } from '../engines/cad/cadEngine';
 import { safeFileName, saveBinary, savePdf, saveText } from '../util/files';
 
 /** The diagram on screen (full extent), as printable SVG. */
@@ -19,7 +20,7 @@ function currentSvg(): { svg: string; w: number; h: number } | undefined {
 }
 
 /** Title block details and export of the SLD as a drawing: PDF sheet with
- * frame and title block (A3 / A2 / A1), DXF for CAD, or plain SVG. The
+ * frame and title block (A3 / A2 / A1), DXF or DWG for CAD, or plain SVG. The
  * drawing shows what's on screen — result labels, colours, generator mode. */
 export default function SldExportDialog({ project, onSave, onStatus, onClose, stale = false }: {
   project: Project;
@@ -35,7 +36,7 @@ export default function SldExportDialog({ project, onSave, onStatus, onClose, st
   const set = (k: keyof DrawingInfo, v: string) => setD({ ...d, [k]: v || undefined });
   const name = safeFileName(`${project.name} ${d.number || 'SLD'}`);
 
-  async function run(kind: 'pdf' | 'dxf' | 'svg') {
+  async function run(kind: 'pdf' | 'dxf' | 'dwg' | 'svg') {
     const cur = currentSvg();
     if (!cur) return onStatus('Open the system diagram first');
     onSave(d);
@@ -50,11 +51,15 @@ export default function SldExportDialog({ project, onSave, onStatus, onClose, st
       } else {
         const one = d.cableLabels === 'ref' ? { no: t.number, title: t.title, index: 1, count: 1, cables: cableRefsUsed(p) } : undefined;
         const files = namedDxfFiles(name, buildSheetDxfPages(p, cur.svg, d.sheet ?? 'A3', one));
-        if (files.length === 1) m = await saveText(files[0].name, files[0].data, 'DXF drawing (AutoCAD R12)', 'dxf');
-        else {
+        // DWG: the same sheets, each DXF saved as DWG by the CAD engine.
+        const dwg = kind === 'dwg' ? await Promise.all(files.map(async (f) => ({ name: f.name.replace(/\.dxf$/i, '.dwg'), data: await dxfToDwg(f.data) }))) : null;
+        if (files.length === 1) {
+          m = dwg ? await saveBinary(dwg[0].name, dwg[0].data, 'DWG drawing (AutoCAD 2018)', 'dwg', 'application/acad')
+            : await saveText(files[0].name, files[0].data, 'DXF drawing (AutoCAD R12)', 'dxf');
+        } else {
           const zip = new (await import('jszip')).default();
-          files.forEach((f) => zip.file(f.name, f.data));
-          m = await saveBinary(`${name}-DXF.zip`, await zip.generateAsync({ type: 'uint8array' }), 'ZIP', 'zip', 'application/zip');
+          (dwg ?? files).forEach((f) => zip.file(f.name, f.data));
+          m = await saveBinary(`${name}-${dwg ? 'DWG' : 'DXF'}.zip`, await zip.generateAsync({ type: 'uint8array' }), 'ZIP', 'zip', 'application/zip');
         }
         const notice = dxfExportNotice(files);
         if (m && notice) m += ` — ${notice}`;
@@ -92,6 +97,7 @@ export default function SldExportDialog({ project, onSave, onStatus, onClose, st
         lead={<button className="chip" onClick={() => { onSave(d); onClose(); }}>Save details</button>}>
         <button className="chip" disabled={!!busy} onClick={() => run('svg')}>{busy === 'svg' ? 'Exporting…' : 'SVG'}</button>
         <button className="chip" disabled={!!busy} onClick={() => run('dxf')} title="AutoCAD R12 DXF at the selected paper size, with editable layers and title block. Additional notes and schedules are included as continuation sheets in a ZIP.">{busy === 'dxf' ? 'Exporting…' : `DXF ${d.sheet ?? 'A3'} (CAD)`}</button>
+        <button className="chip" disabled={!!busy} onClick={() => run('dwg')} title="AutoCAD 2018 DWG with the same sheets, layers and title block as the DXF. Continuation sheets are included in a ZIP.">{busy === 'dwg' ? 'Exporting…' : 'DWG'}</button>
         <button className="chip primary" disabled={!!busy} onClick={() => run('pdf')}>{busy === 'pdf' ? 'Exporting…' : `PDF ${d.sheet ?? 'A3'}`}</button>
       </ExportBar>
     </Modal>

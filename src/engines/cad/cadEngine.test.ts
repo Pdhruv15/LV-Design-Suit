@@ -2,7 +2,9 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { INK, openDrawing, SNAP, type CadView } from './cadEngine';
+import { dxfToDwg, INK, openDrawing, SNAP, type CadView } from './cadEngine';
+import { buildSheetDxfPages } from '../../docs/sheetDxf';
+import { sampleProject } from '../../data/sampleProject';
 
 const root = path.resolve(__dirname, '../../..');
 const bytes = (rel: string) => new Uint8Array(readFileSync(path.join(root, rel)));
@@ -70,5 +72,19 @@ describe('CAD engine (Rust, WebAssembly)', () => {
     expect(d.info.fills[1].lines[0].angle).toBeCloseTo(Math.PI / 4);
     expect(gf.info.fills).toEqual([]); // the sample villa has none
   });
-});
 
+  it('saves an SLD sheet as DWG with the same layers, texts and extents as its DXF', async () => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500"><line x1="40" y1="60" x2="700" y2="60" stroke="#000000"/>'
+      + '<rect x="100" y="120" width="80" height="40" fill="none" stroke="#000000"/><text x="110" y="200" font-size="12">MDB-01</text></svg>';
+    const [page] = buildSheetDxfPages(sampleProject, svg, 'A3');
+    const asDxf = await openDrawing('SLD.dxf', new TextEncoder().encode(page.data));
+    const dwg = await dxfToDwg(page.data);
+    expect(new TextDecoder().decode(dwg.slice(0, 6))).toBe('AC1032'); // AutoCAD 2018
+    const asDwg = await openDrawing('SLD.dwg', dwg);
+    expect(asDwg.info.format).toBe('DWG');
+    expect(asDwg.info.layers.map((l) => l.name)).toEqual(expect.arrayContaining(['E-FRAME', 'E-TITLE']));
+    expect(asDwg.info.texts.map((t) => t.s)).toEqual(expect.arrayContaining(['MDB-01']));
+    expect(asDwg.info.texts.length).toBe(asDxf.info.texts.length);
+    expect(asDwg.info.extents.map(Math.round)).toEqual(asDxf.info.extents.map(Math.round));
+  });
+});

@@ -174,3 +174,14 @@ export async function drawingWithDevices(view: CadView, devices: DeviceOut[], sh
     throw new Error(`The drawing could not be saved (${e instanceof Error ? e.message : String(e)}).`);
   }
 }
+
+/** A DXF the app made (an SLD sheet) saved as DWG by the same engine: AutoCAD 2018, as it writes a drawing older than
+ * 2000. Layers, title block and texts are kept as in the DXF. */
+export async function dxfToDwg(dxf: string): Promise<Uint8Array> {
+  await engine();
+  try {
+    return exportDwg(new TextEncoder().encode(dxf), '[]', '[]');
+  } catch (e) {
+    throw new Error(`The DWG could not be made (${e instanceof Error ? e.message : String(e)}).`);
+  }
+}
