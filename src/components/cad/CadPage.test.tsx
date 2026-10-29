@@ -9,6 +9,7 @@ import { useCad, type CadState } from './cadState';
 import { cadFileMenu } from './cadFileMenu';
 import { buildingInfoOf } from '../../calc/building';
 import { trayPlanOf } from '../../calc/cableTray';
+import { openDrawing } from '../../engines/cad/cadEngine';
 import { sampleProject } from '../../data/sampleProject';
 import type { Project } from '../../types';
 
@@ -445,6 +446,26 @@ describe('CAD view', () => {
     await clickAt(5000, 5000); // select it
     await clickAt(5000, 9000); // face north
     expect(project.elvDevices![0]).toMatchObject({ type: 'camera', rotationDeg: 90 });
+  });
+
+  it('saves the drawing as DWG with what was drawn, and the DWG opens again with it', async () => {
+    const saveBinary = vi.fn(async () => '/plans/out.dwg');
+    (window as unknown as { lvds: { files?: unknown } }).lvds.files = { saveBinary };
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    await command('rec');
+    await clickAt(6000, 6000);
+    await clickAt(9000, 8000);
+    await command('SAVEDWG');
+    await flush();
+    const call = (saveBinary.mock.calls[0] as unknown as [{ defaultName: string; bytes: Uint8Array }])[0];
+    expect(call.defaultName).toBe('sample-villa-gf - with devices.dwg');
+    expect(new TextDecoder().decode(call.bytes.slice(0, 4))).toBe('AC10');
+    const back = await openDrawing('out.dwg', call.bytes);
+    expect(back.info.format).toBe('DWG');
+    expect(back.info.layers.some((l) => l.name === 'LV-SKETCH' && l.count === 4)).toBe(true); // the rectangle drawn
+    expect(back.info.segments).toBe(state.view!.info.segments + 4);
   });
 });
 

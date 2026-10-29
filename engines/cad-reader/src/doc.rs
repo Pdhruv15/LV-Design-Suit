@@ -814,17 +814,17 @@ struct ShapeOut {
     #[serde(default)] rot: f64,
 }
 
-/// The drawing (DWG or DXF) saved as DXF with the devices placed in the app added on their own layers: each device as a
-/// circle with its letters inside and its label (circuit or type) beside it. The architect's entities are kept as read.
-#[wasm_bindgen(js_name = exportDxf)]
-pub fn export_dxf(bytes: Vec<u8>, devices_json: &str, shapes_json: &str) -> Result<Vec<u8>, JsError> {
+/// The drawing (DWG or DXF) with what was drawn and the devices placed in the app added on their own layers: each
+/// device as a circle with its letters inside and its label (circuit or type) beside it. The architect's entities are
+/// kept as read.
+fn with_additions(bytes: Vec<u8>, devices_json: &str, shapes_json: &str) -> Result<CadDocument, String> {
     use acadrust::entities::{Arc, Circle, Line, LwPolyline, LwVertex, Text};
     use acadrust::tables::Layer;
     use acadrust::types::{Vector2, Vector3};
-    let (mut doc, _) = read(bytes).map_err(|e| JsError::new(&e))?;
-    let devices: Vec<DeviceOut> = serde_json::from_str(devices_json).map_err(|e| JsError::new(&e.to_string()))?;
-    let shapes: Vec<ShapeOut> = if shapes_json.is_empty() { vec![] } else { serde_json::from_str(shapes_json).map_err(|e| JsError::new(&e.to_string()))? };
-    let err = |e: acadrust::DxfError| JsError::new(&e.to_string());
+    let (mut doc, _) = read(bytes)?;
+    let devices: Vec<DeviceOut> = serde_json::from_str(devices_json).map_err(|e| e.to_string())?;
+    let shapes: Vec<ShapeOut> = if shapes_json.is_empty() { vec![] } else { serde_json::from_str(shapes_json).map_err(|e| e.to_string())? };
+    let err = |e: acadrust::DxfError| e.to_string();
     for sh in &shapes {
         if !doc.layers.contains(&sh.layer) { doc.layers.add(Layer::new(sh.layer.clone())).map_err(err)?; }
         let e = match sh.kind.as_str() {
@@ -852,12 +852,12 @@ pub fn export_dxf(bytes: Vec<u8>, devices_json: &str, shapes_json: &str) -> Resu
         doc.add_entity(e).map_err(err)?;
     }
     for d in &devices {
-        if !doc.layers.contains(&d.layer) { doc.layers.add(Layer::new(d.layer.clone())).map_err(|e| JsError::new(&e.to_string()))?; }
+        if !doc.layers.contains(&d.layer) { doc.layers.add(Layer::new(d.layer.clone())).map_err(|e| e.to_string())?; }
         let mut c = Circle::new();
         c.center = Vector3::new(d.x, d.y, 0.0);
         c.radius = d.r;
         c.common.layer = d.layer.clone();
-        doc.add_entity(EntityType::Circle(c)).map_err(|e| JsError::new(&e.to_string()))?;
+        doc.add_entity(EntityType::Circle(c)).map_err(|e| e.to_string())?;
         for (s, h, dx, dy) in [(&d.text, d.r * 0.7, -d.r * 0.35 * d.text.chars().count() as f64, -d.r * 0.35), (&d.label, d.r * 0.6, d.r * 1.3, -d.r * 0.3)] {
             if s.is_empty() { continue; }
             let mut t = Text::new();
@@ -865,10 +865,31 @@ pub fn export_dxf(bytes: Vec<u8>, devices_json: &str, shapes_json: &str) -> Resu
             t.insertion_point = Vector3::new(d.x + dx, d.y + dy, 0.0);
             t.height = h;
             t.common.layer = d.layer.clone();
-            doc.add_entity(EntityType::Text(t)).map_err(|e| JsError::new(&e.to_string()))?;
+            doc.add_entity(EntityType::Text(t)).map_err(|e| e.to_string())?;
         }
     }
+    Ok(doc)
+}
+
+/// The drawing saved as DXF with the app's additions (see `with_additions`).
+#[wasm_bindgen(js_name = exportDxf)]
+pub fn export_dxf(bytes: Vec<u8>, devices_json: &str, shapes_json: &str) -> Result<Vec<u8>, JsError> {
+    let doc = with_additions(bytes, devices_json, shapes_json).map_err(|e| JsError::new(&e))?;
     acadrust::DxfWriter::new(&doc).write_to_vec().map_err(|e| JsError::new(&e.to_string()))
+}
+
+/// The drawing saved as DWG with the app's additions: in the version it was read in (a DWG), else AutoCAD 2018; a
+/// version older than 2000 is written as 2018.
+fn dwg_bytes(bytes: Vec<u8>, devices_json: &str, shapes_json: &str) -> Result<Vec<u8>, String> {
+    use acadrust::types::DxfVersion;
+    let mut doc = with_additions(bytes, devices_json, shapes_json)?;
+    if doc.version < DxfVersion::AC1015 || doc.version == DxfVersion::Unknown { doc.version = DxfVersion::AC1032; }
+    acadrust::DwgWriter::write_to_vec(&doc).map_err(|e| e.to_string())
+}
+
+#[wasm_bindgen(js_name = exportDwg)]
+pub fn export_dwg(bytes: Vec<u8>, devices_json: &str, shapes_json: &str) -> Result<Vec<u8>, JsError> {
+    dwg_bytes(bytes, devices_json, shapes_json).map_err(|e| JsError::new(&e))
 }
 
 #[cfg(test)]
@@ -900,6 +921,40 @@ mod tests {
         hatched.add_path(square(20.0));
         doc.add_entity(EntityType::Hatch(Box::new(hatched))).unwrap();
         acadrust::DxfWriter::new(&doc).write_to_vec().unwrap()
+    }
+
+    /// What a drawing gives the CAD view: segments per layer, texts, blocks, closed objects.
+    fn facts(d: &CadDoc) -> (BTreeMap<String, u32>, usize, usize, usize) {
+        let layers = d.layers.iter().filter(|l| l.count > 0).map(|l| (l.name.clone(), l.count)).collect();
+        (layers, d.texts.len(), d.objects.iter().filter(|o| o.block.is_some()).count(), d.objects.iter().filter(|o| o.area.is_some()).count())
+    }
+    fn fixture(name: &str) -> Vec<u8> { std::fs::read(format!("{}/../../tests/fixtures/cad/{}", env!("CARGO_MANIFEST_DIR"), name)).unwrap() }
+    fn sample(name: &str) -> Vec<u8> { std::fs::read(format!("{}/../../electron/samples/{}", env!("CARGO_MANIFEST_DIR"), name)).unwrap() }
+
+    /// Round trip: a drawing saved as DWG (nothing added) reads back with the same layers, lines, texts, blocks and
+    /// closed objects; with additions, those come on top on their own layers.
+    #[test]
+    fn dwg_round_trip() {
+        for (name, bytes) in [("plan-2018.dwg", fixture("plan-2018.dwg")), ("plan-2004.dwg", fixture("plan-2004.dwg")), ("sample-villa-gf.dxf", sample("sample-villa-gf.dxf")), ("linetypes-hatches.dxf", fixture("linetypes-hatches.dxf"))] {
+            let before = CadDoc::new(bytes.clone()).unwrap();
+            let out = dwg_bytes(bytes.clone(), "[]", "").unwrap_or_else(|e| panic!("{name}: {e}"));
+            assert!(out.starts_with(b"AC10"), "{name}: not a DWG");
+            let after = CadDoc::new(out).unwrap_or_else(|_| panic!("{name}: the DWG written does not read back"));
+            assert_eq!(facts(&before), facts(&after), "{name}");
+            assert_eq!(before.linetypes, after.linetypes, "{name}: linetypes");
+            assert_eq!(before.fills.len(), after.fills.len(), "{name}: fills");
+            assert_eq!(before.info().replace("\"format\":\"DXF\"", "\"format\":\"DWG\""), after.info(), "{name}: info (all but DXF → DWG)");
+        }
+        let bytes = sample("sample-villa-gf.dxf");
+        let devices = r#"[{"layer":"E-LV-POINTS","x":1000,"y":1000,"r":200,"text":"","label":"DB-GF1/R1"}]"#;
+        let shapes = r#"[{"layer":"E-TRAY","kind":"pline","pts":[[0,0],[5000,0]]},{"layer":"LV-ANNO","kind":"text","pts":[[0,0]],"text":"CT 300","h":150}]"#;
+        let before = CadDoc::new(bytes.clone()).unwrap();
+        let after = CadDoc::new(dwg_bytes(bytes, devices, shapes).unwrap()).unwrap();
+        let (b, a) = (facts(&before), facts(&after));
+        assert_eq!(a.1, b.1 + 2, "the label and the text added");
+        assert!(a.0.contains_key("E-LV-POINTS"), "the device's circle on its layer");
+        assert!(after.layers.iter().any(|l| l.name == "LV-ANNO"), "the text's layer");
+        assert_eq!(a.0["E-TRAY"], b.0.get("E-TRAY").copied().unwrap_or(0) + 1);
     }
 
     #[test]

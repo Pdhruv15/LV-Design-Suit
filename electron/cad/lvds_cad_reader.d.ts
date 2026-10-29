@@ -48,9 +48,10 @@ export class CadDoc {
     snap(x: number, y: number, r: number, mask: number, layers_on: Uint8Array): Float64Array;
 }
 
+export function exportDwg(bytes: Uint8Array, devices_json: string, shapes_json: string): Uint8Array;
+
 /**
- * The drawing (DWG or DXF) saved as DXF with the devices placed in the app added on their own layers: each device as a
- * circle with its letters inside and its label (circuit or type) beside it. The architect's entities are kept as read.
+ * The drawing saved as DXF with the app's additions (see `with_additions`).
  */
 export function exportDxf(bytes: Uint8Array, devices_json: string, shapes_json: string): Uint8Array;
 
@@ -74,6 +75,7 @@ export interface InitOutput {
     readonly caddoc_segment_linetypes: (a: number, b: number) => void;
     readonly caddoc_segments: (a: number, b: number) => void;
     readonly caddoc_snap: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
+    readonly exportDwg: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly exportDxf: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly readDrawing: (a: number, b: number, c: number) => void;
     readonly __wbindgen_add_to_stack_pointer: (a: number) => number;

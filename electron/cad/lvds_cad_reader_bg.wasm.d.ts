@@ -12,6 +12,7 @@ export const caddoc_segment_layers: (a: number, b: number) => void;
 export const caddoc_segment_linetypes: (a: number, b: number) => void;
 export const caddoc_segments: (a: number, b: number) => void;
 export const caddoc_snap: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
+export const exportDwg: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
 export const exportDxf: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
 export const readDrawing: (a: number, b: number, c: number) => void;
 export const __wbindgen_add_to_stack_pointer: (a: number) => number;
