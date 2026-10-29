@@ -54,4 +54,11 @@ describe('CAD engine (Rust, WebAssembly)', () => {
     await expect(openDrawing('x.dwg', new TextEncoder().encode('AC1032 broken'))).rejects.toThrow(/could not be read/);
     await expect(openDrawing('x.txt', new Uint8Array([1]))).rejects.toThrow(/not a DWG or DXF/);
   });
+
+  it('lists the blocks inserted with their attributes, for Loads from CAD', () => {
+    const blocks = gf.blocks();
+    expect(blocks.filter((b) => b.block === 'L1' && b.attributes.CCT === 'DB-GF1/R1')).toHaveLength(8);
+    expect(blocks.find((b) => b.block === 'DB-PANEL' && b.attributes.TAG === 'DB-GF1')).toMatchObject({ layer: 'E-BOARD' });
+  });
 });
+

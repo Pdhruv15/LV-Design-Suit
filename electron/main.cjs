@@ -10,9 +10,7 @@ const { LIMITS, readTextFileLimited, readJsonLimited } = require('./limits.cjs')
 const { runJsonProcess } = require('./engineRunner.cjs');
 const safeFs = require('./safeFs.cjs');
 const { htmlToPdf, pdfSession, SHEETS } = require('./pdfRender.cjs');
-const openCadStudio = require('./openCadStudio.cjs');
 const cadFile = require('./cadFile.cjs');
-const { OpenCadRestSession } = require('./openCadRest.cjs');
 
 // `lvds` (the command line) exports drawings and PDFs through this app with --lvds-headless-export:
 // no window and none of the app's start-up, only the export (headlessExport.cjs).
@@ -342,52 +340,6 @@ handle('cad:openBytes', async (evt) => {
 handle('cad:readBytes', (_evt, file) => (isPlanFile(file) && fs.existsSync(file) ? { file: path.basename(file), path: file, bytes: cadFile.readDrawingBytes(file) } : null));
 handle('cad:sampleBytes', (_evt, name) => (SAMPLE_PLANS.has(name) ? { file: name, bytes: cadFile.readDrawingBytes(path.join(__dirname, 'samples', name)) } : null));
 
-// ---- IPC: hand generated DXF sheets to the installed OpenCADStudio app (live, token-protected local link) ----
-const openCadSession = new OpenCadRestSession();
-handle('opencad:openDxf', async (_evt, { files } = {}) => {
-  const installation = openCadStudio.findInstallation();
-  if (!installation) throw new Error('OpenCADStudio is not installed. Install it in Applications, then try again.');
-  const drawings = openCadStudio.writeTemporaryDrawings(app.getPath('temp'), files);
-  const session = await openCadSession.open(openCadStudio.executableForInstallation(installation), drawings);
-  // A drawing that opened but cannot be read back is still open: report it without the count.
-  const linked = await openCadSession.remember().catch(() => undefined);
-  return { files: drawings.map((file) => path.basename(file)), connected: session.connected, version: session.version, linked };
-});
-// Update the drawing open in OpenCADStudio in place: only changed boards, feeders and sheet furniture are redrawn.
-handle('opencad:update', async (_evt, { files } = {}) => {
-  if (!openCadSession.connected) throw new Error('OpenCADStudio is not open. Use Open in OpenCADStudio first.');
-  const [sheet] = openCadStudio.writeTemporaryDrawings(app.getPath('temp'), Array.isArray(files) ? files.slice(0, 1) : files);
-  return openCadSession.update(sheet);
-});
-// A floor plan (DWG or DXF) the engineer picks, opened in the live OpenCADStudio window (started if needed).
-handle('opencad:openPlan', async (evt) => {
-  const installation = openCadStudio.findInstallation();
-  if (!installation) throw new Error('OpenCADStudio is not installed. Install it in Applications, then try again.');
-  const result = await dialog.showOpenDialog(ownerOf(evt), { title: 'Open a floor plan in OpenCADStudio', defaultPath: ensureProjectsFolder(), filters: [{ name: 'CAD drawing', extensions: ['dwg', 'dxf'] }], properties: ['openFile'] });
-  if (result.canceled || result.filePaths.length === 0) return null;
-  const session = await openCadSession.open(openCadStudio.executableForInstallation(installation), [result.filePaths[0]]);
-  return { file: path.basename(result.filePaths[0]), version: session.version };
-});
-// Blocks on the drawing active in OpenCADStudio, for counting fixtures per circuit.
-handle('opencad:blocks', () => openCadSession.readBlocks());
-// Cable routes on the floor plan: measure the linked ones; link (or, with no feeder, unlink) the selected curves.
-handle('opencad:routes', () => openCadSession.readRoutes());
-handle('opencad:linkSelection', (_evt, feederId) => openCadSession.linkSelection(typeof feederId === 'string' ? feederId : ''));
-// Board locations: what the floor plan says (board symbols, room outlines, names); mark the selection as a board.
-handle('opencad:plan', (_evt, options) => openCadSession.readPlan({ curveLayers: options && Array.isArray(options.curveLayers) ? options.curveLayers.slice(0, 200) : [] }));
-handle('opencad:placeSelection', (_evt, boardId) => openCadSession.placeSelection(typeof boardId === 'string' ? boardId : ''));
-// Tray routes: tray runs and cable routes as paths; link the selected curves to a tray route by name.
-handle('opencad:trays', () => openCadSession.readTrays());
-handle('opencad:traySelection', (_evt, name) => openCadSession.traySelection(typeof name === 'string' ? name : ''));
-// The LV scripts for OpenCADStudio, copied to a folder the engineer chooses (they run inside OpenCADStudio).
-handle('opencad:copyScripts', async (evt) => {
-  const result = await dialog.showOpenDialog(ownerOf(evt), { title: 'Copy the LV scripts for OpenCADStudio to…', defaultPath: ensureProjectsFolder(), properties: ['openDirectory', 'createDirectory'] });
-  if (result.canceled || result.filePaths.length === 0) return null;
-  const folder = path.join(result.filePaths[0], 'LV scripts for OpenCADStudio');
-  return { folder, files: openCadStudio.copyScripts(folder) };
-});
-handle('opencad:linked', async () => (await openCadSession.linkedEquipment()).map(({ tag, handles }) => ({ tag, objects: handles.length })));
-handle('opencad:status', () => ({ installed: !!openCadStudio.findInstallation(), ...openCadSession.status() }));
 
 // ---- IPC: LV Database (Excel workbooks in the projects folder) ----
 let stopWatching = () => {};

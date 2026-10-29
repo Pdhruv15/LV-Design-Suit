@@ -5,6 +5,11 @@ export class CadDoc {
     free(): void;
     [Symbol.dispose](): void;
     /**
+     * Blocks inserted in model space with their attributes, as JSON [{block, attributes, layer, handle}] — fixtures
+     * with a CCT attribute are counted on their circuits (Loads from CAD).
+     */
+    blocks(): string;
+    /**
      * Drawing facts as JSON: format, units (INSUNITS), origin, extents (most of the drawing), layers, texts, counts.
      */
     info(): string;
@@ -55,6 +60,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_caddoc_free: (a: number, b: number) => void;
+    readonly caddoc_blocks: (a: number, b: number) => void;
     readonly caddoc_info: (a: number, b: number) => void;
     readonly caddoc_new: (a: number, b: number, c: number) => void;
     readonly caddoc_outlines: (a: number, b: number) => void;

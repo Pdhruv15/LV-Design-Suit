@@ -2,21 +2,25 @@ import { Modal } from './ui';
 import { useState } from 'react';
 import type { LibraryLoad } from '../database/database';
 import { applyCadLoads, pullCadLoads, type CadLoadPull } from '../model/cadLoads';
+import type { CadView } from '../engines/cad/cadEngine';
+import type { CadBlock } from '../model/cadLoads';
 import type { CadBlockMap, Project } from '../types';
 
-/** Loads from a CAD floor plan: fixture blocks on the drawing open in OpenCADStudio are counted per circuit
+/** Loads from a CAD floor plan: fixture blocks on the drawing open in Design CAD are counted per circuit
  * (circuit from the block's CCT attribute, library item from the block name or the project's block map), and
  * shown beside the design. Nothing changes until the engineer accepts rows. */
-export default function CadLoadsDialog({ project, library, onApply, onClose }: {
+export default function CadLoadsDialog({ project, library, view, onOpenCad, onApply, onClose }: {
   project: Project;
   library: LibraryLoad[];
+  /** The drawing open in Design CAD; none: the dialog offers to open Design CAD. */
+  view: CadView | null;
+  onOpenCad: () => void;
   onApply: (next: Project, message: string) => void;
   onClose: () => void;
 }) {
-  const cad = window.lvds?.openCadStudio;
   const [busy, setBusy] = useState('');
   const [note, setNote] = useState('');
-  const [blocks, setBlocks] = useState<Awaited<ReturnType<NonNullable<NonNullable<typeof cad>['blocks']>>> | null>(null);
+  const [blocks, setBlocks] = useState<CadBlock[] | null>(null);
   const [map, setMap] = useState<CadBlockMap[]>(project.cadBlocks ?? []);
   const [skip, setSkip] = useState<Set<string>>(new Set());
   const p = { ...project, cadBlocks: map };
@@ -35,11 +39,7 @@ export default function CadLoadsDialog({ project, library, onApply, onClose }: {
     setNote('');
     try { await run(); } catch (e) { setNote(e instanceof Error ? e.message : String(e)); } finally { setBusy(''); }
   }
-  const openPlan = () => act('open', async () => {
-    const r = await cad!.openPlan!();
-    if (r) { setNote(`Opened ${r.file} in OpenCADStudio. Pull loads when the plan is ready.`); setBlocks(null); }
-  });
-  const read = () => act('pull', async () => { setBlocks(await cad!.blocks!()); setSkip(new Set()); });
+  const read = () => act('pull', async () => { if (view) setBlocks(view.blocks()); setSkip(new Set()); });
   const rowOf = (block: string) => map.find((r) => r.block.toLowerCase() === block.toLowerCase());
   const mapBlock = (block: string, reference: string, per = rowOf(block)?.per) =>
     setMap((m) => [...m.filter((r) => r.block.toLowerCase() !== block.toLowerCase()), ...(reference ? [{ block, reference, ...(per && per > 1 ? { per } : {}) }] : [])]);
@@ -53,12 +53,12 @@ export default function CadLoadsDialog({ project, library, onApply, onClose }: {
       : 'Loads from CAD: block mapping saved, no circuits changed');
   }
 
-  if (!cad?.blocks || !cad.openPlan) {
+  if (!view) {
     return (
       <Modal onClose={onClose} className="modal">
         <h3>Loads from CAD floor plan</h3>
-        <p className="m">Reading a floor plan needs the LV Design Studio desktop app and OpenCADStudio.</p>
-        <div className="modal-actions"><span className="sp" /><button className="chip" onClick={onClose}>Close</button></div>
+        <p className="m">Open the floor plan in Design CAD first; its fixture blocks are then counted here.</p>
+        <div className="modal-actions"><span className="sp" /><button className="chip" onClick={onClose}>Close</button><button className="chip primary" onClick={onOpenCad}>Open Design CAD</button></div>
       </Modal>
     );
   }
@@ -67,12 +67,12 @@ export default function CadLoadsDialog({ project, library, onApply, onClose }: {
     <Modal onClose={onClose} className="modal cad-loads">
       <h3>Loads from CAD floor plan</h3>
       <p className="m">
-        Fixtures on the drawing open in OpenCADStudio are counted per circuit. A block named like a library reference
+        Fixtures on <b>{view.file}</b> (open in Design CAD) are counted per circuit. A block named like a library reference
         (L1, S13…) is that item; other block names are mapped once below. The circuit comes from the block’s
         CCT attribute, e.g. <b>DB-GF1/R3</b>. Nothing changes until you apply.
       </p>
       <div className="modal-actions">
-        <button className="chip" disabled={!!busy} onClick={openPlan}>{busy === 'open' ? 'Opening…' : 'Open floor plan…'}</button>
+        <button className="chip" disabled={!!busy} onClick={onOpenCad}>Open another plan…</button>
         <button className="chip primary" disabled={!!busy} onClick={read}>{busy === 'pull' ? 'Reading…' : blocks ? 'Pull again' : 'Pull loads'}</button>
       </div>
       {note && <p className="m">{note}</p>}

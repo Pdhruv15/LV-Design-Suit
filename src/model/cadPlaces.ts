@@ -2,10 +2,10 @@ import { metresPerUnit } from './cadLengths';
 import { findFloor, floorLabel, levelKey, type LevelRef } from './levels';
 import type { Board, Project } from '../types';
 
-/** What a floor plan in CAD says about board locations, in drawing units (from the OpenCADStudio link). */
+/** What a floor plan in CAD says about board locations, in drawing units (from the built-in reader). */
 export interface CadPlan {
   units?: number; // INSUNITS
-  file?: string; // file name of the drawing read, when OpenCADStudio can tell
+  file?: string; // file name of the drawing read, when the reader can tell
   places: { boardId: string; x: number; y: number }[]; // symbols linked to a board by hand
   symbols: { name: string; x: number; y: number }[]; // blocks whose TAG / BOARD / PANEL attribute names a board
   outlines: { layer: string; handle?: string; points: [number, number][]; bulges?: number[] }[]; // closed polylines and hatch boundaries

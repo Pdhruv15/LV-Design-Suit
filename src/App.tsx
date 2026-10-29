@@ -959,7 +959,7 @@ export default function App() {
     cmd('Add a board…', () => { design(); setBoardPreset(undefined); setShowBoardForm(true); });
     if (board) cmd(`Add a feeder on ${board.id}…`, () => { design(); openAddFeeder({}); }, undefined, 'circuit load');
     cmd('Export the SLD…', () => { design(); setDiagramMode('system'); setShowExport(true); }, undefined, 'PDF DXF SVG');
-    cmd('Loads from CAD floor plan…', () => setShowCadLoads(true), undefined, 'OpenCADStudio DWG DXF blocks fixtures count');
+    cmd('Loads from CAD floor plan…', () => setShowCadLoads(true), undefined, 'Design CAD DWG DXF blocks fixtures count CCT');
     const cadTool = (t: Parameters<typeof cadS.setTool>[0]) => { cadS.setTool(t); setView('cad'); };
     cmd('Design CAD…', () => setView('cad'), undefined, 'floor plan open DWG DXF architect plan CAD drawing measure');
     cmd('Open drawing in Design CAD…', () => void openCad(), undefined, 'CAD DWG DXF open drawing model space layers snap');
@@ -968,14 +968,6 @@ export default function App() {
     cmd('Board locations in Design CAD…', () => { cadS.setDevice('db'); cadTool('dev'); }, undefined, 'Floor plan DWG DXF room level position place board');
     cmd('Cable trays in Design CAD…', () => cadTool('tray'), undefined, 'Floor plan DWG DXF cable tray route length fittings');
     cmd('Rooms and areas from Design CAD…', () => cadTool('room'), undefined, 'Floor plan DWG DXF architect layers room area m2 building measure');
-    cmd('Copy LV scripts for OpenCADStudio…', async () => {
-      const copy = window.lvds?.openCadStudio?.copyScripts;
-      if (!copy) { setStatus('The OpenCADStudio scripts come with the LV Design Studio desktop app'); return; }
-      try {
-        const r = await copy();
-        if (r) setStatus(`Copied ${r.files.filter((f) => f.endsWith('.py')).length} LV scripts to ${r.folder} — in OpenCADStudio use Python Scripting → Run Script…`);
-      } catch (e) { setStatus(`Could not copy the scripts: ${e instanceof Error ? e.message : String(e)}`); }
-    }, undefined, 'OpenCADStudio add-in python script room area summary tray tag board');
     cmd('System diagram', () => { design(); setDiagramMode('system'); }, `${mod}1`, 'SLD');
     cmd('Riser diagram', () => { design(); setDiagramMode('riser'); }, `${mod}4`, 'riser schematic building levels');
     if (board) cmd(`Board diagram — ${board.id}`, () => { design(); setDiagramMode('board'); }, `${mod}2`);
@@ -1768,6 +1760,8 @@ export default function App() {
         <Suspense fallback={null}><CadLoadsDialog
           project={project}
           library={db.loads}
+          view={cadS.view}
+          onOpenCad={() => { setShowCadLoads(false); setView('cad'); }}
           onApply={(next, message) => { void autoCheckpoint(project, 'Before Loads from CAD', undefined, setStatus); setProject(next, { step: true }); setStatus(message); setShowCadLoads(false); }}
           onClose={() => setShowCadLoads(false)}
         /></Suspense>

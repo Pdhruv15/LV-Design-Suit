@@ -5,7 +5,6 @@ import type { DrawingInfo, Project } from '../types';
 import { buildSldSheetHtml, DEFAULT_DRAWING_TITLE, titleBlockOf } from '../docs/sldSheet';
 import { buildSheetDxfPages } from '../docs/sheetDxf';
 import { dxfExportNotice, namedDxfFiles } from '../docs/dxfFiles';
-import { cadUpdateSummary } from '../model/cadLink';
 import { cableRefsUsed } from '../model/cableRefs';
 import { printableSvg } from '../diagram/exportSvg';
 import { safeFileName, saveBinary, savePdf, saveText } from '../util/files';
@@ -36,7 +35,7 @@ export default function SldExportDialog({ project, onSave, onStatus, onClose, st
   const set = (k: keyof DrawingInfo, v: string) => setD({ ...d, [k]: v || undefined });
   const name = safeFileName(`${project.name} ${d.number || 'SLD'}`);
 
-  async function run(kind: 'pdf' | 'dxf' | 'svg' | 'opencad' | 'cadupdate') {
+  async function run(kind: 'pdf' | 'dxf' | 'svg') {
     const cur = currentSvg();
     if (!cur) return onStatus('Open the system diagram first');
     onSave(d);
@@ -51,17 +50,7 @@ export default function SldExportDialog({ project, onSave, onStatus, onClose, st
       } else {
         const one = d.cableLabels === 'ref' ? { no: t.number, title: t.title, index: 1, count: 1, cables: cableRefsUsed(p) } : undefined;
         const files = namedDxfFiles(name, buildSheetDxfPages(p, cur.svg, d.sheet ?? 'A3', one));
-        if (kind === 'cadupdate') {
-          const update = window.lvds?.openCadStudio?.update;
-          if (!update) throw new Error('Updating OpenCADStudio needs the latest LV Design Studio desktop app.');
-          m = cadUpdateSummary(await update(files.map((file) => ({ name: file.name, content: file.data }))), p);
-        } else if (kind === 'opencad') {
-          const open = window.lvds?.openCadStudio?.openDxf;
-          if (!open) throw new Error('OpenCADStudio integration is available in the LV Design Studio desktop app.');
-          const result = await open(files.map((file) => ({ name: file.name, content: file.data })));
-          const version = result.version ? ` ${result.version}` : '';
-          m = `Opened ${result.files.length} drawing${result.files.length === 1 ? '' : 's'} in OpenCADStudio${version}${result.connected ? ' — live link connected' : ''}${result.linked ? `, ${result.linked} boards and feeders linked` : ''}`;
-        } else if (files.length === 1) m = await saveText(files[0].name, files[0].data, 'DXF drawing (AutoCAD R12)', 'dxf');
+        if (files.length === 1) m = await saveText(files[0].name, files[0].data, 'DXF drawing (AutoCAD R12)', 'dxf');
         else {
           const zip = new (await import('jszip')).default();
           files.forEach((f) => zip.file(f.name, f.data));
@@ -103,8 +92,6 @@ export default function SldExportDialog({ project, onSave, onStatus, onClose, st
         lead={<button className="chip" onClick={() => { onSave(d); onClose(); }}>Save details</button>}>
         <button className="chip" disabled={!!busy} onClick={() => run('svg')}>{busy === 'svg' ? 'Exporting…' : 'SVG'}</button>
         <button className="chip" disabled={!!busy} onClick={() => run('dxf')} title="AutoCAD R12 DXF at the selected paper size, with editable layers and title block. Additional notes and schedules are included as continuation sheets in a ZIP.">{busy === 'dxf' ? 'Exporting…' : `DXF ${d.sheet ?? 'A3'} (CAD)`}</button>
-        {window.lvds?.openCadStudio && <button className="chip" disabled={!!busy} onClick={() => run('opencad')} title="Build the same editable DXF sheet and open it directly in OpenCADStudio.">{busy === 'opencad' ? 'Opening…' : 'Open in OpenCADStudio'}</button>}
-        {window.lvds?.openCadStudio?.update && <button className="chip" disabled={!!busy} onClick={() => run('cadupdate')} title="Redraw, in the drawing open in OpenCADStudio, only the boards and feeders that changed. Anything you drew yourself in CAD is kept.">{busy === 'cadupdate' ? 'Updating…' : 'Update in OpenCADStudio'}</button>}
         <button className="chip primary" disabled={!!busy} onClick={() => run('pdf')}>{busy === 'pdf' ? 'Exporting…' : `PDF ${d.sheet ?? 'A3'}`}</button>
       </ExportBar>
     </Modal>

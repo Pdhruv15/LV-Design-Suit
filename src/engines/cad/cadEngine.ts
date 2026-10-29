@@ -1,4 +1,5 @@
 import { CadDoc, exportDxf, initSync } from '../../../electron/cad/lvds_cad_reader.js';
+import type { CadBlock } from '../../model/cadLoads';
 import wasmUrl from '../../../electron/cad/lvds_cad_reader_bg.wasm?url';
 import sampleGf from '../../../electron/samples/sample-villa-gf.dxf?url';
 import sampleFf from '../../../electron/samples/sample-villa-ff.dxf?url';
@@ -55,6 +56,8 @@ export interface CadView {
   pick: (x: number, y: number, tol: number, layersOn: Uint8Array, closedOnly?: boolean) => CadObject | null;
   /** Closed objects of model space (polylines, circles, hatches…), for rooms from outline layers. */
   outlines: () => CadObject[];
+  /** Blocks inserted in model space with their attributes (fixtures with a CCT attribute: Loads from CAD). */
+  blocks: () => (CadBlock & { layer: string; handle: string })[];
 }
 
 /** Snap kinds, as the engine numbers them. */
@@ -95,7 +98,8 @@ export async function openDrawing(file: string, bytes: Uint8Array, path?: string
     segs: doc.segments(), segLayers: doc.segment_layers(), segColors: doc.segment_colors(),
     snap: (x, y, r, mask, layersOn) => doc.snap(x, y, r, mask, layersOn),
     pick: (x, y, tol, layersOn, closedOnly = false) => { const j = doc.pick(x, y, tol, layersOn, closedOnly); return j ? (JSON.parse(j) as CadObject) : null; },
-    outlines: () => (outlines ??= JSON.parse(doc.outlines()) as CadObject[])
+    outlines: () => (outlines ??= JSON.parse(doc.outlines()) as CadObject[]),
+    blocks: () => JSON.parse(doc.blocks()) as (CadBlock & { layer: string; handle: string })[]
   };
 }
 

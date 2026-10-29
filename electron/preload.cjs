@@ -54,21 +54,6 @@ contextBridge.exposeInMainWorld('lvds', {
       return () => ipcRenderer.removeListener('cad:pending', listener);
     }
   },
-  openCadStudio: {
-    status: () => ipcRenderer.invoke('opencad:status'),
-    openDxf: (files) => ipcRenderer.invoke('opencad:openDxf', { files }),
-    linked: () => ipcRenderer.invoke('opencad:linked'),
-    update: (files) => ipcRenderer.invoke('opencad:update', { files }),
-    openPlan: () => ipcRenderer.invoke('opencad:openPlan'),
-    blocks: () => ipcRenderer.invoke('opencad:blocks'),
-    routes: () => ipcRenderer.invoke('opencad:routes'),
-    linkSelection: (feederId) => ipcRenderer.invoke('opencad:linkSelection', feederId),
-    plan: (options) => ipcRenderer.invoke('opencad:plan', options),
-    placeSelection: (boardId) => ipcRenderer.invoke('opencad:placeSelection', boardId),
-    trays: () => ipcRenderer.invoke('opencad:trays'),
-    traySelection: (name) => ipcRenderer.invoke('opencad:traySelection', name),
-    copyScripts: () => ipcRenderer.invoke('opencad:copyScripts')
-  },
   files: {
     saveText: (opts) => ipcRenderer.invoke('files:saveText', opts),
     saveBinary: (opts) => ipcRenderer.invoke('files:saveBinary', opts),

@@ -3,7 +3,7 @@ import { metresPerUnit } from './cadLengths';
 import type { Project } from '../types';
 
 type Pt = [number, number];
-/** Tray runs and cable routes on a CAD floor plan, as paths in drawing units (from the OpenCADStudio link). */
+/** Tray runs and cable routes on a CAD floor plan, as paths in drawing units (from the built-in reader). */
 export interface CadTrayPlan {
   units?: number; // INSUNITS
   trays: { name: string; points: Pt[]; length: number }[];
