@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import CadCanvas, { type CadMarks, type CadToggles, type CanvasDevice } from './CadCanvas';
 import { rememberedDrawing, type CadState, type CadTool } from './cadState';
 import { chooseDrawing, drawingWithDevices, reopenDrawing, sampleDrawing, type CadObject, type CadView } from '../../engines/cad/cadEngine';
-import { circuitLabel, finalCircuits, LV_PALETTE, moveItem, placedOn, placeItem, placeLvPoint, removeItem, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
+import { cableLabel, cablesOf, circuitLabel, finalCircuits, LV_PALETTE, moveItem, placedOn, placeItem, placeLvPoint, removeItem, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
 import { addSketch, arcThrough, dimensionLines, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_WIDTHS, typedPoint, updateSketch } from '../../model/cadSketch';
 import { trayPlanOf } from '../../calc/cableTray';
 import { fittingCounts, trayFittings, type TrayFitting } from '../../model/cadTrayFittings';
@@ -11,7 +11,8 @@ import { ELV_PALETTE, elvPlacedOn, moveElv, placeElv, removeElv } from '../../co
 import { saveBinary } from '../../util/files';
 import { angleDeg, areaOf, distance, inside, m, m2, roomAround, segmentsOn } from '../../model/cadMeasure';
 import { layerMapFor, layersWith, roomsFromPlan, withLayerMap } from '../../model/cadRooms';
-import { layerStatsOf, planOfView } from '../../model/cadViewPlan';
+import { layerStatsOf, objectPath, planOfView } from '../../model/cadViewPlan';
+import { planDrawings, scheduleSummary, updateSchedules } from '../../model/cadPlanSchedules';
 import { buildingInfoOf } from '../../calc/building';
 import { plansOf } from '../../model/cadPlans';
 import { CAD_UNITS, planScale } from '../../model/cadUnits';
@@ -35,7 +36,7 @@ const hex = (rgb: number) => (rgb === 0xff000007 ? 'var(--cad-ink)' : `#${rgb.to
 const TOGGLES: { k: keyof CadToggles; label: string; key: string }[] = [
   { k: 'snap', label: 'SNAP', key: 'F9' }, { k: 'osnap', label: 'OSNAP', key: 'F3' }, { k: 'ortho', label: 'ORTHO', key: 'F8' }, { k: 'grid', label: 'GRID', key: 'F7' }
 ];
-const HELP = 'Commands: OPEN · SAVE (DXF) · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LAYER · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · Esc cancels, Enter closes an area.';
+const HELP = 'Commands: OPEN · SAVE (DXF) · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LAYER · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · Esc cancels, Enter closes an area.';
 /** Device symbol size on the plan (radius, metres). */
 const DEVICE_R_M = 0.2;
 const PROMPT: Record<CadTool, string> = {
@@ -46,6 +47,8 @@ const PROMPT: Record<CadTool, string> = {
   trace: 'TRACE  Specify first corner of the room:',
   name: 'NAME  Click the room name on the drawing:',
   tray: 'TRAY  Specify start point of the tray run:',
+  cable: 'ROUTE  Specify start point of the cable route:',
+  link: 'LINK  Click a line of the drawing: it becomes the cable route:',
   dev: 'DEV  Specify insertion point:',
   move: 'MOVE  Select object, then specify base point:',
   copy: 'COPY  Select object, then specify base point:',
@@ -58,9 +61,12 @@ const PROMPT: Record<CadTool, string> = {
   text: 'TEXT  Specify start point of text:',
   dim: 'DIM  Specify first extension line origin:'
 };
+/** Layer of the cable routes drawn or linked in the app. */
+const CABLE_LAYER = 'E-CABLE';
+const pathLength = (pts: Pt[]) => pts.slice(1).reduce((t, q, i) => t + distance(pts[i], q), 0);
 /** Layers for what is drawn in the app (written into the DXF on save). */
 const DRAW_LAYER = 'LV-SKETCH', ANNO_LAYER = 'LV-ANNO';
-const DRAW_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'rect', 'circle', 'arc', 'text', 'dim', 'move', 'copy', 'rotate'];
+const DRAW_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'rect', 'circle', 'arc', 'text', 'dim', 'move', 'copy', 'rotate'];
 
 /** The CAD view: a DWG / DXF drawing opened natively, as a CAD program shows it — model space, crosshair, snaps, layers,
  * a command line and a status bar. Engine in Rust (WebAssembly), desktop and web alike. Measure a distance, an area (by
@@ -133,6 +139,11 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   const sketchSnaps = useMemo(() => snapPoints(sketch), [sketch]);
   const selSketch = sketch.find((it) => `sk:${it.id}` === cad.selected) ?? null;
   const fittings = useMemo(() => trayFittings(sketch, 0.001 / units.factor).fittings, [sketch, units.factor]);
+  const cables = useMemo(() => cablesOf(project), [project]);
+  const cableLabels = useMemo(() => Object.fromEntries(sketch.filter((it) => it.cable).map((it) => {
+    const f = project.feeders.find((x) => x.id === it.cable!.feederId);
+    return [it.id, f ? cableLabel(project, f).split(' · ')[0] : `${it.cable!.feederId} (removed)`];
+  })), [sketch, project]);
   const textH = 0.25 / units.factor;
   const rUnits = DEVICE_R_M / units.factor;
   const devices: CanvasDevice[] = cad.showDevices ? placed.map((d) => ({
@@ -149,7 +160,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   };
   const change = (next: Project, message: string) => { onChange(next, message); cad.say(message); };
   function removeSelected() {
-    if (selSketch && view) { change(removeSketch(project, view.file, selSketch.id), `${selSketch.tray ? 'Cable tray' : selSketch.kind === 'pline' ? 'Polyline' : selSketch.kind[0].toUpperCase() + selSketch.kind.slice(1)} erased · ⌘Z to undo`); cad.setSelected(null); setResult(null); return; }
+    if (selSketch && view) { change(removeSketch(project, view.file, selSketch.id), `${selSketch.tray ? 'Cable tray' : selSketch.cable ? 'Cable route' : selSketch.kind === 'pline' ? 'Polyline' : selSketch.kind[0].toUpperCase() + selSketch.kind.slice(1)} erased · ⌘Z to undo`); cad.setSelected(null); setResult(null); return; }
     if (!selectedItem) { cad.say('ERASE  Select an object first (click it).'); return; }
     change(selectedItem.what === 'elv' ? removeElv(project, selectedItem.id) : removeItem(project, selectedItem), `${selectedItem.label} deleted${selectedItem.what === 'lv' ? ` — taken off ${selectedItem.detail.split(' · ')[0]}` : ''} · ⌘Z to undo`);
     cad.setSelected(null); setResult(null);
@@ -164,7 +175,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       if (msg) { cad.say(`SAVE  ${msg} (${placed.length} device${placed.length === 1 ? '' : 's'} on E-LV-POINTS / E-ELV-DEVICES / E-BOARDS, ${sketch.length} drawn object${sketch.length === 1 ? '' : 's'} on ${DRAW_LAYER} / ${ANNO_LAYER})`); onStatus(msg); }
     } catch (e) { const msg = e instanceof Error ? e.message : String(e); cad.say(msg); onStatus(msg); }
   }
-  cad.actions.current = { save: () => void saveDxf(), remove: removeSelected, addFound: () => addFound() };
+  cad.actions.current = { save: () => void saveDxf(), remove: removeSelected, addFound: () => addFound(), schedules: () => schedules() };
 
   /** The room name inside an outline: a text on a layer named like room names, else any text inside. */
   const nameInside = (poly: Pt[]) => {
@@ -239,7 +250,16 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       if (last) draw({ kind: 'line', layer: DRAW_LAYER, pts: [last, at] }, `Line ${m(toM(distance(last, at)))}`);
       setPoints([at]); cad.say('LINE  Specify next point or Enter to stop:'); return;
     }
-    if (tool === 'tray') { setPoints((p) => [...p, at]); cad.say(points.length ? 'TRAY  Specify next point, Enter to finish:' : 'TRAY  Specify next point:'); return; }
+    if (tool === 'tray' || tool === 'cable') { setPoints((p) => [...p, at]); cad.say(`${tool === 'tray' ? 'TRAY' : 'ROUTE'}  Specify next point${points.length ? ', Enter to finish' : ''}:`); return; }
+    if (tool === 'link') {
+      const feeder = project.feeders.find((f) => f.id === cad.cableFeeder);
+      if (!feeder) { cad.say('LINK  Choose the cable first (the panel on the right).'); return; }
+      const o = view.pick(at[0], at[1], 6 * pixel, cad.layersOn);
+      const pts = o ? objectPath(view, o) : [];
+      if (pts.length < 2) { cad.say('LINK  That is not a line or polyline. Click a line of the drawing:'); return; }
+      draw({ kind: 'pline', layer: CABLE_LAYER, pts, cable: { feederId: feeder.id } }, `Cable route of ${cableLabel(project, feeder)}: ${m(toM(pathLength(pts)))} (linked from ${view.info.layers[o!.layer]?.name ?? 'the drawing'})`);
+      return;
+    }
     if (tool === 'pline') {
       if (points.length >= 3 && distance(at, points[0]) <= 8 * pixel) { finishPline(true); return; }
       setPoints((p) => [...p, at]); cad.say('PLINE  Specify next point, C to close, Enter to finish:'); return;
@@ -273,7 +293,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       if (d) { cad.setSelected(d.key); setResult({ kind: 'device', it: d }); cad.say(`LIST  ${d.label}${d.detail ? ` · ${d.detail}` : ''}${d.room ? ` · ${d.room}` : ''}`); return; }
       cad.setSelected(null);
       const sk = itemAt(sketch, at, 6 * pixel);
-      if (sk) { cad.setSelected(`sk:${sk.id}`); setResult({ kind: 'sketch', it: sk }); cad.say(`LIST  ${sk.tray ? `Cable tray ${sk.tray.widthMm} mm, ${m(toM(trayLength(sk)))}${sk.tray.route ? ` on route ${sk.tray.route}` : ', no route'}` : sk.kind === 'pline' ? 'Polyline' : sk.kind} on ${sk.layer} (drawn here)`); return; }
+      if (sk) { cad.setSelected(`sk:${sk.id}`); setResult({ kind: 'sketch', it: sk }); cad.say(`LIST  ${sk.tray ? `Cable tray ${sk.tray.widthMm} mm, ${m(toM(trayLength(sk)))}${sk.tray.route ? ` on route ${sk.tray.route}` : ', no route'}` : sk.cable ? `Cable route of ${cableLabels[sk.id] ?? sk.cable.feederId}, ${m(toM(pathLength(sk.pts)))}` : sk.kind === 'pline' ? 'Polyline' : sk.kind} on ${sk.layer} (drawn here)`); return; }
       const o = view.pick(at[0], at[1], 6 * pixel, cad.layersOn);
       setResult(o ? { kind: 'object', o } : null);
       if (o) cad.say(`LIST  ${o.kind}${o.block ? ` ${o.block}` : ''} on ${view.info.layers[o.layer]?.name ?? '?'}${o.length !== undefined && !o.closed ? `, length ${m(toM(o.length))}` : ''}${o.area !== undefined ? `, area ${m2(toM2(o.area))}` : ''}`);
@@ -345,6 +365,21 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     if (points.length >= 2) draw({ kind: 'pline', layer: DRAW_LAYER, pts: points, closed }, `Polyline (${points.length} points${closed ? ', closed' : ''})`);
     setPoints([]); cad.say(PROMPT.pline);
   }
+  /** A cable route along the points clicked, for the cable chosen. */
+  function finishCable() {
+    const feeder = project.feeders.find((f) => f.id === cad.cableFeeder);
+    if (!feeder) cad.say('ROUTE  Choose the cable first (the panel on the right).');
+    else if (points.length >= 2) draw({ kind: 'pline', layer: CABLE_LAYER, pts: points, cable: { feederId: feeder.id } }, `Cable route of ${cableLabel(project, feeder)}: ${m(toM(pathLength(points)))}`);
+    setPoints([]); cad.say(PROMPT.cable);
+  }
+  /** Update schedules: tray route lengths and fittings, feeder lengths and tray routes, from every level's plan. */
+  function schedules() {
+    if (!view) return;
+    const u = updateSchedules(project, planDrawings(project, { file: view.file, insunits: view.info.units }));
+    const same = JSON.stringify([u.project.trays, u.project.feeders]) === JSON.stringify([project.trays, project.feeders]);
+    if (same) { cad.say(`SCHED  Up to date: ${scheduleSummary(u)}`); return; }
+    change(u.project, `Schedules updated: ${scheduleSummary(u)} · ⌘Z to undo`);
+  }
   /** A cable tray run along the points clicked, at the chosen width; on a tray route only once one is chosen. */
   function finishTray() {
     if (points.length >= 2) {
@@ -372,6 +407,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       if ((tool === 'area' || tool === 'trace') && points.length >= 3) finishArea(points);
       else if (tool === 'pline') finishPline(false);
       else if (tool === 'tray') finishTray();
+      else if (tool === 'cable') finishCable();
       else if (tool === 'line') { setPoints([]); cad.say(PROMPT.line); }
       else if (tool === 'copy') { setPoints([]); cad.setSelected(null); setResult(null); cad.setTool('none'); }
       return;
@@ -405,6 +441,9 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     else if (c === 'L' || c === 'LINE') cad.setTool('line');
     else if (c === 'PL' || c === 'PLINE' || c === 'POLYLINE') cad.setTool('pline');
     else if (c === 'CT' || c === 'TRAY' || c === 'CABLETRAY') cad.setTool('tray');
+    else if (c === 'CR' || c === 'ROUTE' || c === 'CABLEROUTE') cad.setTool('cable');
+    else if (c === 'LR' || c === 'LINK') cad.setTool('link');
+    else if (c === 'SCHED' || c === 'SCHEDULES' || c === 'UPDATE') schedules();
     else if (c === 'REC' || c === 'RECTANG' || c === 'RECTANGLE') cad.setTool('rect');
     else if (c === 'C' || c === 'CIRCLE') cad.setTool('circle');
     else if (c === 'A' || c === 'ARC') cad.setTool('arc');
@@ -435,7 +474,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     }
     if (e.key === 'Enter' && !typing && (tool === 'area' || tool === 'trace') && points.length >= 3) { finishArea(points); return; }
     if ((e.key === 'Delete' || e.key === 'Backspace') && !typing && (selectedItem || selSketch)) { e.preventDefault(); removeSelected(); return; }
-    if (e.key === 'Enter' && !typing && (tool === 'pline' || tool === 'tray' || tool === 'line' || tool === 'copy')) { run(''); return; }
+    if (e.key === 'Enter' && !typing && (tool === 'pline' || tool === 'tray' || tool === 'cable' || tool === 'line' || tool === 'copy')) { run(''); return; }
     if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && /^[a-zA-Z?]$/.test(e.key)) input.current?.focus();
   };
   useEffect(() => {
@@ -451,6 +490,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     const base = { id: '_', layer: '' };
     if (tool === 'line' && lastPt) return [{ ...base, kind: 'line', pts: [lastPt, cur] }];
     if (tool === 'pline' && points.length) return [{ ...base, kind: 'line', pts: [...points, cur] }];
+    if (tool === 'cable' && points.length) return [{ ...base, kind: 'line', pts: [...points, cur] }];
     if (tool === 'tray' && points.length) return [{ ...base, kind: 'pline', pts: [...points, cur], tray: { widthMm: cad.tray.widthMm } }];
     if (tool === 'rect' && lastPt) return [{ ...base, kind: 'pline', pts: rectangle(lastPt, cur), closed: true }];
     if (tool === 'circle' && lastPt) return [{ ...base, kind: 'circle', pts: [lastPt], r: distance(lastPt, cur) }];
@@ -463,7 +503,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     if (tool === 'rotate' && lastPt && selSketch) return [rotated(selSketch, lastPt, Math.atan2(cur[1] - lastPt[1], cur[0] - lastPt[0]))];
     return [];
   })();
-  const liveLabel = cur && lastPt && ['line', 'pline', 'tray', 'dim', 'move', 'copy'].includes(tool) ? `${m(toM(distance(lastPt, cur)))}  ${angleDeg(lastPt, cur).toFixed(1)}°`
+  const liveLabel = cur && lastPt && ['line', 'pline', 'tray', 'cable', 'dim', 'move', 'copy'].includes(tool) ? `${m(toM(distance(lastPt, cur)))}  ${angleDeg(lastPt, cur).toFixed(1)}°`
     : cur && lastPt && tool === 'circle' ? `R ${m(toM(distance(lastPt, cur)))}` : undefined;
   const marks: CadMarks | null = DRAW_TOOLS.includes(tool) && lastPt ? { points: [lastPt], live: true, label: liveLabel }
     : result?.kind === 'dist' ? { points: [result.a, result.b], label: m(toM(distance(result.a, result.b))) }
@@ -483,7 +523,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       <div className="cad-work">
         {view ? (
           <div className="cad-stage">
-            <CadCanvas view={view} layersOn={cad.layersOn} toggles={cad.toggles} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} sketch={sketch} selectedSketch={selSketch?.id ?? null} extraSnaps={sketchSnaps} preview={preview} unitsPerMm={0.001 / units.factor} />
+            <CadCanvas view={view} layersOn={cad.layersOn} toggles={cad.toggles} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} sketch={sketch} selectedSketch={selSketch?.id ?? null} extraSnaps={sketchSnaps} preview={preview} unitsPerMm={0.001 / units.factor} labels={cableLabels} />
             <div className="cad-coords">{cursor.at ? `X ${cursor.at[0].toFixed(2)}   Y ${cursor.at[1].toFixed(2)}   ${units.label}` : units.label}</div>
           </div>
         ) : (
@@ -522,6 +562,18 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
                 <Fittings fittings={fittings} title="Fittings on this plan" />
               </>
             )}
+            {(tool === 'cable' || tool === 'link') && view && (
+              <>
+                <h4>Cable route</h4>
+                <div className="cad-devform">
+                  <label>Cable<select aria-label="Cable" value={cad.cableFeeder} onChange={(e) => cad.setCableFeeder(e.target.value)}>
+                    <option value="">Choose a cable…</option>
+                    {cables.map((f) => <option key={f.id} value={f.id}>{cableLabel(project, f)}</option>)}
+                  </select></label>
+                  <span className="m">{tool === 'cable' ? 'Click the route\'s points, Enter to finish.' : 'Click a line or polyline of the drawing (e.g. on a cable layer).'} Update schedules then gives the cable its length, and the tray routes it runs along.</span>
+                </div>
+              </>
+            )}
             {(tool === 'dev' || tool === 'move') && view && (
               <>
                 <h4>Devices</h4>
@@ -532,7 +584,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
                 </div>
                 <div className="cad-devform">
                   {floors.length > 0 && (
-                    <label>This drawing shows<select aria-label="Level of this drawing" value={floor?.key} onChange={(e) => { const f = floors.find((x) => x.key === e.target.value); if (f && view) setPlanLevel(project, view.file, f, change); }}>{floors.map((f) => <option key={f.key} value={f.key}>{floorLabel(project.building, f)}</option>)}</select></label>
+                    <label>This drawing shows<select aria-label="Level of this drawing" value={floor?.key} onChange={(e) => { const f = floors.find((x) => x.key === e.target.value); if (f && view) setPlanLevel(project, view.file, f, change, view.info.units); }}>{floors.map((f) => <option key={f.key} value={f.key}>{floorLabel(project.building, f)}</option>)}</select></label>
                   )}
                   {'lv' in item.kind && (
                     <label>Circuit<select aria-label="Circuit" value={cad.feederId} onChange={(e) => cad.setFeederId(e.target.value)}>
@@ -563,7 +615,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
                         title={x.file ? (canOpen ? `Open ${x.file}` : `${x.file}: open it from Plans (its folder is not known on this computer)`) : `Open a drawing as the plan of ${x.label}`}
                         onClick={() => void load(async () => {
                           const v = !x.file ? await chooseDrawing() : SAMPLE_PLANS.some((s) => s.file === x.file) ? await sampleDrawing(x.file) : await reopenDrawing(pathOfPlan(project.id, x.file)!);
-                          if (v && !x.file) setPlanLevel(project, v.file, x.floor, change);
+                          if (v && !x.file) setPlanLevel(project, v.file, x.floor, change, v.info.units);
                           return v;
                         }, 'That drawing is no longer where it was. Open it from Plans.')}>
                         <b>{x.label}</b>{x.file ?? 'no plan'}<span className="m">{here ? 'open' : x.file ? '' : 'open…'}</span>
@@ -621,6 +673,27 @@ function ResultView({ r, view, toM, toM2, project, onChange, onMove, onRemove, o
   r: Result; view: CadView; toM: (v: number) => number; toM2: (v: number) => number; project: Project; onChange: (next: Project, message: string) => void;
   onMove: () => void; onRemove: () => void; onCopy: () => void; onRotate: () => void; onAdded: () => void; fittings: TrayFitting[];
 }) {
+  if (r.kind === 'sketch' && r.it.cable) {
+    const it = r.it, cable = r.it.cable;
+    const f = project.feeders.find((x) => x.id === cable.feederId);
+    return (
+      <>
+        <div><b>Cable route</b> <span className="m">drawn here · {it.layer}</span></div>
+        <dl className="cad-props">
+          <dt>Cable</dt><dd>{f ? cableLabel(project, f) : `${cable.feederId} (no longer in the design)`}</dd>
+          <dt>Route</dt><dd>{m(toM(pathLength(it.pts)))}</dd>
+          {f?.lengthM !== undefined && <><dt>Cable length</dt><dd>{f.lengthM} m</dd></>}
+        </dl>
+        <div className="cad-devform">
+          <label>Cable<select aria-label="Cable of this route" value={cable.feederId} onChange={(e) => {
+            const g = project.feeders.find((x) => x.id === e.target.value);
+            if (g) onChange(updateSketch(project, view.file, { ...it, cable: { feederId: g.id } }), `Cable route now for ${cableLabel(project, g)} · ⌘Z to undo`);
+          }}>{cablesOf(project).map((x) => <option key={x.id} value={x.id}>{cableLabel(project, x)}</option>)}</select></label>
+        </div>
+        <div className="cad-devbtns"><button className="chip" onClick={onMove}>Move</button><button className="chip" onClick={onCopy}>Copy</button><button className="chip" onClick={onRotate}>Rotate</button><button className="chip" onClick={onRemove}>Erase</button></div>
+      </>
+    );
+  }
   if (r.kind === 'sketch' && r.it.tray) {
     const it = r.it, tray = r.it.tray;
     return (

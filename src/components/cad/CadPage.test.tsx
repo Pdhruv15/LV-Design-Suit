@@ -8,6 +8,7 @@ import CadPage from './CadPage';
 import { useCad, type CadState } from './cadState';
 import { cadFileMenu } from './cadFileMenu';
 import { buildingInfoOf } from '../../calc/building';
+import { trayPlanOf } from '../../calc/cableTray';
 import { sampleProject } from '../../data/sampleProject';
 import type { Project } from '../../types';
 
@@ -284,7 +285,7 @@ describe('CAD view', () => {
     await act(async () => { (plans()[1] as HTMLButtonElement).click(); });
     await flush();
     expect(state.view?.file).toBe('plan.dwg');
-    expect(project.cadPlans).toEqual([{ building: 'V', level: 'FF', file: 'plan.dwg' }]);
+    expect(project.cadPlans).toEqual([{ building: 'V', level: 'FF', file: 'plan.dwg', units: 4 }]);
     expect(plans()[1].textContent).toBe('Firstplan.dwgopen');
   });
 
@@ -295,7 +296,7 @@ describe('CAD view', () => {
     let menu = cadFileMenu(project, state, apply, () => {});
     expect([menu.level, menu.unit, menu.plansSub]).toEqual(['Level?', 'mm', '0 of 1 levels']);
     act(() => menu.levels![0].onClick());
-    expect(project.cadPlans).toEqual([{ building: 'V', level: 'GF', file: 'sample-villa-gf.dxf' }]);
+    expect(project.cadPlans).toEqual([{ building: 'V', level: 'GF', file: 'sample-villa-gf.dxf', units: 4 }]);
     expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe('sample-villa-gf.dxf is the plan of Ground · ⌘Z to undo');
     menu = cadFileMenu(project, state, apply, () => {});
     expect(menu.level).toBe('Ground');
@@ -379,6 +380,40 @@ describe('CAD view', () => {
     for (const [x, y] of [[5000, 3000], [5000, 7000]]) await clickAt(x, y);
     await command('');
     expect(document.querySelector('[aria-label="Fittings on this plan"]')?.textContent).toBe('Fittings on this plan1 × Tee 300 × 150');
+  });
+
+  it('draws a cable route along a tray, links a cable line of the drawing, and updates the schedules', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    const f = villa.feeders[0];
+    await command('CT');
+    act(() => state.setTray({ widthMm: 300, route: 'A' }));
+    for (const [x, y] of [[2000, 3000], [12000, 3000]]) await clickAt(x, y);
+    await command('');
+    await command('CR');
+    act(() => state.setCableFeeder(f.id));
+    for (const [x, y] of [[2000, 3000], [12000, 3000], [12000, 5000]]) await clickAt(x, y);
+    await command('');
+    expect(project.cadSketch![0].items[1]).toMatchObject({ layer: 'E-CABLE', cable: { feederId: f.id } });
+    await command('SCHED');
+    const msg = onChange.mock.calls[onChange.mock.calls.length - 1][1];
+    expect(msg).toMatch(/^Schedules updated: route A 10\.\d m · 1 cable length · 1 feeder on trays · ⌘Z to undo$/);
+    expect(trayPlanOf(project).routes.find((r) => r.name === 'A')!.lengthM).toBeCloseTo(10, 0);
+    const fd = project.feeders.find((x) => x.id === f.id)!;
+    expect(fd.trayRoute).toBe('A');
+    expect(fd.lengthM).toBeGreaterThanOrEqual(Math.ceil((12 + 6 + 3) * 1.05) - 1);
+    await command('SCHED');
+    expect(state.history[state.history.length - 1]).toMatch(/^SCHED {2}Up to date/);
+
+    // Link: a line on the drawing's cable layer becomes a cable's route.
+    const v = state.view!, layer = v.info.layers.findIndex((l) => l.name === 'E-CABLE');
+    const i = v.segLayers.findIndex((l) => l === layer);
+    const [x1, y1, x2, y2] = [v.segs[i * 4], v.segs[i * 4 + 1], v.segs[i * 4 + 2], v.segs[i * 4 + 3]];
+    await command('LR');
+    await clickAt((x1 + x2) / 2 + v.info.origin[0], (y1 + y2) / 2 + v.info.origin[1]);
+    expect(project.cadSketch![0].items).toHaveLength(3);
+    expect(project.cadSketch![0].items[2]).toMatchObject({ layer: 'E-CABLE', cable: { feederId: f.id } });
   });
 });
 

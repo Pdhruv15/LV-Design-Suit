@@ -102,7 +102,7 @@ export interface RibbonActions {
   cad?: {
     tool: CadTool; onTool: (t: CadTool) => void; onOpen: () => void; onSave: () => void; onDelete: () => void; hasSelection: boolean; onFit: () => void; onLayers: () => void; layersOn: boolean; hasDrawing: boolean;
     file: { plans: Tool['menu']; plansSub?: string; level: string; levelTitle: string; levels: Tool['menu']; unit: string; unitTitle: string; units: Tool['menu'] };
-    onRoles: () => void; rolesOn: boolean; onAddFound: () => void;
+    onRoles: () => void; rolesOn: boolean; onAddFound: () => void; onSchedules: () => void; onPlaceBoard: () => void; placingBoard: boolean;
   };
   onProfile: () => void;
   onChooseFolder: () => void;
@@ -135,7 +135,7 @@ export const CAPTIONS: Record<RibbonTab, string[]> = {
   schematic: ['History', 'Distribution', 'Main systems', 'ELV', 'Stage'],
   detailed: ['Run', 'Canvas', 'Boards', 'Equipment', 'Selection', 'Calculate', 'Stage'],
   floorplan: ['Plan', 'Rooms', 'Cables and boards', 'ELV', 'Measure', 'View'],
-  cad: ['File', 'Rooms', 'Cables', 'Draw', 'Modify', 'Annotate', 'Measure', 'Devices', 'View'],
+  cad: ['File', 'Rooms', 'Cables and boards', 'Draw', 'Modify', 'Annotate', 'Measure', 'Devices', 'View'],
   reports: ['Schedules', 'Drawings and reports'],
   issue: ['Tender', 'Track', 'Send', 'IFC'],
   cost: ['Bill', 'Add to the bill', 'Rates', 'Issue and export'],
@@ -416,7 +416,11 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         cadTool('name', 'Pick name', Type, 'Click the room name on the drawing: it names the room found, or renames the room it is in (PN)')
       ],
       [
-        cadTool('tray', 'Cable tray', Rows3, 'Draw a cable tray run (CT): its points, Enter to finish, at the width chosen; the tray route can be assigned later')
+        cadTool('tray', 'Cable tray', Rows3, 'Draw a cable tray run (CT): its points, Enter to finish, at the width chosen; the tray route can be assigned later'),
+        cadTool('cable', 'Cable route', Cable, 'Draw the route of a cable (CR): choose the cable, click its points, Enter to finish'),
+        cadTool('link', 'Link route', Route, 'Click a line or polyline of the drawing: it becomes the chosen cable\'s route (LR)'),
+        { label: 'Place board', icon: CircuitBoard, title: 'Place a board on the plan: its room, level and position (Add device → DB)', onClick: () => a.cad?.onPlaceBoard(), active: a.cad?.placingBoard, disabled: !a.cad?.hasDrawing },
+        { label: 'Update schedules', icon: ListChecks, title: 'From the trays and cable routes on every level\'s plan: tray route lengths and fittings (tray schedule and BOQ), cable lengths, and the tray routes each cable runs along — one undo step (SCHED)', onClick: () => a.cad?.onSchedules(), disabled: !a.cad?.hasDrawing }
       ],
       [
         cadTool('line', 'Line', Slash, 'Line (L): click points; type a length, x,y or @dx,dy; Enter stops'),

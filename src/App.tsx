@@ -1246,7 +1246,9 @@ export default function App() {
               const show = (m: { label: string; title: string; onClick: () => void; sep?: boolean }[]) => m.map((x) => ({ ...x, onClick: () => { setView('cad'); x.onClick(); } }));
               return { ...f, plans: show(f.plans), levels: show(f.levels), units: show(f.units) };
             })(),
-            onRoles: () => { cadS.setShowRoles(!cadS.showRoles); cadS.setShowLayers(true); setView('cad'); }, rolesOn: cadS.showRoles && cadS.showLayers, onAddFound: () => { setView('cad'); cadS.actions.current.addFound(); } },
+            onRoles: () => { cadS.setShowRoles(!cadS.showRoles); cadS.setShowLayers(true); setView('cad'); }, rolesOn: cadS.showRoles && cadS.showLayers, onAddFound: () => { setView('cad'); cadS.actions.current.addFound(); },
+            onSchedules: () => { setView('cad'); cadS.actions.current.schedules(); },
+            onPlaceBoard: () => { cadS.setDevice('db'); cadS.setTool('dev'); setView('cad'); }, placingBoard: cadS.tool === 'dev' && cadS.device === 'db' },
           floorPlan: {
             hasPlan: !!fp.plan, tool: fp.tool, onTool: (t) => { fp.setTool(t); setView('floor-plan'); }, onOpen: () => void openFloorPlan(),
             onLayers: () => { fp.setShowLayers(!fp.showLayers); setView('floor-plan'); }, layersOn: fp.showLayers,

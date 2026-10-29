@@ -409,10 +409,13 @@ export interface SketchItem {
   rot?: number;
   /** A cable tray run (a polyline along its centreline): its width, and the tray route it is on, once assigned. */
   tray?: { widthMm: number; route?: string };
+  /** A cable route (a polyline on E-CABLE): the feeder whose cable runs along it. */
+  cable?: { feederId: string };
 }
 export interface CadSketch { file: string; items: SketchItem[] }
-/** A level's plan in Design CAD: the drawing file (name only) that shows the level. */
-export interface CadPlan { building: string; level: string; file: string }
+/** A level's plan in Design CAD: the drawing file (name only) that shows the level, and the units it says it is in
+ * (INSUNITS, as last opened), for lengths from it while another plan is open. */
+export interface CadPlan { building: string; level: string; file: string; units?: number }
 
 /** Floor plan links by entity handle: curve → feeder id (cable route) or tray route name; board id → block or point. */
 export interface CadPlanLinks {

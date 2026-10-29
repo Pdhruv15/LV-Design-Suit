@@ -24,16 +24,16 @@ export function levelOfPlan(p: Project, file: string): Floor | undefined {
 
 /** The project with `file` as the plan of `level`: it replaces that level's earlier plan, and stops being another
  * level's plan. */
-export function withLevelPlan(p: Project, file: string, level: LevelRef): Project {
+export function withLevelPlan(p: Project, file: string, level: LevelRef, units?: number): Project {
   const rest = (p.cadPlans ?? []).filter((x) => !same(x.file, file) && !onLevel(x, level));
-  return { ...p, cadPlans: [...rest, { building: level.building, level: level.level, file }] };
+  return { ...p, cadPlans: [...rest, { building: level.building, level: level.level, file, ...(units !== undefined ? { units } : {}) }] };
 }
 
 /** The project with `file` as the plan of `level` in place of its earlier plan (the architect's next revision): what
  * was drawn over the earlier plan moves to the new one. Devices are kept per level, so they stay as they are. */
-export function replacePlan(p: Project, file: string, level: LevelRef): { project: Project; replaced?: string } {
+export function replacePlan(p: Project, file: string, level: LevelRef, units?: number): { project: Project; replaced?: string } {
   const before = p.cadPlans?.find((x) => onLevel(x, level))?.file;
-  const next = withLevelPlan(p, file, level);
+  const next = withLevelPlan(p, file, level, units);
   if (!before || same(before, file)) return { project: next };
   const old = next.cadSketch?.find((x) => same(x.file, before));
   if (!old || next.cadSketch?.some((x) => same(x.file, file))) return { project: next, replaced: before };
