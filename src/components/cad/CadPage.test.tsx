@@ -340,5 +340,45 @@ describe('CAD view', () => {
     await onText('HALL');
     expect(state.history[state.history.length - 1]).toMatch(/“HALL” is not inside a room yet/);
   });
+
+  it('draws a cable tray run without a route, then changes its width and saves it into the DXF', async () => {
+    const saveBinary = vi.fn(async () => '/plans/out.dxf');
+    (window as unknown as { lvds: { files?: unknown } }).lvds.files = { saveBinary };
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    await command('CT');
+    expect(document.body.textContent).toContain('The route can be left for later.');
+    for (const [x, y] of [[2000, 3000], [8000, 3000], [8000, 7000]]) await clickAt(x, y);
+    await command('');
+    const run = state.view && project.cadSketch![0].items[0];
+    expect(run).toMatchObject({ kind: 'pline', layer: 'E-TRAY', tray: { widthMm: 300 } });
+    expect(run!.tray!.route).toBeUndefined();
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toMatch(/^Cable tray 300 mm, 10\.\d\d m \(no route: assign one when you know it\)/);
+    act(() => state.setTool('none'));
+    await clickAt(5000, 3000);
+    expect(result()).toMatch(/Cable tray.*Length10\.\d\d m.*Routenot assigned/);
+    const width = document.querySelector('.cad-res select[aria-label="Tray width"]') as HTMLSelectElement;
+    act(() => { width.value = '450'; width.dispatchEvent(new Event('change', { bubbles: true })); });
+    expect(project.cadSketch![0].items[0].tray).toEqual({ widthMm: 450 });
+    await command('save');
+    await flush();
+    const text = new TextDecoder().decode((saveBinary.mock.calls[0] as unknown as [{ bytes: Uint8Array }])[0].bytes);
+    expect(text).toContain('E-TRAY');
+    expect(text).toContain('CT 450');
+  });
+
+  it('finds the fittings of the trays drawn: a branch of another width is a tee', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    await command('CT');
+    for (const [x, y] of [[2000, 3000], [8000, 3000]]) await clickAt(x, y);
+    await command('');
+    act(() => state.setTray({ widthMm: 150, route: '' }));
+    for (const [x, y] of [[5000, 3000], [5000, 7000]]) await clickAt(x, y);
+    await command('');
+    expect(document.querySelector('[aria-label="Fittings on this plan"]')?.textContent).toBe('Fittings on this plan1 × Tee 300 × 150');
+  });
 });
 

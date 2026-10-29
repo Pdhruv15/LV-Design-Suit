@@ -407,6 +407,8 @@ export interface SketchItem {
   text?: string;
   h?: number;
   rot?: number;
+  /** A cable tray run (a polyline along its centreline): its width, and the tray route it is on, once assigned. */
+  tray?: { widthMm: number; route?: string };
 }
 export interface CadSketch { file: string; items: SketchItem[] }
 /** A level's plan in Design CAD: the drawing file (name only) that shows the level. */

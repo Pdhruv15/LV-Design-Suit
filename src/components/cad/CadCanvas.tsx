@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { INK, SNAP, SNAP_NAMES, type CadView } from '../../engines/cad/cadEngine';
 import { ortho as orthoFrom } from '../../model/cadMeasure';
-import { dimensionLines, segmentsOf } from '../../model/cadSketch';
+import { dimensionLines, segmentsOf, trayEdges, trayLabel } from '../../model/cadSketch';
+import { fittingLabel, trayFittings } from '../../model/cadTrayFittings';
 import type { SketchItem } from '../../types';
 
 type Pt = [number, number];
@@ -28,7 +29,7 @@ export function gridStep(scale: number): number {
 /** The drawing in a CAD model space: lines by layer and colour, texts at their height, a crosshair cursor with the snap
  * point under it, live coordinates. Wheel zooms at the cursor (two-finger scroll pans, pinch zooms), the middle button
  * or Space + drag pans, a middle double-click fits. */
-export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, onClick, marks, highlight, devices = [], sketch = [], selectedSketch, extraSnaps = [], preview = [] }: {
+export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, onClick, marks, highlight, devices = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1 }: {
   view: CadView;
   layersOn: Uint8Array;
   toggles: CadToggles;
@@ -40,6 +41,8 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
   devices?: CanvasDevice[];
   /** What the engineer drew (drawing units), the one selected, and their snap points. */
   sketch?: SketchItem[];
+  /** Drawing units per millimetre, for the width of tray runs. */
+  unitsPerMm?: number;
   selectedSketch?: string | null;
   extraSnaps?: { x: number; y: number; kind: number }[];
   /** The object being drawn, following the cursor (drawn on the cursor layer). */
@@ -139,7 +142,8 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
       ctx.lineWidth = 3 / scale;
       ctx.stroke(p);
     }
-    // What the engineer drew, over the drawing.
+    // What the engineer drew, over the drawing; tray runs with their fittings (joined ends left open).
+    const { fittings, joined } = trayFittings(sketch, unitsPerMm);
     const skC = colour('--cad-sketch', '#7fe3ff'), selSk = colour('--cad-snap', '#3df27a');
     for (const it of sketch) {
       if (it.kind === 'text') continue;
@@ -147,6 +151,12 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
       ctx.lineWidth = (it.id === selectedSketch ? 3 : 1.5) / scale;
       ctx.beginPath();
       for (const [a, b] of segmentsOf(it)) { ctx.moveTo(a[0] - o0, a[1] - o1); ctx.lineTo(b[0] - o0, b[1] - o1); }
+      ctx.stroke();
+      if (!it.tray) continue;
+      // A tray run: its edges at the tray width; the centreline thinner.
+      ctx.lineWidth = (it.id === selectedSketch ? 3 : 2) / scale;
+      ctx.beginPath();
+      for (const [a, b] of trayEdges(it, unitsPerMm, joined)) { ctx.moveTo(a[0] - o0, a[1] - o1); ctx.lineTo(b[0] - o0, b[1] - o1); }
       ctx.stroke();
     }
     // Devices placed in the app: symbols in drawing units (they zoom with the plan), letters and labels below.
@@ -198,6 +208,7 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
     for (const it of sketch) {
       const label = it.kind === 'text' ? { at: it.pts[0], s: it.text ?? '', h: it.h ?? 0, rot: it.rot ?? 0, align: 'left' as CanvasTextAlign }
         : it.kind === 'dim' ? (() => { const d = dimensionLines(it.pts[0], it.pts[1], it.pts[2]); return { at: d.text, s: it.text ?? '', h: it.h ?? d.length * 0.04, rot: d.angle, align: 'center' as CanvasTextAlign }; })()
+        : it.tray ? (() => { const l = trayLabel(it); return { at: l.at, s: l.text, h: 150 * unitsPerMm, rot: l.rot, align: 'center' as CanvasTextAlign }; })()
         : null;
       if (!label || !label.s) continue;
       const px = label.h * scale;
@@ -211,7 +222,19 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
       ctx.fillText(label.s, 0, 0);
       ctx.restore();
     }
-  }, [t, size, batches, layersOn, toggles.grid, view, highlight, devices, sketch, selectedSketch]); // eslint-disable-line react-hooks/exhaustive-deps -- colours read from CSS each draw
+    // Tray fittings: a dot at the joint and its name beside it.
+    const fpx = 100 * unitsPerMm * scale;
+    if (fpx >= 4) {
+      ctx.fillStyle = skC;
+      ctx.font = `${Math.min(fpx, 40)}px system-ui, sans-serif`;
+      ctx.textAlign = 'left';
+      for (const f of fittings) {
+        const sx = (f.at[0] - o0 - ox) * scale, sy = size.h - (f.at[1] - o1 - oy) * scale;
+        ctx.beginPath(); ctx.arc(sx, sy, 3, 0, 2 * Math.PI); ctx.fill();
+        ctx.fillText(fittingLabel(f), sx + fpx * 1.2, sy - fpx * 1.2);
+      }
+    }
+  }, [t, size, batches, layersOn, toggles.grid, view, highlight, devices, sketch, selectedSketch, unitsPerMm]); // eslint-disable-line react-hooks/exhaustive-deps -- colours read from CSS each draw
 
   /** The cursor: crosshair and pick box, and the snap marker with its name. */
   function drawCursor(at: Pt | null, snap?: { p: Pt; kind: number }) {
