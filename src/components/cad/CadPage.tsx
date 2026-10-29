@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import CadCanvas, { type CadMarks, type CadToggles, type CanvasDevice } from './CadCanvas';
-import { rememberedDrawing, type CadState, type CadTool } from './cadState';
+import { NO_ACTIONS, rememberedDrawing, type CadState, type CadTool } from './cadState';
 import { chooseDrawing, drawingWithDevices, reopenDrawing, sampleDrawing, type CadObject, type CadView } from '../../engines/cad/cadEngine';
 import { cableLabel, cablesOf, circuitLabel, finalCircuits, LV_PALETTE, moveItem, placedOn, placeItem, placeLvPoint, removeItem, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
 import { addSketch, arcThrough, dimensionLines, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_WIDTHS, typedPoint, updateSketch } from '../../model/cadSketch';
 import { trayPlanOf } from '../../calc/cableTray';
 import { fittingCounts, trayFittings, type TrayFitting } from '../../model/cadTrayFittings';
 import type { SketchItem } from '../../types';
-import { ELV_PALETTE, elvPlacedOn, moveElv, placeElv, removeElv } from '../../components/elv/elvCadDevices';
+import { ELV_PALETTE, elvPlacedOn, elvSystemOf, moveElv, placeElv, removeElv } from '../../components/elv/elvCadDevices';
+import { copyTo, coverageNote, elvLayer, fillAt, SYSTEM_LABEL } from '../../components/elv/elvPlan';
 import { saveBinary } from '../../util/files';
 import { angleDeg, areaOf, distance, inside, m, m2, roomAround, segmentsOn } from '../../model/cadMeasure';
 import { layerMapFor, layersWith, roomsFromPlan, withLayerMap } from '../../model/cadRooms';
@@ -36,7 +37,7 @@ const hex = (rgb: number) => (rgb === 0xff000007 ? 'var(--cad-ink)' : `#${rgb.to
 const TOGGLES: { k: keyof CadToggles; label: string; key: string }[] = [
   { k: 'snap', label: 'SNAP', key: 'F9' }, { k: 'osnap', label: 'OSNAP', key: 'F3' }, { k: 'ortho', label: 'ORTHO', key: 'F8' }, { k: 'grid', label: 'GRID', key: 'F7' }
 ];
-const HELP = 'Commands: OPEN · SAVE (DXF) · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LAYER · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · Esc cancels, Enter closes an area.';
+const HELP = 'Commands: OPEN · SAVE (DXF) · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · FILL (fill a room with an ELV device) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LAYER · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · Esc cancels, Enter closes an area.';
 /** Device symbol size on the plan (radius, metres). */
 const DEVICE_R_M = 0.2;
 const PROMPT: Record<CadTool, string> = {
@@ -50,6 +51,7 @@ const PROMPT: Record<CadTool, string> = {
   cable: 'ROUTE  Specify start point of the cable route:',
   link: 'LINK  Click a line of the drawing: it becomes the cable route:',
   dev: 'DEV  Specify insertion point:',
+  fill: 'FILL  Click inside a room: the ELV device chosen is placed at its coverage spacing:',
   move: 'MOVE  Select object, then specify base point:',
   copy: 'COPY  Select object, then specify base point:',
   rotate: 'ROTATE  Select object, then specify base point:',
@@ -63,6 +65,12 @@ const PROMPT: Record<CadTool, string> = {
 };
 /** Layer of the cable routes drawn or linked in the app. */
 const CABLE_LAYER = 'E-CABLE';
+/** The smallest room of a level whose outline (metres) is around a point (drawing units, `k` metres per unit). */
+function roomAtPointOf(p: Project, f: { ref: { building: string; level: string } }, at: Pt, k: number) {
+  return buildingInfoOf(p).rooms
+    .filter((r) => r.buildingId === f.ref.building && r.levelId === f.ref.level && (r.outline?.length ?? 0) >= 3 && inside([at[0] * k, at[1] * k], r.outline!))
+    .sort((a, b) => a.areaM2 - b.areaM2)[0];
+}
 const pathLength = (pts: Pt[]) => pts.slice(1).reduce((t, q, i) => t + distance(pts[i], q), 0);
 /** Layers for what is drawn in the app (written into the DXF on save). */
 const DRAW_LAYER = 'LV-SKETCH', ANNO_LAYER = 'LV-ANNO';
@@ -140,16 +148,25 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   const selSketch = sketch.find((it) => `sk:${it.id}` === cad.selected) ?? null;
   const fittings = useMemo(() => trayFittings(sketch, 0.001 / units.factor).fittings, [sketch, units.factor]);
   const cables = useMemo(() => cablesOf(project), [project]);
+  // ELV: the device chosen (if an ELV one), its system for coverage and Copy to level, and the coverage / Fill preview.
+  const elvItem = ELV_PALETTE.find((e) => e.id === cad.device);
+  const elvSystem = elvSystemOf(elvItem?.kind.elv ?? 'smoke-detector');
+  const fillRoom = tool === 'fill' && cursor.at && floor ? roomAtPointOf(project, floor, cursor.at, units.factor)?.id : undefined;
+  const elv = useMemo(() => (floor && (cad.coverage || fillRoom) ? elvLayer(project, { building: floor.ref.building, level: floor.ref.level }, units.factor, {
+    system: elvSystem, coverage: cad.coverage, selected: null,
+    ...(fillRoom && elvItem && cursor.at ? { preview: { type: elvItem.kind.elv, at: [cursor.at[0] * units.factor, cursor.at[1] * units.factor] as Pt } } : {})
+  }) : undefined), [project, floor?.key, elvSystem, cad.coverage, fillRoom, elvItem?.id, units.factor]); // eslint-disable-line react-hooks/exhaustive-deps -- the preview follows the room under the pointer, not every move
   const cableLabels = useMemo(() => Object.fromEntries(sketch.filter((it) => it.cable).map((it) => {
     const f = project.feeders.find((x) => x.id === it.cable!.feederId);
     return [it.id, f ? cableLabel(project, f).split(' · ')[0] : `${it.cable!.feederId} (removed)`];
   })), [sketch, project]);
   const textH = 0.25 / units.factor;
   const rUnits = DEVICE_R_M / units.factor;
-  const devices: CanvasDevice[] = cad.showDevices ? placed.map((d) => ({
+  const ghosts: CanvasDevice[] = (elv?.symbols ?? []).filter((x) => x.ghost).map((x, i) => ({ key: `ghost${i}`, x: x.at[0], y: x.at[1], r: rUnits, shape: x.shape, text: x.text, label: '', elv: true, ghost: true }));
+  const devices: CanvasDevice[] = cad.showDevices ? [...ghosts, ...placed.map((d) => ({
     key: d.key, x: d.x / units.factor, y: d.y / units.factor, r: d.what === 'board' ? rUnits * 2 : rUnits, shape: d.symbol.shape, text: d.symbol.text,
     label: d.what === 'lv' ? d.detail.split(' · ')[0] : d.what === 'board' ? d.label : '', selected: d.key === cad.selected, elv: d.what === 'elv'
-  })) : [];
+  }))] : ghosts;
   const deviceAt = (at: Pt, pixel: number) => {
     let best: { d: PlacedItem; dist: number } | undefined;
     for (const d of placed) {
@@ -175,7 +192,17 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       if (msg) { cad.say(`SAVE  ${msg} (${placed.length} device${placed.length === 1 ? '' : 's'} on E-LV-POINTS / E-ELV-DEVICES / E-BOARDS, ${sketch.length} drawn object${sketch.length === 1 ? '' : 's'} on ${DRAW_LAYER} / ${ANNO_LAYER})`); onStatus(msg); }
     } catch (e) { const msg = e instanceof Error ? e.message : String(e); cad.say(msg); onStatus(msg); }
   }
-  cad.actions.current = { save: () => void saveDxf(), remove: removeSelected, addFound: () => addFound(), schedules: () => schedules() };
+  cad.actions.current = { save: () => void saveDxf(), remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyTo: (k) => copyLevel(k) };
+  // While the page is not shown the ribbon's actions do nothing (they would work on a project as it was).
+  useEffect(() => () => { cad.actions.current = NO_ACTIONS; }, []); // eslint-disable-line react-hooks/exhaustive-deps -- on leaving the page
+
+  /** Copy to level: this level's devices of the chosen ELV device's system, at the same plan positions. */
+  function copyLevel(key: string) {
+    const to = floors.find((f) => f.key === key);
+    if (!floor || !to || to.key === floor.key) return;
+    const r = copyTo(project, { building: floor.ref.building, level: floor.ref.level }, { building: to.ref.building, level: to.ref.level }, elvSystem, floorLabel(project.building, to));
+    if (r.next) change(r.next, r.message); else cad.say(`COPY  ${r.message}`);
+  }
 
   /** The room name inside an outline: a text on a layer named like room names, else any text inside. */
   const nameInside = (poly: Pt[]) => {
@@ -325,6 +352,11 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
           : placeItem(project, item, floor.ref, x, y, { feederId: cad.feederId, boardId: cad.boardId });
         change(r.project, `${r.message} · ⌘Z to undo`);
       } catch (e) { cad.say(`DEV  ${e instanceof Error ? e.message : String(e)}`); }
+    } else if (tool === 'fill') {
+      if (!floor) { cad.say('FILL  Add the building and its levels in Building information first.'); return; }
+      if (!elvItem) { cad.say('FILL  Choose an ELV device first (a detector, speaker, data outlet…) in the Devices panel.'); return; }
+      const r = fillAt(project, { building: floor.ref.building, level: floor.ref.level }, elvItem.kind.elv, [at[0] * units.factor, at[1] * units.factor]);
+      if (r.next) change(r.next, r.message); else cad.say(`FILL  ${r.message}`);
     } else if (tool === 'room') {
       const r = roomAround(walls, at, units.factor);
       if (!r) { cad.say('ROOM AREA  No closed room around that point (open to the outside, or over 50 m across). Use AREA and click its corners.'); return; }
@@ -343,9 +375,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   }
 
   /** The smallest room of the plan's level whose outline (metres) is around a point (drawing units). */
-  const roomAtPoint = (at: Pt) => buildingInfoOf(project).rooms
-    .filter((r) => floor && r.buildingId === floor.ref.building && r.levelId === floor.ref.level && (r.outline?.length ?? 0) >= 3 && inside([at[0] * units.factor, at[1] * units.factor], r.outline!))
-    .sort((a, b) => a.areaM2 - b.areaM2)[0];
+  const roomAtPoint = (at: Pt) => (floor ? roomAtPointOf(project, floor, at, units.factor) : undefined);
 
   /** Add found rooms: the closed outlines on the room-outline layers (Layer roles), named by the text inside, added to
    * Building information on the plan's level (a room found again keeps its ID; one undo step). */
@@ -444,6 +474,8 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     else if (c === 'CR' || c === 'ROUTE' || c === 'CABLEROUTE') cad.setTool('cable');
     else if (c === 'LR' || c === 'LINK') cad.setTool('link');
     else if (c === 'SCHED' || c === 'SCHEDULES' || c === 'UPDATE') schedules();
+    else if (c === 'FILL' || c === 'FR') cad.setTool('fill');
+    else if (c === 'COV' || c === 'COVERAGE') cad.setCoverage(!cad.coverage);
     else if (c === 'REC' || c === 'RECTANG' || c === 'RECTANGLE') cad.setTool('rect');
     else if (c === 'C' || c === 'CIRCLE') cad.setTool('circle');
     else if (c === 'A' || c === 'ARC') cad.setTool('arc');
@@ -523,7 +555,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       <div className="cad-work">
         {view ? (
           <div className="cad-stage">
-            <CadCanvas view={view} layersOn={cad.layersOn} toggles={cad.toggles} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} sketch={sketch} selectedSketch={selSketch?.id ?? null} extraSnaps={sketchSnaps} preview={preview} unitsPerMm={0.001 / units.factor} labels={cableLabels} />
+            <CadCanvas view={view} layersOn={cad.layersOn} toggles={cad.toggles} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} sketch={sketch} selectedSketch={selSketch?.id ?? null} extraSnaps={sketchSnaps} preview={preview} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps} />
             <div className="cad-coords">{cursor.at ? `X ${cursor.at[0].toFixed(2)}   Y ${cursor.at[1].toFixed(2)}   ${units.label}` : units.label}</div>
           </div>
         ) : (
@@ -574,12 +606,12 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
                 </div>
               </>
             )}
-            {(tool === 'dev' || tool === 'move') && view && (
+            {(tool === 'dev' || tool === 'move' || tool === 'fill') && view && (
               <>
                 <h4>Devices</h4>
                 <div className="cad-pal" role="group" aria-label="Device to place">
                   {palette.map((x) => (
-                    <button key={x.id} aria-pressed={cad.device === x.id} className={'elv' in x.kind ? 'elv' : 'lv'} onClick={() => { cad.setDevice(x.id); cad.setTool('dev'); }}>{x.symbol.text || '●'}<span>{x.label}</span></button>
+                    <button key={x.id} aria-pressed={cad.device === x.id} className={'elv' in x.kind ? 'elv' : 'lv'} onClick={() => { cad.setDevice(x.id); if (tool !== 'fill' || !('elv' in x.kind)) cad.setTool('dev'); }}>{x.symbol.text || '●'}<span>{x.label}</span></button>
                   ))}
                 </div>
                 <div className="cad-devform">
@@ -600,6 +632,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
                   )}
                   {!floors.length && <p className="m">Add the building and its levels in Building information first; devices are kept per level.</p>}
                   <span className="m">{placed.length} device{placed.length === 1 ? '' : 's'} on this level</span>
+                  {elvItem && <span className="m">{elvItem.label}{coverageNote(elvItem.kind.elv)} · {SYSTEM_LABEL[elvSystem]}{cad.coverage && elv ? ` · ${elv.coverage.filter((c) => c.gaps.length).length} room${elv.coverage.filter((c) => c.gaps.length).length === 1 ? '' : 's'} not fully covered` : ''}</span>}
                 </div>
               </>
             )}

@@ -15,6 +15,14 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '1.98', date: '2026-10-29',
+    items: [
+      { title: 'Design CAD: Fill room', text: 'Devices → Fill room (FILL): choose an ELV device (detector, speaker, data outlet…), point at a room to see them at their coverage spacing, click to place them all.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Coverage', text: 'Devices → Coverage (COV): what the chosen device\'s system covers, cut at each room, and the squares not covered; the panel says how many rooms are not fully covered.' },
+      { title: 'Copy to level', text: 'Devices → Copy to level: this level\'s devices of that system to another level, at the same positions.' }
+    ]
+  },
+  {
     version: '1.97', date: '2026-10-29',
     items: [
       { title: 'Design CAD: cable routes', text: 'Cables and boards → Cable route (CR): choose the cable, click its route. Or Link route (LR): click a line already on the drawing (a cable layer). Routes are dashed, with the cable\'s name along them.', action: 'cad', actionLabel: 'Open Design CAD' },

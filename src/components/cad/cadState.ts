@@ -4,10 +4,10 @@ import type { CadToggles } from './CadCanvas';
 
 /** The tool working on the drawing: none (a click inspects the object under it), a measuring tool, a room tool (`room`
  * click inside, `trace` its corners, `name` pick its name), drawing a cable tray run (`tray`) or a feeder's cable route
- * (`cable`, or `link` a line of the drawing as it), placing a device
+ * (`cable`, or `link` a line of the drawing as it), placing a device (or `fill` a room with an ELV device)
  * (`dev`), modifying the selected object (`move`, `copy`, `rotate`), drawing (`line`, `pline`, `rect`, `circle`, `arc`)
  * or annotating (`text`, `dim`). */
-export type CadTool = 'none' | 'dist' | 'area' | 'room' | 'trace' | 'name' | 'tray' | 'cable' | 'link' | 'dev' | 'move' | 'copy' | 'rotate' | 'line' | 'pline' | 'rect' | 'circle' | 'arc' | 'text' | 'dim';
+export type CadTool = 'none' | 'dist' | 'area' | 'room' | 'trace' | 'name' | 'tray' | 'cable' | 'link' | 'dev' | 'fill' | 'move' | 'copy' | 'rotate' | 'line' | 'pline' | 'rect' | 'circle' | 'arc' | 'text' | 'dim';
 
 const RECENT = (projectId: string | undefined) => `lvds.cad.${projectId ?? 'new'}`;
 /** The drawing a project had open in the CAD view last time on this computer (its path stays out of the project file). */
@@ -20,6 +20,10 @@ export const pathOfPlan = (projectId: string | undefined, file: string): string 
 const rememberPath = (projectId: string | undefined, file: string, path?: string) => {
   try { if (path) localStorage.setItem(PATHS(projectId), JSON.stringify({ ...paths(projectId), [file.toLowerCase()]: path })); } catch { /* not remembered */ }
 };
+
+/** What the ribbon asks of the page showing the drawing; nothing while the page is not shown. */
+export interface CadActions { save: () => void; remove: () => void; addFound: () => void; schedules: () => void; copyTo: (levelKey: string) => void }
+export const NO_ACTIONS: CadActions = { save: () => {}, remove: () => {}, addFound: () => {}, schedules: () => {}, copyTo: () => {} };
 
 /** State of the CAD view, kept by the app so the drawing stays open while other pages are shown. */
 export function useCad(projectId: string | undefined) {
@@ -38,12 +42,14 @@ export function useCad(projectId: string | undefined) {
   const [showDevices, setShowDevices] = useState(true);
   /** Cable tray runs: the width drawn, and the tray route (none until the engineer assigns one). */
   const [tray, setTray] = useState<{ widthMm: number; route: string }>({ widthMm: 300, route: '' });
+  /** ELV coverage shown (Devices → Coverage) for the system of the ELV device chosen. */
+  const [coverage, setCoverage] = useState(false);
   /** The feeder whose cable route is drawn or linked. */
   const [cableFeeder, setCableFeeder] = useState('');
   /** The Layer roles table in the side panel (File → Layer roles). */
   const [showRoles, setShowRoles] = useState(false);
-  /** Save DXF, Delete, Add found rooms and Update schedules (ribbon), set by the page while it shows a drawing. */
-  const actions = useRef<{ save: () => void; remove: () => void; addFound: () => void; schedules: () => void }>({ save: () => {}, remove: () => {}, addFound: () => {}, schedules: () => {} });
+  /** Save DXF, Delete, Add found rooms, Update schedules and Copy to level (ribbon), set by the page while it is shown. */
+  const actions = useRef<CadActions>(NO_ACTIONS);
   /** Text being typed for the TEXT tool: where it goes (drawing units). */
   const [textAt, setTextAt] = useState<[number, number] | null>(null);
 
@@ -60,7 +66,7 @@ export function useCad(projectId: string | undefined) {
   const allLayers = useCallback((on: boolean) => setLayersOn((l) => new Uint8Array(l.length).fill(on ? 1 : 0)), []);
   const toggle = useCallback((k: keyof CadToggles) => setToggles((t) => ({ ...t, [k]: !t[k] })), []);
 
-  return { view, open, layersOn, setLayer, allLayers, toggles, toggle, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, history, say, tool, setTool, device, setDevice, feederId, setFeederId, boardId, setBoardId, selected, setSelected, showDevices, setShowDevices, tray, setTray, cableFeeder, setCableFeeder, showRoles, setShowRoles, actions, textAt, setTextAt };
+  return { view, open, layersOn, setLayer, allLayers, toggles, toggle, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, history, say, tool, setTool, device, setDevice, feederId, setFeederId, boardId, setBoardId, selected, setSelected, showDevices, setShowDevices, tray, setTray, cableFeeder, setCableFeeder, coverage, setCoverage, showRoles, setShowRoles, actions, textAt, setTextAt };
 }
 
 export type CadState = ReturnType<typeof useCad>;
