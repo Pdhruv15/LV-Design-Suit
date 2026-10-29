@@ -44,11 +44,11 @@ const ProjectDashboard = lazy(() => import('./components/docs/ProjectDashboard')
 const HelpView = lazy(() => import('./components/HelpView'));
 const ParametersView = lazy(() => import('./components/docs/ParametersView'));
 const TitleBlockDesigner = lazy(() => import('./components/docs/TitleBlockDesigner'));
-const DrawingsView = lazy(() => import('./components/docs/DrawingsView'));
+const CadSheets = lazy(() => import('./components/cad/CadSheets'));
 import { withCableRefs } from './model/cableRefs';
 import { withEarthPitIds } from './model/earthingPlan';
-import { SheetTabs, SheetWorkspace, sheetOutlines } from './components/sld/SheetWorkspace';
-import { movePanelToSheet, setOf } from './model/drawingSet';
+import type { DrawingsTab } from './components/docs/DrawingsView';
+import { earthSheetFor, setOf } from './model/drawingSet';
 import { boardsInSupplyOrder } from './calc/summary';
 const ComponentEditor = onDemand(() => import('./components/ComponentEditor'));
 import { componentPreset, newComponent, syncComponent, type UserComponent } from './model/components';
@@ -201,7 +201,15 @@ export default function App() {
   }, opts), [setHistory]);
   // SLD tabs: null = Design (the working canvas), else a drawing sheet.
   const [sheetTab, setSheetTab] = useState<string | null>(null);
-  const [sheetOutlinesOn, setSheetOutlinesOn] = useState(false);
+  const [drawingsTab, setDrawingsTab] = useState<DrawingsTab>('sheets');
+  // Earthing screen → Sheets: the sheet of what it shows, in Design CAD → Sheets (added to the set the first time).
+  const openEarthSheet = (kind: 'earthing' | 'earthRiser' | 'earthFloor', buildingId?: string, part = 0) => {
+    const set = setOf(project), r = earthSheetFor(set, project, kind, buildingId, part);
+    if (!r.id) { setStatus(buildingId || kind === 'earthing' ? 'That sheet has nothing on it yet' : 'Add the building in Building information first'); return; }
+    if (r.set !== set) setProject({ ...project, drawingSet: r.set }, { step: true });
+    setSheetTab(r.id);
+    setView('drawings');
+  };
   // Results under the SLD: open / closed (remembered); a row click centres the drawing on it.
   const [resTab, setResTab] = useState<'summary' | 'buses' | 'feeders' | null>(() => { try { const v = localStorage.getItem('lvds.resTab'); return v === 'summary' || v === 'buses' || v === 'feeders' ? v : null; } catch { return null; } });
   const [sldFocus, setSldFocus] = useState<{ kind: 'board' | 'feeder'; id: string; n: number } | undefined>();
@@ -288,6 +296,7 @@ export default function App() {
   const closeWhatsNew = () => { markSeen(__APP_VERSION__); setWhatsNew([]); };
   const whatsNewAction = (a: WhatsNewAction) => {
     closeWhatsNew();
+    if (a === 'sheets') { setSheetTab(null); setDrawingsTab('sheets'); setView('drawings'); return; }
     // Floor plan items of earlier releases open Design CAD, which does what the Floor plan page did.
     setView('cad');
     if (a === 'floor-plan-lengths') cadS.setTool('cable');
@@ -392,11 +401,6 @@ export default function App() {
   const [boardPreset, setBoardPreset] = useState<{ kind: BoardKind; ratingA: number } | undefined>();
   const [diagramMode, setDiagramMode] = useState<DiagramMode>('system');
   const [panel, setPanel] = useState<'feeder' | 'board'>('board');
-  // With a drawing sheet open, the right panel holds that sheet's settings (portalled from SheetWorkspace) beside the board / circuit inspector.
-  const [sideTab, setSideTab] = useState<'sheet' | 'item'>('sheet');
-  const [sheetHost, setSheetHost] = useState<HTMLDivElement | null>(null);
-  useEffect(() => { setSideTab('item'); }, [activeBoardId, selected, panel]);
-  useEffect(() => { setSideTab('sheet'); }, [sheetTab]);
 
   // Network studies run on demand (Run calculations / F5): results come from
   // the last run, and a study shows as out of date once one of its own
@@ -1078,8 +1082,8 @@ export default function App() {
         setDiagramMode(e.key === '1' ? 'system' : e.key === '2' ? 'board' : e.key === '3' ? 'earthing' : 'riser');
         return;
       }
-      if (!mod && !e.altKey && (e.key === '[' || e.key === ']') && view === 'design' && diagramMode === 'system') {
-        // Previous / next drawing sheet (Design first).
+      if (!mod && !e.altKey && (e.key === '[' || e.key === ']') && view === 'drawings') {
+        // Previous / next sheet in Design CAD → Sheets (All sheets first).
         const ids = [null, ...setOf(project).sheets.map((x) => x.id)];
         const i = Math.max(0, ids.indexOf(sheetTab));
         const next = ids[Math.min(ids.length - 1, Math.max(0, i + (e.key === ']' ? 1 : -1)))];
@@ -1202,6 +1206,7 @@ export default function App() {
         a={{
           view,
           onView: setView,
+          sheets: { tab: drawingsTab, open: !!sheetTab && setOf(project).sheets.some((x) => x.id === sheetTab), onTab: (t) => { setSheetTab(null); setDrawingsTab(t); setView('drawings'); } },
           onBom: (cmd) => { setView('boq'); setBomCmd((c) => ({ cmd, n: (c?.n ?? 0) + 1 })); },
           hasPriceList: !!project.priceList,
           tool,
@@ -1361,8 +1366,6 @@ export default function App() {
                 {diagramMode === 'system' ? (
                   <div className={`sld-edit${sldFull ? ' full' : ''}`}>
                   {sldFull && equipment(false)}
-                  {(() => {
-                    const diagram = (
                   <SystemDiagram
                     cull
                     // The design canvas is not published: the symbol legend is on the drawing sheets. The
@@ -1390,19 +1393,12 @@ export default function App() {
                     resizable
                     fullScreen={sldFull}
                     onToggleFullScreen={() => setSldFull((v) => !v)}
-                    outlines={sheetOutlinesOn ? sheetOutlines(project) : undefined}
-                    onOutline={setSheetTab}
                     focus={sldFocus}
                     onFixFeeder={(id, patch, label) => {
                       setProject((p) => ({ ...p, feeders: p.feeders.map((f) => (f.id === id ? { ...f, ...patch } : f)) }), { step: true });
                       selectFeeder(id);
                       setStatus(`${id}: ${label} (undo with ⌘Z)`);
                     }}
-                    onMoveToSheet={sheetOutlinesOn ? (boardId, sheetId) => {
-                      const set = setOf(project);
-                      setProject({ ...project, drawingSet: movePanelToSheet(set, boardId, sheetId, boardsInSupplyOrder(project).map((b) => b.id)) }, { step: true });
-                      setStatus(`${boardId} moved to ${set.sheets.find((x) => x.id === sheetId)?.number}`);
-                    } : undefined}
                     onDrawing={(d) => setProject((p) => ({ ...p, drawing: { ...p.drawing, ...d } }))}
                     onEditTie={async (id) => {
                       const t = project.ties?.find((x) => x.id === id);
@@ -1435,18 +1431,11 @@ export default function App() {
                       setStatus(`${id}: cable ${patch.parallel ? `${patch.parallel} × ` : ''}${patch.cores}C × ${patch.cableCsaMm2} mm², ${patch.lengthM} m`);
                     }}
                   />
-                    );
-                    return sheetTab && setOf(project).sheets.some((x) => x.id === sheetTab)
-                      ? <SheetWorkspace project={project} run={run} sheetId={sheetTab} design={diagram} settingsHost={sheetHost} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onActive={setSheetTab} />
-                      : diagram;
-                  })()}
-                  <SheetTabs project={project} run={run} active={sheetTab} selectedBoardId={panel === 'board' ? board.id : null} outlinesOn={sheetOutlinesOn}
-                    onActive={setSheetTab} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onToggleOutlines={() => setSheetOutlinesOn((v) => !v)} />
                   </div>
                 ) : diagramMode === 'riser' ? (
                   <RiserView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />
                 ) : diagramMode === 'earthing' ? (
-                  <EarthingView embedded project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />
+                  <EarthingView embedded project={project} onChange={(p) => setProject(p, { step: true })} onSheets={openEarthSheet} />
                 ) : (
                   <BoardSheetView project={project} board={board} results={allResults} selected={panel === 'feeder' ? selected : null} onSelect={selectFeeder} onBoard={selectBoard} onOpenEarthing={() => setDiagramMode('earthing')}
                     onChange={(p) => setProject(p, { step: true })} onStatus={setStatus}
@@ -1499,21 +1488,7 @@ export default function App() {
             </main>
 
             <InspectorPanel label={panel === 'board' ? 'Board properties' : 'Circuit results'}>
-              {(() => {
-                const sheet = sheetTab ? setOf(project).sheets.find((x) => x.id === sheetTab) : undefined;
-                if (!sheet) return null;
-                const item = panel === 'board' ? board.id : selected ?? 'Circuit';
-                return (
-                  <>
-                    <div className="side-tabs" role="tablist" aria-label="Inspector">
-                      <button role="tab" aria-selected={sideTab === 'sheet'} className={sideTab === 'sheet' ? 'on' : ''} onClick={() => setSideTab('sheet')}>Sheet <span className="m">{sheet.number}</span></button>
-                      <button role="tab" aria-selected={sideTab === 'item'} className={sideTab === 'item' ? 'on' : ''} onClick={() => setSideTab('item')}>{panel === 'board' ? 'Board' : 'Circuit'} <span className="m">{item}</span></button>
-                    </div>
-                    <div ref={setSheetHost} className="sheet-side" hidden={sideTab !== 'sheet'} />
-                  </>
-                );
-              })()}
-              {sheetTab && setOf(project).sheets.some((x) => x.id === sheetTab) && sideTab === 'sheet' ? null : panel === 'board' ? (
+              {panel === 'board' ? (
                 <BoardPanel project={calcProject.boards.some((b) => b.id === board.id) ? calcProject : project} board={board} results={allResults} onChange={updateBoard} onSelectFeeder={selectFeeder} tab={boardTab} onTab={setBoardTab} onEnclosure={() => setView('enclosure')} main={mainOfSelected()} />
               ) : (
                 <>
@@ -1565,7 +1540,10 @@ export default function App() {
             {view === 'selection' && <SelectionStudy project={calcProject} focus={focus} onClearFocus={() => setFocus(null)} onChange={staleKeys.length ? blocked : setProject} />}
             {view === 'coordination' && <CoordinationStudy project={calcProject} board={board?.id} onBoard={setActiveBoardId} />}
             {view === 'sizing' && <TransformerGeneratorStudy project={project} onStatus={setStatus} onChange={(p) => setProject(p, { step: true })} />}
-            {(view === 'drawings' || view === 'drawing-register') && <DrawingsView project={project} run={run} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onOpen={setView} />}
+            {(view === 'drawings' || view === 'drawing-register') && (
+              <CadSheets project={project} calcProject={calcProject} results={allResults} annotations={annotations} run={run} sheetId={sheetTab} tab={drawingsTab}
+                onActive={setSheetTab} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onOpen={setView} />
+            )}
             {view === 'parameters' && <ParametersView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onTitleBlock={() => setView('titleblock')} />}
             {view === 'titleblock' && <TitleBlockDesigner project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onParams={() => setView('parameters')} />}
             {view === 'help' && <HelpView project={project} run={run} stale={staleKeys} saved={!!currentFile && !dirty} onGo={(v) => (v === 'settings' ? setShowSettings(true) : setView(v))} onWhatsNew={() => setWhatsNew(RELEASES.slice(0, 1))} />}
@@ -1615,7 +1593,7 @@ export default function App() {
             {view === 'calculators' && <QuickCalcs project={project} />}
             {view === 'panels' && <PanelsPage project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onBuilding={() => setView('building')}
               onCreated={(next, m, added) => { setProject(next, { step: true }); setCreatedPanelIds(added); setStatus(m); }} />}
-            {view === 'earth-schematic' && <EarthingView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
+            {view === 'earth-schematic' && <EarthingView project={project} onChange={(p) => setProject(p, { step: true })} onSheets={openEarthSheet} />}
             {view === 'enclosure' && <EnclosureSizing key={board?.id} project={project} boardId={board?.id} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />}
             {view === 'substation-area' && <SubstationAreaView project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />}
             {view === 'ups' && <UpsStudy project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />}

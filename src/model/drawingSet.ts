@@ -108,6 +108,15 @@ export function addEarthingSheet(set: DrawingSet): { set: DrawingSet; id: string
   const id = `sh-${Date.now().toString(36)}`;
   return { id, set: renumber({ ...set, sheets: [...set.sheets, { id, number: '', title: 'Earthing schematic diagram', kind: 'earthing', boards: [], size: 'auto', status: startStatus(set) }] }) };
 }
+/** The earthing schematic, or a building's earth riser / floor earthing sheet `part`, for the earthing screen's Sheets
+ * button: from the set, else added (every sheet of that kind for the building). No id when there is nothing to draw. */
+export function earthSheetFor(set: DrawingSet, project: Project, kind: 'earthing' | 'earthRiser' | 'earthFloor', buildingId?: string, part = 0): { set: DrawingSet; id?: string } {
+  const find = (x: DrawingSet) => x.sheets.find((s) => s.kind === kind && (kind === 'earthing' || (s.buildingId === buildingId && (s.part ?? 0) === part)))?.id;
+  if (find(set)) return { set, id: find(set) };
+  if (kind !== 'earthing' && !buildingId) return { set };
+  const next = kind === 'earthing' ? addEarthingSheet(set).set : addEarthRiserSheet(set, project, buildingId!, kind).set;
+  return { set: next, id: find(next) };
+}
 /** A riser diagram sheet for a building. */
 export function addRiserSheet(set: DrawingSet, buildingId: string, buildingName: string, riserStyle?: 'feeders'): { set: DrawingSet; id: string } {
   const id = `sh-${Date.now().toString(36)}`;

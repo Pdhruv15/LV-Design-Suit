@@ -47,9 +47,10 @@ Select **Detailed design > SLD**. The work area contains:
 
 - the panel tree on the left;
 - the system diagram in the centre;
-- board properties or circuit results on the right;
-- drawing-sheet tabs below the diagram; and
+- board properties or circuit results on the right; and
 - collapsible system, bus, and feeder results below the SLD.
+
+The drawing sheets are in **Design CAD > Sheets**. The **Sheets** button on the ribbon opens them.
 
 Use **Command/Ctrl+1** to return to the system diagram. **Command/Ctrl+2**, **Command/Ctrl+3**, and **Command/Ctrl+4** open the board diagram, earthing view, and riser view respectively.
 
@@ -116,26 +117,26 @@ Typical checks include design current versus breaker and cable capacity, voltage
 
 ## 4. Create SLD drawing sheets
 
-The **Design** tab below the SLD is the editable full-network canvas. Tabs beside it are publishable drawing sheets.
+The SLD is the editable full-network canvas. The publishable drawing sheets are in **Design CAD > Sheets**. They are made from the design, so a design change shows on them.
 
-### 4.1 Add sheets from the SLD
+### 4.1 Add sheets
 
-1. Select a board on **Design** if the new sheet should contain its branch.
-2. Select **+** beside the sheet tabs.
+1. Select **Sheets** on the ribbon, or **Design CAD > Sheets**.
+2. Select **+ New sheet** above the sheet list.
 3. Choose one of the available options, such as:
-   - **Selected panel and its branch**;
+   - **Panel and its branch** (pick the panel);
    - **Empty sheet (tick panels)**;
    - a riser or earthing sheet; or
    - **Split all panels into sheets**.
-4. Open the new sheet tab and check its paper size, panels, title, cable labels, and printed result layers.
+4. Open the new sheet and check its paper size, panels, title, cable labels, and printed result layers.
 
-Select **Show sheets on Design** to display each system sheet's panel boundary on the working SLD. When enabled, a panel can be moved into another sheet outline.
+Select **Side by side** on a sheet to show the design with each system sheet's panel boundary. A panel can be dragged into another sheet outline, and clicking a panel there makes it the start of **Panel and its branch**.
 
-Right-click a sheet tab to rename it, set its drawing number, duplicate or reorder it, advance its revision, change its status, export it, or delete it. Use **[** and **]** to move between Design and the drawing-sheet tabs.
+Right-click a sheet in the list to rename it, set its drawing number, duplicate or reorder it, advance its revision, change its status, export it, or delete it. Use **[** and **]** to move between All sheets and the sheets. Add revision clouds, notes, and callouts with **Markup** on the sheet, earthing sheets included.
 
 ### 4.2 Manage and export the drawing set
 
-Open **Reports > Drawings** to manage the complete drawing set.
+Open **Design CAD > Sheets > All sheets** to manage the complete drawing set. **Documents > Drawings** opens the same place.
 
 - Create sheets automatically by panel count, per MDB, or as an overview plus one sheet per SMDB.
 - Optionally add a circuit diagram for every DB.
@@ -299,7 +300,7 @@ It supplies another panel. Move that panel to a different source or delete it fr
 
 ### A drawing sheet is empty or missing panels
 
-Open the sheet settings and select the required panels, or recreate the sheet from **Selected panel and its branch**. Use **Show sheets on Design** to verify sheet allocation.
+Open the sheet settings and select the required panels, or recreate the sheet from **Panel and its branch**. Use **Side by side** to verify sheet allocation.
 
 ### Exported calculation labels may be stale
 

@@ -8,6 +8,7 @@ import { PenTool, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, 
 import type { CadTool } from './cad/cadState';
 import type { BoardKind, Feeder } from '../types';
 import type { MainView } from '../views';
+import type { DrawingsTab } from './docs/DrawingsView';
 import { STAGE_INFO, type DesignStage, type TenderRoute } from '../model/designStage';
 
 export type BomCommand = 'boq' | 'scope' | 'changes' | 'variations' | 'circuits' | 'excel' | 'pdf' | 'summary-pdf' | 'rates-sheet' | 'import' | 'save-list' | 'add-item' | 'add-section' | 'extras' | 'wastage' | 'markup' | 'document' | 'issue-rev';
@@ -38,6 +39,8 @@ interface Tool {
 export interface RibbonActions {
   view: MainView;
   onView: (v: MainView) => void;
+  /** Design CAD → Sheets: the register tab shown when no sheet is open, and choosing one. */
+  sheets?: { tab: DrawingsTab; open: boolean; onTab: (t: DrawingsTab) => void };
   tool: DiagramTool;
   onTool: (t: DiagramTool) => void;
   boardId: string;
@@ -95,13 +98,16 @@ export interface RibbonActions {
   onConceptReport: () => void;
 }
 
-/** Design CAD's two sub-tabs over the same drawing: Plan (engineering) and Draw (drafting), as groups of the cad tab
- * (File · Rooms · Cables and boards · Draw · Modify · Annotate · Measure · Devices · View). */
-export type CadSub = 'plan' | 'draw';
+/** Design CAD's sub-tabs: Plan (engineering) and Draw (drafting) over the same floor plan, and Sheets (every
+ * submission sheet), as groups of the cad tab (File · Rooms · Cables and boards · Draw · Modify · Annotate · Measure ·
+ * Devices · View · Sheets). Sheets is its own page (the drawings view). */
+export type CadSub = 'plan' | 'draw' | 'sheets';
 export const CAD_SUB: Record<CadSub, { label: string; groups: number[] }> = {
   plan: { label: 'Plan', groups: [0, 1, 2, 7, 6, 8] },
-  draw: { label: 'Draw', groups: [0, 3, 4, 5, 8] }
+  draw: { label: 'Draw', groups: [0, 3, 4, 5, 8] },
+  sheets: { label: 'Sheets', groups: [9] }
 };
+const SHEET_VIEWS: MainView[] = ['drawings', 'drawing-register'];
 /** The sub-tab a tool is on, so the ribbon shows the tool in use. */
 const SUB_OF: Partial<Record<CadTool, CadSub>> = {
   line: 'draw', pline: 'draw', rect: 'draw', circle: 'draw', arc: 'draw', text: 'draw', dim: 'draw', rotate: 'draw',
@@ -114,7 +120,7 @@ export const CAPTIONS: Record<RibbonTab, string[]> = {
   concept: ['Load', 'Supply', 'Stage'],
   schematic: ['History', 'Distribution', 'Main systems', 'ELV', 'Stage'],
   detailed: ['Run', 'Canvas', 'Boards', 'Equipment', 'Selection', 'Calculate', 'Stage'],
-  cad: ['File', 'Rooms', 'Cables and boards', 'Draw', 'Modify', 'Annotate', 'Measure', 'Devices', 'View'],
+  cad: ['File', 'Rooms', 'Cables and boards', 'Draw', 'Modify', 'Annotate', 'Measure', 'Devices', 'View', 'Sheets'],
   reports: ['Schedules', 'Drawings and reports'],
   issue: ['Tender', 'Track', 'Send', 'IFC'],
   cost: ['Bill', 'Add to the bill', 'Rates', 'Issue and export'],
@@ -148,8 +154,8 @@ const TAB_VIEWS: Record<RibbonTab, MainView[]> = {
   concept: ['building', 'load-assessment', 'sizing', 'substation-area', 'space-planning', 'dashboard'],
   schematic: ['panels', 'design', 'busbar', 'pfc', 'ups', 'solar', 'earth-schematic', 'elv', 'inbox'],
   detailed: ['design', 'panels', 'load-schedule', 'enclosure', 'selection', 'voltage-drop', 'earthing', 'coordination', 'engines', 'calculators'],
-  cad: ['cad'],
-  reports: ['load-schedule', 'cable-schedule', 'cable-tray', 'equipment', 'drawings', 'drawing-register', 'study-reports', 'report', 'export-centre'],
+  cad: ['cad', 'drawings', 'drawing-register'],
+  reports: ['load-schedule', 'cable-schedule', 'cable-tray', 'equipment', 'study-reports', 'report', 'export-centre'],
   issue: ['revisions', 'modifications', 'review', 'received-docs', 'submissions'],
   cost: ['boq'],
   standards: ['database', 'design-references']
@@ -177,6 +183,8 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   const [menuLeft, setMenuLeft] = useState(0);
   const [splitOpen, setSplitOpen] = useState<string | null>(null);
   const [cadSub, setCadSub] = useState<CadSub>('plan');
+  // Sheets is a page of its own: shown whenever a sheets page is on screen, else Plan or Draw as last chosen.
+  const sub: CadSub = SHEET_VIEWS.includes(a.view) ? 'sheets' : cadSub === 'sheets' ? 'plan' : cadSub;
   const cadToolNow = a.cad?.tool;
   useEffect(() => { const s = cadToolNow && SUB_OF[cadToolNow]; if (s) setCadSub(s); }, [cadToolNow]);
   const [splitAt, setSplitAt] = useState({ x: 0, y: 0 });
@@ -291,6 +299,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         { label: 'Boards', icon: AddBoardIcon, title: `Add a board fed from ${a.boardId || 'an existing board'} — the arrow beside it for an SMDB, MCC or EMDB with its usual rating, or Build hierarchy to create many at once`, onClick: () => a.onAddBoard(), page: true, menu: boardMenu },
         view('panels', 'Build hierarchy', ListTree, 'Panels: create by count, edit levels and connections in one list, rename by level; typical floors, repeat group, templates'),
         view('design', 'SLD', Network, 'Single line diagram — main boards and risers at this stage'),
+        view('drawings', 'Sheets', Files, 'The submission sheets of this design in Design CAD → Sheets: SLDs, risers and earthing, with title blocks, clouds and notes'),
         view('busbar', 'Busbar riser', AlignVerticalSpaceAround, 'Busbar trunking risers for high-rise buildings: rating (Cu / Al), area, voltage drop per floor, size and weight')
       ],
       [
@@ -309,6 +318,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       [{ label: 'Run', icon: Play, title: a.staleCount ? `Run calculations (F5) — ${a.staleCount} out of date` : 'Run calculations (F5) — up to date', onClick: a.onRun, stale: a.staleCount > 0 }],
       [
         { label: 'SLD', icon: Network, title: 'Single line diagram', onClick: go('design'), active: a.view === 'design', page: true },
+        view('drawings', 'Sheets', Files, 'The submission sheets of this design in Design CAD → Sheets: SLDs, risers and earthing, with title blocks, clouds and notes'),
         { label: 'Select', icon: MousePointer2, title: 'Select tool — click boards and loads to select them (V)', onClick: () => { a.onView('design'); a.onTool('select'); }, active: a.view === 'design' && a.tool === 'select' },
         { label: 'Pan', icon: Hand, title: 'Pan tool — drag to move around the diagram without selecting (H)', onClick: () => { a.onView('design'); a.onTool('pan'); }, active: a.view === 'design' && a.tool === 'pan' }
       ],
@@ -393,6 +403,12 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       [
         { label: 'Layers', icon: Layers, title: 'Show or hide the layers panel (LAYER)', onClick: () => a.cad?.onLayers(), active: a.cad?.layersOn },
         { label: 'Fit', icon: Maximize, title: 'Fit the drawing to the window (FIT / ZE, or double-click the middle button)', onClick: () => a.cad?.onFit(), disabled: !a.cad?.hasDrawing }
+      ],
+      [
+        { label: 'All sheets', icon: Files, title: 'Every submission sheet: the register with filters, bulk changes, thumbnails and export (PDF, DXF, Excel)', onClick: () => a.sheets?.onTab('sheets'), active: SHEET_VIEWS.includes(a.view) && !a.sheets?.open && a.sheets?.tab === 'sheets', page: true },
+        { label: 'Layout', icon: LayoutGrid, title: 'How sheets are made and what they show: panels per sheet, values printed, legend', onClick: () => a.sheets?.onTab('layout'), active: SHEET_VIEWS.includes(a.view) && !a.sheets?.open && a.sheets?.tab === 'layout', page: true },
+        { label: 'Title block', icon: PanelBottom, title: 'Title block and drawing numbering of the set', onClick: () => a.sheets?.onTab('titleblock'), active: SHEET_VIEWS.includes(a.view) && !a.sheets?.open && a.sheets?.tab === 'titleblock', page: true },
+        { label: 'Issues', icon: Stamp, title: 'Issue sheets: revisions and transmittals', onClick: () => a.sheets?.onTab('issues'), active: SHEET_VIEWS.includes(a.view) && !a.sheets?.open && a.sheets?.tab === 'issues', page: true }
       ]
     ],
     reports: [
@@ -402,7 +418,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         view('cable-tray', 'Cable trays', Rows3, 'Cable tray schedule: routes A, B, C… with the cables on each and the tray size'),
         view('equipment', 'Equipment', FileSpreadsheet, 'Transformers and boards')
       ],
-      [view('drawings', 'Drawings', Files, 'SLD sheets and register in one place: panels per sheet, status, revisions, title block, issues and transmittals, PDF / Excel exports'), view('study-reports', 'Study reports', ClipboardCheck, 'Submission reports: chosen studies (short circuit, load flow…) for chosen boards, with their SLD'), view('report', 'Calc report', FileText, 'Calculation report (PDF)'), view('export-centre', 'Export centre', FileDown, 'Every PDF document in one list: tick what you need and export a zip or one bookmarked PDF')]
+      [view('drawings', 'Drawings', Files, 'Opens Design CAD → Sheets: every submission sheet and the register — panels per sheet, status, revisions, title block, issues and transmittals, PDF / DXF / Excel exports'), view('study-reports', 'Study reports', ClipboardCheck, 'Submission reports: chosen studies (short circuit, load flow…) for chosen boards, with their SLD'), view('report', 'Calc report', FileText, 'Calculation report (PDF)'), view('export-centre', 'Export centre', FileDown, 'Every PDF document in one list: tick what you need and export a zip or one bookmarked PDF')]
     ],
     issue: [
       [
@@ -486,7 +502,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       {tab === 'cad' && (!collapsed || peek) && (
         <div className="ribbon-subtabs" role="tablist" aria-label="Design CAD">
           {(Object.keys(CAD_SUB) as CadSub[]).map((k) => (
-            <button key={k} role="tab" aria-selected={cadSub === k} className={cadSub === k ? 'on' : ''} onClick={() => setCadSub(k)}>{CAD_SUB[k].label}</button>
+            <button key={k} role="tab" aria-selected={sub === k} className={sub === k ? 'on' : ''} onClick={() => { setCadSub(k); if (k === 'sheets') a.onView('drawings'); else if (a.view !== 'cad') a.onView('cad'); }}>{CAD_SUB[k].label}</button>
           ))}
         </div>
       )}
@@ -495,8 +511,8 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         const b = (e.target as HTMLElement).closest('button');
         if (collapsed && b && !b.hasAttribute('aria-haspopup') && !b.hasAttribute('aria-expanded')) setPeek(false);
       }} role="toolbar" aria-label={`${TABS.find((t) => t.id === tab)?.label} tools`}>
-        {groups[tab].map((group, gi) => (tab === 'cad' && !CAD_SUB[cadSub].groups.includes(gi) ? null :
-          <div key={gi} className="ribbon-group" role="group" aria-label={CAPTIONS[tab]?.[gi]} style={tab === 'cad' ? { order: CAD_SUB[cadSub].groups.indexOf(gi) + 1 } : undefined}>
+        {groups[tab].map((group, gi) => (tab === 'cad' && !CAD_SUB[sub].groups.includes(gi) ? null :
+          <div key={gi} className="ribbon-group" role="group" aria-label={CAPTIONS[tab]?.[gi]} style={tab === 'cad' ? { order: CAD_SUB[sub].groups.indexOf(gi) + 1 } : undefined}>
             <div className="ribbon-group-btns">
               {group.map(({ label, icon: I, title, onClick, active, disabled, stale, page, menu, sub }) => {
                 const btn = (

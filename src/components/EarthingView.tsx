@@ -2,18 +2,12 @@ import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Project } from '../types';
 import { earthingLayout, kindInfo, patchEarthing, pitStatus, setPitTest, DEFAULT_BONDING, EARTHING_SYSTEMS, type EarthPit } from '../model/earthingPlan';
-import { earthSheetNo } from '../model/boardEarth';
 import { earthingDrawing } from '../diagram/earthingDrawing';
 import { earthFloorDrawing, earthRiserDrawing, earthSheetRefs } from '../diagram/earthRiserDrawing';
-import { DEFAULT_LV_ROOM_CABLE, DEFAULT_RISER_NAME, DEFAULT_RISER_TAPE, earthRiserLayout, earthSheetTitles, floorGroups, newRiserId, nextRiserName, riserPages, risersOf, setRisers } from '../model/earthRiser';
+import { DEFAULT_LV_ROOM_CABLE, DEFAULT_RISER_NAME, DEFAULT_RISER_TAPE, earthRiserLayout, floorGroups, newRiserId, nextRiserName, riserPages, risersOf, setRisers } from '../model/earthRiser';
 import { floorList } from '../model/levels';
 import type { EarthRiserDef } from '../types';
-import { EARTH_PREFIX, setOf, sheetNumber } from '../model/drawingSet';
-import { buildSldSheetHtml, type SheetInfo } from '../docs/sldSheet';
-import { buildSheetDxfPages } from '../docs/sheetDxf';
-import { dxfExportNotice, namedDxfFiles } from '../docs/dxfFiles';
-import { safeFileName, saveBinary, savePdf, saveText } from '../util/files';
-import MenuButton from './MenuButton';
+import { setOf } from '../model/drawingSet';
 import { Page } from './ui';
 import { sanitizedSvgFragment } from '../util/sanitize';
 
@@ -78,8 +72,11 @@ const STATUS_LABEL = { pass: 'pass', fail: 'over limit', untested: 'not tested' 
  * result, click a pit to record its test — with the pit test schedule and the
  * checks on their own tabs, the plan's settings in a side drawer, and the
  * schematic as a titled A3 sheet (PDF, DXF; black and white). */
-export default function EarthingView({ project, onChange, onStatus, embedded = false }: {
-  project: Project; onChange: (p: Project) => void; onStatus: (m: string) => void;
+export default function EarthingView({ project, onChange, onSheets, embedded = false }: {
+  project: Project; onChange: (p: Project) => void;
+  /** Open the sheet of what is shown in Design CAD → Sheets (the earthing schematic, or a building's earth riser or
+   * floor earthing sheet `part`), adding it to the drawing set the first time. */
+  onSheets?: (kind: 'earthing' | 'earthRiser' | 'earthFloor', buildingId?: string, part?: number) => void;
   /** Inside the SLD workspace (Design ▸ SLD ▸ Earthing tab): no page title or intro. */
   embedded?: boolean;
 }) {
@@ -107,15 +104,6 @@ export default function EarthingView({ project, onChange, onStatus, embedded = f
     ? earthFloorDrawing(project, riserB.id, { mono, ...refs() }, part, RL).svg
     : earthRiserDrawing(project, riserB.id, { mono, ...refs() }, part, RL).svg);
   const riserSvg = useMemo(() => ((tab === 'riser' || tab === 'floor') ? earthSvg(false) : ''), [tab, project, riserB, RL, part]); // eslint-disable-line react-hooks/exhaustive-deps
-  /** Sheet number and title of the riser sheet or floor sheet shown: its sheet in the set, else the next earthing number. */
-  const riserSheet = (): { no: string; title: string } => {
-    const set = setOf(project), kind = tab === 'floor' ? 'earthFloor' : 'earthRiser';
-    const titles = riserB ? earthSheetTitles(project, riserB.id) : { riser: [], floors: [] };
-    const title = ((kind === 'earthRiser' ? titles.riser : titles.floors)[part] ?? '').toUpperCase();
-    const s = set.sheets.find((x) => x.kind === kind && x.buildingId === riserB?.id && (x.part ?? 0) === part);
-    const earth = set.sheets.filter((x) => x.kind === 'earthing' || x.kind === 'earthRiser' || x.kind === 'earthFloor').length;
-    return { no: s?.number || sheetNumber(set, earth + (set.sheets.some((x) => x.kind === 'earthing') ? 0 : 1), set.earthPrefix ?? EARTH_PREFIX), title };
-  };
   const [edit, setEdit] = useState<{ id: string; x: number; y: number; n: number } | null>(null);
   const canvas = useRef<HTMLDivElement>(null);
 
@@ -143,30 +131,6 @@ export default function EarthingView({ project, onChange, onStatus, embedded = f
     setEdit({ n: Date.now(), id: g.getAttribute('data-pit')!, x: r.right - box.left + canvas.current!.scrollLeft + 8, y: r.top - box.top + canvas.current!.scrollTop });
   };
 
-  async function exportSheet(kind: 'pdf' | 'dxf', riser = false) {
-    const sheet = riser && riserB ? earthSvg(true) : earthingDrawing(project, L, true, { mono: true }).svg;
-    const info: SheetInfo = riser && riserB ? { ...riserSheet(), count: 1, index: 1 } : { no: earthSheetNo(project), title: 'EARTHING SCHEMATIC', count: 1, index: 1 };
-    const name = safeFileName(`${project.name} ${info.no}`);
-    try {
-      let m: string | null;
-      if (kind === 'pdf') m = await savePdf(`${name}.pdf`, buildSldSheetHtml(project, sheet, 'A3', info), { pageSize: 'A3', landscape: true });
-      else {
-        const files = namedDxfFiles(name, buildSheetDxfPages(project, sheet, 'A3', info));
-        if (files.length === 1) m = await saveText(files[0].name, files[0].data, 'DXF drawing (AutoCAD R12)', 'dxf');
-        else {
-          const zip = new (await import('jszip')).default();
-          files.forEach((f) => zip.file(f.name, f.data));
-          m = await saveBinary(`${name}-DXF.zip`, await zip.generateAsync({ type: 'uint8array' }), 'ZIP', 'zip', 'application/zip');
-        }
-        const notice = dxfExportNotice(files);
-        if (m && notice) m += ` — ${notice}`;
-      }
-      if (m) onStatus(m);
-    } catch (e) {
-      onStatus(`Export failed: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  }
-
   const editing = edit ? L.pits.find((p) => p.id === edit.id) : undefined;
   const pitRow = (p: EarthPit) => {
     const it = itemOf(p.itemKey), k = kindInfo(p.kind), net = netOf(p.id), st = pitStatus(p);
@@ -186,19 +150,11 @@ export default function EarthingView({ project, onChange, onStatus, embedded = f
 
   const actions = (<>
         <button className={`chip${drawer ? ' on' : ''}`} aria-pressed={drawer} onClick={() => setDrawer(!drawer)} title="Pits per equipment, electrode, conductor and bonding">Settings {drawer ? <ChevronLeft size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}</button>
-        <MenuButton label="Export sheet" title={tab === 'riser' ? 'This sheet of the earthing riser diagram (A3, black and white); the whole set from Drawings' : tab === 'floor' ? 'This floor earthing sheet (A3, black and white, with the panel schedule); the whole set from Drawings' : `Earthing schematic as drawing sheet ${earthSheetNo(project)} (A3, black and white, with the pit schedule)`} align="right">
-          {(close) => tab === 'riser' || tab === 'floor' ? (
-            <>
-              <button disabled={!riserB} onClick={() => { close(); void exportSheet('pdf', true); }}>PDF — {riserSheet().no}</button>
-              <button disabled={!riserB} onClick={() => { close(); void exportSheet('dxf', true); }}>DXF — {riserSheet().no}</button>
-            </>
-          ) : (
-            <>
-              <button disabled={!L.pits.length} onClick={() => { close(); void exportSheet('pdf'); }}>PDF — {earthSheetNo(project)}</button>
-              <button disabled={!L.pits.length} onClick={() => { close(); void exportSheet('dxf'); }}>DXF — {earthSheetNo(project)}</button>
-            </>
-          )}
-        </MenuButton>
+        {onSheets && (
+          <button className="chip" disabled={tab === 'riser' || tab === 'floor' ? !riserB : !L.pits.length}
+            title="Open this sheet in Design CAD → Sheets: title block, clouds and notes, PDF / DXF / DWG (added to the drawing set the first time)"
+            onClick={() => (tab === 'riser' || tab === 'floor' ? onSheets(tab === 'floor' ? 'earthFloor' : 'earthRiser', riserB?.id, part) : onSheets('earthing'))}>Sheets</button>
+        )}
       </>);
   const body = (
       <div className={`earth-ws${drawer ? ' with-drawer' : ''}`}>

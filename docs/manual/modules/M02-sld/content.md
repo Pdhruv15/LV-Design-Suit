@@ -32,8 +32,10 @@ The SLD work area contains:
 3. The interactive drawing canvas.
 4. Drawing and zoom controls.
 5. Board properties or circuit results on the right.
-6. Drawing-sheet tabs below the diagram.
-7. System, bus, and feeder results below the SLD.
+6. System, bus, and feeder results below the SLD.
+
+The drawing sheets are in **Design CAD > Sheets**. The **Sheets** button on the
+ribbon opens them.
 
 <a id="SLD-040"></a>
 ## Navigate the drawing
@@ -139,19 +141,22 @@ validation. If the diagram shows calculated labels, run calculations before expo
 <a id="SLD-110"></a>
 ## Create drawing sheets
 
-The **Design** tab is the full editable network. Other tabs are controlled drawing
-sheets.
+The SLD is the full editable network. The controlled drawing sheets are in
+**Design CAD > Sheets**: SLDs, risers, and the earthing schematic, earth riser, and
+floor earthing sheets.
 
-1. Select a panel if the new sheet should contain its branch.
-2. Select **+** beside the sheet tabs.
-3. Choose **Selected panel and its branch**, **Empty sheet**, a riser or earthing
-   option, or **Split all panels into sheets**.
+1. Select **Sheets** on the ribbon, or **Design CAD > Sheets**.
+2. Select **+ New sheet** above the sheet list.
+3. Choose **Panel and its branch** (pick the panel), **Empty sheet**, a riser or
+   earthing option, or **Split all panels into sheets**.
 4. Check the sheet title, number, paper size, panel allocation, cable labels,
    printed result layers, status, and revision.
-5. Use **Show sheets on Design** to verify how panels are allocated.
+5. Use **Side by side** to see the design with each sheet's panels outlined. Drag
+   a panel onto another outline to move it to that sheet.
 
-Right-click a sheet tab to rename, renumber, duplicate, move, revise, export, or
-delete the sheet.
+Right-click a sheet in the list to rename, renumber, duplicate, move, revise,
+export, or delete it. Clouds, notes, and callouts are added with **Markup** on the
+sheet.
 
 <a id="SLD-120"></a>
 ## Export drawings
@@ -195,7 +200,7 @@ Zoom in or switch from **Text: Auto** to **Text: All**.
 
 ### A drawing sheet is empty
 
-Edit the sheet's panel selection or recreate it from **Selected panel and its branch**.
+Edit the sheet's panel selection or recreate it from **Panel and its branch** in **Design CAD > Sheets**.
 
 ### A DB's final circuits are not drawn individually
 

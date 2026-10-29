@@ -1171,14 +1171,21 @@ td.gx-sel,.ls td.gx-sel{background:color-mix(in srgb,var(--acc) 22%,transparent)
 .sysdiag .rev-cloud path{fill:none;stroke:var(--bad);stroke-width:1.4}
 .sysdiag .rev-cloud .rev-tri{fill:var(--panel)}
 /* SLD tabs: Design + one tab per drawing sheet */
-.sheet-tabs{display:flex;align-items:flex-end;gap:2px;flex-wrap:wrap;padding:4px 6px 0;border-bottom:1px solid var(--line);background:var(--p2,transparent);position:relative;flex:0 0 100%;order:-1;z-index:5}
-.sheet-tabs .st-tab{margin-bottom:-1px}
-.st-tab{border:1px solid transparent;background:transparent;color:inherit;font:inherit;font-size:12px;padding:4px 12px;border-radius:6px 6px 0 0;cursor:pointer;display:inline-flex;align-items:center;gap:2px}
-.st-tab:hover{background:color-mix(in srgb,var(--acc) 10%,transparent)}
-.st-tab.on{background:var(--panel);border-color:var(--line);border-bottom-color:var(--panel);font-weight:700}
+/* Design CAD → Sheets: sheet list · open sheet (or the register) · sheet settings */
+.cad-sheets{display:flex;height:100%;min-height:560px;border-top:1px solid var(--line)}
+.cs-main{flex:1;min-width:0;display:flex;overflow:auto}
+.cs-register{display:block}
+.sheet-list{width:220px;flex:none;overflow:auto;display:flex;flex-direction:column;gap:var(--space-1);padding:var(--space-2);border-right:1px solid var(--line);background:var(--panel)}
+.sheet-list section{display:flex;flex-direction:column;gap:var(--space-1)}
+.sheet-list h4{margin:var(--space-2) 2px 0;font-size:var(--fs-xs);font-weight:600;color:var(--mut)}
+.sheet-list .st-add>.chip{width:100%}
+.sl-item{display:grid;gap:1px;text-align:left;border:1px solid var(--line);border-radius:var(--radius-sm);background:transparent;color:inherit;font:inherit;font-size:var(--fs-sm);padding:5px var(--space-2);cursor:pointer;min-width:0}
+.sl-item:hover{background:color-mix(in srgb,var(--acc) 10%,transparent)}
+.sl-item.on{border-color:var(--acc);background:var(--p2)}
+.sl-item .m{font-size:var(--fs-xs)}
+.sl-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .st-add{position:relative}
 .st-menu-down{top:calc(100% + 4px);bottom:auto;left:0;right:auto}
-.st-outline{font-size:12px;align-self:center;padding-bottom:3px}
 .st-cover{position:fixed;inset:0;z-index:40}
 .st-ctx{position:fixed;z-index:41;right:auto;top:auto}
 .st-sub{display:flex;flex-wrap:wrap;gap:2px;padding:4px 10px;font-size:12px}

@@ -1,6 +1,6 @@
 import { X } from 'lucide-react';
 import { Modal } from '../ui';
-import { ask, askText } from '../ConfirmDialog';
+import { ask, askForm, askText } from '../ConfirmDialog';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Project } from '../../types';
@@ -34,11 +34,13 @@ const VIEWS: [string, ResultLayers][] = [
   ['Submission', SHEET_LAYERS]
 ];
 
-/** Tabs below the SLD: Design (the working canvas) and one tab per drawing
- * sheet (the printed page). Right-click a sheet tab for more. */
-export function SheetTabs({ project, active, selectedBoardId, outlinesOn, onActive, onChange, onStatus, onToggleOutlines, run }: {
-  project: Project; active: string | null; selectedBoardId: string | null; outlinesOn: boolean; run?: CalcRun;
-  onActive: (id: string | null) => void; onChange: (p: Project) => void; onStatus: (m: string) => void; onToggleOutlines: () => void;
+const GROUP_OF: Record<DrawingSheet['kind'], string> = { system: 'SLD', board: 'SLD', riser: 'Riser', earthing: 'Earthing', earthRiser: 'Earthing', earthFloor: 'Earthing' };
+
+/** Design CAD → Sheets, on the left: All sheets (the drawing register) and every sheet of the set grouped as SLD,
+ * riser and earthing. Click a sheet to open it; right-click for more. */
+export function SheetList({ project, active, selectedBoardId, onActive, onChange, onStatus, run }: {
+  project: Project; active: string | null; selectedBoardId: string | null; run?: CalcRun;
+  onActive: (id: string | null) => void; onChange: (p: Project) => void; onStatus: (m: string) => void;
 }) {
   const set = setOf(project);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -62,30 +64,32 @@ export function SheetTabs({ project, active, selectedBoardId, outlinesOn, onActi
     if (what === 'nextrev') save({ ...set, sheets: set.sheets.map((x) => (x.id === id ? { ...x, rev: nextRev(sheetRev(x, currentRevision(project)?.id)) } : x)) });
   };
 
-  const newFromSelection = () => {
+  const newFromSelection = async () => {
     close();
-    if (!selectedBoardId) { onStatus('Select a panel on the design first (its branch goes on the new sheet)'); return; }
-    const branch = boardsInSupplyOrder(project).filter((b) => subtree(project, selectedBoardId).has(b.id)).map((b) => b.id);
-    const r = addSheet(set, branch, `SLD — ${selectedBoardId}`);
+    // The panel picked on the design (side by side), else chosen here.
+    const ids = boardsInSupplyOrder(project).map((b) => b.id);
+    const from = selectedBoardId ?? (ids.length ? (await askForm({ title: 'New sheet', message: 'The panel goes on the sheet with every panel it feeds.', fields: [{ key: 'b', label: 'Panel', options: ids }], confirmLabel: 'Add sheet' }))?.b : undefined);
+    if (!from) { if (!ids.length) onStatus('Add a panel to the design first'); return; }
+    const branch = ids.filter((id) => subtree(project, from).has(id));
+    const r = addSheet(set, branch, `SLD — ${from}`);
     save(r.set);
     onActive(r.id);
-    onStatus(`New sheet with ${selectedBoardId} and its ${branch.length - 1} sub-panel(s)`);
+    onStatus(`New sheet with ${from} and its ${branch.length - 1} sub-panel(s)`);
   };
 
+  const rev = currentRevision(project)?.id;
+  const groups = ['SLD', 'Riser', 'Earthing'].map((g) => [g, set.sheets.filter((x) => GROUP_OF[x.kind] === g)] as const).filter(([, list]) => list.length);
+
   return (
-    <div className="sheet-tabs" onMouseLeave={() => setAddOpen(false)}>
-      <button className={`st-tab${active === null ? ' on' : ''}`} onClick={() => onActive(null)} title="The working SLD: every panel, editing and calculations">Design</button>
-      {set.sheets.map((s) => (
-        <button key={s.id} className={`st-tab${active === s.id ? ' on' : ''}`} onClick={() => onActive(s.id)} title={`${s.title} — right-click for more`}
-          onContextMenu={(e) => { e.preventDefault(); setMenu({ id: s.id, x: e.clientX, y: e.clientY }); }}>
-          <span className="dr-dot" style={{ background: statusColor(s.status || set.status) }} />{s.number}
-        </button>
-      ))}
+    <nav className="sheet-list" aria-label="Sheets" onMouseLeave={() => setAddOpen(false)}>
+      <button className={`sl-item${active === null ? ' on' : ''}`} onClick={() => onActive(null)} title="The drawing register: every sheet with filters, bulk changes, layout, title block and numbering, issues and export">
+        <b>All sheets</b><span className="m">{set.sheets.length} in the set</span>
+      </button>
       <div className="st-add">
-        <button className="st-tab" onClick={() => setAddOpen(!addOpen)} title="Add a sheet">+</button>
+        <button className="chip" onClick={() => setAddOpen(!addOpen)} title="Add a sheet">+ New sheet</button>
         {addOpen && (
           <div className="dw-menu st-menu-down">
-            <button onClick={newFromSelection}>Selected panel and its branch{selectedBoardId ? ` (${selectedBoardId})` : ''}</button>
+            <button onClick={() => void newFromSelection()}>Panel and its branch{selectedBoardId ? ` (${selectedBoardId})` : '…'}</button>
             <button onClick={() => { close(); const r = addSheet(set, [], `SLD — sheet ${set.sheets.length + 1}`); save(r.set); onActive(r.id); }}>Empty sheet (tick panels)</button>
             {(project.building?.buildings ?? []).map((b) => (
               <button key={b.id} onClick={() => { close(); const r = addRiserSheet(set, b.id, b.name); save(r.set); onActive(r.id); }}>Riser diagram — {b.name}</button>
@@ -108,8 +112,19 @@ export function SheetTabs({ project, active, selectedBoardId, outlinesOn, onActi
           </div>
         )}
       </div>
-      <span className="sp" />
-      <label className="row st-outline" title="Outline each sheet's panels on the design canvas"><input type="checkbox" checked={outlinesOn} onChange={onToggleOutlines} /> Show sheets on Design</label>
+      {groups.map(([g, list]) => (
+        <section key={g} aria-label={g}>
+          <h4>{g}</h4>
+          {list.map((x) => (
+            <button key={x.id} className={`sl-item${active === x.id ? ' on' : ''}`} onClick={() => onActive(x.id)} title={`${x.title} — right-click for more`}
+              onContextMenu={(e) => { e.preventDefault(); setMenu({ id: x.id, x: e.clientX, y: e.clientY }); }}>
+              <b><span className="dr-dot" style={{ background: statusColor(x.status || set.status) }} />{x.number}</b>
+              <span className="sl-title">{x.title}</span>
+              <span className="m">{[x.size === 'auto' ? 'Auto size' : x.size, x.status || set.status, sheetRev(x, rev) && `Rev ${sheetRev(x, rev)}`].filter(Boolean).join(' · ')}</span>
+            </button>
+          ))}
+        </section>
+      ))}
       {menu && (
         <>
           <div className="st-cover" onClick={close} onContextMenu={(e) => { e.preventDefault(); close(); }} />
@@ -117,8 +132,8 @@ export function SheetTabs({ project, active, selectedBoardId, outlinesOn, onActi
             <button onClick={() => act('rename', menu.id)}>Rename…</button>
             <button onClick={() => act('number', menu.id)}>Drawing number…</button>
             <button onClick={() => act('dup', menu.id)}>Duplicate</button>
-            <button onClick={() => act('left', menu.id)}>Move left</button>
-            <button onClick={() => act('right', menu.id)}>Move right</button>
+            <button onClick={() => act('left', menu.id)}>Move up</button>
+            <button onClick={() => act('right', menu.id)}>Move down</button>
             <button onClick={() => act('nextrev', menu.id)}>Next revision</button>
             <div className="st-sub">Status: {SHEET_STATUSES.slice(0, 5).map((x) => <button key={x} onClick={() => act(x, menu.id)} style={{ color: statusColor(x) }}>{x.replace('FOR ', '')}</button>)}</div>
             <button onClick={() => act('pdf', menu.id)}>Export this sheet (PDF)</button>
@@ -127,7 +142,7 @@ export function SheetTabs({ project, active, selectedBoardId, outlinesOn, onActi
           </div>
         </>
       )}
-    </div>
+    </nav>
   );
 }
 
@@ -171,7 +186,7 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
       if ((e.key === 'Delete' || e.key === 'Backspace') && selected) { e.preventDefault(); removeSelected(); }
       else if (e.key === 'Escape') { setTool('select'); setSelId(null); }
       else if (!e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'f' || e.key === 'F')) setZoom('fit');
-      else if (!e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'm' || e.key === 'M') && s && s.kind !== 'earthing') toggleMarkup(!(markOn || tool !== 'select' || !!selected));
+      else if (!e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'm' || e.key === 'M') && s) toggleMarkup(!(markOn || tool !== 'select' || !!selected));
       else if (!e.ctrlKey && !e.metaKey && !e.altKey) {
         const t = ALL_TOOLS.find((x) => x.key === e.key.toUpperCase() && (s?.kind === 'system' || (x.tool !== 'pcloud' && x.tool !== 'parrow')));
         if (t) { setTool(t.tool); if (t.tool !== 'select') setSelId(null); }
@@ -262,7 +277,7 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
           <button className={`chip${project.drawing?.legend !== false ? ' on' : ''}`} onClick={() => onChange({ ...project, drawing: { ...project.drawing, legend: project.drawing?.legend === false } })}
             title="Symbol legend in the sheets' legend column (and on SLD exports)">Legend</button>
         )}
-        {s.kind !== 'earthing' && drawable(s) && (
+        {drawable(s) && (
           <button className={`chip${showMarkup ? ' on' : ''}`} aria-pressed={showMarkup} title="Show the markup tools: clouds, arrows, text and callouts on this sheet (M)" onClick={() => toggleMarkup(!showMarkup)}>
             Markup{markups.length ? ` (${markups.length})` : ''}
           </button>
@@ -279,7 +294,7 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
           return <button className={`chip primary${changed ? ' publish-changed' : ''}`} title={title} onClick={() => setPublish(true)}>{changed && <span className="pub-dot" aria-label="changed since issue" />}{label}</button>;
         })()}
       </div>
-      {s.kind !== 'earthing' && drawable(s) && showMarkup && (
+      {drawable(s) && showMarkup && (
         <MarkupToolbar anchored={s.kind === 'system'} tool={tool} color={selected?.color ?? mColor} size={mSize} selected={selected} count={markups.length}
           onTool={(t) => { setTool(t); if (t !== 'select') setSelId(null); }}
           onColor={(c) => { setMColor(c); restyle({ color: c }); }}
@@ -291,12 +306,10 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
           {!drawable(s) ? <p className="m">Tick the panels for this sheet on the right.</p> : page ? (
             <div style={{ width: pxW * scale, height: pxH * scale, position: 'relative' }} className="sheet-paper">
               <iframe title={s.number} srcDoc={page.html} sandbox="allow-same-origin" onLoad={(e) => setAnchors(measureAnchors(e.currentTarget, mm.w / pxW))} style={{ width: pxW, height: pxH, transform: `scale(${scale})`, transformOrigin: '0 0', border: 0, background: '#fff' }} />
-              {s.kind !== 'earthing' && (
-                <SheetMarkupLayer markups={markups} mmW={mm.w} mmH={mm.h} width={pxW * scale} height={pxH * scale} tool={tool} color={mColor} size={mSize}
-                  selected={selId} rev={nextRev(sheetRev(s, rev?.id))} onSelect={setSelId} onChange={setMarkups} onTool={setTool}
-                  anchors={s.kind === 'system' ? anchors.list : []} mmPerUnit={anchors.mmPerUnit} onStatus={onStatus}
-                  onPanelCloud={(c) => patch({ clouds: [...(s.clouds ?? []), c] })} onPanelArrow={(a) => patch({ arrows: [...(s.arrows ?? []), a] })} />
-              )}
+              <SheetMarkupLayer markups={markups} mmW={mm.w} mmH={mm.h} width={pxW * scale} height={pxH * scale} tool={tool} color={mColor} size={mSize}
+                selected={selId} rev={nextRev(sheetRev(s, rev?.id))} onSelect={setSelId} onChange={setMarkups} onTool={setTool}
+                anchors={s.kind === 'system' ? anchors.list : []} mmPerUnit={anchors.mmPerUnit} onStatus={onStatus}
+                onPanelCloud={(c) => patch({ clouds: [...(s.clouds ?? []), c] })} onPanelArrow={(a) => patch({ arrows: [...(s.arrows ?? []), a] })} />
             </div>
           ) : <p className="m">Drawing the sheet…</p>}
         </div>
@@ -360,18 +373,16 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, on
               <CloudAdd boards={s.boards} rev={nextRev(sheetRev(s, rev?.id))} onAdd={(c) => patch({ clouds: [...(s.clouds ?? []), c] })} />
             </details>
           )}
-          {s.kind !== 'earthing' && (
-            <details open={markups.length > 0}><summary>Markups ({markups.length})</summary>
-              {markups.map((m) => (
-                <div key={m.id} className={`row markup-row${m.id === selId ? ' on' : ''}`}>
-                  <button className="linkish" onClick={() => { setTool('select'); setSelId(m.id); }}>{MARKUP_LABEL[m.kind]}{m.kind === 'cloud' && m.rev ? ` △${m.rev}` : ''}{m.text ? `: ${m.text.split('\n')[0].slice(0, 28)}` : ''}</button>
-                  <button className="icon-btn" title="Remove" onClick={() => { setMarkups(markups.filter((x) => x.id !== m.id)); if (m.id === selId) setSelId(null); }} aria-label="Remove"><X size={14} aria-hidden /></button>
-                </div>
-              ))}
-              {markups.length > 0 && <button className="linkish" onClick={async () => { if (await ask(`Remove all ${markups.length} markups from ${s.number}?`)) { setMarkups([]); setSelId(null); } }}>Remove all</button>}
-              <p className="m">Draw on the sheet with the Markup button above it. They stay on this sheet when the design changes and print in the PDF and DXF.</p>
-            </details>
-          )}
+          <details open={markups.length > 0}><summary>Markups ({markups.length})</summary>
+            {markups.map((m) => (
+              <div key={m.id} className={`row markup-row${m.id === selId ? ' on' : ''}`}>
+                <button className="linkish" onClick={() => { setTool('select'); setSelId(m.id); }}>{MARKUP_LABEL[m.kind]}{m.kind === 'cloud' && m.rev ? ` △${m.rev}` : ''}{m.text ? `: ${m.text.split('\n')[0].slice(0, 28)}` : ''}</button>
+                <button className="icon-btn" title="Remove" onClick={() => { setMarkups(markups.filter((x) => x.id !== m.id)); if (m.id === selId) setSelId(null); }} aria-label="Remove"><X size={14} aria-hidden /></button>
+              </div>
+            ))}
+            {markups.length > 0 && <button className="linkish" onClick={async () => { if (await ask(`Remove all ${markups.length} markups from ${s.number}?`)) { setMarkups([]); setSelId(null); } }}>Remove all</button>}
+            <p className="m">Draw on the sheet with the Markup button above it. They stay on this sheet when the design changes and print in the PDF and DXF.</p>
+          </details>
           <details><summary>Arrows and callouts ({(s.arrows ?? []).length})</summary>
             {(s.arrows ?? []).map((a, i) => (
               <div key={i} className="row">→ {a.target.replace(/^f:/, '')}: “{a.text}” <button className="icon-btn" title="Remove" onClick={() => patch({ arrows: (s.arrows ?? []).filter((_, k) => k !== i) })} aria-label="Remove"><X size={14} aria-hidden /></button></div>

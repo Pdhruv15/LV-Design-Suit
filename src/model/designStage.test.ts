@@ -89,6 +89,8 @@ describe('ribbon follows the stages', () => {
     expect(tabForView('submissions')).toBe('issue');
     expect(tabForView('cable-schedule')).toBe('reports');
     expect(tabForView('design', 'home')).toBe('home'); // the SLD button on Project keeps the tab
+    expect(tabForView('drawings', 'reports')).toBe('cad'); // sheets are in Design CAD → Sheets
+    expect(tabForView('drawing-register')).toBe('cad');
   });
 
   it('shows the chosen tab\'s page unless the page on screen is on that tab', () => {
@@ -99,6 +101,8 @@ describe('ribbon follows the stages', () => {
     expect(viewForTab('home', 'design')).toBe('design');
     expect(viewForTab('reports', 'cable-schedule')).toBe('cable-schedule');
     expect(viewForTab('cost', 'design')).toBe('boq');
+    expect(viewForTab('cad', 'drawings')).toBe('drawings');
+    expect(viewForTab('reports', 'drawings')).toBe('load-schedule');
   });
 });
 
