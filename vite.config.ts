@@ -42,6 +42,8 @@ const pwa = (): Plugin => ({
   generateBundle(_opts, bundle) {
     const files = ['./', 'index.html', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', ...Object.keys(bundle).filter((f) => !f.endsWith('.map') && f !== 'sw.js')];
     const version = createHash('sha1').update(files.join('|')).digest('hex').slice(0, 10);
+    // The page's own script: an open page whose script differs is an older build (the web banner offers Reload).
+    const entry = Object.values(bundle).find((c) => c.type === 'chunk' && c.isEntry)?.fileName ?? '';
     this.emitFile({ type: 'asset', fileName: 'manifest.webmanifest', source: JSON.stringify({
       name: 'LV Design Studio', short_name: 'LV Design', description: 'Low-voltage power design: SLD, calculations, schedules and reports',
       start_url: './', scope: './', display: 'standalone', background_color: '#0b1220', theme_color: '#0f1b33',
@@ -59,7 +61,7 @@ self.addEventListener('fetch', (e) => {
   if (r.mode === 'navigate') { e.respondWith(fetch(r).catch(() => caches.match('index.html'))); return; }
   e.respondWith(caches.match(r).then((hit) => hit || fetch(r)));
 });
-self.addEventListener('message', (e) => { if (e.data === 'version') e.source.postMessage({ version: '${version}', files: FILES.length }); });
+self.addEventListener('message', (e) => { if (e.data === 'version') e.source.postMessage({ version: '${version}', files: FILES.length, entry: '${entry}', app: '${displayVersion(pkg.version)}' }); });
 ` });
   }
 });
