@@ -58,7 +58,7 @@ describe('complete paper-sized DXF sheets', () => {
   afterAll(() => vi.unstubAllGlobals());
 
   it.each(['A4', 'A3', 'A2', 'A1'] as const)('keeps every sheet within %s paper, including dense schedules', (size) => {
-    const cables = Array.from({ length: 120 }, (_, i) => ({ ref: i + 1, text: `Cable${i + 1} 4C 300mm2 Cu XLPE/SWA/PVC plus ECC conductor`, fireRated: i === 0 }));
+    const cables = Array.from({ length: 300 }, (_, i) => ({ ref: i + 1, text: `Cable${i + 1} 4C 300mm2 Cu XLPE/SWA/PVC plus ECC conductor`, fireRated: i === 0 }));
     const project = { ...dxfExportProject, drawing: { ...dxfExportProject.drawing, abbreviations: true, notes: ['Keep every note visible.'] } };
     const pages = buildSheetDxfPages(project, svg, size, { ...info, cables });
     expect(pages.length).toBeGreaterThan(1);
