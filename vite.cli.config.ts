@@ -1,13 +1,14 @@
 import { defineConfig } from 'vite';
 import { readFileSync } from 'node:fs';
 import { builtinModules } from 'node:module';
+import { displayVersion } from './src/model/appVersion';
 
 /** The `lvds` command (CLI, MCP server, local API) as one Node file: dist-cli/lvds.mjs.
  * Uses the app's own calculation code (src/calc, src/model); no React, no Electron. */
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
 
 export default defineConfig({
-  define: { __APP_VERSION__: JSON.stringify(pkg.version.split('.').slice(0, 2).join('.')) },
+  define: { __APP_VERSION__: JSON.stringify(displayVersion(pkg.version)) },
   publicDir: false,
   // The built-in DWG / DXF reader (src/engines/cad): its WebAssembly is inlined, so the CLI stays one file.
   assetsInclude: ['**/*.wasm'],

@@ -45,5 +45,5 @@ rm -rf "$DEST"
 ditto "$BUILT" "$DEST"
 xattr -dr com.apple.quarantine "$DEST" 2>/dev/null || true
 mkdir -p "$(dirname "$STAMP")" && git rev-parse HEAD > "$STAMP"
-VERSION=$(node -p "require('./package.json').version.split('.').slice(0,2).join('.')")
+VERSION=$(node -p "const [a, b = '0'] = require('./package.json').version.split('.'); a + '.' + b.padStart(3, '0')")
 echo "Done — $APP v$VERSION is updated in Applications ($(git log -1 --format='%h %s'))."

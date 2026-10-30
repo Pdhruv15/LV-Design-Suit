@@ -6,6 +6,7 @@ import { statusSpan } from './printStyles';
 import { destMarker } from './outline';
 import { printDoc } from './printDoc';
 import pkg from '../../package.json';
+import { displayVersion } from '../model/appVersion';
 import type { Project } from '../types';
 import type { RiserVd } from '../calc/busbar';
 import { motorStartVdLimit } from '../calc/voltageDrop';
@@ -113,5 +114,5 @@ ${v.noType ? '' : v.segments.map((g) => { const st = g.cumPct > v.limitPct ? 'ba
 </tbody></table>`).join('')}`;
 
   return printDoc(project, { title: `${project.name} — voltage drop calculation`, headRight: 'Voltage drop calculation',
-    footer: `LV Design Studio ${pkg.version} · Results must be checked by a qualified engineer`, body, landscape: true });
+    footer: `LV Design Studio ${displayVersion(pkg.version)} · Results must be checked by a qualified engineer`, body, landscape: true });
 }

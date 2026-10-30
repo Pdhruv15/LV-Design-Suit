@@ -14,9 +14,10 @@ const button = (text: string) => [...document.querySelectorAll('button')].find((
 describe("What's new window", () => {
   it('lists the release with buttons that open each feature', () => {
     const onAction = vi.fn(), onClose = vi.fn();
-    act(() => root.render(<WhatsNewDialog releases={RELEASES.slice(0, 1)} onAction={onAction} onClose={onClose} />));
-    expect(document.body.textContent).toContain(`What's new in v${RELEASES[0].version}`);
-    const first = RELEASES[0].items.find((it) => it.action)!;
+    const release = RELEASES.find((r) => r.items.some((it) => it.action))!;
+    act(() => root.render(<WhatsNewDialog releases={[release]} onAction={onAction} onClose={onClose} />));
+    expect(document.body.textContent).toContain(`What's new in v${release.version}`);
+    const first = release.items.find((it) => it.action)!;
     act(() => button(first.actionLabel ?? 'Show me').click());
     expect(onAction).toHaveBeenCalledWith(first.action);
     act(() => button('Close').click());
