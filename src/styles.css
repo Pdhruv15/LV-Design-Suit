@@ -14,7 +14,8 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
 :where(.modal,.form-kv,.tbd-side,.tool-panel,.setting,.engine-controls,.results-bar,.rev-issue,.bh-guided,.pfc-design) :where(input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file]),select){min-height:var(--control-h)}
 .app-root{display:flex;flex-direction:column;height:100%}
 .top{display:flex;align-items:center;gap:var(--space-2) var(--space-4);padding:var(--space-2) var(--gutter);min-height:48px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
-.brand{font-weight:700;font-size:15px;line-height:1.1;margin-right:var(--space-2)}
+.brand{display:flex;align-items:center;gap:var(--space-2);font-weight:700;font-size:15px;line-height:1.1;margin-right:var(--space-2)}
+.brand-mark{width:28px;height:28px;flex:none}
 .brand small{display:block;margin-top:2px;font-weight:400;font-size:var(--fs-xs);color:var(--mut)}
 .crumb{color:var(--mut);display:flex;align-items:center;gap:var(--space-1) var(--space-2);flex-wrap:wrap;min-width:0}
 .crumb .linkish{margin-left:0;color:inherit}

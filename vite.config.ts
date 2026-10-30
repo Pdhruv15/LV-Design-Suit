@@ -38,13 +38,13 @@ const csp = (): Plugin => ({
 const pwa = (): Plugin => ({
   name: 'lvds-pwa',
   apply: 'build',
-  transformIndexHtml: (html) => html.replace('<title>', '<link rel="manifest" href="manifest.webmanifest" />\n<meta name="theme-color" content="#0f1b33" />\n<link rel="icon" href="icon.svg" />\n<link rel="apple-touch-icon" href="icon-192.png" />\n<title>'),
+  transformIndexHtml: (html) => html.replace('<title>', '<link rel="manifest" href="manifest.webmanifest" />\n<meta name="theme-color" content="#0F2A44" />\n<link rel="icon" href="icon.svg" />\n<link rel="apple-touch-icon" href="icon-192.png" />\n<title>'),
   generateBundle(_opts, bundle) {
     const files = ['./', 'index.html', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', ...Object.keys(bundle).filter((f) => !f.endsWith('.map') && f !== 'sw.js')];
     const version = createHash('sha1').update(files.join('|')).digest('hex').slice(0, 10);
     this.emitFile({ type: 'asset', fileName: 'manifest.webmanifest', source: JSON.stringify({
       name: 'LV Design Studio', short_name: 'LV Design', description: 'Low-voltage power design: SLD, calculations, schedules and reports',
-      start_url: './', scope: './', display: 'standalone', background_color: '#0b1220', theme_color: '#0f1b33',
+      start_url: './', scope: './', display: 'standalone', background_color: '#0B1A2A', theme_color: '#0F2A44',
       icons: [{ src: 'icon-192.png', sizes: '192x192', type: 'image/png' }, { src: 'icon-512.png', sizes: '512x512', type: 'image/png' }, { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml' }]
     }, null, 2) });
     this.emitFile({ type: 'asset', fileName: 'sw.js', source: `// LV Design Studio — offline copy of build ${version}

@@ -6,7 +6,7 @@
  * name below as its code syntax, so the two can be diffed name for name.
  * See docs/DESIGN-SYSTEM.md and docs/FIGMA-INTEGRATION.md.
  *
- * Themes: dark is the default (the app's original look). <html data-theme="light">
+ * Themes: dark is the default (the brand palette, see docs/brand). <html data-theme="light">
  * switches to light. The "System" preference is resolved to dark or light in
  * src/theme/theme.ts, so this file only ever sees those two values.
  *
@@ -16,22 +16,22 @@
 
 :root {
   /* ---- Colour: dark (default) ---- */
-  --bg: #0a1120;          /* canvas behind panels; diagram background */
-  --panel: #0f1a2f;       /* header, sidebar, cards, dialogs */
-  --p2: #14233f;          /* raised: inputs, chips, hover rows */
-  --line: #20304f;        /* dividers, card edges */
-  --line-strong: #2f4570; /* hover edges */
-  --tx: #dbe4f5;          /* body text */
-  --mut: #8093b5;         /* labels, captions, table headers */
-  --acc: #4aa8ff;         /* primary action, selection, focus */
-  --on-acc: #04101f;      /* text on --acc */
+  --bg: #0B1A2A;          /* canvas behind panels; diagram background */
+  --panel: #0F2A44;       /* header, sidebar, cards, dialogs */
+  --p2: #122E4A;          /* raised: inputs, chips, hover rows */
+  --line: #234563;        /* dividers, card edges */
+  --line-strong: #33597C; /* hover edges */
+  --tx: #E3EAF2;          /* body text */
+  --mut: #9FB3C8;         /* labels, captions, table headers */
+  --acc: #F5B301;         /* primary action, selection, focus */
+  --on-acc: #0F2A44;      /* text on --acc */
   --bus: #ffb347;         /* SLD busbars */
   --ok: #37d67a;
   --warn: #f5c04a;
   --bad: #ff5d6c;
   /* Form control edges: at least 3:1 against the panel and the field fill (WCAG non-text contrast) */
-  --field-line: #52709f;
-  --field-line-hover: #7590c0;
+  --field-line: #5F86A8;
+  --field-line-hover: #7FA3C2;
 
   /* Diagram result labels and phase colours */
   --res-cur: #7fd1ff;
@@ -45,7 +45,7 @@
   /* Drawing surfaces: the SLD, riser, earthing, lux plan and Design CAD share one canvas and grid */
   --canvas-bg: var(--bg);
   --canvas-ink: var(--tx);         /* lines and text in the drawing's default colour */
-  --canvas-grid: #16223a;          /* minor grid: --line at 55 % over --bg */
+  --canvas-grid: #183249;          /* minor grid: --line at 55 % over --bg */
   --canvas-grid-major: var(--line);
   /* Earth pit test status on the earthing drawing and its key */
   --pit-pass: color-mix(in srgb, var(--ok) 70%, var(--bg));
@@ -102,21 +102,21 @@
 /* ---- Colour: light ---- neutral cool greys, no pure black text (body text ~15:1, not 17:1).
    All text pairs >= 4.5:1, control edges >= 3:1; see DESIGN-SYSTEM.md */
 :root[data-theme="light"] {
-  --bg: #f5f6f8;
+  --bg: #F4F6F9;
   --panel: #ffffff;
-  --p2: #f0f2f5;
-  --line: #dde1e7;
-  --line-strong: #c4cad3;
-  --tx: #1f2733;
-  --mut: #59636f;
-  --acc: #1f69c9;
+  --p2: #EEF2F6;
+  --line: #D8DFE6;
+  --line-strong: #BCC7D2;
+  --tx: #0F2A44;
+  --mut: #51667A;
+  --acc: #0F2A44;
   --on-acc: #ffffff;
   --bus: #a64b07;
   --ok: #177336;
   --warn: #8a5d00;
   --bad: #cf222e;
-  --field-line: #7c8594;
-  --field-line-hover: #626b78;
+  --field-line: #7A8A9A;
+  --field-line-hover: #5F7184;
   --res-cur: #0369a1;
   --res-fault: #c2410c;
   --res-pf: #7e22ce;
@@ -124,7 +124,7 @@
   --ph-y: #8a5d00;
   --ph-b: #1f69c9;
   --ph-ryb: #7e22ce;
-  --canvas-grid: #e8eaef;
+  --canvas-grid: #e5e9ef;
   --backdrop: rgba(20, 32, 53, .35);
   --shadow-pop: 0 8px 24px rgba(20, 32, 53, .16);
   --shadow-modal: 0 12px 32px rgba(20, 32, 53, .18);
