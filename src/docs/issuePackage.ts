@@ -4,13 +4,14 @@ import { currentRevision } from '../model/revisions';
 import { esc } from './report';
 import type { Section } from './studyReport';
 import pkg from '../../package.json';
+import { displayVersion } from '../model/appVersion';
 import { isRasterDataUrl } from '../util/escape';
 
 /** Issue package: every document in a submission made from ONE frozen
  * calculation run, with a cover listing the contents, the unresolved checks,
  * the assumptions, the app version and a snapshot ID printed on every page. */
 
-export const APP_VERSION: string = pkg.version;
+export const APP_VERSION: string = displayVersion(pkg.version);
 
 /** Short fingerprint of the calculated project (FNV-1a, 32 bit): the same
  * inputs always give the same ID, any change gives a different one. */

@@ -4,6 +4,7 @@ import { sampleProject } from '../data/sampleProject';
 import { REFERENCE_CABLE_TABLE, setCables } from '../calc/cableTable';
 import { runCalculations } from '../calc/runs';
 import pkg from '../../package.json';
+import { displayVersion } from '../model/appVersion';
 import { buildCalcRecord, calcRecordHtml } from './calcRecord';
 import { buildReportHtml } from './calcReport';
 import { buildSection, buildStudyReportHtml, scopeOf } from './studyReport';
@@ -21,7 +22,7 @@ describe('calculation record', () => {
     expect(row(r, 'Project')).toContain(sampleProject.name);
     expect(row(r, 'Calculated')).toContain('14 Oct 2026');
     expect(row(r, 'Calculated')).toContain('results current');
-    expect(row(r, 'Software')).toBe(`LV Design Studio ${pkg.version} · built-in calculation engine (no external engine used)`);
+    expect(row(r, 'Software')).toBe(`LV Design Studio ${displayVersion(pkg.version)} · built-in calculation engine (no external engine used)`);
     expect(row(r, 'Calculation basis')).toContain('not verified against a specific edition');
     expect(row(r, 'Key assumptions')).toContain('415 V, 3-phase + N, 50 Hz, TN-S');
     expect(row(r, 'Key assumptions')).toContain('c max = 1.05 and cable R at 20 °C');

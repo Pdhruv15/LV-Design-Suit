@@ -4,6 +4,7 @@ import { runCalculations } from '../calc/runs';
 import { buildSection, scopeOf, STUDIES, type CalcData, type Section } from './studyReport';
 import { APP_VERSION, assumptions, packageCoverHtml, packageStamp, snapshotId, unresolvedChecks } from './issuePackage';
 import pkg from '../../package.json';
+import { displayVersion } from '../model/appVersion';
 
 const sectionsFor = (project = sampleProject): Section[] => {
   const run = runCalculations(project);
@@ -25,8 +26,8 @@ describe('issue package', () => {
     expect(s).toContain(sampleProject.name);
     expect(s).toContain('E-001');
     expect(s).toContain(`snapshot ${meta.snapshot}`);
-    expect(APP_VERSION).toBe(pkg.version);
-    expect(s).toContain(`LV Design Studio ${pkg.version}`);
+    expect(APP_VERSION).toBe(displayVersion(pkg.version));
+    expect(s).toContain(`LV Design Studio ${displayVersion(pkg.version)}`);
   });
 
   it('unresolved checks list every non-passing cell, fails first, none of them passes', () => {

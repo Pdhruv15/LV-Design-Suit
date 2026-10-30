@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.011', date: '2026-10-30',
+    items: [
+      { title: 'Three-digit version numbers', text: 'The version now shows three digits after the dot: this is 2.011, then 2.012, 2.013 and on. Reports, issue stamps and backups show it the same way.' }
+    ]
+  },
+  {
     version: '2.10', date: '2026-10-30',
     items: [
       { title: 'Plan sheets', text: 'Design CAD → Sheets → + New sheet: Lighting, Power or ELV layouts for all levels, at 1:100 on the smallest paper that holds the level. The architect\'s plan prints grey and the design black: devices, DBs, wiring, home runs and circuit tags, with a legend of the symbols used, scale bar and north arrow. Numbered E-LTG-, E-PWR- and E-ELV-, grouped under Plans.', action: 'sheets', actionLabel: 'Open Sheets' },

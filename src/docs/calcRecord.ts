@@ -5,6 +5,7 @@ import { CURRENT_SCHEMA } from '../model/projectMigrate';
 import { projectInputIssues } from '../model/projectValidate';
 import type { Project } from '../types';
 import pkg from '../../package.json';
+import { displayVersion } from '../model/appVersion';
 import { esc } from './report';
 
 /** The calculation record: what a report's results were calculated from, with what, and how far they can be
@@ -59,7 +60,7 @@ export function buildCalcRecord(project: Project, i: CalcRecordInput): CalcRecor
   const rows: RecordRow[] = [
     { label: 'Project', lines: [project.name, `Project ID ${project.id ?? 'not assigned (save the project)'} · file format version ${project.schemaVersion ?? CURRENT_SCHEMA}`] },
     { label: 'Calculated', lines: [i.calculatedAt === undefined ? 'At the time of this print, from the current inputs' : `${when(i.calculatedAt)} · ${stale ? 'inputs changed since — run the calculations again before issue' : 'results current for the inputs in this report'}`] },
-    { label: 'Software', lines: [`LV Design Studio ${pkg.version} · built-in calculation engine (no external engine used)`] },
+    { label: 'Software', lines: [`LV Design Studio ${displayVersion(pkg.version)} · built-in calculation engine (no external engine used)`] },
     { label: 'Calculation basis', lines: ["Methods per Codes and standards → Calculation basis and each study's Method notes.", 'Standard editions: not verified against a specific edition'] },
     {
       label: 'Key assumptions', list: true, lines: [

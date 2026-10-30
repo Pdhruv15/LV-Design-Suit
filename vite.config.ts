@@ -3,6 +3,7 @@ import { configDefaults } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { displayVersion } from './src/model/appVersion';
 
 /** Content Security Policy for the built app (not the dev server, whose hot
  * reload needs inline scripts): only the app's own code runs; no remote
@@ -70,7 +71,7 @@ const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 
 
 export default defineConfig({
   // App version shown in the title and header: v1.2 (major.minor of package.json).
-  define: { __APP_VERSION__: JSON.stringify(pkg.version.split('.').slice(0, 2).join('.')) },
+  define: { __APP_VERSION__: JSON.stringify(displayVersion(pkg.version)) },
   plugins: [react(), csp(), pwa()],
   // The built-in DWG / DXF reader (src/engines/cad) is WebAssembly, inlined where it is imported.
   assetsInclude: ['**/*.wasm'],
