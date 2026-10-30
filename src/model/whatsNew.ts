@@ -15,6 +15,14 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.6', date: '2026-10-29',
+    items: [
+      { title: 'The same view controls everywhere', text: 'The SLD, Design CAD and Sheets zoom, pan and fit the same way: the wheel or a pinch zooms at the cursor, two fingers on a trackpad pan, press the wheel (or hold Space) and drag to pan, double-click the wheel or press F to fit, + and − zoom, arrow keys pan.' },
+      { title: 'Zoom in the corner', text: 'Every drawing shows its zoom in the bottom-right corner (100 % = all in view); click it to fit.' },
+      { title: 'Grid dots in Design CAD', text: 'GRID (F7) steps lines → dots → off, as G does on the SLD.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.5', date: '2026-10-29',
     items: [
       { title: 'Sheet tools on the ribbon', text: 'With a sheet open in Design CAD → Sheets, the ribbon has its tools: Markup (Select, Cloud, Note, Callout, Arrow, Box, Line), On panels, Style (colour, text height, Delete), View (Fit, zoom, Legend, Side by side) and Issue and export. The sheet gets the whole page; the keys are the same.', action: 'sheets', actionLabel: 'Open Sheets' },

@@ -58,9 +58,10 @@ Use **Command/Ctrl+1** to return to the system diagram. **Command/Ctrl+2**, **Co
 
 - Select **Select** or press **V** to work with boards and feeders.
 - Select **Pan** or press **H** to move around without selecting an item.
-- Scroll over the drawing to zoom at the pointer.
-- Use **+** and **-** to zoom, **0** to fit the whole diagram, and the arrow keys to pan after focusing the drawing.
-- Select the percentage in the diagram toolbar to fit the whole drawing.
+- Scroll the mouse wheel over the drawing, or pinch on a trackpad, to zoom at the pointer. Two fingers on a trackpad pan.
+- Press the wheel and drag, or hold **Space** and drag, to pan with any tool.
+- Use **+** and **-** to zoom, **F** or **0** to fit the whole diagram (or double-click the wheel), **G** to change the grid, and the arrow keys to pan after focusing the drawing.
+- Select the percentage in the bottom-right corner of the drawing to fit it. The same controls work in Design CAD and Design CAD > Sheets.
 - Select the full-screen control to enlarge the SLD; press **Esc** to leave full screen.
 - Use **Text: Auto** to hide detail progressively when zoomed out, or **Text: All** to keep all labels visible.
 - Double-click the resize handle below the diagram to restore the default diagram height.

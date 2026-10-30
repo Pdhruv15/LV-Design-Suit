@@ -7,6 +7,7 @@ import { fittingLabel, trayFittings } from '../../model/cadTrayFittings';
 import { cssRgb, dashArray, hatchLines, patternLength, screenColour, tileOf } from '../../model/cadDraw';
 import type { SketchItem } from '../../types';
 import { onScreenThemeChange, screenTheme } from '../../theme/theme';
+import { isFitClick, isPanPress, KEY_STEP, PAN_STEP, useSpaceHeld, viewKey, wheelAction, ZoomChip } from '../drawingView';
 
 type Pt = [number, number];
 
@@ -32,10 +33,12 @@ export function gridStep(scale: number): number {
 /** The drawing in a CAD model space: lines by layer and colour, texts at their height, a crosshair cursor with the snap
  * point under it, live coordinates. Wheel zooms at the cursor (two-finger scroll pans, pinch zooms), the middle button
  * or Space + drag pans, a middle double-click fits. */
-export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, onClick, marks, highlight, devices = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps }: {
+export default function CadCanvas({ view, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps }: {
   view: CadView;
   layersOn: Uint8Array;
   toggles: CadToggles;
+  /** The grid (when on) as dots at the crossings instead of lines. */
+  gridDots?: boolean;
   /** A click (left button, not panning): the snapped point and the size of one screen pixel in drawing units. */
   onClick?: (at: Pt, pixel: number) => void;
   marks?: CadMarks | null;
@@ -68,7 +71,7 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
   const tRef = useRef(t);
   tRef.current = t;
   const drag = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
-  const space = useRef(false);
+  const space = useSpaceHeld(); // Space + drag pans with any tool
   const mouse = useRef<Pt | null>(null);
   const lastAt = useRef<{ at: Pt; snap?: { p: Pt; kind: number } } | null>(null);
   const marksRef = useRef(marks);
@@ -154,17 +157,27 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
     ctx.fillStyle = bg; ctx.fillRect(0, 0, c.width, c.height);
     const { scale, ox, oy } = t;
     if (toggles.grid) {
-      // Grid lines: fine every step, stronger every fifth (in drawing units relative to the origin).
+      // Grid lines (or dots at the crossings): fine every step, stronger every fifth (in drawing units relative to the origin).
       const step = gridStep(scale);
       const minor = colour('--cad-grid', '#16223a'), major = colour('--cad-grid-major', '#20304f');
       const x0 = Math.floor(ox / step), y0 = Math.floor(oy / step);
       ctx.lineWidth = Math.max(1, dpr * 0.5);
-      for (let i = x0; i * step < ox + size.w / scale; i += 1) {
+      if (gridDots) {
+        for (let i = x0; i * step < ox + size.w / scale; i += 1) {
+          const sx = Math.round((i * step - ox) * scale * dpr);
+          for (let j = y0; j * step < oy + size.h / scale; j += 1) {
+            const sy = Math.round((size.h - (j * step - oy) * scale) * dpr), big = i % 5 === 0 && j % 5 === 0, r = Math.max(1, Math.round(dpr * (big ? 1.5 : 1)));
+            ctx.fillStyle = big ? major : minor;
+            ctx.fillRect(sx - r, sy - r, 2 * r, 2 * r);
+          }
+        }
+      }
+      for (let i = x0; !gridDots && i * step < ox + size.w / scale; i += 1) {
         const sx = Math.round((i * step - ox) * scale * dpr) + 0.5;
         ctx.strokeStyle = i % 5 === 0 ? major : minor;
         ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, c.height); ctx.stroke();
       }
-      for (let j = y0; j * step < oy + size.h / scale; j += 1) {
+      for (let j = y0; !gridDots && j * step < oy + size.h / scale; j += 1) {
         const sy = Math.round((size.h - (j * step - oy) * scale) * dpr) + 0.5;
         ctx.strokeStyle = j % 5 === 0 ? major : minor;
         ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(c.width, sy); ctx.stroke();
@@ -342,7 +355,7 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
         ctx.fillText(fittingLabel(f), sx + fpx * 1.2, sy - fpx * 1.2);
       }
     }
-  }, [t, size, batches, fills, layersOn, toggles.grid, view, highlight, devices, sketch, selectedSketch, unitsPerMm, labels, covers, gaps, theme]); // eslint-disable-line react-hooks/exhaustive-deps -- colours read from CSS each draw
+  }, [t, size, batches, fills, layersOn, toggles.grid, view, highlight, devices, sketch, selectedSketch, unitsPerMm, labels, covers, gaps, theme, gridDots]); // eslint-disable-line react-hooks/exhaustive-deps -- colours read from CSS each draw
 
   /** The cursor: crosshair and pick box, and the snap marker with its name. */
   function drawCursor(at: Pt | null, snap?: { p: Pt; kind: number }) {
@@ -452,11 +465,26 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
   useEffect(() => { if (mouse.current) track(mouse.current[0], mouse.current[1]); else drawCursor(null); }, [t]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { drawCursor(mouse.current ? lastAt.current?.at ?? null : null, mouse.current ? lastAt.current?.snap : undefined); }, [marks, preview, theme]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /** The whole drawing in view, with a margin (FIT / ZE, 0, a double click of the wheel, the zoom chip). */
+  const fitT = (): ViewT => {
+    const [x0, y0, x1, y1] = view.info.extents;
+    const scale = Math.min(size.w / Math.max(1e-9, x1 - x0), size.h / Math.max(1e-9, y1 - y0)) * 0.92;
+    return { scale, ox: (x0 + x1) / 2 - o0 - size.w / 2 / scale, oy: (y0 + y1) / 2 - o1 - size.h / 2 / scale };
+  };
+  // + / − zoom about the middle, 0 fits, arrows pan (letters go to the command line).
+  const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  keyRef.current = (e) => {
+    const k = viewKey(e, false);
+    if (!k || k === 'grid') return;
+    e.preventDefault();
+    if (k === 'fit') setT(fitT());
+    else if (k === 'in' || k === 'out') zoomAt(size.w / 2, size.h / 2, k === 'in' ? KEY_STEP : 1 / KEY_STEP);
+    else setT((v) => ({ ...v, ox: v.ox + (k.pan[0] * size.w * PAN_STEP) / v.scale, oy: v.oy - (k.pan[1] * size.h * PAN_STEP) / v.scale }));
+  };
   useEffect(() => {
-    const down = (e: KeyboardEvent) => { if (e.code === 'Space' && !(e.target instanceof HTMLInputElement)) { space.current = true; } };
-    const up = (e: KeyboardEvent) => { if (e.code === 'Space') space.current = false; };
-    window.addEventListener('keydown', down); window.addEventListener('keyup', up);
-    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
+    const key = (e: KeyboardEvent) => keyRef.current(e);
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
   }, []);
 
   const local = (e: React.MouseEvent | React.WheelEvent) => {
@@ -479,13 +507,13 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
         aria-label="Drawing"
         onWheel={(e) => {
           const [sx, sy] = local(e);
-          // Pinch (ctrl + wheel) and a mouse wheel zoom; a two-finger scroll (sideways or fine steps) pans.
-          const pan = !e.ctrlKey && (e.deltaX !== 0 || (e.deltaMode === 0 && Math.abs(e.deltaY) < 40 && !Number.isInteger(e.deltaY)));
-          if (pan) setT((v) => ({ ...v, ox: v.ox + e.deltaX / v.scale, oy: v.oy - e.deltaY / v.scale }));
-          else zoomAt(sx, sy, Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)));
+          // A mouse wheel and a pinch zoom; two fingers on a trackpad pan.
+          const w = wheelAction(e.nativeEvent);
+          if ('pan' in w) setT((v) => ({ ...v, ox: v.ox + w.pan[0] / v.scale, oy: v.oy - w.pan[1] / v.scale }));
+          else zoomAt(sx, sy, w.zoom);
         }}
         onMouseDown={(e) => {
-          if (e.button === 1 || (e.button === 0 && space.current)) {
+          if (isPanPress(e, space.current)) {
             e.preventDefault();
             const [x, y] = local(e);
             drag.current = { x, y, ox: tRef.current.ox, oy: tRef.current.oy };
@@ -504,9 +532,10 @@ export default function CadCanvas({ view, layersOn, toggles, fitKey, onCursor, o
           if (!wasDrag && e.button === 0 && !space.current && lastAt.current) onClick?.(lastAt.current.at, 1 / tRef.current.scale);
         }}
         onDoubleClick={(e) => { if (e.button === 1) e.preventDefault(); }}
-        onAuxClick={(e) => { if (e.button === 1 && e.detail === 2) { const [x0, y0, x1, y1] = view.info.extents; const scale = Math.min(size.w / Math.max(1e-9, x1 - x0), size.h / Math.max(1e-9, y1 - y0)) * 0.92; setT({ scale, ox: (x0 + x1) / 2 - o0 - size.w / 2 / scale, oy: (y0 + y1) / 2 - o1 - size.h / 2 / scale }); } }}
+        onAuxClick={(e) => { if (isFitClick(e)) setT(fitT()); }}
         onMouseLeave={() => { drag.current = null; mouse.current = null; drawCursor(null); onCursor(null); }}
       />
+      <ZoomChip pct={(t.scale / fitT().scale) * 100} onFit={() => setT(fitT())} />
     </div>
   );
 }

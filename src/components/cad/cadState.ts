@@ -73,8 +73,15 @@ export function useCad(projectId: string | undefined) {
   const setLayer = useCallback((i: number, on: boolean) => setLayersOn((l) => { const n = l.slice(); n[i] = on ? 1 : 0; return n; }), []);
   const allLayers = useCallback((on: boolean) => setLayersOn((l) => new Uint8Array(l.length).fill(on ? 1 : 0)), []);
   const toggle = useCallback((k: keyof CadToggles) => setToggles((t) => ({ ...t, [k]: !t[k] })), []);
+  // GRID (F7) steps lines → dots → off, like the SLD's grid.
+  const [gridDots, setGridDots] = useState(false);
+  const cycleGrid = () => {
+    if (!toggles.grid) { setToggles((t) => ({ ...t, grid: true })); setGridDots(false); }
+    else if (!gridDots) setGridDots(true);
+    else { setToggles((t) => ({ ...t, grid: false })); setGridDots(false); }
+  };
 
-  return { view, open, layersOn, setLayer, allLayers, toggles, toggle, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, history, say, tool, setTool, device, setDevice, feederId, setFeederId, boardId, setBoardId, selected, setSelected, showDevices, setShowDevices, tray, setTray, cableFeeder, setCableFeeder, coverage, setCoverage, showRoles, setShowRoles, actions, textAt, setTextAt };
+  return { view, open, layersOn, setLayer, allLayers, toggles, toggle, gridDots, cycleGrid, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, history, say, tool, setTool, device, setDevice, feederId, setFeederId, boardId, setBoardId, selected, setSelected, showDevices, setShowDevices, tray, setTray, cableFeeder, setCableFeeder, coverage, setCoverage, showRoles, setShowRoles, actions, textAt, setTextAt };
 }
 
 export type CadState = ReturnType<typeof useCad>;

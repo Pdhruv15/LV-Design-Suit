@@ -94,6 +94,20 @@ describe('CAD view', () => {
     expect(document.querySelector('.cad-hist')?.textContent).toMatch(/Unknown command "XYZ"/);
   });
 
+  it('steps the grid lines → dots → off with F7, as the SLD does, and shows the zoom in the corner', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    const f7 = () => act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F7' })); });
+    f7();
+    expect([state.toggles.grid, state.gridDots]).toEqual([true, false]);
+    f7();
+    expect([state.toggles.grid, state.gridDots]).toEqual([true, true]);
+    expect(button('GRID · DOTS')).toBeTruthy();
+    f7();
+    expect([state.toggles.grid, state.gridDots]).toEqual([false, false]);
+    expect(document.querySelector('.zoom-chip')?.textContent).toBe('100 %'); // the drawing fitted
+  });
+
   it('measures a distance between two snapped points (DI)', async () => {
     act(() => root.render(<Host />));
     await flush();

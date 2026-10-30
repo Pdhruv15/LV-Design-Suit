@@ -37,6 +37,7 @@ import { getArmedItem, getDragItem, setArmedItem, setDragItem, subscribeArmedIte
 import { recordedKva, recordedText } from '../model/existing';
 import { CO_GEN_REACH, ChangeoverIncomers } from '../diagram/ChangeoverSym';
 import { atsLines, atsOf, changeoverBreakers, isInterlocked } from '../model/changeover';
+import { isFitClick, KEY_STEP, PAN_STEP, useSpaceHeld, viewKey, wheelAction, ZoomChip } from './drawingView';
 
 interface Tag {
   text: string;
@@ -516,7 +517,7 @@ export default function SystemDiagram({
     if (!pt) return;
     setVb((v) => { const w = Math.min(v.w, 1400), h = (w / v.w) * v.h; return { x: pt.x - w / 2, y: pt.y - h / 2, w, h }; });
   }, [focus, layout]);
-  /** Zoom level shown in the toolbar: 100 % = the whole drawing fitted. */
+  /** Zoom shown in the corner chip: 100 % = the whole drawing fitted. */
   const zoomPct = Math.round((W / vb.w) * 100);
   function zoom(factor: number, cx = vb.x + vb.w / 2, cy = vb.y + vb.h / 2) {
     setVb((v) => {
@@ -533,14 +534,15 @@ export default function SystemDiagram({
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const r = el.getBoundingClientRect();
+      const w = wheelAction(e);
       setVb((v) => {
         const scale = Math.max(v.w / r.width, v.h / r.height);
+        if ('pan' in w) return { ...v, x: v.x + w.pan[0] * scale, y: v.y + w.pan[1] * scale };
         const cx = v.x + (e.clientX - r.left - (r.width - v.w / scale) / 2) * scale;
         const cy = v.y + (e.clientY - r.top - (r.height - v.h / scale) / 2) * scale;
-        const factor = e.deltaY > 0 ? 1.15 : 1 / 1.15;
-        const w = Math.min(Math.max(v.w * factor, 200), layout.width * 3);
-        const h = (w / v.w) * v.h;
-        return { x: cx - ((cx - v.x) * w) / v.w, y: cy - ((cy - v.y) * h) / v.h, w, h };
+        const nw = Math.min(Math.max(v.w / w.zoom, 200), layout.width * 3);
+        const h = (nw / v.w) * v.h;
+        return { x: cx - ((cx - v.x) * nw) / v.w, y: cy - ((cy - v.y) * h) / v.h, w: nw, h };
       });
     };
     el.addEventListener('wheel', onWheel, { passive: false });
@@ -551,6 +553,7 @@ export default function SystemDiagram({
   // it to a busbar (reconnect) or onto another feeder (place before it).
   // Dragging the empty background still pans.
   const pick = useRef<{ item: MoveItem; label: string; px: number; py: number } | null>(null);
+  const space = useSpaceHeld(); // Space + drag pans, even over a board
   const [moving, setMoving] = useState<{ label: string; x: number; y: number } | null>(null);
   const [cableEdit, setCableEdit] = useState<{ id: string; x: number; y: number; size: string; cores: string; length: string; runs: string; type: string } | null>(null);
   const lengthOk = (v: string) => /^\d*\.?\d+$/.test(v.trim().replace(',', '.')) && Number(v.trim().replace(',', '.')) > 0;
@@ -562,7 +565,7 @@ export default function SystemDiagram({
     setCableEdit(null);
   };
   const startPick = (item: MoveItem, label: string) => (e: React.PointerEvent) => {
-    if (!onMoveItem || tool === 'pan' || e.button !== 0) return;
+    if (!onMoveItem || tool === 'pan' || e.button !== 0 || space.current) return;
     pick.current = { item, label, px: e.clientX, py: e.clientY };
   };
   const targetAt = (x: number, y: number): { target: DropTarget; key: string } | undefined => {
@@ -716,17 +719,18 @@ export default function SystemDiagram({
       data-doc-id="sld-canvas"
       className={`sysdiag ${tool === 'pan' ? 'pan' : ''}${armed && onDropItem ? ' armed' : ''}${dropCls('canvas')}${stale ? ' stale' : ''}${lodLevel}`}
       tabIndex={0}
-      aria-label="Single line diagram. Plus and minus zoom, 0 fits, arrow keys pan."
+      aria-label="Single line diagram. Plus and minus zoom, F or 0 fits, arrow keys pan, G changes the grid."
       onKeyDown={(e) => {
         // Keyboard zoom and pan while the drawing (or a board or circuit on it) has focus; not in text boxes or buttons.
         if (e.ctrlKey || e.metaKey || e.altKey || (e.target as HTMLElement).closest('input,select,textarea,button,[contenteditable="true"]')) return;
-        const pan = (dx: number, dy: number) => setVb((v) => ({ ...v, x: v.x + dx * v.w * 0.1, y: v.y + dy * v.h * 0.1 }));
-        const act: Record<string, () => void> = {
-          '+': () => zoom(1 / 1.25), '=': () => zoom(1 / 1.25), '-': () => zoom(1.25), '_': () => zoom(1.25), '0': () => setVb(full),
-          ArrowLeft: () => pan(-1, 0), ArrowRight: () => pan(1, 0), ArrowUp: () => pan(0, -1), ArrowDown: () => pan(0, 1)
-        };
-        const f = act[e.key];
-        if (f) { e.preventDefault(); f(); }
+        const k = viewKey(e);
+        if (!k) return;
+        e.preventDefault();
+        if (k === 'in') zoom(1 / KEY_STEP);
+        else if (k === 'out') zoom(KEY_STEP);
+        else if (k === 'fit') setVb(full);
+        else if (k === 'grid') nextGrid();
+        else setVb((v) => ({ ...v, x: v.x + k.pan[0] * v.w * PAN_STEP, y: v.y + k.pan[1] * v.h * PAN_STEP }));
       }}
       style={{ ...(resizable && !fullScreen && (height ?? autoHeight) ? { height: height ?? autoHeight } : {}), ...(lodLevel === ' lod-far' ? { '--lod-fs': `${Math.min(22, 10 / pxPerUnit).toFixed(1)}px` } : {}) } as CSSProperties}
     >
@@ -748,10 +752,9 @@ export default function SystemDiagram({
           <button className="chip" onClick={nextGrid} title={`Grid: ${grid === 'lines' ? 'lines' : grid === 'dots' ? 'dots' : 'none'} — click for ${grid === 'lines' ? 'dots' : grid === 'dots' ? 'none' : 'lines'}`} aria-label={`Grid: ${grid}`}>
             {grid === 'lines' ? <Grid3x3 size={15} aria-hidden /> : grid === 'dots' ? <Grip size={15} aria-hidden /> : <Square size={15} aria-hidden />}
           </button>
-          <button className="chip" onClick={() => zoom(1.25)} aria-label="Zoom out" title="Zoom out (− with the drawing focused, or the mouse wheel)"><ZoomOut size={15} aria-hidden /></button>
-          <button className="chip sd-zoom" onClick={() => setVb(full)} title="Zoom level, relative to the whole drawing (100 % = all of it) — click to fit (0)" aria-label={`Zoom ${zoomPct} %, click to fit`}>{zoomPct} %</button>
-          <button className="chip" onClick={() => zoom(1 / 1.25)} aria-label="Zoom in" title="Zoom in (+ with the drawing focused, or the mouse wheel)"><ZoomIn size={15} aria-hidden /></button>
-          <button className="chip" onClick={() => setVb(full)} aria-label="Fit the drawing" title="Fit the whole drawing (0)"><Scan size={15} aria-hidden /></button>
+          <button className="chip" onClick={() => zoom(1.25)} aria-label="Zoom out" title="Zoom out (−, or the mouse wheel)"><ZoomOut size={15} aria-hidden /></button>
+          <button className="chip" onClick={() => zoom(1 / 1.25)} aria-label="Zoom in" title="Zoom in (+, or the mouse wheel)"><ZoomIn size={15} aria-hidden /></button>
+          <button className="chip" onClick={() => setVb(full)} aria-label="Fit the drawing" title="Fit the whole drawing (F or 0, or double-click the wheel)"><Scan size={15} aria-hidden /></button>
           {onToggleFullScreen && <button className="chip" onClick={onToggleFullScreen} aria-label={fullScreen ? 'Exit full screen' : 'Full screen'} title={fullScreen ? 'Exit full screen (Esc)' : 'Full screen'}>{fullScreen ? <Minimize2 size={15} aria-hidden /> : <Maximize2 size={15} aria-hidden />}</button>}
         </div>
       </div>
@@ -774,6 +777,8 @@ export default function SystemDiagram({
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onMouseDown={(e) => { if (e.button === 1) e.preventDefault(); }}
+        onAuxClick={(e) => { if (isFitClick(e)) setVb(full); }}
         onPointerLeave={(e) => { onPointerUp(e); if (armed) { setHover(null); setInsertAt(null); } }}
         onClickCapture={placeArmed}
         {...dnd({ type: 'canvas' }, 'canvas')}
@@ -1584,6 +1589,7 @@ export default function SystemDiagram({
           );
         })()}
       </svg>
+      <ZoomChip pct={zoomPct} onFit={() => setVb(full)} />
       {colorBy !== 'none' && (
         <div className="heat-legend">
           <b>{COLOR_BY.find((c) => c.value === colorBy)?.label}</b>

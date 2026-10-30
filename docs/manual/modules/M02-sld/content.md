@@ -42,10 +42,15 @@ ribbon opens them.
 
 - Press **V** for the Select tool.
 - Press **H** for the Pan tool.
-- Scroll over the drawing to zoom at the pointer.
+- Scroll the mouse wheel, or pinch on a trackpad, to zoom at the pointer; two fingers on a trackpad pan.
+- Press the wheel and drag, or hold **Space** and drag, to pan with any tool.
 - Press **+** or **-** to zoom.
-- Press **0** to fit the whole system diagram.
+- Press **F** or **0** (or double-click the wheel) to fit the whole system diagram.
+- Press **G** to change the grid: lines, dots, or none.
 - Use the arrow keys to pan after focusing the drawing.
+- The zoom is shown in the bottom-right corner; select it to fit. Design CAD and
+  its Sheets use the same controls (in Design CAD, F7 changes the grid and FIT or
+  ZE fits, because letters go to the command line).
 - Use **Text: Auto** for zoom-dependent detail or **Text: All** for all labels.
 - Use the full-screen control when reviewing a large network.
 

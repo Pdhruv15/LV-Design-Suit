@@ -496,7 +496,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     else if (c === 'SAVEDWG' || c === 'DWGOUT') void saveDxf('dwg');
     else if (c === 'LA' || c === 'LAYER' || c === 'LAYERS') cad.setShowLayers(!cad.showLayers);
     else if (c === 'OS' || c === 'OSNAP') cad.toggle('osnap');
-    else if (c === 'GRID') cad.toggle('grid');
+    else if (c === 'GRID') cad.cycleGrid();
     else if (c === 'ORTHO') cad.toggle('ortho');
     else if (c === 'SNAP') cad.toggle('snap');
     else if (c === 'HELP' || c === '?') cad.say(HELP);
@@ -509,7 +509,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   keyRef.current = (e: KeyboardEvent) => {
     const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
     const fn: Record<string, keyof CadToggles> = { F3: 'osnap', F7: 'grid', F8: 'ortho', F9: 'snap' };
-    if (fn[e.key]) { e.preventDefault(); cad.toggle(fn[e.key]); return; }
+    if (fn[e.key]) { e.preventDefault(); if (fn[e.key] === 'grid') cad.cycleGrid(); else cad.toggle(fn[e.key]); return; }
     if (e.key === 'Escape' && (!typing || e.target === input.current)) {
       setCmd(''); input.current?.blur();
       if (points.length || objectMode || cad.textAt) { setPoints([]); setObjectMode(false); cad.setTextAt(null); cad.say('*Cancel*'); } else if (tool !== 'none') cad.setTool('none'); else { setResult(null); cad.setSelected(null); }
@@ -566,7 +566,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       <div className="cad-work">
         {view ? (
           <div className="cad-stage">
-            <CadCanvas view={view} layersOn={cad.layersOn} toggles={cad.toggles} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} sketch={sketch} selectedSketch={selSketch?.id ?? null} extraSnaps={sketchSnaps} preview={preview} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps} />
+            <CadCanvas view={view} layersOn={cad.layersOn} toggles={cad.toggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} sketch={sketch} selectedSketch={selSketch?.id ?? null} extraSnaps={sketchSnaps} preview={preview} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps} />
             <div className="cad-coords">{cursor.at ? `X ${cursor.at[0].toFixed(2)}   Y ${cursor.at[1].toFixed(2)}   ${units.label}` : units.label}</div>
           </div>
         ) : (
@@ -702,7 +702,9 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       </form>
       <div className="cad-status">
         {TOGGLES.map((x) => (
-          <button key={x.k} className={`cad-tg${cad.toggles[x.k] ? ' on' : ''}`} aria-pressed={cad.toggles[x.k]} title={`${x.label} (${x.key})`} onClick={() => cad.toggle(x.k)}>{x.label}</button>
+          <button key={x.k} className={`cad-tg${cad.toggles[x.k] ? ' on' : ''}`} aria-pressed={cad.toggles[x.k]}
+            title={x.k === 'grid' ? `Grid: ${!cad.toggles.grid ? 'off' : cad.gridDots ? 'dots' : 'lines'} (${x.key}: lines, dots, off)` : `${x.label} (${x.key})`}
+            onClick={() => (x.k === 'grid' ? cad.cycleGrid() : cad.toggle(x.k))}>{x.k === 'grid' && cad.toggles.grid && cad.gridDots ? 'GRID · DOTS' : x.label}</button>
         ))}
         <span className="sp" />
         <span>{cursor.snap ?? ''}</span>
