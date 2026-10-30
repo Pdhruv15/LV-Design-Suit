@@ -15,6 +15,14 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.10', date: '2026-10-30',
+    items: [
+      { title: 'Plan sheets', text: 'Design CAD → Sheets → + New sheet: Lighting, Power or ELV layouts for all levels, at 1:100 on the smallest paper that holds the level. The architect\'s plan prints grey and the design black: devices, DBs, wiring, home runs and circuit tags, with a legend of the symbols used, scale bar and north arrow. Numbered E-LTG-, E-PWR- and E-ELV-, grouped under Plans.', action: 'sheets', actionLabel: 'Open Sheets' },
+      { title: 'Large levels over several sheets', text: 'A level too big for A1 at 1:100 is split into parts, each sheet with a key plan of the level (its part shaded) and match lines naming the next sheet.' },
+      { title: 'Plans in PDF, DXF and DWG', text: 'Plan sheets print and export with the rest of the set, at their scale. Set 1:50 or 1:200 in the sheet\'s scale to change it.' }
+    ]
+  },
+  {
     version: '2.9', date: '2026-10-30',
     items: [
       { title: 'Title block at its standard size', text: 'Sheets keep the title block 180 mm wide with 2.5 mm text on A3, A2 and A1, instead of growing with the paper and the drawing (it reached almost half the width of an A1 sheet). A4 shrinks it only as far as it must. The revision table, notes and cable schedule follow, so more fits on each sheet.', action: 'sheets', actionLabel: 'Open Sheets' }

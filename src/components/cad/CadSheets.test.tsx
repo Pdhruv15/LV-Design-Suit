@@ -27,6 +27,16 @@ describe('Design CAD → Sheets', () => {
     expect(html).toContain('<h4>Earthing</h4>');
     for (const s of set.sheets) expect(html).toContain(s.number);
     expect(html).toContain('Title block &amp; numbering'); // the register, on the tab chosen in the ribbon
+    expect(html).not.toContain('<h4>Plans</h4>');
+  });
+
+  it('lists plan sheets under Plans', () => {
+    const plan = { id: 'pl', number: 'E-LTG-001', title: 'Ground floor · Lighting layout', kind: 'plan' as const, plan: 'lighting' as const, buildingId: 'V', levelId: 'GF', boards: [], size: 'auto' as const, scale: '1:100' };
+    const html = renderToStaticMarkup(
+      <CadSheets project={{ ...project, drawingSet: { ...set, sheets: [...set.sheets, plan] } }} calcProject={project} results={[]} sheetId={null} tab="titleblock" ui={ui}
+        onActive={noop} onChange={noop} onStatus={noop} onOpen={noop} />
+    );
+    expect(html).toMatch(/<h4>Plans<\/h4>.*E-LTG-001/s);
   });
 
   it('opens a sheet with its markup tools, earthing sheets included', () => {

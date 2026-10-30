@@ -43,7 +43,7 @@ function bounds(p: Project, lv: PlanLevel) {
 }
 
 /** One symbol as SVG at (x, y) with radius r: the plan's shapes and letter codes (cameras and speakers turned). */
-function symbolSvg(s: DeviceSymbol, x: number, y: number, r: number, rotationDeg = 0): string {
+export function symbolSvg(s: DeviceSymbol, x: number, y: number, r: number, rotationDeg = 0): string {
   const fill = s.filled ? '#000' : '#fff', ink = s.filled ? '#fff' : '#000', sw = r * 0.14;
   const shape = s.shape === 'circle' ? `<circle cx="${x}" cy="${y}" r="${r}"/>`
     : s.shape === 'square' ? `<rect x="${x - r}" y="${y - r}" width="${2 * r}" height="${2 * r}"/>`

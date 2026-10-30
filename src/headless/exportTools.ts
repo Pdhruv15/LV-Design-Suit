@@ -132,10 +132,10 @@ function renderer(what: string, instead: string) {
   return r;
 }
 
-const SHEET_TYPES = { sld: 'system', panel: 'board', riser: 'riser', earthing: 'earthing' } as const;
+const SHEET_TYPES = { sld: 'system', panel: 'board', riser: 'riser', earthing: 'earthing', plan: 'plan' } as const;
 type SheetType = keyof typeof SHEET_TYPES;
 const typeOf = (s: DrawingSheet) => (Object.keys(SHEET_TYPES) as SheetType[]).find((k) => SHEET_TYPES[k] === s.kind)!;
-const LABEL: Record<SheetType, string> = { sld: 'SLD sheet', panel: 'DB circuit diagram', riser: 'riser diagram', earthing: 'earthing schematic' };
+const LABEL: Record<SheetType, string> = { sld: 'SLD sheet', panel: 'DB circuit diagram', riser: 'riser diagram', earthing: 'earthing schematic', plan: 'lighting, power or ELV plan layout' };
 
 /** The drawing sheets of Reports → Drawings, as its DXF export makes them (one file per sheet, plus continuation sheets). */
 function sheetsDxf(p: Project, sheets: string[] | undefined, types: SheetType[] | undefined): Planned {
@@ -258,7 +258,7 @@ export const EXPORT_TOOLS: Tool[] = [
     input: {
       project, drawing: z.enum(['earthing', 'sld']).default('earthing').describe('earthing = earthing schematic; sld = the drawing set of Reports → Drawings'),
       sheets: z.array(z.string()).optional().describe('drawing sld: only these sheet numbers (default all)'),
-      types: z.array(z.enum(['sld', 'panel', 'riser', 'earthing'])).optional().describe('drawing sld: only these sheet types (sld = SLD sheets, panel = DB circuit diagrams, riser, earthing; default all)'),
+      types: z.array(z.enum(['sld', 'panel', 'riser', 'earthing', 'plan'])).optional().describe('drawing sld: only these sheet types (sld = SLD sheets, panel = DB circuit diagrams, riser, earthing, plan = lighting / power / ELV layouts; default all)'),
       approvedBy, exportAnyway, mode
     },
     usesProject: true, writes: true,
