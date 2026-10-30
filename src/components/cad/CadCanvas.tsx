@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { INK, SNAP, SNAP_NAMES, type CadView } from '../../engines/cad/cadEngine';
 import { ortho as orthoFrom } from '../../model/cadMeasure';
-import { dimensionLines, segmentsOf, trayEdges, trayLabel } from '../../model/cadSketch';
+import { dimensionLines, segmentsOf, trayLabel, trayLine, TRAY_TEXT_MM } from '../../model/cadSketch';
 import type { PlanCells, PlanCover } from '../elv/elvOverlay';
 import { fittingLabel, trayFittings } from '../../model/cadTrayFittings';
 import { cssRgb, dashArray, hatchLines, patternLength, screenColour, tileOf } from '../../model/cadDraw';
@@ -16,6 +16,9 @@ export interface CadToggles { snap: boolean; osnap: boolean; ortho: boolean; gri
  * cursor; `closed` outlines are shaded. */
 /** A device placed in the app, drawn over the drawing (drawing units, absolute): its symbol, letters and label. */
 export interface CanvasDevice { key: string; x: number; y: number; r: number; shape: string; text: string; label: string; selected?: boolean; elv?: boolean; ghost?: boolean }
+/** A wired circuit (drawing units, absolute): arcs between its devices, the home run to its DB (an arrow at the DB) and
+ * its tag; `warn` when it has no home run. */
+export interface CanvasWiring { arcs: { a: Pt; c: Pt; b: Pt }[]; home?: { a: Pt; c: Pt; b: Pt }; tag?: { at: Pt; s: string; warn: boolean } }
 export interface CadMarks { points: Pt[]; live?: boolean; closed?: boolean; area?: boolean; label?: string }
 /** View transform: screen = (world − origin − (ox, oy)) × scale, y up. */
 interface ViewT { scale: number; ox: number; oy: number }
@@ -33,7 +36,7 @@ export function gridStep(scale: number): number {
 /** The drawing in a CAD model space: lines by layer and colour, texts at their height, a crosshair cursor with the snap
  * point under it, live coordinates. Wheel zooms at the cursor (two-finger scroll pans, pinch zooms), the middle button
  * or Space + drag pans, a middle double-click fits. */
-export default function CadCanvas({ view, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps }: {
+export default function CadCanvas({ view, layersOn, toggles, gridDots = false, fitKey, onCursor, onClick, marks, highlight, devices = [], wiring = [], sketch = [], selectedSketch, extraSnaps = [], preview = [], unitsPerMm = 1, labels = {}, covers = [], gaps }: {
   view: CadView;
   layersOn: Uint8Array;
   toggles: CadToggles;
@@ -45,6 +48,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
   /** Segments of the object picked (start, end), drawn highlighted. */
   highlight?: [number, number] | null;
   devices?: CanvasDevice[];
+  wiring?: CanvasWiring[];
   /** What the engineer drew (drawing units), the one selected, and their snap points. */
   sketch?: SketchItem[];
   /** Drawing units per millimetre, for the width of tray runs. */
@@ -231,8 +235,9 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
       ctx.stroke(p);
     }
     // ELV coverage: circles and camera views cut at their room, then the squares not covered.
+    const bad = colour('--bad', '#ff5d6c');
     if (covers.length || gaps?.at.length) {
-      const cov = colour('--cad-elv', '#4aa8ff'), bad = colour('--bad', '#ff5d6c');
+      const cov = colour('--cad-elv', '#4aa8ff');
       const poly = (pts: Pt[]) => { const q = new Path2D(); q.moveTo(pts[0][0] - o0, pts[0][1] - o1); for (const v of pts.slice(1)) q.lineTo(v[0] - o0, v[1] - o1); q.closePath(); return q; };
       for (const c of covers) {
         const [x, y] = [c.at[0] - o0, c.at[1] - o1];
@@ -258,27 +263,41 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
         ctx.globalAlpha = 1;
       }
     }
-    // What the engineer drew, over the drawing; tray runs with their fittings (joined ends left open).
-    const { fittings, joined } = trayFittings(sketch, unitsPerMm);
+    // What the engineer drew, over the drawing; a tray run as one heavier line, broken at its label when the label shows.
+    const { fittings } = trayFittings(sketch, unitsPerMm);
     const skC = colour('--cad-sketch', '#7fd1ff'), selSk = colour('--cad-snap', '#37d67a');
+    const trayH = TRAY_TEXT_MM * unitsPerMm, trayText = trayH * scale >= 4;
     for (const it of sketch) {
       if (it.kind === 'text') continue;
       ctx.strokeStyle = it.id === selectedSketch ? selSk : skC;
-      ctx.lineWidth = (it.id === selectedSketch ? 3 : 1.5) / scale;
+      ctx.lineWidth = (it.id === selectedSketch ? 3 : it.tray ? 2.5 : 1.5) / scale;
       ctx.beginPath();
-      for (const [a, b] of segmentsOf(it)) { ctx.moveTo(a[0] - o0, a[1] - o1); ctx.lineTo(b[0] - o0, b[1] - o1); }
+      if (it.tray) for (const q of trayText ? trayLine(it, trayH).pieces : [it.pts]) q.forEach((p, i) => (i ? ctx.lineTo(p[0] - o0, p[1] - o1) : ctx.moveTo(p[0] - o0, p[1] - o1)));
+      else for (const [a, b] of segmentsOf(it)) { ctx.moveTo(a[0] - o0, a[1] - o1); ctx.lineTo(b[0] - o0, b[1] - o1); }
       if (it.cable) ctx.setLineDash([10 / scale, 5 / scale]); // a cable route: dashed
       ctx.stroke();
       ctx.setLineDash([]);
-      if (!it.tray) continue;
-      // A tray run: its edges at the tray width; the centreline thinner.
-      ctx.lineWidth = (it.id === selectedSketch ? 3 : 2) / scale;
+    }
+    // Circuit wiring: arcs in the devices' colour, the home run ending in an arrow at the DB.
+    const lvC = colour('--cad-dev', '#f5c04a');
+    if (wiring.length) {
+      ctx.strokeStyle = lvC; ctx.fillStyle = lvC;
+      ctx.lineWidth = 1.3 / scale;
       ctx.beginPath();
-      for (const [a, b] of trayEdges(it, unitsPerMm, joined)) { ctx.moveTo(a[0] - o0, a[1] - o1); ctx.lineTo(b[0] - o0, b[1] - o1); }
+      for (const w of wiring) for (const a of [...w.arcs, ...(w.home ? [w.home] : [])]) { ctx.moveTo(a.a[0] - o0, a.a[1] - o1); ctx.quadraticCurveTo(a.c[0] - o0, a.c[1] - o1, a.b[0] - o0, a.b[1] - o1); }
       ctx.stroke();
+      const head = 9 / scale;
+      for (const w of wiring) {
+        if (!w.home) continue;
+        const { b, c } = w.home, ang = Math.atan2(b[1] - c[1], b[0] - c[0]);
+        ctx.beginPath(); ctx.moveTo(b[0] - o0, b[1] - o1);
+        ctx.lineTo(b[0] - o0 - head * Math.cos(ang - 0.4), b[1] - o1 - head * Math.sin(ang - 0.4));
+        ctx.lineTo(b[0] - o0 - head * Math.cos(ang + 0.4), b[1] - o1 - head * Math.sin(ang + 0.4));
+        ctx.closePath(); ctx.fill();
+      }
     }
     // Devices placed in the app: symbols in drawing units (they zoom with the plan), letters and labels below.
-    const lvC = colour('--cad-dev', '#f5c04a'), elvC = colour('--cad-elv', '#4aa8ff'), selC = colour('--cad-snap', '#37d67a');
+    const elvC = colour('--cad-elv', '#4aa8ff'), selC = colour('--cad-snap', '#37d67a');
     for (const d of devices) {
       const x = d.x - o0, y = d.y - o1, r = d.r;
       ctx.strokeStyle = d.selected ? selC : d.elv ? elvC : lvC;
@@ -325,10 +344,17 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
       if (d.text) { ctx.font = `600 ${Math.min(px * 0.8, 40)}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.fillText(d.text, sx, sy + px * 0.3); }
       if (px >= 7 && d.label) { ctx.font = `${Math.min(Math.max(px * 0.6, 9), 16)}px system-ui, sans-serif`; ctx.textAlign = 'left'; ctx.fillText(d.label, sx + px * 1.3, sy + px * 0.3); }
     }
+    // Wiring tags, at screen size beside the home run (in red when it has none).
+    ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = 'left';
+    for (const w of wiring) {
+      if (!w.tag) continue;
+      ctx.fillStyle = w.tag.warn ? bad : lvC;
+      ctx.fillText(w.tag.s, (w.tag.at[0] - o0 - ox) * scale + 6, size.h - (w.tag.at[1] - o1 - oy) * scale - 6);
+    }
     for (const it of sketch) {
       const label = it.kind === 'text' ? { at: it.pts[0], s: it.text ?? '', h: it.h ?? 0, rot: it.rot ?? 0, align: 'left' as CanvasTextAlign }
         : it.kind === 'dim' ? (() => { const d = dimensionLines(it.pts[0], it.pts[1], it.pts[2]); return { at: d.text, s: it.text ?? '', h: it.h ?? d.length * 0.04, rot: d.angle, align: 'center' as CanvasTextAlign }; })()
-        : it.tray ? (() => { const l = trayLabel(it); return { at: l.at, s: l.text, h: 150 * unitsPerMm, rot: l.rot, align: 'center' as CanvasTextAlign }; })()
+        : it.tray ? (() => { const l = trayLabel(it); return { at: l.at, s: l.text, h: trayH, rot: l.rot, align: 'center' as CanvasTextAlign }; })()
         : it.cable && labels[it.id] ? (() => { const l = trayLabel(it); return { at: l.at, s: labels[it.id], h: 120 * unitsPerMm, rot: l.rot, align: 'center' as CanvasTextAlign }; })()
         : null;
       if (!label || !label.s) continue;
@@ -339,6 +365,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
       ctx.rotate(-label.rot);
       ctx.font = `${Math.min(px, 200)}px system-ui, sans-serif`;
       ctx.textAlign = label.align;
+      if (it.tray) ctx.textBaseline = 'middle'; // in the gap of the tray's line
       ctx.fillStyle = it.id === selectedSketch ? selSk : skC;
       ctx.fillText(label.s, 0, 0);
       ctx.restore();
@@ -355,7 +382,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
         ctx.fillText(fittingLabel(f), sx + fpx * 1.2, sy - fpx * 1.2);
       }
     }
-  }, [t, size, batches, fills, layersOn, toggles.grid, view, highlight, devices, sketch, selectedSketch, unitsPerMm, labels, covers, gaps, theme, gridDots]); // eslint-disable-line react-hooks/exhaustive-deps -- colours read from CSS each draw
+  }, [t, size, batches, fills, layersOn, toggles.grid, view, highlight, devices, wiring, sketch, selectedSketch, unitsPerMm, labels, covers, gaps, theme, gridDots]); // eslint-disable-line react-hooks/exhaustive-deps -- colours read from CSS each draw
 
   /** The cursor: crosshair and pick box, and the snap marker with its name. */
   function drawCursor(at: Pt | null, snap?: { p: Pt; kind: number }) {

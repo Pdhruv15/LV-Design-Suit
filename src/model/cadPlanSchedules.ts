@@ -1,6 +1,7 @@
 import { joinPath, routeNames, trayPlanOf } from '../calc/cableTray';
 import { applyCadLengths, pullCadLengths } from './cadLengths';
 import { plansOf } from './cadPlans';
+import { applyWiringLengths } from './cadWiring';
 import { trayLength } from './cadSketch';
 import { applyCadTrays, pullCadTrays, type FeederTrayProposal, type TrayLengthProposal } from './cadTrays';
 import { trayFittings } from './cadTrayFittings';
@@ -13,7 +14,8 @@ type Pt = [number, number];
  * - each tray route its length (all its runs on all levels) and fittings (bends, tees, reducers; a cross counts as a
  *   tee) for the tray BOQ;
  * - each feeder with a cable route its length (route + vertical + terminations + waste, as from the CAD floor plan);
- * - each such feeder the tray routes it runs along (only where it runs along a tray, on the same plan).
+ * - each such feeder the tray routes it runs along (only where it runs along a tray, on the same plan);
+ * - each wired circuit without a cable route its wiring length (src/model/cadWiring.ts).
  * Only runs with a tray route assigned count. One undo step; what did not change is left as it is. */
 
 export interface PlanDrawing { file: string; mPerUnit: number; items: SketchItem[] }
@@ -106,9 +108,11 @@ export function updateSchedules(p: Project, drawings: PlanDrawing[]): ScheduleUp
   }
   const pull = pullCadLengths(next, [...routeM].map(([feederId, r]) => ({ feederId, length: r.m, pieces: r.pieces })), 6);
   next = applyCadLengths(next, pull.proposals);
+  const wired = applyWiringLengths(next, new Set(routeM.keys()));
+  next = wired.project;
 
   const trays = [...len].sort(([a], [b]) => a.localeCompare(b)).map(([name, m]) => ({ name, lengthM: Math.round(m * 10) / 10, fittings: fit.get(name) ?? { bends: 0, tees: 0, reducers: 0 } }));
-  return { project: next, trays, lengths: pull.proposals.length, feederTrays: feederProposals.length };
+  return { project: next, trays, lengths: pull.proposals.length + wired.changed, feederTrays: feederProposals.length };
 }
 
 /** "Route A 24.6 m (2 bends, 1 tee) · 3 cable lengths · 2 feeders' tray routes". */

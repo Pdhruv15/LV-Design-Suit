@@ -15,6 +15,27 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.9', date: '2026-10-30',
+    items: [
+      { title: 'Title block at its standard size', text: 'Sheets keep the title block 180 mm wide with 2.5 mm text on A3, A2 and A1, instead of growing with the paper and the drawing (it reached almost half the width of an A1 sheet). A4 shrinks it only as far as it must. The revision table, notes and cable schedule follow, so more fits on each sheet.', action: 'sheets', actionLabel: 'Open Sheets' }
+    ]
+  },
+  {
+    version: '2.8', date: '2026-10-30',
+    items: [
+      { title: 'Cable trays as a single line', text: 'Design CAD → Plan: a cable tray run is now one line with its label in the line, like "CT 300 POWER" (and its route once assigned), the way design-stage layouts show it. DXF and DWG are written the same way.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'What a tray carries', text: 'Each tray run has Carries beside its width: Power, Lighting, ELV, Data or Fire alarm. New runs start as Power.' }
+    ]
+  },
+  {
+    version: '2.7', date: '2026-10-30',
+    items: [
+      { title: 'Circuit wiring on the plan', text: 'Design CAD → Plan → Wiring: Wire circuits joins every circuit\'s devices on the level with wiring arcs and a home run to its DB, tagged like "DB-GF1/L3 · 2C × 1.5 mm² · 23 m". Wire one does a single circuit (click it again to take it off), and Tags shows or hides the tags.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Wiring lengths in the cable schedule', text: 'Update schedules gives each wired circuit its length: along the arcs and home run, plus 1.5 m drop per device and 10 % allowance, rounded up. A cable route drawn for the circuit still comes first.' },
+      { title: 'Wiring in DXF and DWG', text: 'Save DXF / Save DWG write the wiring on E-LV-WIRING and the tags on E-LV-TAGS.' }
+    ]
+  },
+  {
     version: '2.6', date: '2026-10-29',
     items: [
       { title: 'The same view controls everywhere', text: 'The SLD, Design CAD and Sheets zoom, pan and fit the same way: the wheel or a pinch zooms at the cursor, two fingers on a trackpad pan, press the wheel (or hold Space) and drag to pan, double-click the wheel or press F to fit, + and − zoom, arrow keys pan.' },

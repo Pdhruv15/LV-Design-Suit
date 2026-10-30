@@ -29,16 +29,15 @@ describe('sheet title block values', () => {
 
 describe('sheet furniture scale', async () => {
   const { furnitureScale } = await import('./sldSheet');
-  const svg = (w: number, h: number) => `<svg viewBox="0 0 ${w} ${h}"></svg>`;
-  it('matches the drawing text: same drawing bigger on A1 than on A3', () => {
-    const d = svg(1400, 700);
-    expect(furnitureScale('A1', d)).toBeGreaterThan(furnitureScale('A3', d));
+  it('keeps the standard 180 mm title block from A3 to A1, whatever the drawing', () => {
+    for (const size of ['A3', 'A2', 'A1'] as const) expect(furnitureScale(size)).toBe(1);
+    expect(furnitureScale('A1', { w: 180, h: 55 })).toBe(1);
   });
   it('keeps the title block within ≈ 60 % of an A4 sheet', () => {
-    const k = furnitureScale('A4', svg(200, 100));
+    const k = furnitureScale('A4');
     expect(180 * k).toBeLessThanOrEqual((297 - 30) * 0.6 + 0.5);
   });
-  it('a crowded A1 sheet keeps readable furniture', () => {
-    expect(furnitureScale('A1', svg(6000, 3000))).toBeGreaterThanOrEqual(0.62);
+  it('shrinks on A4 only as far as it must: values stay above 2 mm', () => {
+    expect(furnitureScale('A4') * 2.5).toBeGreaterThan(2);
   });
 });

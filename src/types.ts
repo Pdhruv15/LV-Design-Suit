@@ -407,8 +407,9 @@ export interface SketchItem {
   text?: string;
   h?: number;
   rot?: number;
-  /** A cable tray run (a polyline along its centreline): its width, and the tray route it is on, once assigned. */
-  tray?: { widthMm: number; route?: string };
+  /** A cable tray run (a polyline along its centreline): its width, what it carries, and the tray route it is on, once
+   * assigned. */
+  tray?: { widthMm: number; service?: string; route?: string };
   /** A cable route (a polyline on E-CABLE): the feeder whose cable runs along it. */
   cable?: { feederId: string };
 }
@@ -431,6 +432,8 @@ export interface CadLengthSettings {
   verticalM?: number; // rises and drops per run (tray down to the board at each end); default 6
   terminationM?: number; // both ends together; default 3
   wastePct?: number; // default 5
+  dropM?: number; // circuit wiring: drop to each device; default 1.5 (src/model/cadWiring.ts)
+  allowancePct?: number; // circuit wiring allowance; default 10
 }
 
 export interface Project {
@@ -528,6 +531,8 @@ export interface Project {
   cadPlans?: CadPlan[];
   /** LV points (lights, sockets…) placed on plans in the CAD view, on circuits (src/model/cadDevices.ts). */
   lvPoints?: import('./model/cadDevices').LvPoint[];
+  /** Circuits wired on the CAD plans (Design CAD → Plan → Wiring), with the device order the engineer saved. */
+  cadWiring?: import('./model/cadWiring').CadWiring[];
   /** Highest LV point number given out, so a deleted point's ID is never reused. */
   lvPointSeq?: number;
   /** Links made on floor plans in the Floor plan window, per drawing file (the drawing is never changed). */

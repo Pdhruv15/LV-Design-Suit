@@ -175,6 +175,42 @@ describe('CAD view', () => {
     expect(project.feeders.find((f) => f.id === 'DB-GF1-Y1')!.points?.ltg).toBe(before);
   });
 
+  it('wires the circuits on the level, takes one off with Wire one, sends the length to the schedule and saves the wiring', async () => {
+    const saveBinary = vi.fn(async () => '/plans/out.dxf');
+    (window as unknown as { lvds: { files?: unknown } }).lvds.files = { saveBinary };
+    const start: Project = {
+      ...villa,
+      boards: villa.boards.map((b) => (b.id === 'DB-GF1' ? { ...b, planPoint: { x: 1, y: 1 }, level: { building: 'V', level: 'GF' } } : b)),
+      lvPoints: [
+        { id: 'P1', type: 'ltg', feederId: 'DB-GF1-Y1', buildingId: 'V', levelId: 'GF', x: 3, y: 9 },
+        { id: 'P2', type: 'ltg', feederId: 'DB-GF1-Y1', buildingId: 'V', levelId: 'GF', x: 6, y: 9 }
+      ]
+    };
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    await command('WC');
+    expect(project.cadWiring).toEqual([{ feederId: 'DB-GF1-Y1' }]);
+    expect(onChange.mock.calls[0][1]).toMatch(/^1 circuit wired on .* · Update schedules sends the lengths to the cable schedule/);
+    await command('W1');
+    expect(state.tool).toBe('wire');
+    act(() => { state.toggle('osnap'); });
+    await clickAt(3000, 9000);
+    expect(project.cadWiring).toBeUndefined();
+    expect(onChange.mock.calls[1][1]).toMatch(/^Wiring of DB-GF1\/Y1 taken off/);
+    await clickAt(3000, 9000);
+    expect(onChange.mock.calls[2][1]).toMatch(/^DB-GF1\/Y1 · \dC × [\d.]+ mm² · \d+ m wired/);
+    expect(document.body.textContent).toContain('1 circuit wired on this level.');
+    await command('SCHED');
+    const m = /· (\d+) m wired/.exec(onChange.mock.calls[2][1])![1];
+    expect(project.feeders.find((f) => f.id === 'DB-GF1-Y1')!.lengthM).toBe(Number(m));
+    await command('save');
+    await flush();
+    const text = new TextDecoder().decode((saveBinary.mock.calls[0] as unknown as [{ bytes: Uint8Array }])[0].bytes);
+    expect(text).toContain('E-LV-WIRING');
+    expect(text).toContain('E-LV-TAGS');
+    expect(document.querySelector('.cad-hist')?.textContent).toMatch(/1 circuit wired on E-LV-WIRING \/ E-LV-TAGS\)/);
+  });
+
   it('places an ELV device and saves the drawing as DXF with the devices on their layers', async () => {
     const saveBinary = vi.fn(async () => '/plans/out.dxf');
     (window as unknown as { lvds: { files?: unknown } }).lvds.files = { saveBinary };
@@ -357,7 +393,7 @@ describe('CAD view', () => {
     expect(state.history[state.history.length - 1]).toMatch(/“HALL” is not inside a room yet/);
   });
 
-  it('draws a cable tray run without a route, then changes its width and saves it into the DXF', async () => {
+  it('draws a power tray run without a route, then changes its width and service and saves it into the DXF', async () => {
     const saveBinary = vi.fn(async () => '/plans/out.dxf');
     (window as unknown as { lvds: { files?: unknown } }).lvds.files = { saveBinary };
     act(() => root.render(<Host />));
@@ -368,20 +404,23 @@ describe('CAD view', () => {
     for (const [x, y] of [[2000, 3000], [8000, 3000], [8000, 7000]]) await clickAt(x, y);
     await command('');
     const run = state.view && project.cadSketch![0].items[0];
-    expect(run).toMatchObject({ kind: 'pline', layer: 'E-TRAY', tray: { widthMm: 300 } });
+    expect(run).toMatchObject({ kind: 'pline', layer: 'E-TRAY', tray: { widthMm: 300, service: 'Power' } });
     expect(run!.tray!.route).toBeUndefined();
-    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toMatch(/^Cable tray 300 mm, 10\.\d\d m \(no route: assign one when you know it\)/);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toMatch(/^Cable tray 300 mm power, 10\.\d\d m \(no route: assign one when you know it\)/);
     act(() => state.setTool('none'));
     await clickAt(5000, 3000);
-    expect(result()).toMatch(/Cable tray.*Length10\.\d\d m.*Routenot assigned/);
+    expect(result()).toMatch(/Cable tray.*Length10\.\d\d m.*CarriesPower.*Routenot assigned/);
     const width = document.querySelector('.cad-res select[aria-label="Tray width"]') as HTMLSelectElement;
     act(() => { width.value = '450'; width.dispatchEvent(new Event('change', { bubbles: true })); });
-    expect(project.cadSketch![0].items[0].tray).toEqual({ widthMm: 450 });
+    expect(project.cadSketch![0].items[0].tray).toEqual({ widthMm: 450, service: 'Power' });
+    const service = document.querySelector('.cad-res select[aria-label="Tray service"]') as HTMLSelectElement;
+    act(() => { service.value = 'ELV'; service.dispatchEvent(new Event('change', { bubbles: true })); });
+    expect(project.cadSketch![0].items[0].tray).toEqual({ widthMm: 450, service: 'ELV' });
     await command('save');
     await flush();
     const text = new TextDecoder().decode((saveBinary.mock.calls[0] as unknown as [{ bytes: Uint8Array }])[0].bytes);
     expect(text).toContain('E-TRAY');
-    expect(text).toContain('CT 450');
+    expect(text).toContain('CT 450 ELV');
   });
 
   it('finds the fittings of the trays drawn: a branch of another width is a tee', async () => {
@@ -391,7 +430,7 @@ describe('CAD view', () => {
     await command('CT');
     for (const [x, y] of [[2000, 3000], [8000, 3000]]) await clickAt(x, y);
     await command('');
-    act(() => state.setTray({ widthMm: 150, route: '' }));
+    act(() => state.setTray({ widthMm: 150, service: 'Power', route: '' }));
     for (const [x, y] of [[5000, 3000], [5000, 7000]]) await clickAt(x, y);
     await command('');
     expect(document.querySelector('[aria-label="Fittings on this plan"]')?.textContent).toBe('Fittings on this plan1 × Tee 300 × 150');
@@ -403,7 +442,7 @@ describe('CAD view', () => {
     act(() => state.toggle('osnap'));
     const f = villa.feeders[0];
     await command('CT');
-    act(() => state.setTray({ widthMm: 300, route: 'A' }));
+    act(() => state.setTray({ widthMm: 300, service: 'Power', route: 'A' }));
     for (const [x, y] of [[2000, 3000], [12000, 3000]]) await clickAt(x, y);
     await command('');
     await command('CR');

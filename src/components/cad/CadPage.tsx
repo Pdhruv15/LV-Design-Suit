@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import CadCanvas, { type CadMarks, type CadToggles, type CanvasDevice } from './CadCanvas';
+import CadCanvas, { type CadMarks, type CadToggles, type CanvasDevice, type CanvasWiring } from './CadCanvas';
 import { NO_ACTIONS, rememberedDrawing, SAMPLE_PLANS, type CadState, type CadTool } from './cadState';
 import { chooseDrawing, drawingWithDevices, reopenDrawing, sampleDrawing, type CadObject, type CadView } from '../../engines/cad/cadEngine';
 import { cableLabel, cablesOf, circuitLabel, finalCircuits, LV_PALETTE, moveItem, placedOn, placeItem, placeLvPoint, removeItem, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
-import { addSketch, arcThrough, dimensionLines, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_WIDTHS, typedPoint, updateSketch } from '../../model/cadSketch';
+import { addSketch, arcThrough, dimensionLines, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_SERVICES, TRAY_WIDTHS, typedPoint, updateSketch } from '../../model/cadSketch';
 import { trayPlanOf } from '../../calc/cableTray';
 import { fittingCounts, trayFittings, type TrayFitting } from '../../model/cadTrayFittings';
 import type { SketchItem } from '../../types';
@@ -14,6 +14,7 @@ import { angleDeg, areaOf, distance, inside, m, m2, roomAround, segmentsOn } fro
 import { layerMapFor, layersWith, roomsFromPlan, withLayerMap } from '../../model/cadRooms';
 import { layerStatsOf, objectPath, planOfView } from '../../model/cadViewPlan';
 import { planDrawings, scheduleSummary, updateSchedules } from '../../model/cadPlanSchedules';
+import { arcPoints, levelWiring, toggleWiring, wireLevel, type WiringArc } from '../../model/cadWiring';
 import { buildingInfoOf } from '../../calc/building';
 import { plansOf } from '../../model/cadPlans';
 import { CAD_UNITS, planScale } from '../../model/cadUnits';
@@ -36,7 +37,7 @@ const hex = (rgb: number) => (rgb === 0xff000007 ? 'var(--cad-ink)' : `#${rgb.to
 const TOGGLES: { k: keyof CadToggles; label: string; key: string }[] = [
   { k: 'snap', label: 'SNAP', key: 'F9' }, { k: 'osnap', label: 'OSNAP', key: 'F3' }, { k: 'ortho', label: 'ORTHO', key: 'F8' }, { k: 'grid', label: 'GRID', key: 'F7' }
 ];
-const HELP = 'Commands: OPEN · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · FILL (fill a room with an ELV device) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LAYER · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · Esc cancels, Enter closes an area.';
+const HELP = 'Commands: OPEN · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TR (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · COV (coverage) · L (line) · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · DIM · M (move) · CO (copy) · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · LAYER · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · Esc cancels, Enter closes an area.';
 /** Device symbol size on the plan (radius, metres). */
 const DEVICE_R_M = 0.2;
 const PROMPT: Record<CadTool, string> = {
@@ -51,6 +52,7 @@ const PROMPT: Record<CadTool, string> = {
   link: 'LINK  Click a line of the drawing: it becomes the cable route:',
   dev: 'DEV  Specify insertion point:',
   fill: 'FILL  Click inside a room: the ELV device chosen is placed at its coverage spacing:',
+  wire: 'WIRE  Click a device: its circuit is wired (or its wiring taken off):',
   move: 'MOVE  Select object, then specify base point:',
   copy: 'COPY  Select object, then specify base point:',
   rotate: 'ROTATE  Select object, then specify base point:',
@@ -73,6 +75,8 @@ function roomAtPointOf(p: Project, f: { ref: { building: string; level: string }
 const pathLength = (pts: Pt[]) => pts.slice(1).reduce((t, q, i) => t + distance(pts[i], q), 0);
 /** Layers for what is drawn in the app (written into the DXF on save). */
 const DRAW_LAYER = 'LV-SKETCH', ANNO_LAYER = 'LV-ANNO';
+/** Layers of the circuit wiring and its tags (written into the DXF / DWG on save). */
+const WIRING_LAYER = 'E-LV-WIRING', TAG_LAYER = 'E-LV-TAGS';
 const DRAW_TOOLS: CadTool[] = ['line', 'pline', 'tray', 'cable', 'rect', 'circle', 'arc', 'text', 'dim', 'move', 'copy', 'rotate'];
 
 /** The CAD view: a DWG / DXF drawing opened natively, as a CAD program shows it — model space, crosshair, snaps, layers,
@@ -166,6 +170,13 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     key: d.key, x: d.x / units.factor, y: d.y / units.factor, r: d.what === 'board' ? rUnits * 2 : rUnits, shape: d.symbol.shape, text: d.symbol.text,
     label: d.what === 'lv' ? d.detail.split(' · ')[0] : d.what === 'board' ? d.label : '', selected: d.key === cad.selected, elv: d.what === 'elv'
   }))] : ghosts;
+  // Circuit wiring on this level (metres), and as the canvas draws it (drawing units).
+  const wiring = useMemo(() => (floor ? levelWiring(project, floor.ref) : []), [project, floor]);
+  const toUnits = (w: WiringArc): WiringArc => ({ a: [w.a[0] / units.factor, w.a[1] / units.factor], c: [w.c[0] / units.factor, w.c[1] / units.factor], b: [w.b[0] / units.factor, w.b[1] / units.factor] });
+  const canvasWiring: CanvasWiring[] = cad.showDevices ? wiring.map((w) => ({
+    arcs: w.arcs.map(toUnits), ...(w.home ? { home: toUnits(w.home) } : {}),
+    tag: cad.wireTags ? { at: [w.tagAt[0] / units.factor, w.tagAt[1] / units.factor] as Pt, s: w.warning ? `${w.tag.split(' · ')[0]} · ${w.warning}` : w.tag, warn: !!w.warning } : undefined
+  })) : [];
   const deviceAt = (at: Pt, pixel: number) => {
     let best: { d: PlacedItem; dist: number } | undefined;
     for (const d of placed) {
@@ -186,15 +197,36 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     if (!view) return;
     try {
       const out = placed.map((d) => ({ layer: d.what === 'lv' ? 'E-LV-POINTS' : d.what === 'elv' ? 'E-ELV-DEVICES' : 'E-BOARDS', x: d.x / units.factor, y: d.y / units.factor, r: rUnits * (d.what === 'board' ? 2 : 1), text: d.symbol.text, label: d.what === 'lv' ? d.detail.split(' · ')[0] : d.label }));
-      const bytes = await drawingWithDevices(view, out, shapesOut(sketch, units.factor), as);
+      const wires = wiring.flatMap((w) => [...w.arcs, ...(w.home ? [w.home] : [])].map((a) => ({ layer: WIRING_LAYER, kind: 'pline' as const, pts: arcPoints(toUnits(a)) })));
+      const tags = wiring.map((w) => ({ layer: TAG_LAYER, kind: 'text' as const, pts: [[w.tagAt[0] / units.factor, w.tagAt[1] / units.factor] as Pt], text: w.tag, h: textH * 0.6, rot: 0 }));
+      const bytes = await drawingWithDevices(view, out, [...shapesOut(sketch, units.factor), ...wires, ...tags], as);
       const name = `${view.file.replace(/\.(dwg|dxf)$/i, '')} - with devices.${as}`;
       const msg = await saveBinary(name, bytes, as === 'dwg' ? 'DWG drawing' : 'DXF drawing', as, as === 'dwg' ? 'application/acad' : 'application/dxf');
-      if (msg) { cad.say(`SAVE  ${msg} (${placed.length} device${placed.length === 1 ? '' : 's'} on E-LV-POINTS / E-ELV-DEVICES / E-BOARDS, ${sketch.length} drawn object${sketch.length === 1 ? '' : 's'} on ${DRAW_LAYER} / ${ANNO_LAYER})`); onStatus(msg); }
+      if (msg) { cad.say(`SAVE  ${msg} (${placed.length} device${placed.length === 1 ? '' : 's'} on E-LV-POINTS / E-ELV-DEVICES / E-BOARDS, ${sketch.length} drawn object${sketch.length === 1 ? '' : 's'} on ${DRAW_LAYER} / ${ANNO_LAYER}${wiring.length ? `, ${wiring.length} circuit${wiring.length === 1 ? '' : 's'} wired on ${WIRING_LAYER} / ${TAG_LAYER}` : ''})`); onStatus(msg); }
     } catch (e) { const msg = e instanceof Error ? e.message : String(e); cad.say(msg); onStatus(msg); }
   }
-  cad.actions.current = { save: () => void saveDxf(), saveDwg: () => void saveDxf('dwg'), remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyTo: (k) => copyLevel(k) };
+  cad.actions.current = { save: () => void saveDxf(), saveDwg: () => void saveDxf('dwg'), remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyTo: (k) => copyLevel(k), wireAll: () => wireAll() };
   // While the page is not shown the ribbon's actions do nothing (they would work on a project as it was).
   useEffect(() => () => { cad.actions.current = NO_ACTIONS; }, []); // eslint-disable-line react-hooks/exhaustive-deps -- on leaving the page
+
+  /** Wire circuits: every circuit with devices on this level, with a home run to its DB. */
+  function wireAll() {
+    if (!floor) { cad.say('WIRE  Add the building and its levels in Building information first; devices are kept per level.'); return; }
+    const r = wireLevel(project, floor.ref);
+    if (!r.added.length) { cad.say(wiring.length ? `WIRE  Every circuit on this level is wired (${wiring.length}).` : 'WIRE  No circuit has devices on this level: place lights or sockets on circuits first.'); return; }
+    const missing = levelWiring(r.project, floor.ref).filter((w) => r.added.includes(w.feederId) && w.warning).length;
+    change(r.project, `${r.added.length} circuit${r.added.length === 1 ? '' : 's'} wired on ${floorLabel(project.building, floor)}${missing ? ` (${missing} without a home run: place the DB on this level)` : ''} · Update schedules sends the lengths to the cable schedule · ⌘Z to undo`);
+  }
+  /** Wire one: the circuit of the device clicked, on or off. */
+  function wireOne(at: Pt, pixel: number) {
+    const d = deviceAt(at, pixel);
+    const pt = d?.what === 'lv' ? (project.lvPoints ?? []).find((x) => x.id === d.id) : undefined;
+    const f = pt && project.feeders.find((x) => x.id === pt.feederId);
+    if (!f || !floor) { cad.say('WIRE  Click a light, socket or other device on a circuit:'); return; }
+    const r = toggleWiring(project, f.id);
+    const w = r.wired ? levelWiring(r.project, floor.ref).find((x) => x.feederId === f.id) : undefined;
+    change(r.project, r.wired ? `${w?.tag ?? circuitLabel(project, f)} wired${w?.warning ? ` — ${w.warning}` : ''} · ⌘Z to undo` : `Wiring of ${circuitLabel(project, f).split(' · ')[0]} taken off · ⌘Z to undo`);
+  }
 
   /** Copy to level: this level's devices of the chosen ELV device's system, at the same plan positions. */
   function copyLevel(key: string) {
@@ -358,6 +390,8 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
           : placeItem(project, item, floor.ref, x, y, { feederId: cad.feederId, boardId: cad.boardId });
         change(r.project, `${r.message} · ⌘Z to undo`);
       } catch (e) { cad.say(`DEV  ${e instanceof Error ? e.message : String(e)}`); }
+    } else if (tool === 'wire') {
+      wireOne(at, pixel);
     } else if (tool === 'fill') {
       if (!floor) { cad.say('FILL  Add the building and its levels in Building information first.'); return; }
       if (!elvItem) { cad.say('FILL  Choose an ELV device first (a detector, speaker, data outlet…) in the Devices panel.'); return; }
@@ -419,9 +453,9 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   /** A cable tray run along the points clicked, at the chosen width; on a tray route only once one is chosen. */
   function finishTray() {
     if (points.length >= 2) {
-      const { widthMm, route } = cad.tray;
-      const it = { kind: 'pline' as const, layer: TRAY_LAYER, pts: points, tray: { widthMm, ...(route ? { route } : {}) } };
-      draw(it, `Cable tray ${widthMm} mm, ${m(toM(trayLength({ ...it, id: '' })))}${route ? ` on route ${route}` : ' (no route: assign one when you know it)'}`);
+      const { widthMm, service, route } = cad.tray;
+      const it = { kind: 'pline' as const, layer: TRAY_LAYER, pts: points, tray: { widthMm, service, ...(route ? { route } : {}) } };
+      draw(it, `Cable tray ${widthMm} mm ${service.toLowerCase()}, ${m(toM(trayLength({ ...it, id: '' })))}${route ? ` on route ${route}` : ' (no route: assign one when you know it)'}`);
     }
     setPoints([]); cad.say(PROMPT.tray);
   }
@@ -485,6 +519,9 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     else if (c === 'LR' || c === 'LINK') cad.setTool('link');
     else if (c === 'SCHED' || c === 'SCHEDULES' || c === 'UPDATE') schedules();
     else if (c === 'FILL' || c === 'FR') cad.setTool('fill');
+    else if (c === 'WC' || c === 'WIRE' || c === 'WIRECIRCUITS') wireAll();
+    else if (c === 'W1' || c === 'WIREONE') cad.setTool('wire');
+    else if (c === 'TAGS') cad.setWireTags(!cad.wireTags);
     else if (c === 'COV' || c === 'COVERAGE') cad.setCoverage(!cad.coverage);
     else if (c === 'REC' || c === 'RECTANG' || c === 'RECTANGLE') cad.setTool('rect');
     else if (c === 'C' || c === 'CIRCLE') cad.setTool('circle');
@@ -534,7 +571,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     if (tool === 'line' && lastPt) return [{ ...base, kind: 'line', pts: [lastPt, cur] }];
     if (tool === 'pline' && points.length) return [{ ...base, kind: 'line', pts: [...points, cur] }];
     if (tool === 'cable' && points.length) return [{ ...base, kind: 'line', pts: [...points, cur] }];
-    if (tool === 'tray' && points.length) return [{ ...base, kind: 'pline', pts: [...points, cur], tray: { widthMm: cad.tray.widthMm } }];
+    if (tool === 'tray' && points.length) return [{ ...base, kind: 'pline', pts: [...points, cur], tray: { widthMm: cad.tray.widthMm, service: cad.tray.service } }];
     if (tool === 'rect' && lastPt) return [{ ...base, kind: 'pline', pts: rectangle(lastPt, cur), closed: true }];
     if (tool === 'circle' && lastPt) return [{ ...base, kind: 'circle', pts: [lastPt], r: distance(lastPt, cur) }];
     if (tool === 'arc' && points.length === 1) return [{ ...base, kind: 'line', pts: [points[0], cur] }];
@@ -566,7 +603,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
       <div className="cad-work">
         {view ? (
           <div className="cad-stage">
-            <CadCanvas view={view} layersOn={cad.layersOn} toggles={cad.toggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} sketch={sketch} selectedSketch={selSketch?.id ?? null} extraSnaps={sketchSnaps} preview={preview} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps} />
+            <CadCanvas view={view} layersOn={cad.layersOn} toggles={cad.toggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap) => setCursor({ at, snap })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={selSketch?.id ?? null} extraSnaps={sketchSnaps} preview={preview} unitsPerMm={0.001 / units.factor} labels={cableLabels} covers={elv?.covers} gaps={elv?.gaps} />
             <div className="cad-coords">{cursor.at ? `X ${cursor.at[0].toFixed(2)}   Y ${cursor.at[1].toFixed(2)}   ${units.label}` : units.label}</div>
           </div>
         ) : (
@@ -599,7 +636,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
               <>
                 <h4>Cable tray</h4>
                 <div className="cad-devform">
-                  <TrayFields project={project} widthMm={cad.tray.widthMm} route={cad.tray.route} onChange={(t) => cad.setTray({ ...cad.tray, ...t })} />
+                  <TrayFields project={project} widthMm={cad.tray.widthMm} service={cad.tray.service} route={cad.tray.route} onChange={(t) => cad.setTray({ ...cad.tray, ...t })} />
                   <span className="m">Click the run's points, Enter to finish. The route can be left for later. End a run on another tray for a tee; a run of another width in line makes a reducer.</span>
                 </div>
                 <Fittings fittings={fittings} title="Fittings on this plan" />
@@ -614,6 +651,15 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
                     {cables.map((f) => <option key={f.id} value={f.id}>{cableLabel(project, f)}</option>)}
                   </select></label>
                   <span className="m">{tool === 'cable' ? 'Click the route\'s points, Enter to finish.' : 'Click a line or polyline of the drawing (e.g. on a cable layer).'} Update schedules then gives the cable its length, and the tray routes it runs along.</span>
+                </div>
+              </>
+            )}
+            {tool === 'wire' && view && (
+              <>
+                <h4>Wiring</h4>
+                <div className="cad-devform">
+                  {wiring.map((w) => <span key={w.feederId} className="m">{w.tag}{w.warning ? ` — ${w.warning}` : ''}</span>)}
+                  <span className="m">{wiring.length ? `${wiring.length} circuit${wiring.length === 1 ? '' : 's'} wired on this level. Update schedules sends the lengths to the cable schedule.` : 'No circuit wired on this level yet: click a device, or use Wire circuits.'}</span>
                 </div>
               </>
             )}
@@ -747,13 +793,14 @@ function ResultView({ r, view, toM, toM2, project, onChange, onMove, onRemove, o
         <div><b>Cable tray</b> <span className="m">drawn here · {it.layer}</span></div>
         <dl className="cad-props">
           <dt>Length</dt><dd>{m(toM(trayLength(it)))}</dd>
+          <dt>Carries</dt><dd>{tray.service ?? 'not set'}</dd>
           <dt>Route</dt><dd>{tray.route ?? 'not assigned'}</dd>
         </dl>
         <div className="cad-devform">
-          <TrayFields project={project} widthMm={tray.widthMm} route={tray.route ?? ''} onChange={(t) => {
+          <TrayFields project={project} widthMm={tray.widthMm} service={tray.service ?? ''} route={tray.route ?? ''} onChange={(t) => {
             const next = { ...tray, ...t };
-            const { route, ...rest } = next;
-            onChange(updateSketch(project, view.file, { ...it, tray: route ? { ...rest, route } : rest }), `Cable tray ${next.widthMm} mm${route ? ` on route ${route}` : ', no route'} · ⌘Z to undo`);
+            const { route, service, ...rest } = next;
+            onChange(updateSketch(project, view.file, { ...it, tray: { ...rest, ...(service ? { service } : {}), ...(route ? { route } : {}) } }), `Cable tray ${next.widthMm} mm${service ? ` ${service.toLowerCase()}` : ''}${route ? ` on route ${route}` : ', no route'} · ⌘Z to undo`);
           }} />
         </div>
         <Fittings fittings={fittings.filter((f) => f.runs.includes(it.id))} title="Fittings on this run" />
@@ -837,14 +884,18 @@ function Fittings({ fittings, title }: { fittings: TrayFitting[]; title: string 
   );
 }
 
-/** Width and tray route of a cable tray run: the route is optional (Not assigned), chosen from the project's tray
- * routes. */
-function TrayFields({ project, widthMm, route, onChange }: { project: Project; widthMm: number; route: string; onChange: (t: { widthMm?: number; route?: string }) => void }) {
+/** Width, service and tray route of a cable tray run: the route is optional (Not assigned), chosen from the project's
+ * tray routes. */
+function TrayFields({ project, widthMm, service, route, onChange }: { project: Project; widthMm: number; service: string; route: string; onChange: (t: { widthMm?: number; service?: string; route?: string }) => void }) {
   const routes = trayPlanOf(project).routes;
   return (
     <>
       <label>Width<select aria-label="Tray width" value={widthMm} onChange={(e) => onChange({ widthMm: Number(e.target.value) })}>
         {TRAY_WIDTHS.map((w) => <option key={w} value={w}>{w} mm</option>)}
+      </select></label>
+      <label>Carries<select aria-label="Tray service" value={service} onChange={(e) => onChange({ service: e.target.value })}>
+        {!service && <option value="">Not set</option>}
+        {TRAY_SERVICES.map((x) => <option key={x} value={x}>{x}</option>)}
       </select></label>
       <label>Route<select aria-label="Tray route" value={route} onChange={(e) => onChange({ route: e.target.value })}>
         <option value="">Not assigned</option>

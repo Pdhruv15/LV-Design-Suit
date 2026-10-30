@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fittingCounts, fittingLabel, trayFittings } from './cadTrayFittings';
-import { shapesOut, trayEdges } from './cadSketch';
+import { shapesOut } from './cadSketch';
 import type { SketchItem } from '../types';
 
 type Pt = [number, number];
@@ -26,8 +26,6 @@ describe('cable tray fittings from the runs drawn', () => {
     const r = trayFittings([main, branch], 1);
     expect(r.fittings.map(fittingLabel)).toEqual(['Tee 300 × 150']);
     expect(r.fittings[0]).toMatchObject({ routes: ['A', 'B'], runs: [branch.id, main.id] });
-    expect([...r.joined]).toEqual([`${branch.id}:start`]); // the branch's end is open; the main runs through
-    expect(trayEdges(branch, 1, r.joined)).toHaveLength(3); // two edges and the far end only
     expect(found([main, branch, run([[2000, 0], [2000, -2500]], 150)])).toEqual(['Cross 300 × 150 × 150']);
     expect(found([run([[0, 0], [3000, 0]]), run([[3000, 0], [6000, 0]]), run([[3000, 0], [3000, 2000]])])).toEqual(['Tee 300']); // three ends meet
   });

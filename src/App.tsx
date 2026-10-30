@@ -1252,6 +1252,7 @@ export default function App() {
             onSchedules: () => { setView('cad'); cadS.actions.current.schedules(); },
             onPlaceBoard: () => { cadS.setDevice('db'); cadS.setTool('dev'); setView('cad'); }, placingBoard: cadS.tool === 'dev' && cadS.device === 'db',
             onCoverage: () => { cadS.setCoverage(!cadS.coverage); setView('cad'); }, coverageOn: cadS.coverage,
+            onWireAll: () => { setView('cad'); cadS.actions.current.wireAll(); }, onTags: () => { cadS.setWireTags(!cadS.wireTags); setView('cad'); }, tagsOn: cadS.wireTags,
             copyLevels: (() => {
               const here = planLevel(project, cadS.view?.file).floor;
               return view === 'cad' && here ? plansOf(project).filter((x) => x.floor.key !== here.key).map((x) => ({ label: x.label, title: `Copy to ${x.label}`, onClick: () => cadS.actions.current.copyTo(x.floor.key) })) : [];
