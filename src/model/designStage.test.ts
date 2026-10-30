@@ -83,7 +83,9 @@ describe('ribbon follows the stages', () => {
   });
   it('keeps the current tab when the screen is on it too', () => {
     expect(tabForView('design', 'schematic')).toBe('schematic');
-    expect(tabForView('design', 'cost')).toBe('detailed');
+    expect(tabForView('design', 'cost')).toBe('sld');
+    expect(tabForView('load-schedule', 'cost')).toBe('schedule');
+    expect(tabForView('load-schedule', 'reports')).toBe('reports');
     expect(tabForView('load-assessment')).toBe('concept');
     expect(tabForView('voltage-drop')).toBe('detailed');
     expect(tabForView('submissions')).toBe('issue');
@@ -100,6 +102,8 @@ describe('ribbon follows the stages', () => {
     expect(viewForTab('detailed', 'design')).toBe('design');
     expect(viewForTab('home', 'design')).toBe('design');
     expect(viewForTab('reports', 'cable-schedule')).toBe('cable-schedule');
+    expect(viewForTab('schedule', 'cad')).toBe('load-schedule');
+    expect(viewForTab('sld', 'cad')).toBe('design');
     expect(viewForTab('cost', 'design')).toBe('boq');
     expect(viewForTab('cad', 'drawings')).toBe('drawings');
     expect(viewForTab('reports', 'drawings')).toBe('load-schedule');

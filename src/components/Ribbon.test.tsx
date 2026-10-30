@@ -17,6 +17,15 @@ const render = (tab: RibbonTab, over: Partial<RibbonActions> = {}) => renderToSt
 const TABS = Object.keys(CAPTIONS) as RibbonTab[];
 
 describe('Ribbon', () => {
+  it('puts Load schedule and SLD first, each with its tools', () => {
+    const html = render('sld');
+    const order = [...html.matchAll(/id="ribbon-tab-(\w+)"/g)].map((m) => m[1]);
+    expect(order.slice(0, 3)).toEqual(['schedule', 'sld', 'home']);
+    expect(html).toContain('Add load');
+    expect(render('schedule')).toContain('Load schedule');
+    expect(render('schedule')).toContain('Add load');
+  });
+
   it('captions every group on every tab', () => {
     for (const tab of TABS) {
       const html = render(tab);
