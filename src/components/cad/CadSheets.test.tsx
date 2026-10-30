@@ -4,7 +4,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import CadSheets from './CadSheets';
 import { sampleProject } from '../../data/sampleProject';
 import { evaluateProject } from '../../calc/electrical';
-import { autoSheets, setOf } from '../../model/drawingSet';
+import { autoSheets, issueSheets, setOf, sheetHash } from '../../model/drawingSet';
+import { sheetItems } from '../../model/sheetChanges';
 import { NO_SHEET_ACTIONS, useSheetUi, type SheetUi } from '../sld/sheetUi';
 import type { Project } from '../../types';
 
@@ -46,6 +47,27 @@ describe('Design CAD → Sheets', () => {
     expect(html).toContain('aria-label="Sheet"'); // its settings on the right
     expect(html).not.toMatch(/<button[^>]*>(<span[^>]*><\/span>)?Publish/); // the sheet's buttons are on the ribbon
     expect(html).not.toContain('Side by side');
+  });
+});
+
+describe('Cloud the changes', () => {
+  const set = setOf(project);
+  const sld = set.sheets.find((s) => s.kind === 'system')!;
+  const open = (p: Project) => renderToStaticMarkup(
+    <CadSheets project={p} calcProject={p} results={[]} sheetId={sld.id} tab="titleblock" ui={ui} onActive={noop} onChange={noop} onStatus={noop} onOpen={noop} />
+  );
+  const issue = (items: boolean) => issueSheets(set, [sld.id], { date: '2026-10-30', purpose: 'FOR APPROVAL', description: '', bump: true }, undefined, (s) => sheetHash(project, set, s), items ? (s) => sheetItems(project, set, s) : undefined).set;
+
+  it('counts the changes since the last issue', () => {
+    const p = { ...project, drawingSet: issue(true) };
+    expect(open(p)).toContain('No changes since Rev A.');
+    const changed = { ...p, feeders: p.feeders.map((f) => (f.id === 'INC-MCC' ? { ...f, cableCsaMm2: 185 } : f)) };
+    expect(open(changed)).toMatch(/Cloud the changes <small>1 since Rev A<\/small>/);
+  });
+
+  it('asks for one more issue when the sheet was issued before changes were kept, and shows nothing before the first', () => {
+    expect(open({ ...project, drawingSet: issue(false) })).toContain('Issue this sheet once more');
+    expect(open(project)).not.toContain('Cloud the changes');
   });
 });
 

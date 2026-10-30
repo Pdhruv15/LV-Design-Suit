@@ -183,8 +183,8 @@ export default function SystemDiagram({
   lod?: boolean;
   /** Sheet outlines on the design canvas: which panels go on which sheet. */
   outlines?: { id: string; label: string; boards: string[]; color: string }[];
-  /** Revision clouds around panels (drawing sheets). */
-  clouds?: { boards: string[]; rev: string }[];
+  /** Revision clouds around panels or circuits (drawing sheets). */
+  clouds?: { boards: string[]; feeders?: string[]; rev: string }[];
   /** Invisible panel and circuit outlines (data-anchor) so drawing sheets can hit-test what a drag points at. */
   anchors?: boolean;
   onOutline?: (sheetId: string) => void;
@@ -1544,8 +1544,11 @@ export default function SystemDiagram({
           </g>
         )}
         {(clouds ?? []).map((c, i) => {
-          const r = boardsBox(c.boards, 12);
-          if (!r) return null;
+          // A circuit's cloud goes round its breaker and cable, as its callout anchor.
+          const boxes = [boardsBox(c.boards, 12), ...layout.feeders.filter((n) => c.feeders?.includes(n.feeder.id)).map((n) => ({ x: n.x - 22, y: n.busY - 4, w: 44, h: 108 }))].filter((b): b is NonNullable<typeof b> => !!b);
+          if (!boxes.length) return null;
+          const x1 = Math.min(...boxes.map((b) => b.x)), y1 = Math.min(...boxes.map((b) => b.y));
+          const r = { x: x1, y: y1, w: Math.max(...boxes.map((b) => b.x + b.w)) - x1, h: Math.max(...boxes.map((b) => b.y + b.h)) - y1 };
           return (
             <g key={i} className="rev-cloud">
               <path d={cloudPath(r.x, r.y, r.w, r.h)} />

@@ -61,7 +61,7 @@ export function checkReferences(p: Project): RefIssue[] {
   for (const s of p.drawingSet?.sheets ?? []) {
     const where = `Sheet ${s.number || s.id}`;
     for (const id of s.boards) need(boards, id, where, 'Panel on the sheet');
-    for (const c of s.clouds ?? []) for (const id of c.boards) need(boards, id, `${where} revision cloud`, 'Panel');
+    for (const c of s.clouds ?? []) { for (const id of c.boards) need(boards, id, `${where} revision cloud`, 'Panel'); for (const id of c.feeders ?? []) need(feeders, id, `${where} revision cloud`, 'Circuit'); }
     for (const a of s.arrows ?? []) { if (a.target.startsWith('f:')) need(feeders, a.target.slice(2), `${where} callout`, 'Circuit'); else need(boards, a.target, `${where} callout`, 'Panel'); }
     if (s.kind === 'riser' || s.kind === 'earthRiser' || s.kind === 'earthFloor' || s.kind === 'plan') need(buildingIds, s.buildingId, where, 'Building');
   }
@@ -86,7 +86,10 @@ export function removeDanglingReferences(p: Project): Project {
     next.drawingSet = {
       ...p.drawingSet,
       sheets: p.drawingSet.sheets.map((s) => {
-        const clouds = (s.clouds ?? []).map((c) => ({ ...c, boards: keep(c.boards) })).filter((c) => c.boards.length);
+        const clouds = (s.clouds ?? []).map((c) => {
+          const fs = c.feeders?.filter((id) => feeders.has(id));
+          return { ...c, boards: keep(c.boards), ...(c.feeders ? { feeders: fs?.length ? fs : undefined } : {}) };
+        }).filter((c) => c.boards.length || c.feeders?.length);
         const arrows = (s.arrows ?? []).filter((a) => (a.target.startsWith('f:') ? feeders.has(a.target.slice(2)) : boards.has(a.target)));
         return { ...s, boards: keep(s.boards), clouds: clouds.length ? clouds : undefined, arrows: arrows.length ? arrows : undefined };
       })
