@@ -148,7 +148,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
     if (!c || !ctx) return;
     const dpr = window.devicePixelRatio || 1;
     c.width = Math.round(size.w * dpr); c.height = Math.round(size.h * dpr);
-    const bg = colour('--cad-bg', '#0a1120'), ink = colour('--cad-ink', '#dbe4f5');
+    const bg = colour('--cad-bg', '#0B1A2A'), ink = colour('--cad-ink', '#E3EAF2');
     // Stored colours too faint on this background are drawn lighter or darker (each worked out once per draw).
     const bgRgb = cssRgb(bg), shown = new Map<number, string>();
     const shade = (rgb: number) => {
@@ -412,7 +412,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
           const q = scr[scr.length - 1];
           ctx.font = '600 13px system-ui, sans-serif';
           const w = ctx.measureText(mk.label).width + 12;
-          ctx.fillStyle = colour('--panel', '#0f1a2f');
+          ctx.fillStyle = colour('--panel', '#0F2A44');
           ctx.fillRect(q[0] + 12, q[1] - 30, w, 20);
           ctx.fillStyle = snapC;
           ctx.fillText(mk.label, q[0] + 18, q[1] - 15);
@@ -456,7 +456,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
     const label = SNAP_NAMES[snap.kind] ?? '';
     ctx.font = '11px system-ui, sans-serif';
     const w = ctx.measureText(label).width + 10;
-    ctx.fillStyle = colour('--panel', '#0f1a2f');
+    ctx.fillStyle = colour('--panel', '#0F2A44');
     ctx.fillRect(mx + 12, my + 10, w, 18);
     ctx.fillStyle = colour('--tx', '#dbe4f5');
     ctx.fillText(label, mx + 17, my + 23);

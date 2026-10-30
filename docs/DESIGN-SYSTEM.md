@@ -14,13 +14,13 @@ Principles, for engineering software used for hours at a time:
 
 | Token | Role | Dark | Light |
 |---|---|---|---|
-| `--bg` | page background behind panels | `#0a1120` | `#f5f6f8` |
-| `--panel` | header, sidebar, cards, dialogs | `#0f1a2f` | `#ffffff` |
-| `--p2` | raised: inputs, chips, hover rows | `#14233f` | `#f0f2f5` |
-| `--line` / `--line-strong` | dividers / hover edges | `#20304f` / `#2f4570` | `#dde1e7` / `#c4cad3` |
-| `--field-line` | form control edge (≥3:1) | `#52709f` | `#7c8594` |
-| `--tx` / `--mut` | text / secondary text | `#dbe4f5` / `#8093b5` | `#1f2733` / `#59636f` |
-| `--acc` / `--on-acc` | primary action, selection, focus / text on it | `#4aa8ff` / `#04101f` | `#1f69c9` / `#ffffff` |
+| `--bg` | page background behind panels | `#0B1A2A` | `#F4F6F9` |
+| `--panel` | header, sidebar, cards, dialogs | `#0F2A44` | `#ffffff` |
+| `--p2` | raised: inputs, chips, hover rows | `#122E4A` | `#EEF2F6` |
+| `--line` / `--line-strong` | dividers / hover edges | `#234563` / `#33597C` | `#D8DFE6` / `#BCC7D2` |
+| `--field-line` | form control edge (≥3:1) | `#5F86A8` | `#7A8A9A` |
+| `--tx` / `--mut` | text / secondary text | `#E3EAF2` / `#9FB3C8` | `#0F2A44` / `#51667A` |
+| `--acc` / `--on-acc` | primary action, selection, focus / text on it | `#F5B301` / `#0F2A44` | `#0F2A44` / `#ffffff` |
 | `--ok` `--warn` `--bad` | pass / check / fail | `#37d67a` `#f5c04a` `#ff5d6c` | `#177336` `#8a5d00` `#cf222e` |
 | `--bus` | SLD busbars, board group labels | `#ffb347` | `#a64b07` |
 | `--res-cur` `--res-fault` `--res-pf` | SLD result labels | | |
