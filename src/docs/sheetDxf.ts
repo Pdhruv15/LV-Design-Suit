@@ -67,7 +67,7 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
   const custom = templateOf(project);
   const dims = custom ? templateSize(custom) : { w: 180, h: 44 };
   if (custom && [...custom.cols, ...custom.rows].some((v) => !Number.isFinite(v) || v <= 0)) throw new Error('The title block needs positive row heights and column widths.');
-  const k = furnitureScale(size, svg, dims);
+  const k = furnitureScale(size, dims);
   const extra: Record<string, string> = {
     SheetNo: t.number, DrawingNo: t.number, SheetTitle: t.title, DrawingTitle: t.title,
     SheetCount: String(one?.count ?? 1), SheetIndex: String(one?.index ?? 1), SheetSize: size,

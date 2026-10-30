@@ -127,9 +127,8 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
   const history = t.history.length
     ? t.history.map((r) => `<tr><td>${esc(r.id)}</td><td>${esc(r.date)}</td><td>${esc(r.description)}</td></tr>`).join('')
     : '<tr><td>—</td><td></td><td>Not issued</td></tr>';
-  // Sheet furniture (title block, revision table, abbreviations, notes)
-  // is sized to match the SLD text as printed on this paper.
-  const k = furnitureScale(sheet, svg, custom ? templateSize(custom) : undefined);
+  // Sheet furniture (title block, revision table, abbreviations, notes) at its standard size.
+  const k = furnitureScale(sheet, custom ? templateSize(custom) : undefined);
   const mm = (v: number) => `${+(v * k).toFixed(2)}mm`;
   const px = (v: number) => `${+(v * k).toFixed(2)}px`;
   const tbW = custom ? templateSize(custom).w : 180;
@@ -186,31 +185,16 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
   </body></html>`;
 }
 
-/** Text height of the SLD as printed: diagram text is ≈ 10 px; the title
- * block's main text is 9.5 CSS px (≈ 2.5 mm) at scale 1. */
-const DIAGRAM_TEXT_PX = 10;
-const TB_TEXT_MM = 9.5 * 0.2646;
 const FRAME_W = 30, FRAME_H = 20, BAND = 44;
 
-/** One scale for everything around the drawing, so the title block,
- * revision table, abbreviations and notes read at the same size as the SLD
- * text on any paper: big on A1 when the drawing is blown up, smaller on A4.
- * Kept within limits so the title block never takes more than ≈ 60 % of
- * the sheet width (A4) and never shrinks below readable. */
-export function furnitureScale(sheet: NonNullable<DrawingInfo['sheet']>, svg: string, tb?: { w: number; h: number }): number {
+/** One scale for everything around the drawing (title block, revision table, abbreviations, notes). The title block
+ * keeps its standard size on every paper from A3 to A1 (180 mm wide, ISO 7200), so its values print at 2.5 mm, the
+ * ISO 3098 minimum, and it never grows with the paper or the drawing. On A4 it shrinks only as far as it must to fit
+ * (within ≈ 60 % of the width and 30 % of the height). */
+export function furnitureScale(sheet: NonNullable<DrawingInfo['sheet']>, tb?: { w: number; h: number }): number {
   const { w, h } = SHEET_MM[sheet];
   const tbW = tb?.w ?? 180, tbH = tb?.h ?? BAND;
-  const kMax = Math.min(2.6, ((w - FRAME_W) * 0.6) / tbW, ((h - FRAME_H) * 0.3) / tbH);
-  const kMin = Math.min(0.62, kMax);
-  const vb = svg.match(/viewBox="\s*[-\d.]+\s+[-\d.]+\s+([\d.]+)\s+([\d.]+)/);
-  if (!vb) return Math.max(kMin, Math.min(kMax, w / 420)); // no size: by paper (A3 = 1)
-  const vw = Number(vb[1]), vh = Number(vb[2]);
-  let k = 1;
-  for (let i = 0; i < 3; i++) { // the band height depends on k, the drawing scale on the band
-    const s = Math.min((w - FRAME_W - 6) / vw, (h - FRAME_H - 6 - BAND * k) / vh);
-    k = Math.max(kMin, Math.min(kMax, (DIAGRAM_TEXT_PX * s) / TB_TEXT_MM));
-  }
-  return +k.toFixed(3);
+  return +Math.min(1, ((w - FRAME_W) * 0.6) / tbW, ((h - FRAME_H) * 0.3) / tbH).toFixed(3);
 }
 
 /** The title block for one SLD page of a report, with the same fields, template and look as a drawing sheet. */
