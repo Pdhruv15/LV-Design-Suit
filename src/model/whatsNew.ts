@@ -15,6 +15,14 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.012', date: '2026-10-30',
+    items: [
+      { title: 'Cloud the changes', text: 'An SLD sheet now remembers each panel and circuit when it is issued. Afterwards, Revision clouds → Cloud the changes lists what changed since that issue (for example "Cable (mm²) 35 → 50"); untick any you don\'t want, and each ticked panel or circuit gets a cloud with the next revision.', action: 'sheets', actionLabel: 'Open Sheets' },
+      { title: 'Clouds round one circuit', text: 'A revision cloud can go round a single circuit\'s breaker and cable instead of the whole panel. It prints on the PDF and DXF like panel clouds.' },
+      { title: 'Sheets issued before this version', text: 'Issue them once more: from then on their changes can be clouded.' }
+    ]
+  },
+  {
     version: '2.011', date: '2026-10-30',
     items: [
       { title: 'Three-digit version numbers', text: 'The version now shows three digits after the dot: this is 2.011, then 2.012, 2.013 and on. Reports, issue stamps and backups show it the same way.' }

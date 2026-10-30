@@ -15,6 +15,7 @@ import {
   sheetRefs, type SheetRef
 } from '../../model/drawingSet';
 import { currentRevision } from '../../model/revisions';
+import { changeText, cloudChanges, sheetChanges, sheetItems } from '../../model/sheetChanges';
 import { SHEET_MM } from '../../docs/sldSheet';
 import { addPlanSheets, PLAN_LABEL, PLAN_TYPES, planLevels } from '../../docs/planLayout';
 import { exportDrawingSet, exportEverythingZip, exportSheetsDwg, exportSheetsDxf, sheetHtml } from '../docs/sheetRender';
@@ -390,8 +391,9 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, ui
           </details>
           {s.kind === 'system' && (
             <details><summary>Revision clouds ({(s.clouds ?? []).length})</summary>
+              <CloudChanges project={project} set={set} s={s} rev={nextRev(sheetRev(s, rev?.id))} onCloud={(keys, r) => patch({ clouds: cloudChanges(s, keys, r).clouds })} />
               {(s.clouds ?? []).map((c, i) => (
-                <div key={i} className="row">△{c.rev} around {c.boards.join(', ')} <button className="icon-btn" title="Remove" onClick={() => patch({ clouds: (s.clouds ?? []).filter((_, k) => k !== i) || undefined })} aria-label="Remove"><X size={14} aria-hidden /></button></div>
+                <div key={i} className="row">△{c.rev} around {[...c.boards, ...(c.feeders ?? []).map((id) => cloudFeederLabel(project, id))].join(', ')} <button className="icon-btn" title="Remove" onClick={() => patch({ clouds: (s.clouds ?? []).filter((_, k) => k !== i) || undefined })} aria-label="Remove"><X size={14} aria-hidden /></button></div>
               ))}
               <CloudAdd boards={s.boards} rev={nextRev(sheetRev(s, rev?.id))} onAdd={(c) => patch({ clouds: [...(s.clouds ?? []), c] })} />
             </details>
@@ -471,6 +473,39 @@ function ArrowAdd({ project, boards, onAdd }: { project: Project; boards: string
   );
 }
 
+/** A circuit in the cloud list: "MDB-01 → DB-ROOF" or "MDB-01 Chiller". */
+const cloudFeederLabel = (p: Project, id: string) => { const f = p.feeders.find((x) => x.id === id); return f ? (f.feedsBoardId ? `${f.boardId} → ${f.feedsBoardId}` : `${f.boardId} ${f.name || id}`) : id; };
+
+/** Cloud the changes: the panels and circuits changed since the sheet's last issue, ticked, then clouded at the next
+ * revision. A sheet issued before items were kept says to issue it once more. */
+function CloudChanges({ project, set, s, rev, onCloud }: { project: Project; set: DrawingSet; s: DrawingSheet; rev: string; onCloud: (keys: string[], rev: string) => void }) {
+  const changes = useMemo(() => sheetChanges(project, set, s), [project, set, s]);
+  const [open, setOpen] = useState(false);
+  const [off, setOff] = useState<string[]>([]);
+  const [r, setR] = useState(rev);
+  useEffect(() => setR(rev), [rev]);
+  const last = s.history?.[s.history.length - 1]?.rev ?? s.rev;
+  if (!s.history?.length) return null;
+  if (!changes) return <p className="m">Issue this sheet once more: from then on its changed panels and circuits can be clouded automatically.</p>;
+  const can = changes.filter((c) => c.cloudable);
+  if (!changes.length) return <p className="m">No changes since Rev {last}.</p>;
+  const keys = can.map((c) => c.key).filter((k) => !off.includes(k));
+  return (
+    <div className="cloud-add">
+      <button className="chip" onClick={() => setOpen(!open)} aria-expanded={open}>Cloud the changes <small>{changes.length} since Rev {last}</small></button>
+      {open && <>
+        {changes.map((c) => (
+          <label key={c.key} className="row" title={c.cloudable ? undefined : 'No longer on the sheet: nothing to cloud'}>
+            <input type="checkbox" disabled={!c.cloudable} checked={c.cloudable && !off.includes(c.key)} onChange={() => setOff(off.includes(c.key) ? off.filter((k) => k !== c.key) : [...off, c.key])} /> <b>{c.label}</b>: {changeText(c)}
+          </label>
+        ))}
+        <label className="row">Rev <input className="bi-text" style={{ width: 44 }} value={r} onChange={(e) => setR(e.target.value)} />
+          <button className="chip" disabled={!keys.length || !r.trim()} onClick={() => { onCloud(keys, r.trim()); setOpen(false); setOff([]); }}>Cloud {keys.length}</button></label>
+      </>}
+    </div>
+  );
+}
+
 function CloudAdd({ boards, rev, onAdd }: { boards: string[]; rev: string; onAdd: (c: { boards: string[]; rev: string }) => void }) {
   const [pick, setPick] = useState<string[]>([]);
   const [r, setR] = useState(rev);
@@ -531,7 +566,7 @@ function PublishDialog({ project, run, onClose, onChange, onStatus, onOpen }: { 
         <button className="chip primary" disabled={!set.sheets.length} onClick={() => setIssuing(true)}>Issue all sheets…</button>
       </div>
       {issuing && <IssueDialog sheets={set.sheets} projectRev={rev?.id} onClose={() => setIssuing(false)} onIssue={async (o, pdf) => {
-        const r = issueSheets(set, set.sheets.map((s) => s.id), o, rev?.id, (s) => sheetHash(project, set, s));
+        const r = issueSheets(set, set.sheets.map((s) => s.id), o, rev?.id, (s) => sheetHash(project, set, s), (s) => sheetItems(project, set, s));
         const next = { ...project, drawingSet: r.set };
         onChange(next);
         setIssuing(false);

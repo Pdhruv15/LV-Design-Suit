@@ -11,6 +11,7 @@ import {
   type DrawingIssue, type DrawingSet, type DrawingSheet, type SheetFilter, type SheetSize, type SheetSort
 } from '../../model/drawingSet';
 import { currentRevision } from '../../model/revisions';
+import { sheetItems } from '../../model/sheetChanges';
 import { loadTemplateLibrary } from '../../model/titleBlock';
 /** Excel export loads ExcelJS only when used (this view is part of the SLD workspace, loaded at start). */
 const excel = async () => ({ ...(await import('../../docs/formWorkbook')), ...(await import('../../docs/registerWorkbook')) });
@@ -445,7 +446,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
       )}
 
       {issuing && <IssueDialog sheets={targets} projectRev={rev?.id} onClose={() => setIssuing(false)} onIssue={async (o, pdf) => {
-        const r = issueSheets(set, targets.map((s) => s.id), o, rev?.id, (s) => sheetHash(project, set, s));
+        const r = issueSheets(set, targets.map((s) => s.id), o, rev?.id, (s) => sheetHash(project, set, s), (s) => sheetItems(project, set, s));
         save(r.set);
         setIssuing(false);
         setSelected(new Set());

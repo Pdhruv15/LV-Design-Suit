@@ -6,6 +6,7 @@ import { subtree } from '../calc/pfc';
 import { SHEET_MM } from '../docs/sldSheet';
 import { boardsWithoutLevel } from './levels';
 import type { SheetMarkup } from './sheetMarkup';
+import type { SheetItems } from './sheetChanges';
 import { earthSheetTitles } from './earthRiser';
 import { pushLibrary } from '../database/librarySync';
 
@@ -45,13 +46,14 @@ export interface DrawingSheet {
   clouds?: SheetCloud[]; // revision clouds around panels
   issuedHash?: string; // what was drawn when last issued (to flag changes since)
   issuedHashV?: number; // fingerprint version of issuedHash (blank = 1, before calculated values were included)
+  issuedItems?: SheetItems; // system sheets: each panel and circuit as drawn when last issued (for Cloud the changes)
   arrows?: SheetArrow[]; // callouts with a leader arrow, on this sheet only
   markups?: SheetMarkup[]; // free markups drawn on the sheet (clouds, notes, callouts …), in paper mm
 }
 /** A callout: text with a leader arrow pointing at a panel or a circuit. */
 export interface SheetArrow { target: string; text: string; dir: 'ne' | 'nw' | 'se' | 'sw'; len?: number } // target: board id, or "f:" + feeder id
-/** A revision cloud around panels on one sheet, with its revision triangle. */
-export interface SheetCloud { boards: string[]; rev: string }
+/** A revision cloud around panels, or around circuits (feeder ids), on one sheet, with its revision triangle. */
+export interface SheetCloud { boards: string[]; feeders?: string[]; rev: string }
 /** One issued revision of a sheet (printed in its title block revision table). */
 export interface SheetRev { rev: string; date: string; description: string; issueId?: string }
 /** One issue of drawings (a transmittal): which sheets, at which revision, why. */
@@ -333,7 +335,7 @@ export interface IssueInput { date: string; purpose: string; description: string
 /** Issues the chosen sheets: each moves to its next revision (when bump),
  * takes the date and purpose as its status, records the revision in its
  * history, and the set records a transmittal. */
-export function issueSheets(set: DrawingSet, ids: string[], o: IssueInput, projectRev?: string, hashOf?: (s: DrawingSheet) => string): { set: DrawingSet; issue: DrawingIssue } {
+export function issueSheets(set: DrawingSet, ids: string[], o: IssueInput, projectRev?: string, hashOf?: (s: DrawingSheet) => string, itemsOf?: (s: DrawingSheet) => SheetItems | undefined): { set: DrawingSet; issue: DrawingIssue } {
   const n = (set.issues ?? []).length + 1;
   const id = `T-${String(n).padStart(3, '0')}`;
   const chosen = new Set(ids);
@@ -341,7 +343,8 @@ export function issueSheets(set: DrawingSet, ids: string[], o: IssueInput, proje
     if (!chosen.has(s.id)) return s;
     const cur = sheetRev(s, projectRev);
     const rev = o.bump && (s.history?.length || s.rev) ? nextRev(cur) : (cur || 'A');
-    return { ...s, rev, date: o.date, status: o.purpose || s.status, ...(hashOf ? { issuedHash: hashOf({ ...s, issuedHash: undefined, issuedHashV: undefined }), issuedHashV: SHEET_HASH_V } : {}), history: [...(s.history ?? []), { rev, date: o.date, description: o.description || o.purpose, issueId: id }] };
+    const items = itemsOf?.(s);
+    return { ...s, rev, date: o.date, status: o.purpose || s.status, ...(hashOf ? { issuedHash: hashOf({ ...s, issuedHash: undefined, issuedHashV: undefined }), issuedHashV: SHEET_HASH_V } : {}), ...(items ? { issuedItems: items } : {}), history: [...(s.history ?? []), { rev, date: o.date, description: o.description || o.purpose, issueId: id }] };
   });
   const issue: DrawingIssue = {
     id, date: o.date, purpose: o.purpose, description: o.description, to: o.to || undefined,

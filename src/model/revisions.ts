@@ -172,7 +172,7 @@ function show(v: unknown, digits = 3): string {
 
 /** The listed fields that differ. Compared on the exact values — not on how they print — so a change in the fourth
  * decimal is found; zero entries inside an object (points counts) and empty values count as not set. */
-function fieldChanges<T>(a: T, b: T, fields: [keyof T, string][]): FieldChange[] {
+export function fieldChanges<T>(a: T, b: T, fields: [keyof T, string][]): FieldChange[] {
   const out: FieldChange[] = [];
   for (const [k, label] of fields) {
     if (same(a[k], b[k], true)) continue;
