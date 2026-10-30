@@ -3,7 +3,7 @@ import CadCanvas, { type CadMarks, type CadToggles, type CanvasDevice, type Canv
 import { NO_ACTIONS, rememberedDrawing, SAMPLE_PLANS, type CadState, type CadTool } from './cadState';
 import { chooseDrawing, drawingWithDevices, reopenDrawing, sampleDrawing, type CadObject, type CadView } from '../../engines/cad/cadEngine';
 import { cableLabel, cablesOf, circuitLabel, finalCircuits, LV_PALETTE, moveItem, placedOn, placeItem, placeLvPoint, removeItem, type PaletteItem, type PlacedItem } from '../../model/cadDevices';
-import { addSketch, arcThrough, dimensionLines, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_WIDTHS, typedPoint, updateSketch } from '../../model/cadSketch';
+import { addSketch, arcThrough, dimensionLines, itemAt, moved, rectangle, removeSketch, rotated, segmentsOf, shapesOut, sketchOf, snapPoints, trayLength, TRAY_LAYER, TRAY_SERVICES, TRAY_WIDTHS, typedPoint, updateSketch } from '../../model/cadSketch';
 import { trayPlanOf } from '../../calc/cableTray';
 import { fittingCounts, trayFittings, type TrayFitting } from '../../model/cadTrayFittings';
 import type { SketchItem } from '../../types';
@@ -453,9 +453,9 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
   /** A cable tray run along the points clicked, at the chosen width; on a tray route only once one is chosen. */
   function finishTray() {
     if (points.length >= 2) {
-      const { widthMm, route } = cad.tray;
-      const it = { kind: 'pline' as const, layer: TRAY_LAYER, pts: points, tray: { widthMm, ...(route ? { route } : {}) } };
-      draw(it, `Cable tray ${widthMm} mm, ${m(toM(trayLength({ ...it, id: '' })))}${route ? ` on route ${route}` : ' (no route: assign one when you know it)'}`);
+      const { widthMm, service, route } = cad.tray;
+      const it = { kind: 'pline' as const, layer: TRAY_LAYER, pts: points, tray: { widthMm, service, ...(route ? { route } : {}) } };
+      draw(it, `Cable tray ${widthMm} mm ${service.toLowerCase()}, ${m(toM(trayLength({ ...it, id: '' })))}${route ? ` on route ${route}` : ' (no route: assign one when you know it)'}`);
     }
     setPoints([]); cad.say(PROMPT.tray);
   }
@@ -571,7 +571,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
     if (tool === 'line' && lastPt) return [{ ...base, kind: 'line', pts: [lastPt, cur] }];
     if (tool === 'pline' && points.length) return [{ ...base, kind: 'line', pts: [...points, cur] }];
     if (tool === 'cable' && points.length) return [{ ...base, kind: 'line', pts: [...points, cur] }];
-    if (tool === 'tray' && points.length) return [{ ...base, kind: 'pline', pts: [...points, cur], tray: { widthMm: cad.tray.widthMm } }];
+    if (tool === 'tray' && points.length) return [{ ...base, kind: 'pline', pts: [...points, cur], tray: { widthMm: cad.tray.widthMm, service: cad.tray.service } }];
     if (tool === 'rect' && lastPt) return [{ ...base, kind: 'pline', pts: rectangle(lastPt, cur), closed: true }];
     if (tool === 'circle' && lastPt) return [{ ...base, kind: 'circle', pts: [lastPt], r: distance(lastPt, cur) }];
     if (tool === 'arc' && points.length === 1) return [{ ...base, kind: 'line', pts: [points[0], cur] }];
@@ -636,7 +636,7 @@ export default function CadPage({ cad, project, onChange, onStatus }: {
               <>
                 <h4>Cable tray</h4>
                 <div className="cad-devform">
-                  <TrayFields project={project} widthMm={cad.tray.widthMm} route={cad.tray.route} onChange={(t) => cad.setTray({ ...cad.tray, ...t })} />
+                  <TrayFields project={project} widthMm={cad.tray.widthMm} service={cad.tray.service} route={cad.tray.route} onChange={(t) => cad.setTray({ ...cad.tray, ...t })} />
                   <span className="m">Click the run's points, Enter to finish. The route can be left for later. End a run on another tray for a tee; a run of another width in line makes a reducer.</span>
                 </div>
                 <Fittings fittings={fittings} title="Fittings on this plan" />
@@ -793,13 +793,14 @@ function ResultView({ r, view, toM, toM2, project, onChange, onMove, onRemove, o
         <div><b>Cable tray</b> <span className="m">drawn here · {it.layer}</span></div>
         <dl className="cad-props">
           <dt>Length</dt><dd>{m(toM(trayLength(it)))}</dd>
+          <dt>Carries</dt><dd>{tray.service ?? 'not set'}</dd>
           <dt>Route</dt><dd>{tray.route ?? 'not assigned'}</dd>
         </dl>
         <div className="cad-devform">
-          <TrayFields project={project} widthMm={tray.widthMm} route={tray.route ?? ''} onChange={(t) => {
+          <TrayFields project={project} widthMm={tray.widthMm} service={tray.service ?? ''} route={tray.route ?? ''} onChange={(t) => {
             const next = { ...tray, ...t };
-            const { route, ...rest } = next;
-            onChange(updateSketch(project, view.file, { ...it, tray: route ? { ...rest, route } : rest }), `Cable tray ${next.widthMm} mm${route ? ` on route ${route}` : ', no route'} · ⌘Z to undo`);
+            const { route, service, ...rest } = next;
+            onChange(updateSketch(project, view.file, { ...it, tray: { ...rest, ...(service ? { service } : {}), ...(route ? { route } : {}) } }), `Cable tray ${next.widthMm} mm${service ? ` ${service.toLowerCase()}` : ''}${route ? ` on route ${route}` : ', no route'} · ⌘Z to undo`);
           }} />
         </div>
         <Fittings fittings={fittings.filter((f) => f.runs.includes(it.id))} title="Fittings on this run" />
@@ -883,14 +884,18 @@ function Fittings({ fittings, title }: { fittings: TrayFitting[]; title: string 
   );
 }
 
-/** Width and tray route of a cable tray run: the route is optional (Not assigned), chosen from the project's tray
- * routes. */
-function TrayFields({ project, widthMm, route, onChange }: { project: Project; widthMm: number; route: string; onChange: (t: { widthMm?: number; route?: string }) => void }) {
+/** Width, service and tray route of a cable tray run: the route is optional (Not assigned), chosen from the project's
+ * tray routes. */
+function TrayFields({ project, widthMm, service, route, onChange }: { project: Project; widthMm: number; service: string; route: string; onChange: (t: { widthMm?: number; service?: string; route?: string }) => void }) {
   const routes = trayPlanOf(project).routes;
   return (
     <>
       <label>Width<select aria-label="Tray width" value={widthMm} onChange={(e) => onChange({ widthMm: Number(e.target.value) })}>
         {TRAY_WIDTHS.map((w) => <option key={w} value={w}>{w} mm</option>)}
+      </select></label>
+      <label>Carries<select aria-label="Tray service" value={service} onChange={(e) => onChange({ service: e.target.value })}>
+        {!service && <option value="">Not set</option>}
+        {TRAY_SERVICES.map((x) => <option key={x} value={x}>{x}</option>)}
       </select></label>
       <label>Route<select aria-label="Tray route" value={route} onChange={(e) => onChange({ route: e.target.value })}>
         <option value="">Not assigned</option>

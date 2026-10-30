@@ -49,7 +49,7 @@ export function useCad(projectId: string | undefined) {
   const [selected, setSelected] = useState<string | null>(null);
   const [showDevices, setShowDevices] = useState(true);
   /** Cable tray runs: the width drawn, and the tray route (none until the engineer assigns one). */
-  const [tray, setTray] = useState<{ widthMm: number; route: string }>({ widthMm: 300, route: '' });
+  const [tray, setTray] = useState<{ widthMm: number; service: string; route: string }>({ widthMm: 300, service: 'Power', route: '' });
   /** ELV coverage shown (Devices → Coverage) for the system of the ELV device chosen. */
   const [coverage, setCoverage] = useState(false);
   /** Circuit wiring tags shown on the plan (Wiring → Tags). */

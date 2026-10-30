@@ -37,14 +37,12 @@ function nearestOn(p: Pt, a: Pt, b: Pt): { q: Pt; d: number; t: number } {
 
 interface End { run: SketchItem; at: Pt; out: Pt; which: 'start' | 'end' } // `out`: direction from the joint into the run
 
-/** Fittings of the tray runs among `items` (other drawn objects are ignored); `unitsPerMm` converts widths. Also says
- * which run ends are joined to another tray, so their end lines are not drawn. */
-export function trayFittings(items: SketchItem[], unitsPerMm: number): { fittings: TrayFitting[]; joined: Set<string> } {
+/** Fittings of the tray runs among `items` (other drawn objects are ignored); `unitsPerMm` converts widths. */
+export function trayFittings(items: SketchItem[], unitsPerMm: number): { fittings: TrayFitting[] } {
   const runs = items.filter((it) => it.tray && it.pts.length >= 2);
   const half = (it: SketchItem) => ((it.tray?.widthMm ?? 0) * unitsPerMm) / 2;
   const routesOf = (rs: SketchItem[]) => [...new Set(rs.map((r) => r.tray?.route).filter((x): x is string => !!x))].sort();
   const fittings: TrayFitting[] = [];
-  const joined = new Set<string>();
 
   // Bends inside each run.
   for (const r of runs) {
@@ -81,7 +79,7 @@ export function trayFittings(items: SketchItem[], unitsPerMm: number): { fitting
     const members = [e, ...group.filter((f, i) => group.findIndex((g) => g.run === f.run) === i)];
     if (main && members.some((m) => m.run === main!.run)) main = undefined;
     if (members.length < 2 && !main) continue;
-    members.forEach((m) => { used.add(m); joined.add(`${m.run.id}:${m.which}`); });
+    members.forEach((m) => used.add(m));
     const at = e.at;
     const all = [...members.map((m) => m.run), ...(main ? [main.run] : [])];
     const routes = routesOf(all), ids = all.map((r) => r.id);
@@ -103,7 +101,7 @@ export function trayFittings(items: SketchItem[], unitsPerMm: number): { fitting
     const widths = members.map((m) => m.run.tray!.widthMm).sort((x, y) => y - x);
     fittings.push(legs === 3 ? { kind: 'tee', at, sizes: [widths[0], widths[widths.length - 1]], routes, runs: ids } : { kind: 'cross', at, sizes: widths, routes, runs: ids });
   }
-  return { fittings, joined };
+  return { fittings };
 }
 
 /** "Bend 90° 300", "Tee 300 × 150", "Cross 300", "Reducer 300 → 150". */

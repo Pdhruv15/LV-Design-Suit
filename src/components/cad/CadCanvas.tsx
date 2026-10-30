@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { INK, SNAP, SNAP_NAMES, type CadView } from '../../engines/cad/cadEngine';
 import { ortho as orthoFrom } from '../../model/cadMeasure';
-import { dimensionLines, segmentsOf, trayEdges, trayLabel } from '../../model/cadSketch';
+import { dimensionLines, segmentsOf, trayLabel, trayLine, TRAY_TEXT_MM } from '../../model/cadSketch';
 import type { PlanCells, PlanCover } from '../elv/elvOverlay';
 import { fittingLabel, trayFittings } from '../../model/cadTrayFittings';
 import { cssRgb, dashArray, hatchLines, patternLength, screenColour, tileOf } from '../../model/cadDraw';
@@ -263,24 +263,20 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
         ctx.globalAlpha = 1;
       }
     }
-    // What the engineer drew, over the drawing; tray runs with their fittings (joined ends left open).
-    const { fittings, joined } = trayFittings(sketch, unitsPerMm);
+    // What the engineer drew, over the drawing; a tray run as one heavier line, broken at its label when the label shows.
+    const { fittings } = trayFittings(sketch, unitsPerMm);
     const skC = colour('--cad-sketch', '#7fd1ff'), selSk = colour('--cad-snap', '#37d67a');
+    const trayH = TRAY_TEXT_MM * unitsPerMm, trayText = trayH * scale >= 4;
     for (const it of sketch) {
       if (it.kind === 'text') continue;
       ctx.strokeStyle = it.id === selectedSketch ? selSk : skC;
-      ctx.lineWidth = (it.id === selectedSketch ? 3 : 1.5) / scale;
+      ctx.lineWidth = (it.id === selectedSketch ? 3 : it.tray ? 2.5 : 1.5) / scale;
       ctx.beginPath();
-      for (const [a, b] of segmentsOf(it)) { ctx.moveTo(a[0] - o0, a[1] - o1); ctx.lineTo(b[0] - o0, b[1] - o1); }
+      if (it.tray) for (const q of trayText ? trayLine(it, trayH).pieces : [it.pts]) q.forEach((p, i) => (i ? ctx.lineTo(p[0] - o0, p[1] - o1) : ctx.moveTo(p[0] - o0, p[1] - o1)));
+      else for (const [a, b] of segmentsOf(it)) { ctx.moveTo(a[0] - o0, a[1] - o1); ctx.lineTo(b[0] - o0, b[1] - o1); }
       if (it.cable) ctx.setLineDash([10 / scale, 5 / scale]); // a cable route: dashed
       ctx.stroke();
       ctx.setLineDash([]);
-      if (!it.tray) continue;
-      // A tray run: its edges at the tray width; the centreline thinner.
-      ctx.lineWidth = (it.id === selectedSketch ? 3 : 2) / scale;
-      ctx.beginPath();
-      for (const [a, b] of trayEdges(it, unitsPerMm, joined)) { ctx.moveTo(a[0] - o0, a[1] - o1); ctx.lineTo(b[0] - o0, b[1] - o1); }
-      ctx.stroke();
     }
     // Circuit wiring: arcs in the devices' colour, the home run ending in an arrow at the DB.
     const lvC = colour('--cad-dev', '#f5c04a');
@@ -358,7 +354,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
     for (const it of sketch) {
       const label = it.kind === 'text' ? { at: it.pts[0], s: it.text ?? '', h: it.h ?? 0, rot: it.rot ?? 0, align: 'left' as CanvasTextAlign }
         : it.kind === 'dim' ? (() => { const d = dimensionLines(it.pts[0], it.pts[1], it.pts[2]); return { at: d.text, s: it.text ?? '', h: it.h ?? d.length * 0.04, rot: d.angle, align: 'center' as CanvasTextAlign }; })()
-        : it.tray ? (() => { const l = trayLabel(it); return { at: l.at, s: l.text, h: 150 * unitsPerMm, rot: l.rot, align: 'center' as CanvasTextAlign }; })()
+        : it.tray ? (() => { const l = trayLabel(it); return { at: l.at, s: l.text, h: trayH, rot: l.rot, align: 'center' as CanvasTextAlign }; })()
         : it.cable && labels[it.id] ? (() => { const l = trayLabel(it); return { at: l.at, s: labels[it.id], h: 120 * unitsPerMm, rot: l.rot, align: 'center' as CanvasTextAlign }; })()
         : null;
       if (!label || !label.s) continue;
@@ -369,6 +365,7 @@ export default function CadCanvas({ view, layersOn, toggles, gridDots = false, f
       ctx.rotate(-label.rot);
       ctx.font = `${Math.min(px, 200)}px system-ui, sans-serif`;
       ctx.textAlign = label.align;
+      if (it.tray) ctx.textBaseline = 'middle'; // in the gap of the tray's line
       ctx.fillStyle = it.id === selectedSketch ? selSk : skC;
       ctx.fillText(label.s, 0, 0);
       ctx.restore();

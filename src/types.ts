@@ -407,8 +407,9 @@ export interface SketchItem {
   text?: string;
   h?: number;
   rot?: number;
-  /** A cable tray run (a polyline along its centreline): its width, and the tray route it is on, once assigned. */
-  tray?: { widthMm: number; route?: string };
+  /** A cable tray run (a polyline along its centreline): its width, what it carries, and the tray route it is on, once
+   * assigned. */
+  tray?: { widthMm: number; service?: string; route?: string };
   /** A cable route (a polyline on E-CABLE): the feeder whose cable runs along it. */
   cable?: { feederId: string };
 }

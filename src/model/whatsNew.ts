@@ -15,6 +15,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.8', date: '2026-10-30',
+    items: [
+      { title: 'Cable trays as a single line', text: 'Design CAD → Plan: a cable tray run is now one line with its label in the line, like "CT 300 POWER" (and its route once assigned), the way design-stage layouts show it. DXF and DWG are written the same way.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'What a tray carries', text: 'Each tray run has Carries beside its width: Power, Lighting, ELV, Data or Fire alarm. New runs start as Power.' }
+    ]
+  },
+  {
     version: '2.7', date: '2026-10-30',
     items: [
       { title: 'Circuit wiring on the plan', text: 'Design CAD → Plan → Wiring: Wire circuits joins every circuit\'s devices on the level with wiring arcs and a home run to its DB, tagged like "DB-GF1/L3 · 2C × 1.5 mm² · 23 m". Wire one does a single circuit (click it again to take it off), and Tags shows or hides the tags.', action: 'cad', actionLabel: 'Open Design CAD' },

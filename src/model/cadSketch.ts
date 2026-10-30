@@ -107,37 +107,34 @@ export function segmentsOf(it: SketchItem): [Pt, Pt][] {
 /** Layer of the cable tray runs drawn in Design CAD, and the usual tray widths (mm). */
 export const TRAY_LAYER = 'E-TRAY';
 export const TRAY_WIDTHS = [50, 100, 150, 200, 300, 450, 600, 750, 900];
+/** Height of a tray run's label (mm, in the drawing's scale). */
+export const TRAY_TEXT_MM = 150;
 
-/** The two edges of a tray run, `widthMm` apart around its centreline (mitred at the bends), and its end lines except
- * where the end joins another tray (`joined`: "<id>:start" / "<id>:end", from trayFittings); `unitsPerMm` converts the
- * width to drawing units. */
-export function trayEdges(it: SketchItem, unitsPerMm: number, joined?: Set<string>): [Pt, Pt][] {
-  const pts = it.pts, half = ((it.tray?.widthMm ?? 0) * unitsPerMm) / 2;
-  if (!it.tray || pts.length < 2 || half <= 0) return [];
-  const normal = (a: Pt, b: Pt): Pt => { const d = dist(a, b) || 1; return [-(b[1] - a[1]) / d, (b[0] - a[0]) / d]; };
-  const side = (k: 1 | -1): Pt[] => pts.map((p, i) => {
-    const n0 = i > 0 ? normal(pts[i - 1], p) : undefined, n1 = i < pts.length - 1 ? normal(p, pts[i + 1]) : undefined;
-    if (!n0 || !n1) { const n = (n0 ?? n1)!; return [p[0] + k * half * n[0], p[1] + k * half * n[1]]; }
-    const mx = n0[0] + n1[0], my = n0[1] + n1[1], ml = Math.hypot(mx, my);
-    const cos = ml / 2; // cos of half the turn
-    const f = cos > 0.25 ? half / cos : half * 4; // limit the mitre at sharp turns
-    return ml < 1e-9 ? [p[0] + k * half * n1[0], p[1] + k * half * n1[1]] : [p[0] + (k * f * mx) / ml, p[1] + (k * f * my) / ml];
-  });
-  const edge = (q: Pt[]) => q.slice(1).map((b, i): [Pt, Pt] => [q[i], b]);
-  const l = side(1), r = side(-1);
-  const caps: [Pt, Pt][] = [];
-  if (!joined?.has(`${it.id}:start`)) caps.push([l[0], r[0]]);
-  if (!joined?.has(`${it.id}:end`)) caps.push([l[l.length - 1], r[r.length - 1]]);
-  return [...edge(l), ...edge(r), ...caps];
-}
+/** What a tray run carries, written in its label ("CT 300 POWER"). */
+export const TRAY_SERVICES = ['Power', 'Lighting', 'ELV', 'Data', 'Fire alarm'];
 
-/** The label of a tray run, "CT 300" (with its route once assigned), at the middle of its middle piece, along it and
- * never upside down. */
+/** The label of a tray run, "CT 300 POWER" (with its route once assigned), at the middle of its middle piece, along it
+ * and never upside down. */
 export function trayLabel(it: SketchItem): { at: Pt; text: string; rot: number } {
   const mid = Math.max(0, Math.floor((it.pts.length - 2) / 2)), a = it.pts[mid], b = it.pts[mid + 1] ?? a;
   let rot = Math.atan2(b[1] - a[1], b[0] - a[0]);
   if (rot > Math.PI / 2) rot -= Math.PI; else if (rot <= -Math.PI / 2) rot += Math.PI;
-  return { at: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], text: `CT ${it.tray?.widthMm ?? ''}${it.tray?.route ? ` · ${it.tray.route}` : ''}`, rot };
+  const t = it.tray;
+  return { at: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], text: `CT ${t?.widthMm ?? ''}${t?.service ? ` ${t.service.toUpperCase()}` : ''}${t?.route ? ` · ${t.route}` : ''}`, rot };
+}
+
+/** A tray run as a single line (design stage, not a shop drawing): its centreline broken at the middle for the label,
+ * text `h` high, and where the label starts (bottom left) so it sits centred in the gap. A middle piece too short for
+ * the label is not broken. */
+export function trayLine(it: SketchItem, h: number): { pieces: Pt[][]; textAt: Pt } {
+  const l = trayLabel(it), pts = it.pts;
+  const w = 0.6 * h * l.text.length, c = Math.cos(l.rot), s = Math.sin(l.rot);
+  const textAt: Pt = [l.at[0] - (w / 2) * c + (h / 2) * s, l.at[1] - (w / 2) * s - (h / 2) * c];
+  const mid = Math.max(0, Math.floor((pts.length - 2) / 2)), a = pts[mid], b = pts[mid + 1];
+  const len = b ? dist(a, b) : 0, gap = w + h;
+  if (!b || len <= gap) return { pieces: [pts], textAt };
+  const at = (k: number): Pt => [a[0] + ((b[0] - a[0]) * k) / len, a[1] + ((b[1] - a[1]) * k) / len];
+  return { pieces: [[...pts.slice(0, mid + 1), at((len - gap) / 2)], [at((len + gap) / 2), ...pts.slice(mid + 1)]], textAt };
 }
 
 /** Length of a tray run along its centreline (drawing units). */
@@ -186,7 +183,7 @@ export function itemAt(items: SketchItem[], at: Pt, tol: number): SketchItem | u
 export interface ShapeOut { layer: string; kind: 'line' | 'pline' | 'circle' | 'arc' | 'text'; pts: Pt[]; closed?: boolean; r?: number; a0?: number; a1?: number; text?: string; h?: number; rot?: number }
 export function shapesOut(items: SketchItem[], metresPerUnit: number): ShapeOut[] {
   const unitsPerMm = 0.001 / metresPerUnit;
-  const { fittings, joined } = trayFittings(items, unitsPerMm);
+  const { fittings } = trayFittings(items, unitsPerMm);
   // Tray fittings are written as their labels at the joint ("Tee 300 × 150").
   const fittingTexts = fittings.map((f): ShapeOut => ({ layer: TRAY_LAYER, kind: 'text', pts: [[f.at[0] + 120 * unitsPerMm, f.at[1] + 120 * unitsPerMm]], text: fittingLabel(f), h: 100 * unitsPerMm, rot: 0 }));
   return [...items.flatMap((it): ShapeOut[] => {
@@ -196,10 +193,9 @@ export function shapesOut(items: SketchItem[], metresPerUnit: number): ShapeOut[
         { layer: it.layer, kind: 'text', pts: [d.text], text: `${(d.length * metresPerUnit).toFixed(2)}`, h: it.h ?? d.length * 0.04, rot: d.angle }];
     }
     if (it.tray) {
-      // The tray's edges and ends, its centreline, and a label "CT 300" (with its route once assigned) at the middle.
-      const l = trayLabel(it);
-      return [...trayEdges(it, unitsPerMm, joined).map((e): ShapeOut => ({ layer: it.layer, kind: 'line', pts: e })), { layer: it.layer, kind: 'pline', pts: it.pts },
-        { layer: it.layer, kind: 'text', pts: [l.at], text: l.text, h: 150 * unitsPerMm, rot: l.rot }];
+      // A single line broken at the middle for its label "CT 300 POWER" (with its route once assigned).
+      const h = TRAY_TEXT_MM * unitsPerMm, { pieces, textAt } = trayLine(it, h), l = trayLabel(it);
+      return [...pieces.map((q): ShapeOut => ({ layer: it.layer, kind: 'pline', pts: q })), { layer: it.layer, kind: 'text', pts: [textAt], text: l.text, h, rot: l.rot }];
     }
     if (it.kind === 'line' && it.pts.length > 2) return [{ layer: it.layer, kind: 'pline', pts: it.pts }];
     return [{ layer: it.layer, kind: it.kind, pts: it.pts, closed: it.closed, r: it.r, a0: it.a0, a1: it.a1, text: it.text, h: it.h, rot: it.rot }];
