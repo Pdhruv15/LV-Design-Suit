@@ -20,10 +20,17 @@ if (typeof window !== 'undefined') {
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferred = e as InstallPrompt; listeners.forEach((f) => f()); });
   window.addEventListener('appinstalled', () => { deferred = null; listeners.forEach((f) => f()); });
 }
+/** A newer build than the open page, kept by the service worker: its version as shown ("2.013"). */
+let newer: string | null = null;
+/** The open page is an older build when the service worker's copy has another entry script than the page loaded. */
+export const isOlderBuild = (ownScript: string | undefined, swEntry: string | undefined) => !!ownScript && !!swEntry && !ownScript.endsWith(`/${swEntry}`);
+const ownScript = () => document.querySelector<HTMLScriptElement>('script[type="module"][src]')?.src;
+const HOUR = 3600_000;
+
 const standalone = () => typeof window !== 'undefined' && (window.matchMedia?.('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true);
 
 /** Offline state and the browser's install prompt (Chrome / Edge). */
-export function useWebApp(): { offline: OfflineState; canInstall: boolean; installed: boolean; install: () => Promise<void> } {
+export function useWebApp(): { offline: OfflineState; canInstall: boolean; installed: boolean; install: () => Promise<void>; newVersion: string | null } {
   const [offline, setOffline] = useState<OfflineState>('unsupported');
   const [, bump] = useState(0);
   useEffect(() => {
@@ -35,10 +42,25 @@ export function useWebApp(): { offline: OfflineState; canInstall: boolean; insta
     // Only the built web version over http(s): not the dev server, not the desktop app.
     if (!isWebVersion() || !('serviceWorker' in navigator) || !/^https?:$/.test(location.protocol) || import.meta.env.DEV) return;
     setOffline('preparing');
-    navigator.serviceWorker.register('./sw.js').then(() => navigator.serviceWorker.ready).then(() => setOffline('ready')).catch(() => setOffline('failed'));
+    const sw = navigator.serviceWorker;
+    // Ask the service worker in charge which build it keeps: at start, and when a newer one takes over.
+    const ask = () => sw.controller?.postMessage('version');
+    const onMessage = (e: MessageEvent) => {
+      const d = e.data as { entry?: string; app?: string } | undefined;
+      if (isOlderBuild(ownScript(), d?.entry) && newer !== (d?.app ?? '')) { newer = d?.app ?? ''; listeners.forEach((f) => f()); }
+    };
+    sw.addEventListener('message', onMessage);
+    sw.addEventListener('controllerchange', ask);
+    // A page left open (an installed app) looks for a new build when it is shown again, and every hour.
+    let reg: ServiceWorkerRegistration | undefined;
+    const check = () => { if (document.visibilityState === 'visible') reg?.update().catch(() => { /* offline: next time */ }); };
+    document.addEventListener('visibilitychange', check);
+    const timer = setInterval(check, HOUR);
+    sw.register('./sw.js').then((r) => { reg = r; return sw.ready; }).then(() => { setOffline('ready'); ask(); }).catch(() => setOffline('failed'));
+    return () => { sw.removeEventListener('message', onMessage); sw.removeEventListener('controllerchange', ask); document.removeEventListener('visibilitychange', check); clearInterval(timer); };
   }, []);
   return {
-    offline, canInstall: !!deferred, installed: standalone(),
+    offline, canInstall: !!deferred, installed: standalone(), newVersion: newer,
     install: async () => { if (!deferred) return; await deferred.prompt(); await deferred.userChoice; deferred = null; bump((n) => n + 1); }
   };
 }

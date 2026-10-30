@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.013', date: '2026-10-30',
+    items: [
+      { title: 'Reload for a new version (browser)', text: 'The browser version notices when a newer version is out, also in an installed app left open, and shows New version — reload in the top strip. The browser asks first if a project has unsaved changes.' }
+    ]
+  },
+  {
     version: '2.012', date: '2026-10-30',
     items: [
       { title: 'Cloud the changes', text: 'An SLD sheet now remembers each panel and circuit when it is issued. Afterwards, Revision clouds → Cloud the changes lists what changed since that issue (for example "Cable (mm²) 35 → 50"); untick any you don\'t want, and each ticked panel or circuit gets a cloud with the next revision.', action: 'sheets', actionLabel: 'Open Sheets' },
