@@ -16,6 +16,7 @@ import {
 } from '../../model/drawingSet';
 import { currentRevision } from '../../model/revisions';
 import { SHEET_MM } from '../../docs/sldSheet';
+import { addPlanSheets, PLAN_LABEL, PLAN_TYPES, planLevels } from '../../docs/planLayout';
 import { exportDrawingSet, exportEverythingZip, exportSheetsDwg, exportSheetsDxf, sheetHtml } from '../docs/sheetRender';
 import { IssueDialog } from '../docs/IssueDialog';
 import SheetMarkupLayer, { type SheetAnchor } from './SheetMarkupLayer';
@@ -37,10 +38,10 @@ const VIEWS: [string, ResultLayers][] = [
   ['Submission', SHEET_LAYERS]
 ];
 
-const GROUP_OF: Record<DrawingSheet['kind'], string> = { system: 'SLD', board: 'SLD', riser: 'Riser', earthing: 'Earthing', earthRiser: 'Earthing', earthFloor: 'Earthing' };
+const GROUP_OF: Record<DrawingSheet['kind'], string> = { system: 'SLD', board: 'SLD', riser: 'Riser', earthing: 'Earthing', earthRiser: 'Earthing', earthFloor: 'Earthing', plan: 'Plans' };
 
 /** Design CAD → Sheets, on the left: All sheets (the drawing register) and every sheet of the set grouped as SLD,
- * riser and earthing. Click a sheet to open it; right-click for more. */
+ * riser, earthing and plans. Click a sheet to open it; right-click for more. */
 export function SheetList({ project, active, selectedBoardId, onActive, onChange, onStatus, run }: {
   project: Project; active: string | null; selectedBoardId: string | null; run?: CalcRun;
   onActive: (id: string | null) => void; onChange: (p: Project) => void; onStatus: (m: string) => void;
@@ -82,7 +83,7 @@ export function SheetList({ project, active, selectedBoardId, onActive, onChange
   };
 
   const rev = currentRevision(project)?.id;
-  const groups = ['SLD', 'Riser', 'Earthing'].map((g) => [g, set.sheets.filter((x) => GROUP_OF[x.kind] === g)] as const).filter(([, list]) => list.length);
+  const groups = ['SLD', 'Riser', 'Earthing', 'Plans'].map((g) => [g, set.sheets.filter((x) => GROUP_OF[x.kind] === g)] as const).filter(([, list]) => list.length);
 
   return (
     <nav className="sheet-list" aria-label="Sheets" onMouseLeave={() => setAddOpen(false)}>
@@ -112,6 +113,14 @@ export function SheetList({ project, active, selectedBoardId, onActive, onChange
               const earthing = set.sheets.find((x) => x.kind === 'earthing');
               return <button title="The earthing schematic from Design → Earth pits, as a drawing sheet" onClick={() => { close(); if (earthing) { onActive(earthing.id); return; } const r = addEarthingSheet(set); save(r.set); onActive(r.id); }}>{earthing ? 'Earthing schematic (open)' : 'Earthing schematic'}</button>;
             })()}
+            {PLAN_TYPES.map((t) => (
+              <button key={`p${t}`} title="A sheet at 1:100 for every level with something on this layout; a level too big for A1 goes over several sheets with a key plan" onClick={() => {
+                close();
+                const r = addPlanSheets(set, project, t);
+                if (!r.ids.length) { onStatus(planLevels(project, t).length ? `Every level's ${PLAN_LABEL[t].toLowerCase()} is in the set` : `Nothing placed for the ${PLAN_LABEL[t].toLowerCase()} yet (Design CAD → Plan)`); return; }
+                save(r.set); onActive(r.ids[0]); onStatus(`${r.ids.length} ${PLAN_LABEL[t].toLowerCase()} sheet(s) added`);
+              }}>{PLAN_LABEL[t]}s — all levels</button>
+            ))}
             <button onClick={async () => { close(); const n = Math.round(Number(await askText('Split all panels into sheets', { label: 'Panels per sheet', initial: '10', required: true, confirmLabel: 'Split' }))); if (!(n > 0)) return; if (set.sheets.length && !(await ask('Replace all sheets?'))) return; save({ ...sheetsByCount(project, n, set.prefix), register: set.register, tags: set.tags, status: set.status, issues: set.issues }); }}>Split all panels into sheets…</button>
           </div>
         )}

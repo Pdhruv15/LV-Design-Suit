@@ -20,9 +20,11 @@ export interface DrawingSheet {
   id: string;
   number: string; // e.g. E-SLD-002
   title: string; // e.g. SLD — MDB-1
-  kind: 'system' | 'board' | 'riser' | 'earthing' | 'earthRiser' | 'earthFloor'; // board = one DB's circuit diagram; riser = a building's riser diagram; earthing = earthing schematic; earthRiser = a building's earthing riser diagram; earthFloor = DB earthing of one floor (or typical floors)
-  buildingId?: string; // riser, earth riser and floor earthing sheets
-  part?: number; // earth riser: sheet of the riser (0 = bottom); floor earthing: floor group (0 = lowest)
+  kind: 'system' | 'board' | 'riser' | 'earthing' | 'earthRiser' | 'earthFloor' | 'plan'; // board = one DB's circuit diagram; riser = a building's riser diagram; earthing = earthing schematic; earthRiser = a building's earthing riser diagram; earthFloor = DB earthing of one floor (or typical floors); plan = a level's lighting, power or ELV layout (src/docs/planLayout.ts)
+  buildingId?: string; // riser, earth riser, floor earthing and plan sheets
+  levelId?: string; // plan sheets
+  plan?: PlanType; // plan sheets
+  part?: number; // earth riser: sheet of the riser (0 = bottom); floor earthing: floor group (0 = lowest); plan: part of a level split over sheets (0 = top left)
   riserStyle?: 'feeders'; // riser sheets: one breaker and cable per board from its panel's busbar (blank = busbar trunking / cable chain)
   boards: string[];
   size: 'auto' | SheetSize;
@@ -86,23 +88,27 @@ export const setOf = (p: Project): DrawingSet => p.drawingSet ?? { prefix: 'E-SL
 export const RISER_PREFIX = 'E-RSR-';
 export const EARTH_PREFIX = 'E-ERT-';
 export const DB_PREFIX = 'E-DB-';
+export type PlanType = 'lighting' | 'power' | 'elv';
+/** Plan sheets count in their own sequence per layout: E-LTG-001, E-PWR-001, E-ELV-001 … */
+export const PLAN_PREFIX: Record<PlanType, string> = { lighting: 'E-LTG-', power: 'E-PWR-', elv: 'E-ELV-' };
 export const sheetNumber = (set: DrawingSet, i: number, prefix = set.prefix) => `${prefix}${String((set.start ?? 1) + i).padStart(set.digits ?? 3, '0')}${set.suffix ?? ''}`;
 /** Numbers in order (prefix, start, digits, suffix); riser sheets count in
  * their own sequence (E-RSR-001 …). With manual numbers only blanks are filled. */
 export const renumber = (set: DrawingSet, force = false): DrawingSet => {
   let sld = 0, rsr = 0, ert = 0;
+  const plans: Record<PlanType, number> = { lighting: 0, power: 0, elv: 0 };
   return {
     ...set,
     sheets: set.sheets.map((s) => {
-      const n = s.kind === 'riser' ? sheetNumber(set, rsr++, set.riserPrefix ?? RISER_PREFIX) : s.kind === 'earthing' || s.kind === 'earthRiser' || s.kind === 'earthFloor' ? sheetNumber(set, ert++, set.earthPrefix ?? EARTH_PREFIX) : sheetNumber(set, sld++);
+      const n = s.kind === 'plan' ? sheetNumber(set, plans[s.plan ?? 'lighting']++, PLAN_PREFIX[s.plan ?? 'lighting']) : s.kind === 'riser' ? sheetNumber(set, rsr++, set.riserPrefix ?? RISER_PREFIX) : s.kind === 'earthing' || s.kind === 'earthRiser' || s.kind === 'earthFloor' ? sheetNumber(set, ert++, set.earthPrefix ?? EARTH_PREFIX) : sheetNumber(set, sld++);
       return { ...s, number: set.manualNumbers && !force && s.number ? s.number : n };
     })
   };
 };
 /** A sheet that has something to draw. */
-export const drawable = (s: DrawingSheet) => (s.kind === 'earthing' ? true : s.kind === 'riser' || s.kind === 'earthRiser' || s.kind === 'earthFloor' ? !!s.buildingId : s.boards.length > 0);
+export const drawable = (s: DrawingSheet) => (s.kind === 'earthing' ? true : s.kind === 'plan' ? !!(s.plan && s.buildingId && s.levelId) : s.kind === 'riser' || s.kind === 'earthRiser' || s.kind === 'earthFloor' ? !!s.buildingId : s.boards.length > 0);
 /** A new sheet starts PRELIMINARY unless the set has a status of its own (sheets without one follow the set). */
-const startStatus = (set: DrawingSet) => (set.status ? undefined : 'PRELIMINARY');
+export const startStatus = (set: DrawingSet) => (set.status ? undefined : 'PRELIMINARY');
 /** The earthing schematic sheet (one per project). */
 export function addEarthingSheet(set: DrawingSet): { set: DrawingSet; id: string } {
   const id = `sh-${Date.now().toString(36)}`;
@@ -353,8 +359,8 @@ export function moveSheet(set: DrawingSet, from: number, to: number): DrawingSet
   return renumber({ ...set, sheets });
 }
 
-export type SheetType = 'sld' | 'db' | 'riser' | 'earthing';
-export const sheetType = (s: DrawingSheet): SheetType => (s.kind === 'board' ? 'db' : s.kind === 'riser' ? 'riser' : s.kind === 'earthing' || s.kind === 'earthRiser' || s.kind === 'earthFloor' ? 'earthing' : 'sld');
+export type SheetType = 'sld' | 'db' | 'riser' | 'earthing' | 'plan';
+export const sheetType = (s: DrawingSheet): SheetType => (s.kind === 'board' ? 'db' : s.kind === 'plan' ? 'plan' : s.kind === 'riser' ? 'riser' : s.kind === 'earthing' || s.kind === 'earthRiser' || s.kind === 'earthFloor' ? 'earthing' : 'sld');
 export interface SheetFilter { q?: string; status?: string; rev?: string; type?: SheetType | '' }
 export type SheetSort = { key: 'order' | 'number' | 'title' | 'status' | 'rev' | 'date'; desc?: boolean };
 

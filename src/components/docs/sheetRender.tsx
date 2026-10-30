@@ -24,6 +24,7 @@ import { feederRiserLayout } from '../../diagram/feederRiserLayout';
 import { boardIncomerLabel } from '../../docs/loadScheduleDoc';
 import SingleLineDiagram from '../SingleLineDiagram';
 import { dxfToDwg } from '../../engines/cad/cadEngine';
+import { planDrawing, planNotes, planScale } from '../../docs/planLayout';
 
 const noop = () => {};
 
@@ -34,6 +35,7 @@ export async function renderSheet(project: Project, set: DrawingSet, s: DrawingS
   document.body.appendChild(host);
   const root = createRoot(host);
   try {
+    if (s.kind === 'plan') { const d = planOf(project, set, s); return d && { svg: d.svg, w: SHEET_MM[d.size].w, h: SHEET_MM[d.size].h }; }
     if (s.kind === 'earthing') return earthingDrawing(project, undefined, true, { mono: true }); // printed sheet: black and white
     if (s.kind === 'earthRiser' || s.kind === 'earthFloor') {
       if (!s.buildingId) return undefined;
@@ -82,6 +84,10 @@ export async function renderSheet(project: Project, set: DrawingSet, s: DrawingS
   }
 }
 
+
+/** A plan sheet's drawing, its match lines naming the sheets of the level's other parts. */
+const planOf = (project: Project, set: DrawingSet, s: DrawingSheet) => planDrawing(project, s, (part) =>
+  set.sheets.find((x) => x.kind === 'plan' && x.plan === s.plan && x.buildingId === s.buildingId && x.levelId === s.levelId && (x.part ?? 0) === part)?.number);
 
 /** Title block values of sheet i of the set. */
 export const sheetInfo = (set: DrawingSet, s: DrawingSheet, i: number): SheetInfo => ({
@@ -132,6 +138,12 @@ const reserveOf = (s: DrawingSheet) => (s.kind === 'board' ? 0 : LEGEND_RESERVE_
  * withLegend: show the CABLE SCHEDULE even if this sheet itself has full
  * cable text (another sheet of the set uses numbers). */
 export async function sheetHtml(project: Project, set: DrawingSet, s: DrawingSheet, run?: CalcRun, withLegend = false, withMarkups = true): Promise<{ html: string; size: SheetSize; fits: boolean; refs: boolean; svg: string; legendSvg: string } | undefined> {
+  if (s.kind === 'plan') {
+    // Drawn at its scale on the paper it needs (or the chosen one).
+    const d = planOf(project, set, s);
+    if (!d) return undefined;
+    return { html: sheetHtmlFrom(project, set, s, d.svg, d.size, false, d.legendSvg, withMarkups), size: d.size, fits: true, refs: false, svg: d.svg, legendSvg: d.legendSvg };
+  }
   const mode = s.cableLabels ?? project.drawing?.cableLabels ?? 'auto';
   let refs = mode === 'ref' && s.kind === 'system';
   let r = await renderSheet(project, set, s, run, refs);
@@ -156,6 +168,7 @@ export function sheetHtmlFrom(project: Project, set: DrawingSet, s: DrawingSheet
 /** Title block values, legend and cable schedule of one sheet (PDF and DXF). */
 export function fullSheetInfo(project: Project, set: DrawingSet, s: DrawingSheet, legend: boolean, legendSvg = '', withMarkups = true): SheetInfo {
   const info: SheetInfo = { ...sheetInfo(set, s, set.sheets.indexOf(s)), legendSvg, ...(withMarkups && s.markups?.length ? { markups: s.markups } : {}) };
+  if (s.kind === 'plan') { info.notes = [...planNotes(project, s), ...(info.notes ?? [])]; info.scale = `1:${planScale(s.scale)}`; }
   if (legend) {
     const boards = new Set(set.sheets.flatMap((x) => (x.kind === 'system' ? x.boards : [])));
     info.cables = cableRefsUsed(project, project.feeders.filter((f) => boards.has(f.boardId)));

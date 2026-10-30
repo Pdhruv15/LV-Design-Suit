@@ -18,6 +18,7 @@ import { safeFileName, saveBinary, savePdf } from '../../util/files';
 import { registerHtml } from '../../docs/drawingRegister';
 import { buildTransmittalHtml } from '../../docs/submissionReport';
 import { submissionForIssue } from '../../model/submissions';
+import { PLAN_LABEL } from '../../docs/planLayout';
 import { exportDrawingSet, exportEverythingZip, exportSheetsDxf, registerRows, sheetHtml, SheetPreview } from './sheetRender';
 import SheetGrid from './SheetGrid';
 import { Page, Modal } from '../ui';
@@ -197,7 +198,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
             <input className="bi-text dr-search" type="search" placeholder="Search number, title, panel…" value={filter.q ?? ''} onChange={(e) => setFilter({ ...filter, q: e.target.value })} />
             <select className="chip" value={filter.status ?? ''} onChange={(e) => setFilter({ ...filter, status: e.target.value || undefined })}><option value="">All statuses</option>{statuses.map((x) => <option key={x}>{x}</option>)}</select>
             <select className="chip" value={filter.rev ?? ''} onChange={(e) => setFilter({ ...filter, rev: e.target.value || undefined })}><option value="">All revisions</option>{revs.map((x) => <option key={x} value={x}>Rev {x}</option>)}</select>
-            <select className="chip" value={filter.type ?? ''} onChange={(e) => setFilter({ ...filter, type: (e.target.value || undefined) as SheetFilter['type'] })}><option value="">All sheet types</option><option value="sld">SLD sheets</option><option value="db">DB circuit diagrams</option><option value="riser">Riser diagrams</option><option value="earthing">Earthing schematic</option></select>
+            <select className="chip" value={filter.type ?? ''} onChange={(e) => setFilter({ ...filter, type: (e.target.value || undefined) as SheetFilter['type'] })}><option value="">All sheet types</option><option value="sld">SLD sheets</option><option value="db">DB circuit diagrams</option><option value="riser">Riser diagrams</option><option value="earthing">Earthing schematic</option><option value="plan">Plan layouts</option></select>
             {(filtered || sort.key !== 'order') && <button className="linkish" onClick={() => { setFilter({}); setSort({ key: 'order' }); }}>Clear filters</button>}
             <span className="sp" />
             <span className="m">{visible.length} of {set.sheets.length} sheets</span>
@@ -255,7 +256,7 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
                         <td><b>{s.number}</b></td>
                         <td>
                           {txt(s.title, (v) => v && setSheet(s.id, { title: v }), '', 260)}
-                          <div className="m dr-panels">{s.kind === 'earthing' ? 'Earthing schematic (from Design → Earth pits)' : s.kind === 'riser' ? `${s.riserStyle ? 'Riser schematic' : 'Riser diagram'} — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'}` : s.kind === 'earthRiser' || s.kind === 'earthFloor' ? `${s.kind === 'earthRiser' ? 'Earthing riser' : 'Floor earthing'} — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'}${s.part ? ` · part ${s.part + 1}` : ''}` : s.kind === 'board' ? `${s.boards[0]} circuit diagram` : s.boards.length ? s.boards.join(', ') : <span className="warn">no panels — Edit to tick them</span>}</div>
+                          <div className="m dr-panels">{s.kind === 'earthing' ? 'Earthing schematic (from Design → Earth pits)' : s.kind === 'plan' ? `${PLAN_LABEL[s.plan ?? 'lighting']} — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'} (from Design CAD)` : s.kind === 'riser' ? `${s.riserStyle ? 'Riser schematic' : 'Riser diagram'} — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'}` : s.kind === 'earthRiser' || s.kind === 'earthFloor' ? `${s.kind === 'earthRiser' ? 'Earthing riser' : 'Floor earthing'} — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'}${s.part ? ` · part ${s.part + 1}` : ''}` : s.kind === 'board' ? `${s.boards[0]} circuit diagram` : s.boards.length ? s.boards.join(', ') : <span className="warn">no panels — Edit to tick them</span>}</div>
                         </td>
                         <td><select className="bi-sel" value={s.size} onChange={(e) => setSheet(s.id, { size: e.target.value as DrawingSheet['size'] })}><option value="auto">Auto</option>{SIZES.map((z) => <option key={z}>{z}</option>)}</select></td>
                         <td><span className="dr-dot" style={{ background: statusColor(st) }} />{st || <span className="m">—</span>}</td>
