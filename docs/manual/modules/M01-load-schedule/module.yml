@@ -3,10 +3,10 @@ title: Load Schedule
 slug: load-schedule
 section_prefix: LS
 order: 10
-version: "0.1"
-app_version: "1.80"
+version: "0.2"
+app_version: "2.13"
 status: draft
-last_reviewed: "2026-10-24"
+last_reviewed: "2026-10-30"
 audience:
   - electrical designers
   - electrical engineers

@@ -25,7 +25,7 @@ Confirm:
 <a id="SLD-030"></a>
 ## Interface overview
 
-The SLD work area contains:
+Select the **SLD** tab, the second tab in the ribbon. **Schematic > SLD** and **Detailed design > SLD** open the same canvas. The SLD work area contains:
 
 1. The panel tree on the left.
 2. System, board, earthing, and riser view tabs.
@@ -170,7 +170,7 @@ ribbon's **Issue and export** group.
 For a quick export of the complete system diagram, select **Export** on the SLD,
 complete the title-block details, and export SVG, DXF, or PDF.
 
-For a controlled drawing set, open **Reports > Drawings**. Preview the sheets and
+For a controlled drawing set, open **Documents > Drawings**. Preview the sheets and
 export a combined PDF, PDF per sheet, DXF per sheet, a ZIP package, or the drawing
 register.
 
