@@ -5,9 +5,9 @@ import type { CadToggles } from './CadCanvas';
 /** The tool working on the drawing: none (a click inspects the object under it), a measuring tool, a room tool (`room`
  * click inside, `trace` its corners, `name` pick its name), drawing a cable tray run (`tray`) or a feeder's cable route
  * (`cable`, or `link` a line of the drawing as it), placing a device (or `fill` a room with an ELV device)
- * (`dev`), modifying the selected object (`move`, `copy`, `rotate`), drawing (`line`, `pline`, `rect`, `circle`, `arc`)
+ * (`dev`), wiring a circuit (`wire`, Wire one), modifying the selected object (`move`, `copy`, `rotate`), drawing (`line`, `pline`, `rect`, `circle`, `arc`)
  * or annotating (`text`, `dim`). */
-export type CadTool = 'none' | 'dist' | 'area' | 'room' | 'trace' | 'name' | 'tray' | 'cable' | 'link' | 'dev' | 'fill' | 'move' | 'copy' | 'rotate' | 'line' | 'pline' | 'rect' | 'circle' | 'arc' | 'text' | 'dim';
+export type CadTool = 'none' | 'dist' | 'area' | 'room' | 'trace' | 'name' | 'tray' | 'cable' | 'link' | 'dev' | 'fill' | 'wire' | 'move' | 'copy' | 'rotate' | 'line' | 'pline' | 'rect' | 'circle' | 'arc' | 'text' | 'dim';
 
 /** Sample plans shipped with the app (electron/samples, made by scripts/make-sample-villa-plans.mjs), shown while no
  * drawing is open — a test aid. To remove: empty this list and delete the files and cad:sampleBytes. */
@@ -30,8 +30,8 @@ const rememberPath = (projectId: string | undefined, file: string, path?: string
 };
 
 /** What the ribbon asks of the page showing the drawing; nothing while the page is not shown. */
-export interface CadActions { save: () => void; saveDwg: () => void; remove: () => void; addFound: () => void; schedules: () => void; copyTo: (levelKey: string) => void }
-export const NO_ACTIONS: CadActions = { save: () => {}, saveDwg: () => {}, remove: () => {}, addFound: () => {}, schedules: () => {}, copyTo: () => {} };
+export interface CadActions { save: () => void; saveDwg: () => void; remove: () => void; addFound: () => void; schedules: () => void; copyTo: (levelKey: string) => void; wireAll: () => void }
+export const NO_ACTIONS: CadActions = { save: () => {}, saveDwg: () => {}, remove: () => {}, addFound: () => {}, schedules: () => {}, copyTo: () => {}, wireAll: () => {} };
 
 /** State of the CAD view, kept by the app so the drawing stays open while other pages are shown. */
 export function useCad(projectId: string | undefined) {
@@ -52,6 +52,8 @@ export function useCad(projectId: string | undefined) {
   const [tray, setTray] = useState<{ widthMm: number; route: string }>({ widthMm: 300, route: '' });
   /** ELV coverage shown (Devices → Coverage) for the system of the ELV device chosen. */
   const [coverage, setCoverage] = useState(false);
+  /** Circuit wiring tags shown on the plan (Wiring → Tags). */
+  const [wireTags, setWireTags] = useState(true);
   /** The feeder whose cable route is drawn or linked. */
   const [cableFeeder, setCableFeeder] = useState('');
   /** The Layer roles table in the side panel (File → Layer roles). */
@@ -81,7 +83,7 @@ export function useCad(projectId: string | undefined) {
     else { setToggles((t) => ({ ...t, grid: false })); setGridDots(false); }
   };
 
-  return { view, open, layersOn, setLayer, allLayers, toggles, toggle, gridDots, cycleGrid, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, history, say, tool, setTool, device, setDevice, feederId, setFeederId, boardId, setBoardId, selected, setSelected, showDevices, setShowDevices, tray, setTray, cableFeeder, setCableFeeder, coverage, setCoverage, showRoles, setShowRoles, actions, textAt, setTextAt };
+  return { view, open, layersOn, setLayer, allLayers, toggles, toggle, gridDots, cycleGrid, fitKey, fit: () => setFitKey((k) => k + 1), showLayers, setShowLayers, history, say, tool, setTool, device, setDevice, feederId, setFeederId, boardId, setBoardId, selected, setSelected, showDevices, setShowDevices, tray, setTray, cableFeeder, setCableFeeder, wireTags, setWireTags, coverage, setCoverage, showRoles, setShowRoles, actions, textAt, setTextAt };
 }
 
 export type CadState = ReturnType<typeof useCad>;

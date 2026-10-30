@@ -431,6 +431,8 @@ export interface CadLengthSettings {
   verticalM?: number; // rises and drops per run (tray down to the board at each end); default 6
   terminationM?: number; // both ends together; default 3
   wastePct?: number; // default 5
+  dropM?: number; // circuit wiring: drop to each device; default 1.5 (src/model/cadWiring.ts)
+  allowancePct?: number; // circuit wiring allowance; default 10
 }
 
 export interface Project {
@@ -528,6 +530,8 @@ export interface Project {
   cadPlans?: CadPlan[];
   /** LV points (lights, sockets…) placed on plans in the CAD view, on circuits (src/model/cadDevices.ts). */
   lvPoints?: import('./model/cadDevices').LvPoint[];
+  /** Circuits wired on the CAD plans (Design CAD → Plan → Wiring), with the device order the engineer saved. */
+  cadWiring?: import('./model/cadWiring').CadWiring[];
   /** Highest LV point number given out, so a deleted point's ID is never reused. */
   lvPointSeq?: number;
   /** Links made on floor plans in the Floor plan window, per drawing file (the drawing is never changed). */

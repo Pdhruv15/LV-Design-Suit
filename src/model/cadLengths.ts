@@ -3,7 +3,7 @@ import type { CadLengthSettings, Feeder, Project } from '../types';
 /** A cable route measured on the CAD floor plan, in drawing units. */
 export interface CadRoute { feederId: string; length: number; pieces: number }
 
-export const CAD_LENGTH_DEFAULTS: Required<CadLengthSettings> = { units: 'mm', verticalM: 6, terminationM: 3, wastePct: 5 };
+export const CAD_LENGTH_DEFAULTS: Required<CadLengthSettings> = { units: 'mm', verticalM: 6, terminationM: 3, wastePct: 5, dropM: 1.5, allowancePct: 10 };
 
 const UNIT_M: Record<NonNullable<CadLengthSettings['units']>, number> = { mm: 0.001, cm: 0.01, m: 1 };
 /** Metres per drawing unit from the drawing's INSUNITS code (1 in, 2 ft, 4 mm, 5 cm, 6 m); unitless or unknown

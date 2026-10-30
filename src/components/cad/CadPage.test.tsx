@@ -175,6 +175,42 @@ describe('CAD view', () => {
     expect(project.feeders.find((f) => f.id === 'DB-GF1-Y1')!.points?.ltg).toBe(before);
   });
 
+  it('wires the circuits on the level, takes one off with Wire one, sends the length to the schedule and saves the wiring', async () => {
+    const saveBinary = vi.fn(async () => '/plans/out.dxf');
+    (window as unknown as { lvds: { files?: unknown } }).lvds.files = { saveBinary };
+    const start: Project = {
+      ...villa,
+      boards: villa.boards.map((b) => (b.id === 'DB-GF1' ? { ...b, planPoint: { x: 1, y: 1 }, level: { building: 'V', level: 'GF' } } : b)),
+      lvPoints: [
+        { id: 'P1', type: 'ltg', feederId: 'DB-GF1-Y1', buildingId: 'V', levelId: 'GF', x: 3, y: 9 },
+        { id: 'P2', type: 'ltg', feederId: 'DB-GF1-Y1', buildingId: 'V', levelId: 'GF', x: 6, y: 9 }
+      ]
+    };
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    await command('WC');
+    expect(project.cadWiring).toEqual([{ feederId: 'DB-GF1-Y1' }]);
+    expect(onChange.mock.calls[0][1]).toMatch(/^1 circuit wired on .* · Update schedules sends the lengths to the cable schedule/);
+    await command('W1');
+    expect(state.tool).toBe('wire');
+    act(() => { state.toggle('osnap'); });
+    await clickAt(3000, 9000);
+    expect(project.cadWiring).toBeUndefined();
+    expect(onChange.mock.calls[1][1]).toMatch(/^Wiring of DB-GF1\/Y1 taken off/);
+    await clickAt(3000, 9000);
+    expect(onChange.mock.calls[2][1]).toMatch(/^DB-GF1\/Y1 · \dC × [\d.]+ mm² · \d+ m wired/);
+    expect(document.body.textContent).toContain('1 circuit wired on this level.');
+    await command('SCHED');
+    const m = /· (\d+) m wired/.exec(onChange.mock.calls[2][1])![1];
+    expect(project.feeders.find((f) => f.id === 'DB-GF1-Y1')!.lengthM).toBe(Number(m));
+    await command('save');
+    await flush();
+    const text = new TextDecoder().decode((saveBinary.mock.calls[0] as unknown as [{ bytes: Uint8Array }])[0].bytes);
+    expect(text).toContain('E-LV-WIRING');
+    expect(text).toContain('E-LV-TAGS');
+    expect(document.querySelector('.cad-hist')?.textContent).toMatch(/1 circuit wired on E-LV-WIRING \/ E-LV-TAGS\)/);
+  });
+
   it('places an ELV device and saves the drawing as DXF with the devices on their layers', async () => {
     const saveBinary = vi.fn(async () => '/plans/out.dxf');
     (window as unknown as { lvds: { files?: unknown } }).lvds.files = { saveBinary };
