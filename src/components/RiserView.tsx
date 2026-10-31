@@ -4,7 +4,7 @@ import RiserDiagram from '../diagram/RiserDiagram';
 import FeederRiserDiagram from '../diagram/FeederRiserDiagram';
 import { riserLayout } from '../diagram/riserLayout';
 import { feederRiserLayout } from '../diagram/feederRiserLayout';
-import { dbRiserLayout, dbRiserOffered } from '../model/dbRiser';
+import { dbRiserLayout, dbRiserOffered, dbRiserSummary } from '../model/dbRiser';
 import { dbRiserDrawing, dbRiserLegend, dbRiserSheetNos } from '../diagram/dbRiserDrawing';
 import { addDbRiserSheets, addRiserSheet, setOf } from '../model/drawingSet';
 
@@ -64,6 +64,7 @@ export default function RiserView({ project, onChange, onStatus, onOpenSheet }: 
             <div key={i} dangerouslySetInnerHTML={{ __html: dbRiserDrawing(project, b.id, { sheetNos: dbRiserSheetNos(setOf(project), b.id) }, i, ll).svg }} />
           )).concat(<div key="legend" dangerouslySetInnerHTML={{ __html: dbRiserLegend(ll, 0) }} />)) : style === 'feeders' ? <FeederRiserDiagram project={project} buildingId={b.id} layout={fl} /> : <RiserDiagram project={project} buildingId={b.id} layout={bl} />}
         </div></div>
+        {ll && !ll.empty && <p className="m earth-key">{dbRiserSummary(ll).rows.map(([a, v]) => `${a}: ${v}`).join(' · ')}</p>}
         <p className="m earth-key">Working view: the title block and drawing number are on the sheet (Add to sheet).</p>
       </div>
     </div>

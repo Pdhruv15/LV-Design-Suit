@@ -18,7 +18,7 @@ import SystemDiagram, { LegendSvg } from '../SystemDiagram';
 import { earthingDrawing } from '../../diagram/earthingDrawing';
 import { earthFloorDrawing, earthRiserDrawing, earthSheetRefs } from '../../diagram/earthRiserDrawing';
 import { dbRiserDrawing, dbRiserLegend, dbRiserSheetNos } from '../../diagram/dbRiserDrawing';
-import { dbRiserLayout } from '../../model/dbRiser';
+import { dbRiserLayout, dbRiserSummary } from '../../model/dbRiser';
 import RiserDiagram, { RiserLegendSvg } from '../../diagram/RiserDiagram';
 import { riserLayout } from '../../diagram/riserLayout';
 import FeederRiserDiagram, { FeederRiserLegendSvg } from '../../diagram/FeederRiserDiagram';
@@ -46,7 +46,7 @@ export async function renderSheet(project: Project, set: DrawingSet, s: DrawingS
     }
     if (s.kind === 'riser') {
       if (!s.buildingId) return undefined;
-      if (s.riserStyle === 'byLevel') return dbRiserDrawing(project, s.buildingId, { sheetNos: dbRiserSheetNos(set, s.buildingId), countTable: s.countTable }, s.part ?? 0);
+      if (s.riserStyle === 'byLevel') return dbRiserDrawing(project, s.buildingId, { sheetNos: dbRiserSheetNos(set, s.buildingId) }, s.part ?? 0);
       flushSync(() => root.render(s.riserStyle === 'feeders' ? <FeederRiserDiagram project={project} buildingId={s.buildingId!} /> : <RiserDiagram project={project} buildingId={s.buildingId!} />));
       await new Promise((r) => requestAnimationFrame(() => r(null)));
       const svg = host.querySelector<SVGSVGElement>('.sysdiag > svg');
@@ -171,6 +171,7 @@ export function sheetHtmlFrom(project: Project, set: DrawingSet, s: DrawingSheet
 /** Title block values, legend and cable schedule of one sheet (PDF and DXF). */
 export function fullSheetInfo(project: Project, set: DrawingSet, s: DrawingSheet, legend: boolean, legendSvg = '', withMarkups = true): SheetInfo {
   const info: SheetInfo = { ...sheetInfo(set, s, set.sheets.indexOf(s)), legendSvg, ...(withMarkups && s.markups?.length ? { markups: s.markups } : {}) };
+  if (s.kind === 'riser' && s.riserStyle === 'byLevel' && s.buildingId) { const L = dbRiserLayout({ ...project, drawingSet: set }, s.buildingId); if (!L.empty) info.summary = dbRiserSummary(L); }
   if (s.kind === 'plan') { info.notes = [...planNotes(project, s), ...(info.notes ?? [])]; info.scale = `1:${planScale(s.scale)}`; }
   if (legend) {
     const boards = new Set(set.sheets.flatMap((x) => (x.kind === 'system' ? x.boards : [])));

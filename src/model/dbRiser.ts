@@ -325,6 +325,17 @@ export function rowsTotal(rows: DbRiserRow[]): RowCounts {
   return t;
 }
 
+/** The building's boards in one short table, for the sheet beside its title block. Tap-off boxes are listed apart from the total of boards. */
+export function dbRiserSummary(L: DbRiserLayout): { title: string; rows: [string, string][] } {
+  const t = rowsTotal(L.rows);
+  const labels: Record<CountCol, string> = { mdb: 'MDB / EMDB', smdb: 'SMDB', db: 'DB', edb: 'EDB', mcc: 'MCC', ups: 'UPS' };
+  const taps = L.rows.reduce((s, r) => s + r.tapOffs * r.floors.length, 0);
+  return {
+    title: `BOARD SUMMARY — ${L.buildingName.toUpperCase()}`,
+    rows: [...COUNT_COLS.filter((k) => t[k]).map((k): [string, string] => [labels[k], String(t[k])]), ['Total boards', String(countTotal(t))], ...(taps ? [['Tap-off boxes (TOB)', String(taps)] as [string, string]] : [])]
+  };
+}
+
 /** A floor's references in a box: a short list, or first … last; a typical row also gives its last floor. */
 export function refLines(k: Pick<KindCount, 'ids' | 'lastIds'>): string[] {
   const { ids, lastIds } = k;

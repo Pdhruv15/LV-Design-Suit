@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
 import type { Board, Feeder, Project } from '../types';
-import { cablesAtGap, countTotal, dbRiserLayout, dbRiserOffered, dbRiserTitles, flagLetter, refLines, rowsTotal } from './dbRiser';
+import { cablesAtGap, countTotal, dbRiserLayout, dbRiserOffered, dbRiserSummary, dbRiserTitles, flagLetter, refLines, rowsTotal } from './dbRiser';
 import { dbRiserDrawing, dbRiserSheetNos } from '../diagram/dbRiserDrawing';
 import { addDbRiserSheets, drawable, setOf, sheetChecks, toggleRiserBreak, type DrawingSet } from './drawingSet';
 import { buildSheetDxfPages } from '../docs/sheetDxf';
@@ -96,14 +96,12 @@ describe('DB riser by level', () => {
     expect(set.sheets.every(drawable)).toBe(true);
     p = { ...p, drawingSet: set };
     const nos = dbRiserSheetNos(set, B)!;
-    const a = dbRiserDrawing(p, B, { sheetNos: nos, countTable: true }, 0), b = dbRiserDrawing(p, B, { sheetNos: nos, countTable: true }, 1);
+    const a = dbRiserDrawing(p, B, { sheetNos: nos }, 0), b = dbRiserDrawing(p, B, { sheetNos: nos }, 1);
     expect(a.pages).toBe(2);
     expect(a.svg).toContain(`CONTINUES ON ${nos[1]}`);
     expect(b.svg).toContain(`CONTINUED FROM ${nos[0]}`);
     expect(a.svg).toContain(`A → ${nos[1]}`);
     expect(b.svg).toContain(`A ← ${nos[0]}`);
-    expect(b.svg).toContain('>Building<');
-    expect(a.svg).not.toContain('>Building<');
     // Taking the break out leaves one sheet needed: the extra one is reported.
     const back = toggleRiserBreak(set, B, typ.floors.map((f) => f.key));
     expect(dbRiserTitles({ ...p, drawingSet: back }, B)).toEqual(['DB riser diagram — Tower']);
@@ -209,13 +207,12 @@ describe('DB riser by level', () => {
     expect(s).toContain('Coupler BC-1 to MDB-1 · 1600 A · N.C.');
   });
 
-  it('prints the board count table only when chosen', () => {
+  it('sums up the building for the sheet, with tap-off boxes apart from the boards', () => {
     const p = tower();
-    expect(dbRiserDrawing(p, B).svg).not.toContain('BOARDS PER LEVEL');
-    const svg = dbRiserDrawing(p, B, { countTable: true }).svg;
-    expect(svg).toContain('BOARDS PER LEVEL');
-    expect(svg).toContain('TOB');
-    expect(svg).toContain('4×4=16');
+    expect(dbRiserSummary(dbRiserLayout(p, B))).toEqual({ title: 'BOARD SUMMARY — TOWER', rows: [['MDB / EMDB', '2'], ['SMDB', '6'], ['DB', '9'], ['EDB', '4'], ['MCC', '1'], ['Total boards', '22']] });
+    p.busRisers = [{ id: 'BR1', name: 'BR-1', sourceBoardId: 'MDB-1', material: 'cu', feedM: 5, floorHeightM: 3.5, offsetFloors: 0, elementM: 3, elbows: 0, floors: [0, 1, 2, 3].map((i) => ({ id: `f${i}`, name: `L${i}`, boardId: `SMDB-${i}` })) }];
+    expect(dbRiserSummary(dbRiserLayout(p, B)).rows.slice(-1)[0]).toEqual(['Tap-off boxes (TOB)', '4']);
+    expect(dbRiserDrawing(p, B).svg).not.toContain('BOARD SUMMARY');
   });
 
   it('has a legend of what is on the sheet only', () => {
@@ -246,6 +243,8 @@ describe('DB riser by level', () => {
     expect(sheet.html).toContain('DB riser diagram — Tower (2 of 2)');
     expect(sheet.html).toContain('LEGEND');
     expect(sheet.html).toContain('Match line between sheets');
+    expect(sheet.html).toContain('BOARD SUMMARY — TOWER');
+    expect(sheet.html).toContain('Total boards');
     expect(sheet.legendSvg).toContain('Match line between sheets');
     const noLegend = (await sheetHtml({ ...p, drawing: { ...p.drawing, legend: false } }, set, s))!;
     expect(noLegend.legendSvg).toBe('');
@@ -253,6 +252,7 @@ describe('DB riser by level', () => {
     const all = dxf.map((f) => f.data).join('');
     expect(all).toContain(s.number);
     expect(all).toContain('LEGEND');
+    expect(all).toContain('Total boards');
   });
 
   it('reports boards with no level instead of counting short', () => {

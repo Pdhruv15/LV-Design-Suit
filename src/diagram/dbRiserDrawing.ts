@@ -1,13 +1,13 @@
 import type { Project } from '../types';
 import type { DrawingSet } from '../model/drawingSet';
-import { cablesAtGap, COUNT_COLS, countTotal, dbRiserLayout, entryHeight, ENTRY_H, hasSourceBand, MAIN_H, refLines, ROW_MIN_H, rowsTotal, SOURCE_H, type CountCol, type DbRiserLayout, type DbRiserMain, type DbRiserRow, type DbRiserRun, type KindCount, type RowEntry } from '../model/dbRiser';
+import { cablesAtGap, dbRiserLayout, entryHeight, ENTRY_H, hasSourceBand, MAIN_H, refLines, ROW_MIN_H, SOURCE_H, type DbRiserLayout, type DbRiserMain, type DbRiserRun, type KindCount, type RowEntry } from '../model/dbRiser';
 
 /** One sheet of a building's "Boards by level" riser (printable SVG, black and white).
  * Levels top to bottom, one column group per main panel with its busbar and one
  * breaker per outgoing, the same columns on every sheet so the risers line up
  * across a break. Boxes give the real board references and each busbar tap-off
- * has its own box. Below: the riser table, notes and, when chosen, a table of
- * boards per level. */
+ * has its own box. Below: the riser table and notes. The sheet's side column
+ * has the legend and, above the title block, the building's board summary. */
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const ln = (x1: number, y1: number, x2: number, y2: number, w = 1.2) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#111" stroke-width="${w}"/>`;
@@ -41,7 +41,6 @@ const breakerBox = (x: number, y: number) => `<rect x="${x - 4}" y="${y}" width=
 const transformer = (cx: number, cy: number) => `<circle cx="${cx}" cy="${cy - 6}" r="10" fill="none" stroke="#111" stroke-width="1.2"/><circle cx="${cx}" cy="${cy + 6}" r="10" fill="none" stroke="#111" stroke-width="1.2"/>`;
 const generator = (cx: number, cy: number) => `<circle cx="${cx}" cy="${cy}" r="11" fill="#fff" stroke="#111" stroke-width="1.2"/>${text(cx, cy + 4, 'G', 'text-anchor="middle" font-weight="bold"')}`;
 const dashed = (x1: number, y1: number, x2: number, y2: number) => ln(x1, y1, x2, y2, 1.4).replace('/>', ' stroke-dasharray="5 3"/>');
-const COL_LABEL: Record<CountCol, string> = { mdb: 'MDB', smdb: 'SMDB', db: 'DB', edb: 'EDB', mcc: 'MCC', ups: 'UPS' };
 const TOP = 92, MATCH_H = 34;
 
 interface Group { main: DbRiserMain; x1: number; x2: number; areaX: number; runX: Map<string, number>; headW: number; kidW: number; tobW: number }
@@ -117,8 +116,6 @@ function entryBoxes(e: RowEntry, g: Group, y: number): string {
 export interface DbRiserOpts {
   /** Sheet numbers of the riser's sheets (bottom first), for the match lines and riser table. */
   sheetNos?: string[];
-  /** A table of boards per level on the sheet. */
-  countTable?: boolean;
 }
 
 /** One sheet of the riser (part 0 = the bottom sheet). */
@@ -346,35 +343,6 @@ export function dbRiserDrawing(project: Project, buildingId: string, opts: DbRis
   notes.forEach((t, i) => lines.push(text(20, y + 15 + i * 13, `${i + 1}. ${t}`, 'font-size="8.5"')));
   y += 15 + notes.length * 13 + 12;
 
-  // Boards per level, when chosen.
-  if (opts.countTable) {
-    const cols = COUNT_COLS.filter((k) => k !== 'ups' || L.rows.some((r) => r.counts.ups));
-    const widths = [78, 34, 38, ...cols.map((k) => (k === 'smdb' ? 44 : 38)), 90];
-    const xs = widths.reduce<number[]>((a, w) => [...a, a[a.length - 1] + w], [20]);
-    const row = (cells: string[], bold: boolean) => {
-      cells.forEach((v, j) => lines.push(text(xs[j] + 3, y + 13, v, `font-size="9"${bold || !j ? ' font-weight="bold"' : ''}`)));
-      for (const x of xs) lines.push(ln(x, y, x, y + 18, 0.5));
-      lines.push(ln(20, y + 18, xs[xs.length - 1], y + 18, 0.5));
-      y += 18;
-    };
-    const dash = (n: number) => (n ? String(n) : '–');
-    const totalRow = (label: string, rows: DbRiserRow[]) => {
-      const t = rowsTotal(rows);
-      row([label, String(rows.reduce((s, r) => s + r.floors.length, 0)), dash(rows.reduce((s, r) => s + r.tapOffs * r.floors.length, 0)), ...cols.map((k) => dash(t[k])), String(countTotal(t))], true);
-    };
-    lines.push(text(20, y, 'BOARDS PER LEVEL', 'font-size="9" font-weight="bold"'));
-    y += 6;
-    lines.push(ln(20, y, xs[xs.length - 1], y, 0.5));
-    row(['Level', 'Fl.', 'TOB', ...cols.map((k) => COL_LABEL[k]), 'All boards'], true);
-    for (const i of [...page].reverse()) {
-      const r = L.rows[i], n = r.floors.length, per = countTotal(r.counts);
-      row([r.label, String(n), dash(r.tapOffs), ...cols.map((k) => dash(r.counts[k])), n > 1 ? `${per}×${n}=${per * n}` : String(per)], false);
-    }
-    totalRow('Sheet', page.map((i) => L.rows[i]));
-    if (L.pages.length > 1 && p === L.pages.length - 1) totalRow('Building', L.rows);
-    y += 14;
-  }
-
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${y}" width="${W}" height="${y}" font-family="Arial" font-size="10" fill="#111">
   <rect width="${W}" height="${y}" fill="#fff"/>
   ${lines.join('\n')}
@@ -433,8 +401,8 @@ const LEGEND: { key: string; label: string; draw: (x: number, y: number) => stri
 export function dbRiserLegend(L: DbRiserLayout, part = 0): string {
   if (L.empty) return '';
   const used = usedOn(L, part), items = LEGEND.filter((e) => used.has(e.key));
-  const W = 300, rowH = 34, h = 40 + items.length * rowH;
-  const body = items.map((e, i) => { const y = 32 + 21 + i * rowH; return e.draw(34, y) + text(64, y + 4, e.label); }).join('');
+  const W = 380, rowH = 30, h = 40 + items.length * rowH;
+  const body = items.map((e, i) => { const y = 32 + 19 + i * rowH; return e.draw(34, y) + text(64, y + 4, e.label); }).join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${h}" width="${W}" height="${h}" font-family="Arial" font-size="10" fill="#111"><rect x="0.5" y="0.5" width="${W - 1}" height="${h - 1}" fill="#fff" stroke="#111" stroke-width="1"/>${text(12, 22, 'LEGEND', 'font-weight="bold"')}${ln(0, 32, W, 32, 1)}${body}</svg>`;
 }
 

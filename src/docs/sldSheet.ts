@@ -84,6 +84,8 @@ export interface SheetInfo { no: string; title: string; count: number; index: nu
   cables?: { ref: number; text: string; fireRated?: boolean }[];
   /** Symbol legend as SVG: goes in the legend column with the cable schedule and abbreviations. */
   legendSvg?: string;
+  /** A short table at the foot of the legend column, just above the title block. */
+  summary?: { title: string; rows: [string, string][] };
   /** Notes on this sheet only (after the project's SLD notes). */
   notes?: string[];
   /** Markups drawn on this sheet (paper mm). */
@@ -137,7 +139,8 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
   // Legend column on the right (top to bottom): LEGEND, CABLE SCHEDULE,
   // ABBREVIATIONS — one width, one alignment. Without a column (single
   // SLD export) the abbreviations stay bottom left.
-  const side = !!one && (!!legendSvg || cables.length > 0 || abbr.length > 0);
+  const summary = one?.summary;
+  const side = !!one && (!!legendSvg || cables.length > 0 || abbr.length > 0 || !!summary);
   const csW = side ? 92 : 0; // legend column width (mm at scale 1)
   const fire = cables.some((c) => c.fireRated);
   const { css: tbCss, html: tbHtml } = titleBlockFragment(project, t, custom, extra, one, sheet, k);
@@ -157,6 +160,9 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
     .notes ol { margin: ${mm(0.5)} 0 0; padding-left: ${mm(4)}; }
     .side { position: absolute; right: 0; top: 0; width: ${mm(csW)}; bottom: ${mm(47)}; display: flex; flex-direction: column; gap: ${mm(2)}; overflow: hidden; border-left: ${mm(0.25)} solid #000; padding: ${mm(2)}; }
     .side .lg svg { width: 100%; height: auto; display: block; }
+    .side .sum { margin-top: auto; flex: none; border: ${mm(0.25)} solid #000; font-size: ${px(9)}; }
+    .sum b { display: block; padding: ${mm(1)} ${mm(2)}; border-bottom: ${mm(0.25)} solid #000; }
+    .sum table { width: 100%; border-collapse: collapse; } .sum td { padding: ${mm(0.6)} ${mm(2)}; border-bottom: ${mm(0.15)} solid #000; } .sum tr:last-child td { border-bottom: 0; } .sum td + td { text-align: right; font-weight: 600; width: ${mm(16)}; }
     .side .abbr, .side .cs { position: static; width: auto; max-height: none; border: ${mm(0.25)} solid #000; column-count: 1; }
     .abbr { position: absolute; left: 0; bottom: ${mm(44)}; font-size: ${px(7)}; border: ${mm(0.25)} solid #000; border-left: 0; padding: ${mm(1)} ${mm(2)}; background: #fff; column-count: ${abbr.length > 12 ? 2 : 1}; column-gap: ${mm(4)}; }
     .abbr b { display: block; column-span: all; font-size: ${px(8)}; margin-bottom: ${mm(0.5)}; }
@@ -178,6 +184,7 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
     ${side ? `<div class="side">${legendSvg ? `<div class="lg">${legendSvg}</div>` : ''}` : ''}
     ${cables.length ? `<div class="cs"><h5>CABLE SCHEDULE</h5><table>${cables.map((c) => `<tr><td class="n"><span>${c.ref}</span></td><td>${esc(c.text)}</td></tr>`).join('')}</table>${fire ? `<p><b>NOTE:</b> ${esc(FIRE_NOTE)}</p>` : ''}</div>` : ''}
     ${abbr.length ? `<div class="abbr"><b>ABBREVIATIONS</b>${abbr.map(([a, d]) => `<div><span>${esc(a)}</span>${esc(d)}</div>`).join('')}</div>` : ''}
+    ${summary ? `<div class="sum"><b>${esc(summary.title)}</b><table>${summary.rows.map(([a, v]) => `<tr><td>${esc(a)}</td><td>${esc(v)}</td></tr>`).join('')}</table></div>` : ''}
     ${side ? '</div>' : ''}
     ${notes.length ? `<div class="notes" style="bottom:${mm((custom ? templateSize(custom).h : 44) + 3)};width:${mm(tbW)}"><b>NOTES</b><ol>${notes.map((n) => `<li>${esc(fillParams(n, project))}</li>`).join('')}</ol></div>` : ''}
   </div>

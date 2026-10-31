@@ -367,7 +367,6 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, ui
               {s.kind === 'riser' && s.riserStyle === 'byLevel' && s.buildingId && (() => {
                 const buildingId = s.buildingId, rows = dbRiserLayout(project, buildingId).rows.slice(1), breaks = set.riserBreaks?.[buildingId] ?? [];
                 return <>
-                  <label><input type="checkbox" checked={!!s.countTable} onChange={(e) => patch({ countTable: e.target.checked || undefined })} /> Board count table on this sheet</label>
                   {rows.length > 0 && <p className="m">New sheet starts at:</p>}
                   {rows.map((r) => {
                     const keys = r.floors.map((f) => f.key);
