@@ -7,7 +7,7 @@ import type { CalcRun } from '../../calc/runs';
 import { LAYER_LABELS, SHEET_LAYERS } from '../../diagram/annotations';
 import { boardsInSupplyOrder } from '../../calc/summary';
 import {
-  addEarthingSheet, addEarthRiserSheet, addRiserSheet, autoSheets, drawable, PAPERS, filterSheets, sheetHash, issueSheets, moveSheet, nextRev, renumber, setOf, SHEET_STATUSES, sheetNumber, sheetRev, sheetsByCount, SIZES, statusColor,
+  addEarthingSheet, addEarthRiserSheet, addRiserSheet, autoSheets, drawable, PAPERS, filterSheets, sheetHash, issueSheets, moveSheet, nextRev, renumber, setOf, SHEET_STATUSES, sheetNumber, sheetRev, sheetsByCount, statusColor,
   type DrawingIssue, type DrawingSet, type DrawingSheet, type SheetFilter, type SheetSize, type SheetSort
 } from '../../model/drawingSet';
 import { currentRevision } from '../../model/revisions';
