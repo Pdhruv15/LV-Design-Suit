@@ -38,6 +38,7 @@ export const ABBREVIATIONS: [string, string][] = [
   ['SMDB', 'Sub-main distribution board'],
   ['SPD', 'Surge protection device'],
   ['SWA', 'Steel wire armoured'],
+  ['TOB', 'Tap-off box'],
   ['UPS', 'Uninterruptible power supply'],
   ['UVR', 'Under-voltage relay'],
   ['XLPE', 'Cross-linked polyethylene'],

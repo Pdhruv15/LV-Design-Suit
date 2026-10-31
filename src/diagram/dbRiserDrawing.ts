@@ -336,10 +336,7 @@ export function dbRiserDrawing(project: Project, buildingId: string, opts: DbRis
   }
   const notes = [
     'Boxes give the board references: a typical row shows its first and last floors; a long list shortens to first … last.',
-    'A heavy line is a busbar or fire-rated riser, a thin line is cable, and a slash with a number is that many cables drawn as one.',
-    'TOB is a tap-off box: one for each tap-off. A dot is a connection; a line that crosses without a dot passes that floor. A T-bar is the end of a riser.',
-    'The break symbol on a riser means floors are omitted, not that the riser stops. A dashed line is the generator feed.',
-    ...(L.ties.length ? ['N.O. is a normally open coupler, N.C. normally closed.'] : []),
+    'A riser line that crosses a floor without a dot passes that floor and does not feed it.',
     ...(L.pages.length > 1 ? ['Flags with the same letter are the same riser on another sheet; the riser table gives the sheet.'] : []),
     ...(L.notOnLevel.length ? [`No level in this building, drawn on the lowest level: ${L.notOnLevel.join(', ')}.`] : []),
     ...(L.unplaced.length ? [`No level, not counted or drawn: ${L.unplaced.slice(0, 12).join(', ')}${L.unplaced.length > 12 ? ` and ${L.unplaced.length - 12} more` : ''}.`] : []),
@@ -384,6 +381,61 @@ export function dbRiserDrawing(project: Project, buildingId: string, opts: DbRis
   ${over.join('\n')}
 </svg>`;
   return { svg, w: W, h: y, pages: L.pages.length };
+}
+
+/** What is drawn on one sheet, for its legend. */
+function usedOn(L: DbRiserLayout, part: number): Set<string> {
+  const p = Math.min(Math.max(0, part), L.pages.length - 1), page = L.pages[p], used = new Set<string>();
+  const rowLo = page[0], rowHi = page[page.length - 1];
+  const rows = page.map((i) => L.rows[i]);
+  if (rows.some((r) => r.entries.length)) used.add('board');
+  if (rows.some((r) => r.entries.some((e) => e.tapOff))) used.add('tob');
+  for (const m of L.mains.filter((x) => page.includes(x.row))) {
+    used.add('panel').add('breaker');
+    if (m.sourceKva) used.add('tx');
+    if (m.hasStandby) used.add('gen').add('standby').add(m.changeover === 'ACB' ? 'acb' : 'ats');
+    if (L.ties.some((t) => t.a === m.board.id || t.b === m.board.id)) used.add('coupler');
+  }
+  for (const r of L.runs.filter((x) => x.rowMax >= rowLo && x.rowMin <= rowHi)) {
+    used.add('dot').add(r.kind === 'bus' ? 'bus' : r.heavy ? 'fr' : 'cable');
+    if (r.heavy && r.rowMax <= rowHi) used.add('end');
+    if (r.kind === 'cable' && [...r.fed.values()].reduce((a, b) => a + b, 0) > 1) used.add('slash');
+    if (rows.some((x) => x.floors.length > 1)) used.add('omit');
+    if (r.letter) used.add('flag');
+  }
+  if (L.pages.length > 1) used.add('match');
+  return used;
+}
+
+const LEGEND: { key: string; label: string; draw: (x: number, y: number) => string }[] = [
+  { key: 'panel', label: 'Main panel with busbar', draw: (x, y) => `<rect x="${x - 16}" y="${y - 9}" width="32" height="18" fill="#fff" stroke="#111" stroke-width="1.2"/>${ln(x - 12, y, x + 12, y, 3)}` },
+  { key: 'breaker', label: 'Outgoing or incoming breaker', draw: (x, y) => ln(x, y - 10, x, y + 10) + breakerBox(x, y - 5) },
+  { key: 'board', label: 'Board with its reference', draw: (x, y) => box(x - 16, y - 9, 32, 18, '') },
+  { key: 'tob', label: 'Tap-off box (TOB), one for each tap-off', draw: (x, y) => `<rect x="${x - 14}" y="${y - 9}" width="28" height="18" fill="#fff" stroke="#111" stroke-width="1.2"/>${text(x, y + 3, 'TOB', 'text-anchor="middle" font-size="8" font-weight="bold"')}` },
+  { key: 'bus', label: 'Busbar riser', draw: (x, y) => ln(x - 16, y, x + 16, y, 3.2) },
+  { key: 'fr', label: 'Fire-rated cable riser', draw: (x, y) => ln(x - 16, y, x + 16, y, 3.2) },
+  { key: 'cable', label: 'Cable', draw: (x, y) => ln(x - 16, y, x + 16, y) },
+  { key: 'slash', label: 'Number of cables drawn as one line', draw: (x, y) => ln(x - 16, y, x + 16, y) + ln(x - 5, y + 5, x + 5, y - 5) + text(x + 7, y - 4, 'n×', 'font-size="8"') },
+  { key: 'dot', label: 'Connection to the riser', draw: (x, y) => ln(x - 16, y, x + 16, y, 3.2) + ln(x, y, x, y - 11) + dot(x, y) },
+  { key: 'end', label: 'End of a busbar or fire-rated riser', draw: (x, y) => ln(x, y + 10, x, y - 8, 3.2) + ln(x - 7, y - 8, x + 7, y - 8, 2) },
+  { key: 'omit', label: 'Floors omitted, the riser carries on', draw: (x, y) => ln(x, y - 11, x, y + 11, 3.2) + zigzag(x, y) },
+  { key: 'flag', label: 'Riser continues on another sheet', draw: (x, y) => ln(x, y + 12, x, y, 3.2) + flag(x, y + 8, 'A', true) },
+  { key: 'match', label: 'Match line between sheets', draw: (x, y) => matchLine(x - 16, x + 16, y) },
+  { key: 'tx', label: 'Transformer', draw: (x, y) => transformer(x, y) },
+  { key: 'gen', label: 'Standby generator', draw: (x, y) => generator(x, y) },
+  { key: 'standby', label: 'Generator feed', draw: (x, y) => dashed(x - 16, y, x + 16, y) },
+  { key: 'ats', label: 'Automatic transfer switch (ATS)', draw: (x, y) => `<rect x="${x - 15}" y="${y - 8}" width="30" height="16" fill="#fff" stroke="#111" stroke-width="1.2"/>${text(x, y + 3, 'ATS', 'text-anchor="middle" font-size="8" font-weight="bold"')}` },
+  { key: 'acb', label: 'Two ACBs, interlocked', draw: (x, y) => breakerBox(x - 14, y - 5) + breakerBox(x + 14, y - 5) + ln(x - 10, y, x + 10, y, 1).replace('/>', ' stroke-dasharray="2 2"/>') },
+  { key: 'coupler', label: 'Bus coupler (N.O. open, N.C. closed)', draw: (x, y) => ln(x - 18, y, x + 18, y, 1.6) + `<rect x="${x - 11}" y="${y - 8}" width="22" height="16" fill="#fff" stroke="#111" stroke-width="1.2"/>` + ln(x - 6, y + 3, x + 6, y - 3, 1.4) }
+];
+
+/** The legend of one sheet (printable SVG, in the sheet's side column): only what is drawn on it. */
+export function dbRiserLegend(L: DbRiserLayout, part = 0): string {
+  if (L.empty) return '';
+  const used = usedOn(L, part), items = LEGEND.filter((e) => used.has(e.key));
+  const W = 300, rowH = 34, h = 40 + items.length * rowH;
+  const body = items.map((e, i) => { const y = 32 + 21 + i * rowH; return e.draw(34, y) + text(64, y + 4, e.label); }).join('');
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${h}" width="${W}" height="${h}" font-family="Arial" font-size="10" fill="#111"><rect x="0.5" y="0.5" width="${W - 1}" height="${h - 1}" fill="#fff" stroke="#111" stroke-width="1"/>${text(12, 22, 'LEGEND', 'font-weight="bold"')}${ln(0, 32, W, 32, 1)}${body}</svg>`;
 }
 
 /** Sheet numbers of the building's riser sheets, bottom first. */

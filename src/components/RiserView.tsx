@@ -5,7 +5,7 @@ import FeederRiserDiagram from '../diagram/FeederRiserDiagram';
 import { riserLayout } from '../diagram/riserLayout';
 import { feederRiserLayout } from '../diagram/feederRiserLayout';
 import { dbRiserLayout, dbRiserOffered } from '../model/dbRiser';
-import { dbRiserDrawing, dbRiserSheetNos } from '../diagram/dbRiserDrawing';
+import { dbRiserDrawing, dbRiserLegend, dbRiserSheetNos } from '../diagram/dbRiserDrawing';
 import { addDbRiserSheets, addRiserSheet, setOf } from '../model/drawingSet';
 
 type Style = 'feeders' | 'bus' | 'level';
@@ -15,7 +15,7 @@ const store = (k: string, v: unknown) => { try { localStorage.setItem(`lvds.${k}
 /** Design ▸ SLD ▸ Riser tab: a building's riser — individual feeders from each
  * panel's busbar (riser schematic) or busbar trunking / cable chain — with
  * a button to put it in the drawing set. */
-export default function RiserView({ project, onChange, onStatus }: { project: Project; onChange: (p: Project) => void; onStatus: (m: string) => void }) {
+export default function RiserView({ project, onChange, onStatus, onOpenSheet }: { project: Project; onChange: (p: Project) => void; onStatus: (m: string) => void; onOpenSheet?: (id: string) => void }) {
   const buildings = project.building?.buildings ?? [];
   const [pick, setPick] = useState<string>(() => stored('riser.building', ''));
   const b = buildings.find((x) => x.id === pick) ?? buildings[0];
@@ -36,6 +36,7 @@ export default function RiserView({ project, onChange, onStatus }: { project: Pr
     const r = sheetStyle === 'byLevel' ? addDbRiserSheets(set, project, b.id) : addRiserSheet(set, b.id, b.name, sheetStyle);
     onChange({ ...project, drawingSet: r.set });
     onStatus(`Added ${r.set.sheets.find((s) => s.id === r.id)?.number ?? 'a riser sheet'} to the drawing set`);
+    onOpenSheet?.(r.id);
   };
   const empty = fl?.empty ?? bl?.empty ?? ll?.empty ?? true;
   return (
@@ -53,7 +54,7 @@ export default function RiserView({ project, onChange, onStatus }: { project: Pr
             </select>
           )}
           <span className="sp" />
-          <button className="chip" disabled={empty || !!existing} onClick={addSheet} title="Add this riser to Drawings as a titled sheet (PDF, DXF)">{existing ? `In drawings — ${existing.number}` : 'Add to drawings'}</button>
+          <button className="chip" disabled={empty || (!!existing && !onOpenSheet)} onClick={() => (existing ? onOpenSheet?.(existing.id) : addSheet())} title="A sheet in Design CAD → Sheets with its title block, drawing number and legend (PDF, DXF)">{existing ? (onOpenSheet ? `Open sheet — ${existing.number}` : `In drawings — ${existing.number}`) : 'Add to sheet'}</button>
           <button className="chip" aria-label="Zoom out" onClick={() => setZoom((z) => Math.max(0.5, +(z / 1.25).toFixed(2)))}>−</button>
           <button className="chip" onClick={() => setZoom(1)}>Fit</button>
           <button className="chip" aria-label="Zoom in" onClick={() => setZoom((z) => Math.min(4, +(z * 1.25).toFixed(2)))}>+</button>
@@ -61,9 +62,9 @@ export default function RiserView({ project, onChange, onStatus }: { project: Pr
         <div className="earth-canvas"><div style={{ zoom }}>
           {ll ? (ll.empty ? <p className="m">No panels on this building's levels yet — set each panel's Level (panel properties → Level).</p> : ll.pages.map((_, i) => (
             <div key={i} dangerouslySetInnerHTML={{ __html: dbRiserDrawing(project, b.id, { sheetNos: dbRiserSheetNos(setOf(project), b.id) }, i, ll).svg }} />
-          ))) : style === 'feeders' ? <FeederRiserDiagram project={project} buildingId={b.id} layout={fl} /> : <RiserDiagram project={project} buildingId={b.id} layout={bl} />}
+          )).concat(<div key="legend" dangerouslySetInnerHTML={{ __html: dbRiserLegend(ll, 0) }} />)) : style === 'feeders' ? <FeederRiserDiagram project={project} buildingId={b.id} layout={fl} /> : <RiserDiagram project={project} buildingId={b.id} layout={bl} />}
         </div></div>
-        <p className="m earth-key">Working view: the legend, title block and notes are on the drawing sheet (Add to drawings).</p>
+        <p className="m earth-key">Working view: the title block and drawing number are on the sheet (Add to sheet).</p>
       </div>
     </div>
   );

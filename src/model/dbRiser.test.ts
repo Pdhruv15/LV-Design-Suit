@@ -6,6 +6,8 @@ import { cablesAtGap, countTotal, dbRiserLayout, dbRiserOffered, dbRiserTitles, 
 import { dbRiserDrawing, dbRiserSheetNos } from '../diagram/dbRiserDrawing';
 import { addDbRiserSheets, drawable, setOf, sheetChecks, toggleRiserBreak, type DrawingSet } from './drawingSet';
 import { buildSheetDxfPages } from '../docs/sheetDxf';
+import { dbRiserLegend } from '../diagram/dbRiserDrawing';
+import { dxfOf, prepareSheets, sheetHtml } from '../components/docs/sheetRender';
 
 const B = 'T';
 const lv = (level: string, index = 0) => ({ building: B, level, ...(index ? { index } : {}) });
@@ -214,6 +216,43 @@ describe('DB riser by level', () => {
     expect(svg).toContain('BOARDS PER LEVEL');
     expect(svg).toContain('TOB');
     expect(svg).toContain('4×4=16');
+  });
+
+  it('has a legend of what is on the sheet only', () => {
+    const p = tower();
+    p.ties = [];
+    const legend = dbRiserLegend(dbRiserLayout(p, B));
+    expect(legend).toContain('LEGEND');
+    expect(legend).toContain('Main panel with busbar');
+    expect(legend).toContain('Automatic transfer switch (ATS)');
+    expect(legend).toContain('Standby generator');
+    expect(legend).not.toContain('Tap-off box');
+    expect(legend).not.toContain('Bus coupler');
+    expect(legend).not.toContain('Match line');
+    const colours = new Set([...legend.matchAll(/#[0-9a-f]{3,6}/gi)].map((m) => m[0].toLowerCase()));
+    expect([...colours].sort()).toEqual(['#111', '#fff']);
+  });
+
+  it('prints on the submission sheet with its title block, drawing number and legend (PDF and DXF)', async () => {
+    let p = tower();
+    const set0 = toggleRiserBreak(setOf(p), B, dbRiserLayout(p, B).rows.find((r) => r.floors.length === 4)!.floors.map((f) => f.key));
+    p = { ...p, drawingSet: set0 };
+    const set = addDbRiserSheets(set0, p, B).set;
+    p = { ...p, drawingSet: set };
+    const s = set.sheets[1];
+    const sheet = (await sheetHtml(p, set, s))!;
+    expect(s.number).not.toBe('');
+    expect(sheet.html).toContain(s.number);
+    expect(sheet.html).toContain('DB riser diagram — Tower (2 of 2)');
+    expect(sheet.html).toContain('LEGEND');
+    expect(sheet.html).toContain('Match line between sheets');
+    expect(sheet.legendSvg).toContain('Match line between sheets');
+    const noLegend = (await sheetHtml({ ...p, drawing: { ...p.drawing, legend: false } }, set, s))!;
+    expect(noLegend.legendSvg).toBe('');
+    const dxf = dxfOf(p, set, await prepareSheets(p, set, undefined, [s.id]));
+    const all = dxf.map((f) => f.data).join('');
+    expect(all).toContain(s.number);
+    expect(all).toContain('LEGEND');
   });
 
   it('reports boards with no level instead of counting short', () => {

@@ -17,7 +17,7 @@ export const RELEASES: Release[] = [
   {
     version: '2.014', date: '2026-10-31',
     items: [
-      { title: 'DB riser for tall buildings', text: 'From G+2 up, a new Boards by level riser shows the DB references on each level, a tap-off box for each tap-off on a busbar riser, generator and transformer feeds with their changeover, and bus couplers. Identical floors share one row. A table of board counts can be switched on for a sheet. Find it on the SLD Riser tab, or add it in Design CAD → Sheets.', action: 'sheets', actionLabel: 'Open Sheets' },
+      { title: 'DB riser for tall buildings', text: 'From G+2 up, a new Boards by level riser shows the DB references on each level, a tap-off box for each tap-off on a busbar riser, generator and transformer feeds with their changeover, and bus couplers. Identical floors share one row. A table of board counts can be switched on for a sheet. On the SLD Riser tab, Add to sheet puts it in Design CAD → Sheets with its title block, drawing number and legend.', action: 'sheets', actionLabel: 'Open Sheets' },
       { title: 'Risers that continue over sheets', text: 'A tall riser continues on the next sheet at a match line, with lettered flags and the sheet numbers. Several busbar risers and cable outgoings keep their own columns on every sheet. You can choose where a new sheet starts in the sheet\'s Building section.' }
     ]
   },
