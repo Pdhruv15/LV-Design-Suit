@@ -77,6 +77,11 @@ jobs:
           LVDS_ENGINES: required
       - name: Build
         run: npm run build
+      # A real package, listed and not started: no node_modules, one CAD engine, English only.
+      - name: Package contents
+        run: |
+          npx electron-builder --linux dir
+          node scripts/check-package.mjs release/linux-unpacked
       # Electron downloads its binary on first use (it has no install script), so fetch it here.
       # Chromium's sandbox helper must then be owned by root and setuid; set it up as Chromium
       # expects, so the PDF tests run with the sandbox on.

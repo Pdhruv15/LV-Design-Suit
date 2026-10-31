@@ -5,6 +5,8 @@ CI (`.github/workflows/ci.yml`, job `security`) runs on every pull request and e
 1. **Dependency audit** — `node scripts/check-audit.mjs` runs `npm audit --omit=dev` (what the
    installed app ships) and `npm audit` (build and test tooling too), at **every severity**, and
    compares the result with [`security/audit-allowlist.json`](../../security/audit-allowlist.json).
+   The package has no `node_modules`, but the libraries are compiled into `dist` and `dist-electron`.
+   They stay in `dependencies`, so this audit still treats them as shipped code.
 2. **Secret scan** — gitleaks 8.30.1 (downloaded from its release and checked against the pinned
    SHA-256) scans the whole git history with the default rules and the exceptions in
    [`.gitleaks.toml`](../../.gitleaks.toml).

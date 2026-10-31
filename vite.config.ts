@@ -85,6 +85,8 @@ export default defineConfig({
   base: './',
   build: {
     outDir: 'dist',
+    // The licence texts of the libraries in the build: the desktop package has no node_modules to carry them (NOTICE.md).
+    license: { fileName: 'third-party-licences.md' },
     // Views, report and export code load when opened (React.lazy, import()). Two chunks stay near
     // 900 kB: ExcelJS (one library, loaded only for an Excel export — keep it out of the start-up
     // imports) and the core SLD workspace needed at start. Anything new above 1 MB still warns.

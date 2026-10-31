@@ -8,7 +8,7 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -k \"vite --host 127.0.0.1 --port 5173 --strictPort\" \"wait-on http://127.0.0.1:5173 && electron .\"",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && vite build -c vite.electron.config.ts",
     "dist": "npm run build && electron-builder",
     "dist:mac": "npm run build && electron-builder --mac dmg:arm64",
     "typecheck": "tsc --noEmit",
@@ -78,7 +78,16 @@
     "icon": "build/icon.png",
     "files": [
       "dist/**/*",
-      "electron/**/*"
+      "dist-electron/**/*",
+      "electron/**/*",
+      "!node_modules/**/*",
+      "!dist/assets/lvds_cad_reader_bg-*.wasm"
+    ],
+    "electronLanguages": [
+      "en",
+      "en_GB",
+      "en-US",
+      "en-GB"
     ],
     "directories": {
       "output": "release"
