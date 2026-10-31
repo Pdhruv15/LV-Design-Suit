@@ -16,7 +16,7 @@ import type { SheetUi } from './sld/sheetUi';
 import { STAGE_INFO, type DesignStage, type TenderRoute } from '../model/designStage';
 
 export type BomCommand = 'boq' | 'scope' | 'changes' | 'variations' | 'circuits' | 'excel' | 'pdf' | 'summary-pdf' | 'rates-sheet' | 'import' | 'save-list' | 'add-item' | 'add-section' | 'extras' | 'wastage' | 'markup' | 'document' | 'issue-rev';
-export type RibbonTab = 'home' | 'concept' | 'schematic' | 'detailed' | 'cad' | 'reports' | 'issue' | 'cost' | 'standards';
+export type RibbonTab = 'schedule' | 'sld' | 'home' | 'concept' | 'schematic' | 'detailed' | 'cad' | 'reports' | 'issue' | 'cost' | 'standards';
 
 export type DiagramTool = 'select' | 'pan';
 
@@ -127,6 +127,8 @@ const SUB_OF: Partial<Record<CadTool, CadSub>> = {
 
 /** Group captions under the ribbon groups (same order as the groups). */
 export const CAPTIONS: Record<RibbonTab, string[]> = {
+  schedule: ['Run', 'Schedule', 'Equipment'],
+  sld: ['Run', 'Canvas', 'Boards', 'Equipment', 'Selection'],
   home: ['Project', 'Diagram & history', 'Setup'],
   concept: ['Load', 'Supply', 'Stage'],
   schematic: ['History', 'Distribution', 'Main systems', 'ELV', 'Stage'],
@@ -143,8 +145,10 @@ const ADD_BOARD: { kind: BoardKind; ratingA: number }[] = [
   { kind: 'MCC', ratingA: 400 }, { kind: 'EMCC', ratingA: 400 }, { kind: 'EMDB', ratingA: 400 }
 ];
 
-/** Tabs in the order the design is done: concept → schematic → detailed design → documents → tender and IFC. */
+/** Load schedule and SLD first, the everyday work; then the tabs in the order the design is done: concept → schematic → detailed design → documents → tender and IFC. */
 const TABS: { id: RibbonTab; label: string; icon: Icon; step?: string; stages?: DesignStage[] }[] = [
+  { id: 'schedule', label: 'Load schedule', icon: Table2 },
+  { id: 'sld', label: 'SLD', icon: Network },
   { id: 'home', label: 'Project', icon: House },
   { id: 'cad', label: 'Design CAD', icon: PenTool },
   { id: 'concept', label: 'Concept', icon: ChartColumnBig, step: '1', stages: ['concept'] },
@@ -161,6 +165,8 @@ export const tabForStage = (s: DesignStage): RibbonTab => TABS.find((t) => t.sta
 
 /** Screens on each tab. A screen on several tabs (the SLD on Schematic and Detailed design) keeps the tab you are on. */
 const TAB_VIEWS: Record<RibbonTab, MainView[]> = {
+  schedule: ['load-schedule'],
+  sld: ['design'],
   home: ['projects', 'dashboard', 'help', 'parameters', 'titleblock', 'building', 'design'],
   concept: ['building', 'load-assessment', 'sizing', 'substation-area', 'space-planning', 'dashboard'],
   schematic: ['panels', 'design', 'busbar', 'pfc', 'ups', 'solar', 'earth-schematic', 'elv', 'inbox'],
@@ -171,11 +177,11 @@ const TAB_VIEWS: Record<RibbonTab, MainView[]> = {
   cost: ['boq'],
   standards: ['database', 'design-references']
 };
-const HOME_TAB: Partial<Record<MainView, RibbonTab>> = { building: 'concept', dashboard: 'home', design: 'detailed', panels: 'detailed', 'load-schedule': 'detailed' };
+const HOME_TAB: Partial<Record<MainView, RibbonTab>> = { building: 'concept', dashboard: 'home', design: 'sld', panels: 'detailed', 'load-schedule': 'schedule' };
 
 /** The page a tab shows when it is chosen and the page on screen is not one of its own. */
 const TAB_PAGE: Record<RibbonTab, MainView> = {
-  home: 'dashboard', concept: 'building', schematic: 'design', detailed: 'design', cad: 'cad',
+  schedule: 'load-schedule', sld: 'design', home: 'dashboard', concept: 'building', schematic: 'design', detailed: 'design', cad: 'cad',
   reports: 'load-schedule', issue: 'revisions', cost: 'boq', standards: 'database'
 };
 /** The page to show when a tab is chosen: the page on screen when it is on that tab (the SLD stays on Schematic and
@@ -274,7 +280,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
     };
   };
 
-  const groups: Record<RibbonTab, Tool[][]> = {
+  const stageGroups: Record<Exclude<RibbonTab, 'schedule' | 'sld'>, Tool[][]> = {
     home: [
       [
         { label: 'New', icon: FilePlus2, title: 'New project', onClick: a.onNew },
@@ -524,6 +530,12 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       ]
     ]
   };
+  const [run, canvas, boards, equipment, selection] = stageGroups.detailed;
+  const groups: Record<RibbonTab, Tool[][]> = {
+    ...stageGroups,
+    schedule: [run, [view('load-schedule', 'Load schedule', Table2, 'DEWA load distribution schedule per DB'), boards[1], boards[3]], equipment],
+    sld: [run, canvas, boards, equipment, selection]
+  };
 
   return (
     <div className={`ribbon${collapsed ? ' collapsed' : ''}`} ref={rootRef} data-doc-id="main-ribbon">
@@ -593,7 +605,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
             {CAPTIONS[tab]?.[gi] && <div className="ribbon-caption">{CAPTIONS[tab]![gi]}</div>}
           </div>
         ))}
-        {tab === 'detailed' && (
+        {(tab === 'detailed' || tab === 'sld') && (
           <div className="ribbon-selected" title="Edit, Delete and Properties act on this">
             <span className="m">Selected</span>
             <b>{sel ? sel.id : '—'}</b>
@@ -627,7 +639,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
             )}
           </div>
         )}
-        {tab === 'detailed' && (
+        {(tab === 'detailed' || tab === 'sld') && (
           <div className="ribbon-group more" ref={moreRef}>
             <button
               title="More tools"
