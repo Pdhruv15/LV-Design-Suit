@@ -15,6 +15,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.014', date: '2026-10-31',
+    items: [
+      { title: 'DB riser for tall buildings', text: 'From G+2 up, a new Boards by level riser counts the SMDBs, DBs and other boards on each level. Identical floors share one row, with building totals. Find it on the SLD Riser tab, or add it in Design CAD → Sheets.', action: 'sheets', actionLabel: 'Open Sheets' },
+      { title: 'Risers that continue over sheets', text: 'A tall riser continues on the next sheet at a match line, with lettered flags and the sheet numbers. Several busbar risers and cable outgoings keep their own columns on every sheet. You can choose where a new sheet starts in the sheet\'s Building section.' }
+    ]
+  },
+  {
     version: '2.013', date: '2026-10-30',
     items: [
       { title: 'Reload for a new version (browser)', text: 'The browser version notices when a newer version is out, also in an installed app left open, and shows New version — reload in the top strip. The browser asks first if a project has unsaved changes.' }

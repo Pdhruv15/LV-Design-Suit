@@ -1,3 +1,4 @@
+import { dbRiserLayout, dbRiserOffered } from '../../model/dbRiser';
 import { X } from 'lucide-react';
 import { Modal } from '../ui';
 import { ask, askForm, askText } from '../ConfirmDialog';
@@ -10,7 +11,7 @@ import { boardsInSupplyOrder } from '../../calc/summary';
 import { subtree } from '../../calc/pfc';
 import { evaluateProject } from '../../calc/electrical';
 import {
-  addEarthingSheet, addEarthRiserSheet, addRiserSheet, addSheet, applyTemplate, drawable, issueSheets, loadSheetTemplates, nextRev, renumber, saveSheetTemplates, setOf, SHEET_STATUSES, sheetChecks, sheetHash, sheetRev, sheetsByCount, SIZES, statusColor, templateFromSheet,
+  addDbRiserSheets, addEarthingSheet, addEarthRiserSheet, addRiserSheet, toggleRiserBreak, addSheet, applyTemplate, drawable, issueSheets, loadSheetTemplates, nextRev, renumber, saveSheetTemplates, setOf, SHEET_STATUSES, sheetChecks, sheetHash, sheetRev, sheetsByCount, SIZES, statusColor, templateFromSheet,
   type DrawingSet, type DrawingSheet, type SheetCheck, type SheetSize,
   sheetRefs, type SheetRef
 } from '../../model/drawingSet';
@@ -102,6 +103,9 @@ export function SheetList({ project, active, selectedBoardId, onActive, onChange
             ))}
             {(project.building?.buildings ?? []).map((b) => (
               <button key={`x${b.id}`} title="Each board on its own breaker and cable from its panel's busbar" onClick={() => { close(); const r = addRiserSheet(set, b.id, b.name, 'feeders'); save(r.set); onActive(r.id); }}>Riser schematic (individual feeders) — {b.name}</button>
+            ))}
+            {(project.building?.buildings ?? []).filter((b) => dbRiserOffered(project, b.id)).map((b) => (
+              <button key={`l${b.id}`} title="Boards counted on each level, typical floors on one row, continuing over sheets when tall" onClick={() => { close(); const r = addDbRiserSheets(set, project, b.id); save(r.set); onActive(r.id); }}>DB riser (boards by level) — {b.name}</button>
             ))}
             {(project.building?.buildings ?? []).map((b) => (
               <button key={`e${b.id}`} title="Floor earth bar on every level and the earth cable bar to bar up the riser" onClick={() => { close(); const r = addEarthRiserSheet(set, project, b.id); save(r.set); if (r.id) onActive(r.id); }}>Earthing riser diagram — {b.name}</button>
@@ -357,8 +361,19 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, ui
               </select>
               <label>Connections<select value={s.riserStyle ?? ''} onChange={(e) => patch({ riserStyle: (e.target.value || undefined) as DrawingSheet['riserStyle'] })}>
                 <option value="">Busbar trunking / cable chain</option><option value="feeders">Individual feeders from each panel's busbar</option>
+                {(s.riserStyle === 'byLevel' || (s.kind === 'riser' && s.buildingId && dbRiserOffered(project, s.buildingId))) && <option value="byLevel">Boards by level (tall buildings)</option>}
               </select></label>
               <p className="m">Each panel is drawn on its Level (panel properties). Levels and floor heights come from Building information.</p>
+              {s.kind === 'riser' && s.riserStyle === 'byLevel' && s.buildingId && (() => {
+                const buildingId = s.buildingId, rows = dbRiserLayout(project, buildingId).rows.slice(1), breaks = set.riserBreaks?.[buildingId] ?? [];
+                return rows.length > 0 && <>
+                  <p className="m">New sheet starts at:</p>
+                  {rows.map((r) => {
+                    const keys = r.floors.map((f) => f.key);
+                    return <label key={keys[0]}><input type="checkbox" checked={keys.some((k) => breaks.includes(k))} onChange={() => save(addDbRiserSheets(toggleRiserBreak(set, buildingId, keys), project, buildingId).set)} /> {r.label}</label>;
+                  })}
+                </>;
+              })()}
             </details>
           )}
           {s.kind === 'system' && (

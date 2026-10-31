@@ -8,6 +8,7 @@ import { boardsWithoutLevel } from './levels';
 import type { SheetMarkup } from './sheetMarkup';
 import type { SheetItems } from './sheetChanges';
 import { earthSheetTitles } from './earthRiser';
+import { dbRiserTitles } from './dbRiser';
 import { pushLibrary } from '../database/librarySync';
 
 /** The SLD as a set of sheets. Each sheet shows the panels ticked for it
@@ -26,7 +27,7 @@ export interface DrawingSheet {
   levelId?: string; // plan sheets
   plan?: PlanType; // plan sheets
   part?: number; // earth riser: sheet of the riser (0 = bottom); floor earthing: floor group (0 = lowest); plan: part of a level split over sheets (0 = top left)
-  riserStyle?: 'feeders'; // riser sheets: one breaker and cable per board from its panel's busbar (blank = busbar trunking / cable chain)
+  riserStyle?: 'feeders' | 'byLevel'; // riser sheets: feeders = one breaker and cable per board from its panel's busbar; byLevel = boards counted per level, typical floors on one row, over several sheets (blank = busbar trunking / cable chain)
   boards: string[];
   size: 'auto' | SheetSize;
   // Title block of this sheet (blank = the project's, managed in the drawing register)
@@ -76,6 +77,8 @@ export interface DrawingSet {
   start?: number; // first number (default 1)
   digits?: number; // zero padding (default 3)
   suffix?: string; // after the number, e.g. "-EL"
+  /** DB riser by level: floor keys where a new sheet starts, per building. */
+  riserBreaks?: Record<string, string[]>;
   riserPrefix?: string; // riser diagram sheets have their own sequence (default E-RSR-)
   earthPrefix?: string; // earthing schematic sheets (default E-ERT-)
   dbPrefix?: string; // board sheets (Design ▸ Board ▸ Export sheets), one per board (default E-DB-)
@@ -143,6 +146,30 @@ export function earthSheetFor(set: DrawingSet, project: Project, kind: 'earthing
 export function addRiserSheet(set: DrawingSet, buildingId: string, buildingName: string, riserStyle?: 'feeders'): { set: DrawingSet; id: string } {
   const id = `sh-${Date.now().toString(36)}`;
   return { id, set: renumber({ ...set, sheets: [...set.sheets, { id, number: '', title: `${riserStyle ? 'Riser schematic' : 'Riser diagram'} — ${buildingName}`, kind: 'riser', buildingId, ...(riserStyle ? { riserStyle } : {}), boards: [], size: 'auto', status: startStatus(set) }] }) };
+}
+/** A building's DB riser by level (every sheet of it). Sheets already in the set are kept; missing ones are added after them. Returns the first sheet. */
+export function addDbRiserSheets(set: DrawingSet, project: Project, buildingId: string): { set: DrawingSet; id: string } {
+  const titles = dbRiserTitles({ ...project, drawingSet: set }, buildingId);
+  const isOurs = (x: DrawingSheet) => x.kind === 'riser' && x.riserStyle === 'byLevel' && x.buildingId === buildingId;
+  const sheets = set.sheets.map((x) => (isOurs(x) && titles[x.part ?? 0] ? { ...x, title: titles[x.part ?? 0] } : x));
+  const base = `sh-${Date.now().toString(36)}`;
+  let first = sheets.find((x) => isOurs(x) && (x.part ?? 0) === 0)?.id;
+  titles.forEach((title, part) => {
+    if (sheets.some((x) => isOurs(x) && (x.part ?? 0) === part)) return;
+    let id = `${base}-d${part}`;
+    for (let n = 2; sheets.some((x) => x.id === id); n++) id = `${base}-d${part}-${n}`;
+    const after = sheets.reduce((at, x, i) => (isOurs(x) && (x.part ?? 0) < part ? i : at), -1);
+    sheets.splice(after >= 0 ? after + 1 : sheets.length, 0, { id, number: '', title, kind: 'riser', buildingId, riserStyle: 'byLevel', part, boards: [], size: 'auto', status: startStatus(set) });
+    first ??= id;
+  });
+  return { id: first ?? '', set: renumber({ ...set, sheets }) };
+}
+/** Start a new DB riser sheet at the row holding this floor, or take that break out. */
+export function toggleRiserBreak(set: DrawingSet, buildingId: string, floorKeys: string[]): DrawingSet {
+  const had = set.riserBreaks?.[buildingId] ?? [];
+  const on = floorKeys.some((k) => had.includes(k));
+  const next = on ? had.filter((k) => !floorKeys.includes(k)) : [...had, floorKeys[0]];
+  return { ...set, riserBreaks: { ...set.riserBreaks, [buildingId]: next } };
 }
 /** A building's earthing riser diagram (every sheet of it), or its floor earthing sheets (one per floor
  * or typical floor group), numbered with the earthing sheets. Sheets already in the set are kept; missing
@@ -423,7 +450,7 @@ export function sheetHash(p: Project, set: DrawingSet, s: DrawingSheet): string 
   const d = s.kind === 'board' ? { boards: p.boards.filter((b) => b.id === s.boards[0]), feeders: p.feeders.filter((f) => f.boardId === s.boards[0]) }
     : s.kind === 'earthing' ? { boards: p.boards.filter((b) => !b.upstreamId).map((b) => [b.id, b.sourceKva, b.rmu, b.vectorGroup]), feeders: [p.earthingPlan] }
     : s.kind === 'earthRiser' || s.kind === 'earthFloor' ? { boards: p.boards.map((b) => [b.id, b.upstreamId, b.level, b.kind, b.ratedCurrentA, ...(b.earthRiser ? [b.earthRiser] : [])]), feeders: [p.feeders.filter((f) => f.feedsBoardId).map((f) => [f.feedsBoardId, f.cores, f.cableCsaMm2, f.lengthM, f.cpcMm2]), p.earthingPlan, p.earthPitIds, p.building] }
-    : s.kind === 'riser' ? { boards: p.boards.map((b) => [b.id, b.upstreamId, b.level, b.ratedCurrentA, b.sourceKva, b.standby, ...(s.riserStyle ? [b.kind, b.incomerDevice, b.busbarMaterial] : [])]), feeders: [p.feeders.filter((f) => f.feedsBoardId).map((f) => [f.feedsBoardId, f.cores, f.cableCsaMm2, f.lengthM, f.parallel, f.cableType, ...(s.riserStyle ? [f.breakerRatingA, f.breakerIcuKa, f.breakerType] : [])]), p.busRisers, p.building, s.riserStyle] }
+    : s.kind === 'riser' ? { boards: p.boards.map((b) => [b.id, b.upstreamId, b.level, b.ratedCurrentA, b.sourceKva, b.standby, ...(s.riserStyle ? [b.kind, b.incomerDevice, b.busbarMaterial] : [])]), feeders: [p.feeders.filter((f) => f.feedsBoardId).map((f) => [f.feedsBoardId, f.cores, f.cableCsaMm2, f.lengthM, f.parallel, f.cableType, ...(s.riserStyle ? [f.breakerRatingA, f.breakerIcuKa, f.breakerType] : [])]), p.busRisers, p.building, s.riserStyle, ...(s.riserStyle === 'byLevel' ? [set.riserBreaks?.[s.buildingId ?? '']] : [])] }
     : sheetProject(p, set, s);
   const extra = v >= 2 ? shownValues(p, s) : undefined;
   const txt = JSON.stringify([d.boards, d.feeders, s.title, s.size, s.tags, s.notes, s.clouds, s.arrows, s.markups, ...(s.part !== undefined ? [s.part] : []), ...(extra !== undefined ? [extra] : [])]); // part / extra only where set: older sheets keep their hash
@@ -461,6 +488,13 @@ export function sheetChecks(p: Project, set: DrawingSet, failing: { feederId: st
     const { outgoing, incoming } = sheetRefs(p, set, sh);
     for (const r of outgoing) if (!r.sheet) out.push({ level: 'warn', text: `${sh.number}: “To ${r.boardId}” has no sheet to point to — ${r.boardId} is on no sheet`, sheetId: sh.id, boardId: r.boardId });
     for (const r of incoming) if (!r.sheet) out.push({ level: 'warn', text: `${sh.number}: “From ${r.boardId}” has no sheet to point to — ${r.boardId} is on no sheet`, sheetId: sh.id, boardId: r.boardId });
+  }
+  for (const buildingId of new Set(set.sheets.filter((s) => s.kind === 'riser' && s.riserStyle === 'byLevel' && s.buildingId).map((s) => s.buildingId!))) {
+    const b = p.building?.buildings.find((x) => x.id === buildingId);
+    if (!b) continue;
+    const need = dbRiserTitles({ ...p, drawingSet: set }, buildingId).length;
+    const parts = new Set(set.sheets.filter((s) => s.kind === 'riser' && s.riserStyle === 'byLevel' && s.buildingId === buildingId).map((s) => s.part ?? 0));
+    if (parts.size !== need || [...parts].some((x) => x >= need)) out.push({ level: 'warn', text: `${b.name}: the DB riser now needs ${need} sheet(s), the set has ${parts.size} — add it again from Drawings to add the missing ones; remove extra sheets` });
   }
   for (const g of earthSheetGaps(p, set)) {
     const name = p.building?.buildings.find((b) => b.id === g.buildingId)?.name ?? g.buildingId, what = g.kind === 'earthRiser' ? 'earthing riser diagram' : 'floor earthing';

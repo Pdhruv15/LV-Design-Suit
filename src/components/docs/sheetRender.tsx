@@ -17,6 +17,7 @@ import { SHEET_MM } from '../../docs/sldSheet';
 import SystemDiagram, { LegendSvg } from '../SystemDiagram';
 import { earthingDrawing } from '../../diagram/earthingDrawing';
 import { earthFloorDrawing, earthRiserDrawing, earthSheetRefs } from '../../diagram/earthRiserDrawing';
+import { dbRiserDrawing, dbRiserSheetNos } from '../../diagram/dbRiserDrawing';
 import RiserDiagram, { RiserLegendSvg } from '../../diagram/RiserDiagram';
 import { riserLayout } from '../../diagram/riserLayout';
 import FeederRiserDiagram, { FeederRiserLegendSvg } from '../../diagram/FeederRiserDiagram';
@@ -44,6 +45,7 @@ export async function renderSheet(project: Project, set: DrawingSet, s: DrawingS
     }
     if (s.kind === 'riser') {
       if (!s.buildingId) return undefined;
+      if (s.riserStyle === 'byLevel') return dbRiserDrawing(project, s.buildingId, { sheetNos: dbRiserSheetNos(set, s.buildingId) }, s.part ?? 0);
       flushSync(() => root.render(s.riserStyle === 'feeders' ? <FeederRiserDiagram project={project} buildingId={s.buildingId!} /> : <RiserDiagram project={project} buildingId={s.buildingId!} />));
       await new Promise((r) => requestAnimationFrame(() => r(null)));
       const svg = host.querySelector<SVGSVGElement>('.sysdiag > svg');
@@ -154,7 +156,7 @@ export async function sheetHtml(project: Project, set: DrawingSet, s: DrawingShe
     refs = true;
     r = (await renderSheet(project, set, s, run, true)) ?? r;
   }
-  const legendSvg = s.kind === 'system' ? await legendOf(sheetProject(project, set, s)) : s.kind === 'riser' && s.buildingId ? await riserLegendOf(project, s.buildingId, s.riserStyle === 'feeders') : '';
+  const legendSvg = s.kind === 'system' ? await legendOf(sheetProject(project, set, s)) : s.kind === 'riser' && s.buildingId && s.riserStyle !== 'byLevel' ? await riserLegendOf(project, s.buildingId, s.riserStyle === 'feeders') : '';
   const html = sheetHtmlFrom(project, set, s, r.svg, size, refs || withLegend, legendSvg, withMarkups);
   // Readable on the paper actually used (a chosen A3 can be too small too).
   return { html, size, fits: scaleOn(size, r.w, r.h, reserveOf(s)) >= MIN_MM_PER_PX, refs, svg: r.svg, legendSvg };
