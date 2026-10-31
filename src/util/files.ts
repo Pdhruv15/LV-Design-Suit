@@ -49,7 +49,7 @@ export const saveCsv = (baseName: string, headers: string[], rows: unknown[][]) 
   saveText(`${safeFileName(baseName)}.csv`, toCsv(headers, rows), 'CSV (Excel)', 'csv');
 
 type Bookmarks = { title: string; page: number }[];
-export type PdfPage = { pageSize?: 'A4' | 'A3' | 'A2' | 'A1'; landscape?: boolean; cssPages?: boolean; frame?: { headerLeft: string; headerRight: string; footerLeft: string };
+export type PdfPage = { pageSize?: 'A4' | 'A3' | 'A3 portrait' | 'A2' | 'A1'; landscape?: boolean; cssPages?: boolean; frame?: { headerLeft: string; headerRight: string; footerLeft: string };
   /** Fixed, or from the page (1-based) each anchor landed on. */
   bookmarks?: Bookmarks | ((pages: Record<string, number>) => Bookmarks);
   /** The document prints its own running header, footer and page numbers (CSS @page boxes): no stamped page foot. */

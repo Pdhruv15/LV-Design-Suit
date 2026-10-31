@@ -143,7 +143,7 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
   const bodyBottom = frame.y + band + 3;
   const bodyTop = frame.y + frame.h - 3;
   const bodyH = bodyTop - bodyBottom;
-  const colW = Math.min(92 * k, frame.w * 0.4);
+  const colW = Math.min((one?.sideMm ?? 92) * k, frame.w * 0.4);
   const contentW = colW - 4 * k;
   const cap = Math.max(1.5, 1.9 * k), headingCap = Math.max(1.8, 2.4 * k);
   const step = Math.max(3.1 * k, cap * 1.5), headingStep = Math.max(4 * k, headingCap * 1.5);
@@ -164,6 +164,7 @@ function sheetPages(project: Project, svg: string, size: SheetSize, one?: SheetI
   const notes = [...(project.drawing?.notes ?? []), ...(one?.notes ?? [])].filter((n) => n.trim()).map((n, i) => `${i + 1}. ${fillParams(n, project, extra)}`);
   if (notes.length) section('NOTES', notes, 'E-NOTES');
   if (details.length) section('TITLE BLOCK DETAILS', details.map((d) => `${d.label}: ${d.value}`), 'E-NOTES');
+  if (one?.summary) section(one.summary.title, one.summary.rows.map(([a, v]) => `${a}   ${v}`));
   const legend = one?.legendSvg ?? '';
   const side = !!(legend || flow.length);
   const pages: DxfPrimitive[][] = [];

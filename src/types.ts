@@ -931,7 +931,7 @@ export interface DrawingInfo {
   drawnBy?: string;
   checkedBy?: string;
   approvedBy?: string;
-  sheet?: 'A4' | 'A3' | 'A2' | 'A1';
+  sheet?: 'A4' | 'A3' | 'A3 portrait' | 'A2' | 'A1';
   symbols?: 'iec' | 'simple'; // IEC 60617 symbols (default) or simple icons
   cableLabels?: 'auto' | 'ref' | 'full'; // SLD cable text: auto = reference numbers when the sheet is crowded
   legend?: boolean; // symbol legend on the drawing sheets and SLD exports, not the design canvas (default on with IEC symbols)

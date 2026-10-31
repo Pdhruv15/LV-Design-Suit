@@ -1448,7 +1448,7 @@ export default function App() {
                   />
                   </div>
                 ) : diagramMode === 'riser' ? (
-                  <RiserView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} />
+                  <RiserView project={project} onChange={(p) => setProject(p, { step: true })} onStatus={setStatus} onOpenSheet={(id) => { setSheetTab(id); setView('drawings'); }} />
                 ) : diagramMode === 'earthing' ? (
                   <EarthingView embedded project={project} onChange={(p) => setProject(p, { step: true })} onSheets={openEarthSheet} />
                 ) : (

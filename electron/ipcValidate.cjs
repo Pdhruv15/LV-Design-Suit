@@ -33,7 +33,7 @@ function saveBinaryArgs(a) {
   return { defaultName: defaultFileName(a.defaultName), bytes: Buffer.from(ArrayBuffer.isView(a.bytes) ? a.bytes.buffer.slice(a.bytes.byteOffset, a.bytes.byteOffset + a.bytes.byteLength) : a.bytes), filter: fileFilter(a.filterName, a.extensions) };
 }
 
-const PAGE_SIZES = ['A4', 'A3', 'A2', 'A1'];
+const PAGE_SIZES = ['A4', 'A3', 'A3 portrait', 'A2', 'A1'];
 
 /** HTML → PDF options: HTML text, a known sheet size, true/false flags. */
 function pdfArgs(a) {

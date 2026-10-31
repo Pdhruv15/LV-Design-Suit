@@ -7,7 +7,7 @@ import type { CalcRun } from '../../calc/runs';
 import { LAYER_LABELS, SHEET_LAYERS } from '../../diagram/annotations';
 import { boardsInSupplyOrder } from '../../calc/summary';
 import {
-  addEarthingSheet, addEarthRiserSheet, addRiserSheet, autoSheets, drawable, filterSheets, sheetHash, issueSheets, moveSheet, nextRev, renumber, setOf, SHEET_STATUSES, sheetNumber, sheetRev, sheetsByCount, SIZES, statusColor,
+  addEarthingSheet, addEarthRiserSheet, addRiserSheet, autoSheets, drawable, PAPERS, filterSheets, sheetHash, issueSheets, moveSheet, nextRev, renumber, setOf, SHEET_STATUSES, sheetNumber, sheetRev, sheetsByCount, statusColor,
   type DrawingIssue, type DrawingSet, type DrawingSheet, type SheetFilter, type SheetSize, type SheetSort
 } from '../../model/drawingSet';
 import { currentRevision } from '../../model/revisions';
@@ -257,9 +257,9 @@ export default function DrawingsView({ project, run, initialTab = 'sheets', onCh
                         <td><b>{s.number}</b></td>
                         <td>
                           {txt(s.title, (v) => v && setSheet(s.id, { title: v }), '', 260)}
-                          <div className="m dr-panels">{s.kind === 'earthing' ? 'Earthing schematic (from Design → Earth pits)' : s.kind === 'plan' ? `${PLAN_LABEL[s.plan ?? 'lighting']} — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'} (from Design CAD)` : s.kind === 'riser' ? `${s.riserStyle ? 'Riser schematic' : 'Riser diagram'} — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'}` : s.kind === 'earthRiser' || s.kind === 'earthFloor' ? `${s.kind === 'earthRiser' ? 'Earthing riser' : 'Floor earthing'} — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'}${s.part ? ` · part ${s.part + 1}` : ''}` : s.kind === 'board' ? `${s.boards[0]} circuit diagram` : s.boards.length ? s.boards.join(', ') : <span className="warn">no panels — Edit to tick them</span>}</div>
+                          <div className="m dr-panels">{s.kind === 'earthing' ? 'Earthing schematic (from Design → Earth pits)' : s.kind === 'plan' ? `${PLAN_LABEL[s.plan ?? 'lighting']} — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'} (from Design CAD)` : s.kind === 'riser' ? `${s.riserStyle === 'byLevel' ? 'DB riser by level' : s.riserStyle ? 'Riser schematic' : 'Riser diagram'} — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'}` : s.kind === 'earthRiser' || s.kind === 'earthFloor' ? `${s.kind === 'earthRiser' ? 'Earthing riser' : 'Floor earthing'} — ${project.building?.buildings.find((b) => b.id === s.buildingId)?.name ?? '?'}${s.part ? ` · part ${s.part + 1}` : ''}` : s.kind === 'board' ? `${s.boards[0]} circuit diagram` : s.boards.length ? s.boards.join(', ') : <span className="warn">no panels — Edit to tick them</span>}</div>
                         </td>
-                        <td><select className="bi-sel" value={s.size} onChange={(e) => setSheet(s.id, { size: e.target.value as DrawingSheet['size'] })}><option value="auto">Auto</option>{SIZES.map((z) => <option key={z}>{z}</option>)}</select></td>
+                        <td><select className="bi-sel" value={s.size} onChange={(e) => setSheet(s.id, { size: e.target.value as DrawingSheet['size'] })}><option value="auto">Auto</option>{PAPERS.map((z) => <option key={z.size} value={z.size}>{z.label}</option>)}</select></td>
                         <td><span className="dr-dot" style={{ background: statusColor(st) }} />{st || <span className="m">—</span>}</td>
                         <td title={hist.length ? hist.map((h) => `Rev ${h.rev} · ${h.date} · ${h.description}`).join('\n') : 'Not issued yet'}><b>{sheetRev(s, rev?.id) || '—'}</b>{hist.length > 0 && <span className="m dr-hist"> · {hist.length} issue{hist.length > 1 ? 's' : ''}</span>}</td>
                         <td>{s.date || hist[hist.length - 1]?.date || <span className="m">{rev?.date ?? '—'}</span>}</td>
@@ -496,7 +496,7 @@ function SheetPanel({ sheet: s, set, project, boards, rev, onPatch, onClose, onR
           <div className="form-kv">
             {set.manualNumbers && field('Drawing no.', 'number')}
             <label>Title<input className="bi-text" defaultValue={s.title} key={`t${s.title}`} onBlur={(e) => e.target.value.trim() && e.target.value.trim() !== s.title && onPatch({ title: e.target.value.trim() })} /></label>
-            <label>Size<select value={s.size} onChange={(e) => onPatch({ size: e.target.value as DrawingSheet['size'] })}><option value="auto">Auto (smallest readable)</option>{SIZES.map((z) => <option key={z}>{z}</option>)}</select></label>
+            <label>Size<select value={s.size} onChange={(e) => onPatch({ size: e.target.value as DrawingSheet['size'] })}><option value="auto">Auto (A3, larger only if needed)</option>{PAPERS.map((z) => <option key={z.size} value={z.size}>{z.label}</option>)}</select></label>
             {field('Status', 'status', set.status ?? '—', 'dw-status')}
             {field('Revision', 'rev', sheetRev(s, rev?.id) || '—')}
             {field('Date', 'date', rev?.date ?? '')}
