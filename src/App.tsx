@@ -1167,8 +1167,11 @@ export default function App() {
     <div className={`app-root${home ? ' home' : ''}`} data-doc-id="app-shell">
       <div className="top">
         <div className="brand">
-          LV Design Studio <span className="app-ver">v{__APP_VERSION__}</span>
-          <small>Low-voltage power design suite</small>
+          <img className="brand-mark" src="icon.svg" alt="" />
+          <div>
+            LV Design Studio <span className="app-ver">v{__APP_VERSION__}</span>
+            <small>Low-voltage power design suite</small>
+          </div>
         </div>
         <div className="crumb">
           {home ? <b>Projects</b> : <>

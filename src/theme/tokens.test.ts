@@ -29,12 +29,12 @@ const over = (a: string, b: string, k: number) =>
   '#' + [1, 3, 5].map((i) => Math.round(k * parseInt(a.slice(i, i + 2), 16) + (1 - k) * parseInt(b.slice(i, i + 2), 16)).toString(16).padStart(2, '0')).join('');
 
 describe('design tokens', () => {
-  it('keeps the dark theme exactly as the app looked before tokens moved here', () => {
-    // Values from the original :root of src/styles.css (v1.68.0).
+  it('keeps the dark theme on the brand palette', () => {
+    // Navy, amber and slate from docs/brand; status colours unchanged.
     expect(dark).toMatchObject({
-      '--bg': '#0a1120', '--panel': '#0f1a2f', '--p2': '#14233f', '--line': '#20304f', '--tx': '#dbe4f5', '--mut': '#8093b5',
-      '--acc': '#4aa8ff', '--bus': '#ffb347', '--ok': '#37d67a', '--warn': '#f5c04a', '--bad': '#ff5d6c',
-      '--line-strong': '#2f4570', '--on-acc': '#04101f', '--field-line': '#52709f', '--field-line-hover': '#7590c0',
+      '--bg': '#0B1A2A', '--panel': '#0F2A44', '--p2': '#122E4A', '--line': '#234563', '--tx': '#E3EAF2', '--mut': '#9FB3C8',
+      '--acc': '#F5B301', '--bus': '#ffb347', '--ok': '#37d67a', '--warn': '#f5c04a', '--bad': '#ff5d6c',
+      '--line-strong': '#33597C', '--on-acc': '#0F2A44', '--field-line': '#5F86A8', '--field-line-hover': '#7FA3C2',
       '--space-1': '4px', '--space-2': '8px', '--space-3': '12px', '--space-4': '16px', '--space-5': '24px',
       '--control-h': '32px', '--control-h-sm': '26px', '--radius-sm': '6px', '--radius-md': '9px', '--radius-lg': '12px',
       '--fs-xs': '11px', '--fs-sm': '12px', '--fs-md': '13px'

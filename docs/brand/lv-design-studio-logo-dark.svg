@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 512" width="1800" height="512">
+<rect width="1800" height="512" fill="#0B1A2A"/>
+<g transform="translate(40,56) scale(0.78125)">
+<rect width="512" height="512" rx="112" fill="#0F2A44"/>
+<g transform="translate(256,256) scale(1.05) translate(-196,-225)">
+<line x1="196" y1="40" x2="196" y2="98" stroke="#F5B301" stroke-width="22" stroke-linecap="round"/>
+<circle cx="196" cy="154" r="56" fill="none" stroke="#F5B301" stroke-width="22"/>
+<circle cx="196" cy="230" r="56" fill="none" stroke="#FFFFFF" stroke-width="22"/>
+<g stroke="#FFFFFF" stroke-width="22" stroke-linecap="round">
+ <line x1="196" y1="286" x2="196" y2="346"/>
+ <line x1="92" y1="346" x2="300" y2="346"/>
+ <line x1="110" y1="346" x2="110" y2="410"/>
+ <line x1="196" y1="346" x2="196" y2="410"/>
+ <line x1="282" y1="346" x2="282" y2="410"/>
+</g></g></g>
+<text x="500" y="262" font-family="Inter" font-weight="800" font-size="150" fill="#FFFFFF" letter-spacing="-3">LV <tspan font-weight="300">Design</tspan></text>
+<text x="506" y="372" font-family="Inter" font-weight="600" font-size="64" fill="#9FB3C8" letter-spacing="22">STUDIO</text>
+<rect x="506" y="404" width="96" height="10" rx="5" fill="#F5B301"/>
+</svg>

@@ -70,7 +70,7 @@ function createWindow() {
     height: 900,
     minWidth: 1000,
     minHeight: 640,
-    backgroundColor: '#0a1120',
+    backgroundColor: '#0B1A2A',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -112,7 +112,7 @@ function createWindow() {
     // explain what's wrong and retry until the server comes up.
     win.webContents.on('did-fail-load', (_e, _code, _desc, url) => {
       if (!url.startsWith(DEV_ORIGIN)) return;
-      const html = `<body style="background:#0a1120;color:#dbe4f5;font:15px system-ui;padding:40px">
+      const html = `<body style="background:#0B1A2A;color:#E3EAF2;font:15px system-ui;padding:40px">
         <h2>Waiting for the dev server…</h2>
         <p>The app screens come from the Vite dev server at ${DEV_ORIGIN}, which isn't running.</p>
         <p>Start the app with <code>npm run dev</code> from the project folder. This window retries every 3 seconds.</p></body>`;
