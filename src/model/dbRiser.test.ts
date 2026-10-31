@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
 import type { Board, Feeder, Project } from '../types';
-import { cablesAtGap, countTotal, dbRiserLayout, dbRiserOffered, dbRiserTitles, flagLetter, rowsTotal } from './dbRiser';
+import { cablesAtGap, countTotal, dbRiserLayout, dbRiserOffered, dbRiserTitles, flagLetter, refLines, rowsTotal } from './dbRiser';
 import { dbRiserDrawing, dbRiserSheetNos } from '../diagram/dbRiserDrawing';
 import { addDbRiserSheets, drawable, setOf, sheetChecks, toggleRiserBreak, type DrawingSet } from './drawingSet';
 import { buildSheetDxfPages } from '../docs/sheetDxf';
@@ -94,7 +94,7 @@ describe('DB riser by level', () => {
     expect(set.sheets.every(drawable)).toBe(true);
     p = { ...p, drawingSet: set };
     const nos = dbRiserSheetNos(set, B)!;
-    const a = dbRiserDrawing(p, B, { sheetNos: nos }, 0), b = dbRiserDrawing(p, B, { sheetNos: nos }, 1);
+    const a = dbRiserDrawing(p, B, { sheetNos: nos, countTable: true }, 0), b = dbRiserDrawing(p, B, { sheetNos: nos, countTable: true }, 1);
     expect(a.pages).toBe(2);
     expect(a.svg).toContain(`CONTINUES ON ${nos[1]}`);
     expect(b.svg).toContain(`CONTINUED FROM ${nos[0]}`);
@@ -143,6 +143,77 @@ describe('DB riser by level', () => {
     expect(bus.type).toMatch(/^Busbar/);
     expect(L.runs.some((r) => r.kind === 'cable' && [...r.fed.keys()].includes(L.rows.findIndex((x) => x.floors.length === 4)) && r.mainId === 'MDB-1')).toBe(false);
     expect(dbRiserDrawing(p, B).svg).toContain('BR-1');
+  });
+
+  it('shows board references, with the first and last floor on a typical row', () => {
+    const L = dbRiserLayout(tower(), B);
+    const typ = L.rows.find((r) => r.floors.length === 4)!;
+    const smdb = typ.entries.find((e) => e.kind === 'SMDB')!;
+    expect(smdb.kids[0].ids).toEqual(['DB-0a', 'DB-0b']);
+    expect(refLines(smdb.kids[0])).toEqual(['DB-0a … DB-0b', 'to DB-3a … DB-3b']);
+    expect(refLines(typ.entries.find((e) => e.kind === 'EDB')!)).toEqual(['EDB-0 … 3']);
+    expect(refLines({ ids: ['DB-L01-A1', 'DB-L01-A2', 'DB-L01-A3'] })).toEqual(['DB-L01-A1, A2', 'DB-L01-A3']);
+    expect(refLines({ ids: ['D1', 'D2', 'D3', 'D4', 'D5'] })).toEqual(['D1 … D5']);
+    const svg = dbRiserDrawing(tower(), B).svg;
+    expect(svg).toContain('DB-0a … DB-0b');
+    expect(svg).not.toContain('×2<');
+  });
+
+  it('draws a tap-off box for each tap-off, two on a floor with two', () => {
+    const p = tower(2, (boards, feeders) => { boards.push({ id: 'SMDB-0B', name: 'B', kind: 'SMDB', upstreamId: 'MDB-1', ratedCurrentA: 100, level: lv('Y', 0) }); feeders.push(feeder('MDB-1', 'SMDB-0B', 100)); });
+    p.busRisers = [{ id: 'BR1', name: 'BR-1', sourceBoardId: 'MDB-1', material: 'cu', feedM: 5, floorHeightM: 3.5, offsetFloors: 0, elementM: 3, elbows: 0, floors: [{ id: 'a', name: 'L0', boardId: 'SMDB-0' }, { id: 'b', name: 'L0', boardId: 'SMDB-0B' }, { id: 'c', name: 'L1', boardId: 'SMDB-1' }, { id: 'd', name: 'Spare', kw: 20, count: 2 }] }];
+    const L = dbRiserLayout(p, B);
+    const twoTaps = L.rows.find((r) => r.tapOffs === 2)!, one = L.rows.find((r) => r.tapOffs === 1)!;
+    expect(twoTaps.floors).toHaveLength(1);
+    expect(twoTaps.entries.filter((e) => e.tapOff).map((e) => e.board.id)).toEqual(['SMDB-0', 'SMDB-0B']);
+    expect(one.entries.filter((e) => e.tapOff)).toHaveLength(1);
+    expect(L.looseTapOffs).toEqual(['BR-1 (2)']);
+    const svg = dbRiserDrawing(p, B).svg;
+    expect(svg.match(/>TOB</g)).toHaveLength(3);
+    expect(svg).toContain('Tap-offs with a load and no board, not drawn: BR-1 (2).');
+  });
+
+  it('draws an EMDB with mains and generator through its changeover', () => {
+    const ats = dbRiserDrawing(tower(), B).svg;
+    expect(ats).toContain('ATS 1000 A 4P');
+    expect(ats).toContain('Mains from MDB-1');
+    expect(ats).toContain('800 kVA');
+    expect(ats).toContain('stroke-dasharray="5 3"');
+    const acb = tower(2, (boards) => { boards.find((b) => b.id === 'EMDB-1')!.standby = { kva: 800, changeover: 'ACB' }; });
+    const s = dbRiserDrawing(acb, B).svg;
+    expect(s).toContain('interlock');
+    expect(s).not.toContain('ATS 1000');
+    // Its own transformer instead of a feed from a panel.
+    const own = tower(2, (boards) => { const e = boards.find((b) => b.id === 'EMDB-1')!; e.upstreamId = undefined; e.sourceKva = 1000; });
+    own.feeders = own.feeders.filter((f) => f.feedsBoardId !== 'EMDB-1');
+    const o = dbRiserDrawing(own, B).svg;
+    expect(o).toContain('TX-EMDB-1');
+    expect(o).not.toContain('Mains from');
+  });
+
+  it('draws a bus coupler between panels side by side, and names it otherwise', () => {
+    const extra = (boards: Board[]) => { boards.push({ id: 'MDB-2', name: 'M2', kind: 'MDB', sourceKva: 1500, level: lv('G') }); };
+    const p = tower(2, extra);
+    p.ties = [{ id: 'BC-1', a: 'MDB-1', b: 'MDB-2', ratingA: 1600 }];
+    const L = dbRiserLayout(p, B);
+    expect(L.mains.map((m) => m.board.id).slice(0, 2)).toEqual(['MDB-1', 'MDB-2']);
+    const svg = dbRiserDrawing(p, B).svg;
+    expect(svg).toContain('>BC-1<');
+    expect(svg).toContain('1600 A · N.O.');
+    const far = tower(2, (boards) => { extra(boards); boards.find((b) => b.id === 'MDB-2')!.level = lv('P'); });
+    far.ties = [{ id: 'BC-1', a: 'MDB-1', b: 'MDB-2', ratingA: 1600, closed: true }];
+    const s = dbRiserDrawing(far, B).svg;
+    expect(s).toContain('Coupler BC-1 to MDB-2 · 1600 A · N.C.');
+    expect(s).toContain('Coupler BC-1 to MDB-1 · 1600 A · N.C.');
+  });
+
+  it('prints the board count table only when chosen', () => {
+    const p = tower();
+    expect(dbRiserDrawing(p, B).svg).not.toContain('BOARDS PER LEVEL');
+    const svg = dbRiserDrawing(p, B, { countTable: true }).svg;
+    expect(svg).toContain('BOARDS PER LEVEL');
+    expect(svg).toContain('TOB');
+    expect(svg).toContain('4×4=16');
   });
 
   it('reports boards with no level instead of counting short', () => {

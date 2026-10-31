@@ -1,4 +1,4 @@
-import type { Board, BoardKind, Feeder, Project } from '../types';
+import { incomerDeviceOf, type Board, type BoardKind, type BusTie, type Feeder, type Project } from '../types';
 import { boardsInSupplyOrder } from '../calc/summary';
 import { runsOf } from '../calc/electrical';
 import { sizeRiser } from '../calc/busbar';
@@ -29,31 +29,39 @@ export function countCol(k: BoardKind): CountCol {
 const zero = (): RowCounts => ({ mdb: 0, smdb: 0, db: 0, edb: 0, mcc: 0, ups: 0 });
 export const countTotal = (c: RowCounts) => COUNT_COLS.reduce((s, k) => s + c[k], 0);
 
-/** A board kind on a row: "DB ×8" with its rating. */
-export interface KindCount { kind: string; count: number; ratings: number[] }
-/** One box (with what it feeds on the same floor) of one floor of a row, on a run of a main. */
-export interface RowEntry { board: Board; kind: string; count: number; ratings: number[]; kids: KindCount[]; runId?: string }
+/** Boards of one kind on a row, by reference: `ids` on the row's first floor, `lastIds` on its last when it has several floors. */
+export interface KindCount { kind: string; ids: string[]; lastIds?: string[]; ratings: number[] }
+/** One box (with what it feeds on the same floor) of a row, on a run of a main. tapOffA: it hangs on a busbar riser through a tap-off box. */
+export interface RowEntry extends KindCount { board: Board; kids: KindCount[]; runId?: string; tapOff: boolean; tapOffA?: number }
 export interface DbRiserRow {
   index: number; label: string; sub: string; floors: Floor[]; counts: RowCounts; entries: RowEntry[];
-  mainIds: string[]; page: number
+  mainIds: string[]; page: number; /** Tap-off boxes on each of its floors. */ tapOffs: number
 }
 export interface DbRiserRun {
   id: string; kind: 'bus' | 'cable'; mainId: string; heavy: boolean; name: string; type: string; breaker: string; verticalM: number;
   /** Boards fed at each row (all its floors), by row index. */
   fed: Map<number, number>; /** Mains fed at each row. */ mains: Map<number, string[]>;
-  rowMin: number; rowMax: number; letter?: string; serves: string
+  rowMin: number; rowMax: number; letter?: string; serves: string; /** Tap-off box rating, by board. */ tapOffA: Map<string, number>
 }
-export interface DbRiserMain { board: Board; row: number; runs: DbRiserRun[]; fromLocal?: string; localEntries: boolean; sourceKva?: number; standbyKva?: number; hasStandby: boolean }
+export interface DbRiserMain {
+  board: Board; row: number; runs: DbRiserRun[]; fromLocal?: string; localEntries: boolean; sourceKva?: number; standbyKva?: number; hasStandby: boolean;
+  changeover?: 'ATS' | 'ACB'; changeoverA?: number; incomer?: string; /** Fed from another panel through the changeover. */ mainsFrom?: string;
+  /** Mains cable to the changeover of this panel, from this panel's busbar, and its breaker. */ feedsChangeover: { boardId: string; breaker: string }[]
+}
 export interface DbRiserLayout {
   buildingName: string; rows: DbRiserRow[]; mains: DbRiserMain[]; runs: DbRiserRun[]; pages: number[][];
   /** In the supply chain with no level here: drawn on the lowest level. */ notOnLevel: string[];
-  /** Fed from this building with no level: not counted. */ unplaced: string[]; empty: boolean
+  /** Fed from this building with no level: not counted. */ unplaced: string[]; /** Tap-offs entered with a load and no board. */ looseTapOffs: string[];
+  ties: BusTie[]; empty: boolean
 }
 
 /** Rows per sheet are limited by height (px of the drawing), so that A3 stays readable. */
 export const PAGE_ROWS_H = 560;
 const MAX_CABLE_LINES = 3;
-export const ROW_MIN_H = 84, ENTRY_H = 42, MAIN_H = 92;
+export const ROW_MIN_H = 84, ENTRY_H = 42, MAIN_H = 92, SOURCE_H = 74;
+
+/** Under a panel: its transformer, generator and changeover. */
+export const hasSourceBand = (b: Board) => !!b.sourceKva || !!b.standby;
 
 /** A box stack's height of one row entry. */
 export const entryHeight = (e: RowEntry) => Math.max(1, e.kids.length) * ENTRY_H;
@@ -70,7 +78,7 @@ export function dbRiserOffered(project: Project, buildingId: string): boolean {
 export function dbRiserLayout(project: Project, buildingId: string): DbRiserLayout {
   const building = project.building?.buildings.find((b) => b.id === buildingId);
   const floors = floorList(project.building).filter((f) => f.buildingId === buildingId);
-  const none: DbRiserLayout = { buildingName: building?.name ?? buildingId, rows: [], mains: [], runs: [], pages: [], notOnLevel: [], unplaced: [], empty: true };
+  const none: DbRiserLayout = { buildingName: building?.name ?? buildingId, rows: [], mains: [], runs: [], pages: [], notOnLevel: [], unplaced: [], looseTapOffs: [], ties: [], empty: true };
   if (!floors.length) return none;
   const floorIx = new Map(floors.map((f, i) => [f.key, i]));
   const byId = new Map(project.boards.map((b) => [b.id, b]));
@@ -128,11 +136,11 @@ export function dbRiserLayout(project: Project, buildingId: string): DbRiserLayo
   const kindCounts = (list: Board[]): KindCount[] => {
     const m = new Map<string, Board[]>();
     for (const b of list) m.set(shortKind(kindOf(b)), [...(m.get(shortKind(kindOf(b))) ?? []), b]);
-    return [...m.entries()].map(([kind, l]) => ({ kind, count: l.length, ratings: ratingsOf(l) }));
+    return [...m.entries()].map(([kind, l]) => ({ kind, ids: l.map((b) => b.id), ratings: ratingsOf(l) }));
   };
   const signature = (i: number) => {
     const list = (onFloor.get(i) ?? []).filter((b) => mainSet.has(b.id)).map((b) => `M:${b.id}`);
-    for (const h of headsOf(i)) list.push(`${kindOf(h)}|${feedKey(h)}|${kindCounts(sameFloorKids(h)).map((k) => `${k.kind}${k.count}`).sort().join(',')}`);
+    for (const h of headsOf(i)) list.push(`${kindOf(h)}|${feedKey(h)}|${kindCounts(sameFloorKids(h)).map((k) => `${k.kind}${k.ids.length}`).sort().join(',')}`);
     return list.sort().join(';');
   };
 
@@ -144,7 +152,7 @@ export function dbRiserLayout(project: Project, buildingId: string): DbRiserLayo
     const sig = signature(i), last = rows[rows.length - 1], prev = last?.floors[last.floors.length - 1];
     const joins = prev && sig === lastSig && (prev.ref.level === f.ref.level || (levelKind(prev) === 'typical' && levelKind(f) === 'typical'));
     if (joins) last.floors.push(f);
-    else rows.push({ index: rows.length, label: '', sub: '', floors: [f], counts: zero(), entries: [], mainIds: [], page: 0 });
+    else rows.push({ index: rows.length, label: '', sub: '', floors: [f], counts: zero(), entries: [], mainIds: [], page: 0, tapOffs: 0 });
     lastSig = sig;
   });
   const rowOfFloor = new Map<number, number>();
@@ -158,6 +166,7 @@ export function dbRiserLayout(project: Project, buildingId: string): DbRiserLayo
     const first = floorIx.get(f.key)!;
     for (const b of onFloor.get(first) ?? []) r.counts[countCol(kindOf(b))]++;
     r.mainIds = (onFloor.get(first) ?? []).filter((b) => mainSet.has(b.id)).map((b) => b.id);
+    r.tapOffs = (onFloor.get(first) ?? []).filter((b) => busOf(b)).length;
   });
 
   // Pages, bottom first: never inside a row; a chosen break starts a new sheet at its row.
@@ -165,7 +174,8 @@ export function dbRiserLayout(project: Project, buildingId: string): DbRiserLayo
   const rowHeight = (r: DbRiserRow) => {
     const stack = new Map<string, number>();
     for (const h of headsOf(floorIx.get(r.floors[0].key)!)) stack.set(h.upstreamId!, (stack.get(h.upstreamId!) ?? 0) + Math.max(1, kindCounts(sameFloorKids(h)).length) * ENTRY_H);
-    return Math.max(ROW_MIN_H, Math.max(0, ...stack.values()) + (r.mainIds.length ? MAIN_H : 0) + 16);
+    const band = r.mainIds.some((id) => hasSourceBand(byId.get(id)!)) ? SOURCE_H : 0;
+    return Math.max(ROW_MIN_H, Math.max(0, ...stack.values()) + (r.mainIds.length ? MAIN_H : 0) + band + 16);
   };
   const pages: number[][] = [[]];
   let used = 0;
@@ -180,7 +190,13 @@ export function dbRiserLayout(project: Project, buildingId: string): DbRiserLayo
 
   // Runs: a busbar riser each. Cables of a panel have a line per row, but share one line when going to another
   // sheet or to more rows than MAX_CABLE_LINES, so a tall building stays narrow.
+  // Panels with a coupler between them sit side by side.
+  const ties = (project.ties ?? []).filter((t) => mainSet.has(t.a) && mainSet.has(t.b));
   const allMains = boards.filter((b) => mainSet.has(b.id));
+  for (const t of ties) {
+    const at = allMains.findIndex((b) => b.id === t.a), bt = allMains.findIndex((b) => b.id === t.b);
+    if (rowOf(allMains[at]) === rowOf(allMains[bt]) && bt > at + 1) allMains.splice(at + 1, 0, ...allMains.splice(bt, 1));
+  }
   const runs = new Map<string, DbRiserRun>();
   const topElevation = (rowIx: number) => { const fl = rows[rowIx].floors; return fl[fl.length - 1].elevationM; };
   const fedBoards = new Map<string, Board[]>();
@@ -202,7 +218,7 @@ export function dbRiserLayout(project: Project, buildingId: string): DbRiserLayo
     if (!busOf(b) && sameFloor(b)) continue;
     const id = runIdOf(b), row = rowOf(b), main = byId.get(b.upstreamId)!;
     const bus = busOf(b), mr = rowOf(main);
-    if (!runs.has(id)) runs.set(id, { id, kind: bus ? 'bus' : 'cable', mainId: main.id, heavy: !!bus || isFr(b), name: '', type: '', breaker: '', verticalM: 0, fed: new Map(), mains: new Map(), rowMin: mr, rowMax: mr, serves: '' });
+    if (!runs.has(id)) runs.set(id, { id, kind: bus ? 'bus' : 'cable', mainId: main.id, heavy: !!bus || isFr(b), name: '', type: '', breaker: '', verticalM: 0, fed: new Map(), mains: new Map(), rowMin: mr, rowMax: mr, serves: '', tapOffA: new Map() });
     const run = runs.get(id)!;
     run.fed.set(row, (run.fed.get(row) ?? 0) + 1);
     if (mainSet.has(b.id)) run.mains.set(row, [...(run.mains.get(row) ?? []), b.id]);
@@ -218,9 +234,16 @@ export function dbRiserLayout(project: Project, buildingId: string): DbRiserLayo
       .sort((a, b) => Number(b.kind === 'bus') - Number(a.kind === 'bus') || Number(b.id.startsWith('far')) - Number(a.id.startsWith('far')) || a.rowMax - b.rowMax);
     ordered.push(...own);
     const parent = board.upstreamId && place.has(board.upstreamId) ? board.upstreamId : undefined;
+    const device = incomerDeviceOf(board);
     return {
-      board, row, runs: own, fromLocal: parent && sameFloor(board) && !busOf(board) ? parent : undefined,
-      localEntries: false, sourceKva: board.sourceKva, standbyKva: board.standby?.kva, hasStandby: !!board.standby
+      board, row, runs: own, fromLocal: parent && sameFloor(board) && !busOf(board) && !board.standby ? parent : undefined,
+      localEntries: false, sourceKva: board.sourceKva, standbyKva: board.standby?.kva, hasStandby: !!board.standby,
+      changeover: board.standby ? board.standby.changeover ?? 'ATS' : undefined, changeoverA: board.standby?.atsRatingA ?? board.ratedCurrentA,
+      incomer: device === 'MCCB-NA' ? 'MCCB (NA)' : device === 'ISOL' ? 'Isolator' : device, mainsFrom: board.standby ? parent : undefined,
+      feedsChangeover: boards.filter((c) => c.upstreamId === board.id && c.standby && mainSet.has(c.id) && sameFloor(c) && !busOf(c)).map((c) => {
+        const f = feederTo(c);
+        return { boardId: c.id, breaker: f ? `${f.breakerRatingA} A` : '' };
+      })
     };
   });
 
@@ -241,6 +264,7 @@ export function dbRiserLayout(project: Project, buildingId: string): DbRiserLayo
       const a = res?.type?.ratingA;
       run.type = `Busbar${a ? ` ${a} A` : ''} ${r.material === 'cu' ? 'Cu' : 'Al'}`;
       run.breaker = a ? `${a} A` : '';
+      for (const x of res?.floors ?? []) if (x.floor.boardId && x.tapOffA) run.tapOffA.set(x.floor.boardId, x.tapOffA);
     } else {
       cables++;
       const fs = fed.map(feederTo).filter((f): f is Feeder => !!f);
@@ -251,26 +275,41 @@ export function dbRiserLayout(project: Project, buildingId: string): DbRiserLayo
     }
   }
 
-  // Row entries: one floor of the row, identical boxes merged.
-  rows.forEach((r) => {
-    const merged = new Map<string, RowEntry>();
-    for (const h of headsOf(floorIx.get(r.floors[0].key)!)) {
-      const ks = kindCounts(sameFloorKids(h));
-      const runId = !busOf(h) && sameFloor(h) ? undefined : runIdOf(h);
-      const key = `${h.upstreamId}|${runId ?? 'local'}|${kindOf(h)}|${ks.map((k) => `${k.kind}${k.count}`).join(',')}`;
-      const had = merged.get(key);
-      if (had) { had.count++; had.ratings = [...new Set([...had.ratings, ...ratingsOf([h])])].sort((a, b) => a - b); for (const k of ks) { const o = had.kids.find((x) => x.kind === k.kind); if (o) o.ratings = [...new Set([...o.ratings, ...k.ratings])].sort((a, b) => a - b); } }
-      else merged.set(key, { board: h, kind: shortKind(kindOf(h)), count: 1, ratings: ratingsOf([h]), kids: ks, runId });
+  // Row entries, by reference. Every tap-off and every panel feeding others has its own box; other boards of one kind share one.
+  const entriesOf = (floor: number): { key: string; entry: RowEntry }[] => {
+    const out: { key: string; entry: RowEntry }[] = [];
+    let n = 0;
+    for (const h of headsOf(floor)) {
+      const ks = kindCounts(sameFloorKids(h)), tapOff = !!busOf(h);
+      const runId = !tapOff && sameFloor(h) ? undefined : runIdOf(h);
+      const key = `${h.upstreamId}|${runId ?? 'local'}|${kindOf(h)}|${ks.map((k) => `${k.kind}${k.ids.length}`).join(',')}`;
+      const had = !tapOff && !ks.length ? out.find((x) => x.key === key) : undefined;
+      if (had) { had.entry.ids.push(h.id); had.entry.ratings = [...new Set([...had.entry.ratings, ...ratingsOf([h])])].sort((a, b) => a - b); continue; }
+      out.push({ key: tapOff || ks.length ? `${key}#${n++}` : key, entry: { board: h, kind: shortKind(kindOf(h)), ids: [h.id], ratings: ratingsOf([h]), kids: ks, runId, tapOff, tapOffA: runId ? runs.get(runId)?.tapOffA.get(h.id) : undefined } });
     }
-    r.entries = [...merged.values()];
+    return out;
+  };
+  rows.forEach((r) => {
+    const first = entriesOf(floorIx.get(r.floors[0].key)!);
+    if (r.floors.length > 1) {
+      const last = entriesOf(floorIx.get(r.floors[r.floors.length - 1].key)!);
+      first.forEach((x, i) => {
+        const y = last.find((l) => l.key === x.key) ?? last[i];
+        if (!y) return;
+        x.entry.lastIds = y.entry.ids;
+        x.entry.kids.forEach((k, j) => { k.lastIds = y.entry.kids[j]?.ids; });
+      });
+    }
+    r.entries = first.map((x) => x.entry);
   });
+  const looseTapOffs = risers.filter((r) => r.sourceBoardId && place.has(r.sourceBoardId)).flatMap((r) => { const n = r.floors.filter((f) => !f.boardId).reduce((s, f) => s + Math.max(1, f.count ?? 1), 0); return n ? [`${r.name} (${n})`] : []; });
   for (const m of mains) m.localEntries = rows[m.row].entries.some((e) => e.board.upstreamId === m.board.id && !e.runId);
 
   // Flags for the runs that cross a sheet break.
   let n = 0;
   for (const run of ordered) if (rows[run.rowMin].page !== rows[run.rowMax].page) run.letter = flagLetter(n++);
 
-  return { buildingName: building?.name ?? buildingId, rows, mains, runs: ordered, pages, notOnLevel, unplaced, empty: false };
+  return { buildingName: building?.name ?? buildingId, rows, mains, runs: ordered, pages, notOnLevel, unplaced, looseTapOffs, ties, empty: false };
 }
 
 /** A, B … Z, AA, AB … */
@@ -284,6 +323,25 @@ export function rowsTotal(rows: DbRiserRow[]): RowCounts {
   const t = zero();
   for (const r of rows) for (const k of COUNT_COLS) t[k] += r.counts[k] * r.floors.length;
   return t;
+}
+
+/** A floor's references in a box: a short list, or first … last; a typical row also gives its last floor. */
+export function refLines(k: Pick<KindCount, 'ids' | 'lastIds'>): string[] {
+  const { ids, lastIds } = k;
+  if (lastIds?.length) {
+    if (ids.length === 1) return [`${ids[0]} … ${afterPrefix(ids[0], lastIds[0])}`];
+    return [`${ids[0]} … ${ids[ids.length - 1]}`, `to ${lastIds[0]} … ${lastIds[lastIds.length - 1]}`];
+  }
+  if (ids.length > 4) return [`${ids[0]} … ${ids[ids.length - 1]}`];
+  const short = ids.map((id, i) => (i % 2 ? afterPrefix(ids[i - 1], id) : id));
+  return short.reduce<string[]>((out, s, i) => { if (i % 2) out[out.length - 1] += `, ${s}`; else out.push(s); return out; }, []);
+}
+/** "DB-L01-A2" after "DB-L01-A1" is "A2": what follows their shared prefix, up to its last separator. */
+function afterPrefix(a: string, b: string): string {
+  let n = 0;
+  while (n < a.length && n < b.length && a[n] === b[n]) n++;
+  const cut = Math.max(a.lastIndexOf('-', n - 1), a.lastIndexOf('/', n - 1), a.lastIndexOf('.', n - 1));
+  return cut >= 0 ? b.slice(cut + 1) : b;
 }
 
 /** Sheet titles of a building's riser (one per page). */

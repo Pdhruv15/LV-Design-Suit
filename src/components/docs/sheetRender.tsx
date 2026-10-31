@@ -45,7 +45,7 @@ export async function renderSheet(project: Project, set: DrawingSet, s: DrawingS
     }
     if (s.kind === 'riser') {
       if (!s.buildingId) return undefined;
-      if (s.riserStyle === 'byLevel') return dbRiserDrawing(project, s.buildingId, { sheetNos: dbRiserSheetNos(set, s.buildingId) }, s.part ?? 0);
+      if (s.riserStyle === 'byLevel') return dbRiserDrawing(project, s.buildingId, { sheetNos: dbRiserSheetNos(set, s.buildingId), countTable: s.countTable }, s.part ?? 0);
       flushSync(() => root.render(s.riserStyle === 'feeders' ? <FeederRiserDiagram project={project} buildingId={s.buildingId!} /> : <RiserDiagram project={project} buildingId={s.buildingId!} />));
       await new Promise((r) => requestAnimationFrame(() => r(null)));
       const svg = host.querySelector<SVGSVGElement>('.sysdiag > svg');

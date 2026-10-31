@@ -366,8 +366,9 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, ui
               <p className="m">Each panel is drawn on its Level (panel properties). Levels and floor heights come from Building information.</p>
               {s.kind === 'riser' && s.riserStyle === 'byLevel' && s.buildingId && (() => {
                 const buildingId = s.buildingId, rows = dbRiserLayout(project, buildingId).rows.slice(1), breaks = set.riserBreaks?.[buildingId] ?? [];
-                return rows.length > 0 && <>
-                  <p className="m">New sheet starts at:</p>
+                return <>
+                  <label><input type="checkbox" checked={!!s.countTable} onChange={(e) => patch({ countTable: e.target.checked || undefined })} /> Board count table on this sheet</label>
+                  {rows.length > 0 && <p className="m">New sheet starts at:</p>}
                   {rows.map((r) => {
                     const keys = r.floors.map((f) => f.key);
                     return <label key={keys[0]}><input type="checkbox" checked={keys.some((k) => breaks.includes(k))} onChange={() => save(addDbRiserSheets(toggleRiserBreak(set, buildingId, keys), project, buildingId).set)} /> {r.label}</label>;
