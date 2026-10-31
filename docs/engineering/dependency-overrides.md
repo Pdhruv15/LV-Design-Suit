@@ -3,9 +3,9 @@
 Review by: **2027-01-17** (enforced by `src/model/dependencyOverrides.test.ts`, which fails after this
 date until the entries below are reviewed and the date moved).
 
-`npm audit --omit=dev` and `npm audit` both report **0 vulnerabilities** with the overrides in
-`package.json`. Never run `npm audit fix --force` here: it downgrades `exceljs` to 3.4.0 and
-`electron-builder` to 26.5.0.
+`npm audit --omit=dev` and `npm audit` are checked against the temporary acceptance in
+`security/audit-allowlist.json`. Never run `npm audit fix --force` here: it downgrades `exceljs` to
+3.4.0 and `electron-builder` to 26.5.0.
 
 ## Overrides
 
@@ -26,9 +26,17 @@ later are ESM only, so do not raise the override past 11.x while exceljs is Comm
   a buffer, the affected v3 / v5 / v6 paths are never used. The main process (LV Database workbooks)
   uses the Node build and gets the overridden uuid 11.1.1.
 
-## Checked with the overrides (2026-10-17)
+## Temporarily allowlisted
 
-- Lint, typecheck, unit tests, `npm run build`.
+- **minimatch before 11.0.1 (GHSA-g3hv-75wg-m249).** ExcelJS 4.4.0 brings minimatch 3 and 5 through
+  its archive glob helpers. Workbook export uses library-owned patterns; project data supplies workbook
+  values and filenames, not the glob pattern needed for the reported amplification. The patched
+  minimatch major is incompatible with the existing `glob` dependency, so the advisory is accepted
+  until the review date while waiting for compatible upstream releases.
+
+## Checked with the overrides and allowlist (2026-10-31)
+
+- Dependency audit, lint, typecheck, unit tests, `npm run build`.
 - ExcelJS round trip (Node) with a conditional format whose ID comes from `uuid.v4()`.
 - `global-agent` 4.1.3 exposes `bootstrap()` as @electron/get 3 calls it.
 - `electron-builder --mac dir --arm64` (unsigned) with `ELECTRON_GET_USE_PROXY=1`: packaged; the app
