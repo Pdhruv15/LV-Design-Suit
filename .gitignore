@@ -5,6 +5,7 @@ release/
 .DS_Store
 tsconfig.tsbuildinfo
 dist-cli/
+dist-electron/
 
 # Private inputs and local credentials — never committed (docs/privacy.md).
 # Sanitized fixtures belong in tests/fixtures/ or docs/, which these rules do not touch.

@@ -5,7 +5,7 @@ import globals from 'globals';
 
 // Lint (npm run lint): rules that find real mistakes. Formatting is left to the code's own style.
 export default tseslint.config(
-  { ignores: ['dist/**', 'dist-cli/**', 'release/**', 'build/**', 'node_modules/**', 'engines/**', 'electron/cad/**', 'docs/**', '.archify/**', '.claude/worktrees/**'] },
+  { ignores: ['dist/**', 'dist-cli/**', 'dist-electron/**', 'release/**', 'build/**', 'node_modules/**', 'engines/**', 'electron/cad/**', 'docs/**', '.archify/**', '.claude/worktrees/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

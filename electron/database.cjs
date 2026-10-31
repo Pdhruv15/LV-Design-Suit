@@ -6,9 +6,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { LIMITS, readJsonLimited, readFileLimited } = require('./limits.cjs');
 const { replaceFile, copyFileNoFollow, ensureRealDir, listFiles } = require('./safeFs.cjs');
-// ExcelJS (about 160 ms and 9 MB to load) is needed only to import or export a database workbook: loaded then.
+// ExcelJS (about 50 ms and 9 MB to load) is needed only to import or export a database workbook: loaded then.
+// The package has no node_modules, only the one file `npm run build` makes (vite.electron.config.ts).
+// Before a build (npm run dev, the tests) that file is missing and the installed library is used.
+const EXCELJS_BUNDLE = path.join(__dirname, '..', 'dist-electron', 'exceljs.cjs');
+const loadExcelJs = () => (fs.existsSync(EXCELJS_BUNDLE) ? require('../dist-electron/exceljs.cjs') : require('exceljs'));
 let excelJs;
-const workbook = () => new (excelJs ??= require('exceljs')).Workbook();
+const workbook = () => new (excelJs ??= loadExcelJs()).Workbook();
 const spec = require('./databaseSpec.json');
 
 const MAX_ROWS = LIMITS.workbookRows; // rows given data validation in new workbooks (the most the app writes)

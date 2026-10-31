@@ -17,7 +17,7 @@ Both licences cover the code, not the name **"LV Design Studio"** or its logo. C
 
 ## Third-party software
 
-LV Design Studio is built with open-source libraries under their own licences (MIT, ISC, Apache-2.0 — for example React, Electron, ExcelJS, pdf-lib, docx, JSZip, Lucide icons, Vite, TypeScript). Their licence texts are included with them in `node_modules` and in the installed app.
+LV Design Studio is built with open-source libraries under their own licences (MIT, ISC, Apache-2.0 — for example React, Electron, ExcelJS, pdf-lib, docx, JSZip, Lucide icons, Vite, TypeScript). Their licence texts are included with them in `node_modules`. The installed app has no `node_modules`: the libraries are compiled into it, and their licence texts are in `third-party-licences.md` in its `dist` and `dist-electron` folders (inside `app.asar`), written by each build. Windows and Linux packages also have Electron's and Chromium's licence files next to the app.
 
 The `lvds` command line tool, MCP server and local API (`src/headless`) also use the official Model Context Protocol TypeScript SDK (`@modelcontextprotocol/sdk`, MIT, Copyright (c) 2024 Anthropic, PBC), Zod (MIT, Copyright (c) 2025 Colin McDonnell) and xmldom (`@xmldom/xmldom`, MIT, Copyright 2019 - present Christopher J. Brody and contributors, 2012 - 2017 @jindw and contributors), with their own MIT / ISC / BSD-2-Clause dependencies. These licences are compatible with this app's MIT / Apache-2.0 licence; only their copyright notices must be kept, as above.
 
