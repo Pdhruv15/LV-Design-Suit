@@ -6,7 +6,7 @@ const path = require('node:path');
 const safeFs = require('./safeFs.cjs');
 
 // Sheet sizes in inches (A-series); Electron knows A3/A4 by name only.
-const SHEETS = { A1: { width: 33.11, height: 23.39 }, A2: { width: 23.39, height: 16.54 } };
+const SHEETS = { A1: { width: 33.11, height: 23.39 }, A2: { width: 23.39, height: 16.54 }, 'A3 portrait': { width: 11.69, height: 16.54 } };
 
 /** Reports render in their own session that loads nothing from the network: only the local report file
  * and data: images it carries. */

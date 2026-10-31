@@ -16,6 +16,7 @@ import { isRasterDataUrl } from '../util/escape';
 export const SHEET_MM: Record<NonNullable<DrawingInfo['sheet']>, { w: number; h: number }> = {
   A4: { w: 297, h: 210 },
   A3: { w: 420, h: 297 },
+  'A3 portrait': { w: 297, h: 420 },
   A2: { w: 594, h: 420 },
   A1: { w: 841, h: 594 }
 };
@@ -160,9 +161,9 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
     .notes ol { margin: ${mm(0.5)} 0 0; padding-left: ${mm(4)}; }
     .side { position: absolute; right: 0; top: 0; width: ${mm(csW)}; bottom: ${mm(47)}; display: flex; flex-direction: column; gap: ${mm(2)}; overflow: hidden; border-left: ${mm(0.25)} solid #000; padding: ${mm(2)}; }
     .side .lg svg { width: 100%; height: auto; display: block; }
-    .side .sum { margin-top: auto; flex: none; border: ${mm(0.25)} solid #000; font-size: ${px(9)}; }
-    .sum b { display: block; padding: ${mm(1)} ${mm(2)}; border-bottom: ${mm(0.25)} solid #000; }
-    .sum table { width: 100%; border-collapse: collapse; } .sum td { padding: ${mm(0.6)} ${mm(2)}; border-bottom: ${mm(0.15)} solid #000; } .sum tr:last-child td { border-bottom: 0; } .sum td + td { text-align: right; font-weight: 600; width: ${mm(16)}; }
+    .side .sum { margin-top: auto; flex: none; border: ${mm(0.25)} solid #000; font-size: ${px(7)}; }
+    .sum b { display: block; font-size: ${px(8)}; padding: ${mm(1)} ${mm(2)}; border-bottom: ${mm(0.25)} solid #000; }
+    .sum table { width: 100%; border-collapse: collapse; } .sum td { padding: ${mm(0.3)} ${mm(2)}; border-bottom: ${mm(0.15)} solid #000; } .sum tr:last-child td { border-bottom: 0; } .sum td + td { text-align: right; font-weight: 600; width: ${mm(16)}; }
     .side .abbr, .side .cs { position: static; width: auto; max-height: none; border: ${mm(0.25)} solid #000; column-count: 1; }
     .abbr { position: absolute; left: 0; bottom: ${mm(44)}; font-size: ${px(7)}; border: ${mm(0.25)} solid #000; border-left: 0; padding: ${mm(1)} ${mm(2)}; background: #fff; column-count: ${abbr.length > 12 ? 2 : 1}; column-gap: ${mm(4)}; }
     .abbr b { display: block; column-span: all; font-size: ${px(8)}; margin-bottom: ${mm(0.5)}; }

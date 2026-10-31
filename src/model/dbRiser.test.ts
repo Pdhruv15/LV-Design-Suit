@@ -4,7 +4,8 @@ import { sampleProject } from '../data/sampleProject';
 import type { Board, Feeder, Project } from '../types';
 import { cablesAtGap, countTotal, dbRiserLayout, dbRiserOffered, dbRiserSummary, dbRiserTitles, flagLetter, refLines, rowsTotal } from './dbRiser';
 import { dbRiserDrawing, dbRiserSheetNos } from '../diagram/dbRiserDrawing';
-import { addDbRiserSheets, drawable, setOf, sheetChecks, toggleRiserBreak, type DrawingSet } from './drawingSet';
+import { addDbRiserSheets, drawable, riserPaper, setOf, sheetChecks, toggleRiserBreak, type DrawingSet } from './drawingSet';
+import { SHEET_MM } from '../docs/sldSheet';
 import { buildSheetDxfPages } from '../docs/sheetDxf';
 import { dbRiserLegend } from '../diagram/dbRiserDrawing';
 import { dxfOf, prepareSheets, sheetHtml } from '../components/docs/sheetRender';
@@ -253,6 +254,16 @@ describe('DB riser by level', () => {
     expect(all).toContain(s.number);
     expect(all).toContain('LEGEND');
     expect(all).toContain('Total boards');
+  });
+
+  it('stays on standard A3 paper, portrait for a tall drawing, and goes larger only when unreadable', () => {
+    expect(riserPaper(1200, 700, 80).size).toBe('A3');
+    expect(riserPaper(300, 200, 80).size).toBe('A3'); // never A4 for a small drawing
+    expect(riserPaper(800, 1400, 80).size).toBe('A3 portrait');
+    expect(riserPaper(2000, 900, 80).size).toBe('A2');
+    expect(riserPaper(3000, 1400, 80).size).toBe('A1');
+    expect(riserPaper(9000, 1400, 80).fits).toBe(false);
+    expect(SHEET_MM['A3 portrait']).toEqual({ w: 297, h: 420 });
   });
 
   it('reports boards with no level instead of counting short', () => {

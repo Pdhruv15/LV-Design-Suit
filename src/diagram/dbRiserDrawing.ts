@@ -401,8 +401,8 @@ const LEGEND: { key: string; label: string; draw: (x: number, y: number) => stri
 export function dbRiserLegend(L: DbRiserLayout, part = 0): string {
   if (L.empty) return '';
   const used = usedOn(L, part), items = LEGEND.filter((e) => used.has(e.key));
-  const W = 380, rowH = 30, h = 40 + items.length * rowH;
-  const body = items.map((e, i) => { const y = 32 + 19 + i * rowH; return e.draw(34, y) + text(64, y + 4, e.label); }).join('');
+  const W = 500, rowH = 20, h = 38 + items.length * rowH; // printed at about the drawing's own text size
+  const body = items.map((e, i) => { const y = 32 + 13 + i * rowH; return `<g transform="translate(26 ${y}) scale(0.62)">${e.draw(0, 0)}</g>` + text(50, y + 3.5, e.label); }).join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${h}" width="${W}" height="${h}" font-family="Arial" font-size="10" fill="#111"><rect x="0.5" y="0.5" width="${W - 1}" height="${h - 1}" fill="#fff" stroke="#111" stroke-width="1"/>${text(12, 22, 'LEGEND', 'font-weight="bold"')}${ln(0, 32, W, 32, 1)}${body}</svg>`;
 }
 
