@@ -1,4 +1,4 @@
-import { memoized, networkOf } from './network';
+import { boardOf, feedersOn, memoized } from './network';
 import { recordedPQ } from '../model/existing';
 import { switchedOnBoard } from './capSwitching';
 import { hasRules, resolveRule, type RuleContext } from '../model/designRules';
@@ -186,7 +186,7 @@ export function boardPhasePQ(project: Project, boardId: string, seen = new Set<s
 
 /** `covered`: a recorded maximum demand above (or on) this board already includes its existing load. */
 function boardPhasePQOf(project: Project, boardId: string, seen: Set<string>, covered: boolean): PhasePQ {
-  const board = networkOf(project)?.boardById.get(boardId) ?? project.boards.find((b) => b.id === boardId);
+  const board = boardOf(project, boardId);
   const rec = !covered && board ? recordedPQ(project, board) : undefined;
   const cov = covered || !!rec?.covers;
   const out: PhasePQ = { R: { p: (rec?.p ?? 0) / 3, q: (rec?.q ?? 0) / 3 }, Y: { p: (rec?.p ?? 0) / 3, q: (rec?.q ?? 0) / 3 }, B: { p: (rec?.p ?? 0) / 3, q: (rec?.q ?? 0) / 3 } };
@@ -195,7 +195,7 @@ function boardPhasePQOf(project: Project, boardId: string, seen: Set<string>, co
     for (const ph of ['R', 'Y', 'B'] as const) { out[ph].p += p / 3; out[ph].q += q / 3; }
   };
   const caps: Feeder[] = [];
-  for (const f of networkOf(project)?.feedersByBoard.get(boardId) ?? project.feeders.filter((x) => x.boardId === boardId)) {
+  for (const f of feedersOn(project, boardId)) {
     if (f.feedsBoardId) {
       const sub = boardPhasePQ(project, f.feedsBoardId, seen, cov);
       for (const ph of ['R', 'Y', 'B'] as const) { out[ph].p += sub[ph].p; out[ph].q += sub[ph].q; }

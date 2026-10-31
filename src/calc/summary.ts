@@ -1,7 +1,7 @@
 import { faultCurrentKA, impedanceToBoard, upstreamVoltageDropPct, type Status } from './electrical';
 import { settingsOf, type Board, type Feeder, type LoadType, type Project } from '../types';
 import { switchedOnBoard } from './capSwitching';
-import { memoized, networkOf } from './network';
+import { boardOf, feedersOn, memoized, perProject } from './network';
 import { recordedPQ } from '../model/existing';
 
 const SQRT3 = Math.sqrt(3);
@@ -39,8 +39,8 @@ export function boardTotals(project: Project, boardId: string, seen = new Set<st
 
 /** `covered`: a recorded maximum demand above (or on) this board already includes its existing load. */
 function boardTotalsOf(project: Project, boardId: string, seen: Set<string>, covered: boolean): PowerTotals {
-  const own = networkOf(project)?.feedersByBoard.get(boardId) ?? project.feeders.filter((f) => f.boardId === boardId);
-  const board = networkOf(project)?.boardById.get(boardId) ?? project.boards.find((b) => b.id === boardId);
+  const own = feedersOn(project, boardId);
+  const board = boardOf(project, boardId);
   const rec = !covered && board ? recordedPQ(project, board) : undefined;
   const cov = covered || !!rec?.covers;
   const recorded: PowerTotals = rec ? { connectedKw: rec.p, demandKw: rec.p, demandKvar: rec.q, generationKw: 0 } : ZERO;
@@ -88,7 +88,7 @@ function depthOf(project: Project, board: Board): number {
   while (current?.upstreamId && !seen.has(current.id)) {
     seen.add(current.id);
     depth++;
-    current = project.boards.find((b) => b.id === current!.upstreamId);
+    current = boardOf(project, current.upstreamId);
   }
   return depth;
 }
@@ -115,22 +115,26 @@ export function boardSummary(project: Project, board: Board): BoardSummary {
     voltagePct,
     voltageV: (project.voltageV * voltagePct) / 100,
     faultKA: faultCurrentKA(impedanceToBoard(project, board.id), project.voltageV),
-    outgoing: project.feeders.filter((f) => f.boardId === board.id).length,
-    incomer: project.feeders.find((f) => f.feedsBoardId === board.id && f.boardId === board.upstreamId)
+    outgoing: feedersOn(project, board.id).length,
+    incomer: board.upstreamId ? feedersOn(project, board.upstreamId).find((f) => f.feedsBoardId === board.id) : undefined
   };
 }
 
 /** Boards in supply order (each main board followed by its sub-boards,
  * depth-first), so tables read top-down like the diagram. */
 export function boardsInSupplyOrder(project: Project): Board[] {
+  return [...perProject(project, 'supplyOrder', () => supplyOrder(project))];
+}
+
+function supplyOrder(project: Project): Board[] {
   const out: Board[] = [];
   const seen = new Set<string>();
   const visit = (b: Board) => {
     if (seen.has(b.id)) return;
     seen.add(b.id);
     out.push(b);
-    for (const f of project.feeders.filter((f) => f.boardId === b.id && f.feedsBoardId)) {
-      const child = project.boards.find((x) => x.id === f.feedsBoardId);
+    for (const f of feedersOn(project, b.id)) {
+      const child = f.feedsBoardId ? boardOf(project, f.feedsBoardId) : undefined;
       if (child) visit(child);
     }
   };

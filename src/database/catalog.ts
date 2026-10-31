@@ -1,6 +1,7 @@
 import type { BusbarType } from '../calc/busbar';
 import type { RoomType, UnitType } from '../types';
 import type { PriceList } from '../model/priceList';
+import { forgetNetworks } from '../calc/network';
 
 /** The equipment catalogue and design rules from the database workbooks
  * (Transformers, Generators, Busbar, Equipment, RoomTypes, UnitTypes, Prices,
@@ -27,7 +28,7 @@ export interface Catalog {
 export const EMPTY_CATALOG: Catalog = { transformers: [], generators: [], busbar: [], equipment: [], roomTypes: [], unitTypes: [], priceLists: [], rules: {}, cableRefs: [] };
 let current: Catalog = EMPTY_CATALOG;
 export const catalog = () => current;
-export function setCatalog(c: Catalog): void { current = c; }
+export function setCatalog(c: Catalog): void { current = c; forgetNetworks(); }
 
 /** Authority / company rules (Rules.xlsx), with the app's defaults. */
 export const RULES: { key: string; label: string; unit: string; value: number }[] = [

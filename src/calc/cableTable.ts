@@ -1,4 +1,5 @@
 import type { Feeder, Project } from '../types';
+import { forgetNetworks } from './network';
 
 // Reference data for copper, XLPE-insulated, steel-wire-armoured (SWA) cable,
 // 4-core, laid in free air at 30°C ambient — a common LV distribution cable
@@ -127,6 +128,7 @@ export function cables(): CableSpec[] {
 /** Sets the cable data (null = back to the built-in reference). */
 export function setCables(rows: CableSpec[] | null): void {
   active = rows && rows.length ? [...rows].sort((a, b) => a.csaMm2 - b.csaMm2) : REFERENCE_CABLE_TABLE;
+  forgetNetworks();
 }
 /** True when the calculations use the app's built-in reference cable values
  * (approximations — replace with manufacturer data via Cables.xlsx). */

@@ -6,6 +6,7 @@ import { evaluateFeeder, faultCurrentKA, impedanceToBoard, cableSizeText } from 
 import { cpcOf } from '../calc/earthing';
 import { boardSummary, boardsInSupplyOrder } from '../calc/summary';
 import { BOARD_KINDS, type Project } from '../types';
+import { feedersOn } from '../calc/network';
 
 export interface Schedule {
   headers: string[];
@@ -22,8 +23,7 @@ export function cableSchedule(project: Project): Schedule {
     'Iz (A)', 'Vd cable (%)', 'Vd total (%)', 'Status'
   ];
   const rows = boardsInSupplyOrder(project).flatMap((b) =>
-    project.feeders
-      .filter((f) => f.boardId === b.id)
+    feedersOn(project, b.id)
       .map((f) => {
         const r = evaluateFeeder(project, f);
         return [

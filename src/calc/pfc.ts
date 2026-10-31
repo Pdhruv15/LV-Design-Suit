@@ -2,6 +2,7 @@ import type { Feeder, Project } from '../types';
 import { settingsOf } from '../types';
 import { boardsInSupplyOrder, boardTotals, loadTypeOf } from './summary';
 import { applyRecommendation, breakerRatings, recommend } from './sizing';
+import { feedersOn } from './network';
 
 /** Power factor correction plan: where the capacitor banks go and how
  * they're built.
@@ -109,13 +110,7 @@ const pfOf = (p: number, q: number) => (Math.hypot(p, q) > 0 ? p / Math.hypot(p,
 /** The board and everything below it. */
 export function subtree(project: Project, boardId: string): Set<string> {
   const out = new Set<string>([boardId]);
-  let grew = true;
-  while (grew) {
-    grew = false;
-    for (const f of project.feeders) {
-      if (f.feedsBoardId && out.has(f.boardId) && !out.has(f.feedsBoardId)) { out.add(f.feedsBoardId); grew = true; }
-    }
-  }
+  for (const id of out) for (const f of feedersOn(project, id)) if (f.feedsBoardId) out.add(f.feedsBoardId); // a Set's loop reaches what it adds
   return out;
 }
 

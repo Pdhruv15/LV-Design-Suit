@@ -12,6 +12,7 @@ import { typicalImpedancePct } from '../calc/txGen';
 import type { RoomType, UnitType } from '../types';
 import type { PriceList } from '../model/priceList';
 import { POINT_TYPES, STUDY_DEFAULTS, type Board, type CircuitLoadItem, type Feeder, type PointType, type Project, type StudySettings } from '../types';
+import { forgetNetworks } from '../calc/network';
 
 export const DATABASE_FOLDER = spec.folderName;
 export const BOOKS = spec.books;
@@ -294,6 +295,7 @@ export function applyDatabase(db: Database): void {
   const bus = (m: 'cu' | 'al') => c.busbar.filter((b) => b.material === m).sort((a, b) => a.ratingA - b.ratingA);
   replaceAll(TYPICAL_BUSBAR_DATA.cu, bus('cu').length ? bus('cu') : BUILT_IN.bus.cu);
   replaceAll(TYPICAL_BUSBAR_DATA.al, bus('al').length ? bus('al') : BUILT_IN.bus.al);
+  forgetNetworks(); // the standard lists above changed in place
 }
 
 /** Rows written into newly created workbooks. Loads start empty (user

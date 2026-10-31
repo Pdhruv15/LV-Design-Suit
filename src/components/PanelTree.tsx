@@ -4,6 +4,7 @@ import type { Board, Project } from '../types';
 import type { FeederResult, Status } from '../calc/electrical';
 import { boardSummary } from '../calc/summary';
 import { incomerOf, indentTarget, moveBlocked, outdentTarget, siblings } from '../model/moveBoard';
+import { groupBy } from '../util/sets';
 
 /** What a click on a board does on the page you're on. */
 export const TREE_HINT: Partial<Record<string, string>> = {
@@ -103,24 +104,26 @@ export default function PanelTree({ project, results, activeId, focusId, view, o
   // Children in the order their incomers sit on the parent's busbar.
   const children = useMemo(() => {
     const m = new Map<string, Board[]>();
+    const add = (parent: string, b: Board) => { const l = m.get(parent); if (l) l.push(b); else m.set(parent, [b]); };
     const byId = new Map(project.boards.map((b) => [b.id, b]));
     for (const f of project.feeders) {
       const child = f.feedsBoardId ? byId.get(f.feedsBoardId) : undefined;
-      if (child && child.upstreamId === f.boardId) m.set(f.boardId, [...(m.get(f.boardId) ?? []), child]);
+      if (child && child.upstreamId === f.boardId) add(f.boardId, child);
     }
     for (const b of project.boards) {
-      if (b.upstreamId && !(m.get(b.upstreamId) ?? []).includes(b)) m.set(b.upstreamId, [...(m.get(b.upstreamId) ?? []), b]);
+      if (b.upstreamId && !(m.get(b.upstreamId) ?? []).includes(b)) add(b.upstreamId, b);
     }
     return m;
   }, [project]);
-  const roots = project.boards.filter((b) => !b.upstreamId || !project.boards.some((x) => x.id === b.upstreamId));
+  const roots = project.boards.filter((b) => !b.upstreamId || !presentIds.has(b.upstreamId));
 
   const info = useMemo(() => {
     const m = new Map<string, { status?: Status; loading?: number; loadingStatus?: Status; fails: number }>();
+    const onBoard = groupBy(results, (r) => r.feeder.boardId);
     for (const b of project.boards) {
-      const rs = results.filter((r) => r.feeder.boardId === b.id);
+      const st = (onBoard.get(b.id) ?? []).map((r) => r.status);
       const s = boardSummary(project, b);
-      m.set(b.id, { status: worst(rs.map((r) => r.status)), loading: s.loadingPct, loadingStatus: s.loadingStatus, fails: rs.filter((r) => r.status === 'bad').length });
+      m.set(b.id, { status: worst(st), loading: s.loadingPct, loadingStatus: s.loadingStatus, fails: st.filter((x) => x === 'bad').length });
     }
     return m;
   }, [project, results]);

@@ -1,4 +1,4 @@
-import { withNetwork } from './network';
+import { boardOf, feedersOn, withNetwork } from './network';
 import { cpcOf, defaultCpcMm2, getCable } from './cableTable';
 import { DEFAULT_TRANSFORMER_XR, rOperatingOhmPerKm, runsOf, transformerImpedance, zMagnitude, type Impedance, type Status } from './electrical';
 import { elcbGroups, isScheduleCircuit } from './loadSchedule';
@@ -97,7 +97,7 @@ function cableLoop(f: Feeder): Impedance {
  * board or incomer, a loop in the board tree): z is then only the part
  * that is known — a lower bound, never a verified Ze. */
 export function earthLoopPath(project: Project, boardId: string, seen = new Set<string>()): { z: Impedance; missing?: string } {
-  const board = project.boards.find((b) => b.id === boardId);
+  const board = boardOf(project, boardId);
   if (!board) return { z: { r: 0, x: 0 }, missing: `board ${boardId} not found` };
   if (seen.has(boardId)) return { z: { r: 0, x: 0 }, missing: `the supply path loops back to ${boardId}` };
   seen.add(boardId);
@@ -107,7 +107,7 @@ export function earthLoopPath(project: Project, boardId: string, seen = new Set<
       : { z: { r: 0, x: 0 }, missing: `no source data at ${board.id} (transformer kVA and impedance %)` };
   }
   const up = earthLoopPath(project, board.upstreamId, seen);
-  const incomer = project.feeders.find((f) => f.boardId === board.upstreamId && f.feedsBoardId === board.id);
+  const incomer = feedersOn(project, board.upstreamId!).find((f) => f.feedsBoardId === board.id);
   if (!incomer) return { z: up.z, missing: up.missing ?? `no incomer feeder from ${board.upstreamId} to ${board.id}` };
   const c = cableLoop(incomer);
   return { z: { r: up.z.r + c.r, x: up.z.x + c.x }, ...(up.missing ? { missing: up.missing } : {}) };

@@ -1,6 +1,7 @@
 import { DEFAULT_CABLE_TYPE, type Feeder, type Project } from '../types';
 import { loadTypeOf } from '../calc/summary';
 import { roleOf } from './emergency';
+import { boardOf } from '../calc/network';
 
 /** Cable constructions: what the SLD label, the schedules, the BOQ and the
  * tray schedule say about each cable. Fire-rated cable (BS 8491 / BS 6387
@@ -47,9 +48,9 @@ const FIRE_ROLES = ['LV-EMDB', 'EMDB', 'ESMDB', 'EDB', 'EMCC', 'FP'];
 export function needsFireRated(project: Project, f: Feeder): boolean {
   if (loadTypeOf(f) === 'fire-pump') return true;
   if (f.essential) return true;
-  const board = project.boards.find((b) => b.id === f.boardId);
+  const board = boardOf(project, f.boardId);
   if (board && FIRE_ROLES.includes(roleOf(project, board))) return true;
-  const fed = f.feedsBoardId ? project.boards.find((b) => b.id === f.feedsBoardId) : undefined;
+  const fed = f.feedsBoardId ? boardOf(project, f.feedsBoardId) : undefined;
   return !!fed && FIRE_ROLES.includes(roleOf(project, fed));
 }
 
