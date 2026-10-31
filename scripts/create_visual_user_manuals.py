@@ -576,7 +576,7 @@ def sld_manual(path: Path) -> None:
         (1, "Select a panel", "Choose the branch for the new sheet."),
         (2, "Add a sheet", "Use +, then Selected panel and its branch, Empty sheet, or Split all panels."),
         (3, "Set controls", "Check paper size, title, panels, cable labels, result layers, status, and revision."),
-        (4, "Preview", "Use Reports > Drawings to review every sheet before issue."),
+        (4, "Preview", "Use Documents > Drawings to review every sheet before issue."),
     ]
     xx = 60
     for n, title, body in steps:
@@ -599,7 +599,7 @@ def sld_manual(path: Path) -> None:
     c.setFont("Helvetica-Bold", 10)
     set_fill(c, BLACK)
     c.drawString(454, 194, "Drawing-set export")
-    bullets(c, ["Open Reports > Drawings", "Preview sheets", "Export one combined PDF", "Or export PDF/DXF per sheet", "Optionally include the drawing register"], 454, 175, 320, size=8.3, leading=10.5)
+    bullets(c, ["Open Documents > Drawings", "Preview sheets", "Export one combined PDF", "Or export PDF/DXF per sheet", "Optionally include the drawing register"], 454, 175, 320, size=8.3, leading=10.5)
     c.save()
 
 

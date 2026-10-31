@@ -43,7 +43,7 @@ Important: a load schedule point type with no **WATT / UNIT** value contributes 
 
 ### 3.1 Open the SLD
 
-Select **Detailed design > SLD**. The work area contains:
+Select the **SLD** tab, the second tab in the ribbon. The work area contains:
 
 - the panel tree on the left;
 - the system diagram in the centre;
@@ -151,7 +151,7 @@ For a quick export of the full system diagram as currently shown on screen, sele
 
 ### 5.1 Open the correct panel
 
-Select a board, then select **Detailed design > Schedule** or **Reports > Load schedule**. You can also:
+Select a board, then select the **Load schedule** tab, the first tab in the ribbon. You can also:
 
 - right-click a board in the panel tree and select **Load schedule**; or
 - double-click a DB's final-circuit summary on the SLD.

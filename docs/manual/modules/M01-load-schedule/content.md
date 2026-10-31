@@ -30,7 +30,7 @@ A point type with no **WATT / UNIT** value contributes 0 W until a value is ente
 <a id="LS-030"></a>
 ## Open the correct panel and form
 
-Open the workspace from **Detailed design > Schedule** or **Reports > Load schedule**.
+Open the workspace from the **Load schedule** tab, the first tab in the ribbon. **Detailed design > Schedule** and **Documents > Load schedule** open the same workspace.
 You can also right-click a board in the panel tree and select **Load schedule**.
 
 Choose the form according to the task:

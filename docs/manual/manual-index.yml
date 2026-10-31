@@ -3,7 +3,7 @@ schema_version: 1
 manual:
   id: LVDS-UM
   title: LV Design Studio User Manual
-  app_version: "1.80"
+  app_version: "2.13"
   language: en
   status: draft
 

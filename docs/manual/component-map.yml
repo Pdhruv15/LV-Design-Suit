@@ -8,8 +8,9 @@ mappings:
     routes:
       - load-schedule
     entry_points:
+      - Load schedule tab
       - Detailed design > Schedule
-      - Reports > Load schedule
+      - Documents > Load schedule
       - Panel tree > Load schedule
     source_files:
       - src/components/docs/LoadScheduleView.tsx
@@ -33,6 +34,7 @@ mappings:
     routes:
       - design
     entry_points:
+      - SLD tab
       - Schematic > SLD
       - Detailed design > SLD
       - Command palette > Design (SLD)
