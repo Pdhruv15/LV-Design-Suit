@@ -6,7 +6,7 @@ import type { CalcRun } from '../../calc/runs';
 import { evaluateProject } from '../../calc/electrical';
 import { buildAnnotations, SHEET_LAYERS } from '../../diagram/annotations';
 import { printableSvg } from '../../diagram/exportSvg';
-import { autoSize, drawable, riserPaper, LEGEND_RESERVE_MM, RISER_SIDE_MM, MIN_MM_PER_PX, fromSheetLabels, scaleOn, sheetProject, sheetRev, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
+import { autoSize, drawable, LEGEND_RESERVE_MM, RISER_SIDE_MM, MIN_MM_PER_PX, fromSheetLabels, scaleOn, sheetProject, sheetRev, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
 import { buildSldSheetHtml, type SheetInfo } from '../../docs/sldSheet';
 import { buildSheetDxfPages } from '../../docs/sheetDxf';
 import { dxfExportNotice, namedDxfFiles, uniqueDxfFiles, type DxfFile } from '../../docs/dxfFiles';
@@ -151,7 +151,7 @@ export async function sheetHtml(project: Project, set: DrawingSet, s: DrawingShe
   let refs = mode === 'ref' && s.kind === 'system';
   let r = await renderSheet(project, set, s, run, refs);
   if (!r) return undefined;
-  const a = (s.kind === 'riser' && s.riserStyle === 'byLevel' ? riserPaper : autoSize)(r.w, r.h, reserveOf(s));
+  const a = autoSize(r.w, r.h, reserveOf(s));
   const size = s.size === 'auto' ? a.size : s.size;
   if (mode === 'auto' && s.kind === 'system' && (!a.fits || scaleOn(size, r.w, r.h, reserveOf(s)) < REF_BELOW_MM_PER_PX)) {
     refs = true;

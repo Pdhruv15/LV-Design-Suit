@@ -496,7 +496,7 @@ function SheetPanel({ sheet: s, set, project, boards, rev, onPatch, onClose, onR
           <div className="form-kv">
             {set.manualNumbers && field('Drawing no.', 'number')}
             <label>Title<input className="bi-text" defaultValue={s.title} key={`t${s.title}`} onBlur={(e) => e.target.value.trim() && e.target.value.trim() !== s.title && onPatch({ title: e.target.value.trim() })} /></label>
-            <label>Size<select value={s.size} onChange={(e) => onPatch({ size: e.target.value as DrawingSheet['size'] })}><option value="auto">Auto (smallest readable)</option>{PAPERS.map((z) => <option key={z.size} value={z.size}>{z.label}</option>)}</select></label>
+            <label>Size<select value={s.size} onChange={(e) => onPatch({ size: e.target.value as DrawingSheet['size'] })}><option value="auto">Auto (A3, larger only if needed)</option>{PAPERS.map((z) => <option key={z.size} value={z.size}>{z.label}</option>)}</select></label>
             {field('Status', 'status', set.status ?? '—', 'dw-status')}
             {field('Revision', 'rev', sheetRev(s, rev?.id) || '—')}
             {field('Date', 'date', rev?.date ?? '')}

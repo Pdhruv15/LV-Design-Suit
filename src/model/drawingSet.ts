@@ -88,7 +88,6 @@ export interface DrawingSet {
 
 export const SHEET_STATUSES = ['FOR CONCEPT REVIEW', 'FOR SCHEMATIC REVIEW', 'FOR APPROVAL', 'FOR AUTHORITY SUBMISSION', 'FOR TENDER', 'FOR CONSTRUCTION', 'AS-BUILT', 'PRELIMINARY'];
 
-export const SIZES: SheetSize[] = ['A4', 'A3', 'A2', 'A1'];
 /** The papers offered on a sheet, with what each is called. */
 export const PAPERS: { size: SheetSize; label: string }[] = [{ size: 'A4', label: 'A4 landscape' }, { size: 'A3', label: 'A3 landscape' }, { size: 'A3 portrait', label: 'A3 portrait' }, { size: 'A2', label: 'A2 landscape' }, { size: 'A1', label: 'A1 landscape' }];
 export const setOf = (p: Project): DrawingSet => p.drawingSet ?? { prefix: 'E-SLD-', sheets: [], register: true };
@@ -329,18 +328,10 @@ export function scaleOn(size: SheetSize, widthPx: number, heightPx: number, rese
 export const LEGEND_RESERVE_MM = 80;
 /** A DB riser's side column: wide enough for its legend, abbreviations and board summary. */
 export const RISER_SIDE_MM = 62;
-/** Paper of a DB riser: standard A3 landscape, or A3 portrait for a drawing taller than wide, scaled down as far as it
- * stays readable; only then larger paper. Never smaller than A3. */
-export function riserPaper(widthPx: number, heightPx: number, reserveW = 0): { size: SheetSize; scale: number; fits: boolean } {
-  const tall = heightPx > widthPx;
-  for (const size of [...(tall ? ['A3 portrait'] : ['A3']), 'A2', 'A1'] as SheetSize[]) {
-    const scale = scaleOn(size, widthPx, heightPx, reserveW);
-    if (scale >= MIN_MM_PER_PX) return { size, scale, fits: true };
-  }
-  return { size: 'A1', scale: scaleOn('A1', widthPx, heightPx, reserveW), fits: false };
-}
+/** Auto paper: standard A3 landscape, or A3 portrait for a drawing taller than wide, scaled down as far as it stays
+ * readable; only then larger paper. Never smaller than A3 (A4 stays a choice on the sheet). */
 export function autoSize(widthPx: number, heightPx: number, reserveW = 0): { size: SheetSize; scale: number; fits: boolean } {
-  for (const size of SIZES) {
+  for (const size of [heightPx > widthPx ? 'A3 portrait' : 'A3', 'A2', 'A1'] as SheetSize[]) {
     const scale = scaleOn(size, widthPx, heightPx, reserveW);
     if (scale >= MIN_MM_PER_PX) return { size, scale, fits: true };
   }

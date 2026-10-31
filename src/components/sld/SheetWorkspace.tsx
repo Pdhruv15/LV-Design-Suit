@@ -346,7 +346,7 @@ export function SheetWorkspace({ project, run, sheetId, design, settingsHost, ui
           <details open><summary>Sheet</summary>
             <div className="form-kv">
               <label>Title<input className="bi-text" defaultValue={s.title} key={`t${s.title}`} onBlur={(e) => e.target.value.trim() && e.target.value.trim() !== s.title && patch({ title: e.target.value.trim() })} /></label>
-              <label>Paper<select value={s.size} onChange={(e) => patch({ size: e.target.value as DrawingSheet['size'] })}><option value="auto">{s.riserStyle === 'byLevel' ? 'Auto (A3, larger only if needed)' : 'Auto (smallest readable)'}</option>{PAPERS.map((z) => <option key={z.size} value={z.size}>{z.label}</option>)}</select></label>
+              <label>Paper<select value={s.size} onChange={(e) => patch({ size: e.target.value as DrawingSheet['size'] })}><option value="auto">Auto (A3, larger only if needed)</option>{PAPERS.map((z) => <option key={z.size} value={z.size}>{z.label}</option>)}</select></label>
               <label>Status<select value={s.status ?? ''} onChange={(e) => patch({ status: e.target.value || undefined })}><option value="">{set.status ? `As the set (${set.status})` : 'Not set'}</option>{SHEET_STATUSES.map((x) => <option key={x}>{x}</option>)}</select></label>
               <label>Revision<input className="bi-text" defaultValue={s.rev ?? ''} key={`r${s.rev}`} placeholder={sheetRev(s, rev?.id) || 'Not issued — first issue is A'} onBlur={(e) => e.target.value !== (s.rev ?? '') && patch({ rev: e.target.value.trim() || undefined })} /></label>
               <label>Cable text<select value={s.cableLabels ?? ''} onChange={(e) => patch({ cableLabels: (e.target.value || undefined) as DrawingSheet['cableLabels'] })}>

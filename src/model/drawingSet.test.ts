@@ -31,7 +31,7 @@ describe('drawing set', () => {
     expect(p.boards.map((b) => b.id)).not.toContain('DB-GF1');
   });
   it('size from what is drawn; renumbering', () => {
-    expect(autoSize(800, 500).size).toBe('A4');
+    expect(autoSize(800, 500).size).toBe('A3'); // a small drawing stays on A3
     expect(autoSize(1800, 700).size).toBe('A3');
     expect(autoSize(3800, 1500).size).toBe('A1');
     expect(autoSize(9000, 3000).fits).toBe(false);
