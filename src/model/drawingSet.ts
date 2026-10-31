@@ -327,6 +327,8 @@ export function scaleOn(size: SheetSize, widthPx: number, heightPx: number, rese
 }
 /** Room kept for the legend column (legend, cable schedule, abbreviations). */
 export const LEGEND_RESERVE_MM = 80;
+/** A DB riser's side column: wide enough for its legend, abbreviations and board summary. */
+export const RISER_SIDE_MM = 62;
 /** Paper of a DB riser: standard A3 landscape, or A3 portrait for a drawing taller than wide, scaled down as far as it
  * stays readable; only then larger paper. Never smaller than A3. */
 export function riserPaper(widthPx: number, heightPx: number, reserveW = 0): { size: SheetSize; scale: number; fits: boolean } {

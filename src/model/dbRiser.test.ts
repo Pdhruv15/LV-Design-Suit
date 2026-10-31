@@ -221,6 +221,7 @@ describe('DB riser by level', () => {
     p.ties = [];
     const legend = dbRiserLegend(dbRiserLayout(p, B));
     expect(legend).toContain('LEGEND');
+    expect(legend).toContain('viewBox="0 0 290 ');
     expect(legend).toContain('Main panel with busbar');
     expect(legend).toContain('Automatic transfer switch (ATS)');
     expect(legend).toContain('Standby generator');
@@ -245,6 +246,7 @@ describe('DB riser by level', () => {
     expect(sheet.html).toContain('LEGEND');
     expect(sheet.html).toContain('Match line between sheets');
     expect(sheet.html).toContain('BOARD SUMMARY — TOWER');
+    expect(sheet.html).toMatch(/\.side \{[^}]*width: 62mm/);
     expect(sheet.html).toContain('Total boards');
     expect(sheet.legendSvg).toContain('Match line between sheets');
     const noLegend = (await sheetHtml({ ...p, drawing: { ...p.drawing, legend: false } }, set, s))!;

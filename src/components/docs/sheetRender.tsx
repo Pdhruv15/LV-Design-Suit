@@ -6,7 +6,7 @@ import type { CalcRun } from '../../calc/runs';
 import { evaluateProject } from '../../calc/electrical';
 import { buildAnnotations, SHEET_LAYERS } from '../../diagram/annotations';
 import { printableSvg } from '../../diagram/exportSvg';
-import { autoSize, drawable, riserPaper, LEGEND_RESERVE_MM, MIN_MM_PER_PX, fromSheetLabels, scaleOn, sheetProject, sheetRev, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
+import { autoSize, drawable, riserPaper, LEGEND_RESERVE_MM, RISER_SIDE_MM, MIN_MM_PER_PX, fromSheetLabels, scaleOn, sheetProject, sheetRev, type DrawingSet, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
 import { buildSldSheetHtml, type SheetInfo } from '../../docs/sldSheet';
 import { buildSheetDxfPages } from '../../docs/sheetDxf';
 import { dxfExportNotice, namedDxfFiles, uniqueDxfFiles, type DxfFile } from '../../docs/dxfFiles';
@@ -135,7 +135,7 @@ async function riserLegendOf(project: Project, buildingId: string, feeders = fal
  * chosen, or in Auto when the cable text would print smaller than ≈ 2.3 mm
  * (a large SLD squeezed onto the paper). */
 export const REF_BELOW_MM_PER_PX = 0.25;
-const reserveOf = (s: DrawingSheet) => (s.kind === 'board' ? 0 : LEGEND_RESERVE_MM);
+const reserveOf = (s: DrawingSheet) => (s.kind === 'board' ? 0 : s.kind === 'riser' && s.riserStyle === 'byLevel' ? RISER_SIDE_MM : LEGEND_RESERVE_MM);
 
 /** The finished sheet (frame, drawing, title block) as HTML, with its size.
  * withLegend: show the CABLE SCHEDULE even if this sheet itself has full
@@ -171,7 +171,7 @@ export function sheetHtmlFrom(project: Project, set: DrawingSet, s: DrawingSheet
 /** Title block values, legend and cable schedule of one sheet (PDF and DXF). */
 export function fullSheetInfo(project: Project, set: DrawingSet, s: DrawingSheet, legend: boolean, legendSvg = '', withMarkups = true): SheetInfo {
   const info: SheetInfo = { ...sheetInfo(set, s, set.sheets.indexOf(s)), legendSvg, ...(withMarkups && s.markups?.length ? { markups: s.markups } : {}) };
-  if (s.kind === 'riser' && s.riserStyle === 'byLevel' && s.buildingId) { const L = dbRiserLayout({ ...project, drawingSet: set }, s.buildingId); if (!L.empty) info.summary = dbRiserSummary(L); }
+  if (s.kind === 'riser' && s.riserStyle === 'byLevel' && s.buildingId) { const L = dbRiserLayout({ ...project, drawingSet: set }, s.buildingId); info.sideMm = RISER_SIDE_MM; if (!L.empty) info.summary = dbRiserSummary(L); }
   if (s.kind === 'plan') { info.notes = [...planNotes(project, s), ...(info.notes ?? [])]; info.scale = `1:${planScale(s.scale)}`; }
   if (legend) {
     const boards = new Set(set.sheets.flatMap((x) => (x.kind === 'system' ? x.boards : [])));

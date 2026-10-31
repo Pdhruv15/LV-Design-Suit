@@ -87,6 +87,8 @@ export interface SheetInfo { no: string; title: string; count: number; index: nu
   legendSvg?: string;
   /** A short table at the foot of the legend column, just above the title block. */
   summary?: { title: string; rows: [string, string][] };
+  /** Width of the legend column (mm at scale 1), when narrower than the usual one. */
+  sideMm?: number;
   /** Notes on this sheet only (after the project's SLD notes). */
   notes?: string[];
   /** Markups drawn on this sheet (paper mm). */
@@ -142,7 +144,7 @@ export function buildSldSheetHtml(project: Project, svg: string, sheet: NonNulla
   // SLD export) the abbreviations stay bottom left.
   const summary = one?.summary;
   const side = !!one && (!!legendSvg || cables.length > 0 || abbr.length > 0 || !!summary);
-  const csW = side ? 92 : 0; // legend column width (mm at scale 1)
+  const csW = side ? one?.sideMm ?? 92 : 0; // legend column width (mm at scale 1)
   const fire = cables.some((c) => c.fireRated);
   const { css: tbCss, html: tbHtml } = titleBlockFragment(project, t, custom, extra, one, sheet, k);
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(t.number || t.title)}</title><style>
