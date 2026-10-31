@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.015', date: '2026-11-01',
+    items: [
+      { title: 'Much faster on large projects', text: 'The cable schedule and calculation report now take about a second or less, even on a 500-board tower, where they could take minutes. Typing stays quick as the project grows, and SLD sheets with cable reference labels draw faster. The calculated results are the same as before.' }
+    ]
+  },
+  {
     version: '2.014', date: '2026-10-31',
     items: [
       { title: 'Standard paper for sheets', text: 'Auto paper now keeps every sheet on A3 landscape, or A3 portrait for a tall drawing, and goes to A2 or A1 only when A3 would be unreadable. A small drawing no longer drops to A4; you can still choose A4 on the sheet. A3 portrait is a new paper choice.', action: 'sheets', actionLabel: 'Open Sheets' },

@@ -10,6 +10,7 @@ import { CABLE_TYPES, DEFAULT_CABLE_TYPE, type Board, type Feeder, type MeterTyp
 import { isDbBoard, spareLabel, spareWaysOf, updateSpareWay, type SparePatch } from '../model/spareWays';
 import { roleOf } from '../model/emergency';
 import { cellName, parseCount, parsePositive, STYLE, type SheetEdit, type SheetModel } from './sheet';
+import { feedersOn } from '../calc/network';
 
 /** "Details of connected load, maximum demand & kWh metering" — the
  * authority form for a meter cabinet, MDB, SMDB or MCC: its incomer, then
@@ -76,8 +77,7 @@ function feederConnected(f: Feeder): PhaseKw {
 export function connectedPhaseKw(project: Project, boardId: string, seen = new Set<string>()): PhaseKw {
   if (seen.has(boardId)) return ZERO;
   seen.add(boardId);
-  return project.feeders
-    .filter((f) => f.boardId === boardId)
+  return feedersOn(project, boardId)
     .reduce((acc, f) => add(acc, f.feedsBoardId ? connectedPhaseKw(project, f.feedsBoardId, seen) : feederConnected(f)), ZERO);
 }
 

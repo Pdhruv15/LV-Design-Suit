@@ -4,6 +4,7 @@ import { breakerTypeOf } from './earthing';
 import { isMotor, motorStartDipPct, runningKva, startingKva } from './motor';
 import { generatorFor } from '../database/catalog';
 import { settingsOf, type Board, type BreakerType, type Feeder, type Project } from '../types';
+import { forgetNetworks } from './network';
 
 const SQRT3 = Math.sqrt(3);
 
@@ -23,6 +24,7 @@ export function setBreakerLists(ratings: number[] | null, icu: number[] | null):
   const clean = (l: number[] | null, fallback: number[]) => (l && l.length ? [...new Set(l)].sort((a, b) => a - b) : fallback);
   breakerList = clean(ratings, STANDARD_BREAKER_A);
   icuList = clean(icu, STANDARD_ICU_KA);
+  forgetNetworks();
 }
 export const STANDARD_TRANSFORMER_KVA = [100, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150];
 export const STANDARD_GENERATOR_KVA = [20, 30, 45, 60, 80, 100, 125, 150, 200, 250, 300, 350, 400, 500, 630, 750, 800, 1000, 1250, 1500, 2000, 2500];

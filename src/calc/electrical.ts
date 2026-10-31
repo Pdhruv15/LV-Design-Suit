@@ -1,4 +1,4 @@
-import { memoized, networkOf, withNetwork } from './network';
+import { boardOf, feedersOn, memoized, networkOf, withNetwork } from './network';
 import { recordedPQ } from '../model/existing';
 import { ambientCorrectionFactor, cables, getCable } from './cableTable';
 import { trayGrouping } from './cableTray';
@@ -57,11 +57,10 @@ export function boardDemandKw(project: Project, boardId: string, path = new Set<
   if (path.has(boardId)) return 0;
   path.add(boardId);
   // A recorded maximum demand (existing installation) covers the existing load at and below its board.
-  const board = project.boards.find((b) => b.id === boardId);
+  const board = boardOf(project, boardId);
   const rec = !covered && board ? recordedPQ(project, board) : undefined;
   const cov = covered || !!rec?.covers;
-  const kw = project.feeders
-    .filter((f) => f.boardId === boardId)
+  const kw = feedersOn(project, boardId)
     .reduce((sum, f) => sum + (f.feedsBoardId ? boardDemandKw(project, f.feedsBoardId, path, cov) : cov && f.existing ? 0 : f.loadKw * f.demandFactor), rec?.p ?? 0);
   path.delete(boardId);
   return kw;
@@ -179,7 +178,7 @@ function findIncomer(project: Project, board: Board): Feeder | undefined {
  * board. DEWA/IEC limits apply to the total source-to-load drop, so this
  * is added to each feeder's own drop before comparing with the limit. */
 export function upstreamVoltageDropPct(project: Project, boardId: string, seen = new Set<string>()): number {
-  const board = networkOf(project)?.boardById.get(boardId) ?? project.boards.find((b) => b.id === boardId);
+  const board = boardOf(project, boardId);
   if (!board?.upstreamId || seen.has(boardId)) return 0;
   seen.add(boardId);
   return memoized(project, `vdUp:${boardId}`, () => upstreamVdOf(project, board, seen));
@@ -279,7 +278,7 @@ export function cableImpedance(csaMm2: number, lengthM: number, runs = 1): Imped
  * busbar, walking up the board hierarchy: main board -> transformer only;
  * any downstream board -> its parent's impedance plus its incomer cable. */
 export function impedanceToBoard(project: Project, boardId: string, seen = new Set<string>()): Impedance {
-  const board = networkOf(project)?.boardById.get(boardId) ?? project.boards.find((b) => b.id === boardId);
+  const board = boardOf(project, boardId);
   const fallback = { r: 0, x: 0.01 };
   if (!board || seen.has(boardId)) return fallback;
   seen.add(boardId);

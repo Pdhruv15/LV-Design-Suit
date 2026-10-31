@@ -1,6 +1,7 @@
 import type { Board, Feeder, Project } from '../types';
 import type { PlanCheck } from './hierarchy';
 import { sequence } from './hierarchyBuilder';
+import { boardOf } from '../calc/network';
 
 /** Emergency panels and the panel naming table.
  *
@@ -28,9 +29,8 @@ export function roleOf(project: Project, b: Board): string {
   const kind = b.kind ?? (b.upstreamId ? 'DB' : 'MDB');
   if (kind === 'EMDB' || kind === 'EDB' || kind === 'EMCC') return kind;
   if (kind !== 'SMDB' && kind !== 'DB' && kind !== 'MCC') return kind;
-  const byId = new Map(project.boards.map((x) => [x.id, x]));
   const seen = new Set<string>();
-  for (let up = b.upstreamId ? byId.get(b.upstreamId) : undefined; up && !seen.has(up.id); up = up.upstreamId ? byId.get(up.upstreamId) : undefined) {
+  for (let up = b.upstreamId ? boardOf(project, b.upstreamId) : undefined; up && !seen.has(up.id); up = up.upstreamId ? boardOf(project, up.upstreamId) : undefined) {
     seen.add(up.id);
     if (up.kind === 'EMDB' || up.kind === 'LV-EMDB') return kind === 'SMDB' ? 'ESMDB' : kind === 'MCC' ? 'EMCC' : 'EDB';
   }

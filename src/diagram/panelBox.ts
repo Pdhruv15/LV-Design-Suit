@@ -4,12 +4,13 @@ import { isScheduleCircuit } from '../calc/loadSchedule';
 import { isDbBoard, spareWaysOf } from '../model/spareWays';
 import { isInterlocked } from '../model/changeover';
 import type { SymbolId } from './symbolLibrary';
+import { feedersOn } from '../calc/network';
 
 const PANEL_SYM: Record<string, SymbolId> = {
   MDB: 'p-mdb', 'LV-MDB': 'p-mdb', 'LV-ACB': 'p-mdb', EMDB: 'p-mdb', 'LV-EMDB': 'p-mdb', SMDB: 'p-smdb', ESMDB: 'p-smdb', DB: 'p-db', EDB: 'p-edb', MCC: 'p-mcc', EMCC: 'p-mcc'
 };
 
-const waysOf = (project: Project, b: Board) => project.feeders.filter((f) => f.boardId === b.id && !isScheduleCircuit(f));
+const waysOf = (project: Project, b: Board) => feedersOn(project, b.id).filter((f) => !isScheduleCircuit(f));
 const capacitorsOnly = (ways: Project['feeders']) => ways.length > 0 && ways.every((f) => !f.feedsBoardId && f.loadType === 'capacitor');
 
 /** Panel symbol for a board drawn as one box: by its role, or APFC when every

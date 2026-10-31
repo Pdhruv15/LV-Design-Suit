@@ -3,6 +3,7 @@ import { cableTypeDef, cableTypeOf } from './cableTypes';
 import { defaultCpcMm2, cpcOf } from '../calc/cableTable';
 import { runsOf } from '../calc/electrical';
 import { catalog } from '../database/catalog';
+import { perProject } from '../calc/network';
 
 /** Cable reference numbers: one standard list of cable build-ups (IEC
  * sizes, copper XLPE/SWA/PVC with its G/Y earth conductor) with fixed
@@ -85,8 +86,12 @@ export function withCableRefs(p: Project): Project {
 export function cableRefOf(p: Project, f: Feeder): { ref: number; fireRated: boolean; text: string } {
   const key = cableKey(feederBuild(p, f));
   const fireRated = !!cableTypeOf(p, f).fireRated;
-  const all = allCableRefs(withCableRefs(p));
-  const r = all.find((x) => x.key === key)!;
+  const byKey = perProject(p, 'cableRefByKey', () => {
+    const m = new Map<string, CableRef>();
+    for (const x of allCableRefs(withCableRefs(p))) if (!m.has(x.key)) m.set(x.key, x); // first match wins
+    return m;
+  });
+  const r = byKey.get(key)!;
   return { ref: r.ref, fireRated, text: r.text };
 }
 

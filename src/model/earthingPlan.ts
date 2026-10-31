@@ -1,6 +1,7 @@
 import type { Project } from '../types';
 import { mainBoards, txTag } from './transformers';
 import { sizesOf, sizeTransformers, txGenPlanOf } from '../calc/txGen';
+import { perProject } from '../calc/network';
 
 /** Transformers on each main board, as the transformer sizing shows them: 2 when two are planned
  * (N+1, each for the whole load), n when the load is split over n of the largest size, else 1.
@@ -66,6 +67,10 @@ export const DEFAULT_BONDING = ['Room earth bar', 'Cable containment', 'Sprinkle
 
 /** The equipment that needs an earth, from the project. */
 function equipment(project: Project): Omit<EarthItem, 'pits' | 'linked'>[] {
+  return perProject(project, 'earthEquipment', () => equipmentOf(project));
+}
+
+function equipmentOf(project: Project): Omit<EarthItem, 'pits' | 'linked'>[] {
   const units = txUnits(project);
   const mains = mainBoards(project);
   const txs = mains.filter((b) => b.sourceKva);

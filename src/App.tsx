@@ -192,7 +192,8 @@ const PALETTE_PAGES: [MainView, string][] = [
 
 export default function App() {
   // The project, with undo / redo. Opening or starting a project clears the history.
-  const history = useHistory<Project>(normalised(sampleProject));
+  const [opening] = useState(() => normalised(sampleProject));
+  const history = useHistory<Project>(opening);
   const project = history.value;
   const setHistory = history.set;
   const setProject: typeof history.set = useCallback((value, opts) => setHistory((prev) => {

@@ -7,6 +7,7 @@ import { boardSummary } from '../calc/summary';
 import { sizeGeneratorByBoards, sizeTransformers, txGenPlanOf } from '../calc/txGen';
 import { settingsOf, type Feeder } from '../types';
 import type { CalcData, Cell, Scope, Section } from './studyReport';
+import { groupBy } from '../util/sets';
 
 /** The standard layout of every calculation section of the design report:
  *   INPUT → DESIGN CRITERIA → METHOD → RESULT → SELECTION → VERIFICATION → STATUS
@@ -37,17 +38,17 @@ export function structureSection(s: Section, data: CalcData, scope: Scope): Sect
   const byId = new Map(data.results.map((r) => [r.feeder.id, r]));
   const circuits = [...scope.incomers, ...scope.feeders];
   const res = (fs: Feeder[]) => fs.map((f) => byId.get(f.id)).filter((r): r is FeederResult => !!r);
-  const onBoard = (rs: FeederResult[], id: string) => rs.filter((r) => r.feeder.boardId === id);
+  const byBoard = <T extends { feeder: Feeder }>(rs: T[]) => { const by = groupBy(rs, (r) => r.feeder.boardId); return (id: string) => by.get(id) ?? []; };
 
   switch (s.key) {
     case 'sc': {
-      const rs = res([...circuits, ...scope.finals]);
+      const rs = res([...circuits, ...scope.finals]), onBoard = byBoard(rs);
       s.inputs = [['Supply', sourceText(data, scope)], ['System', `${p.voltageV} V, ${p.frequencyHz} Hz`]];
       s.criteria = [['Voltage factor', 'c max = 1.05 (maximum fault, cable R at 20 °C)'], ['Breaking capacity', 'Breaker Icu ≥ prospective fault at its terminals (Ik″)']];
       // The governing breaker is the one with the smallest Icu ÷ Ik″: its own Icu, fault and margin are shown together.
       s.verification = { title: 'Breaking capacity at each busbar', headers: ['Location', 'Ik″ busbar (kA)', 'Governing circuit', 'Ik″ at breaker (kA)', 'Icu (kA)', 'Margin (kA)', 'Breakers pass / check / fail', 'Status'],
         rows: scope.boards.map((b) => {
-          const here = onBoard(rs, b.id), fk = boardSummary(p, b).faultKA;
+          const here = onBoard(b.id), fk = boardSummary(p, b).faultKA;
           if (!here.length) return [b.id, n(fk, 1), '—', '—', '—', '—', '—', '—'];
           const g = here.reduce((a, r) => (r.feeder.breakerIcuKa / r.breakerFaultKA < a.feeder.breakerIcuKa / a.breakerFaultKA ? r : a)), st = here.map((r) => r.icuStatus);
           return [b.id, n(fk, 1), g.feeder.id, n(g.breakerFaultKA, 1), g.feeder.breakerIcuKa, n(g.feeder.breakerIcuKa - g.breakerFaultKA, 1), counts(st), S(worst(st))];
@@ -56,12 +57,12 @@ export function structureSection(s: Section, data: CalcData, scope: Scope): Sect
       break;
     }
     case 'lf': {
-      const rs = res(circuits);
+      const rs = res(circuits), onBoard = byBoard(rs);
       s.inputs = [['Supply', sourceText(data, scope)], ['Loads', 'Design loads × demand factors (load schedules and feeders)']];
       s.criteria = [['Voltage drop limit (source to load)', `${p.vdLimitPct} %`], ...(p.vdTempC !== undefined ? [['Conductor temperature', `${p.vdTempC} °C`] as [string, string]] : [])];
       s.verification = { title: 'Voltage drop — worst circuit on each board', headers: ['Board', 'Circuit', 'Calculated ΔV total (%)', 'Allowable (%)', 'Margin (%)', 'Status'],
         rows: scope.boards.flatMap((b) => {
-          const here = onBoard(rs, b.id);
+          const here = onBoard(b.id);
           if (!here.length) return [];
           const w = here.reduce((a, r) => (r.vdTotalPct > a.vdTotalPct ? r : a));
           return [[b.id, w.feeder.id, n(w.vdTotalPct, 2), p.vdLimitPct, n(p.vdLimitPct - w.vdTotalPct, 2), S(worst(here.map((r) => r.vdStatus)))]];
@@ -70,7 +71,7 @@ export function structureSection(s: Section, data: CalcData, scope: Scope): Sect
       break;
     }
     case 'cable': {
-      const rs = res([...circuits, ...scope.finals]);
+      const rs = res([...circuits, ...scope.finals]), onBoard = byBoard(rs);
       s.inputs = [['Cable', 'Cu / XLPE multicore, rated for each circuit\'s installation method (IEC 60364-5-52)'], ['Ambient temperature', `${p.ambientC} °C`], ['Ground (buried cables)', `${p.groundTempC ?? 20} °C, soil ${p.soilResistivityKmW ?? 2.5} K·m/W${p.groundTempC === undefined || p.soilResistivityKmW === undefined ? ' (IEC reference where not set)' : ''}`], ['Grouping', 'From the cable tray route (method E), else the circuit\'s own parallel runs']];
       s.criteria = [['Overload protection', 'Ib ≤ In ≤ Iz (IEC 60364-4-43)'], ['Voltage drop limit', `${p.vdLimitPct} %`], ['Breaking capacity', 'Icu ≥ Ik″ at the breaker']];
       // Major feeders: those supplying a board (the full list is in the appendix).
@@ -84,19 +85,19 @@ export function structureSection(s: Section, data: CalcData, scope: Scope): Sect
         ]
       }));
       s.verification = { title: 'Circuits on each board', headers: ['Board', 'Circuits', 'Pass / check / fail', 'Status'],
-        rows: scope.boards.flatMap((b) => { const here = onBoard(rs, b.id).map(cableStatus); return here.length ? [[b.id, here.length, counts(here), S(worst(here))]] : []; }) };
+        rows: scope.boards.flatMap((b) => { const here = onBoard(b.id).map(cableStatus); return here.length ? [[b.id, here.length, counts(here), S(worst(here))]] : []; }) };
       toAppendix(s, ['Cables and breakers']);
       break;
     }
     case 'earth': {
       const want = new Set([...circuits, ...scope.finals].map((f) => f.id));
-      const es = data.earthing.filter((e) => want.has(e.feeder.id));
+      const es = data.earthing.filter((e) => want.has(e.feeder.id)), onBoard = byBoard(es);
       s.inputs = [['Earthing arrangement', 'TN-S'], ['Supply loop (Ze)', 'From the source impedance to each board']];
       s.criteria = [['Disconnection time', `IEC 60364-4-41 Table 41.1: 0.4 s final circuits, 5 s distribution circuits${p.strictFinalDisconnection ? '; project rule: 0.4 s for every final circuit ≤ 63 A' : ''}`],
         ['Fault current', 'Minimum, c = 0.95'], ['Protective conductor', 'Adiabatic, k = 143']];
       s.verification = { title: 'Earth fault loop on each board', headers: ['Board', 'Circuits', 'Highest Zs ÷ max Zs', 'Pass / check / fail', 'Status'],
         rows: scope.boards.flatMap((b) => {
-          const here = es.filter((e) => e.feeder.boardId === b.id);
+          const here = onBoard(b.id);
           if (!here.length) return [];
           const st = here.map((e) => e.status);
           return [[b.id, here.length, `${n(Math.max(...here.map((e) => e.zsOhm / e.maxZsOhm)) * 100, 0)} %`, counts(st), S(worst(st))]];
