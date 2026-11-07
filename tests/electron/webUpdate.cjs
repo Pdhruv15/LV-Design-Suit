@@ -28,6 +28,9 @@ app.whenReady().then(async () => {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   /** Runs in the page; a step that never ends fails the check instead of hanging it. */
   const inPage = (wc, code) => Promise.race([wc.executeJavaScript(code), sleep(30000).then(() => { throw new Error(`no answer from: ${code}`); })]);
+  /** Waits until the build that took over has finished tidying up (its activate step, which deletes the oldest builds,
+   * runs after the page has been taken over): a fixed wait was not always long enough on CI. */
+  const settled = `navigator.serviceWorker.ready.then((reg) => { const w = reg.active; return !w || w.state === 'activated' || new Promise((r) => w.addEventListener('statechange', () => { if (w.state === 'activated') r(true); })); })`;
   const result = {};
   try {
     const win = new BrowserWindow({ show: false, webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false, partition: `web-update-${Date.now()}` } });
@@ -40,6 +43,7 @@ app.whenReady().then(async () => {
       site = next;
       await inPage(wc, 'window.takeOver()');
       await sleep(1000); // the page is in its hands before it has finished tidying up; a person clicks long after
+      await inPage(wc, settled);
     }
     result.kept = await inPage(wc, 'caches.keys().then((k) => k.length)');
     await inPage(wc, 'document.querySelector("#open").click()');
