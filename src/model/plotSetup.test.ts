@@ -1,12 +1,12 @@
 import { deflateSync } from 'node:zlib';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
 import { addPlanSheets, planDrawing } from '../docs/planLayout';
 import { buildSldSheetHtml } from '../docs/sldSheet';
 import { placeLvPoint } from './cadDevices';
 import { setOf, type DrawingSheet } from './drawingSet';
 import {
-  applySetup, DEFAULT_PENS, diagramPenCss, inkOf, newTableId, nextId, projectForBatch, setupUsers, withBatch, withoutBatch, withoutSetup, withSetup, parseCtb, pensFor, plotOf, plotStamp, tableFromCtb, tablesOf, withDefaults, withTable
+  applySetup, DEFAULT_PENS, importSetups, loadSetupLibrary, readSetups, saveToSetupLibrary, SETUPS_LIBRARY_KEY, setupsFile, diagramPenCss, inkOf, newTableId, nextId, projectForBatch, setupUsers, withBatch, withoutBatch, withoutSetup, withSetup, parseCtb, pensFor, plotOf, plotStamp, tableFromCtb, tablesOf, withDefaults, withTable
 } from './plotSetup';
 import type { Project } from '../types';
 
@@ -148,5 +148,82 @@ describe('pens on the printed sheets', () => {
     expect(html).toContain('border: 1mm solid #000');
     expect(html).toMatch(/\.tb td\.t \{ border: 0\.\d+mm solid #000/);
     expect(html).toContain('<div class="stamp">E-1 - T · 2026-11-06 09:05</div>');
+  });
+});
+
+describe('page setups in and out', () => {
+  const base = (): Project => ({ ...villa, plot: { tables: [{ ...DEFAULT_PENS, id: 'pt1', name: 'Thick', pens: { ...DEFAULT_PENS.pens, bus: { w: 1, grey: 100 } } }, { ...DEFAULT_PENS, id: 'pt2', name: 'Unused' }], setups: [
+    { id: 'ps1', name: 'A1 PDF', size: 'A1', scale: 100, plot: { pens: 'pt1' } }, { id: 'ps2', name: 'A3 plain', size: 'A3', plot: { pens: 'lvds' } }
+  ] } });
+  afterEach(() => vi.unstubAllGlobals());
+  it('exports all setups or some, with only the custom pen tables they use', () => {
+    const all = setupsFile(base());
+    expect(all.kind).toBe('lvds.pageSetups');
+    expect(all.setups.map((x) => x.id)).toEqual(['ps1', 'ps2']);
+    expect(all.tables.map((t) => t.id)).toEqual(['pt1']);
+    expect(setupsFile(base(), ['ps2'])).toMatchObject({ setups: [{ id: 'ps2' }], tables: [] });
+  });
+  it('reads its own file, a project file, and refuses junk', () => {
+    const f = setupsFile(base());
+    expect(readSetups(JSON.parse(JSON.stringify(f)))?.setups).toHaveLength(2);
+    expect(readSetups({ plot: base().plot })?.tables).toHaveLength(2);
+    expect(readSetups({ plot: { setups: [{ name: ' ', size: 'A3' }, { name: 'x', size: 'B9' }] } })).toBeUndefined();
+    expect(readSetups({ kind: 'lvds.pageSetups', setups: [{ name: 'Ok', size: 'A2', plot: 5, scale: -1 }] })?.setups[0]).toMatchObject({ name: 'Ok', plot: {} });
+    expect(readSetups({ kind: 'lvds.pageSetups', setups: [{ name: 'Ok', size: 'A2', plot: {}, scale: 50 }] })?.setups[0].scale).toBe(50);
+    expect([readSetups(null), readSetups('x'), readSetups({}), readSetups({ plot: {} })]).toEqual([undefined, undefined, undefined, undefined]);
+  });
+  it('imports with new ids, leaves a setup of the same name, matches or adds the pen table, drops an unknown one', () => {
+    const f = setupsFile(base());
+    const target: Project = { ...villa, plot: { tables: [{ ...DEFAULT_PENS, id: 'pt1', name: 'thick' }], setups: [{ id: 'ps1', name: 'a1 pdf', size: 'A4', plot: {} }] } };
+    const r = importSetups(target, f);
+    expect([r.added, r.kept]).toEqual([['A3 plain'], ['A1 PDF']]);
+    expect(r.project.plot?.setups?.map((x) => [x.id, x.name])).toEqual([['ps1', 'a1 pdf'], ['ps2', 'A3 plain']]);
+    expect(r.project.plot?.setups?.[1].plot.pens).toBe('lvds');
+    const fresh = importSetups({ ...villa, plot: undefined }, f);
+    expect(fresh.added).toEqual(['A1 PDF', 'A3 plain']);
+    expect(fresh.project.plot?.tables?.map((t) => [t.id, t.name])).toEqual([['pt1', 'Thick']]);
+    expect(fresh.project.plot?.setups?.[0].plot.pens).toBe('pt1');
+    const renamed = importSetups({ ...villa, plot: { tables: [{ ...DEFAULT_PENS, id: 'pt1', name: 'Other' }] } }, f);
+    expect(renamed.project.plot?.tables?.map((t) => t.id)).toEqual(['pt1', 'pt2']);
+    expect(renamed.project.plot?.setups?.[0].plot.pens).toBe('pt2');
+    const lost = importSetups({ ...villa, plot: undefined }, { ...f, tables: [] });
+    expect('pens' in (lost.project.plot?.setups?.[0].plot ?? {})).toBe(false);
+  });
+  it('the library merges setups and tables by name, any case', () => {
+    const store = new Map<string, string>();
+    vi.stubGlobal('localStorage', { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) });
+    expect(loadSetupLibrary()).toEqual({ kind: 'lvds.pageSetups', setups: [], tables: [] });
+    expect(saveToSetupLibrary(setupsFile(base()))).toBe(true);
+    const f2 = setupsFile(base());
+    saveToSetupLibrary({ ...f2, setups: [{ ...f2.setups[0], name: 'a1 pdf', size: 'A2' }], tables: [] });
+    const lib = loadSetupLibrary();
+    expect(lib.setups.map((x) => [x.name, x.size])).toEqual([['A3 plain', 'A3'], ['a1 pdf', 'A2']]);
+    expect(lib.tables).toHaveLength(1);
+    store.set(SETUPS_LIBRARY_KEY, '{bad');
+    expect(loadSetupLibrary().setups).toEqual([]);
+  });
+  it('the library keeps each project\'s pen table apart, though both projects call theirs pt1', () => {
+    const store = new Map<string, string>();
+    vi.stubGlobal('localStorage', { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) });
+    const other: Project = { ...villa, plot: { tables: [{ ...DEFAULT_PENS, id: 'pt1', name: 'Fine', pens: { ...DEFAULT_PENS.pens, bus: { w: 0.25, grey: 100 } } }], setups: [{ id: 'ps1', name: 'A2 fine', size: 'A2', plot: { pens: 'pt1' } }] } };
+    saveToSetupLibrary(setupsFile(base(), ['ps1']));
+    saveToSetupLibrary(setupsFile(other));
+    const lib = loadSetupLibrary();
+    expect(lib.tables.map((t) => [t.id, t.name])).toEqual([['lib:thick', 'Thick'], ['lib:fine', 'Fine']]);
+    expect(lib.setups.map((x) => [x.name, x.plot.pens])).toEqual([['A1 PDF', 'lib:thick'], ['A2 fine', 'lib:fine']]);
+    // Each setup brings its own table into a new project, by name.
+    const r = importSetups({ ...villa, plot: undefined }, lib);
+    const penOf = (name: string) => r.project.plot!.tables!.find((t) => t.id === r.project.plot!.setups!.find((x) => x.name === name)!.plot.pens)!;
+    expect([penOf('A1 PDF').name, penOf('A1 PDF').pens.bus.w, penOf('A2 fine').name, penOf('A2 fine').pens.bus.w]).toEqual(['Thick', 1, 'Fine', 0.25]);
+    // The built-in table needs no copy: a setup on it stays on it.
+    saveToSetupLibrary(setupsFile(base(), ['ps2']));
+    expect(loadSetupLibrary().setups.find((x) => x.name === 'A3 plain')!.plot.pens).toBe(DEFAULT_PENS.id);
+  });
+  it('a file brings in only what a page setup holds: no other fields, no pen table with a pen missing', () => {
+    const { bus: _bus, ...short } = DEFAULT_PENS.pens;
+    const f = readSetups({ kind: 'lvds.pageSetups', tables: [{ id: 'pt1', name: 'Short', pens: short }, { id: 'pt2', name: 'Whole', pens: DEFAULT_PENS.pens }, { id: 'pt3', name: ' ', pens: DEFAULT_PENS.pens }],
+      setups: [{ name: 'S', size: 'A3', plot: { pens: 'pt2', weights: 'thin', stamp: true, drawn: false, named: 'ps9', extra: { a: 1 } } }, { name: 'T', size: 'A3', plot: { weights: 'bold', stamp: 'yes' } }] })!;
+    expect(f.setups.map((x) => x.plot)).toEqual([{ pens: 'pt2', weights: 'thin', stamp: true, drawn: false }, {}]);
+    expect(f.tables.map((t) => t.name)).toEqual(['Whole']);
   });
 });

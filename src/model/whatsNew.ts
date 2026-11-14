@@ -15,6 +15,17 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.136', date: '2026-11-14',
+    items: [
+      { title: 'Design CAD: layout tools on Output', text: 'Output now reads Layout · Layout viewports · Plot · Publish · Export, with every tool named. New layout lists a layout of the drawing, one from a template, and the four plan sheets; Page setup and Save as template are beside it. The viewport tools show on a layout tab. With Show labels on, the two layout panels have a Layout sub-tab of their own beside Output.', action: 'cad', actionLabel: 'Open Design CAD' },
+      { title: 'Design CAD: arrange viewports', text: 'Arrange (VPORTS) lays a layout\'s viewports out as one, two side by side or stacked, three with a large one, four equal, or a plan with a key plan, with a 5 mm gap. Viewports already there keep their scale and view. It works on plan sheets and on layouts made with +, and is on the paper\'s right-click menu too.', action: 'cad' },
+      { title: 'Design CAD: more viewport tools', text: 'Fit shows the whole level at the nearest scale of the list; Copy puts a copy beside the viewport; Align lines its view up with Viewport 1; Maximise shows its area on the Model tab (VPMIN or the layout\'s tab comes back); Frame prints switches its frame on the print. Scale list… (SCALELISTEDIT) adds scales such as 1:25, 1:75 and 1:150, or your own, to this project.', action: 'cad' },
+      { title: 'Design CAD: paper for a layout made with +', text: 'Page setup on a layout made with + sets its paper, A4 to A0, landscape or portrait. Its viewports keep their place and scale. It is on the Layout panel, the layout tab\'s right-click menu and the paper\'s.', action: 'cad' },
+      { title: 'Design CAD: layout templates', text: 'Save as template keeps a layout\'s paper, where its viewports sit, their scales and a plan sheet\'s legend and notes tables in your library, for every project. New layout → From template… makes a layout of the drawing or a plan sheet of the level from one. Templates can be exported to a file and imported from one. A drawing file\'s own layout can be saved as a template too.', action: 'cad' },
+      { title: 'Page setups: import, export and a library', text: 'Output → Page setups has Import… (a page-setup file, or another project file), Export…, Save to library and Add from library. A page setup brings its pen table with it; one whose name is already in the project is left as it is.', action: 'cad' }
+    ]
+  },
+  {
     version: '2.134', date: '2026-11-14',
     items: [
       { title: 'Your DB schedule format, chosen with the project', text: 'A new project can start with one of your formats for its DB schedules, beside the authority and rule set; an open project takes one in Sheets → My formats → Use for this project. On the Load schedule tab, Export → Open in my format then shows the DB as a sheet in that layout, making the sheet when there is none. The project keeps its own copy of the format, so a later change in My formats reaches it only when you update the copy.', action: 'sheets', actionLabel: 'Open Sheets' }

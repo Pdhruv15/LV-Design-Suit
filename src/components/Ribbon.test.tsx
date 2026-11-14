@@ -111,7 +111,7 @@ describe('Ribbon', () => {
     expect(groupsOf(html)).toEqual(['Draw', 'Modify', 'Blocks', 'Layers', 'Properties', 'Measure and view']);
     // With labels every tool is named and needs about twice the room: the panels take five sub-tabs.
     const all = render('cad', { view: 'cad', cad: cad({ labels: true }) });
-    expect(subTabs(all)).toEqual(['LVCAD', 'Annotate', 'Layers &amp; properties', 'Electrical &amp; ELV', 'Sheets', 'Output']);
+    expect(subTabs(all)).toEqual(['LVCAD', 'Annotate', 'Layers &amp; properties', 'Electrical &amp; ELV', 'Sheets', 'Layout', 'Output']);
     expect(groupsOf(all)).toEqual(['Draw', 'Modify', 'Blocks']);
     expect(html).toContain('title="Open, save and close drawings; the level and units of the drawing"'); // File, a menu
     expect(html).toMatch(/aria-haspopup="menu" aria-expanded="false" title="Open, save and close drawings/);

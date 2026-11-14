@@ -1931,6 +1931,154 @@ describe('file tabs', () => {
     expect(tabs()).toEqual(['Model', 'Layout1']);
     expect(state.layout).toBeNull();
   });
+
+  /** A select or text field of an open dialog set the way a person would. */
+  const setField = (label: string, value: string) => {
+    const el = document.querySelector(`[aria-label="${label}"]`) as HTMLSelectElement | HTMLInputElement;
+    const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
+    act(() => { Object.getOwnPropertyDescriptor(proto, 'value')!.set!.call(el, value); el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true })); });
+  };
+
+  const lastMsg = () => onChange.mock.calls[onChange.mock.calls.length - 1][1];
+
+  it('Layout viewports on a plan sheet: VPORTS arranges them, VPCOPY / VPFIT / VPALIGN / VPFRAME act on the one picked, VPMAX shows its area on the Model tab and VPMIN comes back; the scale list adds 1:75', async () => {
+    const gf = { building: 'V', level: 'GF' };
+    let start: Project = { ...villa, cadPlans: [{ building: 'V', level: 'GF', file: 'sample-villa-gf.dxf', units: 4 }] };
+    for (const [x, y] of [[3, 9], [6, 9.4], [9, 8.8]]) start = placeLvPoint(start, gf, 'ltg', 'DB-GF1-B2', x, y).project;
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    await command('LAYOUT L');
+    const sheet = () => project.drawingSet!.sheets.find((x) => x.kind === 'plan')!;
+    expect(state.layout).toBe(sheet().id);
+    await until(() => !!document.querySelector('.cad-vp'));
+    await command('VPORTS');
+    expect(hist()).toMatch(/^VPORTS {2}Type VPORTS and an arrangement: 1, 2V, 2H, 3L, 3R, 3A, 3B, 4 or KEY/);
+    await command('VPALIGN H');
+    expect(hist()).toBe('VPALIGN  Pick another viewport: the others line up with Viewport 1.');
+    // Two side by side: the first keeps its view.
+    await command('VPORTS 2V');
+    const vps = () => sheet().viewports!;
+    expect(vps().map((v) => [v.id, v.scale])).toEqual([['vp1', 100], ['vp2', 100]]);
+    expect(vps()[0].box[0] + vps()[0].box[2]).toBeLessThan(vps()[1].box[0]);
+    await command('VPORTS 1');
+    expect(vps().map((v) => v.id)).toEqual(['vp1']);
+    await command('VPORTS KEY');
+    expect(vps().map((v) => v.scale)).toEqual([100, 500]);
+    // The second one picked: fit, align, frame, copy.
+    act(() => state.setVpSel('vp2'));
+    await command('VPALIGN H');
+    const [a, b] = vps();
+    const lineOf = (v: typeof a) => v.box[1] + v.box[3] / 2 - (a.at[1] - v.at[1]) * (1000 / v.scale);
+    expect(Math.abs(lineOf(b) - (a.box[1] + a.box[3] / 2))).toBeLessThan(1e-6);
+    await command('VPALIGN');
+    expect(hist()).toBe('VPALIGN  Type VPALIGN H (side by side) or VPALIGN V (stacked).');
+    await command('VPFIT');
+    expect(vps()[1].scale).toBeGreaterThanOrEqual(100);
+    expect([100, 200, 500, 1000, 20, 50]).toContain(vps()[1].scale);
+    expect(vps()[1].at[0]).toBeCloseTo(vps()[0].at[0], 0); // centred on the level, as the first is
+    expect(project.drawingSet!.sheets.find((x) => x.kind === 'plan')!.viewports![1].frame).toBeUndefined();
+    await command('VPFRAME');
+    expect(vps()[1].frame).toBe(true);
+    expect(lastMsg()).toMatch(/Viewport 2: frame prints · ⌘Z to undo$/);
+    await command('VPFRAME');
+    expect(vps()[1].frame).toBeUndefined();
+    await command('VPCOPY');
+    expect(vps().map((v) => v.id)).toEqual(['vp1', 'vp2', 'vp3']);
+    expect(state.vpSel).toBe('vp3');
+    expect(lastMsg()).toMatch(/Viewport 2 copied as Viewport 3 · ⌘Z to undo$/);
+    // VPMAX: the viewport's area on the Model tab; VPMIN and the layout's tab bring the paper back.
+    await command('VPMAX');
+    expect(state.layout).toBeNull();
+    expect(hist()).toMatch(/VPMIN or the layout's tab goes back to the paper\.$/);
+    await command('VPMIN');
+    expect(state.layout).toBe(sheet().id);
+    expect(hist()).toBe('VPMIN  Back on the layout.');
+    await command('MODEL');
+    await command('VPMIN');
+    expect(hist()).toBe('VPMIN  No viewport is maximised (VPMAX on a layout first).');
+    act(() => [...document.querySelectorAll<HTMLButtonElement>('.cad-ltab')].find((t) => t.textContent?.startsWith('E-LTG-001'))!.click());
+    // A single viewport again; the scale list gives the viewport panel 1:75.
+    await command('VPORTS 1');
+    expect(vps()).toHaveLength(1);
+    act(() => state.setVpSel('vp1'));
+    expect([...document.querySelectorAll('[aria-label="Viewport scale"] option')].map((o) => o.textContent)).toEqual(['1:20', '1:50', '1:100', '1:200', '1:500', '1:1000', 'Custom…']);
+    await command('SCALELISTEDIT');
+    expect(document.querySelector('[aria-label="Scale list"]')).not.toBeNull();
+    act(() => [...document.querySelectorAll('[aria-label="Scales"] label')].find((l) => l.textContent?.trim() === '1:75')!.querySelector('input')!.click());
+    act(() => button('Save').click());
+    expect(project.plot?.scales).toEqual([20, 50, 75, 100, 200, 500, 1000]);
+    expect(lastMsg()).toBe('SCALELISTEDIT  7 scales in the list · ⌘Z to undo');
+    expect([...document.querySelectorAll('[aria-label="Viewport scale"] option')].map((o) => o.textContent)).toContain('1:75');
+    await command('VPFIT');
+    expect(lastMsg()).toMatch(/Viewport 1: the whole level at 1:\d+ · ⌘Z to undo$/);
+  });
+
+  it('Layouts made with +: VPORTS 4, VPFIT, VPSCALE, Page setup (paper and orientation), Save as template and New layout from it', async () => {
+    localStorage.removeItem('lvds.layoutTemplates');
+    act(() => root.render(<Host start={{ ...villa, building: undefined }} />));
+    await flush();
+    const v = await openDrawing('paper-layouts.dxf', bytes('tests/fixtures/cad/paper-layouts.dxf'));
+    act(() => state.open(v));
+    await flush();
+    const key = v.file.toLowerCase(), mine = () => project.cadLayouts![key];
+    const ltabs = () => [...document.querySelectorAll('[aria-label="Model and layouts"] [role="tab"]')].map((t) => t.textContent);
+    await command('LAYOUT');
+    expect(lastMsg()).toMatch(/Page setup changes the paper · ⌘Z to undo$/);
+    expect(state.layout).toBe('dwg:Layout2');
+    await command('VPORTS');
+    expect(hist()).toMatch(/^VPORTS {2}Type VPORTS and an arrangement/);
+    await command('VPSCALE 50');
+    expect(lastMsg()).toBe('LAYOUT  Layout2: viewport at 1:50 · ⌘Z to undo');
+    const perMm = (q: { vh: number; h: number }) => Math.round((q.vh / q.h) * 1e6) / 1e6; // the scale: model height per paper mm
+    const vhBefore = perMm(mine()[0].viewports[0]);
+    await command('VPORTS 4');
+    expect(mine()[0].viewports).toHaveLength(4);
+    expect(perMm(mine()[0].viewports[0])).toBe(vhBefore); // the first keeps its scale
+    expect(lastMsg()).toBe('LAYOUT  Layout2: viewports arranged, four: equal · ⌘Z to undo');
+    await command('VPFIT');
+    expect(lastMsg()).toBe('LAYOUT  Layout2: the whole drawing in 4 viewports · ⌘Z to undo');
+    await command('VPSCALE 50');
+    expect(hist()).toMatch(/^VPSCALE {2}Layout2 has 4 viewports: right-click inside one/);
+    // Page setup: A1 portrait; the viewports keep their scale.
+    const scales = () => mine()[0].viewports.map((q) => Math.round(perMm(q) * 10) / 10); // the frame is kept to 0.1 mm
+    const before = scales();
+    expect(before.every((x) => x === 100)).toBe(true); // Fit: the whole drawing, at the scale it fits
+    await command('PAGESETUP');
+    setField('Paper', 'A1');
+    act(() => button('Portrait').click());
+    act(() => button('Save').click());
+    expect(mine()[0].paper).toEqual([594, 841]);
+    expect(scales()).toEqual(before);
+    expect(lastMsg()).toBe('LAYOUT  Layout2: A1 portrait · ⌘Z to undo');
+    // Save as template, then a new layout from it.
+    await command('LAYOUT S');
+    setField('Template name', 'My A1 portrait');
+    act(() => button('Save as template').click());
+    expect(JSON.parse(localStorage.getItem('lvds.layoutTemplates')!).map((t: { name: string; paper: number[] }) => [t.name, t.paper])).toEqual([['My A1 portrait', [594, 841]]]);
+    act(() => button('Close').click());
+    await command('LAYOUT T');
+    act(() => button('New layout').click());
+    expect(document.querySelector('[aria-label="Layout templates"]')).toBeNull();
+    expect(ltabs()).toEqual(['Model', 'Layout1', 'A1 Lighting', 'Layout2', 'Layout3']);
+    expect(mine()[1]).toMatchObject({ name: 'Layout3', paper: [594, 841] });
+    expect(mine()[1].viewports).toHaveLength(4);
+    expect(state.layout).toBe('dwg:Layout3');
+    // VPMAX on a layout of the drawing, and back.
+    await command('VPMAX');
+    expect(state.layout).toBeNull();
+    await command('VPMIN');
+    expect(state.layout).toBe('dwg:Layout3');
+    // Back by the layout's own tab: nothing is maximised any more, so VPMIN goes nowhere.
+    await command('VPMAX');
+    act(() => [...document.querySelectorAll<HTMLButtonElement>('.cad-ltab')].find((b) => b.textContent === 'Layout2')!.click());
+    expect(state.layout).toBe('dwg:Layout2');
+    await command('VPMIN');
+    expect(state.layout).toBe('dwg:Layout2');
+    expect(hist()).toBe('VPMIN  No viewport is maximised (VPMAX on a layout first).');
+    // What a layout of the drawing does not take yet says what it does take.
+    await command('VPCOPY');
+    expect(hist()).toBe('VPCOPY  Layout2 is a layout of the drawing: its viewports take Arrange (VPORTS), Fit (VPFIT), a scale and Page setup. VPCOPY works on the project\'s plan sheets (right-click a tab).');
+  });
 });
 
 describe('CAD page actions from the ribbon', () => {
@@ -4233,16 +4381,26 @@ describe('right-click menus: fixes from the audit of 2026-11-11', () => {
     const paperRight = (x: number, y: number) => act(async () => { document.querySelector('.cad-filepaper')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: x, clientY: y })); });
     // jsdom lays the pane out at 0 × 0: the paper is fitted round (0, 0), its viewport over that point.
     await paperRight(0, 0);
-    expect(labels()).toEqual(['Show on the Model tab', 'Viewport scale', 'New layout', 'Rename layout…', 'Copy layout', 'Delete layout', 'Model tab']);
+    expect(labels()).toEqual(['Show on the Model tab', 'Viewport scale', 'New layout', 'Arrange viewports', 'Page setup…', 'Rename layout…', 'Copy layout', 'Delete layout', 'Model tab']);
     await pickEntry('Viewport scale', '1:50');
     const v = drawingLayoutsOf(project, F)[0].viewports[0];
     expect(v.vh).toBeCloseTo(v.h * 50, 6); // mm drawing: vh = h × 50 drawing units
     await paperRight(40, 0);
-    expect(labels()).toEqual(['New layout', 'Rename layout…', 'Copy layout', 'Delete layout', 'Model tab']);
+    expect(labels()).toEqual(['New layout', 'Arrange viewports', 'Page setup…', 'Rename layout…', 'Copy layout', 'Delete layout', 'Model tab']);
     await esc();
     await paperRight(0, 0);
     await pickEntry('Show on the Model tab');
     expect(state.layout).toBeNull();
+    // Back on the layout: Arrange viewports ▸ and Page setup… are in the paper's menu too.
+    act(() => state.setLayout('dwg:Layout2'));
+    await until(() => !!document.querySelector('.cad-filepaper'));
+    await paperRight(40, 0);
+    await pickEntry('Arrange viewports', 'Two: side by side');
+    expect(drawingLayoutsOf(project, F)[0].viewports).toHaveLength(2);
+    await paperRight(40, 0);
+    await pickEntry('Page setup…');
+    expect(document.querySelector('[aria-label="Page setup"]')).not.toBeNull();
+    act(() => button('Cancel').click());
   });
 });
 

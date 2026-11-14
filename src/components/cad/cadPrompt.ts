@@ -37,7 +37,7 @@ export function matchingCommands(typed: string, max = 8): { alias: string; cmd: 
 }
 
 /** Commands that take a word after a space (VPSCALE 50, LAYOUT P, ZOOM E): Space types the space after them. */
-const TAKES_ARG = new Set(['VPSCALE', 'LAYOUT', 'LO']);
+const TAKES_ARG = new Set(['VPSCALE', 'LAYOUT', 'LO', 'VPORTS', 'VPALIGN']);
 const NUM = '-?(?:\\d+\\.?\\d*|\\.\\d+)';
 /** A whole number typed (".5" and "3." count), a whole point ("x,y", "@dx,dy", "@d<angle"), as the command line takes. */
 export const isNumber = (s: string) => new RegExp(`^${NUM}$`).test(s.trim());

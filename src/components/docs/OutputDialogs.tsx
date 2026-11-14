@@ -1,15 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { OutputDialog } from './outputHost';
 import { Modal } from '../ui';
 import type { CalcRun } from '../../calc/runs';
 import { drawable, setOf, type DrawingSheet, type SheetSize } from '../../model/drawingSet';
 import { planScale } from '../../docs/planLayout';
 import {
-  applySetup, batchesOf, nextId, plotOf, projectForBatch, setupsOf, setupUsers, tablesOf, withBatch, withoutBatch, withoutSetup, withSetup,
+  applySetup, batchesOf, importSetups, loadSetupLibrary, nextId, plotOf, projectForBatch, readSetups, saveToSetupLibrary, setupsFile, setupsOf, setupUsers, tablesOf, withBatch, withoutBatch, withoutSetup, withSetup,
   type BatchList, type NamedSetup, type PlotSetup
 } from '../../model/plotSetup';
 import type { Project } from '../../types';
-import { safeFileName, saveBinary } from '../../util/files';
+import { safeFileName, saveBinary, saveText } from '../../util/files';
 import { canPrint, PDF_PRINTER, plotPrinter, printerLabel, setPlotPrinter, usePrinters, type PrinterInfo } from '../../util/printers';
 import { canPreviewSheetPdf, SheetPdfPreview } from './SheetPdfPreview';
 import { PenTableDialog } from './PlotDialogs';
@@ -115,14 +115,19 @@ const blankSetup = (p: Project): NamedSetup => ({ id: nextId(p.plot?.setups, 'ps
 
 /** Page setups: the project's named page setups; made, edited, deleted and applied to many sheets at once. Sheets a
  * setup was applied to follow it when it is edited. */
-export function PageSetupsDialog({ project, current, onChange, onClose }: {
+export function PageSetupsDialog({ project, current, onChange, onStatus, onClose }: {
   project: Project; /** The open sheet, ticked first when applying. */ current?: string;
-  onChange: (next: Project, message: string) => void; onClose: () => void;
+  onChange: (next: Project, message: string) => void; onStatus?: (m: string) => void; onClose: () => void;
 }) {
   const printers = usePrinters();
   const setups = setupsOf(project), tables = tablesOf(project), sheets = setOf(project).sheets;
   const [draft, setDraft] = useState<NamedSetup | undefined>(setups[0]);
   const [applying, setApplying] = useState<Set<string>>();
+  const [lib, setLib] = useState(loadSetupLibrary);
+  const [libPick, setLibPick] = useState('');
+  const file = useRef<HTMLInputElement>(null);
+  const fresh = lib.setups.filter((n) => !setups.some((x) => x.name.toLowerCase() === n.name.toLowerCase()));
+  const libName = fresh.some((n) => n.name === libPick) ? libPick : fresh[0]?.name ?? '';
   const saved = draft && setups.some((n) => n.id === draft.id);
   const users = draft ? setupUsers(project, draft.id) : [];
   const set = (patch: Partial<NamedSetup>) => draft && setDraft({ ...draft, ...patch });
@@ -138,6 +143,13 @@ export function PageSetupsDialog({ project, current, onChange, onClose }: {
           </tr>
         )) : <tr><td colSpan={6} className="m">No named page setups yet: New makes one.</td></tr>}</tbody>
       </table>
+      {!applying && <div className="cad-devbtns">
+        <button className="chip" disabled={!saved} onClick={() => { if (!draft) return; saveToSetupLibrary(setupsFile(project, [draft.id])); setLib(loadSetupLibrary()); onStatus?.(`Page setup ${draft.name} saved to your library`); }}>Save to library</button>
+        {fresh.length > 0 && <>
+          <select aria-label="Library page setups" value={libName} onChange={(e) => setLibPick(e.target.value)}>{fresh.map((n) => <option key={n.name} value={n.name}>{n.name}</option>)}</select>
+          <button className="chip" onClick={() => { const n = fresh.find((x) => x.name === libName); if (n) onChange(importSetups(project, { kind: 'lvds.pageSetups', setups: [n], tables: lib.tables }).project, `Page setup ${n.name} added from your library · ⌘Z to undo`); }}>Add from library</button>
+        </>}
+      </div>}
       {draft && !applying && <div className="cad-devform">
         <label>Name<input aria-label="Setup name" value={draft.name} onChange={(e) => set({ name: e.target.value })} /></label>
         <label>Paper<select aria-label="Paper" value={draft.size} onChange={(e) => set({ size: e.target.value as NamedSetup['size'] })}>{SIZES.map((z) => <option key={z} value={z}>{sizeLabel(z)}</option>)}</select></label>
@@ -158,6 +170,18 @@ export function PageSetupsDialog({ project, current, onChange, onClose }: {
         <button className="chip" onClick={onClose}>Close</button>
         <button className="chip" onClick={() => { setDraft(blankSetup(project)); setApplying(undefined); }}>New</button>
         {saved && !applying && <button className="chip" onClick={() => { onChange(withoutSetup(project, draft!.id), `Page setup ${draft!.name} deleted; its sheets keep their settings · ⌘Z to undo`); setDraft(undefined); }}>Delete</button>}
+        {!applying && <>
+          <button className="chip" onClick={() => file.current?.click()}>Import…</button>
+          <input ref={file} type="file" accept=".json,.dss" aria-label="Page setup file" hidden onChange={async (e) => {
+            const f = e.target.files?.[0]; e.target.value = ''; if (!f) return;
+            let found: ReturnType<typeof readSetups>;
+            try { found = readSetups(JSON.parse(await f.text())); } catch { found = undefined; }
+            if (!found) { onStatus?.('That file holds no page setups'); return; }
+            const { project: next, added, kept } = importSetups(project, found);
+            onChange(next, `${added.length} page setup(s) imported${kept.length ? `; ${kept.length} of the same name left as ${kept.length === 1 ? 'it is' : 'they are'}` : ''} · ⌘Z to undo`);
+          }} />
+          <button className="chip" disabled={!setups.length} onClick={async () => { const m = await saveText(`${safeFileName(project.name)} page setups.json`, JSON.stringify(setupsFile(project), null, 2), 'Page setups', 'json'); if (m) onStatus?.(m); }}>Export…</button>
+        </>}
         <span className="sp" />
         {saved && !applying && <button className="chip" onClick={() => setApplying(new Set([...users.map((x) => x.id), ...(current ? [current] : [])]))}>Apply to…</button>}
         {applying && <button className="chip" onClick={() => setApplying(undefined)}>Back</button>}
@@ -287,7 +311,7 @@ export function OutputHost({ which, project, run, sheetId, onChange, onStatus, o
     else if (which === 'plot' && !sheet) { onStatus('Open a layout or sheet first'); onClose(); }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- once, on opening
   if (which === 'plot') return sheet ? <PlotDialog project={project} sheet={sheet} run={run} onChange={onChange} onStatus={onStatus} onClose={onClose} /> : null;
-  if (which === 'setups') return <PageSetupsDialog project={project} current={sheetId} onChange={onChange} onClose={onClose} />;
+  if (which === 'setups') return <PageSetupsDialog project={project} current={sheetId} onChange={onChange} onStatus={onStatus} onClose={onClose} />;
   if (which === 'printers') return <PrintersDialog onStatus={onStatus} onClose={onClose} />;
   if (which === 'pens') return <PenTableDialog project={project} onSave={onChange} onClose={onClose} />;
   if (which === 'batch') return <BatchPlotDialog project={project} run={run} onChange={onChange} onStatus={onStatus} onClose={onClose} />;

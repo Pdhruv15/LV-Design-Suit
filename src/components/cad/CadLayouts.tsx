@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type R
 import { Plus } from 'lucide-react';
 import { layoutPaper, layoutViewports, PLAN_LABEL, PLAN_TYPES } from '../../docs/planLayout';
 import { PLAN_PREFIX, renumber, setOf, startStatus, type DrawingSet, type DrawingSheet, type PlanType } from '../../model/drawingSet';
-import { boxFrom, insideVp, isLocked, patchViewport, vpId, vpName, VP_SCALES, withViewports, type PlanViewport } from '../../model/planViewports';
+import { boxFrom, insideVp, isLocked, patchViewport, scalesOf, vpId, vpName, withViewports, type PlanViewport } from '../../model/planViewports';
 import { TABLE_WIDTHS, tableName, type PlacedTable, type TableKind } from '../../model/sheetTables';
 import type { PaperOverlay } from '../sld/SheetWorkspace';
 import type { Project } from '../../types';
@@ -51,7 +51,7 @@ type TabMenu = { s?: DrawingSheet; d?: DrawingTab; x: number; y: number };
 
 /** The tabs under the drawing: Model, the drawing file's own layouts, the layouts made on it here, then the level's plan
  * sheets. + makes a layout of the drawing; a tab's right-click menu has its own commands and New plan sheet. */
-export function LayoutTabs({ files = [], drawings = [], layouts, active, onPick, onNew, onNewSheet, onDrawing, onRename, onCopy, onMove, onDelete, onPageSetup, onPlot }: {
+export function LayoutTabs({ files = [], drawings = [], layouts, active, onPick, onNew, onNewSheet, onDrawing, onRename, onCopy, onMove, onDelete, onPageSetup, onPlot, onTemplates, onSaveTemplate }: {
   /** The drawing file's own layouts (paper space), first, as in the file: their tab id, name and tooltip. */
   files?: { id: string; name: string; title: string }[];
   /** Layouts made on the drawing here (+), after the file's own. */
@@ -63,7 +63,7 @@ export function LayoutTabs({ files = [], drawings = [], layouts, active, onPick,
   onNew?: () => void;
   /** A new plan sheet of the level, from a tab's right-click menu; absent: not offered. */
   onNewSheet?: (type: PlanType) => void;
-  onDrawing?: { rename: (d: DrawingTab) => void; copy: (d: DrawingTab) => void; move: (d: DrawingTab, dir: -1 | 1) => void; remove: (d: DrawingTab) => void };
+  onDrawing?: { rename: (d: DrawingTab) => void; copy: (d: DrawingTab) => void; move: (d: DrawingTab, dir: -1 | 1) => void; remove: (d: DrawingTab) => void; pageSetup: (d: DrawingTab) => void };
   onRename: (s: DrawingSheet) => void;
   onCopy: (s: DrawingSheet) => void;
   onMove: (s: DrawingSheet, dir: -1 | 1) => void;
@@ -71,6 +71,10 @@ export function LayoutTabs({ files = [], drawings = [], layouts, active, onPick,
   onPageSetup: (s: DrawingSheet) => void;
   /** Plot a plan sheet (its tab's menu); absent: not offered. */
   onPlot?: (s: DrawingSheet) => void;
+  /** A new layout from a template (the tab menu's From template…); absent: not offered. */
+  onTemplates?: () => void;
+  /** Save a layout (a plan sheet's or a layout of the drawing's tab id) as a template; absent: not offered. */
+  onSaveTemplate?: (id: string) => void;
 }) {
   const [menu, setMenu] = useState<TabMenu | null>(null);
   useEffect(() => {
@@ -109,10 +113,11 @@ export function LayoutTabs({ files = [], drawings = [], layouts, active, onPick,
         <>
           <div className="st-cover" onClick={() => setMenu(null)} onContextMenu={(e) => { e.preventDefault(); setMenu(null); }} />
           <div className="dw-menu st-ctx cad-tab-menu up" role="menu" aria-label={menu.s ? `Layout ${menu.s.number}` : menu.d ? `Layout ${menu.d.name}` : 'New plan sheet'} style={{ left: Math.max(8, Math.min(menu.x, window.innerWidth - 236)), top: menu.y }}>
-            {onNew && <><button role="menuitem" autoFocus onClick={() => pick(onNew)}>New layout <span className="m">LAYOUT</span></button>{(menu.s || menu.d) && <hr />}</>}
+            {onNew && <><button role="menuitem" autoFocus onClick={() => pick(onNew)}>New layout <span className="m">LAYOUT</span></button>{onTemplates && <button role="menuitem" onClick={() => pick(onTemplates)}>From template…</button>}{(menu.s || menu.d) && <hr />}</>}
             {menu.s && <>
               <button role="menuitem" autoFocus={!onNew} onClick={() => pick(() => onRename(menu.s!))}>Rename…</button>
               <button role="menuitem" onClick={() => pick(() => onCopy(menu.s!))}>Copy</button>
+              {onSaveTemplate && <button role="menuitem" onClick={() => pick(() => onSaveTemplate(menu.s!.id))}>Save as template…</button>}
               <button role="menuitem" onClick={() => pick(() => onMove(menu.s!, -1))}>Move left</button>
               <button role="menuitem" onClick={() => pick(() => onMove(menu.s!, 1))}>Move right</button>
               <button role="menuitem" onClick={() => pick(() => onPageSetup(menu.s!))}>Page setup…</button>
@@ -122,8 +127,10 @@ export function LayoutTabs({ files = [], drawings = [], layouts, active, onPick,
             {menu.d && onDrawing && <>
               <button role="menuitem" autoFocus={!onNew} onClick={() => pick(() => onDrawing.rename(menu.d!))}>Rename…</button>
               <button role="menuitem" onClick={() => pick(() => onDrawing.copy(menu.d!))}>Copy</button>
+              {onSaveTemplate && <button role="menuitem" onClick={() => pick(() => onSaveTemplate(menu.d!.id))}>Save as template…</button>}
               <button role="menuitem" onClick={() => pick(() => onDrawing.move(menu.d!, -1))}>Move left</button>
               <button role="menuitem" onClick={() => pick(() => onDrawing.move(menu.d!, 1))}>Move right</button>
+              <button role="menuitem" onClick={() => pick(() => onDrawing.pageSetup(menu.d!))}>Page setup…</button>
               <button role="menuitem" onClick={() => pick(() => onDrawing.remove(menu.d!))}>Delete</button>
             </>}
             {sheetTypes}
@@ -341,15 +348,15 @@ export function ViewportPanel({ project, sheet, vp, refs, onChange, onDelete, on
   onDelete: () => void;
   onLayers: () => void;
 }) {
-  const vps = layoutViewports(project, sheet);
+  const vps = layoutViewports(project, sheet), scales = scalesOf(project);
   const [custom, setCustom] = useState('');
   return (
     <div className="cad-devform cad-vpform" aria-label="Viewport properties">
       <b>{vpName(vps, vp.id)} <span className="m">{sheet.number}</span></b>
       <label>Scale
-        <select aria-label="Viewport scale" value={VP_SCALES.includes(vp.scale) ? vp.scale : 'custom'} onChange={(e) => e.target.value !== 'custom' && onChange({ scale: Number(e.target.value) }, `scale 1:${e.target.value}`)}>
-          {VP_SCALES.map((k) => <option key={k} value={k}>1:{k}</option>)}
-          <option value="custom">{VP_SCALES.includes(vp.scale) ? 'Custom…' : `1:${vp.scale}`}</option>
+        <select aria-label="Viewport scale" value={scales.includes(vp.scale) ? vp.scale : 'custom'} onChange={(e) => e.target.value !== 'custom' && onChange({ scale: Number(e.target.value) }, `scale 1:${e.target.value}`)}>
+          {scales.map((k) => <option key={k} value={k}>1:{k}</option>)}
+          <option value="custom">{scales.includes(vp.scale) ? 'Custom…' : `1:${vp.scale}`}</option>
         </select>
       </label>
       <label>Custom 1:<input aria-label="Custom scale" inputMode="numeric" value={custom} placeholder={String(vp.scale)} onChange={(e) => setCustom(e.target.value)}

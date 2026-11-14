@@ -1,3 +1,4 @@
+import { pushLibrary } from '../database/librarySync';
 import type { DrawingSheet } from './drawingSet';
 import type { Project } from '../types';
 
@@ -19,7 +20,11 @@ export interface NamedSetup { id: string; name: string; size: DrawingSheet['size
 /** A saved batch plot (Output → Batch plot): the sheets in order, each with its page setup (blank: the sheet's own), and
  * where they go. */
 export interface BatchList { id: string; name: string; rows: { sheet: string; setup?: string }[]; output: 'one' | 'each' | 'printer'; printer?: string; copies?: number }
-export interface ProjectPlot { tables?: PenTable[]; defaults?: PlotSetup; setups?: NamedSetup[]; batches?: BatchList[] }
+export interface ProjectPlot {
+  tables?: PenTable[]; defaults?: PlotSetup; setups?: NamedSetup[]; batches?: BatchList[];
+  /** The viewport scales offered (1:n); blank: the standard list. */
+  scales?: number[];
+}
 
 /** ISO pen widths (mm). */
 export const PEN_WIDTHS = [0.13, 0.18, 0.25, 0.35, 0.5, 0.7, 1, 1.4, 2];
@@ -166,4 +171,90 @@ export function projectForBatch(p: Project, rows: BatchList['rows']): Project {
   const by = new Map(setupsOf(p).map((n) => [n.id, n]));
   const of = new Map(rows.filter((r) => r.setup && by.has(r.setup)).map((r) => [r.sheet, by.get(r.setup!)!]));
   return withSheets(p, (s) => (of.has(s.id) ? sheetWithSetup(s, of.get(s.id)!) : s));
+}
+
+/** Named page setups as a file (Output → Page setups → Export…) or in the library: the setups and the pen tables they use. */
+export interface SetupsFile { kind: 'lvds.pageSetups'; setups: NamedSetup[]; tables: PenTable[] }
+/** The project's named page setups (all, or those with these ids) with the pen tables they use (never the built-in one). */
+export function setupsFile(p: Project, ids?: string[]): SetupsFile {
+  const setups = setupsOf(p).filter((n) => !ids || ids.includes(n.id));
+  const used = new Set(setups.map((n) => n.plot.pens).filter((x): x is string => !!x && x !== DEFAULT_PENS.id));
+  return { kind: 'lvds.pageSetups', setups, tables: tablesOf(p).filter((t) => t.id !== DEFAULT_PENS.id && used.has(t.id)) };
+}
+const SETUP_SIZES = ['auto', 'A4', 'A3', 'A3 portrait', 'A2', 'A1'];
+const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+/** Page setups read from a file: one exported here, or a project file (its plot.setups and plot.tables). Undefined when it holds none. */
+export function readSetups(v: unknown): SetupsFile | undefined {
+  if (!isObj(v)) return undefined;
+  const src = v.kind === 'lvds.pageSetups' ? v : isObj(v.plot) ? v.plot : isObj((v.project as Record<string, unknown> | undefined)?.plot) ? (v.project as { plot: Record<string, unknown> }).plot : undefined;
+  if (!src || !Array.isArray(src.setups)) return undefined;
+  const setups: NamedSetup[] = [];
+  for (const raw of src.setups) {
+    if (!isObj(raw) || typeof raw.name !== 'string' || !raw.name.trim() || !SETUP_SIZES.includes(raw.size as string)) continue;
+    const scale = typeof raw.scale === 'number' && raw.scale > 0 ? raw.scale : undefined;
+    setups.push({
+      id: typeof raw.id === 'string' ? raw.id : '', name: raw.name.trim(), size: raw.size as NamedSetup['size'], ...(scale ? { scale } : {}),
+      plot: plotFrom(raw.plot), ...(typeof raw.printer === 'string' && raw.printer ? { printer: raw.printer } : {})
+    });
+  }
+  if (!setups.length) return undefined;
+  const tables = Array.isArray(src.tables) ? src.tables.filter(isPenTable) : [];
+  return { kind: 'lvds.pageSetups', setups, tables };
+}
+/** How a setup prints, as read from a file: only what a page setup holds, so nothing else gets into the project. */
+function plotFrom(v: unknown): NamedSetup['plot'] {
+  if (!isObj(v)) return {};
+  return {
+    ...(typeof v.pens === 'string' && v.pens ? { pens: v.pens } : {}), ...(v.weights === 'pens' || v.weights === 'thin' ? { weights: v.weights } : {}),
+    ...(typeof v.stamp === 'boolean' ? { stamp: v.stamp } : {}), ...(typeof v.drawn === 'boolean' ? { drawn: v.drawn } : {})
+  };
+}
+/** A whole pen table: a width (0: as drawn) and an ink for every kind of line (one with a pen missing could not print). */
+const isPenTable = (t: unknown): t is PenTable => isObj(t) && typeof t.id === 'string' && typeof t.name === 'string' && !!t.name.trim() && isObj(t.pens)
+  && PEN_KEYS.every((k) => { const pen = (t.pens as Record<string, unknown>)[k]; return isObj(pen) && typeof pen.w === 'number' && pen.w >= 0 && typeof pen.grey === 'number'; });
+/** The project with page setups brought in. A setup whose name is here already (any case) is left as it is; the others get new ids. A pen table they use is matched by name, else added. */
+export function importSetups(p: Project, f: SetupsFile): { project: Project; added: string[]; kept: string[] } {
+  let project = p;
+  const added: string[] = [], kept: string[] = [];
+  const idOf = new Map<string, string>();
+  const tableFor = (old: string): string | undefined => {
+    if (idOf.has(old)) return idOf.get(old);
+    const t = f.tables.find((x) => x.id === old);
+    if (!t) return old === DEFAULT_PENS.id ? old : undefined;
+    const same = tablesOf(project).find((x) => x.name.toLowerCase() === t.name.toLowerCase());
+    if (same) { idOf.set(old, same.id); return same.id; }
+    const id = newTableId(project);
+    project = withTable(project, { ...t, id });
+    idOf.set(old, id);
+    return id;
+  };
+  for (const n of f.setups) {
+    if (setupsOf(project).some((x) => x.name.toLowerCase() === n.name.toLowerCase())) { kept.push(n.name); continue; }
+    const { pens, ...rest } = n.plot;
+    const mapped = pens ? tableFor(pens) : undefined;
+    project = withSetup(project, { ...n, id: nextId(setupsOf(project), 'ps'), plot: { ...rest, ...(mapped ? { pens: mapped } : {}) } });
+    added.push(n.name);
+  }
+  return { project, added, kept };
+}
+export const SETUPS_LIBRARY_KEY = 'lvds.pageSetups';
+export function loadSetupLibrary(): SetupsFile {
+  const none: SetupsFile = { kind: 'lvds.pageSetups', setups: [], tables: [] };
+  try { return readSetups(JSON.parse(localStorage.getItem(SETUPS_LIBRARY_KEY) ?? 'null')) ?? none; } catch { return none; }
+}
+/** A pen table's id in the library: its name. Projects number their tables alike (pt1 in each), so their own ids would
+ * make one project's table stand for another's. */
+const libTableId = (name: string) => `lib:${name.trim().toLowerCase()}`;
+/** The library with these page setups saved (same name, any case: replaced) and their pen tables (same name: replaced). */
+export function saveToSetupLibrary(f: SetupsFile): boolean {
+  const lib = loadSetupLibrary();
+  const idOf = new Map(f.tables.map((t) => [t.id, libTableId(t.name)]));
+  const mine = f.setups.map((n): NamedSetup => {
+    const { pens, ...rest } = n.plot, id = pens ? idOf.get(pens) ?? (pens === DEFAULT_PENS.id ? pens : undefined) : undefined;
+    return { ...n, plot: { ...rest, ...(id ? { pens: id } : {}) } };
+  });
+  const mineTables = f.tables.map((t) => ({ ...t, id: libTableId(t.name) }));
+  const setups = [...lib.setups.filter((x) => !mine.some((n) => n.name.toLowerCase() === x.name.toLowerCase())), ...mine];
+  const tables = [...lib.tables.filter((x) => !mineTables.some((t) => t.id === x.id)), ...mineTables];
+  try { localStorage.setItem(SETUPS_LIBRARY_KEY, JSON.stringify({ kind: 'lvds.pageSetups', setups, tables })); void pushLibrary(); return true; } catch { return false; }
 }

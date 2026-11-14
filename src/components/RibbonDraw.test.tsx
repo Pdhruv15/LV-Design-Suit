@@ -83,7 +83,7 @@ describe('Design CAD ribbon: sub-tabs by use', () => {
     expect(localStorage.getItem('lvds.cadSub')).toBe('annotate');
   });
 
-  it('has the drafting panels in the order the user chose, Annotate on its own sub-tab; with labels the panels take five sub-tabs; each tool is on one', () => {
+  it('has the drafting panels in the order the user chose, Annotate on its own sub-tab; with labels the panels take six sub-tabs; each tool is on one', () => {
     const { rerender } = show();
     expect(['Draw', 'Measure and view'].map(tools)).toEqual([['Line', 'Polyline', 'Circle', 'Arc', 'Hatch', 'Rectangle', 'Polygon', 'Ellipse'],
       ['Distance', 'Area', 'Room area', 'Inspect', 'Zoom extents', 'Drafting settings']]);
@@ -98,14 +98,14 @@ describe('Design CAD ribbon: sub-tabs by use', () => {
       expect(seen.filter((x, i) => seen.indexOf(x) !== i)).toEqual([]); // no tool twice
       return { panels, seen };
     };
-    const shown = look(['LVCAD', 'Annotate', ELEC]);
-    expect(shown.panels).toEqual({ LVCAD: DRAFTING, Annotate: ['Annotate'], [ELEC]: ['Rooms', 'Cables and boards', 'Devices', 'Edit devices', 'Wiring', 'Reference', 'Sheet set', 'Layouts'] });
+    const shown = look(['LVCAD', 'Annotate', ELEC, 'Output']);
+    expect(shown.panels).toEqual({ LVCAD: DRAFTING, Annotate: ['Annotate'], [ELEC]: ['Rooms', 'Cables and boards', 'Devices', 'Edit devices', 'Wiring', 'Reference', 'Sheet set'], Output: ['Layout', 'Plot', 'Publish', 'Export'] });
     expect(shown.seen).not.toContain('Object snap'); // the status bar's toggles stay on the status bar
     rerender({ labels: true });
-    const all = look(['LVCAD', 'Annotate', 'Layers & properties', 'Electrical & ELV', 'Sheets']);
+    const all = look(['LVCAD', 'Annotate', 'Layers & properties', 'Electrical & ELV', 'Sheets', 'Layout', 'Output']);
     expect(all.panels).toEqual({
       LVCAD: ['Draw', 'Modify', 'Blocks'], Annotate: ['Annotate'], 'Layers & properties': ['Layers', 'Properties', 'Measure and view'],
-      'Electrical & ELV': ['Rooms', 'Cables and boards', 'Devices', 'Edit devices', 'Wiring'], Sheets: ['Reference', 'Sheet set', 'Layouts']
+      'Electrical & ELV': ['Rooms', 'Cables and boards', 'Devices', 'Edit devices', 'Wiring'], Sheets: ['Reference', 'Sheet set'], Layout: ['Layout'], Output: ['Plot', 'Publish', 'Export']
     });
     expect([...all.seen].sort()).toEqual([...shown.seen].sort()); // the same tools, only arranged otherwise
     // The place is kept: Layers & properties with labels is Drafting as shown, and back.
@@ -151,14 +151,19 @@ describe('Design CAD ribbon: sub-tabs by use', () => {
     click(tool('Attach'));
     click(tool('Clip'));
     expect((cad.onCommand as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0])).toEqual(['STYLE', 'DIMSTYLE', 'LIST', 'FIT', 'DSETTINGS', 'LAYOFF', 'LAYFRZ', 'LAYLCK', 'LAYISO', 'LAYMCUR', 'LAYON', 'LAYTHW', 'LAYULK', 'LAYUNISO', 'LAYER N', 'XATTACH', 'XCLIP']);
-    pick(ELEC);
+    pick('Output');
     const layout = tool('New layout');
     expect(layout.getAttribute('aria-haspopup')).toBe('menu');
     click(layout);
-    click(item('Power layout'));
-    expect(cad.onLayoutCmd).toHaveBeenLastCalledWith('LAYOUT POWER');
-    pick('Output');
+    expect([...document.querySelectorAll('[role="menuitem"]')].map((b) => b.querySelector('span')?.textContent ?? b.textContent)).toEqual(['New layout', 'From template…', 'Lighting layout', 'Power layout', 'ELV layout', 'Containment layout']);
+    for (const [label, cmd] of [['New layout', 'LAYOUT'], ['From template…', 'LAYOUT T'], ['Power layout', 'LAYOUT POWER']]) {
+      if (label !== 'New layout') click(tool('New layout'));
+      click(item(label));
+      expect(cad.onLayoutCmd, label).toHaveBeenLastCalledWith(cmd);
+    }
     expect(tool('Plot').disabled).toBe(true); // no layout or sheet open
+    expect(tool('Page setup').disabled).toBe(true); // nor a layout showing
+    expect(tool('Save as template').disabled).toBe(true);
   });
 
   it('shows the current layer and lists the drawn layers to make another current (not a frozen one)', () => {
@@ -405,10 +410,16 @@ describe('Design CAD ribbon: sheets and layouts', () => {
     pick('LVCAD');
     expect(groups()).toEqual(DRAFTING);
     pick(ELEC);
-    expect(groups().slice(-3)).toEqual(['Sheet set', 'Layouts', 'Viewports']);
+    expect(groups().slice(-2)).toEqual(['Reference', 'Sheet set']); // the layout tools are on Output
+    pick('Output');
+    expect(groups()).toEqual(['Layout', 'Layout viewports', 'Plot', 'Publish', 'Export']);
     rerender({ labels: true, onPaper: true });
     pick('Sheets');
-    expect(groups()).toEqual(['Reference', 'Sheet set', 'Layouts', 'Viewports']);
+    expect(groups()).toEqual(['Reference', 'Sheet set']);
+    pick('Layout');
+    expect(groups()).toEqual(['Layout', 'Layout viewports']);
+    pick('Output');
+    expect(groups()).toEqual(['Plot', 'Publish', 'Export']); // with labels they have their own sub-tab
     pick('LVCAD');
     expect(groups()).toEqual(['Draw', 'Modify']);
     pick('Annotate');
@@ -417,40 +428,101 @@ describe('Design CAD ribbon: sheets and layouts', () => {
 
   it('a window too narrow for the row folds its panels from the right, one at a time, each to one tool named for it', () => {
     vi.useFakeTimers();
-    let wide = 2000;
+    let wide = 2900;
     const SHUT = 'button[aria-label$=": its tools"], button[title$=": its tools"]';
     vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockImplementation(function (this: HTMLElement) { return this.id === 'ribbon-tools' ? wide - (this.querySelectorAll(SHUT).length * 300) : 0; });
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (this: HTMLElement) { return this.id === 'ribbon-tools' ? 1600 : 0; });
     const { cad, rerender } = show({ inLayout: true });
-    pick(ELEC);
+    pick('Output');
     const shut = () => [...document.querySelectorAll(SHUT)].map((b) => b.getAttribute('aria-label') ?? b.textContent);
-    expect(shut()).toEqual(['Layouts: its tools', 'Viewports: its tools']);
+    expect(shut()).toEqual(['Layout: its tools', 'Layout viewports: its tools', 'Plot: its tools', 'Publish: its tools', 'Export: its tools']);
     // One tool with the panel's name under its icon, no caption under it; the panel's tools on hover.
-    expect(group('Viewports').querySelector('.ribbon-caption')).toBeNull();
-    expect(tool('Viewports: its tools').textContent).toBe('Viewports');
-    act(() => { tool('Viewports: its tools').dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); });
+    expect(group('Layout viewports').querySelector('.ribbon-caption')).toBeNull();
+    expect(tool('Layout viewports: its tools').textContent).toBe('Layout viewports');
+    act(() => { tool('Layout viewports: its tools').dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); });
     act(() => { vi.advanceTimersByTime(400); });
-    expect(document.querySelector('#ribbon-tip')!.textContent).toBe('ViewportsIts tools: Viewport, Legend, Notes, Scale, Lock');
+    expect(document.querySelector('#ribbon-tip')!.textContent).toBe('Layout viewportsIts tools: Viewport, Arrange, Legend, Notes, Scale, Lock, Fit, Copy, Align, Maximise, Frame prints');
     // A tool that only opens a list is there as its list.
-    click(tool('Layouts: its tools'));
-    expect([...document.querySelectorAll('[role="menuitem"]')].map((b) => b.textContent)).toEqual(['New layout: Lighting layout', 'New layout: Power layout', 'New layout: ELV layout', 'New layout: Containment layout']);
+    click(tool('Layout: its tools'));
+    expect([...document.querySelectorAll('[role="menuitem"]')].map((b) => b.textContent)).toEqual(['New layout: New layout', 'New layout: From template…', 'New layout: Lighting layout', 'New layout: Power layout', 'New layout: ELV layout', 'New layout: Containment layout', 'Page setup', 'Save as template']);
     click(item('New layout: Power layout'));
     expect(cad.onLayoutCmd).toHaveBeenLastCalledWith('LAYOUT POWER');
     wide = 1500;
     act(() => { window.dispatchEvent(new Event('resize')); });
     expect(shut()).toEqual([]);
     // A window made narrower with none folded: measured anew, so the panels fold (they keep their width, never squeezed).
-    wide = 2000;
+    wide = 2900;
     act(() => { window.dispatchEvent(new Event('resize')); });
-    expect(shut()).toEqual(['Layouts: its tools', 'Viewports: its tools']);
+    expect(shut()).toHaveLength(5);
     // With labels: the panel's name on the button and under it.
     wide = 2000;
+    pick(ELEC);
     rerender({ labels: true });
     expect(selected()).toBe('Electrical & ELV');
     expect(shut()).toEqual(['Edit devices', 'Wiring']);
     expect(group('Wiring').querySelector('.ribbon-caption')!.textContent).toBe('Wiring');
     click(document.querySelector('button[title="Wiring: its tools"]')!);
     expect([...document.querySelectorAll('[role="menuitem"]')].map((b) => b.textContent)).toEqual(['Wire circuits', 'Wire one', 'Tags']);
+  });
+});
+
+describe('Output: layout, viewports, plot, publish, export', () => {
+  const cmds = (cad: Cad) => (cad.onLayoutCmd as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0]);
+  it('reads Layout, Layout viewports, Plot, Publish, Export on a layout; the model has no viewports; the sheets pages only the last three', () => {
+    show();
+    pick('Output');
+    expect(groups()).toEqual(['Layout', 'Plot', 'Publish', 'Export']);
+    act(() => root.unmount()); root = createRoot(host);
+    show({ inLayout: true });
+    pick('Output');
+    expect(groups()).toEqual(['Layout', 'Layout viewports', 'Plot', 'Publish', 'Export']);
+    // Every tool of Output is named, the small ones beside their icons (it fits a 1,366 px window: 1,281 px).
+    expect(document.querySelector('.ribbon')!.className).toContain('small-named');
+    expect([...group('Layout viewports').querySelectorAll('button')].map((b) => b.querySelector('span')?.textContent).filter(Boolean)).toEqual(['Viewport', 'Arrange', 'Legend', 'Notes', 'Scale', 'Lock', 'Fit', 'Copy', 'Align', 'Maximise', 'Frame prints']);
+    act(() => root.unmount()); root = createRoot(host);
+    show({}, { sheets: sheets({ open: false, kind: 'plan' }), view: 'drawings' });
+    pick('Output');
+    expect(groups()).toEqual(['Plot', 'Publish', 'Export']);
+  });
+
+  it('Layout: Page setup and Save as template run their commands on a layout; the viewport tools run theirs', () => {
+    const { cad } = show({ inLayout: true });
+    pick('Output');
+    expect(tool('Page setup').disabled).toBe(false);
+    click(tool('Page setup')); click(tool('Save as template'));
+    expect(tools('Layout viewports')).toEqual(['Viewport', 'Arrange', 'Legend', 'Notes', 'Scale', 'Lock', 'Fit', 'Copy', 'Align', 'Maximise', 'Frame prints']);
+    for (const t of ['Fit', 'Copy', 'Maximise', 'Frame prints', 'Viewport', 'Legend', 'Notes', 'Lock']) click(tool(t));
+    click(tool('Align')); click(item('Side by side'));
+    click(tool('Align')); click(item('Stacked'));
+    expect(cmds(cad)).toEqual(['PAGESETUP', 'LAYOUT S', 'VPFIT', 'VPCOPY', 'VPMAX', 'VPFRAME', 'MV', 'LEGEND', 'NOTES', 'VPLOCK', 'VPALIGN H', 'VPALIGN V']);
+  });
+
+  it('Arrange lists the nine arrangements; Scale lists the project\'s scales and the scale list', () => {
+    const { cad, rerender } = show({ inLayout: true });
+    pick('Output');
+    click(tool('Arrange'));
+    const labels = [...document.querySelectorAll('[role="menuitem"]')].map((b) => b.textContent);
+    expect(labels).toHaveLength(9);
+    expect(labels[0]).toBe('Single');
+    click(item('Two: side by side'));
+    expect(cad.onLayoutCmd).toHaveBeenLastCalledWith('VPORTS 2V');
+    click(tool('Scale'));
+    expect([...document.querySelectorAll('[role="menuitem"]')].map((b) => b.textContent)).toEqual(['1:20', '1:50', '1:100', '1:200', '1:500', '1:1000', 'Scale list…']);
+    click(item('Scale list…'));
+    expect(cad.onLayoutCmd).toHaveBeenLastCalledWith('SCALELISTEDIT');
+    rerender({ info: { ...INFO, scales: [50, 75, 100] } });
+    click(tool('Scale'));
+    expect([...document.querySelectorAll('[role="menuitem"]')].map((b) => b.textContent)).toEqual(['1:50', '1:75', '1:100', 'Scale list…']);
+    click(item('1:75'));
+    expect(cad.onLayoutCmd).toHaveBeenLastCalledWith('VPSCALE 75');
+  });
+
+  it('Lock and Frame prints show the viewport picked', () => {
+    const { rerender } = show({ inLayout: true, info: { ...INFO, vp: { locked: true, frame: false } } });
+    pick('Output');
+    expect([tool('Lock'), tool('Frame prints')].map((b) => b.getAttribute('aria-pressed'))).toEqual(['true', 'false']);
+    rerender({ info: { ...INFO, vp: { locked: false, frame: true } } });
+    expect([tool('Lock'), tool('Frame prints')].map((b) => b.getAttribute('aria-pressed'))).toEqual(['false', 'true']);
   });
 });
 

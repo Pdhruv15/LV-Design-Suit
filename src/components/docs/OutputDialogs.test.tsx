@@ -5,12 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BatchPlotDialog, OutputHost, PageSetupsDialog, PlotDialog, PrintersDialog } from './OutputDialogs';
 import { sampleProject } from '../../data/sampleProject';
 import { setOf, type DrawingSheet } from '../../model/drawingSet';
-import { setupUsers, withSetup } from '../../model/plotSetup';
+import { saveToSetupLibrary, setupsFile, setupUsers, withSetup } from '../../model/plotSetup';
 import { plotPrinter } from '../../util/printers';
 import type { Project } from '../../types';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const render = vi.hoisted(() => ({ exportDrawingSet: vi.fn(async () => {}), printSheets: vi.fn(async () => {}) }));
+const files = vi.hoisted(() => ({ saveText: vi.fn(async () => 'Saved x') }));
+vi.mock('../../util/files', async (orig) => ({ ...(await orig<typeof import('../../util/files')>()), saveText: files.saveText }));
 vi.mock('./sheetRender', () => render);
 vi.mock('./SheetPdfPreview', () => ({ canPreviewSheetPdf: () => false, SheetPdfPreview: () => null }));
 let root: Root, host: HTMLDivElement;
@@ -123,5 +125,60 @@ describe('Output → Batch plot', () => {
     expect([each, ids, set.sheets.map((s) => s.id)]).toEqual([true, ['s1', 's3'], ['s1', 's3', 's2']]);
     expect(setOf(plotted).sheets.find((s) => s.id === 's3')!.size).toBe('A1');
     expect(setOf(q).sheets.find((s) => s.id === 's3')!.size).toBe('auto'); // for that run only
+  });
+});
+
+describe('Output → Page setups: import, export and the library', () => {
+  const two = withSetup(withSetup(p, a1), { id: 'ps2', name: 'A3 draft', size: 'A3', scale: 50, plot: {} });
+  const setFile = (label: string, text: string) => {
+    const input = document.querySelector(`[aria-label="${label}"]`) as HTMLInputElement;
+    Object.defineProperty(input, 'files', { configurable: true, value: [{ text: async () => text }] });
+    act(() => { input.dispatchEvent(new Event('change', { bubbles: true })); });
+  };
+  const open = (q: Project, onChange = vi.fn(), onStatus = vi.fn()) => { act(() => root.render(<PageSetupsDialog project={q} onChange={onChange} onStatus={onStatus} onClose={() => {}} />)); return { onChange, onStatus }; };
+
+  it('Export… writes the setups as a file; disabled with none', async () => {
+    const { onStatus } = open(two);
+    await act(async () => { button('Export…').click(); });
+    const [name, text, filter, ext] = files.saveText.mock.calls[files.saveText.mock.calls.length - 1] as unknown as [string, string, string, string];
+    expect([name, filter, ext]).toEqual([`${two.name.replace(/[^a-z0-9]+/gi, '-').replace(/(^-|-$)/g, '')} page setups.json`, 'Page setups', 'json']);
+    expect(JSON.parse(text)).toMatchObject({ kind: 'lvds.pageSetups', setups: [{ id: 'ps1' }, { id: 'ps2' }] });
+    expect(onStatus).toHaveBeenCalledWith('Saved x');
+    open(p);
+    expect((button('Export…') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('Import… brings in a file\'s setups (those of the same name stay) and says what it did; a file with none says so', async () => {
+    const { onChange, onStatus } = open(p);
+    setFile('Page setup file', 'not json');
+    await flush();
+    expect(onStatus).toHaveBeenLastCalledWith('That file holds no page setups');
+    setFile('Page setup file', JSON.stringify(setupsFile(two)));
+    await flush();
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const [next, message] = onChange.mock.calls[0] as unknown as [Project, string];
+    expect(next.plot?.setups?.map((x) => x.name)).toEqual(['A1 1:100 PDF', 'A3 draft']);
+    expect(message).toBe('2 page setup(s) imported · ⌘Z to undo');
+    const { onChange: again } = open(next);
+    setFile('Page setup file', JSON.stringify(setupsFile(two)));
+    await flush();
+    expect((again.mock.calls[0] as unknown as [Project, string])[1]).toBe('0 page setup(s) imported; 2 of the same name left as they are · ⌘Z to undo');
+  });
+
+  it('Save to library keeps the setup picked; Add from library offers those the project lacks', async () => {
+    const { onStatus } = open(two);
+    act(() => { button('Save to library').click(); });
+    expect(onStatus).toHaveBeenLastCalledWith('Page setup A1 1:100 PDF saved to your library');
+    expect(JSON.parse(localStorage.getItem('lvds.pageSetups')!).setups.map((x: { name: string }) => x.name)).toEqual(['A1 1:100 PDF']);
+    expect(document.querySelector('[aria-label="Library page setups"]')).toBeNull(); // the project has it already
+    saveToSetupLibrary(setupsFile(two, ['ps2']));
+    act(() => root.unmount()); root = createRoot(host);
+    const r = open(withSetup(p, a1));
+    const opts = [...document.querySelectorAll('[aria-label="Library page setups"] option')].map((o) => o.textContent);
+    expect(opts).toEqual(['A3 draft']);
+    act(() => { button('Add from library').click(); });
+    const [next, message] = r.onChange.mock.calls[r.onChange.mock.calls.length - 1] as unknown as [Project, string];
+    expect(next.plot?.setups?.map((x) => x.name)).toEqual(['A1 1:100 PDF', 'A3 draft']);
+    expect(message).toBe('Page setup A3 draft added from your library · ⌘Z to undo');
   });
 });

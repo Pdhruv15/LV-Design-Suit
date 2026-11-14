@@ -42,16 +42,22 @@ describe('right-click menus (phase 3): blocks, references and sheets', () => {
     const m = viewportMenu(vp);
     expect(labels(m)).toEqual(['Activate (model space)', 'Show on the Model tab', '-', 'Viewport scale', 'Unlock display', 'Frame prints', '-', 'Viewport layers…', '-', 'Erase viewport', '-', 'Plot this layout…', 'Page setup and title block…', '-', 'Properties']);
     expect(flat(m).find((x) => x.label === 'Viewport scale')!.sub!.map((x) => [x.arg, !!x.off])).toEqual(VP_SCALES.map((k) => [`scale|${k}`, k === 100]));
+    const mine = flat(viewportMenu(vp, [50, 75, 100])).find((x) => x.label === 'Viewport scale')!.sub!.map((x) => x.label);
+    expect(mine).toEqual(['1:50', '1:75', '1:100']);
+    expect(flat(viewportMenu({ ...vp, scale: 250 }, [50, 100])).find((x) => x.label === 'Viewport scale')!.sub!.map((x) => x.label)).toEqual(['1:50', '1:100', '1:250']); // a scale in use is listed
     expect(labels(viewportMenu({ ...vp, locked: false, frame: true }))).toEqual(expect.arrayContaining(['Lock display', 'Frame does not print']));
   });
 
   it('the paper: New viewport, Legend, Notes, Issue status ▸ (the sheet\'s marked), Sheet list, Plot, Page setup, Model tab', () => {
     const m = paperMenu({ status: 'FOR APPROVAL' });
-    expect(labels(m)).toEqual(['New viewport', 'Legend table', 'Notes table', '-', 'Issue status', 'Sheet list', '-', 'Plot this layout…', 'Page setup and title block…', '-', 'Model tab']);
+    expect(labels(m)).toEqual(['New viewport', 'Arrange viewports', 'Legend table', 'Notes table', '-', 'Issue status', 'Sheet list', '-', 'Plot this layout…', 'Page setup and title block…', '-', 'Model tab']);
     const st = flat(m).find((x) => x.label === 'Issue status')!.sub!;
     expect(st.map((x) => x.label)).toEqual(SHEET_STATUSES);
     expect(st.filter((x) => x.off).map((x) => x.label)).toEqual(['FOR APPROVAL']);
     expect(flat(m).find((x) => x.label === 'New viewport')!.arg).toBe('cmd|MV');
+    const arr = flat(m).find((x) => x.label === 'Arrange viewports')!.sub!;
+    expect(arr).toHaveLength(9);
+    expect(arr.filter((x) => x.label === 'Two: side by side').map((x) => x.arg)).toEqual(['cmd|VPORTS 2V']);
   });
 
   it('argOf: the action and its value back from the entry', () => {

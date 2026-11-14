@@ -1,6 +1,7 @@
 import type { FileLayout } from '../engines/cad/cadEngine';
 import type { Project } from '../types';
 import { DEFAULT_EDGE_MM, DEFAULT_PAPER } from './fileLayouts';
+import { arrangeBoxes, keyScale, type VpArrangement } from './planViewports';
 
 /** Layouts made in Design CAD on a drawing (+ under the drawing: Layout2, Layout3…), kept in the project by drawing file;
  * the drawing file is never changed. Each is a paper with viewports onto the model, shown as the file's own layouts are
@@ -64,3 +65,43 @@ export function asFileLayout(l: DrawingLayout, tab: number): FileLayout {
     origin: [0, 0], segs: new Float32Array(0), segColors: new Uint32Array(0), segLayers: new Uint16Array(0), texts: [], layers: []
   };
 }
+
+/** Papers a layout can have (landscape, mm). */
+export const LAYOUT_PAPERS: { id: string; mm: [number, number] }[] = [
+  { id: 'A4', mm: [297, 210] }, { id: 'A3', mm: [420, 297] }, { id: 'A2', mm: [594, 420] }, { id: 'A1', mm: [841, 594] }, { id: 'A0', mm: [1189, 841] }
+];
+/** "A3 landscape", "A1 portrait", or "500 × 300 mm" for a paper not in the list (±1 mm). */
+export function paperName(paper: [number, number]): string {
+  for (const { id, mm } of LAYOUT_PAPERS) {
+    if (Math.abs(paper[0] - mm[0]) <= 1 && Math.abs(paper[1] - mm[1]) <= 1) return `${id} landscape`;
+    if (Math.abs(paper[0] - mm[1]) <= 1 && Math.abs(paper[1] - mm[0]) <= 1) return `${id} portrait`;
+  }
+  return `${Math.round(paper[0])} × ${Math.round(paper[1])} mm`;
+}
+const r1 = (x: number) => Math.round(x * 10) / 10;
+/** The layout on another paper: its viewports keep their place in proportion, their centres and their scales. */
+export function withPaper(l: DrawingLayout, paper: [number, number]): DrawingLayout {
+  const sx = paper[0] / l.paper[0], sy = paper[1] / l.paper[1];
+  return { ...l, paper, viewports: l.viewports.map((v) => ({ ...v, x: r1(v.x * sx), y: r1(v.y * sy), w: r1(v.w * sx), h: r1(v.h * sy), vh: v.vh * sy })) };
+}
+/** The layout's viewports in an arrangement (src/model/planViewports.ts), inside the paper's margin: those there keep their centre and scale; new ones show the whole drawing at the scale it fits (a key plan at keyScale of that). */
+export function arrangeDrawingViewports(l: DrawingLayout, a: VpArrangement, ext: [number, number, number, number], mmPerUnit: number): DrawingLayout {
+  const [pw, ph] = l.paper, I = VIEWPORT_INSET_MM, mpu = mmPerUnit > 0 ? mmPerUnit : 1;
+  const ok = Number.isFinite(ext[0]) && ext[2] >= ext[0];
+  const cx = ok ? (ext[0] + ext[2]) / 2 : 0, cy = ok ? (ext[1] + ext[3]) / 2 : 0;
+  const boxes = arrangeBoxes(a, [I, I, pw - 2 * I, ph - 2 * I]);
+  const viewports = boxes.map(([bx, by, bw, bh], i): DrawingViewport => {
+    const x = bx, y = r1(ph - (by + bh)), old = l.viewports[i];
+    if (old) return { ...old, x, y, w: bw, h: bh, vh: old.h > 0 ? (old.vh * bh) / old.h : old.vh };
+    const n = fitScale(ext, bw, bh, mmPerUnit), sc = a.id === 'KEY' && i === 1 ? keyScale(n) : n;
+    return { x, y, w: bw, h: bh, cx, cy, vh: (bh * sc) / mpu };
+  });
+  return { ...l, viewports };
+}
+/** Every viewport showing the whole drawing, centred, at the standard scale it fits. */
+export function fitDrawingViewports(l: DrawingLayout, ext: [number, number, number, number], mmPerUnit: number): DrawingLayout {
+  const mpu = mmPerUnit > 0 ? mmPerUnit : 1, ok = Number.isFinite(ext[0]) && ext[2] >= ext[0];
+  return { ...l, viewports: l.viewports.map((v) => ({ ...v, cx: ok ? (ext[0] + ext[2]) / 2 : v.cx, cy: ok ? (ext[1] + ext[3]) / 2 : v.cy, vh: (v.h * fitScale(ext, v.w, v.h, mmPerUnit)) / mpu })) };
+}
+/** A viewport's scale 1:n (rounded), from its frame and the model height it shows. */
+export const viewportScaleN = (v: DrawingViewport, mmPerUnit: number) => (v.h > 0 ? Math.round((v.vh * mmPerUnit) / v.h) : 0);
