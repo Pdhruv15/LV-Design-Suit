@@ -25,6 +25,19 @@ describe('schedule formats library', () => {
     localStorage.setItem(FORMATS_KEY, '{"a":1}');
     expect(loadFormats()).toEqual([]);
   });
+  it('gives a format its category: none means db, and the sheet\'s link wins when the two differ', () => {
+    const md = (): Sheet => ({ ...tpl(), link: { ...tpl().link!, category: 'md' } });
+    const { category: _c, ...bare } = fmt('n', 'None');
+    localStorage.setItem(FORMATS_KEY, JSON.stringify([bare, { ...fmt('m', 'Panel'), category: 'db', sheet: md() }, { ...fmt('p', 'Panel 2'), category: 'md', sheet: md() }, { ...fmt('q', 'Odd'), category: 'md' }]));
+    expect(loadFormats().map((f) => [f.id, f.category])).toEqual([['n', 'db'], ['m', 'md'], ['p', 'md'], ['q', 'db']]);
+  });
+  it('withFormat takes the category from the template\'s link, on a new format and on a replaced one', () => {
+    const md: Sheet = { ...tpl(), link: { ...tpl().link!, category: 'md' } };
+    const added = withFormat([], 'Office panel', md, new Date('2026-11-14T10:00:00Z'));
+    expect(added.list[0].category).toBe('md');
+    const same = withFormat(added.list, 'office PANEL', tpl());
+    expect([same.updated, same.list[0].category]).toEqual([true, 'db']);
+  });
   it('withFormat adds a new one, and replaces by name ignoring case', () => {
     const added = withFormat([], ' Office DB ', tpl(), new Date('2026-11-14T10:00:00Z'));
     expect(added.updated).toBe(false);

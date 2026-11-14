@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import { linkBoards, sheetFromFormat } from '../../docs/sheetLink';
+import { linkBoards, linkLabel, sheetFromFormat } from '../../docs/sheetLink';
 import { formatNameError, loadFormats, projectFormat, projectFormatStale, removeFormat, renameFormat, saveFormats, withProjectFormat, type ScheduleFormat } from '../../model/scheduleFormats';
 import type { Sheet } from '../../model/sheets';
 import type { Project } from '../../types';
@@ -13,7 +13,7 @@ export default function FormatsPanel({ project, sheets, onAddSheets, onProject, 
   const [list, setList] = useState<ScheduleFormat[]>(() => loadFormats());
   const [boardOf, setBoardOf] = useState<Record<string, string>>({});
   const [renaming, setRenaming] = useState<string | null>(null);
-  const boards = linkBoards(project), without = boards.filter((b) => !sheets.some((s) => s.link?.boardId === b.id));
+  const boardsOf = (f: ScheduleFormat) => linkBoards(project, f.category), withoutOf = (f: ScheduleFormat) => boardsOf(f).filter((b) => !sheets.some((s) => s.link?.boardId === b.id));
   const used = projectFormat(project), stale = projectFormatStale(project, list), fresh = used && list.find((f) => f.id === used.id);
   const store = (next: ScheduleFormat[]) => { saveFormats(next); setList(next); };
   const addFor = (f: ScheduleFormat) => {
@@ -23,7 +23,7 @@ export default function FormatsPanel({ project, sheets, onAddSheets, onProject, 
   };
   const addAll = (f: ScheduleFormat) => {
     const all = [...sheets], made: Sheet[] = [];
-    for (const b of without) { const s = sheetFromFormat(f.sheet, all, b.id); all.push(s); made.push(s); }
+    for (const b of withoutOf(f)) { const s = sheetFromFormat(f.sheet, all, b.id); all.push(s); made.push(s); }
     onAddSheets(made);
     onStatus?.(`${made.length} ${made.length === 1 ? 'sheet' : 'sheets'} added from "${f.name}".`);
   };
@@ -55,15 +55,15 @@ export default function FormatsPanel({ project, sheets, onAddSheets, onProject, 
                 <button type="button" className="shl-btn" onClick={() => setRenaming(null)}>Cancel</button>
               </div>
             : <span style={{ fontWeight: 500 }}>{f.name}</span>}
-          <span className="shl-mut">DB schedule · saved {fmtDate(f.updatedAt)}</span>
+          <span className="shl-mut">{linkLabel(f.category)} · saved {fmtDate(f.updatedAt)}</span>
           <div className="shl-row">
             <select aria-label={`Board for ${f.name}`} value={boardOf[f.id] ?? ''} onChange={(e) => setBoardOf({ ...boardOf, [f.id]: e.target.value })}>
               <option value="">Choose a board</option>
-              {boards.map((b) => <option key={b.id} value={b.id}>{b.id} — {b.name}</option>)}
+              {boardsOf(f).map((b) => <option key={b.id} value={b.id}>{b.id} — {b.name}</option>)}
             </select>
             <button type="button" className="shl-btn" disabled={!boardOf[f.id]} onClick={() => addFor(f)}>Add sheet</button>
           </div>
-          <button type="button" className="shl-btn shl-go" disabled={!without.length} onClick={() => addAll(f)}>Add a sheet for every DB without one ({without.length})</button>
+          <button type="button" className="shl-btn shl-go" disabled={!withoutOf(f).length} onClick={() => addAll(f)}>Add a sheet for every DB without one ({withoutOf(f).length})</button>
           <div className="shl-row">
             <button type="button" className="shl-btn" disabled={used?.id === f.id} onClick={() => { onProject(withProjectFormat(project, f)); onStatus?.(`DB schedules of this project use "${f.name}".`); }}>{used?.id === f.id ? 'In use for this project' : 'Use for this project'}</button>
           </div>
