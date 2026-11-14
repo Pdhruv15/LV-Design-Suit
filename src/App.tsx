@@ -68,7 +68,7 @@ const DatabaseView = lazy(() => import('./components/docs/DatabaseView'));
 const DesignReferencesView = lazy(() => import('./components/docs/DesignReferencesView'));
 import { pullLibrary } from './database/librarySync';
 import { applyReference, type DesignReference } from './model/designReference';
-import { withProjectFormat, type ScheduleFormat } from './model/scheduleFormats';
+import { PANEL_CATEGORIES, withProjectFormat, type PanelCategory, type ScheduleFormat } from './model/scheduleFormats';
 import { boardSheet } from './docs/sheetLink';
 import { applyDatabase, applyParameters, databaseSeeds, EMPTY_DATABASE, parseDatabase, syncLibrary, type Database, type RawDatabase } from './database/database';
 
@@ -918,17 +918,17 @@ export default function App() {
     guard('starting a new project', () => setWizard(true));
   }
 
-  /** The Load schedule tab's Open in my format: the DB as a sheet in the project's format, in Sheets. */
+  /** The Load schedule tab's Open in my format: the panel as a sheet in the project's format for its category, in Sheets. */
   function openBoardSheet(boardId: string) {
     const r = boardSheet(project, boardId);
-    if (!r) { setStatus('Choose a DB format in Sheets → My formats first.'); return; }
+    if (!r) { setStatus('Choose a format for this panel in Sheets → My formats first.'); return; }
     if (r.project !== project) setProject(r.project, { step: true });
     setSheetToOpen(r.sheetId);
     setView('sheets');
     setStatus(`Opened ${boardId} in Sheets.`);
   }
 
-  function createProject(name: string, brief?: ProjectBrief, template?: SetupTemplate, reference?: DesignReference, format?: ScheduleFormat) {
+  function createProject(name: string, brief?: ProjectBrief, template?: SetupTemplate, reference?: DesignReference, formats?: Partial<Record<PanelCategory, ScheduleFormat>>) {
     setWizard(false);
     // Your Parameters.xlsx defaults, then your profile's defaults and details, then a setup template,
     // then the authority's rule set chosen in the wizard, then the brief.
@@ -936,7 +936,7 @@ export default function App() {
     const base1 = template ? applyTemplateSystem(base0, template) : base0;
     const base = reference ? applyReference(base1, reference) : base1;
     const made = brief ? applyBrief(base, brief) : base;
-    loadIntoApp(format ? withProjectFormat(made, format) : made, undefined, 'New project — not saved yet');
+    loadIntoApp(PANEL_CATEGORIES.reduce((p, c) => withProjectFormat(p, c.key, formats?.[c.key]), made), undefined, 'New project — not saved yet');
   }
 
   function saveFeeder(f: Feeder) {

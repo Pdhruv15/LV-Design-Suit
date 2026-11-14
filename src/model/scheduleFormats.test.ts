@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { LIBRARY_KEYS } from '../database/librarySync';
 import { sampleProject } from '../data/sampleProject';
-import { FORMATS_KEY, formatNameError, loadFormats, projectFormat, projectFormatStale, removeFormat, renameFormat, saveFormats, withFormat, withProjectFormat, type ScheduleFormat } from './scheduleFormats';
+import { FORMATS_KEY, formatNameError, loadFormats, projectFormat, projectFormatStale, PANEL_CATEGORIES, removeFormat, renameFormat, saveFormats, withFormat, withProjectFormat, type ScheduleFormat } from './scheduleFormats';
 import { newSheet, type Sheet } from './sheets';
 
 const tpl = (): Sheet => ({ ...newSheet(), link: { category: 'db', cells: {}, firstRow: 5, rows: [], columns: { A: 'row.ref' } } });
@@ -71,21 +71,43 @@ describe('the format a project uses', () => {
   const alpha = fmt('a', 'Alpha');
   it('withProjectFormat sets a copy, replaces it, and removes it without leaving an empty object', () => {
     expect(projectFormat(sampleProject)).toBeUndefined();
-    const p = withProjectFormat(sampleProject, alpha, new Date('2026-11-14T10:00:00Z'));
+    const p = withProjectFormat(sampleProject, 'db', alpha, new Date('2026-11-14T10:00:00Z'));
     expect(projectFormat(p)).toEqual({ id: 'a', name: 'Alpha', sheet: alpha.sheet, appliedAt: '2026-11-14' });
     expect(sampleProject.scheduleFormats).toBeUndefined();
-    const q = withProjectFormat(p, fmt('b', 'Beta'), new Date('2026-12-01T10:00:00Z'));
+    const q = withProjectFormat(p, 'db', fmt('b', 'Beta'), new Date('2026-12-01T10:00:00Z'));
     expect(projectFormat(q)).toMatchObject({ id: 'b', name: 'Beta', appliedAt: '2026-12-01' });
-    const gone = withProjectFormat(q, undefined);
+    const gone = withProjectFormat(q, 'db', undefined);
     expect(gone).not.toHaveProperty('scheduleFormats');
-    expect(withProjectFormat(sampleProject, undefined)).toEqual(sampleProject);
+    expect(withProjectFormat(sampleProject, 'db', undefined)).toEqual(sampleProject);
   });
   it('is stale when My formats has the format with a different sheet, and not otherwise', () => {
-    const p = withProjectFormat(sampleProject, alpha);
-    expect(projectFormatStale(p, [alpha])).toBe(false);
-    expect(projectFormatStale(p, [{ ...alpha, sheet: { ...alpha.sheet, name: 'changed' } }])).toBe(true);
-    expect(projectFormatStale(p, [fmt('other', 'Alpha')])).toBe(false);
-    expect(projectFormatStale(p, [])).toBe(false);
-    expect(projectFormatStale(sampleProject, [alpha])).toBe(false);
+    const p = withProjectFormat(sampleProject, 'db', alpha);
+    expect(projectFormatStale(p, 'db', [alpha])).toBe(false);
+    expect(projectFormatStale(p, 'db', [{ ...alpha, sheet: { ...alpha.sheet, name: 'changed' } }])).toBe(true);
+    expect(projectFormatStale(p, 'db', [fmt('other', 'Alpha')])).toBe(false);
+    expect(projectFormatStale(p, 'db', [])).toBe(false);
+    expect(projectFormatStale(sampleProject, 'db', [alpha])).toBe(false);
+  });
+  const panel = (id: string, name: string): ScheduleFormat => ({ ...fmt(id, name), category: 'md', sheet: { ...tpl(), link: { ...tpl().link!, category: 'md' } } });
+  it('has four categories, each of the kind of its format', () => {
+    expect(PANEL_CATEGORIES.map((c) => [c.key, c.label, c.plural, c.kind])).toEqual([['db', 'DB', 'DBs', 'db'], ['smdb', 'SMDB', 'SMDBs', 'md'], ['mdb', 'MDB', 'MDBs', 'md'], ['mcc', 'MCC', 'MCCs', 'md']]);
+  });
+  it('keeps a format for each category apart, and removes one without touching the others', () => {
+    const a = fmt('a', 'Alpha'), m = panel('m', 'Office panel');
+    let p = withProjectFormat(sampleProject, 'db', a, new Date('2026-11-14T10:00:00Z'));
+    p = withProjectFormat(p, 'smdb', m, new Date('2026-11-14T10:00:00Z'));
+    p = withProjectFormat(p, 'mcc', m);
+    expect([projectFormat(p, 'db')?.name, projectFormat(p, 'smdb')?.name, projectFormat(p, 'mdb'), projectFormat(p, 'mcc')?.name]).toEqual(['Alpha', 'Office panel', undefined, 'Office panel']);
+    const q = withProjectFormat(p, 'smdb', undefined);
+    expect(Object.keys(q.scheduleFormats!)).toEqual(['db', 'mcc']);
+    expect(Object.keys(withProjectFormat(withProjectFormat(q, 'db', undefined), 'mcc', undefined)).includes('scheduleFormats')).toBe(false);
+    expect(projectFormatStale(p, 'smdb', [{ ...m, sheet: { ...m.sheet, name: 'changed' } }])).toBe(true);
+    expect(projectFormatStale(p, 'db', [m])).toBe(false);
+  });
+  it('sets a format only for a category of its own kind', () => {
+    const a = fmt('a', 'Alpha'), m = panel('m', 'Office panel');
+    expect(withProjectFormat(sampleProject, 'smdb', a)).toBe(sampleProject);
+    expect(withProjectFormat(sampleProject, 'mdb', a)).toBe(sampleProject);
+    expect(withProjectFormat(sampleProject, 'db', m)).toBe(sampleProject);
   });
 });

@@ -5,7 +5,7 @@ import { withTemplate, type DefaultRow } from '../model/setupPreview';
 import { briefFromTemplate, SYSTEM_LABEL, type SetupTemplate } from '../model/setupTemplate';
 import { Modal } from './ui';
 import { resolveReference, startChoices, type DesignReference } from '../model/designReference';
-import { loadFormats, type ScheduleFormat } from '../model/scheduleFormats';
+import { loadFormats, PANEL_CATEGORIES, type PanelCategory, type ScheduleFormat } from '../model/scheduleFormats';
 import { STUDY_DEFAULTS } from '../types';
 import {
   deliverableCatalog, newBrief, PARTY_LABEL, resetToRole, ROLE_LABEL, SCOPE_ITEMS, withRole, withScope,
@@ -105,9 +105,9 @@ function RoleCards({ role, onPick }: { role?: ProjectRole; onPick: (r: ProjectRo
 const STEPS = ['Name and role', 'Parties', 'Scope', 'Deliverables', 'Review'];
 
 /** Country → authority → rule set, with the values the project starts with. */
-function AuthorityPicker({ choices, country, authId, setId, ruleSet, refs, formats, formatId, onCountry, onAuthority, onSet, onFormat }: {
-  choices: ReturnType<typeof startChoices>; country: string; authId: string; setId: string; ruleSet?: DesignReference; refs?: DesignReference[]; formats: ScheduleFormat[]; formatId: string;
-  onCountry: (c: string) => void; onAuthority: (id: string) => void; onSet: (id: string) => void; onFormat: (id: string) => void;
+function AuthorityPicker({ choices, country, authId, setId, ruleSet, refs, formats, formatIds, onCountry, onAuthority, onSet, onFormat }: {
+  choices: ReturnType<typeof startChoices>; country: string; authId: string; setId: string; ruleSet?: DesignReference; refs?: DesignReference[]; formats: ScheduleFormat[]; formatIds: Record<PanelCategory, string>;
+  onCountry: (c: string) => void; onAuthority: (id: string) => void; onSet: (id: string) => void; onFormat: (category: PanelCategory, id: string) => void;
 }) {
   const auths = choices.find((c) => c.country === country)?.authorities ?? [];
   const sets = auths.find((a) => a.authority.id === authId)?.sets ?? [];
@@ -154,15 +154,19 @@ function AuthorityPicker({ choices, country, authId, setId, ruleSet, refs, forma
           <p className="m">The project starts with these values; change any of them later in Project settings. The approving authority on the Parties step is filled in as {auths.find((a) => a.authority.id === authId)?.label}.</p>
         </>
       ) : <p className="m">No rule set: the project starts with the app defaults, as Quick create does.</p>}
-      <div className="grid3">
-        <label>DB schedule format
-          <select value={formatId} onChange={(e) => onFormat(e.target.value)}>
-            <option value="">General — the app's load schedule</option>
-            {formats.map((f) => <option key={f.id} value={f.id}>{f.name} — yours</option>)}
-          </select>
-        </label>
-      </div>
-      <p className="m">{formats.length ? 'Your own layout for DB schedules, from My formats in Sheets.' : 'Save a layout as a format in Sheets (Link columns) to choose it here.'} SMDB, MDB, MCC and the load summary use the app's own tables.</p>
+      {[PANEL_CATEGORIES.filter((c) => c.kind === 'db'), PANEL_CATEGORIES.filter((c) => c.kind === 'md')].map((row) => (
+        <div className="grid3" key={row[0].key}>
+          {row.map((c) => (
+            <label key={c.key}>{c.label} schedule format
+              <select value={formatIds[c.key]} onChange={(e) => onFormat(c.key, e.target.value)}>
+                <option value="">{c.kind === 'db' ? "General — the app's load schedule" : "General — the app's panel form"}</option>
+                {formats.filter((f) => f.category === c.kind).map((f) => <option key={f.id} value={f.id}>{f.name} — yours</option>)}
+              </select>
+            </label>
+          ))}
+        </div>
+      ))}
+      <p className="m">{formats.length ? 'Your own layouts, from My formats in Sheets.' : 'Save a layout as a format in Sheets (Link columns) to choose it here.'} The load summary uses the app's own table.</p>
     </div>
   );
 }
@@ -179,11 +183,11 @@ export function NewProjectWizard({ initialName, company, taken, templates = [], 
   templates?: SetupTemplate[];
   /** Design references to choose the authority and rule set from (default: built-in and yours). */
   references?: DesignReference[];
-  onQuick: (name: string) => void; onCreate: (name: string, brief: ProjectBrief, template?: SetupTemplate, reference?: DesignReference, format?: ScheduleFormat) => void; onCancel: () => void;
+  onQuick: (name: string) => void; onCreate: (name: string, brief: ProjectBrief, template?: SetupTemplate, reference?: DesignReference, formats?: Partial<Record<PanelCategory, ScheduleFormat>>) => void; onCancel: () => void;
 }) {
   const [tpl, setTpl] = useState<SetupTemplate | undefined>();
   const [formats] = useState(() => loadFormats());
-  const [formatId, setFormatId] = useState('');
+  const [formatIds, setFormatIds] = useState<Record<PanelCategory, string>>({ db: '', smdb: '', mdb: '', mcc: '' });
   const [step, setStep] = useState(0);
   const [name, setName] = useState(initialName);
   const [brief, setBrief] = useState<ProjectBrief | null>(null);
@@ -210,9 +214,10 @@ export function NewProjectWizard({ initialName, company, taken, templates = [], 
     chooseAuthority(list[0]?.authority.id ?? '', list);
   };
   const pick = (r: ProjectRole) => setBrief((cur) => (cur ? withRole(cur, r, company) : newBrief(r, { company, ...(authName && { authority: authName }) })));
+  const chosen = Object.fromEntries(PANEL_CATEGORIES.flatMap((c) => { const f = formats.find((x) => x.id === formatIds[c.key]); return f ? [[c.key, f]] : []; })) as Partial<Record<PanelCategory, ScheduleFormat>>;
   const canNext = step === 0 ? !!name.trim() && !!brief : true;
   return (
-    <Modal onClose={onCancel} style={{ maxWidth: 680 }} onSubmit={(e) => { e.preventDefault(); if (step < STEPS.length - 1) { if (canNext) setStep(step + 1); } else if (brief && name.trim()) onCreate(name.trim(), brief, tpl, ruleSet, formats.find((f) => f.id === formatId)); }}>
+    <Modal onClose={onCancel} style={{ maxWidth: 680 }} onSubmit={(e) => { e.preventDefault(); if (step < STEPS.length - 1) { if (canNext) setStep(step + 1); } else if (brief && name.trim()) onCreate(name.trim(), brief, tpl, ruleSet, chosen); }}>
       <h3>New project <span className="m">— step {step + 1} of {STEPS.length}: {STEPS[step]}</span></h3>
       <div className="tabs feeder-tabs" role="tablist">
         {STEPS.map((s, i) => <button key={s} type="button" role="tab" aria-selected={step === i} className={step === i ? 'on' : ''} disabled={i > 0 && !brief} onClick={() => (i === 0 || brief) && setStep(i)}>{i + 1}. {s}</button>)}
@@ -231,7 +236,7 @@ export function NewProjectWizard({ initialName, company, taken, templates = [], 
             )}
             {tpl && <p className="m">The template supplies your side of the job, authority, scope, suggested deliverables{Object.values(tpl.system).some((v) => v !== undefined) ? ` and system defaults (${Object.entries(tpl.system).filter(([, v]) => v !== undefined).map(([k, v]) => `${SYSTEM_LABEL[k as keyof typeof SYSTEM_LABEL]} ${v}`).join(', ')})` : ''}. It does not copy party names, dates, drawings, equipment or revisions.</p>}
             <AuthorityPicker choices={choices} country={country} authId={authId} setId={setId} ruleSet={ruleSet} refs={refs}
-              formats={formats} formatId={formatId} onCountry={chooseCountry} onAuthority={(id) => chooseAuthority(id)} onSet={setSetId} onFormat={setFormatId} />
+              formats={formats} formatIds={formatIds} onCountry={chooseCountry} onAuthority={(id) => chooseAuthority(id)} onSet={setSetId} onFormat={(c, id) => setFormatIds({ ...formatIds, [c]: id })} />
             <p className="m" style={{ marginTop: 10 }}>Which side of the job are you on?</p>
             <RoleCards role={brief?.role} onPick={pick} />
           </>

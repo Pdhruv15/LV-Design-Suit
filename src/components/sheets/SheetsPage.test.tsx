@@ -9,6 +9,7 @@ const saved: { name: string; bytes: Uint8Array }[] = [];
 vi.mock('../../util/files', async (orig) => ({ ...(await orig<typeof import('../../util/files')>()), saveBinary: async (name: string, bytes: Uint8Array) => { saved.push({ name, bytes }); return `Saved ${name}`; } }));
 import { sampleProject } from '../../data/sampleProject';
 import { templateData } from '../../docs/scheduleFields';
+import { panelRowKeys } from '../../docs/panelFields';
 import { linkBoards } from '../../docs/sheetLink';
 import { FORMATS_KEY, loadFormats, saveFormats, withFormat } from '../../model/scheduleFormats';
 import { newSheet, withCells } from '../../model/sheets';
@@ -483,6 +484,94 @@ describe('Sheets page — Link columns', () => {
   });
 });
 
+describe('Sheets page — panel schedules', () => {
+  const office = () => book({
+    A1: 'AL NOOR CONSULTANTS', D1: 'PANEL SCHEDULE', A2: 'PANEL', B2: 'SMDB-GF', C2: 'FED FROM: MDB-1', D2: 'LOCATION: GROUND FLOOR',
+    A4: 'SL NO', B4: 'FEEDER', C4: 'BREAKER TYPE', D4: 'RATING (A)', E4: 'CABLE SIZE (mm²)', F4: 'ECC (mm²)', G4: 'LENGTH (m)', H4: 'TCL (kW)', I4: 'MDL (kW)', J4: 'ROUTE', K4: 'REMARKS'
+  });
+  const aside = () => document.querySelector<HTMLElement>('aside[aria-label="Link columns"]')!;
+  const button = (text: string) => [...aside().querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.startsWith(text))!;
+  const choose = (label: string, value: string) => act(() => { const sel = aside().querySelector<HTMLSelectElement>(`select[aria-label="${label}"]`)!; sel.value = value; sel.dispatchEvent(new Event('change', { bubbles: true })); });
+  const open = () => { press('Electrical'); press('Link columns'); };
+  const linkPanel = () => { open(); choose('This sheet is a', 'md'); act(() => button('Suggest links').click()); choose('Board', 'SMDB-GF'); };
+  const M = panelRowKeys(sampleProject, 'SMDB-GF').length;
+  const flush = () => act(async () => { await Promise.resolve(); await Promise.resolve(); });
+  beforeEach(() => { vi.stubGlobal('confirm', vi.fn(() => true)); });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('an unlinked sheet offers the two kinds; the placeholders button is for DB schedules only', () => {
+    render(sampleProject);
+    open();
+    const sel = aside().querySelector<HTMLSelectElement>('select[aria-label="This sheet is a"]')!;
+    expect([...sel.options].map((o) => [o.value, o.textContent])).toEqual([['db', 'DB schedule'], ['md', 'Panel schedule (MDB, SMDB, MCC)']]);
+    expect(sel.value).toBe('db');
+    expect(sel.disabled).toBe(false);
+    render(book({ A5: '{{row.ref}}' }));
+    expect(button('Use the placeholders')).toBeDefined();
+    choose('This sheet is a', 'md');
+    expect(button('Use the placeholders')).toBeUndefined();
+  });
+
+  it('Panel schedule, Suggest links and a board fill the sheet with the feeders; the column labels are the panel fields', () => {
+    render(office());
+    linkPanel();
+    expect(td('B2').textContent).toBe('SMDB-GF');
+    expect(td('C2').textContent).toBe('FED FROM: MDB-1');
+    expect(td('B5').textContent).toBe('LIGHTING');
+    expect(td('C5').textContent).toBe('MCCB');
+    expect(td(`B${4 + M}`).textContent).toBe('DB-GF1 (VILLA GROUND FLOOR DB)');
+    expect(document.querySelector('.shx-grid th .shx-lkname')!.textContent).toBe('Serial number');
+    expect([...document.querySelectorAll('.shx-grid th .shx-lkname')].map((e) => e.textContent)).toContain('Feeder / circuit name');
+    expect(aside().textContent).toContain('A feeder name on each row');
+    expect(aside().textContent).toContain('Columns — row 5 repeats for every feeder');
+    expect(aside().textContent).toContain('Optional: device, rating and cable. Left blank, the app sizes them by the rules.');
+    expect(button('Add a sheet for every other panel (3)')).toBeDefined();
+    expect(last.sheets!.sheets[0].link!.category).toBe('md');
+  });
+
+  it('Add feeder, a name and a load, Apply: one more feeder on the panel', () => {
+    render(office());
+    linkPanel();
+    expect(tool('Add circuit')).toBeUndefined();
+    const count = last.feeders.length;
+    press('Add feeder');
+    expect(td(`B${5 + M}`).className).toContain('shx-act');
+    type('New pump');
+    click(`H${5 + M}`); type('12');
+    press('Apply to project');
+    expect(last.feeders.length).toBe(count + 1);
+    expect(last.feeders.some((f) => f.boardId === 'SMDB-GF' && f.name === 'New pump' && f.loadKw === 12)).toBe(true);
+    expect(status[status.length - 1]).toContain('Applied to SMDB-GF');
+    expect(document.querySelectorAll('.shx-pend').length).toBe(0);
+  });
+
+  it('changing the kind of a linked sheet asks first and clears the links; no question when nothing is linked', async () => {
+    render(office());
+    linkPanel();
+    const asked = vi.mocked(window.confirm);
+    choose('This sheet is a', 'db');
+    await flush();
+    expect(asked).toHaveBeenCalledWith('Change this sheet to a DB schedule?\n\nIts links are removed: the two have different fields.');
+    expect(last.sheets!.sheets[0].link).toEqual({ category: 'db', cells: {}, firstRow: 5, rows: [], columns: {} });
+    expect(aside().querySelector<HTMLSelectElement>('select[aria-label="This sheet is a"]')!.value).toBe('db');
+    asked.mockClear();
+    choose('This sheet is a', 'md');
+    await flush();
+    expect(asked).not.toHaveBeenCalled();
+    expect(last.sheets!.sheets[0].link!.category).toBe('md');
+  });
+
+  it('answering no keeps the links', async () => {
+    render(office());
+    linkPanel();
+    vi.mocked(window.confirm).mockReturnValue(false);
+    choose('This sheet is a', 'db');
+    await flush();
+    expect(last.sheets!.sheets[0].link).toMatchObject({ category: 'md', boardId: 'SMDB-GF' });
+    expect(aside().querySelector<HTMLSelectElement>('select[aria-label="This sheet is a"]')!.value).toBe('md');
+  });
+});
+
 describe('Sheets page — My formats', () => {
   const office = () => book({
     A1: 'AL NOOR CONSULTANTS', A2: 'PANEL', B2: 'DB-GF', C2: 'FED FROM: SMDB-1',
@@ -606,43 +695,71 @@ describe('Sheets page — My formats', () => {
     expect(aside('Link columns')).toBeNull();
     expect(aside('My formats')!.textContent).toContain('Alpha');
   });
-  it('the top box shows the project\'s DB format: General, then the one chosen, and Use General takes it away', () => {
-    seed('Alpha');
+  const panelTemplate = () => ({ ...newSheet(), link: { category: 'md' as const, cells: {}, firstRow: 6, rows: [], columns: { A: 'row.sl', B: 'row.name' } } });
+  const seedBoth = () => saveFormats(withFormat(withFormat([], 'Alpha', template()).list, 'Office panel', panelTemplate()).list);
+  const top = () => aside('My formats')!.querySelector<HTMLElement>('.shl-needs')!;
+  const block = (name: string) => [...aside('My formats')!.querySelectorAll<HTMLElement>('.shl-needs')].find((d) => d.firstElementChild?.textContent === name)!;
+  const chip = (name: string, text: string) => [...block(name).querySelectorAll<HTMLButtonElement>('button[aria-pressed]')].find((b) => b.textContent === text)!;
+  const label = (text: string) => aside('My formats')!.querySelector<HTMLButtonElement>(`button[aria-label="${text}"]`)!;
+
+  it('lists each format with its kind, and offers the chips of its kind', () => {
+    seedBoth();
     render(sampleProject);
     press('Electrical'); press('My formats');
-    const box = () => aside('My formats')!.querySelector<HTMLElement>('.shl-needs')!.textContent!;
-    expect(box()).toContain("This project's DB schedules use");
-    expect(box()).toContain("General — the app's load schedule");
-    expect(btn('My formats', 'Use General')).toBeUndefined();
-    expect(btn('My formats', 'Use for this project').disabled).toBe(false);
-    act(() => btn('My formats', 'Use for this project').click());
-    expect(changes).toBe(1);
-    expect(last.scheduleFormats!.db).toMatchObject({ name: 'Alpha' });
-    expect(status[status.length - 1]).toBe('DB schedules of this project use "Alpha".');
-    expect(box()).toContain('Alpha');
-    expect(btn('My formats', 'In use for this project').disabled).toBe(true);
-    act(() => btn('My formats', 'Use General').click());
-    expect(changes).toBe(2);
-    expect(last).not.toHaveProperty('scheduleFormats');
-    expect(status[status.length - 1]).toBe("DB schedules of this project use the app's load schedule.");
-    expect(box()).toContain("General — the app's load schedule");
-    expect(btn('My formats', 'Use for this project')).toBeDefined();
+    expect(block('Alpha').textContent).toContain('DB schedule · saved');
+    expect(block('Office panel').textContent).toContain('Panel schedule · saved');
+    expect([...block('Alpha').querySelectorAll('button[aria-pressed]')].map((b) => b.textContent)).toEqual(['DBs']);
+    expect([...block('Office panel').querySelectorAll('button[aria-pressed]')].map((b) => b.textContent)).toEqual(['SMDBs', 'MDBs', 'MCCs']);
+    expect(block('Alpha').textContent).toContain('Use for this project\'s');
+    expect(btn('My formats', 'Add a sheet for every DB without one (1)')).toBeDefined();
+    expect(btn('My formats', 'Add a sheet for every panel without one (4)')).toBeDefined();
   });
 
-  it('says when the library format was changed after the project took its copy, and updates the copy', () => {
-    seed('Alpha');
+  it('the top box has four lines: General, then the format chosen with a chip each way, and the General button takes it away', () => {
+    seedBoth();
     render(sampleProject);
     press('Electrical'); press('My formats');
-    act(() => btn('My formats', 'Use for this project').click());
-    expect(aside('My formats')!.textContent).not.toContain('The format was changed in My formats');
-    const changed = loadFormats().map((f) => ({ ...f, sheet: { ...f.sheet, link: { ...f.sheet.link!, firstRow: 9 } } }));
-    saveFormats(changed);
+    expect(top().textContent).toContain("This project's schedules use");
+    for (const p of ['DBs', 'SMDBs', 'MDBs', 'MCCs']) expect(top().textContent).toContain(p);
+    expect(top().textContent!.match(/General/g)).toHaveLength(4);
+    expect(label('Use General for SMDBs')).toBeNull();
+    expect(chip('Office panel', 'SMDBs').getAttribute('aria-pressed')).toBe('false');
+    act(() => chip('Office panel', 'SMDBs').click());
+    expect(changes).toBe(1);
+    expect(last.scheduleFormats!.smdb).toMatchObject({ name: 'Office panel' });
+    expect(Object.keys(last.scheduleFormats!)).toEqual(['smdb']);
+    expect(status[status.length - 1]).toBe('SMDBs of this project use "Office panel".');
+    expect(chip('Office panel', 'SMDBs').getAttribute('aria-pressed')).toBe('true');
+    expect(chip('Office panel', 'MDBs').getAttribute('aria-pressed')).toBe('false');
+    expect(top().textContent!.match(/General/g)).toHaveLength(3);
+    expect(top().textContent).toContain('Office panel');
+    act(() => chip('Office panel', 'SMDBs').click()); // pressing a pressed chip goes back to General
+    expect(changes).toBe(2);
+    expect(last).not.toHaveProperty('scheduleFormats');
+    expect(status[status.length - 1]).toBe("SMDBs of this project use the app's own table.");
+    act(() => chip('Alpha', 'DBs').click());
+    expect(last.scheduleFormats!.db).toMatchObject({ name: 'Alpha' });
+    expect(status[status.length - 1]).toBe('DBs of this project use "Alpha".');
+    act(() => label('Use General for DBs').click());
+    expect(changes).toBe(4);
+    expect(last).not.toHaveProperty('scheduleFormats');
+    expect(status[status.length - 1]).toBe("DBs of this project use the app's own table.");
+  });
+
+  it('says when the library format was changed after the project took its copy, and updates that copy', () => {
+    seedBoth();
+    render(sampleProject);
+    press('Electrical'); press('My formats');
+    act(() => chip('Office panel', 'MCCs').click());
+    expect(aside('My formats')!.textContent).not.toContain('Changed in My formats since this project took its copy.');
+    saveFormats(loadFormats().map((f) => (f.name === 'Office panel' ? { ...f, sheet: { ...f.sheet, link: { ...f.sheet.link!, firstRow: 9 } } } : f)));
     press('My formats'); press('My formats');
-    expect(aside('My formats')!.textContent).toContain('The format was changed in My formats after this project took its copy.');
-    act(() => btn('My formats', "Update this project's copy").click());
-    expect(last.scheduleFormats!.db!.sheet.link!.firstRow).toBe(9);
-    expect(status[status.length - 1]).toBe('This project\'s copy of "Alpha" is updated.');
-    expect(aside('My formats')!.textContent).not.toContain('The format was changed in My formats');
+    expect(aside('My formats')!.textContent).toContain('Changed in My formats since this project took its copy.');
+    expect(label("Update the project's copy for SMDBs")).toBeNull();
+    act(() => label("Update the project's copy for MCCs").click());
+    expect(last.scheduleFormats!.mcc!.sheet.link!.firstRow).toBe(9);
+    expect(status[status.length - 1]).toBe('This project\'s copy of "Office panel" is updated.');
+    expect(aside('My formats')!.textContent).not.toContain('Changed in My formats since this project took its copy.');
   });
 
   it('openSheetId shows that sheet, and a later tab click is not undone', () => {

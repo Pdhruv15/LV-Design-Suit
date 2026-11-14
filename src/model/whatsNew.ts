@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.135', date: '2026-11-14',
+    items: [
+      { title: 'Sheets: your own schedules for MDB, SMDB and MCC', text: 'Link columns now asks whether a sheet is a DB schedule or a panel schedule. A panel schedule has one row per outgoing feeder: name, device, rating, cable, load per phase, TCL and MDL fill from the project, and what you type — or a new feeder row — goes back with Apply to project. My formats keeps panel layouts too, and a project can use a different format for its DBs, SMDBs, MDBs and MCCs, chosen with the new project or in My formats. Export → Open in my format works on a panel\'s form as well.', action: 'sheets', actionLabel: 'Open Sheets' }
+    ]
+  },
+  {
     version: '2.134', date: '2026-11-14',
     items: [
       { title: 'Your DB schedule format, chosen with the project', text: 'A new project can start with one of your formats for its DB schedules, beside the authority and rule set; an open project takes one in Sheets → My formats → Use for this project. On the Load schedule tab, Export → Open in my format then shows the DB as a sheet in that layout, making the sheet when there is none. The project keeps its own copy of the format, so a later change in My formats reaches it only when you update the copy.', action: 'sheets', actionLabel: 'Open Sheets' }

@@ -15,24 +15,31 @@ beforeEach(() => { localStorage.removeItem(FORMATS_KEY); onCreate.mockClear(); r
 afterEach(() => { act(() => root.unmount()); document.body.innerHTML = ''; localStorage.removeItem(FORMATS_KEY); });
 
 const show = () => act(() => root.render(<NewProjectWizard initialName="Villa" references={BUILT_IN_REFERENCES} onQuick={() => {}} onCreate={onCreate} onCancel={() => {}} />));
-const select = () => [...document.querySelectorAll('label')].find((l) => l.textContent?.startsWith('DB schedule format'))!.querySelector('select')!;
-const seed = () => saveFormats(withFormat([], 'Office DB', { ...newSheet(), link: { category: 'db', cells: {}, firstRow: 6, rows: [], columns: { A: 'row.ref' } } }).list);
+const select = (label = 'DB') => [...document.querySelectorAll('label')].find((l) => l.textContent?.startsWith(`${label} schedule format`))!.querySelector('select')!;
+const texts = (label: string) => [...select(label).options].map((o) => o.textContent);
+const dbSheet = { ...newSheet(), link: { category: 'db' as const, cells: {}, firstRow: 6, rows: [], columns: { A: 'row.ref' } } };
+const mdSheet = { ...newSheet(), link: { category: 'md' as const, cells: {}, firstRow: 6, rows: [], columns: { A: 'row.name' } } };
+const seed = () => saveFormats(withFormat(withFormat([], 'Office DB', dbSheet).list, 'Office panel', mdSheet).list);
+const idOf = (name: string) => (JSON.parse(localStorage.getItem(FORMATS_KEY)!) as { id: string; name: string }[]).find((f) => f.name === name)!.id;
+const choose = (label: string, value: string) => act(() => { const sel = select(label); sel.value = value; sel.dispatchEvent(new Event('change', { bubbles: true })); });
 
-describe('new project: DB schedule format', () => {
-  it('offers General first and each saved format, with the muted line for each case', () => {
+describe('new project: schedule formats', () => {
+  it('has four selects, General first, each listing only the formats of its kind, with the muted line for each case', () => {
     show();
-    expect([...select().options].map((o) => o.textContent)).toEqual(["General — the app's load schedule"]);
-    expect(select().value).toBe('');
-    expect(document.body.textContent).toContain("Save a layout as a format in Sheets (Link columns) to choose it here. SMDB, MDB, MCC and the load summary use the app's own tables.");
+    expect(texts('DB')).toEqual(["General — the app's load schedule"]);
+    for (const c of ['SMDB', 'MDB', 'MCC']) expect(texts(c)).toEqual(["General — the app's panel form"]);
+    expect(select('DB').value).toBe('');
+    expect(document.body.textContent).toContain("Save a layout as a format in Sheets (Link columns) to choose it here. The load summary uses the app's own table.");
     act(() => root.unmount());
     seed();
     root = createRoot(document.body.appendChild(document.createElement('div')));
     show();
-    expect([...select().options].map((o) => o.textContent)).toEqual(["General — the app's load schedule", 'Office DB — yours']);
-    expect(document.body.textContent).toContain("Your own layout for DB schedules, from My formats in Sheets. SMDB, MDB, MCC and the load summary use the app's own tables.");
+    expect(texts('DB')).toEqual(["General — the app's load schedule", 'Office DB — yours']);
+    for (const c of ['SMDB', 'MDB', 'MCC']) expect(texts(c)).toEqual(["General — the app's panel form", 'Office panel — yours']);
+    expect(document.body.textContent).toContain("Your own layouts, from My formats in Sheets. The load summary uses the app's own table.");
   });
 
-  it('creating passes the chosen format as the fifth argument, and none for General', () => {
+  it('creating passes the chosen formats by category as the fifth argument, and none for General', () => {
     seed();
     show();
     const go = () => {
@@ -40,15 +47,19 @@ describe('new project: DB schedule format', () => {
       for (let i = 0; i < 4; i++) act(() => [...document.querySelectorAll<HTMLButtonElement>('button[type="submit"]')].find((b) => b.textContent === 'Next')!.click());
       act(() => [...document.querySelectorAll<HTMLButtonElement>('button[type="submit"]')].find((b) => b.textContent === 'Create project')!.click());
     };
-    act(() => { const sel = select(); sel.value = (JSON.parse(localStorage.getItem(FORMATS_KEY)!) as { id: string }[])[0].id; sel.dispatchEvent(new Event('change', { bubbles: true })); });
+    choose('DB', idOf('Office DB'));
+    choose('SMDB', idOf('Office panel'));
+    choose('MCC', idOf('Office panel'));
     go();
     expect(onCreate).toHaveBeenCalledTimes(1);
-    expect(onCreate.mock.calls[0][4]).toMatchObject({ name: 'Office DB' });
+    const chosen = onCreate.mock.calls[0][4];
+    expect(Object.keys(chosen).sort()).toEqual(['db', 'mcc', 'smdb']);
+    expect([chosen.db.name, chosen.smdb.name, chosen.mcc.name]).toEqual(['Office DB', 'Office panel', 'Office panel']);
     act(() => root.unmount());
     onCreate.mockClear();
     root = createRoot(document.body.appendChild(document.createElement('div')));
     show();
     go();
-    expect(onCreate.mock.calls[0][4]).toBeUndefined();
+    expect(onCreate.mock.calls[0][4]).toEqual({});
   });
 });

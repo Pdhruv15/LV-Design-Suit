@@ -10,7 +10,7 @@ import {
   allBordered, allStyled, area, DEFAULT_WIDTH, deleteCols, deleteRows, edgesOf, fillDownEdits, insertCols, insertRows, mergeArea, mergeAt, newSheet, pasteEdits, rawRows, sheetNameError, sheetValues, shown, shownRows, sumFormula,
   unmergeArea, withNextWidth, withStyle, type Area, type Sheet, type SheetAlign, type SheetBook, type SheetNumberFormat, type SheetStyle
 } from '../../model/sheets';
-import { addCircuitRow, discardPending, fillLinked, linkAt, LINK_FIELDS, pendingCount, typeLinked, typeRefusal } from '../../docs/sheetLink';
+import { addCircuitRow, discardPending, fillLinked, linkAt, linkFields, pendingCount, typeLinked, typeRefusal } from '../../docs/sheetLink';
 import { applyLinked, pendingMarks } from '../../docs/sheetApply';
 import { parseClipboard, toClipboard } from '../grid/excelGrid';
 import FormatsPanel from './FormatsPanel';
@@ -147,7 +147,7 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo, openSh
   /** A new row for a circuit: the active cell goes to it, in the first column that takes typing. */
   const addCircuit = () => {
     const next = addCircuitRow(sheet), l = next.link!, here = l.rows.filter((k) => !k.startsWith('new:')).length + l.added!.length - 1;
-    const col = Object.entries(l.columns).filter(([, f]) => LINK_FIELDS.find((x) => x.key === f)?.typed && !(f === 'row.watts' && Object.values(l.columns).some((g) => g.startsWith('row.points.')))).map(([c]) => cellAt(`${c}1`)!.col).sort((a, b) => a - b)[0] ?? 1;
+    const col = Object.entries(l.columns).filter(([, f]) => linkFields(l.category).find((x) => x.key === f)?.typed && !(f === 'row.watts' && Object.values(l.columns).some((g) => g.startsWith('row.points.')))).map(([c]) => cellAt(`${c}1`)!.col).sort((a, b) => a - b)[0] ?? 1;
     save(next);
     setAct({ r: l.firstRow + here, c: col }); setAnchor({ r: l.firstRow + here, c: col });
   };
@@ -334,7 +334,7 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo, openSh
               </div>
             </Group>
             <Group name="Circuits">
-              <Small icon={Plus} label="Add circuit" onClick={addCircuit} disabled={!sheet.link?.boardId} />
+              <Small icon={Plus} label={sheet.link?.category === 'md' ? 'Add feeder' : 'Add circuit'} onClick={addCircuit} disabled={!sheet.link?.boardId} />
             </Group>
             <Group name="Sheets for a board">
               <Big icon={LayoutTemplate} label="My formats" onClick={() => setPanel(panel === 'formats' ? null : 'formats')} pressed={panel === 'formats'} />
@@ -419,7 +419,7 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo, openSh
         <table className="shx-grid">
           <colgroup><col style={{ width: 40 }} />{colHeads.map((c) => <col key={c} style={{ width: sheet.widths?.[colName(c)] ?? DEFAULT_WIDTH }} />)}</colgroup>
           <thead>
-            <tr><th className="shx-corner" aria-hidden />{colHeads.map((c) => { const f = showLinks ? sheet.link?.columns[colName(c)] : undefined, label = f ? LINK_FIELDS.find((x) => x.key === f)?.label ?? f : undefined; return <th key={c} scope="col" className={c >= sel.c0 && c <= sel.c1 ? 'shx-on' : undefined} title={label}>{colName(c)}{label && <span className={`shx-lkname${f === 'own' ? ' shx-lkown' : ''}`}>{label}</span>}</th>; })}</tr>
+            <tr><th className="shx-corner" aria-hidden />{colHeads.map((c) => { const f = showLinks ? sheet.link?.columns[colName(c)] : undefined, label = f ? linkFields(sheet.link!.category).find((x) => x.key === f)?.label ?? f : undefined; return <th key={c} scope="col" className={c >= sel.c0 && c <= sel.c1 ? 'shx-on' : undefined} title={label}>{colName(c)}{label && <span className={`shx-lkname${f === 'own' ? ' shx-lkown' : ''}`}>{label}</span>}</th>; })}</tr>
           </thead>
           <tbody>
             {rowHeads.map((r) => (

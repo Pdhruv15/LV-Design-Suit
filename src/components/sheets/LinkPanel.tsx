@@ -3,8 +3,9 @@ import { Check, X } from 'lucide-react';
 import { cellAt, cellName, colName } from '../../calc/sheetFormula';
 import { linkBoards, linkFields, linkFromPlaceholders, linkLabel, linkNeeds, linkToBoard, removeLink, setFirstRow, setLinkCell, setLinkColumn, sheetsForBoards, startLink, suggestLink, templateOf } from '../../docs/sheetLink';
 import { formatNameError, loadFormats, saveFormats, withFormat } from '../../model/scheduleFormats';
-import { mergeAt, type Sheet } from '../../model/sheets';
+import { mergeAt, type Sheet, type SheetLink } from '../../model/sheets';
 import type { Project } from '../../types';
+import { ask } from '../ConfirmDialog';
 import { PANEL_CSS } from './panelCss';
 
 /** The Link columns panel of the Sheets page: which cells and columns of a sheet are linked to a DB of the project. */
@@ -22,20 +23,28 @@ export default function LinkPanel({ project, sheet, sheets, active, onSheet, onA
   project: Project; sheet: Sheet; sheets: Sheet[]; active: { r: number; c: number }; onSheet: (next: Sheet) => void; onAddSheets: (made: Sheet[]) => void; onStatus?: (m: string) => void; onClose: () => void; onFormats: () => void;
 }) {
   const [naming, setNaming] = useState<string | null>(null);
+  const [kind, setKind] = useState<SheetLink['category']>('db');
   const link = sheet.link, name = cellName(active.c, active.r);
   const head = (
     <div className="shl-head"><h4>Link columns</h4><button type="button" className="shl-btn shl-x" aria-label="Close" onClick={onClose}><X size={16} aria-hidden /></button></div>
   );
+  const kindSelect = (value: SheetLink['category'], onChange: (to: SheetLink['category']) => void) => (
+    <label className="shl-row"><span>This sheet is a</span>
+      <select aria-label="This sheet is a" value={value} onChange={(e) => onChange(e.target.value as SheetLink['category'])}>
+        <option value="db">{linkLabel('db')}</option><option value="md">{linkLabel('md')} (MDB, SMDB, MCC)</option>
+      </select></label>
+  );
   if (!link) {
-    const holders = linkFromPlaceholders(sheet);
+    const holders = kind === 'db' ? linkFromPlaceholders(sheet) : undefined;
     return (
       <aside className="shl" aria-label="Link columns">
         <style>{PANEL_CSS}</style>
         {head}
         <p>This sheet is not linked to the project.</p>
-        <button type="button" className="shl-btn shl-go" onClick={() => { const s = suggestLink(sheet); if (s) onSheet(s); else onStatus?.('No heading row found. Start with no links and pick the first circuit row.'); }}>Suggest links from the headings</button>
+        {kindSelect(kind, setKind)}
+        <button type="button" className="shl-btn shl-go" onClick={() => { const s = suggestLink(sheet, kind); if (s) onSheet(s); else onStatus?.('No heading row found. Start with no links and pick the first circuit row.'); }}>Suggest links from the headings</button>
         {holders && <button type="button" className="shl-btn" onClick={() => { onSheet(holders.sheet); if (holders.unknown.length) onStatus?.(`Not linked: ${holders.unknown.join(', ')}`); }}>Use the placeholders in this sheet</button>}
-        <button type="button" className="shl-btn" onClick={() => onSheet(startLink(sheet, active.r))}>Start with no links</button>
+        <button type="button" className="shl-btn" onClick={() => onSheet(startLink(sheet, active.r, kind))}>Start with no links</button>
         {loadFormats().length > 0 && <button type="button" className="shl-btn" onClick={onFormats}>Use one of my formats…</button>}
       </aside>
     );
@@ -47,6 +56,12 @@ export default function LinkPanel({ project, sheet, sheets, active, onSheet, onA
     saveFormats(r.list);
     setNaming(null);
     onStatus?.(r.updated ? `Format "${text.trim()}" updated.` : `Format "${text.trim()}" saved. It is in My formats for every project.`);
+  };
+  const panel = link.category === 'md';
+  const changeKind = async (to: SheetLink['category']) => {
+    if (to === link.category) return;
+    if ((Object.keys(link.cells).length || Object.keys(link.columns).length) && !(await ask(`Change this sheet to a ${to === 'db' ? 'DB schedule' : 'panel schedule'}? Its links are removed: the two have different fields.`))) return;
+    onSheet(startLink(removeLink(sheet), link.firstRow, to));
   };
   const boards = linkBoards(project, link.category), needs = linkNeeds(link), ready = needs.every((n) => n.ok);
   const cellFields = linkFields(link.category).filter((f) => f.kind === 'cell'), rowFields = linkFields(link.category).filter((f) => f.kind === 'row');
@@ -60,7 +75,7 @@ export default function LinkPanel({ project, sheet, sheets, active, onSheet, onA
     <aside className="shl" aria-label="Link columns">
       <style>{PANEL_CSS}</style>
       {head}
-      <label className="shl-row"><span>This sheet is a</span><select disabled value={link.category} aria-label="This sheet is a"><option value={link.category}>{linkLabel(link.category)}</option></select></label>
+      {kindSelect(link.category, (to) => void changeKind(to))}
       <label className="shl-row"><span>Board</span>
         <select aria-label="Board" value={link.boardId ?? ''} onChange={(e) => { if (e.target.value) onSheet(linkToBoard(sheet, e.target.value)); }}>
           <option value="">Choose a board</option>
@@ -87,7 +102,7 @@ export default function LinkPanel({ project, sheet, sheets, active, onSheet, onA
       })}
       <button type="button" className="shl-btn" disabled={!!link.cells[name] || (active.r >= link.firstRow && active.r <= lastRow) || !free} onClick={() => free && onSheet(setLinkCell(sheet, name, free.key))}>Link cell {name}</button>
 
-      <h5>Columns — row {link.firstRow} repeats for every circuit</h5>
+      <h5>Columns — row {link.firstRow} repeats for every {panel ? 'feeder' : 'circuit'}</h5>
       <div className="shl-cols" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {columns.map(({ letters, heading }) => {
           const f = link.columns[letters] ?? '';
@@ -106,10 +121,10 @@ export default function LinkPanel({ project, sheet, sheets, active, onSheet, onA
       <div className="shl-needs" aria-label="Needed to build the board and the SLD">
         <strong>Needed to build the board and the SLD</strong>
         {needs.map((n) => <div className="shl-need" key={n.key}>{n.ok ? <Check size={14} color="var(--ok)" aria-label="done" /> : <X size={14} color="var(--bad)" aria-label="missing" />}<span>{n.label}</span></div>)}
-        <span className="shl-mut">Optional: MCB and cable. Left blank, the app sizes them by the rules.</span>
+        <span className="shl-mut">Optional: {panel ? 'device, rating' : 'MCB'} and cable. Left blank, the app sizes them by the rules.</span>
       </div>
       <p style={{ color: ready ? 'var(--ok)' : 'var(--mut)' }}>{ready ? 'Ready — this sheet can build boards, circuits and the SLD.' : 'Not ready — link what is marked above.'}</p>
-      {link.boardId && <button type="button" className="shl-btn shl-go" disabled={!others.length} onClick={() => onAddSheets(sheetsForBoards(sheets, sheet, others.map((b) => b.id)))}>Add a sheet for every other DB ({others.length})</button>}
+      {link.boardId && <button type="button" className="shl-btn shl-go" disabled={!others.length} onClick={() => onAddSheets(sheetsForBoards(sheets, sheet, others.map((b) => b.id)))}>Add a sheet for every other {panel ? 'panel' : 'DB'} ({others.length})</button>}
       {naming === null
         ? <button type="button" className="shl-btn" onClick={() => setNaming(loadFormats().find((f) => f.name === sheet.name)?.name ?? sheet.source?.replace(/\.[^.]*$/, '') ?? sheet.name)}>Save as my format…</button>
         : <div className="shl-row">
