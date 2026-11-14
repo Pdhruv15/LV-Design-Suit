@@ -1,4 +1,5 @@
 import { ask } from '../ConfirmDialog';
+import { panelCategoryOf } from '../../docs/sheetLink';
 import { projectFormat } from '../../model/scheduleFormats';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supplyChain } from '../../model/transformers';
@@ -62,7 +63,7 @@ export default function LoadScheduleView({
   onSettings: () => void;
   /** Tells the ribbon what the Load schedule tab's tools can do now (undefined when this page goes away). */
   onSchedule?: (s: RibbonActions['schedule']) => void;
-  /** Shows a board as a sheet in the project's DB format (Sheets); the ribbon's Open in my format. */
+  /** Shows a board as a sheet in the project's format for its panel category (Sheets); the ribbon's Open in my format. */
   onOpenSheet?: (boardId: string) => void;
 }) {
   const board = project.boards.find((b) => b.id === boardId) ?? project.boards[0];
@@ -269,7 +270,7 @@ export default function LoadScheduleView({
   const substation = form === 'tx' ? txShown.substation : undefined;
   const imbalancePct = data.rows.length ? Math.round(data.imbalance) : undefined, canBalance = data.rows.length >= 2;
   const fails = onGrid ? problems.filter(isFail).length : 0, warns = onGrid ? problems.length - fails : 0;
-  const sheetFormat = !!projectFormat(project) || !!project.sheets?.sheets.some((s) => s.link?.boardId === board.id);
+  const category = panelCategoryOf(project, board), sheetFormat = !!(category && projectFormat(project, category)) || !!project.sheets?.sheets.some((s) => s.link?.boardId === board.id);
   useEffect(() => {
     publish.current?.({
       form, grid: onGrid, row: rowRef, rowBlock, dupBlock, substation, canBalance, imbalancePct, exporting, board: onBoardForm, prevBoard, nextBoard, fails, warns,

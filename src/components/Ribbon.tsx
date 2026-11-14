@@ -147,7 +147,7 @@ export interface RibbonActions {
     onCopy: () => void; onPaste: () => void;
     exporting: boolean;
     onExport: (kind: 'excel' | 'pdf' | 'csv' | 'pack' | 'template') => void;
-    /** The board on screen has a sheet linked to it, or the project has a DB format: Export → Open in my format works. */
+    /** The board on screen has a sheet linked to it, or the project has a format for its panel category: Export → Open in my format works. */
     sheetFormat: boolean; onOpenSheet: () => void;
   };
   // Home: projects
@@ -699,7 +699,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
           { label: 'CSV', title: ls?.grid ? 'The circuits of this DB as a CSV file' : 'On the DB load schedule form', onClick: () => ls?.onExport('csv'), disabled: !ls?.grid },
           { label: 'Submission pack (Excel)', title: 'Every form of the project in one workbook: load summary, MDB / SMDB / MCC forms, then every DB schedule', onClick: () => ls?.onExport('pack'), sep: true },
           { label: 'My Excel template…', title: ls?.grid ? 'Fill your own Excel load schedule format: placeholders such as {{board.id}} and a row of {{row.…}} repeated for every circuit' : 'On the DB load schedule form', onClick: () => ls?.onExport('template'), disabled: !ls?.grid },
-          { label: 'Open in my format', title: !ls?.grid ? 'On the DB load schedule form' : ls.sheetFormat ? 'This DB as a sheet in your own format, in Sheets' : 'Choose a DB format in Sheets → My formats first', onClick: () => ls?.onOpenSheet(), disabled: !ls?.grid || !ls.sheetFormat },
+          { label: 'Open in my format', title: !ls || !(ls.grid || lsMd) ? 'On a board\'s form' : ls.sheetFormat ? 'This panel as a sheet in your own format, in Sheets' : 'Choose a format for this panel in Sheets → My formats first', onClick: () => ls?.onOpenSheet(), disabled: !ls || !(ls.grid || lsMd) || !ls.sheetFormat },
           { label: 'Form details…', title: lsMd || lsTx ? 'Project, area, owner, plot, consultant and contractor on the authority forms' : 'On a panel\'s form or the TCL summary', onClick: () => ls?.onFormDetails(), disabled: !lsMd && !lsTx, sep: true }
         ] }
     ]

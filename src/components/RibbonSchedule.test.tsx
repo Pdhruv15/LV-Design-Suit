@@ -237,23 +237,41 @@ describe('the Load schedule tab', () => {
     expect(item('Form details…') ?? null).toBeNull(); // the panel closed after the last pick
   });
 
-  it('Open in my format needs the DB form and a format, then opens the DB as a sheet', () => {
+  it('Open in my format needs a board\'s form and a format, then opens the board as a sheet', () => {
     let s = show();
     click(arrow('Export'));
     expect(item('Open in my format').disabled).toBe(true);
-    expect(item('Open in my format').title).toBe('Choose a DB format in Sheets → My formats first');
+    expect(item('Open in my format').title).toBe('Choose a format for this panel in Sheets → My formats first');
     click(arrow('Export'));
     s = show({ grid: false, form: 'riser' });
     click(arrow('Export'));
-    expect(item('Open in my format').title).toBe('On the DB load schedule form');
+    expect(item('Open in my format').title).toBe('On a board\'s form');
     click(arrow('Export'));
     s = show({ sheetFormat: true });
     click(arrow('Export'));
     expect(item('Open in my format').disabled).toBe(false);
-    expect(item('Open in my format').title).toBe('This DB as a sheet in your own format, in Sheets');
+    expect(item('Open in my format').title).toBe('This panel as a sheet in your own format, in Sheets');
     click(item('Open in my format'));
     expect(s.onOpenSheet).toHaveBeenCalledTimes(1);
     expect(s.onExport).not.toHaveBeenCalled();
+  });
+
+  it('Open in my format works on a panel\'s form with a format, and is off on the TCL summary', () => {
+    let s = show({ grid: false, form: 'md' });
+    click(arrow('Export'));
+    expect(item('Open in my format').disabled).toBe(true);
+    expect(item('Open in my format').title).toBe('Choose a format for this panel in Sheets → My formats first');
+    click(arrow('Export'));
+    s = show({ grid: false, form: 'md', sheetFormat: true });
+    click(arrow('Export'));
+    expect(item('Open in my format').disabled).toBe(false);
+    expect(item('Open in my format').title).toBe('This panel as a sheet in your own format, in Sheets');
+    click(item('Open in my format'));
+    expect(s.onOpenSheet).toHaveBeenCalledTimes(1);
+    s = show({ grid: false, form: 'tx', sheetFormat: true });
+    click(arrow('Export'));
+    expect(item('Open in my format').disabled).toBe(true);
+    expect(item('Open in my format').title).toBe('On a board\'s form');
   });
 
   it('says Exporting… and greys Export while one runs', () => {

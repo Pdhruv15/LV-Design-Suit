@@ -1,9 +1,9 @@
 import { cellAt, cellName, colName, shiftFormula } from '../calc/sheetFormula';
-import { projectFormat } from '../model/scheduleFormats';
+import { projectFormat, type PanelCategory } from '../model/scheduleFormats';
 import { deleteRows, insertRows, MAX_ROWS, mergeAt, newSheet, sheetNameError, withCells, type Area, type Sheet, type SheetLink, type SheetStyle } from '../model/sheets';
 import { isDbBoard } from '../model/spareWays';
 import { POINT_TYPES, type Board, type Project } from '../types';
-import { hasMdSheet } from './mdSheet';
+import { hasMdSheet, mdFormOf } from './mdSheet';
 import { panelData, panelRowKeys } from './panelFields';
 import { scheduleRowKeys, templateData, type Fields, type Value } from './scheduleFields';
 
@@ -479,13 +479,21 @@ export function pendingCount(sheet: Sheet): number {
   return !l ? 0 : Object.values(l.pending ?? {}).reduce((n, o) => n + Object.keys(o).length, 0) + (l.added ?? []).filter((o) => Object.values(o).some((t) => t !== '')).length;
 }
 
-/** The sheet of the project's book linked to a board (the first one); with none, a sheet made from the project's DB format and
- * added to the book. Undefined when there is neither. */
+/** The panel category of a board, for the format the project uses: DB, or SMDB, MDB (the boards with kWh metering) or MCC. Undefined for a board with no schedule. */
+export function panelCategoryOf(project: Project, board: Board): PanelCategory | undefined {
+  if (!project.boards.some((b) => b.id === board.id)) return undefined;
+  // The same tests as linkBoards, for this one board (the Load schedule tab asks on every render, so no other board's rows are worked out).
+  if (isDbBoard(board) || scheduleRowKeys(project, board.id).length > 0) return 'db';
+  return mdFormOf(project, board).metering ? 'mdb' : board.kind === 'MCC' || board.kind === 'EMCC' ? 'mcc' : 'smdb';
+}
+
+/** The sheet of the project's book linked to a board (the first one); with none, a sheet made from the project's format for the
+ * board's panel category and added to the book. Undefined when there is neither. */
 export function boardSheet(project: Project, boardId: string): { project: Project; sheetId: string } | undefined {
   const book = project.sheets?.sheets ?? [], found = book.find((s) => s.link?.boardId === boardId);
   if (found) return { project, sheetId: found.id };
-  const format = projectFormat(project);
-  if (!format || !linkBoards(project, 'db').some((b) => b.id === boardId)) return undefined; // the project's format is a DB format: not for a panel
+  const board = project.boards.find((b) => b.id === boardId), category = board && panelCategoryOf(project, board), format = category && projectFormat(project, category);
+  if (!format) return undefined;
   const made = sheetFromFormat(format.sheet, book, boardId);
   return { project: { ...project, sheets: { ...project.sheets, sheets: [...book, made] } }, sheetId: made.id };
 }

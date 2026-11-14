@@ -49,18 +49,28 @@ export const removeFormat = (list: ScheduleFormat[], id: string): ScheduleFormat
 
 // ---- the format a project uses
 
-/** The format the project's DB schedules use in Sheets: its own copy of one of My formats. */
-export const projectFormat = (project: Project) => project.scheduleFormats?.db;
+/** The panel categories a project can have a format for: a DB format is for DBs, a panel format for SMDBs, MDBs and MCCs. */
+export type PanelCategory = 'db' | 'smdb' | 'mdb' | 'mcc';
+export const PANEL_CATEGORIES: { key: PanelCategory; label: string; plural: string; kind: 'db' | 'md' }[] = [
+  { key: 'db', label: 'DB', plural: 'DBs', kind: 'db' }, { key: 'smdb', label: 'SMDB', plural: 'SMDBs', kind: 'md' },
+  { key: 'mdb', label: 'MDB', plural: 'MDBs', kind: 'md' }, { key: 'mcc', label: 'MCC', plural: 'MCCs', kind: 'md' }
+];
 
-/** The project with a copy of a format as its DB format, or (undefined) without one; no empty object is left behind. */
-export function withProjectFormat(project: Project, format: ScheduleFormat | undefined, at = new Date()): Project {
-  const { scheduleFormats: _old, ...rest } = project;
-  if (!format) return rest;
-  return { ...rest, scheduleFormats: { ...project.scheduleFormats, db: { id: format.id, name: format.name, sheet: format.sheet, appliedAt: at.toISOString().slice(0, 10) } } };
+/** The format the project's panels of this category use in Sheets: its own copy of one of My formats. */
+export const projectFormat = (project: Project, category: PanelCategory = 'db') => project.scheduleFormats?.[category];
+
+/** The project with a copy of a format as the format of a category, or (undefined) without one; no empty object is left behind.
+ * A format is only set for a category of its own kind; otherwise the project is returned unchanged. */
+export function withProjectFormat(project: Project, category: PanelCategory, format: ScheduleFormat | undefined, at = new Date()): Project {
+  if (format && PANEL_CATEGORIES.find((c) => c.key === category)?.kind !== format.category) return project;
+  const { scheduleFormats: old, ...rest } = project;
+  const { [category]: _gone, ...others } = old ?? {};
+  const next = format ? { ...others, [category]: { id: format.id, name: format.name, sheet: format.sheet, appliedAt: at.toISOString().slice(0, 10) } } : others;
+  return Object.keys(next).length ? { ...rest, scheduleFormats: next } : rest;
 }
 
 /** My formats holds a format with the project's format's id whose sheet differs from the project's copy. */
-export function projectFormatStale(project: Project, list: ScheduleFormat[]): boolean {
-  const own = projectFormat(project), now = own && list.find((f) => f.id === own.id);
+export function projectFormatStale(project: Project, category: PanelCategory, list: ScheduleFormat[]): boolean {
+  const own = projectFormat(project, category), now = own && list.find((f) => f.id === own.id);
   return !!own && !!now && JSON.stringify(now.sheet) !== JSON.stringify(own.sheet);
 }

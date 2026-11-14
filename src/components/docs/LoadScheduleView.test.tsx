@@ -13,7 +13,7 @@ import { safeFileName, saveBinary, saveCsv, savePdf } from '../../util/files';
 import { loadScheduleRows } from '../../docs/loadScheduleDoc';
 import { addCircuit, updateCircuit } from '../../model/schedule';
 import { withProjectFormat } from '../../model/scheduleFormats';
-import { newSheet } from '../../model/sheets';
+import { newSheet, type Sheet } from '../../model/sheets';
 
 vi.mock('../../util/files', async (real) => ({
   ...await real<typeof import('../../util/files')>(),
@@ -74,7 +74,7 @@ describe('Load schedule page and the ribbon', () => {
     act(() => root.unmount());
     root = createRoot(document.body.appendChild(document.createElement('div')));
     const link = { category: 'db' as const, cells: {}, firstRow: 5, rows: [], columns: {} };
-    start = withProjectFormat(sampleProject, { id: 'f', name: 'F', category: 'db', sheet: { ...newSheet(), link }, updatedAt: '2026-11-14' });
+    start = withProjectFormat(sampleProject, 'db', { id: 'f', name: 'F', category: 'db', sheet: { ...newSheet(), link }, updatedAt: '2026-11-14' });
     mount();
     expect(published!.sheetFormat).toBe(true);
     act(() => published!.onOpenSheet());
@@ -84,6 +84,24 @@ describe('Load schedule page and the ribbon', () => {
     start = { ...sampleProject, sheets: { sheets: [{ ...newSheet(), link: { ...link, boardId: BOARD } }] } };
     mount();
     expect(published!.sheetFormat).toBe(true);
+  });
+
+  it('publishes Open in my format on a panel\'s form for the format of its category, and not the TCL summary\'s', () => {
+    const panel = (sheet: Sheet) => ({ id: 'p', name: 'P', category: 'md' as const, sheet: { ...sheet, link: { ...sheet.link!, category: 'md' as const } }, updatedAt: '2026-11-14' });
+    const base = { ...newSheet(), link: { category: 'db' as const, cells: {}, firstRow: 5, rows: [], columns: {} } };
+    shown = 'SMDB-GF';
+    start = withProjectFormat(sampleProject, 'mdb', panel(base));
+    mount();
+    expect(published).toMatchObject({ form: 'md', sheetFormat: false }); // the format is for MDBs, this is an SMDB
+    act(() => root.unmount());
+    root = createRoot(document.body.appendChild(document.createElement('div')));
+    start = withProjectFormat(sampleProject, 'smdb', panel(base));
+    mount();
+    expect(published!.sheetFormat).toBe(true);
+    act(() => published!.onOpenSheet());
+    expect(opened).toEqual(['SMDB-GF']);
+    act(() => { [...document.querySelectorAll('button')].find((b) => b.textContent === 'TCL summary')!.click(); });
+    expect(published).toMatchObject({ form: 'tx' });
   });
 
   it('no longer has the buttons that moved to the ribbon, and keeps the rest', () => {

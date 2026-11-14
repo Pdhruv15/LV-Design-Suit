@@ -4,7 +4,7 @@ import { sampleProject } from '../data/sampleProject';
 import { addSpareWay, isDbBoard } from '../model/spareWays';
 import { newSheet, withCells, withStyle, mergeArea, area, type Sheet, type SheetLink } from '../model/sheets';
 import type { Project } from '../types';
-import { fillLinked, linkAt, linkBoards, linkFromPlaceholders, linkNeeds, linkToBoard, LINK_FIELDS, removeLink, setFirstRow, setLinkCell, setLinkColumn, sheetsForBoards, startLink, suggestLink, addCircuitRow, discardPending, pendingCount, typeLinked, typeRefusal, templateOf, sheetFromFormat, boardSheet, linkFields, linkLabel } from './sheetLink';
+import { fillLinked, linkAt, linkBoards, linkFromPlaceholders, linkNeeds, linkToBoard, LINK_FIELDS, removeLink, setFirstRow, setLinkCell, setLinkColumn, sheetsForBoards, startLink, suggestLink, addCircuitRow, discardPending, pendingCount, typeLinked, typeRefusal, templateOf, sheetFromFormat, boardSheet, linkFields, linkLabel, panelCategoryOf } from './sheetLink';
 import { withProjectFormat } from '../model/scheduleFormats';
 import { deleteOutgoingFeeder } from '../model/mdFeeders';
 import { panelData, panelRowKeys } from './panelFields';
@@ -428,12 +428,12 @@ describe('boardSheet', () => {
   it('finds the first sheet of the book linked to the board', () => {
     const linked = { ...layout(), id: 'S7', name: 'Mine' };
     const p: Project = { ...project, sheets: { sheets: [newSheet(), linked, { ...linked, id: 'S8', name: 'Other' }] } };
-    const r = boardSheet(withProjectFormat(p, format), 'DB-GF1')!;
+    const r = boardSheet(withProjectFormat(p, 'db', format), 'DB-GF1')!;
     expect(r.sheetId).toBe('S7');
     expect(r.project.sheets!.sheets).toHaveLength(3);
   });
   it('makes a sheet from the project\'s format when there is none, and it holds that board\'s circuits', () => {
-    const p = withProjectFormat(project, format);
+    const p = withProjectFormat(project, 'db', format);
     const r = boardSheet(p, 'DB-GF1')!;
     expect(r.project.sheets!.sheets).toHaveLength(1);
     const made = r.project.sheets!.sheets[0];
@@ -564,9 +564,28 @@ describe('panel schedules (category md)', () => {
     expect(ff.link!.rows).toEqual(panelRowKeys(sampleProject, 'SMDB-FF'));
   });
 
+  it('panelCategoryOf: a DB, an MDB (kWh metering), an SMDB and an MCC', () => {
+    const of = (id: string) => panelCategoryOf(sampleProject, sampleProject.boards.find((b) => b.id === id)!);
+    expect(['DB-GF1', 'MDB-1', 'SMDB-GF', 'SMDB-FF', 'MCC-1'].map(of)).toEqual(['db', 'mdb', 'smdb', 'smdb', 'mcc']);
+    expect(panelCategoryOf(sampleProject, { ...sampleProject.boards[0], id: 'GONE' })).toBeUndefined();
+  });
+
+  it('boardSheet makes a panel sheet from the project\'s format for its category, and not from another category\'s', () => {
+    const tpl = templateOf(mdFill())!, panel = { id: 'f2', name: 'Office panel', category: 'md' as const, sheet: tpl, updatedAt: '2026-11-14' };
+    const dbFormat = { id: 'f1', name: 'Office DB', category: 'db' as const, sheet: templateOf(fillLinked(project, sums(), AT))!, updatedAt: '2026-11-14' };
+    const p = withProjectFormat(withProjectFormat(sampleProject, 'db', dbFormat), 'smdb', panel);
+    const r = boardSheet(p, 'SMDB-GF')!, made = r.project.sheets!.sheets[0];
+    expect([made.link!.category, made.link!.boardId, made.name]).toEqual(['md', 'SMDB-GF', 'SMDB-GF']);
+    expect(fillLinked(r.project, made, AT).link!.rows).toEqual(panelRowKeys(sampleProject, 'SMDB-GF'));
+    expect(boardSheet(p, 'MDB-1')).toBeUndefined();
+    expect(boardSheet(p, 'MCC-1')).toBeUndefined();
+    expect(boardSheet(p, 'DB-GF1')!.project.sheets!.sheets[0].link!.category).toBe('db');
+    expect(boardSheet(withProjectFormat(sampleProject, 'smdb', panel), 'DB-GF1')).toBeUndefined();
+  });
+
   it('boardSheet does not put the project\'s DB format on a panel, but finds a panel sheet', () => {
     const dbFormat = { id: 'f1', name: 'Office DB', category: 'db' as const, sheet: templateOf(fillLinked(project, sums(), AT))!, updatedAt: '2026-11-14' };
-    const p = withProjectFormat(sampleProject, dbFormat);
+    const p = withProjectFormat(sampleProject, 'db', dbFormat);
     expect(boardSheet(p, 'SMDB-GF')).toBeUndefined();
     expect(boardSheet(p, 'DB-GF1')).toBeDefined();
     const linked = { ...mdSheet(), id: 'S9', name: 'Panel' };
