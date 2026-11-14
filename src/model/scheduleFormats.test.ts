@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
 import { LIBRARY_KEYS } from '../database/librarySync';
-import { FORMATS_KEY, formatNameError, loadFormats, removeFormat, renameFormat, saveFormats, withFormat, type ScheduleFormat } from './scheduleFormats';
+import { sampleProject } from '../data/sampleProject';
+import { FORMATS_KEY, formatNameError, loadFormats, projectFormat, projectFormatStale, removeFormat, renameFormat, saveFormats, withFormat, withProjectFormat, type ScheduleFormat } from './scheduleFormats';
 import { newSheet, type Sheet } from './sheets';
 
 const tpl = (): Sheet => ({ ...newSheet(), link: { category: 'db', cells: {}, firstRow: 5, rows: [], columns: { A: 'row.ref' } } });
@@ -50,5 +51,28 @@ describe('schedule formats library', () => {
     expect(formatNameError(' ALPHA ', list)).toBe('Another format has this name.');
     expect(formatNameError('alpha', list, 'a')).toBeUndefined();
     expect(formatNameError('Beta', list)).toBeUndefined();
+  });
+});
+
+describe('the format a project uses', () => {
+  const alpha = fmt('a', 'Alpha');
+  it('withProjectFormat sets a copy, replaces it, and removes it without leaving an empty object', () => {
+    expect(projectFormat(sampleProject)).toBeUndefined();
+    const p = withProjectFormat(sampleProject, alpha, new Date('2026-11-14T10:00:00Z'));
+    expect(projectFormat(p)).toEqual({ id: 'a', name: 'Alpha', sheet: alpha.sheet, appliedAt: '2026-11-14' });
+    expect(sampleProject.scheduleFormats).toBeUndefined();
+    const q = withProjectFormat(p, fmt('b', 'Beta'), new Date('2026-12-01T10:00:00Z'));
+    expect(projectFormat(q)).toMatchObject({ id: 'b', name: 'Beta', appliedAt: '2026-12-01' });
+    const gone = withProjectFormat(q, undefined);
+    expect(gone).not.toHaveProperty('scheduleFormats');
+    expect(withProjectFormat(sampleProject, undefined)).toEqual(sampleProject);
+  });
+  it('is stale when My formats has the format with a different sheet, and not otherwise', () => {
+    const p = withProjectFormat(sampleProject, alpha);
+    expect(projectFormatStale(p, [alpha])).toBe(false);
+    expect(projectFormatStale(p, [{ ...alpha, sheet: { ...alpha.sheet, name: 'changed' } }])).toBe(true);
+    expect(projectFormatStale(p, [fmt('other', 'Alpha')])).toBe(false);
+    expect(projectFormatStale(p, [])).toBe(false);
+    expect(projectFormatStale(sampleProject, [alpha])).toBe(false);
   });
 });

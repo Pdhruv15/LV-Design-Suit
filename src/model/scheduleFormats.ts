@@ -1,4 +1,5 @@
 import { pushLibrary } from '../database/librarySync';
+import type { Project } from '../types';
 import type { Sheet } from './sheets';
 
 /** Your office's schedule formats: a linked sheet layout saved once and reused for other boards and other projects. Kept like the
@@ -44,3 +45,21 @@ export function withFormat(list: ScheduleFormat[], name: string, template: Sheet
 }
 export const renameFormat = (list: ScheduleFormat[], id: string, name: string): ScheduleFormat[] => list.map((f) => (f.id === id ? { ...f, name: name.trim() } : f));
 export const removeFormat = (list: ScheduleFormat[], id: string): ScheduleFormat[] => list.filter((f) => f.id !== id);
+
+// ---- the format a project uses
+
+/** The format the project's DB schedules use in Sheets: its own copy of one of My formats. */
+export const projectFormat = (project: Project) => project.scheduleFormats?.db;
+
+/** The project with a copy of a format as its DB format, or (undefined) without one; no empty object is left behind. */
+export function withProjectFormat(project: Project, format: ScheduleFormat | undefined, at = new Date()): Project {
+  const { scheduleFormats: _old, ...rest } = project;
+  if (!format) return rest;
+  return { ...rest, scheduleFormats: { ...project.scheduleFormats, db: { id: format.id, name: format.name, sheet: format.sheet, appliedAt: at.toISOString().slice(0, 10) } } };
+}
+
+/** My formats holds a format with the project's format's id whose sheet differs from the project's copy. */
+export function projectFormatStale(project: Project, list: ScheduleFormat[]): boolean {
+  const own = projectFormat(project), now = own && list.find((f) => f.id === own.id);
+  return !!own && !!now && JSON.stringify(now.sheet) !== JSON.stringify(own.sheet);
+}

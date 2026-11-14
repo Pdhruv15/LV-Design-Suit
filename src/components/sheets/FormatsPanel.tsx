@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { linkBoards, sheetFromFormat } from '../../docs/sheetLink';
-import { formatNameError, loadFormats, removeFormat, renameFormat, saveFormats, type ScheduleFormat } from '../../model/scheduleFormats';
+import { formatNameError, loadFormats, projectFormat, projectFormatStale, removeFormat, renameFormat, saveFormats, withProjectFormat, type ScheduleFormat } from '../../model/scheduleFormats';
 import type { Sheet } from '../../model/sheets';
 import type { Project } from '../../types';
 import { fmtDate } from '../../util/format';
@@ -9,11 +9,12 @@ import { ask } from '../ConfirmDialog';
 import { PANEL_CSS } from './panelCss';
 
 /** The My formats panel of the Sheets page: the layouts saved from Link columns, added as a sheet for a board or for every DB without one. */
-export default function FormatsPanel({ project, sheets, onAddSheets, onStatus, onClose }: { project: Project; sheets: Sheet[]; onAddSheets: (made: Sheet[]) => void; onStatus?: (m: string) => void; onClose: () => void }) {
+export default function FormatsPanel({ project, sheets, onAddSheets, onProject, onStatus, onClose }: { project: Project; sheets: Sheet[]; onAddSheets: (made: Sheet[]) => void; onProject: (next: Project) => void; onStatus?: (m: string) => void; onClose: () => void }) {
   const [list, setList] = useState<ScheduleFormat[]>(() => loadFormats());
   const [boardOf, setBoardOf] = useState<Record<string, string>>({});
   const [renaming, setRenaming] = useState<string | null>(null);
   const boards = linkBoards(project), without = boards.filter((b) => !sheets.some((s) => s.link?.boardId === b.id));
+  const used = projectFormat(project), stale = projectFormatStale(project, list), fresh = used && list.find((f) => f.id === used.id);
   const store = (next: ScheduleFormat[]) => { saveFormats(next); setList(next); };
   const addFor = (f: ScheduleFormat) => {
     const made = sheetFromFormat(f.sheet, sheets, boardOf[f.id]);
@@ -37,6 +38,13 @@ export default function FormatsPanel({ project, sheets, onAddSheets, onStatus, o
     <aside className="shl" aria-label="My formats">
       <style>{PANEL_CSS}</style>
       <div className="shl-head"><h4>My formats</h4><button type="button" className="shl-btn shl-x" aria-label="Close" onClick={onClose}><X size={16} aria-hidden /></button></div>
+      <div className="shl-needs">
+        <span>This project's DB schedules use</span>
+        <span style={{ fontWeight: 500 }}>{used ? used.name : "General — the app's load schedule"}</span>
+        {stale && <span className="shl-mut">The format was changed in My formats after this project took its copy.</span>}
+        {stale && fresh && <button type="button" className="shl-btn" onClick={() => { onProject(withProjectFormat(project, fresh)); onStatus?.(`This project's copy of "${fresh.name}" is updated.`); }}>Update this project's copy</button>}
+        {used && <button type="button" className="shl-btn" onClick={() => { onProject(withProjectFormat(project, undefined)); onStatus?.("DB schedules of this project use the app's load schedule."); }}>Use General</button>}
+      </div>
       {!list.length && <p>No formats yet. Link a sheet to a board, then press Save as my format in Link columns.</p>}
       {list.map((f) => (
         <div className="shl-needs" key={f.id}>
@@ -56,6 +64,9 @@ export default function FormatsPanel({ project, sheets, onAddSheets, onStatus, o
             <button type="button" className="shl-btn" disabled={!boardOf[f.id]} onClick={() => addFor(f)}>Add sheet</button>
           </div>
           <button type="button" className="shl-btn shl-go" disabled={!without.length} onClick={() => addAll(f)}>Add a sheet for every DB without one ({without.length})</button>
+          <div className="shl-row">
+            <button type="button" className="shl-btn" disabled={used?.id === f.id} onClick={() => { onProject(withProjectFormat(project, f)); onStatus?.(`DB schedules of this project use "${f.name}".`); }}>{used?.id === f.id ? 'In use for this project' : 'Use for this project'}</button>
+          </div>
           <div className="shl-row">
             <button type="button" className="shl-btn" onClick={() => setRenaming(f.id)}>Rename</button>
             <button type="button" className="shl-btn" onClick={() => void remove(f)}>Delete</button>

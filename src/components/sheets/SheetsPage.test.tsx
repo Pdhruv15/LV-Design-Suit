@@ -575,7 +575,7 @@ describe('Sheets page — My formats', () => {
     render(sampleProject);
     press('Electrical'); press('My formats');
     const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
-    const del = () => [...aside('My formats')!.querySelector<HTMLElement>('.shl-needs')!.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Delete')!;
+    const del = () => [...aside('My formats')!.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Delete')!;
     await act(async () => { del().click(); await Promise.resolve(); });
     expect(confirm).toHaveBeenCalledTimes(1);
     expect(confirm.mock.calls[0][0]).toContain('Delete the format "Alpha"?');
@@ -605,5 +605,59 @@ describe('Sheets page — My formats', () => {
     act(() => btn('Link columns', 'Use one of my formats').click());
     expect(aside('Link columns')).toBeNull();
     expect(aside('My formats')!.textContent).toContain('Alpha');
+  });
+  it('the top box shows the project\'s DB format: General, then the one chosen, and Use General takes it away', () => {
+    seed('Alpha');
+    render(sampleProject);
+    press('Electrical'); press('My formats');
+    const box = () => aside('My formats')!.querySelector<HTMLElement>('.shl-needs')!.textContent!;
+    expect(box()).toContain("This project's DB schedules use");
+    expect(box()).toContain("General — the app's load schedule");
+    expect(btn('My formats', 'Use General')).toBeUndefined();
+    expect(btn('My formats', 'Use for this project').disabled).toBe(false);
+    act(() => btn('My formats', 'Use for this project').click());
+    expect(changes).toBe(1);
+    expect(last.scheduleFormats!.db).toMatchObject({ name: 'Alpha' });
+    expect(status[status.length - 1]).toBe('DB schedules of this project use "Alpha".');
+    expect(box()).toContain('Alpha');
+    expect(btn('My formats', 'In use for this project').disabled).toBe(true);
+    act(() => btn('My formats', 'Use General').click());
+    expect(changes).toBe(2);
+    expect(last).not.toHaveProperty('scheduleFormats');
+    expect(status[status.length - 1]).toBe("DB schedules of this project use the app's load schedule.");
+    expect(box()).toContain("General — the app's load schedule");
+    expect(btn('My formats', 'Use for this project')).toBeDefined();
+  });
+
+  it('says when the library format was changed after the project took its copy, and updates the copy', () => {
+    seed('Alpha');
+    render(sampleProject);
+    press('Electrical'); press('My formats');
+    act(() => btn('My formats', 'Use for this project').click());
+    expect(aside('My formats')!.textContent).not.toContain('The format was changed in My formats');
+    const changed = loadFormats().map((f) => ({ ...f, sheet: { ...f.sheet, link: { ...f.sheet.link!, firstRow: 9 } } }));
+    saveFormats(changed);
+    press('My formats'); press('My formats');
+    expect(aside('My formats')!.textContent).toContain('The format was changed in My formats after this project took its copy.');
+    act(() => btn('My formats', "Update this project's copy").click());
+    expect(last.scheduleFormats!.db!.sheet.link!.firstRow).toBe(9);
+    expect(status[status.length - 1]).toBe('This project\'s copy of "Alpha" is updated.');
+    expect(aside('My formats')!.textContent).not.toContain('The format was changed in My formats');
+  });
+
+  it('openSheetId shows that sheet, and a later tab click is not undone', () => {
+    const two: Project = { ...sampleProject, sheets: { sheets: [{ ...newSheet(), id: 'S1', name: 'One' }, { ...newSheet(), id: 'S2', name: 'Two' }, { ...newSheet(), id: 'S3', name: 'Three' }] } };
+    const show = (id?: string) => act(() => root.render(<SheetsPage project={two} onChange={() => {}} onStatus={() => {}} openSheetId={id} />));
+    const selected = () => document.querySelector('.shx-sheets [aria-selected="true"]')!.textContent;
+    show('S2');
+    expect(selected()).toBe('Two');
+    act(() => document.querySelectorAll<HTMLButtonElement>('.shx-sheets [role="tab"]')[0].click());
+    expect(selected()).toBe('One');
+    show('S2');
+    expect(selected()).toBe('One');
+    show('S3');
+    expect(selected()).toBe('Three');
+    show('S9');
+    expect(selected()).toBe('Three');
   });
 });

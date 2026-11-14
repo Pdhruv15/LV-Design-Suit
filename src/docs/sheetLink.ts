@@ -1,4 +1,5 @@
 import { cellAt, cellName, colName, shiftFormula } from '../calc/sheetFormula';
+import { projectFormat } from '../model/scheduleFormats';
 import { deleteRows, insertRows, MAX_ROWS, mergeAt, newSheet, sheetNameError, withCells, type Area, type Sheet, type SheetLink, type SheetStyle } from '../model/sheets';
 import { isDbBoard } from '../model/spareWays';
 import { POINT_TYPES, type Board, type Project } from '../types';
@@ -410,4 +411,15 @@ export function discardPending(sheet: Sheet): Sheet {
 export function pendingCount(sheet: Sheet): number {
   const l = sheet.link;
   return !l ? 0 : Object.values(l.pending ?? {}).reduce((n, o) => n + Object.keys(o).length, 0) + (l.added ?? []).filter((o) => Object.values(o).some((t) => t !== '')).length;
+}
+
+/** The sheet of the project's book linked to a board (the first one); with none, a sheet made from the project's DB format and
+ * added to the book. Undefined when there is neither. */
+export function boardSheet(project: Project, boardId: string): { project: Project; sheetId: string } | undefined {
+  const book = project.sheets?.sheets ?? [], found = book.find((s) => s.link?.boardId === boardId);
+  if (found) return { project, sheetId: found.id };
+  const format = projectFormat(project);
+  if (!format) return undefined;
+  const made = sheetFromFormat(format.sheet, book, boardId);
+  return { project: { ...project, sheets: { ...project.sheets, sheets: [...book, made] } }, sheetId: made.id };
 }
