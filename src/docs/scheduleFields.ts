@@ -51,16 +51,21 @@ export const TEMPLATE_FIELDS: { key: string; about: string }[] = [
 
 const num = (v: number) => Math.round(v);
 
+/** The project-wide fields every sheet kind has (DB and panel schedules). */
+export const projectFields = (project: Project, at = new Date()): Fields => ({
+  'project.name': project.name, 'project.voltage': project.voltageV, 'project.frequency': project.frequencyHz,
+  'project.revision': revisionStamp(project),
+  'project.reference': project.designReference ? `${project.designReference.name} v${project.designReference.version}` : '',
+  date: fmtDate(at)
+});
+
 /** Values of one DB: the sheet's fields and one set per schedule row. */
 export function templateData(project: Project, boardId: string, at = new Date()): { fields: Fields; rows: Fields[] } {
   const { board, incomer, entries, phaseW, connectedW, imbalance } = loadScheduleRows(project, boardId);
   const columns = pointColumns(project, board);
   const kw = (v: number) => num(v * 1000);
   const fields: Fields = {
-    'project.name': project.name, 'project.voltage': project.voltageV, 'project.frequency': project.frequencyHz,
-    'project.revision': revisionStamp(project),
-    'project.reference': project.designReference ? `${project.designReference.name} v${project.designReference.version}` : '',
-    date: fmtDate(at),
+    ...projectFields(project, at),
     'board.id': board.id, 'board.name': board.name, 'board.location': boardLocation(project, board), 'board.fedFrom': board.upstreamId ?? '',
     'board.incomer': incomerLabel(board, incomer), 'board.incomerCable': incomerCableText(project, incomer),
     'total.R': num(connectedW.R), 'total.Y': num(connectedW.Y), 'total.B': num(connectedW.B), 'total.all': num(connectedW.R + connectedW.Y + connectedW.B),

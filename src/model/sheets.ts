@@ -30,8 +30,8 @@ export interface Sheet {
 }
 /** A sheet linked to one panel of the project; docs/sheetLink.ts fills it. Field keys are those of docs/scheduleFields. */
 export interface SheetLink {
-  /** The panel category the sheet is a schedule of. Only DB for now. */
-  category: 'db';
+  /** The panel category the sheet is a schedule of: a DB load schedule, or a panel schedule of an MDB, SMDB or MCC with one row per outgoing feeder. */
+  category: 'db' | 'md';
   /** The board it shows; none while the sheet is a format not yet on a board. */
   boardId?: string;
   /** Cells holding one value of the board or the project: cell name → field key, with the text kept before and after the value ("FED FROM: "). */

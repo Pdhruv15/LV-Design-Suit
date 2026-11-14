@@ -4,8 +4,10 @@ import { sampleProject } from '../data/sampleProject';
 import { addSpareWay, isDbBoard } from '../model/spareWays';
 import { newSheet, withCells, withStyle, mergeArea, area, type Sheet, type SheetLink } from '../model/sheets';
 import type { Project } from '../types';
-import { fillLinked, linkAt, linkBoards, linkFromPlaceholders, linkNeeds, linkToBoard, LINK_FIELDS, removeLink, setFirstRow, setLinkCell, setLinkColumn, sheetsForBoards, startLink, suggestLink, addCircuitRow, discardPending, pendingCount, typeLinked, typeRefusal, templateOf, sheetFromFormat, boardSheet } from './sheetLink';
+import { fillLinked, linkAt, linkBoards, linkFromPlaceholders, linkNeeds, linkToBoard, LINK_FIELDS, removeLink, setFirstRow, setLinkCell, setLinkColumn, sheetsForBoards, startLink, suggestLink, addCircuitRow, discardPending, pendingCount, typeLinked, typeRefusal, templateOf, sheetFromFormat, boardSheet, linkFields, linkLabel } from './sheetLink';
 import { withProjectFormat } from '../model/scheduleFormats';
+import { deleteOutgoingFeeder } from '../model/mdFeeders';
+import { panelData, panelRowKeys } from './panelFields';
 import { scheduleRowKeys, templateData } from './scheduleFields';
 
 const AT = new Date('2026-10-27T10:00:00Z');
@@ -449,3 +451,128 @@ describe('boardSheet', () => {
     expect(boardSheet({ ...project, sheets: { sheets: [layout()] } }, 'DB-OTHER')).toBeUndefined();
   });
 });
+
+describe('panel schedules (category md)', () => {
+  const mdProject = addSpareWay(sampleProject, 'SMDB-GF', 'spare').project;
+  const md = panelData(mdProject, 'SMDB-GF', AT), mdKeys = panelRowKeys(mdProject, 'SMDB-GF'), M = mdKeys.length;
+  /** An office's panel layout: title, the panel line, headings in row 4 (ROUTE is not a panel field). */
+  const office = (): Sheet => sheet({ A1: 'AL NOOR CONSULTANTS', D1: 'PANEL SCHEDULE', A2: 'PANEL', B2: 'SMDB-GF', C2: 'FED FROM: MDB-1', D2: 'LOCATION: GROUND FLOOR',
+    A4: 'SL NO', B4: 'FEEDER', C4: 'BREAKER TYPE', D4: 'RATING (A)', E4: 'CABLE SIZE (mm²)', F4: 'ECC (mm²)', G4: 'LENGTH (m)', H4: 'TCL (kW)', I4: 'MDL (kW)', J4: 'ROUTE', K4: 'REMARKS' });
+  const mdSheet = (): Sheet => linkToBoard(suggestLink(office(), 'md')!, 'SMDB-GF');
+  const mdFill = (p: Project = mdProject, s: Sheet = mdSheet()) => fillLinked(p, s, AT);
+
+  it('linkFields(md): every key is one panelData produces; labels and kind', () => {
+    const have = new Set([...Object.keys(md.fields), ...Object.keys(md.rows[0])]);
+    for (const f of linkFields('md')) if (f.key !== 'own') expect(have.has(f.key), f.key).toBe(true);
+    expect(linkFields('md').filter((f) => f.kind === 'cell').every((f) => !f.typed)).toBe(true);
+    expect(linkFields('md').find((f) => f.key === 'row.tcl')).toEqual({ key: 'row.tcl', label: 'Connected load (TCL), kW', kind: 'row', typed: true });
+    expect(linkFields('md').find((f) => f.key === 'panel.mdl')!.label).toBe('Maximum demand, kW');
+    expect(linkFields('db')).toBe(LINK_FIELDS);
+    expect([linkLabel('db'), linkLabel('md')]).toEqual(['DB schedule', 'Panel schedule']);
+  });
+
+  it('linkNeeds asks for a feeder name on each row', () => {
+    const link = (cells: SheetLink['cells'], columns: SheetLink['columns']): SheetLink => ({ category: 'md', cells, firstRow: 5, rows: [], columns });
+    expect(linkNeeds(link({}, {})).map((n) => [n.label, n.ok])).toEqual([['Board number', false], ['Fed from', false], ['A feeder name on each row', false]]);
+    expect(linkNeeds(link({ A1: { field: 'board.id' }, B1: { field: 'board.fedFrom' } }, { C: 'row.name' })).every((n) => n.ok)).toBe(true);
+    expect(linkNeeds(link({}, { C: 'row.room' })).map((n) => n.ok)).toEqual([false, false, false]);
+  });
+
+  it('linkBoards(md): boards with outgoing feeders and boards that are not a DB', () => {
+    const ids = linkBoards(sampleProject, 'md').map((b) => b.id);
+    expect(ids).toEqual(sampleProject.boards.filter((b) => ['MDB-1', 'SMDB-GF', 'SMDB-FF', 'MCC-1'].includes(b.id)).map((b) => b.id));
+    expect(ids).not.toContain('DB-GF1');
+    expect(linkBoards(sampleProject)).toEqual(linkBoards(sampleProject, 'db'));
+  });
+
+  it('suggestLink(md) reads an office panel layout', () => {
+    const s = suggestLink(office(), 'md')!, l = s.link!;
+    expect([l.category, l.firstRow]).toEqual(['md', 5]);
+    expect(l.columns).toEqual({ A: 'row.sl', B: 'row.name', C: 'row.device', D: 'row.rating', E: 'row.size', F: 'row.ecc', G: 'row.length', H: 'row.tcl', I: 'row.mdl', K: 'row.remarks' });
+    expect(Object.keys(l.columns)).toHaveLength(10);
+    expect(l.cells).toEqual({ B2: { field: 'board.id' }, C2: { field: 'board.fedFrom', before: 'FED FROM: ' }, D2: { field: 'board.location', before: 'LOCATION: ' } });
+    expect(suggestLink(sheet({ A1: 'x' }), 'md')).toBeUndefined();
+  });
+
+  it('suggestLink(md) knows the other heading words', () => {
+    const heads = ['SR NO', 'DESCRIPTION', 'SP/TP', 'DEVICE', 'AMP', 'FAULT kA', 'CORES', 'TYPE XLPE', 'R PH KW', 'Y', 'B KW', 'MAX DEMAND', 'CONNECTED LOAD', 'METER', 'FED TO'];
+    const s = suggestLink(sheet(Object.fromEntries(heads.map((h, i) => [`${colLetters(i)}3`, h]))), 'md')!;
+    expect(Object.values(s.link!.columns)).toEqual(['row.sl', 'row.name', 'row.poles', 'row.device', 'row.rating', 'row.fault', 'row.cores', 'row.cableType', 'row.R', 'row.Y', 'row.B', 'row.mdl', 'row.tcl', 'row.meter', 'row.to']);
+  });
+
+  it('fillLinked fills the header cells and one row per feeder and way', () => {
+    const f = mdFill(), l = f.link!;
+    expect(l.rows).toEqual(mdKeys);
+    expect([f.cells.B2, f.cells.C2, f.cells.D2]).toEqual(['SMDB-GF', 'FED FROM: MDB-1', 'LOCATION: Ground floor electrical room']);
+    expect([f.cells.A5, f.cells.B5, f.cells.C5, f.cells.D5, f.cells.E5, f.cells.G5, f.cells.H5]).toEqual(['1', 'LIGHTING', 'MCCB', '80', '25', '30', '45']);
+    expect(f.cells[`B${5 + M - 1}`]).toBe(String(md.rows[M - 1]['row.name']));
+    expect(f.cells[`A${5 + M - 1}`]).toBe(String(M));
+    expect(mdFill(mdProject, f)).toEqual(f);
+  });
+
+  it('a total formula below the block follows it', () => {
+    const f = fillLinked(mdProject, withCells(mdSheet(), { H6: '=SUM(H5:H5)' }), AT);
+    expect(f.cells[`H${5 + M}`]).toBe(`=SUM(H5:H${4 + M})`);
+    expect(val(f, `H${5 + M}`)).toBeCloseTo(Number(md.fields['panel.tcl']), 1);
+  });
+
+  it('own text follows its feeder', () => {
+    const s0 = setLinkColumn(mdSheet(), 'L', 'own'), f = fillLinked(sampleProject, s0, AT);
+    const second = f.link!.rows[1], noted = withCells(f, { L6: 'sockets note' });
+    const gone = deleteOutgoingFeeder(sampleProject, f.link!.rows[0]).project; // the first feeder leaves: its row goes, the note moves up
+    const g = fillLinked(gone, noted, AT);
+    expect(g.link!.rows[0]).toBe(second);
+    expect([g.cells.L5, g.cells.L6]).toEqual(['sockets note', undefined]);
+  });
+
+  it('typing: a feeder\'s own values wait for Apply, the rest is refused', () => {
+    const f = mdFill();
+    expect(typeRefusal(f, 'A5')).toBe('A5 is worked out by the app (Serial number).');
+    expect(typeRefusal(f, 'I5')).toBe('I5 is worked out by the app (Maximum demand (MDL), kW).');
+    expect(typeRefusal(f, 'B2')).toBe('B2 is filled from the project (Board number).');
+    expect(typeRefusal(f, 'B5')).toBeUndefined();
+    const t = typeLinked(mdProject, f, { B5: 'Corridor lights', D5: '100' });
+    expect(t.refused).toBeUndefined();
+    expect(t.sheet.link!.pending).toEqual({ [mdKeys[0]]: { B: 'Corridor lights', D: '100' } });
+  });
+
+  it('typing: a spare way takes only its device, rating, fault duty and remarks', () => {
+    const f = mdFill(), row = 5 + M - 1;
+    expect(mdKeys[M - 1]).toMatch(/^spare:/);
+    expect(typeRefusal(f, `B${row}`)).toBe(`B${row}: a spare way takes only its device, rating, fault duty and remarks.`);
+    expect(typeRefusal(f, `E${row}`)).toBe(`E${row}: a spare way takes only its device, rating, fault duty and remarks.`);
+    for (const c of ['C', 'D', 'K']) expect(typeRefusal(f, `${c}${row}`), c).toBeUndefined();
+    const t = typeLinked(mdProject, f, { [`D${row}`]: '63', [`H${row}`]: '5' });
+    expect(t.refused).toContain('a spare way takes only');
+    expect(t.sheet.link!.pending).toEqual({ [mdKeys[M - 1]]: { D: '63' } });
+  });
+
+  it('typing in an added row is kept in added', () => {
+    const t = typeLinked(mdProject, fillLinked(mdProject, addCircuitRow(mdFill()), AT), { [`B${5 + M}`]: 'Spare pump' });
+    expect(t.sheet.link!.added).toEqual([{ B: 'Spare pump' }]);
+    expect(t.sheet.link!.rows[M]).toBe('new:0');
+  });
+
+  it('templateOf and sheetFromFormat keep the category, and sheetsForBoards copies it', () => {
+    const tpl = templateOf(mdFill())!;
+    expect(tpl.link).toMatchObject({ category: 'md', rows: [], columns: { B: 'row.name' } });
+    expect(tpl.link!.boardId).toBeUndefined();
+    expect(sheetFromFormat(tpl, [], 'SMDB-FF').link).toMatchObject({ category: 'md', boardId: 'SMDB-FF' });
+    const made = sheetsForBoards([], tpl, ['SMDB-FF', 'MCC-1']);
+    expect(made.map((m) => [m.link!.category, m.link!.boardId])).toEqual([['md', 'SMDB-FF'], ['md', 'MCC-1']]);
+    const ff = fillLinked(sampleProject, made[0], AT);
+    expect(ff.link!.rows).toEqual(panelRowKeys(sampleProject, 'SMDB-FF'));
+  });
+
+  it('boardSheet does not put the project\'s DB format on a panel, but finds a panel sheet', () => {
+    const dbFormat = { id: 'f1', name: 'Office DB', category: 'db' as const, sheet: templateOf(fillLinked(project, sums(), AT))!, updatedAt: '2026-11-14' };
+    const p = withProjectFormat(sampleProject, dbFormat);
+    expect(boardSheet(p, 'SMDB-GF')).toBeUndefined();
+    expect(boardSheet(p, 'DB-GF1')).toBeDefined();
+    const linked = { ...mdSheet(), id: 'S9', name: 'Panel' };
+    expect(boardSheet({ ...p, sheets: { sheets: [linked] } }, 'SMDB-GF')).toMatchObject({ sheetId: 'S9' });
+  });
+});
+
+/** Column letters of a 0-based index below 26. */
+const colLetters = (i: number) => String.fromCharCode(65 + i);

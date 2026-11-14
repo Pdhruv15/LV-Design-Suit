@@ -8,7 +8,7 @@ import type { Sheet } from './sheets';
 export const FORMATS_KEY = 'lvds.scheduleFormats';
 
 /** A linked sheet layout saved for reuse: your office's own schedule format. */
-export interface ScheduleFormat { id: string; name: string; category: 'db'; sheet: Sheet; updatedAt: string } // updatedAt: yyyy-mm-dd
+export interface ScheduleFormat { id: string; name: string; category: 'db' | 'md'; sheet: Sheet; updatedAt: string } // updatedAt: yyyy-mm-dd
 
 const isFormat = (x: unknown): x is ScheduleFormat => {
   const f = x as ScheduleFormat;
@@ -19,7 +19,7 @@ const isFormat = (x: unknown): x is ScheduleFormat => {
 export function loadFormats(): ScheduleFormat[] {
   try {
     const v = JSON.parse(localStorage.getItem(FORMATS_KEY) ?? '[]');
-    return Array.isArray(v) ? v.filter(isFormat) : [];
+    return Array.isArray(v) ? v.filter(isFormat).map((f) => ({ ...f, category: f.sheet.link!.category ?? f.category ?? 'db' })) : [];
   } catch { return []; }
 }
 export function saveFormats(list: ScheduleFormat[]): void {
@@ -40,8 +40,9 @@ const newId = () => `fmt-${Date.now().toString(36)}${Math.random().toString(36).
 /** The list with the format saved: one of that name (case ignored) gets the new sheet and date, else a new one is added. */
 export function withFormat(list: ScheduleFormat[], name: string, template: Sheet, at = new Date()): { list: ScheduleFormat[]; updated: boolean } {
   const t = name.trim(), updatedAt = at.toISOString().slice(0, 10), same = list.find((f) => f.name.trim().toLowerCase() === t.toLowerCase());
-  if (same) return { list: list.map((f) => (f === same ? { ...f, sheet: template, updatedAt } : f)), updated: true };
-  return { list: [...list, { id: newId(), name: t, category: 'db', sheet: template, updatedAt }], updated: false };
+  const category = template.link?.category ?? 'db';
+  if (same) return { list: list.map((f) => (f === same ? { ...f, category, sheet: template, updatedAt } : f)), updated: true };
+  return { list: [...list, { id: newId(), name: t, category, sheet: template, updatedAt }], updated: false };
 }
 export const renameFormat = (list: ScheduleFormat[], id: string, name: string): ScheduleFormat[] => list.map((f) => (f.id === id ? { ...f, name: name.trim() } : f));
 export const removeFormat = (list: ScheduleFormat[], id: string): ScheduleFormat[] => list.filter((f) => f.id !== id);

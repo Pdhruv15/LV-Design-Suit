@@ -3,10 +3,13 @@ import { projectFormat } from '../model/scheduleFormats';
 import { deleteRows, insertRows, MAX_ROWS, mergeAt, newSheet, sheetNameError, withCells, type Area, type Sheet, type SheetLink, type SheetStyle } from '../model/sheets';
 import { isDbBoard } from '../model/spareWays';
 import { POINT_TYPES, type Board, type Project } from '../types';
-import { scheduleRowKeys, templateData, type Value } from './scheduleFields';
+import { hasMdSheet } from './mdSheet';
+import { panelData, panelRowKeys } from './panelFields';
+import { scheduleRowKeys, templateData, type Fields, type Value } from './scheduleFields';
 
-/** Fills a sheet linked to a DB (Sheet.link) from the project: the cells that hold one value, and one row per circuit
- * and spare under the pattern row. The keys are those of the Excel load schedule template (scheduleFields.ts). No ExcelJS here. */
+/** Fills a sheet linked to a DB or a panel (Sheet.link) from the project: the cells that hold one value, and one row per circuit
+ * and spare (DB) or per outgoing feeder and spare way (panel) under the pattern row. The keys are those of the Excel load schedule
+ * template (scheduleFields.ts) and of the panel form (panelFields.ts). No ExcelJS here. */
 
 /** What a sheet can link to, for the pick list. `typed`: the user may type this value in the sheet. */
 export const LINK_FIELDS: { key: string; label: string; kind: 'cell' | 'row'; typed: boolean }[] = [
@@ -32,13 +35,44 @@ export const LINK_FIELDS: { key: string; label: string; kind: 'cell' | 'row'; ty
 ];
 const KNOWN = new Set(LINK_FIELDS.map((f) => f.key));
 
+/** The fields of a panel schedule (MDB, SMDB, MCC): the form's incomer and totals in cells, one row per outgoing feeder. */
+const PANEL_LINK_FIELDS: typeof LINK_FIELDS = [
+  ...([
+    ['project.name', 'Project name'], ['board.id', 'Board number'], ['board.name', 'Board name'], ['board.fedFrom', 'Fed from'], ['board.location', 'Location'], ['project.reference', 'Authority set'],
+    ['project.revision', 'Revision'], ['date', 'Date'], ['incomer.poles', 'Incomer SP / TP'], ['incomer.device', 'Incomer device'], ['incomer.rating', 'Incomer rating, A'], ['incomer.fault', 'Incomer fault duty, kA'],
+    ['incomer.cores', 'Incomer cable cores'], ['incomer.cableType', 'Incomer cable type'], ['incomer.size', 'Incomer cable size, mm²'], ['incomer.ecc', 'Incomer earth, mm²'], ['incomer.length', 'Incomer cable length, m'],
+    ['total.R', 'Connected load R, kW'], ['total.Y', 'Connected load Y, kW'], ['total.B', 'Connected load B, kW'], ['panel.tcl', 'Total connected load, kW'], ['panel.df', 'Demand factor'], ['panel.mdl', 'Maximum demand, kW']
+  ] as const).map(([key, label]) => ({ key, label, kind: 'cell' as const, typed: false })),
+  ...([
+    ['row.sl', 'Serial number', false], ['row.name', 'Feeder / circuit name', true], ['row.to', 'Board it feeds', false], ['row.poles', 'SP / TP', false], ['row.device', 'Device: ACB, MCCB or ISOL', true],
+    ['row.rating', 'Rating, A', true], ['row.fault', 'Fault duty, kA', true], ['row.cores', 'Cable cores', true], ['row.cableType', 'Cable type', true], ['row.size', 'Cable size, mm²', true],
+    ['row.ecc', 'Earth, mm²', true], ['row.length', 'Cable length, m', true], ['row.R', 'Load on R, kW', false], ['row.Y', 'Load on Y, kW', false], ['row.B', 'Load on B, kW', false],
+    ['row.tcl', 'Connected load (TCL), kW', true], ['row.mdl', 'Maximum demand (MDL), kW', false], ['row.meter', 'kWh meter', false], ['row.remarks', 'Remarks', true],
+    ['own', 'Your column · kept with each feeder', true]
+  ] as const).map(([key, label, typed]) => ({ key, label, kind: 'row' as const, typed }))
+];
+
+type Category = SheetLink['category'];
+/** What differs between the kinds of linked sheet: the pick list, the values and row keys, and the boards it can show. */
+const KIND: Record<Category, { label: string; fields: typeof LINK_FIELDS; data: (p: Project, boardId: string, at?: Date) => { fields: Fields; rows: Fields[] }; keys: (p: Project, boardId: string) => string[]; boards: (p: Project) => Board[] }> = {
+  db: { label: 'DB schedule', fields: LINK_FIELDS, data: templateData, keys: scheduleRowKeys, boards: (project) => project.boards.filter((b) => isDbBoard(b) || scheduleRowKeys(project, b.id).length > 0) },
+  md: { label: 'Panel schedule', fields: PANEL_LINK_FIELDS, data: panelData, keys: panelRowKeys, boards: (project) => project.boards.filter((b) => hasMdSheet(project, b.id) || !isDbBoard(b)) }
+};
+const kindOf = (l: { category: Category } | undefined) => KIND[l?.category ?? 'db'];
+
+/** The fields a sheet of this category can link to, for the pick list. */
+export const linkFields = (category: Category) => KIND[category].fields;
+/** What the category is called on the screen. */
+export const linkLabel = (category: Category) => KIND[category].label;
+
 /** What a sheet needs so the app can build the board and the single line diagram from it. */
 export function linkNeeds(link: SheetLink): { key: 'board' | 'fedFrom' | 'row'; label: string; ok: boolean }[] {
   const cellOf = (field: string) => Object.values(link.cells).some((c) => c.field === field);
+  const md = link.category === 'md';
   return [
     { key: 'board', label: 'Board number', ok: cellOf('board.id') },
     { key: 'fedFrom', label: 'Fed from', ok: cellOf('board.fedFrom') },
-    { key: 'row', label: 'A description or a load on each row', ok: Object.values(link.columns).some((f) => f === 'row.room' || f === 'row.watts' || f.startsWith('row.points.')) }
+    { key: 'row', label: md ? 'A feeder name on each row' : 'A description or a load on each row', ok: Object.values(link.columns).some((f) => (md ? f === 'row.name' : f === 'row.room' || f === 'row.watts' || f.startsWith('row.points.'))) }
   ];
 }
 
@@ -85,7 +119,7 @@ const stretchRanges = (f: string, row: number, extra: number) => (!f.startsWith(
 export function fillLinked(project: Project, sheet: Sheet, at?: Date): Sheet {
   const link = sheet.link, boardId = link?.boardId;
   if (!link || !boardId || !project.boards.some((b) => b.id === boardId)) return sheet;
-  const data = templateData(project, boardId, at), keys = scheduleRowKeys(project, boardId), news = link.added ?? [];
+  const kind = kindOf(link), data = kind.data(project, boardId, at), keys = kind.keys(project, boardId), news = link.added ?? [];
   const allKeys = [...keys, ...news.map((_, i) => `new:${i}`)];
   const first = link.firstRow, have = Math.max(1, link.rows.length);
   const want = Math.min(Math.max(1, allKeys.length), have + MAX_ROWS - sheet.rows);
@@ -167,8 +201,8 @@ export function linkToBoard(sheet: Sheet, boardId: string): Sheet {
 
 // ---- choosing what is linked (the Link columns panel)
 
-/** The boards a DB sheet can show: DBs, and any board with schedule rows. */
-export const linkBoards = (project: Project): Board[] => project.boards.filter((b) => isDbBoard(b) || scheduleRowKeys(project, b.id).length > 0);
+/** The boards a sheet of this category can show: for a DB schedule, DBs and any board with schedule rows; for a panel schedule, boards with outgoing feeders and any board that is not a DB. */
+export const linkBoards = (project: Project, category: Category = 'db'): Board[] => KIND[category].boards(project);
 
 const inBlock = (link: SheetLink, row: number) => row >= link.firstRow && row <= link.firstRow + Math.max(1, link.rows.length) - 1;
 
@@ -177,11 +211,11 @@ export function linkAt(sheet: Sheet, r: number, c: number): { field: string; lab
   const link = sheet.link;
   if (!link) return undefined;
   const field = link.cells[cellName(c, r)]?.field ?? (inBlock(link, r) ? link.columns[colName(c)] : undefined);
-  return field === undefined ? undefined : { field, label: LINK_FIELDS.find((f) => f.key === field)?.label ?? field, own: field === 'own' };
+  return field === undefined ? undefined : { field, label: linkFields(link.category).find((f) => f.key === field)?.label ?? field, own: field === 'own' };
 }
 
 /** An empty link on a sheet without one: no cells, no columns, no board. */
-export const startLink = (sheet: Sheet, firstRow: number): Sheet => (sheet.link ? sheet : { ...sheet, link: { category: 'db', cells: {}, firstRow, rows: [], columns: {} } });
+export const startLink = (sheet: Sheet, firstRow: number, category: Category = 'db'): Sheet => (sheet.link ? sheet : { ...sheet, link: { category, cells: {}, firstRow, rows: [], columns: {} } });
 export function removeLink(sheet: Sheet): Sheet {
   const { link: _l, ...rest } = sheet;
   return rest;
@@ -201,7 +235,7 @@ export function setLinkCell(sheet: Sheet, cell: string, field: string | undefine
     const { [k]: _gone, ...rest } = link.cells;
     return { ...sheet, link: { ...link, cells: rest } };
   }
-  if (LINK_FIELDS.find((f) => f.key === field)?.kind !== 'cell') return sheet;
+  if (linkFields(link.category).find((f) => f.key === field)?.kind !== 'cell') return sheet;
   if (now) return { ...sheet, link: { ...link, cells: { ...link.cells, [k]: { ...now, field } } } };
   const before = textBefore(sheet.cells[k] ?? ''), cells = { ...sheet.cells };
   if (before) cells[k] = before; else delete cells[k];
@@ -214,7 +248,7 @@ export function setLinkColumn(sheet: Sheet, letters: string, field: string | und
   if (!link) return sheet;
   const columns = Object.fromEntries(Object.entries(link.columns).filter(([l, f]) => l !== col && (field === undefined || field === 'own' || f !== field)));
   if (field !== undefined) {
-    if (LINK_FIELDS.find((f) => f.key === field)?.kind !== 'row') return sheet;
+    if (linkFields(link.category).find((f) => f.key === field)?.kind !== 'row') return sheet;
     columns[col] = field;
   }
   return { ...sheet, link: { ...link, columns } };
@@ -254,36 +288,65 @@ function headingField(text: string): string | null | undefined {
   if (/^(CKT|CCT|CIR|CIRCUIT)/.test(n) && !has('WIRE')) return 'row.ref';
   return POINT_BY_LABEL.get(n.replace(/'/g, ''));
 }
+
+/** The panel-schedule field a heading stands for, first match wins (longer and more specific words first); undefined for none. */
+function mdHeadingField(text: string): string | undefined {
+  const n = norm(text).replace(/[(),:]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!n) return undefined;
+  const has = (...w: string[]) => w.some((x) => n.includes(x)), words = n.split(' '), word = (w: string) => words.includes(w);
+  if (has('REMARK')) return 'row.remarks';
+  if (has('FAULT') || word('KA')) return 'row.fault';
+  if (has('ECC', 'EARTH', 'CPC')) return 'row.ecc';
+  if (has('CORE')) return 'row.cores';
+  if (has('LENGTH')) return 'row.length';
+  if ((has('MAX') && has('DEMAND')) || has('MDL')) return 'row.mdl';
+  if (has('TCL') || (has('CONNECTED', 'INSTALLED') && has('LOAD'))) return 'row.tcl';
+  const ph = /^([RYB])( PH)?( KW)?$/.exec(n);
+  if (ph && (n.length === 1 || ph[3])) return `row.${ph[1]}`;
+  if (has('METER')) return 'row.meter';
+  if (['SP TP', 'POLES', 'POLE'].includes(n)) return 'row.poles';
+  if (has('RATING', 'AMP') || n === 'A' || (has('BREAKER') && word('A'))) return 'row.rating';
+  if (has('DEVICE', 'BREAKER TYPE', 'TYPE OF BREAKER') || ['ACB MCCB', 'MCCB ACB'].includes(n)) return 'row.device';
+  if (has('CABLE TYPE') || (has('TYPE') && has('XLPE', 'PVC'))) return 'row.cableType';
+  if (has('SIZE', 'CABLE', 'MM2', 'MM²')) return 'row.size';
+  if (has('FED TO') || n === 'TO') return 'row.to';
+  if (has('FEEDER', 'CIRCUIT', 'DESCRIPTION', 'LOAD NAME', 'OUTGOING', 'SMDB', 'DB NO')) return 'row.name';
+  if (['SL NO', 'SR NO', 'S NO', 'SL'].includes(n) || has('SERIAL')) return 'row.sl';
+  return undefined;
+}
+const MD_CELL_LABELS: [string, string][] = [['TOTAL CONNECTED LOAD', 'panel.tcl'], ['MAXIMUM DEMAND', 'panel.mdl'], ['MAX DEMAND', 'panel.mdl'], ['DEMAND FACTOR', 'panel.df'], ['DIVERSITY', 'panel.df'], ['FED FROM', 'board.fedFrom'],
+  ['LOCATION', 'board.location'], ['PROJECT', 'project.name'], ['DB NO', 'board.id'], ['PANEL', 'board.id'], ['BOARD', 'board.id'], ['SMDB', 'board.id'], ['MDB', 'board.id'], ['MCC', 'board.id'], ['TCL', 'panel.tcl'], ['MDL', 'panel.mdl']];
 const CELL_LABELS: [string, string][] = [['LOCATION OF DB', 'board.location'], ['LOCATION', 'board.location'], ['DB NAME', 'board.id'], ['DB NO', 'board.id'], ['FED FROM', 'board.fedFrom'], ['PROJECT', 'project.name'],
   ['INCOMER', 'board.incomer'], ['MAIN', 'board.incomer'], ['PANEL', 'board.id'], ['BOARD', 'board.id'], ['DB', 'board.id']];
 
 /** Links guessed from the headings, for the user to check: the heading row (the one with most known headings, three at least),
  * the first circuit row under it, a column for each known heading, and the cells above it that are labelled (PANEL, FED FROM …).
  * A merged area is read from its first cell and counts for all its rows. Undefined when no heading row is found. */
-export function suggestLink(sheet: Sheet): Sheet | undefined {
+export function suggestLink(sheet: Sheet, category: Category = 'db'): Sheet | undefined {
+  const md = category === 'md', fieldOf = md ? mdHeadingField : headingField, labels = md ? MD_CELL_LABELS : CELL_LABELS;
   const items = Object.keys(sheet.cells).flatMap((k) => {
     const p = cellAt(k)!, m = mergeAt(sheet, p.row, p.col), text = sheet.cells[k];
     return (m && (m.r0 !== p.row || m.c0 !== p.col)) || !text.trim() || text.startsWith('=') ? [] : [{ k, row: p.row, col: p.col, text, end: m?.r1 ?? p.row, right: m?.c1 ?? p.col }];
   }).sort((a, b) => a.row - b.row || a.col - b.col);
   let head = 0, best = 2;
   for (let r = 1; r <= 40; r++) {
-    const n = items.filter((i) => i.row === r && typeof headingField(i.text) === 'string').length;
+    const n = items.filter((i) => i.row === r && typeof fieldOf(i.text) === 'string').length;
     if (n > best) { best = n; head = r; }
   }
   if (!head) return undefined;
-  const reach = Math.max(head, ...items.filter((i) => i.row === head && headingField(i.text) !== undefined).map((i) => i.end));
+  const reach = Math.max(head, ...items.filter((i) => i.row === head && fieldOf(i.text) !== undefined).map((i) => i.end));
   const columns: SheetLink['columns'] = {}, used = new Set<string>();
   const cols = [...new Set(items.filter((i) => i.row >= head && i.row <= reach).map((i) => i.col))].sort((a, b) => a - b);
   for (const c of cols) {
     // The lowest heading of a column counts first: a group heading over several columns gives way to the headings under it.
-    const f = items.filter((i) => i.col === c && i.row >= head && i.row <= reach).sort((a, b) => b.row - a.row).map((i) => headingField(i.text)).find((x) => x !== undefined);
+    const f = items.filter((i) => i.col === c && i.row >= head && i.row <= reach).sort((a, b) => b.row - a.row).map((i) => fieldOf(i.text)).find((x) => x !== undefined);
     if (typeof f === 'string' && !used.has(f)) { columns[colName(c)] = f; used.add(f); }
   }
-  let out = startLink({ ...sheet, link: undefined }, reach + 1);
+  let out = startLink({ ...sheet, link: undefined }, reach + 1, category);
   out = { ...out, link: { ...out.link!, columns } };
   const field = new Set<string>();
   for (const i of items.filter((x) => x.row < head)) {
-    const n = norm(i.text), hit = CELL_LABELS.find(([l]) => n === l || (n.startsWith(l) && /^\s*:/.test(n.slice(l.length))));
+    const n = norm(i.text), hit = labels.find(([l]) => n === l || (n.startsWith(l) && /^\s*:/.test(n.slice(l.length))));
     if (!hit || field.has(hit[1])) continue;
     field.add(hit[1]);
     if (i.text.includes(':')) out = setLinkCell(out, i.k, hit[1]);
@@ -342,13 +405,16 @@ function placeOf(sheet: Sheet, k: string): Place {
   const link = sheet.link, p = cellAt(k)!, at = link && linkAt(sheet, p.row, p.col);
   if (!link || !at || at.own) return { plain: true };
   if (link.cells[k]) return { refused: `${k} is filled from the project (${at.label}).` };
-  if (!LINK_FIELDS.find((f) => f.key === at.field)?.typed) return { refused: `${k} is worked out by the app (${at.label}).` };
+  if (!linkFields(link.category).find((f) => f.key === at.field)?.typed) return { refused: `${k} is worked out by the app (${at.label}).` };
   if (at.field === 'row.watts' && Object.values(link.columns).some((f) => f.startsWith('row.points.'))) return { refused: `${k}: the load comes from the points columns.` };
   const i = p.row - link.firstRow, boardN = link.rows.filter((x) => !x.startsWith('new:')).length, letters = colName(p.col);
   if (i >= boardN) return { added: i - boardN, letters };
   const key = link.rows[i];
   if (!key) return { plain: true };
-  if (key.startsWith('spare:') && at.field !== 'row.mcb' && at.field !== 'row.remarks') return { refused: `${k}: a spare way takes only its MCB rating and remarks.` };
+  if (key.startsWith('spare:')) {
+    if (link.category === 'md') { if (!['row.device', 'row.rating', 'row.fault', 'row.remarks'].includes(at.field)) return { refused: `${k}: a spare way takes only its device, rating, fault duty and remarks.` }; }
+    else if (at.field !== 'row.mcb' && at.field !== 'row.remarks') return { refused: `${k}: a spare way takes only its MCB rating and remarks.` };
+  }
   return { key, letters };
 }
 /** The reason a cell may not be typed in, or undefined when it may (the editor opens on it). */
@@ -365,7 +431,7 @@ export function typeLinked(project: Project, sheet: Sheet, edits: Record<string,
   const plain: Record<string, string> = {};
   const pending: NonNullable<SheetLink['pending']> = Object.fromEntries(Object.entries(link?.pending ?? {}).map(([k, v]) => [k, { ...v }]));
   const news = (link?.added ?? []).map((o) => ({ ...o }));
-  const data = boardId && project.boards.some((b) => b.id === boardId) ? templateData(project, boardId) : undefined, keys = boardId && data ? scheduleRowKeys(project, boardId) : [];
+  const kind = kindOf(link), data = boardId && project.boards.some((b) => b.id === boardId) ? kind.data(project, boardId) : undefined, keys = boardId && data ? kind.keys(project, boardId) : [];
   let refused: string | undefined, kept = false;
   for (const [k0, text] of Object.entries(edits)) {
     const at = cellAt(k0);
@@ -419,7 +485,7 @@ export function boardSheet(project: Project, boardId: string): { project: Projec
   const book = project.sheets?.sheets ?? [], found = book.find((s) => s.link?.boardId === boardId);
   if (found) return { project, sheetId: found.id };
   const format = projectFormat(project);
-  if (!format) return undefined;
+  if (!format || !linkBoards(project, 'db').some((b) => b.id === boardId)) return undefined; // the project's format is a DB format: not for a panel
   const made = sheetFromFormat(format.sheet, book, boardId);
   return { project: { ...project, sheets: { ...project.sheets, sheets: [...book, made] } }, sheetId: made.id };
 }

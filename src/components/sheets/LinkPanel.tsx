@@ -1,15 +1,13 @@
 import { useState } from 'react';
 import { Check, X } from 'lucide-react';
 import { cellAt, cellName, colName } from '../../calc/sheetFormula';
-import { linkBoards, linkFromPlaceholders, linkNeeds, LINK_FIELDS, linkToBoard, removeLink, setFirstRow, setLinkCell, setLinkColumn, sheetsForBoards, startLink, suggestLink, templateOf } from '../../docs/sheetLink';
+import { linkBoards, linkFields, linkFromPlaceholders, linkLabel, linkNeeds, linkToBoard, removeLink, setFirstRow, setLinkCell, setLinkColumn, sheetsForBoards, startLink, suggestLink, templateOf } from '../../docs/sheetLink';
 import { formatNameError, loadFormats, saveFormats, withFormat } from '../../model/scheduleFormats';
 import { mergeAt, type Sheet } from '../../model/sheets';
 import type { Project } from '../../types';
 import { PANEL_CSS } from './panelCss';
 
 /** The Link columns panel of the Sheets page: which cells and columns of a sheet are linked to a DB of the project. */
-
-const cellFields = LINK_FIELDS.filter((f) => f.kind === 'cell'), rowFields = LINK_FIELDS.filter((f) => f.kind === 'row');
 
 /** The heading of a column: the text above the first circuit row, or that of the merged area holding it, or the nearest text above (three rows). */
 function headingOf(sheet: Sheet, col: number, first: number): string {
@@ -50,7 +48,8 @@ export default function LinkPanel({ project, sheet, sheets, active, onSheet, onA
     setNaming(null);
     onStatus?.(r.updated ? `Format "${text.trim()}" updated.` : `Format "${text.trim()}" saved. It is in My formats for every project.`);
   };
-  const boards = linkBoards(project), needs = linkNeeds(link), ready = needs.every((n) => n.ok);
+  const boards = linkBoards(project, link.category), needs = linkNeeds(link), ready = needs.every((n) => n.ok);
+  const cellFields = linkFields(link.category).filter((f) => f.kind === 'cell'), rowFields = linkFields(link.category).filter((f) => f.kind === 'row');
   const lastRow = link.firstRow + Math.max(1, link.rows.length) - 1;
   const used = new Set(Object.values(link.cells).map((c) => c.field));
   const free = cellFields.find((f) => !used.has(f.key));
@@ -61,7 +60,7 @@ export default function LinkPanel({ project, sheet, sheets, active, onSheet, onA
     <aside className="shl" aria-label="Link columns">
       <style>{PANEL_CSS}</style>
       {head}
-      <label className="shl-row"><span>This sheet is a</span><select disabled value="db" aria-label="This sheet is a"><option value="db">DB schedule</option></select></label>
+      <label className="shl-row"><span>This sheet is a</span><select disabled value={link.category} aria-label="This sheet is a"><option value={link.category}>{linkLabel(link.category)}</option></select></label>
       <label className="shl-row"><span>Board</span>
         <select aria-label="Board" value={link.boardId ?? ''} onChange={(e) => { if (e.target.value) onSheet(linkToBoard(sheet, e.target.value)); }}>
           <option value="">Choose a board</option>
