@@ -55,7 +55,9 @@ The owner approved the revised steps on 2026-11-14 ("Okay, start do it"). Apply 
 - **Link columns panel (PR 577) merged and installed as v2.131 on 2026-11-14.**
 - **Apply to project:** v2.132. In a linked sheet the description, load, points, MCB, cable, earth, length and remarks can be typed; typed values are kept beside the link (`link.pending`, `link.added`), marked, and reach the project through `applyLinked` (`src/docs/sheetApply.ts`), which uses the Load schedule tab's own edits (`applySheetEdits`, `addCircuit`, `updateCircuit`). Add circuit adds a row; a blank MCB and cable are sized by the rules; a typed size is kept as sized by hand and marked when the circuit would fail its check. A load typed in watts becomes one load item (lighting when the description says lights, else other). Refresh from project drops what was not applied. Not built: a new panel from a sheet, deleting a circuit from a sheet, SMDB / MDB / MCC sheets, Save as my format.
 - **Database tables:** the Database screen already edits every workbook in the app (Edit here, Save to Excel, backup); no second editor is planned in Sheets unless the owner asks for Excel-style editing there.
-- **Next:** Save as my format and the format per panel category at project start; then SMDB, MDB and MCC sheets.
+- **Apply to project (PR 578) merged on 2026-11-14 as v2.132.**
+- **Save as my format:** v2.133. Link columns → Save as my format keeps the linked layout (`templateOf`: the block cut back to its pattern row, no board, no typed values) in the office library (`src/model/scheduleFormats.ts`, key `lvds.scheduleFormats`, synced through Library.json). Electrical tab → My formats adds a sheet in that layout for a chosen board or for every DB without one, and renames or deletes formats.
+- **Next:** the format per panel category at project start; SMDB, MDB and MCC sheets; a new panel from a sheet; deleting a circuit from a sheet.
 
 The mockup was redrawn as revision 2 after this answer. Sections 2 to 6 of "Proposed" below are the first version and are kept for the record; where they differ from this section, this section holds.
 
