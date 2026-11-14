@@ -57,7 +57,9 @@ The owner approved the revised steps on 2026-11-14 ("Okay, start do it"). Apply 
 - **Database tables:** the Database screen already edits every workbook in the app (Edit here, Save to Excel, backup); no second editor is planned in Sheets unless the owner asks for Excel-style editing there.
 - **Apply to project (PR 578) merged on 2026-11-14 as v2.132.**
 - **Save as my format:** v2.133. Link columns → Save as my format keeps the linked layout (`templateOf`: the block cut back to its pattern row, no board, no typed values) in the office library (`src/model/scheduleFormats.ts`, key `lvds.scheduleFormats`, synced through Library.json). Electrical tab → My formats adds a sheet in that layout for a chosen board or for every DB without one, and renames or deletes formats.
-- **Next:** the format per panel category at project start; SMDB, MDB and MCC sheets; a new panel from a sheet; deleting a circuit from a sheet.
+- **Save as my format (PR 579) merged on 2026-11-14 as v2.133.**
+- **The project's DB schedule format:** v2.134. The new-project wizard has a DB schedule format choice (General, or one of My formats) beside the authority and rule set; an open project takes one in Sheets → My formats → Use for this project. The project keeps its own copy (`Project.scheduleFormats.db`); Update this project's copy brings a later change of the library format. Load schedule tab → Export → Open in my format shows the DB as a sheet in that layout (`boardSheet`), making the sheet when there is none. SMDB, MDB, MCC and the load summary still use the app's tables only.
+- **Next:** SMDB, MDB and MCC sheets (then their formats in the same choice); a new panel from a sheet; deleting a circuit from a sheet.
 
 The mockup was redrawn as revision 2 after this answer. Sections 2 to 6 of "Proposed" below are the first version and are kept for the record; where they differ from this section, this section holds.
 
