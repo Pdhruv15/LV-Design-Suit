@@ -15,6 +15,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.134', date: '2026-11-14',
+    items: [
+      { title: 'Your DB schedule format, chosen with the project', text: 'A new project can start with one of your formats for its DB schedules, beside the authority and rule set; an open project takes one in Sheets → My formats → Use for this project. On the Load schedule tab, Export → Open in my format then shows the DB as a sheet in that layout, making the sheet when there is none. The project keeps its own copy of the format, so a later change in My formats reaches it only when you update the copy.', action: 'sheets', actionLabel: 'Open Sheets' }
+    ]
+  },
+  {
     version: '2.133', date: '2026-11-14',
     items: [
       { title: 'Sheets: save your layout as a format', text: 'In Link columns, Save as my format keeps a linked layout in your office library. On the Electrical tab, My formats adds a sheet in that layout for any board, or for every DB that has none, in this and in every other project. Formats travel with Library.json like your other libraries, and can be renamed or deleted there.', action: 'sheets', actionLabel: 'Open Sheets' }

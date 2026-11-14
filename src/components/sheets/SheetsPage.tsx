@@ -95,9 +95,10 @@ function IconTool({ icon: Icon, label, onClick, pressed, disabled }: { icon: Luc
   return <button type="button" className="shx-ic" onClick={onClick} disabled={!onClick || disabled} aria-label={label} aria-pressed={pressed} title={onClick ? label : `${label} — ${LATER.toLowerCase()}`}><Icon size={18} aria-hidden /></button>;
 }
 
-export default function SheetsPage({ project, onChange, onStatus, onUndo }: { project: Project; onChange: (p: Project, step?: boolean) => void; onStatus?: (m: string) => void; onUndo?: () => void }) {
+export default function SheetsPage({ project, onChange, onStatus, onUndo, openSheetId }: { project: Project; onChange: (p: Project, step?: boolean) => void; onStatus?: (m: string) => void; onUndo?: () => void; openSheetId?: string }) {
   const book = useMemo(() => (project.sheets?.sheets.length ? project.sheets : EMPTY_BOOK()), [project.sheets]);
-  const [sheetId, setSheetId] = useState(book.sheets[0].id);
+  const [sheetId, setSheetId] = useState(() => (book.sheets.some((s) => s.id === openSheetId) ? openSheetId! : book.sheets[0].id));
+  useEffect(() => { if (openSheetId && book.sheets.some((s) => s.id === openSheetId)) setSheetId(openSheetId); }, [openSheetId]); // eslint-disable-line react-hooks/exhaustive-deps -- picks the sheet when the id arrives or changes, not on later edits
   const stored = book.sheets.find((s) => s.id === sheetId) ?? book.sheets[0];
   /** The shown sheet is live: a linked sheet is filled from the project, and saving stores the filled sheet. */
   const sheet = useMemo(() => fillLinked(project, stored), [project, stored]);
@@ -452,7 +453,7 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
       </div>
       {panel === 'link' && <LinkPanel project={project} sheet={sheet} sheets={book.sheets} active={act} onSheet={(next) => save(next)} onStatus={onStatus} onClose={() => setPanel(null)} onFormats={() => setPanel('formats')}
         onAddSheets={(made) => onChange({ ...project, sheets: { ...book, sheets: [...book.sheets, ...made] } }, true)} />}
-      {panel === 'formats' && <FormatsPanel project={project} sheets={book.sheets} onStatus={onStatus} onClose={() => setPanel(null)}
+      {panel === 'formats' && <FormatsPanel project={project} sheets={book.sheets} onStatus={onStatus} onClose={() => setPanel(null)} onProject={(next) => onChange(next, true)}
         onAddSheets={(made) => { onChange({ ...project, sheets: { ...book, sheets: [...book.sheets, ...made] } }, true); setSheetId(made[made.length - 1].id); setEdit(null); }} />}
       </div>
       {waiting > 0 && <p className="shx-note">{waiting} typed {waiting === 1 ? 'value waits' : 'values wait'} for Apply to project.</p>}

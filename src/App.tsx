@@ -68,6 +68,8 @@ const DatabaseView = lazy(() => import('./components/docs/DatabaseView'));
 const DesignReferencesView = lazy(() => import('./components/docs/DesignReferencesView'));
 import { pullLibrary } from './database/librarySync';
 import { applyReference, type DesignReference } from './model/designReference';
+import { withProjectFormat, type ScheduleFormat } from './model/scheduleFormats';
+import { boardSheet } from './docs/sheetLink';
 import { applyDatabase, applyParameters, databaseSeeds, EMPTY_DATABASE, parseDatabase, syncLibrary, type Database, type RawDatabase } from './database/database';
 
 // window.lvds is only present when running inside Electron. Fall back to
@@ -256,6 +258,7 @@ export default function App() {
   const [projectList, setProjectList] = useState<ProjectMeta[]>([]);
   const [trashList, setTrashList] = useState<TrashedProject[]>([]);
   const [wizard, setWizard] = useState(false);
+  const [sheetToOpen, setSheetToOpen] = useState<string>();
   const [briefDialog, setBriefDialog] = useState(false);
   const [detailsFor, setDetailsFor] = useState<{ file: string; project: Project } | null>(null);
   // Unsaved changes: the project differs from the one last saved or opened.
@@ -298,6 +301,7 @@ export default function App() {
   const [subDraft, setSubDraft] = useState<Submission | undefined>();
   useEffect(() => onSubmissionOffer(setSubOffer), []);
   const [view, setViewState] = useState<MainView>(() => MANUAL_CAPTURE?.view ?? 'projects'); // the app starts on the projects list
+  useEffect(() => { if (view !== 'sheets') setSheetToOpen(undefined); }, [view]); // Open in my format picks a sheet once, not on every later visit
   const [ribbonTab, setRibbonTab] = useState<RibbonTab>(() => (MANUAL_CAPTURE ? tabForView(MANUAL_CAPTURE.view) : 'home'));
   const [tool, setTool] = useState<DiagramTool>('select');
   const [feederPreset, setFeederPreset] = useState<Partial<Feeder>>({});
@@ -914,14 +918,25 @@ export default function App() {
     guard('starting a new project', () => setWizard(true));
   }
 
-  function createProject(name: string, brief?: ProjectBrief, template?: SetupTemplate, reference?: DesignReference) {
+  /** The Load schedule tab's Open in my format: the DB as a sheet in the project's format, in Sheets. */
+  function openBoardSheet(boardId: string) {
+    const r = boardSheet(project, boardId);
+    if (!r) { setStatus('Choose a DB format in Sheets → My formats first.'); return; }
+    if (r.project !== project) setProject(r.project, { step: true });
+    setSheetToOpen(r.sheetId);
+    setView('sheets');
+    setStatus(`Opened ${boardId} in Sheets.`);
+  }
+
+  function createProject(name: string, brief?: ProjectBrief, template?: SetupTemplate, reference?: DesignReference, format?: ScheduleFormat) {
     setWizard(false);
     // Your Parameters.xlsx defaults, then your profile's defaults and details, then a setup template,
     // then the authority's rule set chosen in the wizard, then the brief.
     const base0 = applyDefaults(applyParameters(newProject(name), db), prefs);
     const base1 = template ? applyTemplateSystem(base0, template) : base0;
     const base = reference ? applyReference(base1, reference) : base1;
-    loadIntoApp(brief ? applyBrief(base, brief) : base, undefined, 'New project — not saved yet');
+    const made = brief ? applyBrief(base, brief) : base;
+    loadIntoApp(format ? withProjectFormat(made, format) : made, undefined, 'New project — not saved yet');
   }
 
   function saveFeeder(f: Feeder) {
@@ -1599,7 +1614,7 @@ export default function App() {
             <ErrorBoundary level="page" resetKey={`${project.id} ${view}`}>
             <Suspense fallback={<p className="m">Loading…</p>}>
             {view === 'load-schedule' && board && (
-              <LoadScheduleView project={project} onOpenRiser={() => setView('busbar')} boardId={board.id} db={db} onBoard={(id) => setActiveBoardId(id)} onChange={setProject} onStatus={setStatus} onSettings={() => setShowSettings(true)} onSchedule={setScheduleRibbon} />
+              <LoadScheduleView project={project} onOpenRiser={() => setView('busbar')} boardId={board.id} db={db} onBoard={(id) => setActiveBoardId(id)} onChange={setProject} onStatus={setStatus} onSettings={() => setShowSettings(true)} onSchedule={setScheduleRibbon} onOpenSheet={openBoardSheet} />
             )}
             {view === 'database' && (
               <DatabaseView
@@ -1700,7 +1715,7 @@ export default function App() {
             {view === 'ups' && <UpsStudy project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />}
             {view === 'solar' && <SolarStudy project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />}
             {view === 'lightning' && <LightningStudy project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />}
-            {view === 'sheets' && <SheetsPage project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} onUndo={history.undo} />}
+            {view === 'sheets' && <SheetsPage openSheetId={sheetToOpen} project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} onUndo={history.undo} />}
             {view === 'specification' && <SpecPage project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} onUndo={history.undo} />}
             {view === 'cable-tray' && (
               <TrayScheduleView project={project} onChange={(p, step) => setProject(p, step ? { step: true } : undefined)} onStatus={setStatus} />

@@ -4,7 +4,8 @@ import { sampleProject } from '../data/sampleProject';
 import { addSpareWay, isDbBoard } from '../model/spareWays';
 import { newSheet, withCells, withStyle, mergeArea, area, type Sheet, type SheetLink } from '../model/sheets';
 import type { Project } from '../types';
-import { fillLinked, linkAt, linkBoards, linkFromPlaceholders, linkNeeds, linkToBoard, LINK_FIELDS, removeLink, setFirstRow, setLinkCell, setLinkColumn, sheetsForBoards, startLink, suggestLink, addCircuitRow, discardPending, pendingCount, typeLinked, typeRefusal, templateOf, sheetFromFormat } from './sheetLink';
+import { fillLinked, linkAt, linkBoards, linkFromPlaceholders, linkNeeds, linkToBoard, LINK_FIELDS, removeLink, setFirstRow, setLinkCell, setLinkColumn, sheetsForBoards, startLink, suggestLink, addCircuitRow, discardPending, pendingCount, typeLinked, typeRefusal, templateOf, sheetFromFormat, boardSheet } from './sheetLink';
+import { withProjectFormat } from '../model/scheduleFormats';
 import { scheduleRowKeys, templateData } from './scheduleFields';
 
 const AT = new Date('2026-10-27T10:00:00Z');
@@ -416,5 +417,35 @@ describe('templateOf and sheetFromFormat', () => {
     expect(sheetFromFormat(t, []).name).toBe('Sheet');
     expect(sheetFromFormat(t, [], undefined, 'My copy')).toMatchObject({ name: 'My copy' });
     expect(sheetFromFormat(t, [], undefined, 'My copy').link).not.toHaveProperty('boardId');
+  });
+});
+
+describe('boardSheet', () => {
+  const tpl = () => templateOf(fillLinked(project, sums(), AT))!;
+  const format = { id: 'f1', name: 'Office DB', category: 'db' as const, sheet: tpl(), updatedAt: '2026-11-14' };
+  it('finds the first sheet of the book linked to the board', () => {
+    const linked = { ...layout(), id: 'S7', name: 'Mine' };
+    const p: Project = { ...project, sheets: { sheets: [newSheet(), linked, { ...linked, id: 'S8', name: 'Other' }] } };
+    const r = boardSheet(withProjectFormat(p, format), 'DB-GF1')!;
+    expect(r.sheetId).toBe('S7');
+    expect(r.project.sheets!.sheets).toHaveLength(3);
+  });
+  it('makes a sheet from the project\'s format when there is none, and it holds that board\'s circuits', () => {
+    const p = withProjectFormat(project, format);
+    const r = boardSheet(p, 'DB-GF1')!;
+    expect(r.project.sheets!.sheets).toHaveLength(1);
+    const made = r.project.sheets!.sheets[0];
+    expect([r.sheetId, made.name, made.link!.boardId]).toEqual([made.id, 'DB-GF1', 'DB-GF1']);
+    const f = fillLinked(r.project, made, AT);
+    expect(f.link!.rows).toEqual(scheduleRowKeys(project, 'DB-GF1'));
+    expect(f.cells.A5).toBe(String(data.rows[0]['row.ref']));
+    expect(boardSheet(r.project, 'DB-GF1')!.project).toBe(r.project);
+    const second = boardSheet(p, 'DB-GF1')!;
+    expect(second.project.sheets!.sheets).toHaveLength(1);
+    expect(p.sheets).toBeUndefined();
+  });
+  it('is undefined with neither a sheet nor a format', () => {
+    expect(boardSheet(project, 'DB-GF1')).toBeUndefined();
+    expect(boardSheet({ ...project, sheets: { sheets: [layout()] } }, 'DB-OTHER')).toBeUndefined();
   });
 });

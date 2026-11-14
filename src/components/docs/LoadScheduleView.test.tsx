@@ -12,6 +12,8 @@ import { spareWaysOf } from '../../model/spareWays';
 import { safeFileName, saveBinary, saveCsv, savePdf } from '../../util/files';
 import { loadScheduleRows } from '../../docs/loadScheduleDoc';
 import { addCircuit, updateCircuit } from '../../model/schedule';
+import { withProjectFormat } from '../../model/scheduleFormats';
+import { newSheet } from '../../model/sheets';
 
 vi.mock('../../util/files', async (real) => ({
   ...await real<typeof import('../../util/files')>(),
@@ -35,6 +37,7 @@ let root: Root;
 let latest: Project;
 let published: Schedule | undefined;
 let publishes = 0;
+const opened: string[] = [];
 const status = vi.fn();
 
 function Harness() {
@@ -42,7 +45,7 @@ function Harness() {
   const [on, setOn] = useState(shown);
   latest = p;
   return <LoadScheduleView project={p} boardId={on} db={EMPTY_DATABASE} onBoard={(id) => { visited.push(id); setOn(id); }} onChange={setP} onStatus={status} onSettings={() => {}}
-    onSchedule={(s) => { published = s; publishes++; }} />;
+    onSchedule={(s) => { published = s; publishes++; }} onOpenSheet={(id) => opened.push(id)} />;
 }
 const mount = () => act(() => root.render(<Harness />));
 const flush = () => act(async () => { await Promise.resolve(); await Promise.resolve(); });
@@ -57,7 +60,7 @@ const selectTwo = () => { const [a, b] = rooms(); press(a); press(b, { shiftKey:
 
 beforeEach(() => {
   root = createRoot(document.body.appendChild(document.createElement('div')));
-  shown = BOARD; start = sampleProject; visited = []; published = undefined; publishes = 0; status.mockClear();
+  shown = BOARD; start = sampleProject; visited = []; published = undefined; publishes = 0; opened.length = 0; status.mockClear();
   for (const f of [saveBinary, saveCsv, savePdf]) vi.mocked(f).mockClear();
   vi.stubGlobal('confirm', vi.fn(() => true));
   vi.mocked(loadScheduleRows).mockClear();
@@ -65,6 +68,24 @@ beforeEach(() => {
 afterEach(() => { act(() => root.unmount()); document.body.innerHTML = ''; vi.unstubAllGlobals(); });
 
 describe('Load schedule page and the ribbon', () => {
+  it('publishes Open in my format: usable with a project format or a sheet linked to this board, and it opens this board', () => {
+    mount();
+    expect(published!.sheetFormat).toBe(false);
+    act(() => root.unmount());
+    root = createRoot(document.body.appendChild(document.createElement('div')));
+    const link = { category: 'db' as const, cells: {}, firstRow: 5, rows: [], columns: {} };
+    start = withProjectFormat(sampleProject, { id: 'f', name: 'F', category: 'db', sheet: { ...newSheet(), link }, updatedAt: '2026-11-14' });
+    mount();
+    expect(published!.sheetFormat).toBe(true);
+    act(() => published!.onOpenSheet());
+    expect(opened).toEqual([BOARD]);
+    act(() => root.unmount());
+    root = createRoot(document.body.appendChild(document.createElement('div')));
+    start = { ...sampleProject, sheets: { sheets: [{ ...newSheet(), link: { ...link, boardId: BOARD } }] } };
+    mount();
+    expect(published!.sheetFormat).toBe(true);
+  });
+
   it('no longer has the buttons that moved to the ribbon, and keeps the rest', () => {
     mount();
     const names = buttons();
