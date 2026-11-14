@@ -1,7 +1,7 @@
 import { supplyAuthorityOf } from '../model/designReference';
 import { boardLocation } from '../model/levels';
 import type { Project } from '../types';
-import { buildMdSheet,type MdColKey } from './mdSheet';
+import { buildMdSheet, type MdColKey } from './mdSheet';
 import { projectFields, type Fields, type Value } from './scheduleFields';
 
 /** The values of a panel's "connected load, maximum demand & kWh metering" form, by field key: the fields of a linked panel sheet
