@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   AlignCenter, AlignLeft, AlignRight, ArrowDownAZ, ArrowDownToLine, Baseline, BetweenHorizontalStart, BetweenVerticalStart, Bold, Check, ClipboardPaste, ClipboardType,
-  Copy, Dot, Eye, FilePlus2, FolderOpen, Grid2x2, Hash, Italic, Link2, ListFilter, MoveHorizontal, PaintBucket, Paintbrush, Pencil, Percent, Plus, RefreshCw, RotateCw, Ruler, Save, Scissors, Search,
+  Copy, Dot, Eye, FilePlus2, FolderOpen, Grid2x2, Hash, Italic, LayoutTemplate, Link2, ListFilter, MoveHorizontal, PaintBucket, Paintbrush, Pencil, Percent, Plus, RefreshCw, RotateCw, Ruler, Save, Scissors, Search,
   Sigma, TableCellsMerge, Trash2, Underline, Undo2, Upload, WrapText, type LucideIcon
 } from 'lucide-react';
 import type { Project } from '../../types';
@@ -13,6 +13,7 @@ import {
 import { addCircuitRow, discardPending, fillLinked, linkAt, LINK_FIELDS, pendingCount, typeLinked, typeRefusal } from '../../docs/sheetLink';
 import { applyLinked, pendingMarks } from '../../docs/sheetApply';
 import { parseClipboard, toClipboard } from '../grid/excelGrid';
+import FormatsPanel from './FormatsPanel';
 import LinkPanel from './LinkPanel';
 import { safeFileName, saveBinary } from '../../util/files';
 
@@ -100,7 +101,7 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
   const stored = book.sheets.find((s) => s.id === sheetId) ?? book.sheets[0];
   /** The shown sheet is live: a linked sheet is filled from the project, and saving stores the filled sheet. */
   const sheet = useMemo(() => fillLinked(project, stored), [project, stored]);
-  const [panel, setPanel] = useState(false);
+  const [panel, setPanel] = useState<'link' | 'formats' | null>(null);
   const [showLinks, setShowLinks] = useState(true);
   const [tab, setTab] = useState<Tab>('home');
   const [act, setAct] = useState({ r: 1, c: 1 });
@@ -324,7 +325,7 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
         ) : tab === 'electrical' ? (
           <div className="shx-body">
             <Group name="Project link">
-              <Big icon={Link2} label="Link columns" onClick={() => setPanel(!panel)} pressed={panel} />
+              <Big icon={Link2} label="Link columns" onClick={() => setPanel(panel === 'link' ? null : 'link')} pressed={panel === 'link'} />
               <div className="shx-col">
                 <Small icon={Eye} label="Show linked cells" onClick={() => setShowLinks(!showLinks)} pressed={showLinks} />
                 <Small icon={Upload} label="Apply to project" onClick={apply} disabled={!waiting} title={waiting ? `Apply to project — ${waiting} typed ${waiting === 1 ? 'value' : 'values'}` : undefined} />
@@ -333,6 +334,9 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
             </Group>
             <Group name="Circuits">
               <Small icon={Plus} label="Add circuit" onClick={addCircuit} disabled={!sheet.link?.boardId} />
+            </Group>
+            <Group name="Sheets for a board">
+              <Big icon={LayoutTemplate} label="My formats" onClick={() => setPanel(panel === 'formats' ? null : 'formats')} pressed={panel === 'formats'} />
             </Group>
           </div>
         ) : (
@@ -446,8 +450,10 @@ export default function SheetsPage({ project, onChange, onStatus, onUndo }: { pr
           </tbody>
         </table>
       </div>
-      {panel && <LinkPanel project={project} sheet={sheet} sheets={book.sheets} active={act} onSheet={(next) => save(next)} onStatus={onStatus} onClose={() => setPanel(false)}
+      {panel === 'link' && <LinkPanel project={project} sheet={sheet} sheets={book.sheets} active={act} onSheet={(next) => save(next)} onStatus={onStatus} onClose={() => setPanel(null)} onFormats={() => setPanel('formats')}
         onAddSheets={(made) => onChange({ ...project, sheets: { ...book, sheets: [...book.sheets, ...made] } }, true)} />}
+      {panel === 'formats' && <FormatsPanel project={project} sheets={book.sheets} onStatus={onStatus} onClose={() => setPanel(null)}
+        onAddSheets={(made) => { onChange({ ...project, sheets: { ...book, sheets: [...book.sheets, ...made] } }, true); setSheetId(made[made.length - 1].id); setEdit(null); }} />}
       </div>
       {waiting > 0 && <p className="shx-note">{waiting} typed {waiting === 1 ? 'value waits' : 'values wait'} for Apply to project.</p>}
 
