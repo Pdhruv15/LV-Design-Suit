@@ -76,6 +76,10 @@ export interface CadRibbonInfo {
   props: { [K in keyof ObjectProps]: ObjectProps[K] | 'varies' };
   /** The drawing's own blocks, for Insert's arrow (S10 of the 2D gap plan). */
   blocks: string[];
+  /** The scales offered for viewports (1:n). */
+  scales?: number[];
+  /** The viewport the layout tools act on: locked, and whether its frame prints. */
+  vp?: { locked: boolean; frame: boolean };
 }
 
 /** A drawing open in a tab (its zoom and pan stay with CadCanvas; its layers' On is kept in the project, cadLayerState). */

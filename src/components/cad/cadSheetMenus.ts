@@ -1,5 +1,5 @@
 import { SHEET_STATUSES } from '../../model/drawingSet';
-import { isLocked, VP_SCALES, type PlanViewport } from '../../model/planViewports';
+import { isLocked, VP_ARRANGEMENTS, VP_SCALES, type PlanViewport } from '../../model/planViewports';
 import type { CadRef } from '../../model/cadRefs';
 import { tidy, type CtxAct, type CtxEntry, type CtxItem } from './cadContextMenu';
 
@@ -46,11 +46,11 @@ export function xrefMenu(r: Pick<CadRef, 'name' | 'clip' | 'fade' | 'unloaded' |
 }
 
 /** Right-click inside a viewport frame on a layout (on the paper, not working in it). */
-export function viewportMenu(v: PlanViewport): CtxEntry[] {
+export function viewportMenu(v: PlanViewport, scales: number[] = VP_SCALES): CtxEntry[] {
   const vp = (label: string, action: string, value?: string, key?: string, off?: boolean) => item('vp', label, action, value, key, off);
   return tidy([
     vp('Activate (model space)', 'ms', undefined, 'Dbl-click'), vp('Show on the Model tab', 'max'), '-',
-    { label: 'Viewport scale', sub: VP_SCALES.map((k) => vp(`1:${k}`, 'scale', String(k), v.scale === k ? 'now' : undefined, v.scale === k)) },
+    { label: 'Viewport scale', sub: (scales.includes(v.scale) ? scales : [...scales, v.scale].sort((a, b) => a - b)).map((k) => vp(`1:${k}`, 'scale', String(k), v.scale === k ? 'now' : undefined, v.scale === k)) },
     vp(isLocked(v) ? 'Unlock display' : 'Lock display', 'lock', undefined, 'VPLOCK'),
     vp(v.frame ? 'Frame does not print' : 'Frame prints', 'frame'), '-',
     vp('Viewport layers…', 'layers', undefined, 'LM'), '-',
@@ -65,7 +65,7 @@ export function viewportMenu(v: PlanViewport): CtxEntry[] {
 export function paperMenu(s: { status?: string }): CtxEntry[] {
   const pp = (label: string, action: string, value?: string, key?: string, off?: boolean) => item('paper', label, action, value, key, off);
   return tidy([
-    pp('New viewport', 'cmd', 'MV', 'MV'), pp('Legend table', 'cmd', 'LEGEND', 'LEGEND'), pp('Notes table', 'cmd', 'NOTES', 'NOTES'), '-',
+    pp('New viewport', 'cmd', 'MV', 'MV'), { label: 'Arrange viewports', sub: VP_ARRANGEMENTS.map((a) => pp(a.label, 'cmd', `VPORTS ${a.id}`)) }, pp('Legend table', 'cmd', 'LEGEND', 'LEGEND'), pp('Notes table', 'cmd', 'NOTES', 'NOTES'), '-',
     { label: 'Issue status', sub: SHEET_STATUSES.map((st) => pp(st, 'status', st, s.status === st ? 'now' : undefined, s.status === st)) },
     pp('Sheet list', 'register'), '-',
     pp('Plot this layout…', 'cmd', 'PLOT', 'PLOT'), pp('Page setup and title block…', 'cmd', 'PAGESETUP'), '-',
@@ -76,13 +76,14 @@ export function paperMenu(s: { status?: string }): CtxEntry[] {
 /** Right-click on a layout of the drawing (its own, from the file, or one made here with +): the model through a
  * viewport, its scale (one made here), the layout itself, and the Model tab. The file's own layouts are shown as saved:
  * their viewports are not changed here. */
-export function drawingPaperMenu(s: { inside: boolean; editable: boolean; scale?: number }): CtxEntry[] {
+export function drawingPaperMenu(s: { inside: boolean; editable: boolean; scale?: number; scales?: number[] }): CtxEntry[] {
+  const scales = s.scales ?? VP_SCALES;
   const fp = (label: string, action: string, value?: string, key?: string, off?: boolean) => item('fpaper', label, action, value, key, off);
   return tidy([
     ...(s.inside ? [fp('Show on the Model tab', 'max'),
-      ...(s.editable ? [{ label: 'Viewport scale', sub: VP_SCALES.map((k) => fp(`1:${k}`, 'scale', String(k), s.scale === k ? 'now' : undefined, s.scale === k)) }] : []), '-' as const] : []),
+      ...(s.editable ? [{ label: 'Viewport scale', sub: (s.scale && !scales.includes(s.scale) ? [...scales, s.scale].sort((a, b) => a - b) : scales).map((k) => fp(`1:${k}`, 'scale', String(k), s.scale === k ? 'now' : undefined, s.scale === k)) }] : []), '-' as const] : []),
     fp('New layout', 'cmd', 'LAYOUT', 'LAYOUT'),
-    ...(s.editable ? [fp('Rename layout…', 'rename'), fp('Copy layout', 'copy'), fp('Delete layout', 'delete')] : []), '-',
+    ...(s.editable ? [{ label: 'Arrange viewports', sub: VP_ARRANGEMENTS.map((a) => fp(a.label, 'cmd', `VPORTS ${a.id}`)) }, fp('Page setup…', 'cmd', 'PAGESETUP', 'PAGESETUP'), fp('Rename layout…', 'rename'), fp('Copy layout', 'copy'), fp('Delete layout', 'delete')] : []), '-',
     fp('Model tab', 'cmd', 'MODEL', 'MODEL')
   ]);
 }

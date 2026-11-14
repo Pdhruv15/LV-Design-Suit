@@ -7,8 +7,8 @@ import { hasPreviousView } from './cadViewHistory';
 import { QuickSelectDialog } from './CadQuickSelect';
 import { CadStatusToggles } from './CadStatusToggles';
 import { CadFilePaper } from './CadFilePaper';
-import { fileLayoutId, fileLayoutOf, fileLayoutTitle } from '../../model/fileLayouts';
-import { asFileLayout, drawingLayoutId, drawingLayoutOf, drawingLayoutsOf, newDrawingLayout, nextLayoutName, withDrawingLayouts } from '../../model/drawingLayouts';
+import { fileLayoutId, fileLayoutOf, fileLayoutTitle, paperOf } from '../../model/fileLayouts';
+import { arrangeDrawingViewports, asFileLayout, drawingLayoutId, drawingLayoutOf, drawingLayoutsOf, fitDrawingViewports, newDrawingLayout, nextLayoutName, paperName, viewportScaleN, withDrawingLayouts, withPaper } from '../../model/drawingLayouts';
 import type { ZoomReq } from './CadCanvas';
 import type { ZoomMenuKey } from '../drawingView';
 import { parseZoomScale } from '../../model/cadView';
@@ -78,8 +78,10 @@ import { CABLE_HEAD, cableRows, DEVICE_HEAD, deviceRows } from '../../model/cadE
 import { toDxf } from '../../docs/dxf';
 import { changeViewports, layoutOverlay, layoutsOf, LayoutTabs, moveLayout, newLayout, patchViewport, TablePanel, ViewportPanel, vpId, type DrawingTab } from './CadLayouts';
 import { patchTable, TABLE_WIDTH, tableId, tableName, tablesOf, withTables, type TableKind } from '../../model/sheetTables';
-import { layoutPaper, layoutViewports, PLAN_LABEL, PLAN_TYPES, planLegendLabels } from '../../docs/planLayout';
-import { isFrozen, isLocked, toggleFrozen, vpName, vpToModel, vpWindow, type PlanViewport } from '../../model/planViewports';
+import { layoutExtent, layoutPaper, layoutRegion, layoutViewports, PLAN_LABEL, PLAN_TYPES, planLegendLabels, planScale as sheetScale } from '../../docs/planLayout';
+import { drawingLayoutFromTemplate, sheetWithTemplate, templateFromPaper, templateFromSheet } from '../../model/layoutTemplates';
+import { LayoutPaperDialog, LayoutTemplatesDialog, ScaleListDialog } from './CadLayoutDialogs';
+import { alignView, arrangementOf, arrangeViewports, copyViewport, fitView, isFrozen, isLocked, scalesOf, toggleFrozen, vpName, vpToModel, vpWindow, withScales, type PlanViewport } from '../../model/planViewports';
 import { renumber, setOf, type PlanType } from '../../model/drawingSet';
 import { PublishDialog, SheetWorkspace } from '../sld/SheetWorkspace';
 import type { MarkupTool } from '../sld/markupTools';
@@ -818,25 +820,14 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (pickedSk.length) change(pickedSk.reduce((q, it) => updateSketch(q, view.file, withProps(it, patch)), project), `${what} ${propLabel(patch)}: ${pickedSk.length} object${pickedSk.length === 1 ? '' : 's'} · ⌘Z to undo`);
     else change(withNewProps(project, view.file, patch), `${what} of new objects: ${propLabel(patch)} · ⌘Z to undo`);
   };
-  // What the ribbon shows of this drawing (Layers and Properties): set when it changes, cleared on leaving the page.
-  const ribbonInfo = useMemo<CadRibbonInfo | null>(() => {
-    if (!view) return null;
-    const shared = <K extends keyof ObjectProps>(k: K): ObjectProps[K] | 'varies' => { const v = new Set(pickedSk.map((it) => it[k])); return v.size > 1 ? 'varies' : [...v][0]; };
-    return {
-      layers: lRows.filter((r) => r.group === 'drawn').map((r) => ({ name: r.name, color: colourCss(r.color), on: r.on, freeze: r.freeze, lock: r.lock })), current: curLayer, picked: pickedSk.length, blocks: defs.map((d) => d.name),
-      props: pickedSk.length ? { color: shared('color'), lt: shared('lt'), lw: shared('lw') } : newProps
-    };
-  }, [view, lRows, curLayer, pickedSk, newProps, defs]);
-  // Set by what it says, not by identity: the page draws on every mouse move, and the ribbon redraws with what it sets.
-  const ribbonKey = JSON.stringify(ribbonInfo);
-  useEffect(() => { cad.setRibbonInfo(ribbonInfo); }, [ribbonKey]); // eslint-disable-line react-hooks/exhaustive-deps -- by value
-  useEffect(() => () => cad.setRibbonInfo(null), []); // eslint-disable-line react-hooks/exhaustive-deps -- on leaving the page
-
   // Model and layouts (paper space, src/components/cad/CadLayouts.tsx): the level's layouts, the one showing, its
   // viewports, the one picked and the one worked in (MS).
   const [mv, setMv] = useState(false);
   const [placing, setPlacing] = useState<TableKind | null>(null); // LEGEND / NOTES: the next click on the paper places the table
   const [renamingLayout, setRenamingLayout] = useState<string | null>(null);
+  const [layoutDlg, setLayoutDlg] = useState<'templates' | 'paper' | 'scales' | null>(null); // Output → Layout: templates, the paper, the scale list
+  const [maxFrom, setMaxFrom] = useState<string | null>(null); // VPMAX: the layout to go back to (VPMIN)
+  useEffect(() => { if (cad.layout) setMaxFrom(null); }, [cad.layout]); // back on a layout by its tab: nothing is maximised any more
   const lv = floor ? { buildingId: floor.ref.building, levelId: floor.ref.level, name: floor.name } : undefined;
   const layouts = layoutsOf(project, lv);
   const sheetL = cad.layout ? layouts.find((s) => s.id === cad.layout) : undefined;
@@ -858,7 +849,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const addDrawingLayout = () => {
     if (!view) return;
     const l = newDrawingLayout(nextLayoutName(layoutNames), view.info.extents, units.factor * 1000);
-    setDwgLayouts([...dwgLayouts, l], `${l.name} — A3 paper, the whole drawing in one viewport at ${fileLayoutTitle(asFileLayout(l, 0), units.factor * 1000).split(' at ')[1] ?? '1:100'}`);
+    setDwgLayouts([...dwgLayouts, l], `${l.name} — A3 paper, the whole drawing in one viewport at ${fileLayoutTitle(asFileLayout(l, 0), units.factor * 1000).split(' at ')[1] ?? '1:100'} · Page setup changes the paper`);
     cad.setLayout(drawingLayoutId(l.name));
   };
   useEffect(() => { if (cad.layout && !sheetL && !fileL && !dwgL) cad.setLayout(null); }, [cad.layout, sheetL, fileL, dwgL]); // eslint-disable-line react-hooks/exhaustive-deps -- a layout gone (deleted, another level)
@@ -871,6 +862,22 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const legendLabels = useMemo(() => (sheetL && selT?.kind === 'legend' ? planLegendLabels(project, sheetL) : []), [project, sheetL, selT?.kind]);
   /** The viewport a command acts on: the one worked in, else the one picked, else the only one. */
   const vpTarget = msV ?? selV ?? (vps.length === 1 ? vps[0] : undefined);
+  // What the ribbon shows of this drawing (Layers, Properties and the layout tools): set when it changes, cleared on leaving the page.
+  const vpState = vpTarget ? { locked: isLocked(vpTarget), frame: !!vpTarget.frame } : undefined;
+  const ribbonInfo = useMemo<CadRibbonInfo | null>(() => {
+    if (!view) return null;
+    const shared = <K extends keyof ObjectProps>(k: K): ObjectProps[K] | 'varies' => { const v = new Set(pickedSk.map((it) => it[k])); return v.size > 1 ? 'varies' : [...v][0]; };
+    return {
+      layers: lRows.filter((r) => r.group === 'drawn').map((r) => ({ name: r.name, color: colourCss(r.color), on: r.on, freeze: r.freeze, lock: r.lock })), current: curLayer, picked: pickedSk.length, blocks: defs.map((d) => d.name),
+      props: pickedSk.length ? { color: shared('color'), lt: shared('lt'), lw: shared('lw') } : newProps,
+      scales: scalesOf(project), vp: vpState
+    };
+  }, [view, lRows, curLayer, pickedSk, newProps, defs, project.plot?.scales, vpState?.locked, vpState?.frame]); // eslint-disable-line react-hooks/exhaustive-deps -- the scale list, not the whole project
+  // Set by what it says, not by identity: the page draws on every mouse move, and the ribbon redraws with what it sets.
+  const ribbonKey = JSON.stringify(ribbonInfo);
+  useEffect(() => { cad.setRibbonInfo(ribbonInfo); }, [ribbonKey]); // eslint-disable-line react-hooks/exhaustive-deps -- by value
+  useEffect(() => () => cad.setRibbonInfo(null), []); // eslint-disable-line react-hooks/exhaustive-deps -- on leaving the page
+
   const setVps = (f: (list: PlanViewport[]) => PlanViewport[], what: string) => { if (sheetL) change(changeViewports(project, sheetL, f), `${sheetL.number || 'Layout'}  ${what} · ⌘Z to undo`); };
   const patchVp = (v: PlanViewport, patch: Partial<PlanViewport>, what: string) => setVps((l) => patchViewport(l, v.id, patch), `${vpName(vps, v.id)}: ${what}`);
   const addLayout = (type: PlanType) => {
@@ -883,6 +890,43 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   /** Layout commands (and LAYOUT / MODEL from the Model tab); true when the command was one. */
   function layoutCmd(c: string): boolean {
     const [w, arg] = c.split(' ');
+    const layoutShowing = !!(sheetL || fileL || dwgL), mpu = units.factor * 1000;
+    const PORTS_HELP = 'VPORTS  Type VPORTS and an arrangement: 1, 2V, 2H, 3L, 3R, 3A, 3B, 4 or KEY (Output → Layout viewports → Arrange lists them).';
+    if ((w === 'LAYOUT' || w === 'LO') && (arg === 'T' || arg === 'TEMPLATE')) { if (view) setLayoutDlg('templates'); else cad.say('LAYOUT  Open a drawing first.'); return true; }
+    if ((w === 'LAYOUT' || w === 'LO') && (arg === 'S' || arg === 'SAVEAS')) { if (layoutShowing) setLayoutDlg('templates'); else cad.say('LAYOUT  Open a layout tab first: a template keeps its paper, viewports and tables.'); return true; }
+    if (w === 'SCALELISTEDIT') { setLayoutDlg('scales'); return true; }
+    if (w === 'VPMIN') {
+      const back = maxFrom && (layouts.some((x) => x.id === maxFrom) || drawingLayoutOf(dwgLayouts, maxFrom) || fileLayoutOf(view?.layouts, maxFrom)) ? maxFrom : null;
+      if (back) { cad.setLayout(back); setMaxFrom(null); cad.say('VPMIN  Back on the layout.'); } else cad.say('VPMIN  No viewport is maximised (VPMAX on a layout first).');
+      return true;
+    }
+    if (dwgL && w === 'VPORTS') {
+      const a = arrangementOf(arg ?? '');
+      if (!a) cad.say(PORTS_HELP);
+      else setDwgLayouts(dwgLayouts.map((l) => (l === dwgL ? arrangeDrawingViewports(dwgL, a, view!.info.extents, mpu) : l)), `${dwgL.name}: viewports arranged, ${a.label.toLowerCase()}`);
+      return true;
+    }
+    if (dwgL && w === 'VPFIT') {
+      setDwgLayouts(dwgLayouts.map((l) => (l === dwgL ? fitDrawingViewports(dwgL, view!.info.extents, mpu) : l)), `${dwgL.name}: the whole drawing in ${dwgL.viewports.length} viewport${dwgL.viewports.length === 1 ? '' : 's'}`);
+      return true;
+    }
+    if (dwgL && w === 'VPSCALE') {
+      const n = Math.round(Number(/^(?:1:)?(\d+(?:\.\d+)?)$/.exec(arg ?? '')?.[1]));
+      if (n > 0 && dwgL.viewports.length === 1) setDwgLayouts(dwgLayouts.map((l) => (l === dwgL ? { ...l, viewports: l.viewports.map((q) => ({ ...q, vh: (q.h * n) / mpu })) } : l)), `${dwgL.name}: viewport at 1:${n}`);
+      else if (n > 0) cad.say(`VPSCALE  ${dwgL.name} has ${dwgL.viewports.length} viewports: right-click inside one for its Viewport scale.`);
+      else cad.say(`VPSCALE  ${dwgL.name} is at ${dwgL.viewports.map((q) => `1:${viewportScaleN(q, mpu)}`).join(', ') || 'no viewport'}. Type VPSCALE and a scale, e.g. VPSCALE 50.`);
+      return true;
+    }
+    if (dwgL && w === 'VPMAX') {
+      const v = dwgL.viewports[0];
+      if (!v || !(v.h > 0)) { cad.say(`VPMAX  ${dwgL.name} has no viewport.`); return true; }
+      const vw = (v.vh * v.w) / v.h;
+      setMaxFrom(cad.layout); cad.setLayout(null);
+      setTimeout(() => zoomTo({ kind: 'window', a: [v.cx - vw / 2, v.cy - v.vh / 2], b: [v.cx + vw / 2, v.cy + v.vh / 2] }));
+      cad.say(`VPMAX  ${dwgL.name}: the viewport's area on the Model tab. VPMIN or the layout's tab goes back to the paper.`);
+      return true;
+    }
+    if (dwgL && w === 'PAGESETUP') { setLayoutDlg('paper'); return true; }
     if (w === 'LAYOUT' || w === 'LO') {
       // LAYOUT alone: a layout of the drawing; LAYOUT L / P / E / C: a plan sheet of the level.
       const t = arg ? PLAN_TYPES.find((x) => x.toUpperCase().startsWith(arg)) : undefined;
@@ -890,9 +934,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       return true;
     }
     if (w === 'MODEL') { cad.setLayout(null); return true; }
-    if (paperL && /^(MV|MVIEW|MS|MSPACE|PS|PSPACE|VPSCALE|VPLOCK|LEGEND|LG|NOTES)$/.test(w)) {
+    if (paperL && /^(MV|MVIEW|MS|MSPACE|PS|PSPACE|VPSCALE|VPLOCK|LEGEND|LG|NOTES|VPORTS|VPFIT|VPCOPY|VPALIGN|VPFRAME|VPMAX|PAGESETUP)$/.test(w)) {
       cad.say(fileL ? `${w}  ${fileL.name} is the drawing file's own layout, shown as it was saved; its viewports are not changed here yet. The project's plan sheets (right-click a tab) can be.`
-        : `${w}  ${paperL.name} shows the whole drawing; its viewports are not changed here yet. The project's plan sheets (right-click a tab) can be.`);
+        : `${w}  ${paperL.name} is a layout of the drawing: its viewports take Arrange (VPORTS), Fit (VPFIT), a scale and Page setup. ${w} works on the project's plan sheets (right-click a tab).`);
       return true;
     }
     if (!sheetL) return false;
@@ -907,6 +951,48 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       return true;
     }
     if (w === 'VPLOCK') { const v = vpTarget; if (!v) cad.say('VPLOCK  Pick a viewport first (click its frame).'); else patchVp(v, isLocked(v) ? { locked: false } : { locked: undefined }, isLocked(v) ? 'unlocked: pan and zoom inside it move its view' : 'locked'); return true; }
+    if (w === 'VPORTS') {
+      const a = arrangementOf(arg ?? ''), region = layoutRegion(project, sheetL), ext = layoutExtent(project, sheetL);
+      if (!a) cad.say(PORTS_HELP);
+      else if (!region || !ext) cad.say("VPORTS  This layout's level has nothing on it yet.");
+      else {
+        const centre: Pt = [(ext.x0 + ext.x1) / 2, (ext.y0 + ext.y1) / 2];
+        setVps((l) => arrangeViewports(l, a, region, { at: centre, scale: sheetScale(sheetL.scale) }, centre), `viewports arranged: ${a.label.toLowerCase()}`);
+        cad.setVpSel(null); cad.setMsVp(null);
+      }
+      return true;
+    }
+    if (w === 'VPCOPY') {
+      const v = vpTarget, area = layoutPaper(project, sheetL)?.area;
+      if (!v || !area) cad.say('VPCOPY  Pick a viewport first (click its frame).');
+      else { const n = vps.length + 1; setVps((l) => copyViewport(l, v.id, area), `${vpName(vps, v.id)} copied as Viewport ${n}`); cad.setVpSel(vpId(vps)); }
+      return true;
+    }
+    if (w === 'VPFIT') {
+      const v = vpTarget, ext = layoutExtent(project, sheetL);
+      if (!v) cad.say('VPFIT  Pick a viewport first (click its frame).');
+      else if (!ext) cad.say("VPFIT  This layout's level has nothing on it yet.");
+      else { const f = fitView(v, ext, scalesOf(project)); patchVp(v, f, `the whole level at 1:${f.scale}`); }
+      return true;
+    }
+    if (w === 'VPALIGN') {
+      const v = vpTarget, dir = arg === 'H' || arg === 'V' ? (arg.toLowerCase() as 'h' | 'v') : undefined;
+      if (!v) cad.say('VPALIGN  Pick a viewport first (click its frame).');
+      else if (v.id === vps[0].id) cad.say('VPALIGN  Pick another viewport: the others line up with Viewport 1.');
+      else if (!dir) cad.say('VPALIGN  Type VPALIGN H (side by side) or VPALIGN V (stacked).');
+      else patchVp(v, { at: alignView(vps[0], v, dir) }, `lined up with Viewport 1 (${dir === 'h' ? 'side by side' : 'stacked'})`);
+      return true;
+    }
+    if (w === 'VPFRAME') { const v = vpTarget; if (!v) cad.say('VPFRAME  Pick a viewport first (click its frame).'); else patchVp(v, { frame: v.frame ? undefined : true }, v.frame ? 'frame on screen only' : 'frame prints'); return true; }
+    if (w === 'VPMAX') {
+      const v = vpTarget;
+      if (!v) { cad.say('VPMAX  Pick a viewport first (click its frame).'); return true; }
+      const win = vpWindow(v), k = units.factor;
+      setMaxFrom(sheetL.id); cad.setMsVp(null); cad.setLayout(null);
+      setTimeout(() => zoomTo({ kind: 'window', a: [win.x0 / k, win.y0 / k], b: [win.x1 / k, win.y1 / k] }));
+      cad.say(`VPMAX  ${vpName(vps, v.id)}: its area on the Model tab (1:${v.scale}). VPMIN or the layout's tab goes back to the paper.`);
+      return true;
+    }
     if (w === 'LEGEND' || w === 'LG' || w === 'NOTES') {
       const kind: TableKind = w === 'NOTES' ? 'notes' : 'legend';
       cad.setMsVp(null); setMv(false); setPlacing(kind);
@@ -1671,7 +1757,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const r = paperStage.current?.getBoundingClientRect(), at: Pt = [x - (r?.left ?? 0), y - (r?.top ?? 0)];
     const v = i !== null ? paperL.viewports[i] : undefined, mpu = units.factor * 1000;
     ctxObj.current = { fvp: i ?? undefined };
-    setPaperCtx({ at, items: drawingPaperMenu({ inside: !!v, editable: !!dwgL, scale: v && v.h > 0 ? Math.round((v.vh * mpu) / v.h) : undefined }) });
+    setPaperCtx({ at, items: drawingPaperMenu({ inside: !!v, editable: !!dwgL, scale: v && v.h > 0 ? Math.round((v.vh * mpu) / v.h) : undefined, scales: scalesOf(project) }) });
   }
   /** An entry of that menu. */
   function filePaperAct(a: string) {
@@ -1698,7 +1784,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (!sheetL) return;
     const r = paperStage.current?.getBoundingClientRect(), at: Pt = [x - (r?.left ?? 0), y - (r?.top ?? 0)];
     const v = id ? vps.find((q) => q.id === id) : undefined;
-    if (v) { cad.setVpSel(v.id); ctxObj.current = { vp: v.id }; setPaperCtx({ at, items: viewportMenu(v) }); return; }
+    if (v) { cad.setVpSel(v.id); ctxObj.current = { vp: v.id }; setPaperCtx({ at, items: viewportMenu(v, scalesOf(project)) }); return; }
     ctxObj.current = null; setPaperCtx({ at, items: paperMenu({ status: sheetL.status }) });
   }
   /** A right-click menu entry picked: its command typed, or the page action. */
@@ -4204,7 +4290,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       <CadCommandLine history={cad.history} live={EDIT_TOOLS.includes(tool) ? promptNow(edSet) : undefined} cmd={cmd} setCmd={setCmd} inputRef={input} typed={typed} space={spaceMode} log={log} onLog={setLog} onRun={run} />
       {view && <LayoutTabs files={view.layouts.map((l) => ({ id: fileLayoutId(l.name), name: l.name, title: fileLayoutTitle(l, units.factor * 1000) }))} drawings={dwgLayouts.map((l, n) => ({ id: drawingLayoutId(l.name), name: l.name, title: fileLayoutTitle(asFileLayout(l, n), units.factor * 1000) }))} layouts={layouts} active={sheetL?.id ?? (fileL ? fileLayoutId(fileL.name) : dwgL ? drawingLayoutId(dwgL.name) : null)} onPick={(id) => { cad.setLayout(id); const f = fileLayoutOf(view.layouts, id); const d = drawingLayoutOf(dwgLayouts, id); if (f) cad.say(`LAYOUT  ${f.name} — the drawing file's own layout, as saved: ${fileLayoutTitle(f, units.factor * 1000)}.`); else if (d) cad.say(`LAYOUT  ${d.name} — ${fileLayoutTitle(asFileLayout(d, 0), units.factor * 1000)}.`); else if (id) cad.say(`LAYOUT  ${layouts.find((x) => x.id === id)?.number ?? ''} — the paper; double-click inside a viewport to work in it, MV adds one.`); }}
         onNew={addDrawingLayout} onNewSheet={addLayout}
-        onDrawing={drawingTabActs}
+        onDrawing={{ ...drawingTabActs, pageSetup: (d) => { cad.setLayout(d.id); setLayoutDlg('paper'); } }}
+        onTemplates={() => layoutCmd('LAYOUT T')} onSaveTemplate={(id) => { cad.setLayout(id); setLayoutDlg('templates'); }}
         onRename={(x) => { setRenamingLayout(x.id); cad.say(`RENAME  Type the new title of ${x.number} (now "${x.title}"):`); input.current?.focus(); }}
         onCopy={(x) => { if (!lv) return; const r = newLayout(setOf(project), lv, x.plan ?? 'lighting', x); change({ ...project, drawingSet: r.set }, `LAYOUT  ${x.number} copied · ⌘Z to undo`); cad.setLayout(r.id); }}
         onMove={(x, dir) => change({ ...project, drawingSet: renumber(moveLayout(setOf(project), x.id, dir)) }, `LAYOUT  ${x.number} moved ${dir < 0 ? 'left' : 'right'} · ⌘Z to undo`)}
@@ -4226,6 +4313,29 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
           <span>{view ? `${view.file} · ${view.info.format} · ${units.label} · 1 : 1` : ''}</span>
         </>}
       </div>
+      {layoutDlg === 'templates' && view && <LayoutTemplatesDialog canSheet={!!lv} onStatus={(m) => cad.say(m)} onClose={() => setLayoutDlg(null)}
+        current={sheetL ? { name: sheetL.title || sheetL.number, make: (n) => templateFromSheet(project, sheetL, n) }
+          : dwgL ? { name: dwgL.name, make: (n) => templateFromPaper(n, dwgL.paper, dwgL.viewports.map((v) => ({ x: v.x, y: v.y, w: v.w, h: v.h, scale: viewportScaleN(v, units.factor * 1000) || undefined }))) }
+          : fileL ? { name: fileL.name, make: (n) => {
+            const g = paperOf(fileL), k = fileL.mm_per_unit || 1;
+            return templateFromPaper(n, [g.w, g.h], fileL.viewports.filter((v) => v.on).map((v) => { const [x, y] = g.mm(v.x, v.y), sc = v.h > 0 ? Math.round((v.vh * units.factor * 1000) / (v.h * k)) : 0; return { x, y, w: v.w * k, h: v.h * k, scale: sc > 0 ? sc : undefined }; }));
+          } } : undefined}
+        onNew={(t, as) => {
+          if (as === 'drawing') {
+            const l = drawingLayoutFromTemplate(t, nextLayoutName(layoutNames), view.info.extents, units.factor * 1000);
+            setDwgLayouts([...dwgLayouts, l], `${l.name} — from the template ${t.name}: ${paperName(t.paper)}, ${l.viewports.length} viewport${l.viewports.length === 1 ? '' : 's'}`);
+            cad.setLayout(drawingLayoutId(l.name));
+            return;
+          }
+          if (!lv) return;
+          const r = newLayout(setOf(project), lv, as), made = r.set.sheets.find((x) => x.id === r.id);
+          if (!made) return;
+          const set = { ...r.set, sheets: r.set.sheets.map((x) => (x.id === r.id ? sheetWithTemplate({ ...project, drawingSet: r.set }, x, t) : x)) };
+          change({ ...project, drawingSet: set }, `LAYOUT  ${made.number} ${lv.name} · ${PLAN_LABEL[as]} — from the template ${t.name} · ⌘Z to undo`);
+          cad.setLayout(r.id);
+        }} />}
+      {layoutDlg === 'paper' && dwgL && <LayoutPaperDialog layout={dwgL} onClose={() => setLayoutDlg(null)} onSave={(paper) => setDwgLayouts(dwgLayouts.map((l) => (l === dwgL ? withPaper(dwgL, paper) : l)), `${dwgL.name}: ${paperName(paper)}`)} />}
+      {layoutDlg === 'scales' && <ScaleListDialog scales={scalesOf(project)} onClose={() => setLayoutDlg(null)} onSave={(list) => change(withScales(project, list), `SCALELISTEDIT  ${list.length} scales in the list · ⌘Z to undo`)} />}
       {publishing && <PublishDialog project={project} run={calcRun} current={sheetL?.id} ticked={layouts.map((x) => x.id)} onClose={() => setPublishing(false)} onChange={(p) => onChange(p, 'Sheets issued · ⌘Z to undo')} onStatus={onStatus} onOpen={(id) => { setPublishing(false); onSheet?.(id); }} />}
       {showXR && view && <RefManager file={view.file} level={floor ? floorLabel(project.building, floor) : undefined} x={xr} onAttach={() => void startAttach()} onClip={startClip} onBind={() => { setShowXR(false); const c = copyOf(/^DXF/i.test(view.info.format) ? 'dxf' : 'dwg', true); if (c) void writeCopy({ ...c, path: undefined }, false, false); }} onClose={() => setShowXR(false)} />}
       {xDraft && tool !== 'xattach' && view && (

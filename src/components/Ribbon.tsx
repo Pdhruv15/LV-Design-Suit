@@ -7,6 +7,8 @@ import {
 import { BringToFront, Frame, LayoutTemplate, Printer, Crop, Plus, ChevronRight, LightbulbOff, Snowflake, LockOpen, Focus, CircleCheck, Layers3, ArrowDownRight, Cloud, FileSearch, ListOrdered } from 'lucide-react';
 import { ListFilter, PenTool, FileCog, PaintBucket, MessageSquareText, Tag, Navigation, Layers2, PaintRoller, BoxSelect, Paintbrush, Scissors, FlipHorizontal2, Scaling, StretchHorizontal, CornerUpRight, Unlink2, Link2, Paperclip, Ungroup, Grid2x2, Rows2, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow, Lightbulb, DoorOpen , SquareScissors } from 'lucide-react';
 import { ClipboardList, Package, Dot, Divide, Target, Pentagon, ArrowRightToLine, TriangleRight, Hexagon, CaseSensitive, LandPlot, ScanSearch, Expand, SlidersHorizontal, DraftingCompass } from 'lucide-react';
+import { VP_ARRANGEMENTS, VP_SCALES } from '../model/planViewports';
+import { LayoutPanelLeft, Maximize2, Square } from 'lucide-react';
 import { ArrowDownToLine, ArrowLeftRight, Check, ChevronLeft, ClipboardPaste, CopyPlus, ListPlus, LocateFixed, Scan, SquareDashed } from 'lucide-react';
 import type { CadExport, CadRibbonInfo, CadTool } from './cad/cadState';
 import { ColourPicker } from './cad/ColourPicker';
@@ -220,29 +222,33 @@ const G = {
   rooms: 10, cables: 11, devices: 12, editDevices: 13, wiring: 14, reference: 15, sheetSet: 16, layouts: 17, viewports: 18, plot: 19, publish: 20, export: 21
 } as const;
 /** A Design CAD sub-tab: its panels on the drawing; on the sheets pages `sheet` instead (none: the sub-tab with the
- * sheet set shows), on a layout's paper `paper` instead, and on a layout `layout` after them. */
+ * sheet set shows), on a layout's paper `paper` instead, and on a layout `layout` after its Layout panel. */
 export interface CadTab { id: string; label: string; groups: number[]; sheet?: number[]; paper?: number[]; layout?: number[];
-  /** The small tools named as well, without Show labels (LVCAD and Annotate: their panels fill the row with their names). */
+  /** The small tools named as well, without Show labels (LVCAD, Annotate and Output: their panels fill the row with their names). */
   smallNamed?: boolean }
 /** Design CAD's sub-tabs. As shown (the main tools named under their icons, the small ones on hover): LVCAD, the
  * drafting panels in the order of the layout the user chose; Annotate beside it (its own sub-tab since v2.128: on LVCAD
  * the row had grown wider than the window); and Electrical, ELV & sheets, which on the sheets pages has every sheet
  * tool. With Show labels every tool is named and needs about twice the room, so the panels take more sub-tabs. On a
- * layout's paper, Annotate shows the markup instead. File (open, save, close) is a menu beside them. */
+ * layout's paper, Annotate shows the markup instead. File (open, save, close) is a menu beside them. The layout tools
+ * (Layout, and on a layout Layout viewports) are the first panels of Output, which reads Layout · Layout viewports ·
+ * Plot · Publish · Export with its small tools named too (1,281 px on a layout, inside a 1,366 px window); with Show
+ * labels they would make it wider than the window, so there they have a sub-tab of their own between Sheets and Output. */
 export const CAD_TABS: Record<'named' | 'labels', CadTab[]> = {
   named: [
     { id: 'drafting', label: 'LVCAD', groups: [G.draw, G.modify, G.blocks, G.layers, G.props, G.measure], paper: [G.draw, G.modify, G.layers, G.props, G.measure], sheet: [], smallNamed: true },
     { id: 'annotate', label: 'Annotate', groups: [G.annotate], paper: [G.markup], sheet: [], smallNamed: true },
-    { id: 'elec', label: 'Electrical, ELV & sheets', groups: [G.rooms, G.cables, G.devices, G.editDevices, G.wiring, G.reference, G.sheetSet, G.layouts], layout: [G.viewports],
+    { id: 'elec', label: 'Electrical, ELV & sheets', groups: [G.rooms, G.cables, G.devices, G.editDevices, G.wiring, G.reference, G.sheetSet],
       sheet: [G.markup, G.onPanels, G.sheet, G.sheetSet] },
-    { id: 'output', label: 'Output', groups: [G.plot, G.publish, G.export], sheet: [G.plot, G.publish, G.export] }
+    { id: 'output', label: 'Output', groups: [G.layouts, G.plot, G.publish, G.export], layout: [G.viewports], sheet: [G.plot, G.publish, G.export], smallNamed: true }
   ],
   labels: [
     { id: 'drafting', label: 'LVCAD', groups: [G.draw, G.modify, G.blocks], paper: [G.draw, G.modify], sheet: [] },
     { id: 'annotate', label: 'Annotate', groups: [G.annotate], paper: [G.markup], sheet: [G.markup, G.onPanels] },
     { id: 'layers', label: 'Layers & properties', groups: [G.layers, G.props, G.measure], sheet: [] },
     { id: 'elec', label: 'Electrical & ELV', groups: [G.rooms, G.cables, G.devices, G.editDevices, G.wiring], sheet: [] },
-    { id: 'sheets', label: 'Sheets', groups: [G.reference, G.sheetSet, G.layouts], layout: [G.viewports], sheet: [G.sheet, G.sheetSet] },
+    { id: 'sheets', label: 'Sheets', groups: [G.reference, G.sheetSet], sheet: [G.sheet, G.sheetSet] },
+    { id: 'layout', label: 'Layout', groups: [G.layouts], layout: [G.viewports], sheet: [] },
     { id: 'output', label: 'Output', groups: [G.plot, G.publish, G.export], sheet: [G.plot, G.publish, G.export] }
   ]
 };
@@ -300,7 +306,7 @@ export const CAPTIONS: Record<RibbonTab, string[]> = {
   schematic: ['History', 'Distribution', 'Main systems', 'ELV', 'Stage'],
   detailed: ['Run', 'Calculate', 'Stage'],
   cad: ['Draw', 'Modify', 'Annotate', 'Blocks', 'Layers', 'Properties', 'Measure and view', 'Markup', 'On panels', 'Sheet',
-    'Rooms', 'Cables and boards', 'Devices', 'Edit devices', 'Wiring', 'Reference', 'Sheet set', 'Layouts', 'Viewports', 'Plot', 'Publish', 'Export'],
+    'Rooms', 'Cables and boards', 'Devices', 'Edit devices', 'Wiring', 'Reference', 'Sheet set', 'Layout', 'Layout viewports', 'Plot', 'Publish', 'Export'],
   sheets: [],
   spec: [],
   reports: ['Schedules', 'Drawings and reports'],
@@ -409,7 +415,13 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   useEffect(() => { try { localStorage.setItem(SUB_KEY, cadSub); } catch { /* not kept */ } }, [cadSub]);
   // The panels a sub-tab shows: on the sheets pages the open sheet's, on a layout's paper the markup in place of
   // Annotate, on a layout its viewports as well.
-  const cadGroups = (t: CadTab) => (onSheets ? t.sheet ?? [] : a.view === 'cad' && a.cad?.onPaper && t.paper ? t.paper : [...t.groups, ...(a.cad?.inLayout ? t.layout ?? [] : [])]);
+  const cadGroups = (t: CadTab) => {
+    if (onSheets) return t.sheet ?? [];
+    if (a.view === 'cad' && a.cad?.onPaper && t.paper) return t.paper;
+    const g = [...t.groups];
+    if (a.cad?.inLayout && t.layout) g.splice(g.indexOf(G.layouts) + 1 || g.length, 0, ...t.layout);
+    return g;
+  };
   const shown = tab === 'cad' ? cadGroups(sub) : [];
   const folded = [...shown].reverse().slice(0, shut);
   // While the row is wider than the window, one more panel collapses; a resized window, or another sub-tab, opens them
@@ -961,14 +973,32 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         sm({ label: 'Issues', icon: Stamp, title: 'Issue sheets: revisions and transmittals', onClick: () => a.sheets?.onTab('issues'), active: SHEET_VIEWS.includes(a.view) && !a.sheets?.open && a.sheets?.tab === 'issues', page: true })
       ],
       [
-        { label: 'New layout', icon: LayoutTemplate, cmd: 'LAYOUT', sub: 'of this level', title: 'A new layout (paper) of this level: a plan sheet with its title block and a viewport onto the model (LAYOUT)', onClick: () => {}, menuOnly: true, disabled: !a.cad?.hasDrawing, menu: (['Lighting', 'Power', 'ELV', 'Containment'] as const).map((t) => ({ label: `${t} layout`, title: `A new ${t.toLowerCase()} layout of this level`, onClick: () => a.cad?.onLayoutCmd?.(`LAYOUT ${t.toUpperCase()}`) })) }
+        { label: 'New layout', icon: LayoutTemplate, cmd: 'LAYOUT', title: 'A new layout (paper) of this drawing, one from a template, or a plan sheet of this level (LAYOUT)', onClick: () => {}, menuOnly: true, disabled: !a.cad?.hasDrawing,
+          menu: [
+            { label: 'New layout', title: 'A new layout of this drawing: A3, the whole drawing in one viewport; Page setup changes its paper', onClick: () => a.cad?.onLayoutCmd?.('LAYOUT') },
+            { label: 'From template…', title: 'A new layout from one of your layout templates: its paper, viewports and tables', onClick: () => a.cad?.onLayoutCmd?.('LAYOUT T') },
+            ...(['Lighting', 'Power', 'ELV', 'Containment'] as const).map((t, i) => ({ label: `${t} layout`, title: `A new ${t.toLowerCase()} plan sheet of this level`, sep: i === 0, onClick: () => a.cad?.onLayoutCmd?.(`LAYOUT ${t.toUpperCase()}`) }))
+          ] },
+        sm({ label: 'Page setup', icon: FileCog, cmd: 'PAGESETUP', title: 'This layout\'s paper and page setup (PAGESETUP)', onClick: () => a.cad?.onLayoutCmd?.('PAGESETUP'), disabled: !a.cad?.inLayout }),
+        sm({ label: 'Save as template', icon: Save, cmd: 'LAYOUT S', title: 'Save this layout as a template for new layouts: its paper, viewports and tables (LAYOUT S)', onClick: () => a.cad?.onLayoutCmd?.('LAYOUT S'), disabled: !a.cad?.inLayout })
       ],
       [
         { label: 'Viewport', icon: Frame, cmd: 'MV', title: 'A new viewport: click two corners on the paper (MV)', onClick: () => a.cad?.onLayoutCmd?.('MV') },
+        { label: 'Arrange', icon: LayoutPanelLeft, cmd: 'VPORTS', title: 'Arrange the layout\'s viewports: one, two, three or four, or a plan with a key plan (VPORTS)', onClick: () => {}, menuOnly: true,
+          menu: VP_ARRANGEMENTS.map((x) => ({ label: x.label, title: x.title, onClick: () => a.cad?.onLayoutCmd?.(`VPORTS ${x.id}`) })) },
         { label: 'Legend', icon: Table2, cmd: 'LEGEND', title: 'A legend table on the paper: click where its corner goes; its rows follow the plan, its frame picked sets the width, rows and columns (LEGEND)', onClick: () => a.cad?.onLayoutCmd?.('LEGEND') },
         { label: 'Notes', icon: ListOrdered, cmd: 'NOTES', title: 'A notes table on the paper: the sheet\'s notes where you put them (NOTES)', onClick: () => a.cad?.onLayoutCmd?.('NOTES') },
-        sm({ label: 'Scale', icon: Scaling, cmd: 'VPSCALE', title: 'The scale of the viewport picked (VPSCALE)', onClick: () => {}, menuOnly: true, menu: [20, 50, 100, 200, 500, 1000].map((k) => ({ label: `1:${k}`, title: `Viewport at 1:${k}`, onClick: () => a.cad?.onLayoutCmd?.(`VPSCALE ${k}`) })) }),
-        sm({ label: 'Lock', icon: Lock, cmd: 'VPLOCK', title: 'Lock or unlock the viewport picked: locked, pan and zoom inside it leave its view alone (VPLOCK)', onClick: () => a.cad?.onLayoutCmd?.('VPLOCK'), active: a.cad?.vpLocked })
+        sm({ label: 'Scale', icon: Scaling, cmd: 'VPSCALE', title: 'The scale of the viewport picked (VPSCALE)', onClick: () => {}, menuOnly: true,
+          menu: [...(a.cad?.info?.scales ?? VP_SCALES).map((k) => ({ label: `1:${k}`, title: `Viewport at 1:${k}`, onClick: () => a.cad?.onLayoutCmd?.(`VPSCALE ${k}`) })),
+            { label: 'Scale list…', title: 'The scales offered: tick more standard ones or add your own (SCALELISTEDIT)', sep: true, onClick: () => a.cad?.onLayoutCmd?.('SCALELISTEDIT') }] }),
+        sm({ label: 'Lock', icon: Lock, cmd: 'VPLOCK', title: 'Lock or unlock the viewport picked: locked, pan and zoom inside it leave its view alone (VPLOCK)', onClick: () => a.cad?.onLayoutCmd?.('VPLOCK'), active: a.cad?.info?.vp?.locked ?? a.cad?.vpLocked }),
+        sm({ label: 'Fit', icon: Expand, cmd: 'VPFIT', title: 'The whole level in the viewport picked, at the nearest scale of the list (VPFIT)', onClick: () => a.cad?.onLayoutCmd?.('VPFIT') }),
+        sm({ label: 'Copy', icon: Copy, cmd: 'VPCOPY', title: 'A copy of the viewport picked, beside it (VPCOPY)', onClick: () => a.cad?.onLayoutCmd?.('VPCOPY') }),
+        sm({ label: 'Align', icon: AlignVerticalSpaceAround, cmd: 'VPALIGN', title: 'Line up the view of the viewport picked with Viewport 1 (VPALIGN)', onClick: () => {}, menuOnly: true,
+          menu: [{ label: 'Side by side', title: 'The same height of the plan on one line across both viewports', onClick: () => a.cad?.onLayoutCmd?.('VPALIGN H') },
+            { label: 'Stacked', title: 'The same part of the plan one above the other', onClick: () => a.cad?.onLayoutCmd?.('VPALIGN V') }] }),
+        sm({ label: 'Maximise', icon: Maximize2, cmd: 'VPMAX', title: 'The viewport\'s area on the Model tab, to work at full size; VPMIN or the layout\'s tab comes back (VPMAX)', onClick: () => a.cad?.onLayoutCmd?.('VPMAX') }),
+        sm({ label: 'Frame prints', icon: Square, cmd: 'VPFRAME', title: 'The frame of the viewport picked prints, or shows on screen only (VPFRAME)', onClick: () => a.cad?.onLayoutCmd?.('VPFRAME'), active: a.cad?.info?.vp?.frame })
       ],
       // Output: plot one layout or sheet and its setup; publish many; export files for others. In model space the
       // drawing's own view, Publish and Save As stand in for the sheet's.

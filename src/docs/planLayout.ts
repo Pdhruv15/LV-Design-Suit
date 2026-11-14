@@ -525,6 +525,16 @@ export function layoutPaper(p: Project, s: DrawingSheet): { size: SheetSize; are
   return { size, area: drawingAreaMm(p, size) };
 }
 
+/** Where a layout's viewports go on its paper (mm, drawing area: left, top, width, height): inside the margin, above the title strip. */
+export function layoutRegion(p: Project, s: DrawingSheet): [number, number, number, number] | undefined {
+  const paper = layoutPaper(p, s);
+  return paper ? [MARGIN, MARGIN, paper.area.w - 2 * MARGIN, paper.area.h - 2 * MARGIN - STRIP] : undefined;
+}
+/** The level's extent a layout shows (metres), or nothing when the sheet names no level with something on it. */
+export function layoutExtent(p: Project, s: DrawingSheet): { x0: number; y0: number; x1: number; y1: number } | undefined {
+  return layoutOf(p, s)?.box;
+}
+
 /** A plan sheet drawn through its viewports: each shows the model in its window at its scale, its plan type, without
  * the layers frozen in it and the references off in it, cut at its frame (printed only when asked); a key plan (twice
  * the first viewport's scale or more) without tags or DB names. The title strip
