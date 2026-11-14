@@ -295,21 +295,43 @@ export function suggestLink(sheet: Sheet): Sheet | undefined {
   return out;
 }
 
+/** A copy of a sheet under a new id and a tab name of its own (the name made Excel-safe and unique among `all`), linked to a board when one is given. */
+function copyAs(from: Sheet, all: Sheet[], name: string, boardId?: string): Sheet {
+  const base = name.replace(/[\\/?*[\]:]/g, '-').slice(0, 31) || 'Sheet';
+  let tab = base;
+  for (let i = 2; sheetNameError(tab, all); i++) tab = `${base.slice(0, 31 - String(i).length - 1)} ${i}`;
+  const { source: _s, ...copy } = from, ns = newSheet(all, tab);
+  return { ...(boardId ? linkToBoard(copy, boardId) : copy), id: ns.id, name: ns.name };
+}
+
 /** New sheets, one for each board no sheet is linked to yet: a copy of `from` on that board, named after it. Only the new ones. */
 export function sheetsForBoards(sheets: Sheet[], from: Sheet, boardIds: string[]): Sheet[] {
   const made: Sheet[] = [], taken = new Set(sheets.map((s) => s.link?.boardId));
   for (const id of boardIds) {
     if (taken.has(id)) continue;
     taken.add(id);
-    const all = [...sheets, ...made], base = id.replace(/[\\/?*[\]:]/g, '-').slice(0, 31) || 'DB';
-    let name = base;
-    for (let i = 2; sheetNameError(name, all); i++) name = `${base.slice(0, 31 - String(i).length - 1)} ${i}`;
-    const { source: _s, ...copy } = from;
-    const ns = newSheet(all, name);
-    made.push({ ...linkToBoard(copy, id), id: ns.id, name: ns.name });
+    made.push(copyAs(from, [...sheets, ...made], id, id));
   }
   return made;
 }
+
+/** The sheet as a saved format keeps it: the block cut back to its pattern row, the cells of linked and own columns and the values
+ * of linked cells blank (their text before and after stays), no board and nothing typed. Undefined for a sheet with no link. */
+export function templateOf(sheet: Sheet): Sheet | undefined {
+  const link = sheet.link;
+  if (!link) return undefined;
+  const s = link.rows.length > 1 ? deleteRows(sheet, link.firstRow + 1, link.rows.length - 1) : sheet, l = s.link!;
+  const cells = { ...s.cells }, kept = s.kept ? { ...s.kept } : undefined;
+  const clear = (k: string, text?: string) => { if (text) cells[k] = text; else delete cells[k]; if (!text && kept) delete kept[k]; };
+  for (const letters of Object.keys(l.columns)) clear(`${letters}${l.firstRow}`);
+  for (const [k, c] of Object.entries(l.cells)) clear(k, `${c.before ?? ''}${c.after ?? ''}`);
+  const { source: _s, kept: _k, ...rest } = s;
+  const { boardId: _b, pending: _p, added: _a, ...base } = l;
+  return { ...rest, cells, ...(kept && Object.keys(kept).length ? { kept } : {}), link: { ...base, rows: [] } };
+}
+
+/** A new sheet in a saved format's layout: its own id and tab name (the given name, else the board's, else "Sheet"), on a board when one is given. */
+export const sheetFromFormat = (template: Sheet, sheets: Sheet[], boardId?: string, name?: string): Sheet => copyAs(template, sheets, name || boardId || 'Sheet', boardId);
 
 // ---- typing in a linked sheet
 

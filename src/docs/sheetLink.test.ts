@@ -4,7 +4,7 @@ import { sampleProject } from '../data/sampleProject';
 import { addSpareWay, isDbBoard } from '../model/spareWays';
 import { newSheet, withCells, withStyle, mergeArea, area, type Sheet, type SheetLink } from '../model/sheets';
 import type { Project } from '../types';
-import { fillLinked, linkAt, linkBoards, linkFromPlaceholders, linkNeeds, linkToBoard, LINK_FIELDS, removeLink, setFirstRow, setLinkCell, setLinkColumn, sheetsForBoards, startLink, suggestLink, addCircuitRow, discardPending, pendingCount, typeLinked, typeRefusal } from './sheetLink';
+import { fillLinked, linkAt, linkBoards, linkFromPlaceholders, linkNeeds, linkToBoard, LINK_FIELDS, removeLink, setFirstRow, setLinkCell, setLinkColumn, sheetsForBoards, startLink, suggestLink, addCircuitRow, discardPending, pendingCount, typeLinked, typeRefusal, templateOf, sheetFromFormat } from './sheetLink';
 import { scheduleRowKeys, templateData } from './scheduleFields';
 
 const AT = new Date('2026-10-27T10:00:00Z');
@@ -381,5 +381,40 @@ describe('typed values in a linked sheet', () => {
     expect(linkToBoard(r.sheet, 'DB-X').link).not.toHaveProperty('added');
     expect(discardPending(plain)).toBe(plain);
     expect(pendingCount(plain)).toBe(0);
+  });
+});
+
+describe('templateOf and sheetFromFormat', () => {
+  const filled = () => fillLinked(project, sums({ F5: '=E5*2' }), AT);
+  it('cuts a filled sheet back to its pattern row, keeping the layout and clearing what the project filled', () => {
+    const s = filled(), t = templateOf(s)!;
+    expect(s.link!.rows).toHaveLength(N);
+    expect(t.link).toEqual({ category: 'db', cells: s.link!.cells, firstRow: 5, rows: [], columns: s.link!.columns });
+    for (const k of ['A5', 'B5', 'C5', 'D5', 'E5']) expect(t.cells[k]).toBeUndefined();
+    expect(t.cells).toMatchObject({ A2: 'DB: ', D2: 'FED FROM:  ', F5: '=E5*2', E6: '=SUM(E5:E5)', F7: '=SUM(E5:E5)+1', A8: 'End' });
+    expect(t.rows).toBe(s.rows - (N - 1));
+    expect(t.link).not.toHaveProperty('boardId');
+    expect(templateOf(t)).toEqual(t);
+    expect(templateOf(sheet({ A1: 'x' }))).toBeUndefined();
+  });
+  it('drops what was typed and the source file', () => {
+    const typedSheet = typeLinked(project, addCircuitRow(filled()), { B5: 'Hall' }).sheet;
+    const t = templateOf({ ...typedSheet, source: 'Panel.xlsx' })!;
+    expect(t.link).not.toHaveProperty('pending');
+    expect(t.link).not.toHaveProperty('added');
+    expect(t).not.toHaveProperty('source');
+    expect(t.link!.rows).toEqual([]);
+  });
+  it('a sheet from a format has its own id and tab name, is linked to the board, and fills with its circuits', () => {
+    const t = templateOf(filled())!;
+    const made = sheetFromFormat(t, [{ ...newSheet(), name: 'DB-GF1' }], 'DB-GF1');
+    expect([made.id, made.name, made.link!.boardId]).toEqual(['S2', 'DB-GF1 2', 'DB-GF1']);
+    const f = fillLinked(project, made, AT);
+    expect(f.link!.rows).toEqual(scheduleRowKeys(project, 'DB-GF1'));
+    expect(f.cells.A5).toBe(String(data.rows[0]['row.ref']));
+    expect(f.cells[`E${5 + N}`]).toBe(`=SUM(E5:E${4 + N})`);
+    expect(sheetFromFormat(t, []).name).toBe('Sheet');
+    expect(sheetFromFormat(t, [], undefined, 'My copy')).toMatchObject({ name: 'My copy' });
+    expect(sheetFromFormat(t, [], undefined, 'My copy').link).not.toHaveProperty('boardId');
   });
 });

@@ -10,6 +10,7 @@ vi.mock('../../util/files', async (orig) => ({ ...(await orig<typeof import('../
 import { sampleProject } from '../../data/sampleProject';
 import { templateData } from '../../docs/scheduleFields';
 import { linkBoards } from '../../docs/sheetLink';
+import { FORMATS_KEY, loadFormats, saveFormats, withFormat } from '../../model/scheduleFormats';
 import { newSheet, withCells } from '../../model/sheets';
 import type { Project } from '../../types';
 
@@ -479,5 +480,130 @@ describe('Sheets page — Link columns', () => {
     act(() => button('Suggest links').click());
     expect(status[status.length - 1]).toBe('No heading row found. Start with no links and pick the first circuit row.');
     expect(changes).toBe(0);
+  });
+});
+
+describe('Sheets page — My formats', () => {
+  const office = () => book({
+    A1: 'AL NOOR CONSULTANTS', A2: 'PANEL', B2: 'DB-GF', C2: 'FED FROM: SMDB-1',
+    A5: 'CKT', B5: 'PH', C5: 'DESCRIPTION', D5: 'LOAD (W)', E5: 'MCB (A)', F5: 'CABLE (mm²)', G5: 'EARTH (mm²)', H5: 'LENGTH (m)', I5: 'ROUTE', J5: 'REMARKS'
+  });
+  const aside = (label: string) => document.querySelector<HTMLElement>(`aside[aria-label="${label}"]`);
+  const btn = (label: string, text: string, exact = false) => [...(aside(label)?.querySelectorAll<HTMLButtonElement>('button') ?? [])].find((b) => (exact ? b.textContent === text : b.textContent?.startsWith(text)))!;
+  const choose = (label: string, aria: string, value: string) => act(() => {
+    const sel = aside(label)!.querySelector<HTMLSelectElement>(`select[aria-label="${aria}"]`)!;
+    sel.value = value;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  const linkIt = (p: Project = office()) => { render(p); press('Electrical'); press('Link columns'); act(() => btn('Link columns', 'Suggest links').click()); choose('Link columns', 'Board', 'DB-GF1'); };
+  const nameRow = (name: string) => { act(() => btn('Link columns', 'Save as my format').click()); act(() => { aside('Link columns')!.querySelector<HTMLInputElement>('input[aria-label="Format name"]')!.value = name; }); };
+  const template = () => ({ ...newSheet(), link: { category: 'db' as const, cells: {}, firstRow: 6, rows: [], columns: { A: 'row.ref', B: 'row.room' } } });
+  const seed = (...names: string[]) => saveFormats(names.reduce((l, n) => withFormat(l, n, template()).list, [] as ReturnType<typeof loadFormats>));
+  const data = templateData(sampleProject, 'DB-GF1');
+  beforeEach(() => localStorage.removeItem(FORMATS_KEY));
+  afterEach(() => { localStorage.removeItem(FORMATS_KEY); vi.restoreAllMocks(); });
+
+  it('Save as my format stores the layout without its board and reports it; Escape closes the name row', () => {
+    linkIt();
+    nameRow('Office DB');
+    expect(aside('Link columns')!.querySelector<HTMLInputElement>('input[aria-label="Format name"]')).not.toBeNull();
+    act(() => btn('Link columns', 'Save', true).click());
+    expect(loadFormats().map((f) => f.name)).toEqual(['Office DB']);
+    expect(loadFormats()[0].sheet.link).not.toHaveProperty('boardId');
+    expect(status[status.length - 1]).toBe('Format "Office DB" saved. It is in My formats for every project.');
+    nameRow('office db');
+    act(() => btn('Link columns', 'Save', true).click());
+    expect(loadFormats()).toHaveLength(1);
+    expect(status[status.length - 1]).toBe('Format "office db" updated.');
+    act(() => btn('Link columns', 'Save as my format').click());
+    act(() => { aside('Link columns')!.querySelector('input[aria-label="Format name"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
+    expect(aside('Link columns')!.querySelector('input[aria-label="Format name"]')).toBeNull();
+    nameRow('   ');
+    act(() => btn('Link columns', 'Save', true).click());
+    expect(status[status.length - 1]).toBe('Give the format a name.');
+    expect(aside('Link columns')!.querySelector('input[aria-label="Format name"]')).not.toBeNull();
+    expect(changes).toBe(2);
+  });
+
+  it('My formats lists a saved format, and Add sheet adds a tab on the chosen board', () => {
+    seed('Office DB');
+    linkIt();
+    press('My formats');
+    expect(aside('Link columns')).toBeNull();
+    expect(aside('My formats')!.textContent).toContain('Office DB');
+    expect(aside('My formats')!.textContent).toContain('DB schedule · saved');
+    expect(btn('My formats', 'Add sheet', true).disabled).toBe(true);
+    choose('My formats', 'Board for Office DB', 'DB-GF1');
+    act(() => btn('My formats', 'Add sheet', true).click());
+    expect(document.querySelectorAll('.shx-sheets [role="tab"]').length).toBe(2);
+    expect(status[status.length - 1]).toBe('Sheet DB-GF1 added from "Office DB".');
+    expect(document.querySelector('.shx-sheets [aria-selected="true"]')!.textContent).toBe('DB-GF1');
+    expect(td('A6').textContent).toBe(String(data.rows[0]['row.ref']));
+  });
+
+  it('Add a sheet for every DB without one adds the rest in one step', () => {
+    seed('Office DB');
+    const base = office(), db = sampleProject.boards.find((b) => b.id === 'DB-GF1')!;
+    linkIt({ ...base, boards: [...base.boards, { ...db, id: 'DB-X1', name: 'Second DB' }, { ...db, id: 'DB-X2', name: 'Third DB' }] });
+    press('My formats');
+    const before = changes;
+    act(() => btn('My formats', 'Add a sheet for every DB without one (2)').click());
+    expect(changes).toBe(before + 1);
+    expect(last.sheets!.sheets.map((s) => s.link?.boardId)).toEqual(['DB-GF1', 'DB-X1', 'DB-X2']);
+    expect(btn('My formats', 'Add a sheet for every DB without one (0)').disabled).toBe(true);
+  });
+
+  it('Rename reports a taken name and keeps the input; a free name is saved', () => {
+    seed('Alpha', 'Beta');
+    render(sampleProject);
+    press('Electrical'); press('My formats');
+    const betaBlock = [...aside('My formats')!.querySelectorAll<HTMLElement>('.shl-needs')].find((b) => b.textContent?.startsWith('Beta'))!;
+    act(() => [...betaBlock.querySelectorAll('button')].find((b) => b.textContent === 'Rename')!.click());
+    const input = () => aside('My formats')!.querySelector<HTMLInputElement>('input[aria-label="New name for Beta"]')!;
+    act(() => { input().value = 'alpha'; });
+    act(() => [...input().parentElement!.querySelectorAll('button')].find((b) => b.textContent === 'Save')!.click());
+    expect(status[status.length - 1]).toBe('Another format has this name.');
+    expect(input()).not.toBeNull();
+    act(() => { input().value = 'Gamma'; });
+    act(() => [...input().parentElement!.querySelectorAll('button')].find((b) => b.textContent === 'Save')!.click());
+    expect(loadFormats().map((f) => f.name)).toEqual(['Alpha', 'Gamma']);
+    expect(aside('My formats')!.textContent).toContain('Gamma');
+  });
+
+  it('Delete asks first and removes the format', async () => {
+    seed('Alpha', 'Beta');
+    render(sampleProject);
+    press('Electrical'); press('My formats');
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
+    const del = () => [...aside('My formats')!.querySelector<HTMLElement>('.shl-needs')!.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Delete')!;
+    await act(async () => { del().click(); await Promise.resolve(); });
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(confirm.mock.calls[0][0]).toContain('Delete the format "Alpha"?');
+    expect(loadFormats()).toHaveLength(2);
+    await act(async () => { del().click(); await vi.waitFor(() => expect(loadFormats()).toHaveLength(1)); });
+    expect(loadFormats().map((f) => f.name)).toEqual(['Beta']);
+    expect(aside('My formats')!.textContent).not.toContain('Alpha');
+  });
+
+  it('opening My formats closes Link columns and the other way round; a new project has none yet', () => {
+    render(sampleProject);
+    press('Electrical'); press('Link columns');
+    expect(aside('Link columns')!.textContent).not.toContain('Use one of my formats');
+    press('My formats');
+    expect(aside('Link columns')).toBeNull();
+    expect(tool('My formats').getAttribute('aria-pressed')).toBe('true');
+    expect(aside('My formats')!.textContent).toContain('No formats yet. Link a sheet to a board, then press Save as my format in Link columns.');
+    press('Link columns');
+    expect(aside('My formats')).toBeNull();
+    expect(aside('Link columns')).not.toBeNull();
+  });
+
+  it('the unlinked state offers Use one of my formats only when one is saved', () => {
+    seed('Alpha');
+    render(sampleProject);
+    press('Electrical'); press('Link columns');
+    act(() => btn('Link columns', 'Use one of my formats').click());
+    expect(aside('Link columns')).toBeNull();
+    expect(aside('My formats')!.textContent).toContain('Alpha');
   });
 });

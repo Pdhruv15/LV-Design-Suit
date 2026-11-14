@@ -1,35 +1,13 @@
+import { useState } from 'react';
 import { Check, X } from 'lucide-react';
 import { cellAt, cellName, colName } from '../../calc/sheetFormula';
-import { linkBoards, linkFromPlaceholders, linkNeeds, LINK_FIELDS, linkToBoard, removeLink, setFirstRow, setLinkCell, setLinkColumn, sheetsForBoards, startLink, suggestLink } from '../../docs/sheetLink';
+import { linkBoards, linkFromPlaceholders, linkNeeds, LINK_FIELDS, linkToBoard, removeLink, setFirstRow, setLinkCell, setLinkColumn, sheetsForBoards, startLink, suggestLink, templateOf } from '../../docs/sheetLink';
+import { formatNameError, loadFormats, saveFormats, withFormat } from '../../model/scheduleFormats';
 import { mergeAt, type Sheet } from '../../model/sheets';
 import type { Project } from '../../types';
+import { PANEL_CSS } from './panelCss';
 
 /** The Link columns panel of the Sheets page: which cells and columns of a sheet are linked to a DB of the project. */
-
-const CSS = `
-.shl { box-sizing: border-box; flex: none; width: 340px; max-height: 62vh; overflow: auto; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); padding: 12px; font-size: 12.5px; color: var(--tx); display: flex; flex-direction: column; gap: 8px; }
-.shl-head { display: flex; align-items: center; justify-content: space-between; }
-.shl h4 { margin: 0; font-size: 14px; }
-.shl h5 { margin: 6px 0 0; font-size: 12px; color: var(--mut); }
-.shl p { margin: 0; }
-.shl-mut { color: var(--mut); }
-.shl-row { display: flex; align-items: center; gap: 6px; }
-.shl-row > span:first-child { flex: none; width: 110px; color: var(--mut); }
-.shl select, .shl input { box-sizing: border-box; min-width: 0; height: 30px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--p2); color: var(--tx); font: inherit; font-size: 12.5px; }
-.shl-row select { flex: 1; }
-.shl input[type="number"] { width: 70px; }
-.shl-btn { box-sizing: border-box; height: 30px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--p2); color: var(--tx); font: inherit; font-size: 12.5px; text-align: left; cursor: pointer; }
-.shl-btn.shl-go { background: var(--acc); color: var(--on-acc); border-color: var(--acc); }
-.shl-btn:disabled { opacity: 0.45; cursor: default; }
-.shl-x { flex: none; width: 30px; padding: 0; text-align: center; }
-.shl-line { display: grid; grid-template-columns: 34px 62px 1fr 30px; align-items: center; gap: 6px; }
-.shl-cols .shl-line { grid-template-columns: 22px 78px 1fr; }
-.shl-cap { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--mut); }
-.shl-own { color: var(--res-pf); }
-.shl-needs { border: 1px solid var(--line); border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 4px; }
-.shl-need { display: flex; align-items: center; gap: 6px; }
-.shl-note { font-size: 12px; color: var(--mut); }
-`;
 
 const cellFields = LINK_FIELDS.filter((f) => f.kind === 'cell'), rowFields = LINK_FIELDS.filter((f) => f.kind === 'row');
 
@@ -42,9 +20,10 @@ function headingOf(sheet: Sheet, col: number, first: number): string {
   return '';
 }
 
-export default function LinkPanel({ project, sheet, sheets, active, onSheet, onAddSheets, onStatus, onClose }: {
-  project: Project; sheet: Sheet; sheets: Sheet[]; active: { r: number; c: number }; onSheet: (next: Sheet) => void; onAddSheets: (made: Sheet[]) => void; onStatus?: (m: string) => void; onClose: () => void;
+export default function LinkPanel({ project, sheet, sheets, active, onSheet, onAddSheets, onStatus, onClose, onFormats }: {
+  project: Project; sheet: Sheet; sheets: Sheet[]; active: { r: number; c: number }; onSheet: (next: Sheet) => void; onAddSheets: (made: Sheet[]) => void; onStatus?: (m: string) => void; onClose: () => void; onFormats: () => void;
 }) {
+  const [naming, setNaming] = useState<string | null>(null);
   const link = sheet.link, name = cellName(active.c, active.r);
   const head = (
     <div className="shl-head"><h4>Link columns</h4><button type="button" className="shl-btn shl-x" aria-label="Close" onClick={onClose}><X size={16} aria-hidden /></button></div>
@@ -53,15 +32,24 @@ export default function LinkPanel({ project, sheet, sheets, active, onSheet, onA
     const holders = linkFromPlaceholders(sheet);
     return (
       <aside className="shl" aria-label="Link columns">
-        <style>{CSS}</style>
+        <style>{PANEL_CSS}</style>
         {head}
         <p>This sheet is not linked to the project.</p>
         <button type="button" className="shl-btn shl-go" onClick={() => { const s = suggestLink(sheet); if (s) onSheet(s); else onStatus?.('No heading row found. Start with no links and pick the first circuit row.'); }}>Suggest links from the headings</button>
         {holders && <button type="button" className="shl-btn" onClick={() => { onSheet(holders.sheet); if (holders.unknown.length) onStatus?.(`Not linked: ${holders.unknown.join(', ')}`); }}>Use the placeholders in this sheet</button>}
         <button type="button" className="shl-btn" onClick={() => onSheet(startLink(sheet, active.r))}>Start with no links</button>
+        {loadFormats().length > 0 && <button type="button" className="shl-btn" onClick={onFormats}>Use one of my formats…</button>}
       </aside>
     );
   }
+  const saveFormat = (text: string) => {
+    const bad = formatNameError(text, []);
+    if (bad) { onStatus?.(bad); return; }
+    const r = withFormat(loadFormats(), text, templateOf(sheet)!);
+    saveFormats(r.list);
+    setNaming(null);
+    onStatus?.(r.updated ? `Format "${text.trim()}" updated.` : `Format "${text.trim()}" saved. It is in My formats for every project.`);
+  };
   const boards = linkBoards(project), needs = linkNeeds(link), ready = needs.every((n) => n.ok);
   const lastRow = link.firstRow + Math.max(1, link.rows.length) - 1;
   const used = new Set(Object.values(link.cells).map((c) => c.field));
@@ -71,7 +59,7 @@ export default function LinkPanel({ project, sheet, sheets, active, onSheet, onA
   const others = boards.filter((b) => !sheets.some((s) => s.link?.boardId === b.id));
   return (
     <aside className="shl" aria-label="Link columns">
-      <style>{CSS}</style>
+      <style>{PANEL_CSS}</style>
       {head}
       <label className="shl-row"><span>This sheet is a</span><select disabled value="db" aria-label="This sheet is a"><option value="db">DB schedule</option></select></label>
       <label className="shl-row"><span>Board</span>
@@ -123,6 +111,13 @@ export default function LinkPanel({ project, sheet, sheets, active, onSheet, onA
       </div>
       <p style={{ color: ready ? 'var(--ok)' : 'var(--mut)' }}>{ready ? 'Ready — this sheet can build boards, circuits and the SLD.' : 'Not ready — link what is marked above.'}</p>
       {link.boardId && <button type="button" className="shl-btn shl-go" disabled={!others.length} onClick={() => onAddSheets(sheetsForBoards(sheets, sheet, others.map((b) => b.id)))}>Add a sheet for every other DB ({others.length})</button>}
+      {naming === null
+        ? <button type="button" className="shl-btn" onClick={() => setNaming(loadFormats().find((f) => f.name === sheet.name)?.name ?? sheet.source?.replace(/\.[^.]*$/, '') ?? sheet.name)}>Save as my format…</button>
+        : <div className="shl-row">
+            <input aria-label="Format name" autoFocus defaultValue={naming} style={{ flex: 1 }} onKeyDown={(e) => { if (e.key === 'Enter') saveFormat(e.currentTarget.value); else if (e.key === 'Escape') setNaming(null); }} />
+            <button type="button" className="shl-btn" onClick={(e) => saveFormat((e.currentTarget.parentElement!.querySelector('input') as HTMLInputElement).value)}>Save</button>
+            <button type="button" className="shl-btn" onClick={() => setNaming(null)}>Cancel</button>
+          </div>}
       <button type="button" className="shl-btn" onClick={() => onSheet(removeLink(sheet))}>Remove the link</button>
       <p className="shl-note">Linked cells are filled from the project. What you type in them is kept until you press Apply to project.</p>
     </aside>
